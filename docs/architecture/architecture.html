@@ -625,7 +625,7 @@ details.tech code { font-family: ui-monospace, "SF Mono", Consolas, monospace; f
       <summary>Góc kỹ thuật: luồng một phiên eKYC từ đầu đến cuối</summary>
       <div class="body">
         <ul>
-          <li>API phiên cấp mã phiên, seed thử thách và token dùng một lần; seed được giữ ở server.</li>
+          <li>API phiên cấp mã phiên, seed thử thách và token theo phiên (hết hạn sau khoảng 5 phút, mỗi bước chỉ nhận một lần, thử thách sống 120 giây — ADR-0011); seed được giữ ở server.</li>
           <li>Trình duyệt chạy MediaPipe để đo chất lượng, phát chuỗi màu, thăm dò camera; gửi vài ảnh mặt chất lượng cao do server chọn thời điểm, cùng video ngắn.</li>
           <li>Máy chủ chạy ChromaPulse/CamProbe (cổng), PAD + deepfake (bộ não), TrustRouter quyết định; vùng giữa → bước giọng nói.</li>
           <li>Ca chuyển nhân viên sinh hồ sơ bằng chứng; mọi bước ghi vào nhật ký chuỗi băm; file tạm tự xóa theo hạn.</li>

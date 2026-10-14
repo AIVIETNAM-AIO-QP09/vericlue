@@ -104,6 +104,8 @@ Claude Code có thể sinh **subagent** (một AI phụ chạy trong phiên). Nh
 | Subagent chỉ dùng để **đọc, tra cứu, chạy test, duyệt**, hoặc viết vào **file riêng** được giao. | Tránh hai bên ghi đè nhau |
 | **Hai subagent hoặc hai phiên không sửa cùng một file.** | Tránh xung đột và mất code |
 | **Mỗi AI một git worktree**, đặt ngang hàng với `Data4Life` (ví dụ `D:\Projects\vericlue-claude`), không lồng vào trong. | pytest, ruff, tìm kiếm không quét trùng; tránh `git add .` nhầm |
+| **Mở phiên AI ngay tại thư mục worktree của nó** (Codex/Claude Code mở thư mục `vericlue-…`, không mở `Data4Life` rồi bảo AI chuyển sang). `Data4Life` chỉ dành cho phiên điều phối. | Lệnh không ghi đường dẫn (`git switch`, `git commit`) không chạy nhầm vào thư mục chính; AI không bị chặn quyền khi sửa file; tìm kiếm không thấy nhầm code cũ |
+| **Dữ liệu và mô hình để một chỗ chung** ngoài các worktree (`DATA_DIR`, `MODELS_DIR`, ví dụ `D:\Projects\vericlue-store\`). | Không tải trùng hàng chục GB cho mỗi worktree |
 | **Duyệt chéo:** PR của Codex do Claude duyệt, PR của Claude do Codex duyệt. | AI thứ hai dễ thấy lỗi mà AI thứ nhất bỏ qua |
 
 Trong Claude Code có subagent `reviewer` (`.claude/agents/reviewer.md`): chỉ đọc và chạy test, trả về danh sách vấn đề. Phiên điều phối dùng nó để duyệt PR (xem `docs/ai/lead-playbook.md`).
