@@ -11,16 +11,16 @@
 | Proposal | ✅ Chốt bản 3 | `docs/proposal/proposal.md` |
 | Kiến trúc | ✅ Bản nháp | `docs/architecture/architecture.md`; API và DB chốt ở PLAT-04, PLAT-05 |
 | Kế hoạch | ✅ 56 task, đã kiểm tự động | `plan_check.py`: 0 lỗi, 0 cảnh báo; không ai vượt 70% sức chứa ở sprint nào |
-| Công cụ và quy trình | ✅ PLAT-01 xong | `setup.ps1` chạy được trên Windows; CI, pre-commit, test (12 qua) |
-| Web / API / ML | 🟡 Đang làm | PLAT-03 xong (API + mock). PLAT-02 (Next.js) chờ thử trên điện thoại thật. ROUT-01 đang làm |
+| Công cụ và quy trình | ✅ PLAT-01 xong | `setup.ps1` chạy được trên Windows; CI, pre-commit; test trên `main` `c067609`: 153 đạt, 2 bỏ qua. Phiên điều phối: `/lead`, `docs/ai/lead-playbook.md` |
+| Web / API / ML | 🟡 Đang làm | PLAT-03 xong (API + mock). ROUT-01 xong (PR #3). PLAT-02 xong (PR #4: Next.js 3 khu vực, đã thử trên điện thoại). PLAT-04 và EVAL-01 đang làm |
 | Dữ liệu | ⬜ Chưa tải | `docs/data/data-plan.md` |
 
 ## Đang làm
 
 | Mã | Người | Bắt đầu | Ghi chú |
 |---|---|---|---|
-| PLAT-02 | M1 · Claude (thư mục `vericlue-claude`) | 14/10 | `review` — chờ thử trên điện thoại thật cùng Wi-Fi |
-| ROUT-01 | M5 · Codex (thư mục `vericlue-codex`) | 14/10 | `doing` — hiệu chỉnh xác suất; tiếp theo EVAL-01 |
+| PLAT-04 | M5 (+M1) · Claude (thư mục `vericlue-claude`) | 15/10 | `doing` — chốt API v1 theo ADR-0011, sinh type cho web; nằm trên đường găng |
+| EVAL-01 | M5 · Codex (thư mục `vericlue-codex`) | 14/10 | `doing` — khung đánh giá chung; ECE/Brier dùng lại `vericlue_ml.common.calibration` |
 
 ## Bị chặn
 
@@ -50,6 +50,10 @@
 | 14/10 | Tách tập calib theo người thành `calib_fit` (hiệu chỉnh, hợp nhất, chọn mô hình) và `calib_ltt` (chỉ chọn ngưỡng); calibrator lưu trong `ml/configs/calibrators/` | ADR-0010 |
 | 14/10 | Token theo phiên (~5 phút), mỗi bước nhận một lần (409), thử thách sống 120 giây; nhịp nháy màu ≥ 550 ms/bước | ADR-0011 |
 | 14/10 | Chạy song song 2 AI bằng git worktree: Claude ở `D:\Projects\vericlue-claude` (PLAT-02 → PLAT-04), Codex ở `D:\Projects\vericlue-codex` (ROUT-01 → EVAL-01) | `docs/ai/working-with-ai.md` |
+| 14/10 | Gộp PR #2 (ADR-0010, ADR-0011) và PR #3 (ROUT-01: hiệu chỉnh xác suất, GroupKFold theo người, thiếu calibrator thì báo lỗi) | PR #2, #3 |
+| 14/10 | Gộp PR #4 (PLAT-02). `npm audit`: 5 lỗi mức cao chỉ nằm trong công cụ lint (`eslint-config-next`); bản chạy thật báo 0. Không chạy `audit fix --force` | PR #4 |
+| 14/10 | EVAL-01: BPCER@APCER 5% chính lấy ngưỡng từ `calib_fit` rồi khóa, kèm dòng "mô tả" theo đường cong; cột `status` bắt buộc, không âm thầm bỏ mẫu lỗi | Bàn giao LEAD, bàn giao EVAL-01 |
+| 14/10 | Phiên điều phối riêng (`/lead`); luật subagent: mỗi task một phiên chính, chỉ phiên chính commit, không hai bên sửa cùng file, duyệt chéo Claude ↔ Codex | `docs/ai/lead-playbook.md`, `docs/ai/working-with-ai.md` |
 | 14/10 | Bàn giao mỗi lần một file (`docs/status/handoffs/`) để tránh xung đột git | `docs/status/handoffs/README.md` |
 
 ## Kết quả đã có
