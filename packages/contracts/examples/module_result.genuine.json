@@ -1,0 +1,9 @@
+{
+  "module": "face_pad",
+  "model_version": "mock@0.1",
+  "status": "ok",
+  "score": -2.1,
+  "prob_attack": 0.04,
+  "gate": null,
+  "latency_ms": 95.3
+}

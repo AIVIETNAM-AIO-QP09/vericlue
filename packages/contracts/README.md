@@ -5,8 +5,10 @@
 | File | Dùng cho |
 |---|---|
 | `schemas/module_result.schema.json` | Kết quả của MỌI bộ phát hiện |
-| `schemas/session.schema.json` | API phiên eKYC: tạo phiên, tín hiệu, kết quả |
-| `examples/` | Ví dụ JSON hợp lệ (dùng làm dữ liệu test và mock) — thêm ở task PLAT-04 |
+| `schemas/session.schema.json` | API phiên eKYC: tạo phiên, tín hiệu, kết quả (API v1, chốt ở PLAT-04) |
+| `schemas/review.schema.json` | Bàn duyệt. **Draft v1**: chỉ thêm trường tùy chọn. `ReviewCase` không có điểm AI; `ReviewAiOpinion` tách riêng |
+| `schemas/forensic.schema.json` | Cổng giám định. **Draft v1**: chỉ thêm trường tùy chọn |
+| `examples/` | Ví dụ JSON hợp lệ, tên `<schema>.<Def>[.<biến thể>].json` (`Def` là khóa trong `$defs`); test: `services/api/tests/test_contract_examples.py` |
 
 ## Quy tắc
 
@@ -14,3 +16,10 @@
 2. Chỉ **thêm** trường tùy chọn thì không phá tương thích. **Đổi tên / xóa / đổi kiểu** thì phải tăng phiên bản API (`/v2`) hoặc báo cả nhóm.
 3. Phía Python sinh model Pydantic từ schema; phía TypeScript sinh type từ OpenAPI của FastAPI (task PLAT-04).
 4. Không ai tự thêm trường "tạm" ngoài schema.
+
+## Token, lượt và thử thách (ADR-0011)
+
+- Token **theo phiên**, gửi `Authorization: Bearer` ở mọi lần gọi của phiên. Sai/hết hạn → 401.
+- **Lượt = một challenge.** Mỗi bước (media, signals, finalize, voice) chỉ nhận một lần trong một lượt, gọi lại → 409. `finalize` trả `retry` hoặc `voice_challenge` thì mở lượt mới; đọc lại câu tối đa 1 lần.
+- Challenge sống 120 giây (`challenge.expires_at`), tách khỏi hạn của token (`expires_at` ở gốc phản hồi). Khi `finalize` trả `retry`, phản hồi kèm `challenge` mới.
+- PLAT-04 chỉ khai báo hợp đồng; PLAT-06 cài đặt HMAC, TTL, 409 và máy trạng thái.

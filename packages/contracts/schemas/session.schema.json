@@ -2,34 +2,40 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://vericlue.local/contracts/session.schema.json",
   "title": "Session API",
-  "description": "Hợp đồng giữa web xác minh và API phiên. Bản nháp — chốt ở task PLAT-04.",
+  "description": "Hợp đồng giữa web xác minh và API phiên (API v1, chốt ở PLAT-04). Người dân KHÔNG BAO GIỜ nhận điểm số hay chữ 'giả mạo' trong bất kỳ phản hồi nào ở file này.\n\nToken: token THEO PHIÊN (HMAC, gắn session_id, hết hạn ~5 phút), gửi trong header 'Authorization: Bearer' ở mọi lần gọi của phiên; không phải token dùng một lần (ADR-0011). Chống phát lại: trong mỗi LƯỢT, mỗi bước (media, signals, finalize, voice) chỉ được nhận một lần; gọi lại → 409; token sai/hết hạn → 401. 'Lượt' = một challenge: finalize trả 'retry' hoặc 'voice_challenge' thì mở lượt mới; đọc lại câu tối đa 1 lần. Mỗi challenge sống 120 giây kể từ lúc cấp. PLAT-04 chỉ khai báo hợp đồng; PLAT-06 cài đặt HMAC, TTL, 409 và máy trạng thái.",
   "$defs": {
     "ColorStep": {
       "type": "object",
       "required": ["rgb", "hold_ms", "transition_ms"],
+      "additionalProperties": false,
       "properties": {
         "rgb": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
-        "hold_ms": { "type": "integer", "minimum": 300, "maximum": 1000 },
-        "transition_ms": { "type": "integer", "minimum": 0, "maximum": 300 }
+        "hold_ms": { "type": "integer", "minimum": 400, "maximum": 650, "description": "Mỗi bước dài >= 550 ms (hold + transition), tức <= 1,8 lần đổi màu/giây (ADR-0011)" },
+        "transition_ms": { "type": "integer", "const": 150 }
+      }
+    },
+    "Challenge": {
+      "type": "object",
+      "description": "Thử thách màu cho một lượt. Bảng màu KHÔNG cố định trong schema (có thể đổi sau PRES-01); bộ sinh chuỗi có test riêng.",
+      "required": ["challenge_id", "color_sequence"],
+      "additionalProperties": false,
+      "properties": {
+        "challenge_id": { "type": "string" },
+        "baseline_ms": { "type": "integer", "default": 1000 },
+        "color_sequence": { "type": "array", "items": { "$ref": "#/$defs/ColorStep" }, "minItems": 8, "maxItems": 8 },
+        "capture_at_ms": { "type": "array", "items": { "type": "integer" }, "description": "Thời điểm server chọn để chụp ảnh chất lượng cao" },
+        "expires_at": { "type": "string", "format": "date-time", "description": "Hạn của thử thách này (120 giây kể từ lúc cấp); tách khỏi hạn của token" }
       }
     },
     "CreateSessionResponse": {
       "type": "object",
       "required": ["session_id", "token", "expires_at", "challenge"],
+      "additionalProperties": false,
       "properties": {
         "session_id": { "type": "string" },
-        "token": { "type": "string", "description": "Token dùng một lần, gắn vào mọi lần tải lên" },
-        "expires_at": { "type": "string", "format": "date-time" },
-        "challenge": {
-          "type": "object",
-          "required": ["challenge_id", "color_sequence"],
-          "properties": {
-            "challenge_id": { "type": "string" },
-            "baseline_ms": { "type": "integer", "default": 1000 },
-            "color_sequence": { "type": "array", "items": { "$ref": "#/$defs/ColorStep" }, "minItems": 8, "maxItems": 8 },
-            "capture_at_ms": { "type": "array", "items": { "type": "integer" }, "description": "Thời điểm server chọn để chụp ảnh chất lượng cao" }
-          }
-        }
+        "token": { "type": "string", "description": "Token theo phiên (HMAC, gắn session_id), gửi qua 'Authorization: Bearer' ở mọi lần gọi của phiên. TẠM ở PLAT-04: chuỗi đơn giản; PLAT-06 thay bằng HMAC + TTL." },
+        "expires_at": { "type": "string", "format": "date-time", "description": "Hạn của TOKEN (~5 phút). Hạn của thử thách nằm ở challenge.expires_at." },
+        "challenge": { "$ref": "#/$defs/Challenge" }
       }
     },
     "Signals": {
@@ -79,19 +85,51 @@
         "client_quality": { "type": "object" }
       }
     },
+    "StepAck": {
+      "type": "object",
+      "description": "Phản hồi cho bước tải lên (media, signals): chỉ xác nhận đã nhận, không có kết quả phân tích.",
+      "required": ["step", "received"],
+      "additionalProperties": false,
+      "properties": {
+        "step": { "type": "string", "enum": ["media", "signals"] },
+        "received": { "type": "boolean" }
+      }
+    },
+    "RetryHint": {
+      "type": ["string", "null"],
+      "enum": [null, "MORE_LIGHT", "MOVE_CLOSER", "MOVE_BACK", "FACE_CENTER", "HOLD_STILL", "QUIET_PLACE", "BRIGHTNESS_UP"],
+      "description": "Chỉ nói về CHẤT LƯỢNG, không bao giờ nói về giả mạo"
+    },
     "FinalizeResponse": {
       "type": "object",
       "required": ["status"],
       "additionalProperties": false,
       "properties": {
         "status": { "type": "string", "enum": ["pass", "retry", "review", "voice_challenge"] },
-        "retry_hint": {
-          "type": ["string", "null"],
-          "enum": [null, "MORE_LIGHT", "MOVE_CLOSER", "MOVE_BACK", "FACE_CENTER", "HOLD_STILL", "QUIET_PLACE", "BRIGHTNESS_UP"],
-          "description": "Chỉ nói về CHẤT LƯỢNG, không bao giờ nói về giả mạo"
-        },
+        "retry_hint": { "$ref": "#/$defs/RetryHint" },
         "voice_prompt": { "type": ["string", "null"], "description": "Câu tiếng Việt cần đọc" },
+        "attempts_left": { "type": "integer" },
+        "challenge": { "$ref": "#/$defs/Challenge", "description": "Chỉ có khi status = retry: thử thách mới cho lượt chụp lại" }
+      }
+    },
+    "VoiceResponse": {
+      "type": "object",
+      "required": ["status"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "type": "string", "enum": ["pass", "review", "voice_challenge"], "description": "voice_challenge = đọc sai câu, được đọc lại tối đa 1 lần với câu mới" },
+        "voice_prompt": { "type": ["string", "null"], "description": "Câu mới, chỉ có khi status = voice_challenge" },
         "attempts_left": { "type": "integer" }
+      }
+    },
+    "ErrorResponse": {
+      "type": "object",
+      "description": "Định dạng lỗi chung: 401 (thiếu Bearer, token sai hoặc hết hạn), 409 (bước đã nhận trong lượt này), 422 (dữ liệu sai). Mã cho thử thách hết hạn do PLAT-06 chốt.",
+      "required": ["error_code", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "error_code": { "type": "string" },
+        "message": { "type": "string" }
       }
     }
   }

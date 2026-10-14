@@ -1,0 +1,9 @@
+{
+  "module": "voice_spoof",
+  "model_version": "mock@0.1",
+  "status": "error",
+  "error_code": "E_INTERNAL",
+  "score": null,
+  "prob_attack": null,
+  "latency_ms": 5.0
+}
