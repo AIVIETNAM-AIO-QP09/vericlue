@@ -12,6 +12,7 @@ import {
   openFrontCamera,
   readCameraSettings,
 } from "@/lib/capture/chromapulse/device";
+import { chromaPulseConfig } from "@/lib/capture/chromapulse/config";
 import { createLandmarker, type LandmarkerHandle } from "@/lib/capture/chromapulse/landmarker";
 import {
   SCENARIOS,
@@ -21,7 +22,11 @@ import {
   recordProblems,
   serializeRecord,
 } from "@/lib/capture/chromapulse/record";
-import { createFrameSampler, type FrameSampler } from "@/lib/capture/chromapulse/sampler";
+import {
+  createFrameSampler,
+  type FrameSample,
+  type FrameSampler,
+} from "@/lib/capture/chromapulse/sampler";
 import { generateSequence } from "@/lib/capture/chromapulse/sequence";
 import { runTrial, supportsFrameCallback } from "@/lib/capture/chromapulse/trial";
 import { vi } from "@/i18n/vi";
@@ -62,6 +67,7 @@ export function ChromaPulseLab() {
   const [error, setError] = useState<string | null>(null);
   const [faceFound, setFaceFound] = useState(false);
   const [delegate, setDelegate] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [captureTimeSeen, setCaptureTimeSeen] = useState<boolean | null>(null);
   const [showRegions, setShowRegions] = useState(true);
   const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
@@ -98,7 +104,18 @@ export function ChromaPulseLab() {
     let lastFace = false;
     const loop = (_now: number, metadata: VideoFrameCallbackMetadata) => {
       if (!previewOn.current) return;
-      const sample = sampler.sample(video);
+      let sample: ReturnType<FrameSampler["sample"]>;
+      try {
+        sample = sampler.sample(video);
+      } catch (e) {
+        previewOn.current = false; // dừng vòng xem trước và báo lỗi ra màn hình
+        setPreviewError(e instanceof Error ? e.message : String(e));
+        return;
+      }
+      if (!sample) {
+        video.requestVideoFrameCallback(loop); // video chưa có khung
+        return;
+      }
       if (sample.faceFound !== lastFace) {
         lastFace = sample.faceFound;
         setFaceFound(sample.faceFound);
@@ -224,6 +241,7 @@ export function ChromaPulseLab() {
   const again = useCallback(
     (nextTake: boolean) => {
       if (nextTake) setTake((n) => n + 1);
+      setPreviewError(null);
       setResult(null);
       setStage("ready");
       startPreview();
@@ -231,7 +249,8 @@ export function ChromaPulseLab() {
     [startPreview],
   );
 
-  const showVideo = stage === "ready" || stage === "countdown";
+  // Video KHÔNG được ẩn (display:none) khi đang chạy: iOS Safari có thể ngừng cấp khung. Lớp màu phủ che nó.
+  const showVideo = stage === "ready" || stage === "countdown" || stage === "running";
   const canStart = accepted && deviceLabel.trim().length > 0;
 
   return (
@@ -289,6 +308,9 @@ export function ChromaPulseLab() {
             {faceFound ? t.faceFound : t.faceNotFound} · {t.delegate}: {delegate} · {t.captureTime}:{" "}
             {captureTimeSeen === null ? "…" : captureTimeSeen ? t.captureTimeYes : t.captureTimeNo}
           </p>
+          {previewError ? (
+            <p className="text-red-600">{`${t.previewError}: ${previewError}`}</p>
+          ) : null}
           <p>{t.brightnessHint}</p>
           <label className="flex flex-col gap-1">
             {t.scenarioLabel}
@@ -348,7 +370,7 @@ export function ChromaPulseLab() {
         className={
           stage === "running" ? "fixed inset-0 z-50 flex items-end justify-center" : "hidden"
         }
-        style={{ backgroundColor: "#d1d1d1" }}
+        style={{ backgroundColor: chromaPulseConfig.baselineColor }}
       >
         <div className="mb-6 flex w-full max-w-sm flex-col gap-2 px-4">
           <div className="h-1 w-full bg-black/20">
@@ -417,11 +439,7 @@ export function ChromaPulseLab() {
   );
 }
 
-function drawOverlay(
-  canvas: HTMLCanvasElement | null,
-  sample: ReturnType<FrameSampler["sample"]>,
-  enabled: boolean,
-) {
+function drawOverlay(canvas: HTMLCanvasElement | null, sample: FrameSample, enabled: boolean) {
   if (!canvas) return;
   const ctx = canvas.getContext("2d");
   if (!ctx) return;

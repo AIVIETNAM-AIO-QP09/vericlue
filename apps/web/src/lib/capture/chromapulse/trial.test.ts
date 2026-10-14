@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { chromaPulseConfig } from "./config";
-import { MAX_RAF_GAP_MS, type LabRecord, recordProblems } from "./record";
+import { MAX_RAF_GAP_MS, MIN_FRAMES, type LabRecord, recordProblems } from "./record";
 import type { FrameSampler } from "./sampler";
 import { generateSequence } from "./sequence";
 import { buildTimeline } from "./sequence";
@@ -198,6 +198,41 @@ describe("runTrial", () => {
   });
 });
 
+describe("runTrial: mốc rAF kế tiếp và khung chưa sẵn sàng", () => {
+  beforeEach(() => vi.unstubAllGlobals());
+  afterEach(() => vi.unstubAllGlobals());
+
+  const steps = generateSequence(() => 0.5);
+  const total = buildTimeline(steps).totalMs;
+
+  it("mỗi sự kiện màu có painted_next_raf là mốc rAF kế tiếp, lớn hơn painted_at", async () => {
+    const env = makeEnv();
+    const promise = runTrial({ video: env.video, sampler: env.sampler, steps, onColor: () => {} });
+    for (let t = 1000; t <= 1000 + total + 100; t += 16) env.raf(t);
+    const result = await promise;
+
+    for (const event of result.colorEvents) {
+      expect(event.painted_next_raf).not.toBeNull();
+      expect(event.painted_next_raf as number).toBeGreaterThan(event.painted_at);
+      expect((event.painted_next_raf as number) - event.painted_at).toBeLessThanOrEqual(16);
+    }
+  });
+
+  it("video chưa có khung (sampler trả null) thì bỏ qua, không ghi và không đếm lỗi", async () => {
+    const env = makeEnv();
+    const notReady: FrameSampler = { sample: () => null };
+    const promise = runTrial({ video: env.video, sampler: notReady, steps, onColor: () => {} });
+    env.raf(1000);
+    env.frame(1010);
+    env.frame(1043);
+    env.raf(1000 + total + 50);
+    const result = await promise;
+
+    expect(result.frames).toHaveLength(0);
+    expect(result.sampleErrors).toBe(0);
+  });
+});
+
 describe("recordProblems cho chất lượng lần thử", () => {
   function baseRecord(): LabRecord {
     const frames = Array.from({ length: 20 }, (_, i) => ({
@@ -238,11 +273,12 @@ describe("recordProblems cho chất lượng lần thử", () => {
         index: i,
         rgb: "#ffcc73",
         painted_at: 1000 + i * 600,
+        painted_next_raf: 1000 + i * 600 + 16,
       })),
       display_samples: [],
       frame_times: frames,
       region_defs: {} as LabRecord["region_defs"],
-      quality: { max_raf_gap_ms: 17, hidden_during_trial: false, sample_errors: 0 },
+      quality: { max_raf_gap_ms: 17, hidden_during_trial: false, aborted: false, sample_errors: 0 },
     };
   }
 
@@ -258,7 +294,12 @@ describe("recordProblems cho chất lượng lần thử", () => {
 
   it("tab ẩn, giật rAF và lỗi lấy mẫu đều được báo", () => {
     const record = baseRecord();
-    record.quality = { max_raf_gap_ms: 900, hidden_during_trial: true, sample_errors: 3 };
+    record.quality = {
+      max_raf_gap_ms: 900,
+      hidden_during_trial: true,
+      aborted: true,
+      sample_errors: 3,
+    };
     const text = recordProblems(record).join(" | ");
     expect(text).toContain("Tab bị ẩn");
     expect(text).toContain("giật");
@@ -269,5 +310,66 @@ describe("recordProblems cho chất lượng lần thử", () => {
     const record = baseRecord();
     delete record.quality;
     expect(recordProblems(record)).toEqual([]);
+  });
+});
+
+describe("recordProblems: khung hình và Dừng", () => {
+  const frame = (i: number): LabRecord["frame_times"][number] => ({
+    index: i,
+    now: i * 33,
+    media_time: i / 30,
+    presented_frames: i,
+    capture_time: i * 33,
+    expected_display_time: null,
+    receive_time: null,
+    processing_duration: null,
+    width: 640,
+    height: 480,
+    face_found: true,
+    regions: {},
+  });
+  const record = (frames: number, aborted: boolean): LabRecord => ({
+    schema_version: 1,
+    kind: "chromapulse_lab",
+    created_at: "2026-10-15T00:00:00.000Z",
+    scenario: "real",
+    take: 1,
+    note: "",
+    privacy: "x",
+    device: {} as LabRecord["device"],
+    support: {
+      request_video_frame_callback: true,
+      has_capture_time: true,
+      frame_metadata_keys: [],
+      landmarker_delegate: "CPU",
+      clock: "performance.now",
+    },
+    camera: { settings: {}, applied_constraints_error: null },
+    config: {} as LabRecord["config"],
+    sequence: [],
+    timeline: { total_ms: 0, tail_start_ms: 0, start_performance_now: 0 },
+    color_events: Array.from({ length: chromaPulseConfig.steps }, (_, i) => ({
+      index: i,
+      rgb: "#000000",
+      painted_at: 1000 + i * 600,
+      painted_next_raf: 1000 + i * 600 + 16,
+    })),
+    display_samples: [],
+    frame_times: Array.from({ length: frames }, (_, i) => frame(i)),
+    region_defs: {} as LabRecord["region_defs"],
+    quality: { max_raf_gap_ms: 17, hidden_during_trial: false, aborted, sample_errors: 0 },
+  });
+
+  it("không có khung nào: báo camera không cấp khung", () => {
+    expect(recordProblems(record(0, false)).join(" ")).toContain("camera không cấp khung");
+  });
+
+  it("quá ít khung (dưới ngưỡng) bị báo, đủ ngưỡng thì không", () => {
+    expect(recordProblems(record(MIN_FRAMES - 1, false)).join(" ")).toContain("Quá ít khung hình");
+    expect(recordProblems(record(MIN_FRAMES, false))).toEqual([]);
+  });
+
+  it("bấm Dừng giữa chừng bị báo", () => {
+    expect(recordProblems(record(MIN_FRAMES, true)).join(" ")).toContain("bị dừng giữa chừng");
   });
 });

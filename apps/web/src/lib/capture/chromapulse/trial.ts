@@ -52,6 +52,7 @@ export function runTrial(options: TrialOptions): Promise<TrialResult> {
   let lastTick: number | null = null;
   let maxRafGapMs = 0;
   let nextEvent = 0;
+  const pendingEvents: ColorEvent[] = [];
   let finished = false;
   let hidden = false;
   let sampleErrors = 0;
@@ -97,6 +98,10 @@ export function runTrial(options: TrialOptions): Promise<TrialResult> {
       if (startNow !== null) {
         try {
           const sample = sampler.sample(video);
+          if (!sample) {
+            video.requestVideoFrameCallback(onFrame);
+            return;
+          }
           onSample?.(sample);
           for (const key of frameMetadataKeys(metadata)) metadataKeys.add(key);
           // Các trường có thể không có trên mọi trình duyệt.
@@ -129,6 +134,8 @@ export function runTrial(options: TrialOptions): Promise<TrialResult> {
       if (finished) return;
       if (lastTick !== null) maxRafGapMs = Math.max(maxRafGapMs, t - lastTick);
       lastTick = t;
+      for (const e of pendingEvents) e.painted_next_raf = t;
+      pendingEvents.length = 0;
       if (startNow === null) startNow = t;
       const elapsed = t - startNow;
       const { rgb, done } = colorAt(timeline, elapsed);
@@ -140,7 +147,14 @@ export function runTrial(options: TrialOptions): Promise<TrialResult> {
         elapsed >= timeline.segments[nextEvent].startMs
       ) {
         const seg = timeline.segments[nextEvent];
-        colorEvents.push({ index: seg.index, rgb: seg.rgb, painted_at: t });
+        const event: ColorEvent = {
+          index: seg.index,
+          rgb: seg.rgb,
+          painted_at: t,
+          painted_next_raf: null,
+        };
+        colorEvents.push(event);
+        pendingEvents.push(event);
         nextEvent += 1;
       }
       onProgress?.(Math.min(elapsed, timeline.totalMs), timeline.totalMs);

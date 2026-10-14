@@ -21,7 +21,10 @@ export function collectDeviceInfo(label: string, track: MediaStreamTrack | null)
 /** Ghi lại cài đặt camera thực tế (tự động phơi sáng, cân bằng trắng... ảnh hưởng phép đo). */
 export function readCameraSettings(track: MediaStreamTrack | null): Record<string, unknown> {
   if (!track) return {};
-  const settings = track.getSettings() as Record<string, unknown>;
+  // Bỏ deviceId và groupId: định danh phần cứng ổn định, không cần cho phân tích.
+  const settings = { ...track.getSettings() } as Record<string, unknown>;
+  delete settings.deviceId;
+  delete settings.groupId;
   const capabilities =
     typeof track.getCapabilities === "function"
       ? (track.getCapabilities() as Record<string, unknown>)

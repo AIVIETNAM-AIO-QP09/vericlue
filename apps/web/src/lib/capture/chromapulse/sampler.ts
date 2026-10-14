@@ -27,7 +27,8 @@ export type FrameSample = {
 };
 
 export type FrameSampler = {
-  sample: (video: HTMLVideoElement) => FrameSample;
+  /** null khi video chưa có khung (videoWidth = 0): bỏ qua, không tạo NaN. */
+  sample: (video: HTMLVideoElement) => FrameSample | null;
 };
 
 export function createFrameSampler(landmarker: FaceLandmarker): FrameSampler {
@@ -38,6 +39,7 @@ export function createFrameSampler(landmarker: FaceLandmarker): FrameSampler {
 
   return {
     sample(video) {
+      if (!video.videoWidth || !video.videoHeight) return null;
       const scale = SAMPLE_WIDTH / video.videoWidth;
       const width = SAMPLE_WIDTH;
       const height = Math.max(1, Math.round(video.videoHeight * scale));

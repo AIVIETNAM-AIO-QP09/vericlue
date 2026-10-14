@@ -32,7 +32,6 @@ MODEL_URL = (
 )
 MODEL_NAME = "face_landmarker.task"
 MODEL_SHA256 = "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff"
-MODEL_BYTES = 3_758_596
 WASM_FILES = (
     "vision_wasm_internal.js",
     "vision_wasm_internal.wasm",

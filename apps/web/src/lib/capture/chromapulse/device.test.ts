@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { detectBrowser } from "./device";
+import { detectBrowser, readCameraSettings } from "./device";
 import { buildFileName } from "./record";
 
 const UA = {
@@ -33,5 +33,31 @@ describe("buildFileName với lần thử không hợp lệ", () => {
     const base = { device: "Redmi", browser: "chrome", scenario: "real" as const };
     expect(buildFileName({ ...base, take: Number.NaN })).toBe("redmi_chrome_real_01.json");
     expect(buildFileName({ ...base, take: -3 })).toBe("redmi_chrome_real_01.json");
+  });
+});
+
+describe("readCameraSettings", () => {
+  const fakeTrack = {
+    getSettings: () => ({
+      width: 1280,
+      height: 720,
+      deviceId: "abc123",
+      groupId: "grp9",
+      exposureMode: "continuous",
+    }),
+    getCapabilities: () => ({ exposureMode: ["manual", "continuous"], zoom: { max: 4 } }),
+  } as unknown as MediaStreamTrack;
+
+  it("bỏ deviceId và groupId nhưng giữ cài đặt khác và các chế độ phơi sáng", () => {
+    const out = readCameraSettings(fakeTrack);
+    expect(out).not.toHaveProperty("deviceId");
+    expect(out).not.toHaveProperty("groupId");
+    expect(out).toMatchObject({ width: 1280, height: 720, exposureMode: "continuous" });
+    expect(out.capability_modes).toEqual({ exposureMode: ["manual", "continuous"] });
+    expect(JSON.stringify(out)).not.toContain("abc123");
+  });
+
+  it("không có track thì trả về đối tượng rỗng", () => {
+    expect(readCameraSettings(null)).toEqual({});
   });
 });

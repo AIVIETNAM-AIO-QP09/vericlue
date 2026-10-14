@@ -71,6 +71,7 @@ export const vi = {
       nextTake: "Lần kế tiếp",
       fileName: "Tên file",
       aborted: "Đã dừng giữa chừng, nên thử lại.",
+      previewError: "Lỗi khi nhận diện khuôn mặt",
     },
   },
 } as const;

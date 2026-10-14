@@ -76,6 +76,7 @@ function makeRecord(over: Partial<LabRecord> = {}): LabRecord {
       index: s.index,
       rgb: s.rgb,
       painted_at: 1000 + s.index * 400,
+      painted_next_raf: 1000 + s.index * 400 + 16,
     })),
     display_samples: [[1000, 1, 2, 3]],
     frame_times: Array.from({ length: 10 }, (_, i) => frame(i)),
@@ -205,7 +206,9 @@ describe("recordProblems", () => {
   });
 
   it("không có khung hình", () => {
-    expect(recordProblems(makeRecord({ frame_times: [] }))).toEqual(["Không có khung hình nào"]);
+    expect(recordProblems(makeRecord({ frame_times: [] }))).toEqual([
+      "Không có khung hình nào (camera không cấp khung)",
+    ]);
   });
 
   it("thấy mặt dưới 80% khung", () => {

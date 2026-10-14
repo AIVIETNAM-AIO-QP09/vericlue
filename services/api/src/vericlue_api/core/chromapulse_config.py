@@ -36,7 +36,14 @@ def config_path() -> Path:
 
 @lru_cache
 def load_chromapulse_config() -> ChromaPulseConfig:
-    raw = json.loads(config_path().read_text(encoding="utf-8"))
+    path = config_path()
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"Không tìm thấy file cấu hình ChromaPulse. Đã thử: {path}. "
+            "Đặt biến môi trường CHROMAPULSE_CONFIG trỏ tới packages/contracts/chromapulse.json "
+            "(ví dụ trong ảnh Docker, nơi cấu trúc thư mục khác repo)."
+        )
+    raw = json.loads(path.read_text(encoding="utf-8"))
     limits = raw["limits"]
     return ChromaPulseConfig(
         palette=tuple(raw["palette"]),

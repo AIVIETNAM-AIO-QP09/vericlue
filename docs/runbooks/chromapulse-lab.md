@@ -15,7 +15,7 @@ Hướng dẫn từng bước cho **người không chuyên**. Làm xong, bạn 
 
 ## 2. Chuẩn bị một lần (trên máy tính chạy trang)
 
-Mở PowerShell trong thư mục repo, ví dụ `D:\Projects\vericlue-claude`:
+Mở PowerShell trong **thư mục gốc của repo** (thư mục có file `AGENTS.md`):
 
 ```powershell
 cd apps\web
@@ -111,7 +111,7 @@ Cách làm từng tình huống:
 
 ## 6. Nộp file
 
-1. Gom các file JSON vào thư mục **`D:\Projects\vericlue-store\data\chromapulse\`** (tạo nếu chưa có).
+1. Gom các file JSON và nộp vào **thư mục chung của nhóm** (trưởng nhóm sẽ cho link). Trên máy của trưởng nhóm thư mục đó là `D:\Projects\vericlue-store\data\chromapulse\`.
 2. **KHÔNG commit** các file này vào repo (kể cả khi chỉ có số màu; `AGENTS.md` §6 luật 5).
 3. Báo M3 trong kênh nhóm: đã thu bao nhiêu file, và **trình duyệt nào có `captureTime`** (trang hiện dòng `captureTime: có/không` ở bước 5, ghi lại cho từng máy: Android/Chrome, iPhone/Safari, laptop/Chrome).
 4. Xóa file sau demo.
@@ -138,10 +138,12 @@ Tên trường `color_events` và `frame_times` bám hợp đồng `Signals` (`p
 | `scenario`, `take`, `note`, `device`, `camera.settings` | Tình huống, lần thử, ghi chú, thông tin máy; cài đặt camera thực tế (phơi sáng/cân bằng trắng tự động ảnh hưởng phép đo) |
 | `support.has_capture_time`, `support.frame_metadata_keys` | Trình duyệt này có `captureTime` không; các khóa metadata mà `requestVideoFrameCallback` trả về |
 | `config`, `sequence`, `timeline` | Bảng màu, nhịp (lấy từ `packages/contracts/chromapulse.json`), chuỗi 8 màu đã phát, mốc thời gian |
-| `color_events[{index, rgb, painted_at}]` | `painted_at` = khung `rAF` đầu tiên vẽ bước này (bắt đầu chuyển sang màu mới, chuyển 150 ms) |
+| `color_events[{index, rgb, painted_at, painted_next_raf}]` | `painted_at` = mốc `rAF` của khung mà trang **đặt** màu mới (đầu callback; bắt đầu chuyển sang màu mới, chuyển 150 ms). `painted_next_raf` = mốc `rAF` **kế tiếp** (`null` nếu lần thử kết thúc trước). Màu thực sự lên màn hình nằm trong khoảng `[painted_at, painted_next_raf]` cộng độ trễ của màn hình (khoảng 1–2 khung). Định nghĩa đầy đủ các mốc nằm trong trường `timing_defs` của file |
 | `display_samples[[t, r, g, b]]` | Màu **thực sự vẽ** ở mỗi khung `rAF` (đã nội suy), dùng dựng tín hiệu `x(t)` |
 | `frame_times[]` | Mỗi khung video: `now`, `media_time`, `presented_frames`, `capture_time` (hoặc `null`), `face_found`, `regions` |
 | `frame_times[].regions.<vùng>` | `rgb_all` (trung vị mọi điểm ảnh), `rgb_trim` (bỏ điểm ảnh luma ≤ 55 hoặc ≥ 200, đồng bộ PRES-02), `excluded_fraction`, `pixels` |
+| `quality` | `max_raf_gap_ms` (khoảng cách lớn nhất giữa hai lần vẽ; trên 250 ms nghĩa là trình duyệt bị giật), `hidden_during_trial` (tab ẩn hoặc khóa màn hình), `aborted` (bấm Dừng hoặc bị hủy), `sample_errors`. Trang tự báo mục **Cần lưu ý** khi có vấn đề; nên bỏ file đó và thử lại |
+| `camera.settings` | Không có `deviceId` và `groupId` (đã bỏ để file không chứa định danh phần cứng) |
 | `region_defs` | Định nghĩa vùng: chỉ số landmark MediaPipe của 5 vùng da (trán, má trái, má phải, mũi, cằm; trái/phải theo khung hình) và quy tắc **vùng nền** (hai ô vuông ở **hai góc trên** của khung hình, cạnh = 12% chiều rộng, bỏ ô nào chạm hộp khuôn mặt cộng lề 10%) |
 
 Khung bị lỡ (máy chậm) thấy qua khoảng nhảy của `presented_frames`. Khi không có `capture_time`, dùng `now`, `media_time` và nêu rõ đây là giới hạn (thẻ PRES-01).

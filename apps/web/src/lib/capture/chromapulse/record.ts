@@ -30,7 +30,14 @@ export type FrameRecord = {
   regions: Partial<Record<RegionName, RegionStat>> | null;
 };
 
-export type ColorEvent = { index: number; rgb: string; painted_at: number };
+export type ColorEvent = {
+  index: number;
+  rgb: string;
+  /** Mốc rAF của khung mà ta đặt màu mới (đầu callback, chưa chắc đã lên màn hình). */
+  painted_at: number;
+  /** Mốc rAF kế tiếp sau khi tô: cận trên của lúc màu thực sự hiện (null nếu lần thử kết thúc trước). */
+  painted_next_raf: number | null;
+};
 /** Màu thực sự vẽ ở mỗi khung rAF: [t (performance.now), r, g, b]. */
 export type DisplaySample = [number, number, number, number];
 
@@ -76,12 +83,34 @@ export type LabRecord = {
   display_samples: DisplaySample[];
   frame_times: FrameRecord[];
   region_defs: typeof REGION_DEFS;
-  /** Chất lượng lần thử: giật, tab ẩn, lỗi lấy mẫu. */
-  quality?: { max_raf_gap_ms: number; hidden_during_trial: boolean; sample_errors: number };
+  timing_defs?: typeof TIMING_DEFS;
+  /** Chất lượng lần thử: giật, tab ẩn, bấm Dừng, lỗi lấy mẫu. */
+  quality?: {
+    max_raf_gap_ms: number;
+    hidden_during_trial: boolean;
+    aborted: boolean;
+    sample_errors: number;
+  };
 };
+
+/** Định nghĩa các mốc thời gian trong file (cho PRES-01). Mọi mốc cùng đồng hồ performance.now(), đơn vị ms. */
+export const TIMING_DEFS = {
+  painted_at:
+    "Mốc rAF của khung mà trang đặt màu mới (đầu callback requestAnimationFrame). Màu thực sự lên màn hình muộn hơn khoảng 1–2 khung.",
+  painted_next_raf:
+    "Mốc rAF kế tiếp ngay sau painted_at: cận trên của lúc màu bắt đầu hiện. Thời điểm hiện thực nằm trong [painted_at, painted_next_raf] cộng độ trễ của màn hình.",
+  display_samples: "[t, r, g, b] màu đã vẽ ở mỗi khung rAF (đã nội suy 150 ms), t = mốc rAF",
+  frame_now:
+    "frame_times[].now: tham số `now` của requestVideoFrameCallback (khi khung được trình ra)",
+  capture_time:
+    "frame_times[].capture_time: thời điểm camera chụp khung (nếu trình duyệt có; null nếu không)",
+  clock: "performance.now(), ms kể từ lúc mở trang; không dùng Date.now",
+} as const;
 
 /** Khoảng cách rAF vượt ngưỡng này (ms) nghĩa là trình duyệt bị đóng băng: dữ liệu không dùng được. */
 export const MAX_RAF_GAP_MS = 250;
+/** Ít hơn số khung này nghĩa là camera không cấp khung (ví dụ video bị ẩn trên iOS): dữ liệu không dùng được. */
+export const MIN_FRAMES = 10;
 
 export function sequenceToRecord(steps: readonly SequenceStep[]): LabRecord["sequence"] {
   return steps.map((s) => ({
@@ -155,7 +184,11 @@ export function recordProblems(record: LabRecord): string[] {
   if (record.color_events.length !== chromaPulseConfig.steps) {
     problems.push(`Chỉ ghi được ${record.color_events.length}/${chromaPulseConfig.steps} màu`);
   }
-  if (record.frame_times.length === 0) problems.push("Không có khung hình nào");
+  if (record.frame_times.length === 0) {
+    problems.push("Không có khung hình nào (camera không cấp khung)");
+  } else if (record.frame_times.length < MIN_FRAMES) {
+    problems.push(`Quá ít khung hình (${record.frame_times.length}, cần >= ${MIN_FRAMES})`);
+  }
   const found = record.frame_times.filter((f) => f.face_found).length;
   if (record.frame_times.length > 0 && found / record.frame_times.length < 0.8) {
     problems.push(`Chỉ thấy mặt ở ${found}/${record.frame_times.length} khung`);
@@ -165,6 +198,7 @@ export function recordProblems(record: LabRecord): string[] {
     problems.push("Nhiều màu có cùng thời điểm vẽ (trình duyệt bị đóng băng), nên thử lại");
   }
   const q = record.quality;
+  if (q?.aborted) problems.push("Lần thử bị dừng giữa chừng (bấm Dừng hoặc bị hủy)");
   if (q?.hidden_during_trial) problems.push("Tab bị ẩn hoặc màn hình khóa trong lúc thử");
   if (q && q.max_raf_gap_ms > MAX_RAF_GAP_MS) {
     problems.push(

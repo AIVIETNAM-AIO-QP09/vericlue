@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
   partialPrefetching: true,
   turbopack: {
     // Gốc monorepo: cho phép import packages/contracts/chromapulse.json (nguồn chung với API).
-    root: path.resolve(process.cwd(), "../.."),
+    root: path.resolve(import.meta.dirname, "../.."),
     rules: {
       "*.css": {
         loaders: ["@tailwindcss/turbopack"],

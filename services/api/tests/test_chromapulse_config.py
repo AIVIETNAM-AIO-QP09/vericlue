@@ -83,3 +83,18 @@ def test_config_path_can_be_overridden(tmp_path, monkeypatch):
 )
 def test_file_has_required_keys(key):
     assert key in json.loads(FILE.read_text(encoding="utf-8"))
+
+
+def test_missing_config_file_gives_clear_error_with_tried_path(tmp_path, monkeypatch):
+    missing = tmp_path / "nope" / "chromapulse.json"
+    monkeypatch.setenv("CHROMAPULSE_CONFIG", str(missing))
+    chromapulse_config.load_chromapulse_config.cache_clear()
+    try:
+        with pytest.raises(FileNotFoundError) as info:
+            load_chromapulse_config()
+        message = str(info.value)
+        assert str(missing) in message  # nói rõ đường dẫn đã thử
+        assert "CHROMAPULSE_CONFIG" in message  # và cách khắc phục
+    finally:
+        monkeypatch.delenv("CHROMAPULSE_CONFIG")
+        chromapulse_config.load_chromapulse_config.cache_clear()
