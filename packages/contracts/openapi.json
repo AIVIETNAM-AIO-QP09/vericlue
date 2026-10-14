@@ -1,0 +1,1821 @@
+{
+  "components": {
+    "schemas": {
+      "Body_create_job_v1_forensic_jobs_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "description": "Video hoặc âm thanh cần giám định",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_create_job_v1_forensic_jobs_post",
+        "type": "object"
+      },
+      "Body_upload_media_v1_sessions__session_id__media_post": {
+        "properties": {
+          "image": {
+            "contentMediaType": "application/octet-stream",
+            "description": "Ảnh mặt chất lượng cao",
+            "title": "Image",
+            "type": "string"
+          },
+          "video": {
+            "anyOf": [
+              {
+                "contentMediaType": "application/octet-stream",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Đoạn video lúc phát màu",
+            "title": "Video"
+          }
+        },
+        "required": [
+          "image"
+        ],
+        "title": "Body_upload_media_v1_sessions__session_id__media_post",
+        "type": "object"
+      },
+      "Body_voice_v1_sessions__session_id__voice_post": {
+        "properties": {
+          "audio": {
+            "contentMediaType": "application/octet-stream",
+            "description": "Âm thanh lúc đọc câu",
+            "title": "Audio",
+            "type": "string"
+          },
+          "video": {
+            "anyOf": [
+              {
+                "contentMediaType": "application/octet-stream",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Video lúc đọc câu",
+            "title": "Video"
+          }
+        },
+        "required": [
+          "audio"
+        ],
+        "title": "Body_voice_v1_sessions__session_id__voice_post",
+        "type": "object"
+      },
+      "Challenge": {
+        "properties": {
+          "baseline_ms": {
+            "default": 1000,
+            "title": "Baseline Ms",
+            "type": "integer"
+          },
+          "capture_at_ms": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Capture At Ms",
+            "type": "array"
+          },
+          "challenge_id": {
+            "title": "Challenge Id",
+            "type": "string"
+          },
+          "color_sequence": {
+            "items": {
+              "$ref": "#/components/schemas/ColorStep"
+            },
+            "maxItems": 8,
+            "minItems": 8,
+            "title": "Color Sequence",
+            "type": "array"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          }
+        },
+        "required": [
+          "challenge_id",
+          "color_sequence"
+        ],
+        "title": "Challenge",
+        "type": "object"
+      },
+      "ColorStep": {
+        "properties": {
+          "hold_ms": {
+            "maximum": 650.0,
+            "minimum": 400.0,
+            "title": "Hold Ms",
+            "type": "integer"
+          },
+          "rgb": {
+            "pattern": "^#[0-9a-fA-F]{6}$",
+            "title": "Rgb",
+            "type": "string"
+          },
+          "transition_ms": {
+            "const": 150,
+            "default": 150,
+            "title": "Transition Ms",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rgb",
+          "hold_ms"
+        ],
+        "title": "ColorStep",
+        "type": "object"
+      },
+      "CreateSessionResponse": {
+        "properties": {
+          "challenge": {
+            "$ref": "#/components/schemas/Challenge"
+          },
+          "expires_at": {
+            "description": "Hạn của token (~5 phút)",
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "token": {
+            "description": "Token theo phiên, gửi 'Authorization: Bearer'. TẠM — PLAT-06 thay bằng HMAC + TTL.",
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "token",
+          "expires_at",
+          "challenge"
+        ],
+        "title": "CreateSessionResponse",
+        "type": "object"
+      },
+      "DecisionResponse": {
+        "properties": {
+          "case_id": {
+            "title": "Case Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "initial_decided",
+              "closed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "case_id",
+          "status"
+        ],
+        "title": "DecisionResponse",
+        "type": "object"
+      },
+      "ErrorResponse": {
+        "properties": {
+          "error_code": {
+            "title": "Error Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "error_code",
+          "message"
+        ],
+        "title": "ErrorResponse",
+        "type": "object"
+      },
+      "FinalDecisionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "enum": [
+              "accept",
+              "reject",
+              "request_retry"
+            ],
+            "title": "Decision",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "reason_code": {
+            "title": "Reason Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision",
+          "reason_code"
+        ],
+        "title": "FinalDecisionRequest",
+        "type": "object"
+      },
+      "FinalizeResponse": {
+        "properties": {
+          "attempts_left": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attempts Left"
+          },
+          "challenge": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Challenge"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Chỉ có khi status = retry"
+          },
+          "retry_hint": {
+            "anyOf": [
+              {
+                "enum": [
+                  "MORE_LIGHT",
+                  "MOVE_CLOSER",
+                  "MOVE_BACK",
+                  "FACE_CENTER",
+                  "HOLD_STILL",
+                  "QUIET_PLACE",
+                  "BRIGHTNESS_UP"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retry Hint"
+          },
+          "status": {
+            "enum": [
+              "pass",
+              "retry",
+              "review",
+              "voice_challenge"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "voice_prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice Prompt"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "FinalizeResponse",
+        "type": "object"
+      },
+      "ForensicJob": {
+        "properties": {
+          "file_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "File Sha256",
+            "type": "string"
+          },
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/ForensicSegment"
+            },
+            "title": "Segments",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "done",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "verdict": {
+            "anyOf": [
+              {
+                "enum": [
+                  "authentic",
+                  "suspect",
+                  "inconclusive"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verdict"
+          }
+        },
+        "required": [
+          "job_id",
+          "status",
+          "file_sha256",
+          "segments"
+        ],
+        "title": "ForensicJob",
+        "type": "object"
+      },
+      "ForensicSegment": {
+        "properties": {
+          "signals": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentSignal"
+            },
+            "title": "Signals",
+            "type": "array"
+          },
+          "t_end": {
+            "minimum": 0.0,
+            "title": "T End",
+            "type": "number"
+          },
+          "t_start": {
+            "minimum": 0.0,
+            "title": "T Start",
+            "type": "number"
+          }
+        },
+        "required": [
+          "t_start",
+          "t_end",
+          "signals"
+        ],
+        "title": "ForensicSegment",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "Health": {
+        "properties": {
+          "mock_models": {
+            "title": "Mock Models",
+            "type": "boolean"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "version",
+          "mock_models"
+        ],
+        "title": "Health",
+        "type": "object"
+      },
+      "InitialDecisionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "enum": [
+              "accept",
+              "reject",
+              "request_retry"
+            ],
+            "title": "Decision",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "required": [
+          "decision"
+        ],
+        "title": "InitialDecisionRequest",
+        "type": "object"
+      },
+      "JobCreated": {
+        "properties": {
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "done",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id",
+          "status"
+        ],
+        "title": "JobCreated",
+        "type": "object"
+      },
+      "MediaRef": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "face_image",
+              "face_video",
+              "voice_audio"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "url"
+        ],
+        "title": "MediaRef",
+        "type": "object"
+      },
+      "ReviewAiOpinion": {
+        "properties": {
+          "case_id": {
+            "title": "Case Id",
+            "type": "string"
+          },
+          "modules": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Modules",
+            "type": "array"
+          },
+          "suggestion": {
+            "enum": [
+              "pass",
+              "review",
+              "retry"
+            ],
+            "title": "Suggestion",
+            "type": "string"
+          }
+        },
+        "required": [
+          "case_id",
+          "suggestion",
+          "modules"
+        ],
+        "title": "ReviewAiOpinion",
+        "type": "object"
+      },
+      "ReviewCase": {
+        "properties": {
+          "capture_notes": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Capture Notes",
+            "type": "array"
+          },
+          "case_id": {
+            "title": "Case Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "final_decision": {
+            "anyOf": [
+              {
+                "enum": [
+                  "accept",
+                  "reject",
+                  "request_retry"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Final Decision"
+          },
+          "initial_decision": {
+            "anyOf": [
+              {
+                "enum": [
+                  "accept",
+                  "reject",
+                  "request_retry"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Initial Decision"
+          },
+          "media": {
+            "items": {
+              "$ref": "#/components/schemas/MediaRef"
+            },
+            "title": "Media",
+            "type": "array"
+          },
+          "priority": {
+            "enum": [
+              "normal",
+              "high"
+            ],
+            "title": "Priority",
+            "type": "string"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "initial_decided",
+              "closed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "case_id",
+          "session_id",
+          "status",
+          "priority",
+          "created_at",
+          "media"
+        ],
+        "title": "ReviewCase",
+        "type": "object"
+      },
+      "ReviewCaseList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewCaseSummary"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "ReviewCaseList",
+        "type": "object"
+      },
+      "ReviewCaseSummary": {
+        "properties": {
+          "case_id": {
+            "title": "Case Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "priority": {
+            "enum": [
+              "normal",
+              "high"
+            ],
+            "title": "Priority",
+            "type": "string"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "initial_decided",
+              "closed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "case_id",
+          "session_id",
+          "status",
+          "priority",
+          "created_at"
+        ],
+        "title": "ReviewCaseSummary",
+        "type": "object"
+      },
+      "SegmentSignal": {
+        "properties": {
+          "applicable": {
+            "title": "Applicable",
+            "type": "boolean"
+          },
+          "module": {
+            "title": "Module",
+            "type": "string"
+          },
+          "prob_attack": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prob Attack"
+          }
+        },
+        "required": [
+          "module",
+          "applicable"
+        ],
+        "title": "SegmentSignal",
+        "type": "object"
+      },
+      "Signals": {
+        "additionalProperties": true,
+        "description": "Tín hiệu trình duyệt đo; server không tin tuyệt đối. Trường lạ được giữ lại.",
+        "properties": {
+          "color_events": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Color Events",
+            "type": "array"
+          },
+          "frame_times": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Frame Times",
+            "type": "array"
+          }
+        },
+        "required": [
+          "color_events",
+          "frame_times"
+        ],
+        "title": "Signals",
+        "type": "object"
+      },
+      "StepAck": {
+        "properties": {
+          "received": {
+            "default": true,
+            "title": "Received",
+            "type": "boolean"
+          },
+          "step": {
+            "enum": [
+              "media",
+              "signals"
+            ],
+            "title": "Step",
+            "type": "string"
+          }
+        },
+        "required": [
+          "step"
+        ],
+        "title": "StepAck",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "VerifyRequest": {
+        "properties": {
+          "report_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Report Sha256",
+            "type": "string"
+          },
+          "signature": {
+            "title": "Signature",
+            "type": "string"
+          }
+        },
+        "required": [
+          "report_sha256",
+          "signature"
+        ],
+        "title": "VerifyRequest",
+        "type": "object"
+      },
+      "VerifyResponse": {
+        "properties": {
+          "valid": {
+            "title": "Valid",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "valid"
+        ],
+        "title": "VerifyResponse",
+        "type": "object"
+      },
+      "VoiceResponse": {
+        "properties": {
+          "attempts_left": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attempts Left"
+          },
+          "status": {
+            "enum": [
+              "pass",
+              "review",
+              "voice_challenge"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "voice_prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice Prompt"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "VoiceResponse",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "description": "Token theo phiên, nhận từ POST /v1/sessions (ADR-0011). Sai hoặc thiếu → 401.",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "title": "VeriClue API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/healthz": {
+      "get": {
+        "operationId": "healthz_healthz_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Healthz",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/v1/forensic/jobs": {
+      "post": {
+        "operationId": "create_job_v1_forensic_jobs_post",
+        "parameters": [
+          {
+            "description": "Chỉ khi USE_MOCK_MODELS=true: chọn kịch bản mock",
+            "in": "header",
+            "name": "x-mock-scenario",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Chỉ khi USE_MOCK_MODELS=true: chọn kịch bản mock",
+              "title": "X-Mock-Scenario"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_create_job_v1_forensic_jobs_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobCreated"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Job",
+        "tags": [
+          "forensic"
+        ]
+      }
+    },
+    "/v1/forensic/jobs/{job_id}": {
+      "get": {
+        "operationId": "get_job_v1_forensic_jobs__job_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForensicJob"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Không có job này"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Job",
+        "tags": [
+          "forensic"
+        ]
+      }
+    },
+    "/v1/forensic/jobs/{job_id}/report": {
+      "get": {
+        "operationId": "get_report_v1_forensic_jobs__job_id__report_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Báo cáo HTML; chữ ký trong header X-VeriClue-Signature"
+          },
+          "404": {
+            "content": {
+              "text/html": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Không có job này"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Report",
+        "tags": [
+          "forensic"
+        ]
+      }
+    },
+    "/v1/forensic/verify": {
+      "post": {
+        "operationId": "verify_report_v1_forensic_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerifyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Verify Report",
+        "tags": [
+          "forensic"
+        ]
+      }
+    },
+    "/v1/review/cases": {
+      "get": {
+        "operationId": "list_cases_v1_review_cases_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "open",
+                    "initial_decided",
+                    "closed"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "priority",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "normal",
+                    "high"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Priority"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewCaseList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Cases",
+        "tags": [
+          "review"
+        ]
+      }
+    },
+    "/v1/review/cases/{case_id}": {
+      "get": {
+        "operationId": "get_case_v1_review_cases__case_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "title": "Case Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewCase"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Không có ca này"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Case",
+        "tags": [
+          "review"
+        ]
+      }
+    },
+    "/v1/review/cases/{case_id}/ai": {
+      "get": {
+        "operationId": "get_ai_opinion_v1_review_cases__case_id__ai_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "title": "Case Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewAiOpinion"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Không có ca này"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Chưa có quyết định ban đầu"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Ai Opinion",
+        "tags": [
+          "review"
+        ]
+      }
+    },
+    "/v1/review/cases/{case_id}/decision": {
+      "post": {
+        "operationId": "post_decision_v1_review_cases__case_id__decision_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "title": "Case Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FinalDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Không có ca này"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Chưa có quyết định ban đầu"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Decision",
+        "tags": [
+          "review"
+        ]
+      }
+    },
+    "/v1/review/cases/{case_id}/initial": {
+      "post": {
+        "operationId": "post_initial_v1_review_cases__case_id__initial_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "title": "Case Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InitialDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Không có ca này"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Đã có quyết định ban đầu"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Initial",
+        "tags": [
+          "review"
+        ]
+      }
+    },
+    "/v1/sessions": {
+      "post": {
+        "operationId": "create_session_v1_sessions_post",
+        "parameters": [
+          {
+            "description": "Chỉ khi USE_MOCK_MODELS=true: chọn kịch bản mock (genuine, print, ...)",
+            "in": "header",
+            "name": "x-mock-scenario",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Chỉ khi USE_MOCK_MODELS=true: chọn kịch bản mock (genuine, print, ...)",
+              "title": "X-Mock-Scenario"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateSessionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Session",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/v1/sessions/{session_id}/finalize": {
+      "post": {
+        "operationId": "finalize_v1_sessions__session_id__finalize_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinalizeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai token phiên"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bước này đã được nhận trong lượt hiện tại (PLAT-06)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Finalize",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/v1/sessions/{session_id}/media": {
+      "post": {
+        "operationId": "upload_media_v1_sessions__session_id__media_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_media_v1_sessions__session_id__media_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepAck"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai token phiên"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bước này đã được nhận trong lượt hiện tại (PLAT-06)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Upload Media",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/v1/sessions/{session_id}/signals": {
+      "post": {
+        "operationId": "upload_signals_v1_sessions__session_id__signals_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Signals"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepAck"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai token phiên"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bước này đã được nhận trong lượt hiện tại (PLAT-06)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Upload Signals",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/v1/sessions/{session_id}/voice": {
+      "post": {
+        "operationId": "voice_v1_sessions__session_id__voice_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_voice_v1_sessions__session_id__voice_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai token phiên"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bước này đã được nhận trong lượt hiện tại (PLAT-06)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Voice",
+        "tags": [
+          "sessions"
+        ]
+      }
+    }
+  }
+}
