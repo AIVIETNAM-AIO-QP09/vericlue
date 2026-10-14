@@ -1072,7 +1072,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Bước này đã được nhận trong lượt hiện tại (PLAT-06) */
+            /** @description Sai trạng thái: voice_not_requested (finalize chưa yêu cầu đọc câu), session_closed (phiên đã vào bàn duyệt). Bước đã nhận trong lượt này cũng 409 (PLAT-06). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1125,7 +1125,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Bước này đã được nhận trong lượt hiện tại (PLAT-06) */
+            /** @description Sai trạng thái: voice_not_requested (finalize chưa yêu cầu đọc câu), session_closed (phiên đã vào bàn duyệt). Bước đã nhận trong lượt này cũng 409 (PLAT-06). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1178,7 +1178,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Bước này đã được nhận trong lượt hiện tại (PLAT-06) */
+            /** @description Sai trạng thái: voice_not_requested (finalize chưa yêu cầu đọc câu), session_closed (phiên đã vào bàn duyệt). Bước đã nhận trong lượt này cũng 409 (PLAT-06). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1231,7 +1231,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Bước này đã được nhận trong lượt hiện tại (PLAT-06) */
+            /** @description Sai trạng thái: voice_not_requested (finalize chưa yêu cầu đọc câu), session_closed (phiên đã vào bàn duyệt). Bước đã nhận trong lượt này cũng 409 (PLAT-06). */
             409: {
                 headers: {
                     [name: string]: unknown;

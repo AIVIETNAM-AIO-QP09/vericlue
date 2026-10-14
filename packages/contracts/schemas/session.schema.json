@@ -124,7 +124,7 @@
     },
     "ErrorResponse": {
       "type": "object",
-      "description": "Định dạng lỗi chung: 401 (thiếu Bearer, token sai hoặc hết hạn), 409 (bước đã nhận trong lượt này, hoặc gọi sai trạng thái, ví dụ /voice khi finalize chưa yêu cầu đọc câu), 422 (dữ liệu sai). Mã cho thử thách hết hạn do PLAT-06 chốt.",
+      "description": "Định dạng lỗi chung: 401 (thiếu Bearer, token sai hoặc hết hạn), 409 (bước đã nhận trong lượt này, hoặc sai thứ tự luồng: voice_not_requested khi finalize chưa yêu cầu đọc câu, session_closed khi phiên đã vào bàn duyệt), 422 (dữ liệu sai). Mã cho thử thách hết hạn do PLAT-06 chốt.",
       "required": ["error_code", "message"],
       "additionalProperties": false,
       "properties": {

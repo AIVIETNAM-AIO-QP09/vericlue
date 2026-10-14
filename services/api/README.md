@@ -41,7 +41,7 @@ Chạy mock (`USE_MOCK_MODELS=true`, mặc định) chọn kịch bản bằng h
 
 - Token theo phiên, gửi `Authorization: Bearer`; thiếu hoặc sai → 401 (phiên không tồn tại cũng 401).
 - **Lượt = một challenge.** `finalize` trả `retry` (kèm `challenge` mới) hoặc `voice_challenge` thì mở lượt mới. Đọc lại câu tối đa 1 lần. Mỗi challenge sống 120 giây (`challenge.expires_at`), tách khỏi hạn token (`expires_at` ở gốc).
-- `/voice` chỉ nhận khi `finalize` đã trả `voice_challenge` (không thì 409 `voice_not_requested`), và chỉ một lần cho mỗi yêu cầu; không có đường tắt tới `pass` bỏ qua cổng khuôn mặt.
+- **Kiểm thứ tự luồng (đã cài, không phải máy trạng thái PLAT-06):** `/voice` chỉ nhận khi `finalize` vừa trả `voice_challenge` (không thì 409 `voice_not_requested`, và không ghi file nào); `finalize` luôn đặt lại yêu cầu giọng nói và bộ đếm đọc lại; phiên đã vào bàn duyệt là trạng thái cuối, `finalize`/`voice` gọi lại → 409 `session_closed`. Không có đường tắt tới `pass` bỏ qua cổng khuôn mặt.
 - Upload quá `MAX_UPLOAD_MB` → 413 `upload_too_large`.
 - Cấu hình: `SESSION_TTL_SECONDS` (300), `CHALLENGE_TTL_SECONDS` (120), `MAX_RETRIES` (2), `MAX_UPLOAD_MB` (50), `CHALLENGE_PALETTE` (bảng màu, phân cách bằng dấu phẩy; bộ sinh từ chối bảng vi phạm giới hạn độ chói 0,064 hoặc R/(R+G+B) >= 0,8).
 
@@ -55,5 +55,7 @@ Chạy mock (`USE_MOCK_MODELS=true`, mặc định) chọn kịch bản bằng h
 | Luật quyết định | `services/provisional_decision.py`, B=0,15, A=0,60 trong cấu hình (`PROVISIONAL_THRESHOLD_B/A`) | **ROUT-02**: TrustRouter, ngưỡng từ `ml/configs/thresholds.yaml` |
 | Giám định, chữ ký | segment và chữ ký `MOCK-<sha256>` | **FOR-01 / FOR-04**, khóa Ed25519 ở PLAT-06 |
 | Bàn duyệt | kho bộ nhớ, URL media giả | **REV-01**: DB và nhật ký chuỗi băm |
+| Giới hạn upload | `MAX_UPLOAD_MB` chỉ kiểm **sau khi** Starlette đã nhận multipart (và trước khi xác thực token vẫn nhận được body) | **PLAT-06** / reverse proxy: giới hạn cứng ở lớp trước ứng dụng |
+| Xác thực nhân viên | `/v1/review/*` và `/v1/forensic/*` chưa có xác thực | **PLAT-06** / REV-02 |
 
 Luật quyết định tạm, thứ tự cổng: quality (chụp lại tối đa 2 lần rồi `review`) → chromapulse/camprobe (fail → `review` ưu tiên cao; chưa rõ → chụp lại) → ngưỡng trên **max `prob_attack`** của `face_pad` và `face_deepfake` (dưới B `pass`; từ B đến dưới A `voice_challenge`; từ A trở lên `review`). `error`/`degraded`/thiếu ở bước bắt buộc → `review`, không bao giờ `pass`.

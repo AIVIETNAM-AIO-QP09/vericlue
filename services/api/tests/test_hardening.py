@@ -99,3 +99,68 @@ def test_unsafe_configured_palette_is_rejected(palette):
 def test_safe_configured_palette_is_accepted():
     ch = generate_challenge(Settings(challenge_palette="#ffcc73,#73d9ff"), rng=random.Random(0))
     assert {s.rgb for s in ch.color_sequence} <= {"#ffcc73", "#73d9ff"}
+
+
+# --- Vòng 2: thứ tự luồng (không phải máy trạng thái PLAT-06) ---
+
+
+def _session(client, sid):
+    return client.app.state.vericlue.sessions.get(sid)
+
+
+def test_finalize_resets_voice_request_so_a_review_blocks_voice(client):
+    body, auth = start_session(client, "voice_clone")
+    sid = body["session_id"]
+    assert client.post(FINALIZE.format(sid=sid), headers=auth).json()["status"] == "voice_challenge"
+    assert _session(client, sid).voice_requested is True
+
+    _session(client, sid).scenario = "print"  # lần finalize sau ra review
+    assert client.post(FINALIZE.format(sid=sid), headers=auth).json() == {"status": "review"}
+    assert _session(client, sid).voice_requested is False
+    res = client.post(VOICE.format(sid=sid), headers=auth, files=AUDIO)
+    assert res.status_code == 409
+
+
+def test_review_is_final_finalize_and_voice_return_409_never_pass(client):
+    body, auth = start_session(client, "print")
+    sid = body["session_id"]
+    assert client.post(FINALIZE.format(sid=sid), headers=auth).json() == {"status": "review"}
+
+    _session(client, sid).scenario = "genuine"  # kể cả khi dữ liệu sau đó "đẹp"
+    for _ in range(2):
+        again = client.post(FINALIZE.format(sid=sid), headers=auth)
+        assert again.status_code == 409 and again.json()["error_code"] == "session_closed"
+    voice = client.post(VOICE.format(sid=sid), headers=auth, files=AUDIO)
+    assert voice.status_code == 409 and voice.json()["error_code"] == "session_closed"
+    assert (
+        len([c for c in client.get("/v1/review/cases").json()["items"] if c["session_id"] == sid])
+        == 1
+    )
+
+
+def test_rejected_voice_writes_no_file(client, tmp_path):
+    body, auth = start_session(client, "genuine")
+    sid = body["session_id"]
+    assert client.post(VOICE.format(sid=sid), headers=auth, files=AUDIO).status_code == 409
+    assert not (tmp_path / "media" / sid).exists()
+
+
+def test_unknown_retry_hint_falls_back_to_more_light(client, monkeypatch):
+    from vericlue_api.services import session_flow
+    from vericlue_api.services.provisional_decision import Outcome
+
+    monkeypatch.setattr(
+        session_flow, "decide_finalize", lambda *a, **k: Outcome("retry", retry_hint="LẠ_HOẮC_XẤU")
+    )
+    body, auth = start_session(client, "genuine")
+    res = client.post(FINALIZE.format(sid=body["session_id"]), headers=auth)
+    assert res.status_code == 200
+    assert res.json()["status"] == "retry" and res.json()["retry_hint"] == "MORE_LIGHT"
+
+
+def test_new_voice_request_resets_reread_counter(client):
+    body, auth = start_session(client, "voice_clone")
+    sid = body["session_id"]
+    _session(client, sid).voice_rereads_used = 1
+    assert client.post(FINALIZE.format(sid=sid), headers=auth).json()["status"] == "voice_challenge"
+    assert _session(client, sid).voice_rereads_used == 0

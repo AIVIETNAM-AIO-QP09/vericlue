@@ -22,4 +22,5 @@
 - Token **theo phiên**, gửi `Authorization: Bearer` ở mọi lần gọi của phiên. Sai/hết hạn → 401.
 - **Lượt = một challenge.** Mỗi bước (media, signals, finalize, voice) chỉ nhận một lần trong một lượt, gọi lại → 409. `finalize` trả `retry` hoặc `voice_challenge` thì mở lượt mới; đọc lại câu tối đa 1 lần.
 - Challenge sống 120 giây (`challenge.expires_at`), tách khỏi hạn của token (`expires_at` ở gốc phản hồi). Khi `finalize` trả `retry`, phản hồi kèm `challenge` mới.
-- PLAT-04 chỉ khai báo hợp đồng; PLAT-06 cài đặt HMAC, TTL, 409 và máy trạng thái.
+- **409** có hai nghĩa: (a) bước đã nhận trong lượt này (chống phát lại, **PLAT-06** cài); (b) sai thứ tự luồng, đã cài ở PLAT-04: `voice_not_requested` (gọi `/voice` khi `finalize` chưa trả `voice_challenge`) và `session_closed` (phiên đã vào bàn duyệt, không nhận thêm `finalize`/`voice`).
+- PLAT-04 khai báo hợp đồng và kiểm thứ tự luồng; PLAT-06 cài HMAC, TTL, 429 và máy trạng thái "mỗi bước một lần mỗi lượt".

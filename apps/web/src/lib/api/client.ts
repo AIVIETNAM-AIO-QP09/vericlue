@@ -76,22 +76,32 @@ export function createApiClient(options: ApiClientOptions = {}) {
       const form = new FormData();
       form.append("image", image, "face.jpg");
       if (video) form.append("video", video, "face.webm");
-      return request<StepAck>("POST", `/v1/sessions/${sessionId}/media`, { token, form });
+      return request<StepAck>("POST", `/v1/sessions/${encodeURIComponent(sessionId)}/media`, {
+        token,
+        form,
+      });
     },
     sendSignals(sessionId: string, token: string, signals: Signals) {
-      return request<StepAck>("POST", `/v1/sessions/${sessionId}/signals`, {
+      return request<StepAck>("POST", `/v1/sessions/${encodeURIComponent(sessionId)}/signals`, {
         token,
         json: signals,
       });
     },
     finalize(sessionId: string, token: string) {
-      return request<FinalizeResponse>("POST", `/v1/sessions/${sessionId}/finalize`, { token });
+      return request<FinalizeResponse>(
+        "POST",
+        `/v1/sessions/${encodeURIComponent(sessionId)}/finalize`,
+        { token },
+      );
     },
     sendVoice(sessionId: string, token: string, audio: Blob, video?: Blob) {
       const form = new FormData();
       form.append("audio", audio, "voice.wav");
       if (video) form.append("video", video, "voice.webm");
-      return request<VoiceResponse>("POST", `/v1/sessions/${sessionId}/voice`, { token, form });
+      return request<VoiceResponse>("POST", `/v1/sessions/${encodeURIComponent(sessionId)}/voice`, {
+        token,
+        form,
+      });
     },
   };
 }

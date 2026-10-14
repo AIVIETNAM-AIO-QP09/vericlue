@@ -1,12 +1,15 @@
 """Luồng một phiên eKYC (kiến trúc §6). Router chỉ gọi các hàm ở đây.
 
-Giai đoạn PLAT-04: chưa có máy trạng thái chống phát lại, HMAC, TTL hay 409 (PLAT-06),
-chưa có DB (PLAT-05), chưa chạy song song (PLAT-08), luật quyết định là luật TẠM.
+Giai đoạn PLAT-04: chưa có máy trạng thái chống phát lại "mỗi bước một lần mỗi lượt" (409), HMAC,
+TTL hay 429 (PLAT-06), chưa có DB (PLAT-05), chưa chạy song song (PLAT-08), luật quyết định là TẠM.
+Chỉ kiểm THỨ TỰ luồng để không có đường tắt tới `pass`: 409 `session_closed` khi phiên đã vào bàn
+duyệt, 409 `voice_not_requested` khi `finalize` chưa yêu cầu đọc câu.
 """
 
 from __future__ import annotations
 
 import random
+from typing import get_args
 
 from vericlue_api.core.config import Settings
 from vericlue_api.core.errors import ApiError
@@ -14,6 +17,7 @@ from vericlue_api.schemas.review import MediaRef
 from vericlue_api.schemas.session import (
     CreateSessionResponse,
     FinalizeResponse,
+    RetryHint,
     Signals,
     VoiceResponse,
 )
@@ -38,6 +42,10 @@ VOICE_PROMPTS = (
     "Tôi đồng ý cho hệ thống xác minh khuôn mặt và giọng nói của tôi.",
     "Chín mươi tám cộng bảy mươi hai bằng một trăm bảy mươi.",
 )
+
+
+RETRY_HINTS = frozenset(get_args(RetryHint))
+DEFAULT_HINT = "MORE_LIGHT"
 
 
 class SessionFlow:
@@ -65,7 +73,21 @@ class SessionFlow:
         session.signals = signals.model_dump(mode="json")
 
     # --- finalize --------------------------------------------------------
+    @staticmethod
+    def ensure_open(session: Session) -> None:
+        """Phiên đã vào bàn duyệt là trạng thái cuối: không nhận thêm finalize hay voice."""
+        if session.case_id is not None:
+            raise ApiError(409, "session_closed", "Phiên đã chuyển sang bàn duyệt.")
+
+    def ensure_voice_allowed(self, session: Session) -> None:
+        """Chỉ nhận giọng nói khi finalize vừa yêu cầu; không thì là đường tắt tới `pass`."""
+        self.ensure_open(session)
+        if not session.voice_requested:
+            raise ApiError(409, "voice_not_requested", "Chưa có yêu cầu đọc câu cho phiên này.")
+
     def finalize(self, session: Session) -> FinalizeResponse:
+        self.ensure_open(session)
+        session.voice_requested = False  # chỉ bật lại nếu lần này ra voice_challenge
         results = run_detectors(
             FINALIZE_MODULES,
             session_id=session.session_id,
@@ -85,16 +107,18 @@ class SessionFlow:
             a=s.provisional_threshold_a,
         )
         if outcome.status == "retry":
+            hint = outcome.retry_hint if outcome.retry_hint in RETRY_HINTS else DEFAULT_HINT
             session.retries_used += 1
             session.challenge = generate_challenge(s)  # lượt mới, thử thách mới
             return FinalizeResponse(
                 status="retry",
-                retry_hint=outcome.retry_hint,  # type: ignore[arg-type]
+                retry_hint=hint,  # type: ignore[arg-type]
                 attempts_left=s.max_retries - session.retries_used,
                 challenge=session.challenge,
             )
         if outcome.status == "voice_challenge":
             session.voice_requested = True
+            session.voice_rereads_used = 0  # yêu cầu đọc câu mới
             return FinalizeResponse(
                 status="voice_challenge",
                 voice_prompt=self._new_prompt(session),
@@ -106,9 +130,7 @@ class SessionFlow:
 
     # --- voice -----------------------------------------------------------
     def voice(self, session: Session) -> VoiceResponse:
-        # Chỉ nhận giọng nói khi finalize đã yêu cầu; không thì đây là đường tắt tới `pass`.
-        if not session.voice_requested:
-            raise ApiError(409, "voice_not_requested", "Chưa có yêu cầu đọc câu cho phiên này.")
+        self.ensure_voice_allowed(session)
         results = run_detectors(
             VOICE_STEP_MODULES,
             session_id=session.session_id,

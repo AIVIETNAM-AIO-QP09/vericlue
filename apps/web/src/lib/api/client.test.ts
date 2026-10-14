@@ -86,4 +86,13 @@ describe("api client", () => {
     await expect(failure).rejects.toBeInstanceOf(ApiError);
     await expect(failure).rejects.toMatchObject({ status: 401, errorCode: "unauthorized" });
   });
+
+  it("mã hóa session_id trong đường dẫn", async () => {
+    const { impl, calls } = fakeFetch([{ body: { status: "pass" } }]);
+    const api = createApiClient({ baseUrl: "http://api.test", fetchImpl: impl });
+
+    await api.finalize("a/b?c", "tok_1");
+
+    expect(calls[0].url).toBe("http://api.test/v1/sessions/a%2Fb%3Fc/finalize");
+  });
 });

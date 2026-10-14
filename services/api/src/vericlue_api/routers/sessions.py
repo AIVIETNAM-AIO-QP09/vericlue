@@ -23,12 +23,13 @@ from vericlue_ml.mock import SCENARIOS
 
 router = APIRouter(prefix="/v1/sessions", tags=["sessions"])
 
-# 401: thiếu/sai token. 409: bước đã nhận trong lượt này — hợp đồng đã khai báo, PLAT-06 cài đặt.
+# 401: thiếu/sai token. 409: sai trạng thái (voice_not_requested, session_closed — đã cài ở PLAT-04) và
+# bước đã nhận trong lượt này (hợp đồng đã khai báo, PLAT-06 cài đặt).
 SESSION_ERRORS: dict[int | str, dict] = {
     401: {"model": ErrorResponse, "description": "Thiếu hoặc sai token phiên"},
     409: {
         "model": ErrorResponse,
-        "description": "Bước này đã được nhận trong lượt hiện tại (PLAT-06)",
+        "description": "Sai trạng thái: voice_not_requested (finalize chưa yêu cầu đọc câu), session_closed (phiên đã vào bàn duyệt). Bước đã nhận trong lượt này cũng 409 (PLAT-06).",
     },
 }
 
@@ -119,6 +120,7 @@ async def voice(
     audio: Annotated[UploadFile, File(description="Âm thanh lúc đọc câu")],
     video: Annotated[UploadFile | None, File(description="Video lúc đọc câu")] = None,
 ) -> VoiceResponse:
+    state.flow.ensure_voice_allowed(session)  # kiểm TRƯỚC khi ghi bất kỳ file nào
     media_dir = state.settings.media_dir
     session.audio = save_upload(
         media_dir,
