@@ -8,7 +8,7 @@ Bắt đầu task **$ARGUMENTS** của dự án VeriClue.
 1. Đọc `docs/status/STATUS.md`. Chạy `uv run python scripts/new_handoff.py --latest 5` và đọc các bàn giao liên quan tới $ARGUMENTS (tên file chứa mã task).
 2. Tìm task card `$ARGUMENTS` trong `docs/plan/epics/` và đọc kỹ toàn bộ: mục tiêu, phụ thuộc, đầu vào/đầu ra, các bước, tiêu chí hoàn thành.
 3. Kiểm tra các task phụ thuộc trong `docs/plan/backlog.md` đã `done` chưa. Nếu chưa, dừng lại và báo.
-4. Đọc các file được liệt kê ở mục "Đọc trước" của task card, cùng `docs/architecture/architecture.md` nếu task chạm tới API, mô-đun hoặc dữ liệu.
+4. Đọc các file được liệt kê ở mục "Đọc trước" của task card, cùng `docs/architecture/architecture.md` nếu task chạm tới API, mô-đun hoặc dữ liệu. Nếu phải đọc nhiều, giao cho các subagent **chạy song song**, mỗi subagent một nhóm file, trả về tóm tắt ngắn (`docs/ai/working-with-ai.md`, mục "Dùng subagent để làm nhanh hơn").
 5. Tóm tắt lại cho người dùng bằng tiếng Việt, ngắn gọn:
    - mục tiêu;
    - kế hoạch các bước;
