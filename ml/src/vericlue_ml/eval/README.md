@@ -15,7 +15,7 @@ Một dòng là một lần dự đoán; UTF-8, có header. **Tám cột bắt b
 | `sample_id` | ID mẫu, không trùng trong cùng module/phiên bản/compression |
 | `subject_id` | ID người nhất quán qua các mẫu và tập chia; đơn vị bootstrap |
 | `label` | `0` = bona fide/người thật, `1` = tấn công |
-| `attack_type` | Nhãn loại tấn công cho label=1, không được rỗng; label=0 có thể rỗng hoặc bona_fide |
+| `attack_type` | Strip khoảng trắng; label=1 cần loại tấn công, label=0 chỉ chấp nhận rỗng hoặc bona_fide |
 | `prob_attack` | Xác suất đã hiệu chỉnh, hữu hạn trong [0,1]; bắt buộc có giá trị khi status=ok |
 | `status` | `ok`, `error`, `degraded`, `not_applicable` theo ModuleResult |
 | `module` | Module hợp lệ theo hợp đồng, ví dụ face_pad/face_deepfake/voice_spoof/lipsync |
@@ -45,7 +45,7 @@ nén của cùng người vẫn dùng cùng subject_id để bootstrap giữ s�
 ## Quy ước chỉ số
 
 `prob_attack >= threshold` là dự đoán tấn công/từ chối, bằng ngưỡng cũng từ chối.
-Ngưỡng đánh giá do caller chốt trước (mặc định 0,5), không tối ưu theo CSV đánh giá.
+Ngưỡng đánh giá không tối ưu theo CSV đánh giá. Nếu không truyền threshold/--threshold, báo cáo ghi rõ "mặc định 0.5, không do caller cung cấp"; ngưỡng truyền tường minh được ghi nguồn caller.
 APCER là tỷ lệ tấn công lọt, theo từng loại; APCER max là lớn nhất theo loại.
 BPCER là tỷ lệ người thật bị từ chối. AUC ROC dùng 1=tấn công. EER nội suy tuyến
 tính tại giao BPCER/APCER gộp trên ROC. Không có lớp cần thiết thì chỉ số và CI
@@ -59,8 +59,8 @@ Hai dòng **BPCER@APCER 5%** phải đọc riêng:
    lấy score ở vị trí floor(0,05*n) của dãy tăng; lấy min qua các loại. Vì quyết
    định dùng >=, tie không bị chia. Calib_fit cần hai lớp, tất cả status=ok và
    đúng một module/phiên bản. Hàm từ chối split test/calib_ltt. Reference lưu
-   commit Git, dataset, subject_ids, module/version và target. Khi đánh giá,
-   kiểm đúng phiên bản và **không giao người** giữa calib_fit và tập đánh giá.
+   commit Git, dataset, subject_ids, danh sách attack_types của calib_fit, module/version và target. JSON reference cũ thiếu attack_types bị từ chối, cần sinh lại từ calib_fit. Khi đánh giá,
+   kiểm đúng phiên bản và **không giao người** giữa calib_fit và tập đánh giá. Nếu tập đánh giá có attack_type ngoài danh sách calib_fit thì in cảnh báo tên loại đó, không coi ngưỡng đã được kiểm trên loại mới.
    Reference chỉ là benchmark; không viết vào thresholds.yaml, không thay LTT.
    Thiếu reference cho nhóm thì ghi không khả dụng. Báo cả **APCER max thực đạt
    trên tập đánh giá** tại ngưỡng đó; không khẳng định nó vẫn <=5%.
@@ -81,7 +81,7 @@ tên tập test/calib_ltt thành calib_fit; CSV không tự chứng minh đượ
 
 CI mặc định **95%, percentile, 2.000 lần, seed=42**; có thể cấu hình số lần/seed.
 Lấy mẫu có hoàn lại theo **subject_id**, mỗi lần lấy người giữ tất cả dòng của
-người đó và số lần người lặp lại. Giữ nguyên ngưỡng đánh giá và ngưỡng tham chiếu
+người đó và số lần người lặp lại. Chỉ số dòng của mỗi người được tính sẵn một lần trước vòng lặp, không quét lại vector subject ở mỗi lượt. Giữ nguyên ngưỡng đánh giá và ngưỡng tham chiếu
 trong từng lượt, không chọn lại. Các chỉ số mô tả vẫn chỉ trả giá trị.
 
 Lượt thiếu một lớp/loại tấn công không có chỉ số tương ứng, không thay bằng 0.

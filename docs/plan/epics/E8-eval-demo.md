@@ -52,7 +52,7 @@
 
 **Tiêu chí hoàn thành:**
 - [x] Test với dữ liệu tổng hợp có đáp án biết trước.
-- [x] Khung sinh báo cáo thống nhất chạy được trên dữ liệu tổng hợp (nghiệm thu EVAL-01). **Xác minh R1–R4 thật đều dùng khung này** thực hiện tại FACE-01/VOICE-01/ROUT-05, theo quyết định của người giao việc; không yêu cầu tạo số liệu thật ở task khung.
+- [x] Khung sinh báo cáo thống nhất chạy được trên dữ liệu tổng hợp (nghiệm thu EVAL-01). **Xác minh R1–R4 thật đều dùng khung này** thực hiện tại FACE-01/VOICE-01/ROUT-05, theo quyết định trưởng nhóm 15/10; không yêu cầu tạo số liệu thật ở task khung.
 
 ---
 

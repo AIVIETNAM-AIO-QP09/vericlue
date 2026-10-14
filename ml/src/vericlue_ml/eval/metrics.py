@@ -55,6 +55,7 @@ def apcer_by_attack(
         raise ValueError("attack_types phải là vector chuỗi cùng chiều.")
     if any(not str(a).strip() for a in attacks[y == 1]):
         raise ValueError("Mẫu tấn công phải có attack_type.")
+    attacks = np.array([str(a).strip() for a in attacks])
     return {
         str(kind): float(np.mean(p[(y == 1) & (attacks == kind)] < threshold))
         for kind in sorted(set(attacks[y == 1]))
@@ -106,7 +107,7 @@ def descriptive_bpcer_at_apcer(
         return None
     fpr, tpr = roc_curve(y, p, drop_intermediate=False)[:2]
     fnr = 1 - tpr
-    exact = np.flatnonzero(fnr == target)
+    exact = np.flatnonzero(np.isclose(fnr, target, rtol=0, atol=8 * np.finfo(float).eps))
     if exact.size:
         return float(fpr[exact].min())
     # Preserve every corner of the ROC; collapsing duplicate FNR before

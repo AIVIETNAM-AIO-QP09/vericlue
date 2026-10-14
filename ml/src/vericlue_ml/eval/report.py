@@ -65,6 +65,11 @@ class Prediction(BaseModel):
             raise ValueError("Định danh không được trống.")
         return value.strip()
 
+    @field_validator("attack_type")
+    @classmethod
+    def canonical_attack_type(cls, value: str) -> str:
+        return value.strip()
+
     @model_validator(mode="after")
     def usable_probability(self) -> Prediction:
         if self.status == Status.OK and self.prob_attack is None:
@@ -73,6 +78,8 @@ class Prediction(BaseModel):
             raise ValueError("Mẫu tấn công cần attack_type.")
         if self.label == 1 and self.attack_type == "bona_fide":
             raise ValueError("attack_type bona_fide dành cho nhãn 0.")
+        if self.label == 0 and self.attack_type not in {"", "bona_fide"}:
+            raise ValueError("Nhãn 0 chỉ chấp nhận attack_type rỗng hoặc bona_fide.")
         return self
 
 
@@ -87,6 +94,7 @@ class ReferenceThreshold(BaseModel):
     commit: str = Field(min_length=1)
     dataset: str = Field(min_length=1)
     subject_ids: tuple[str, ...]
+    attack_types: tuple[str, ...]
     split: Literal["calib_fit"] = "calib_fit"
     target_apcer: Literal[0.05] = TARGET_APCER
 
@@ -95,6 +103,14 @@ class ReferenceThreshold(BaseModel):
     def canonical_subjects(cls, values: tuple[str, ...]) -> tuple[str, ...]:
         # Match Prediction normalization before checking split independence.
         return tuple(sorted({value.strip() for value in values}))
+
+    @field_validator("attack_types")
+    @classmethod
+    def canonical_attack_types(cls, values: tuple[str, ...]) -> tuple[str, ...]:
+        result = tuple(sorted({value.strip() for value in values}))
+        if not result or any(not value or value == "bona_fide" for value in result):
+            raise ValueError("Reference cần danh sách attack_type tấn công không rỗng.")
+        return result
 
     @model_validator(mode="after")
     def provenance(self) -> ReferenceThreshold:
@@ -139,6 +155,7 @@ class GroupReport:
     threshold: float
     reference: ReferenceThreshold | None
     warnings: list[str]
+    threshold_source: Literal["default", "caller"] = "caller"
 
 
 @dataclass(frozen=True)
@@ -195,25 +212,27 @@ def read_predictions(path: Path) -> list[Prediction]:
                 raise EvaluationError(f"CSV dòng {line} không hợp lệ: {exc}") from exc
     if not rows:
         raise EvaluationError("CSV không có mẫu.")
-    _validate_rows(rows)
-    return rows
+    return _validate_rows(rows)
 
 
-def _validate_rows(rows: list[Prediction]) -> None:
+def _validate_rows(rows: list[Prediction]) -> list[Prediction]:
     if not rows:
         raise EvaluationError("Không có mẫu đánh giá.")
     seen = set()
+    normalized = []
     for row in rows:
         if not isinstance(row, Prediction):
             raise EvaluationError("Đầu vào phải là các Prediction đã kiểm tra.")
         # Revalidate even if a caller used model_copy(update=...) without validation.
-        Prediction.model_validate(row.model_dump())
+        row = Prediction.model_validate(row.model_dump())
         key = (row.sample_id, row.module, row.model_version, row.compression)
         if key in seen:
             raise EvaluationError(
                 f"Trùng sample_id trong cùng module/version/compression: {row.sample_id}"
             )
         seen.add(key)
+        normalized.append(row)
+    return normalized
 
 
 def select_reference_threshold(
@@ -228,7 +247,7 @@ def select_reference_threshold(
         raise EvaluationError(
             "Chỉ được chọn ngưỡng tham chiếu trên calib_fit, không calib_ltt/test."
         )
-    _validate_rows(calib_fit)
+    calib_fit = _validate_rows(calib_fit)
     identities = {(r.module, r.model_version) for r in calib_fit}
     if len(identities) != 1 or any(r.status != Status.OK for r in calib_fit):
         raise EvaluationError("calib_fit phải cùng module/model_version và tất cả status=ok.")
@@ -251,6 +270,7 @@ def select_reference_threshold(
         dataset=dataset,
         commit=git_revision(repo),
         subject_ids=tuple(sorted({r.subject_id for r in calib_fit})),
+        attack_types=tuple(sorted(set(attacks[y == 1]))),
     )
 
 
@@ -295,11 +315,25 @@ def _points(
     return values
 
 
-def _cluster_indices(subjects: np.ndarray, rng: np.random.Generator) -> np.ndarray:
-    # Each selected subject contributes every row, including repeated selections.
-    unique = np.unique(subjects)
-    chosen = rng.choice(unique, size=unique.size, replace=True)
-    return np.concatenate([np.flatnonzero(subjects == subject) for subject in chosen])
+def _subject_clusters(subjects: np.ndarray) -> tuple[np.ndarray, ...]:
+    # Stable row indices, once per group, in the same sorted-subject order as np.unique.
+    _, inverse = np.unique(subjects, return_inverse=True)
+    order = np.argsort(inverse, kind="stable")
+    boundaries = np.cumsum(np.bincount(inverse))[:-1]
+    return tuple(np.split(order, boundaries)) if subjects.size else ()
+
+
+def _cluster_indices(
+    subjects: np.ndarray,
+    rng: np.random.Generator,
+    *,
+    clusters: tuple[np.ndarray, ...] | None = None,
+) -> np.ndarray:
+    # Compatibility for direct callers; the bootstrap loop always supplies cached clusters.
+    if clusters is None:
+        clusters = _subject_clusters(subjects)
+    chosen = rng.choice(len(clusters), size=len(clusters), replace=True)
+    return np.concatenate([clusters[index] for index in chosen])
 
 
 def _group_report(
@@ -309,6 +343,7 @@ def _group_report(
     reference: ReferenceThreshold | None,
     seed: int,
     n_bootstrap: int,
+    threshold_source: Literal["default", "caller"] = "caller",
 ) -> GroupReport:
     usable = [r for r in rows if r.status == Status.OK]
     subjects = np.array([r.subject_id for r in usable])
@@ -332,8 +367,9 @@ def _group_report(
     draws: dict[str, list[float]] = {key: [] for key in points}
     rng = np.random.default_rng(seed)
     if usable:
+        clusters = _subject_clusters(subjects)
         for _ in range(n_bootstrap):
-            indices = _cluster_indices(subjects, rng)
+            indices = _cluster_indices(subjects, rng, clusters=clusters)
             sampled = _points(y[indices], p[indices], kinds[indices], threshold, reference)
             for key in draws:
                 value = sampled.get(key)
@@ -380,6 +416,14 @@ def _group_report(
         warnings.append(
             "BPCER@APCER 5% khóa không khả dụng: thiếu ngưỡng tham chiếu calib_fit có nguồn gốc."
         )
+    if reference is not None:
+        novel_attacks = sorted(set(group_names) - {"bona_fide"} - set(reference.attack_types))
+        if novel_attacks:
+            warnings.append(
+                "Tập đánh giá có attack_type không có trong calib_fit: "
+                + ", ".join(novel_attacks)
+                + "; ngưỡng tham chiếu chưa được kiểm trên các loại này."
+            )
     if any(e.n_valid < n_bootstrap for e in estimates.values() if e.value is not None):
         warnings.append(
             "Một số lần bootstrap thiếu lớp/loại tấn công; xem số lần hợp lệ của từng chỉ số."
@@ -395,6 +439,7 @@ def _group_report(
         threshold,
         reference,
         warnings,
+        threshold_source=threshold_source,
     )
 
 
@@ -402,7 +447,7 @@ def evaluate(
     rows: list[Prediction],
     *,
     dataset: str,
-    threshold: float = 0.5,
+    threshold: float | None = None,
     reference: ReferenceThreshold | None = None,
     exclude_non_ok: bool = False,
     seed: int = DEFAULT_SEED,
@@ -410,7 +455,9 @@ def evaluate(
     repo: Path | None = None,
 ) -> EvaluationReport:
     """Đo ở ngưỡng caller đã khóa; bootstrap subject, không fit/chọn bằng dữ liệu đánh giá."""
-    _validate_rows(rows)
+    rows = _validate_rows(rows)
+    threshold_source = "default" if threshold is None else "caller"
+    threshold = 0.5 if threshold is None else threshold
     if not dataset.strip():
         raise EvaluationError("Cần tên bộ dữ liệu.")
     metrics._threshold(threshold)
@@ -444,7 +491,12 @@ def evaluate(
         )
         reports.append(
             _group_report(
-                members, threshold=threshold, reference=ref, seed=seed, n_bootstrap=n_bootstrap
+                members,
+                threshold=threshold,
+                reference=ref,
+                seed=seed,
+                n_bootstrap=n_bootstrap,
+                threshold_source=threshold_source,
             )
         )
     return EvaluationReport(git_revision(repo), dataset.strip(), seed, n_bootstrap, reports)
@@ -489,7 +541,11 @@ def render_markdown(result: EvaluationReport) -> str:
                 f"## {_text(group.module)} / {_text(group.model_version)}",
                 "",
                 f"Số mẫu: đầu vào={group.n_total}, dùng={group.n_used}; số người dùng={group.n_subjects}.",
-                f"Ngưỡng đánh giá đã khóa do caller cung cấp: {group.threshold:.8g}.",
+                (
+                    "Ngưỡng đánh giá: mặc định 0.5, không do caller cung cấp."
+                    if group.threshold_source == "default"
+                    else f"Ngưỡng đánh giá đã khóa do caller cung cấp: {group.threshold:.8g}."
+                ),
                 "",
             ]
         )
@@ -498,7 +554,8 @@ def render_markdown(result: EvaluationReport) -> str:
             lines.extend(
                 [
                     f"Ngưỡng tham chiếu calib_fit: {ref.threshold:.8g}; bộ dữ liệu {_text(ref.dataset)}; "
-                    f"commit `{_text(ref.commit)}`; {len(set(ref.subject_ids))} người; mục tiêu APCER max ≤5%.",
+                    f"commit `{_text(ref.commit)}`; {len(set(ref.subject_ids))} người; mục tiêu APCER max ≤5%. "
+                    f"Loại trong calib_fit: {_text(', '.join(ref.attack_types))}.",
                     "",
                 ]
             )
@@ -561,7 +618,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dataset", required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--repo", type=Path)
-    parser.add_argument("--threshold", type=float, default=0.5)
+    parser.add_argument(
+        "--threshold", type=float, help="Ngưỡng caller đã khóa; bỏ trống dùng mặc định 0.5"
+    )
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     parser.add_argument("--n-bootstrap", type=int, default=DEFAULT_BOOTSTRAP)
     parser.add_argument("--exclude-non-ok", action="store_true")
