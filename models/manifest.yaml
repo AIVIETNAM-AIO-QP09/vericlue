@@ -1,0 +1,64 @@
+# Danh sách mô hình dùng cho VeriClue. Script tải: scripts/download_models.py (task DATA-02)
+# license: ghi đúng giấy phép; nc = chỉ dùng phi thương mại.
+# sha256: điền sau lần tải đầu tiên để kiểm tra toàn vẹn.
+
+models:
+  - id: minifasnet
+    purpose: PAD (ảnh in, màn hình) — chạy nhanh
+    source: pip:uniface  # uniface tự tải MiniFASNet ONNX
+    license: MIT / Apache-2.0
+    owner: M3
+
+  - id: gend-clip-l14
+    purpose: Deepfake khuôn mặt — mô hình chính
+    source: hf:yermandy/GenD_CLIP_L_14
+    license: MIT
+    owner: M3
+
+  - id: sbi-ffc23
+    purpose: Deepfake khuôn mặt — dự phòng, nguồn heatmap
+    source: gdrive (xem external/repos.yaml -> SelfBlendedImages README)
+    license: research-only (nc)
+    owner: M3
+
+  - id: scrfd-10g
+    purpose: Dò và căn chỉnh khuôn mặt cho GenD
+    source: hf/insightface buffalo_l det_10g.onnx
+    license: research-only (nc)
+    owner: M3
+
+  - id: antideepfake-mms300m
+    purpose: Giọng giả — mô hình nền
+    source: hf:nii-yamagishilab/mms-300m-anti-deepfake
+    license: CC BY-NC-SA 4.0 (nc)
+    owner: M4
+
+  - id: phowhisper
+    purpose: Nhận dạng câu đọc tiếng Việt
+    source: hf:vinai/PhoWhisper-small  # GPU: hf:kiendt/PhoWhisper-large-ct2
+    license: BSD-3-Clause
+    owner: M4
+
+  - id: ctc-aligner
+    purpose: Căn chỉnh câu đề bài theo thời gian
+    source: pip:ctc-forced-aligner (mms-300m-1130-forced-aligner)
+    license: BSD-2-Clause / CC BY-NC (mô hình MMS)
+    owner: M4
+
+  - id: syncnet
+    purpose: Khớp môi–âm
+    source: hf:ByteDance/LatentSync-1.6 (stable_syncnet.pt)
+    license: Apache-2.0
+    owner: M4
+
+  - id: audioseal-detector
+    purpose: Dò thủy vân AudioSeal
+    source: pip:audioseal
+    license: MIT
+    owner: M4
+
+  - id: perth
+    purpose: Dò thủy vân PerTh (Resemble / Chatterbox)
+    source: pip:resemble-perth
+    license: MIT
+    owner: M4

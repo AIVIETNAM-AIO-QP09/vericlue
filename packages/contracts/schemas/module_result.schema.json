@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vericlue.local/contracts/module_result.schema.json",
+  "title": "ModuleResult",
+  "description": "Kết quả chuẩn của MỌI bộ phát hiện (quality, face_pad, face_deepfake, chromapulse, camprobe, voice_spoof, voice_challenge, lipsync, provenance). TrustRouter chỉ dùng prob_attack.",
+  "type": "object",
+  "required": [
+    "module",
+    "model_version",
+    "status",
+    "latency_ms"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "module": {
+      "type": "string",
+      "enum": [
+        "quality",
+        "face_pad",
+        "face_deepfake",
+        "chromapulse",
+        "camprobe",
+        "voice_spoof",
+        "voice_challenge",
+        "lipsync",
+        "provenance"
+      ]
+    },
+    "model_version": {
+      "type": "string",
+      "description": "VD: gend-clip-l14@ft-2026-10-24 hoặc mock@0.1"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "not_applicable",
+        "degraded",
+        "error"
+      ],
+      "description": "error/degraded KHÔNG BAO GIỜ được hiểu là đạt. not_applicable = không có mặt, im lặng, nhiều mặt..."
+    },
+    "error_code": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        null,
+        "E_NO_FACE",
+        "E_MULTI_FACE",
+        "E_LOW_QUALITY",
+        "E_TIMEOUT",
+        "E_DECODE",
+        "E_CHALLENGE_MISMATCH",
+        "E_INTEGRITY",
+        "E_INTERNAL"
+      ]
+    },
+    "score": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "description": "Điểm thô của mô hình (chưa hiệu chỉnh)"
+    },
+    "prob_attack": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Xác suất là tấn công SAU hiệu chỉnh"
+    },
+    "gate": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        null,
+        "pass",
+        "fail",
+        "unclear"
+      ],
+      "description": "Chỉ dùng cho cổng luật (quality, chromapulse, camprobe)"
+    },
+    "quality": {
+      "type": "object",
+      "description": "Chỉ số chất lượng đầu vào, tùy mô-đun",
+      "additionalProperties": {
+        "type": [
+          "number",
+          "string",
+          "boolean",
+          "null"
+        ]
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "type",
+          "name"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "scalar",
+              "timeseries",
+              "image",
+              "segments",
+              "text"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "value": {},
+          "uri": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "label_vi": {
+            "type": "string",
+            "description": "Nhãn tiếng Việt hiển thị cho người duyệt"
+          }
+        }
+      }
+    },
+    "latency_ms": {
+      "type": "number",
+      "minimum": 0
+    }
+  }
+}

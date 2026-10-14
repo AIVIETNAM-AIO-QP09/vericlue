@@ -1,0 +1,16 @@
+# Người duyệt mặc định theo thư mục. Thay @TODO-M* bằng tài khoản GitHub thật (xem docs/context/team.md).
+# Dòng sau ghi đè dòng trước.
+
+*                         @TODO-M5
+/apps/web/                @TODO-M1 @TODO-M2
+/apps/web/src/app/review/ @TODO-M2
+/apps/web/src/app/forensic/ @TODO-M2
+/services/api/            @TODO-M5
+/ml/src/vericlue_ml/face/ @TODO-M3
+/ml/src/vericlue_ml/presence/ @TODO-M3 @TODO-M1
+/ml/src/vericlue_ml/voice/ @TODO-M4
+/ml/src/vericlue_ml/router/ @TODO-M5
+/ml/src/vericlue_ml/forensic/ @TODO-M4 @TODO-M2
+/ml/configs/thresholds.yaml @TODO-M5 @TODO-M3 @TODO-M4
+/packages/contracts/      @TODO-M5 @TODO-M1 @TODO-M3
+/docs/adr/                @TODO-M5

@@ -1,0 +1,42 @@
+# Gốc workspace Python của VeriClue (quản lý bằng uv).
+# Gói con (services/api, ml) được thêm vào [tool.uv.workspace] ở task PLAT-03.
+
+[project]
+name = "vericlue-workspace"
+version = "0.1.0"
+description = "VeriClue — Data for Life 2026 (DS@AInSec4E)"
+requires-python = ">=3.12,<3.13"
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "ruff>=0.6",
+  "pytest>=8.0",
+  "pytest-cov>=5.0",
+  "pre-commit>=3.7",
+  "nbstripout>=0.7",
+  "pyyaml>=6.0",
+  "jsonschema>=4.22",
+]
+
+[tool.uv]
+package = false
+default-groups = ["dev"]
+
+# ── Ruff: định dạng + lint ─────────────────────────────────────
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["external", "data", "models", "notebooks", "apps"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+ignore = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+# ── Pytest ────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths = ["scripts/tests", "services/api/tests", "ml/tests"]
+addopts = "-q"

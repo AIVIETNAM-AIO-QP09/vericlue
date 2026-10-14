@@ -1,0 +1,50 @@
+# Repo clone về external/ — điền commit cụ thể ở task PLAT-01 để mọi người chạy giống nhau.
+repos:
+  - name: SelfBlendedImages
+    url: https://github.com/mapooon/SelfBlendedImages
+    commit: TODO
+    why: Định nghĩa mô hình SBI để nạp trọng số FFc23
+    license: research-only
+    owner: M3
+
+  - name: GenD
+    url: https://github.com/yermandy/GenD
+    commit: TODO
+    why: Code tiền xử lý (detector.py, align_face) và nạp mô hình
+    license: MIT
+    owner: M3
+
+  - name: wedefense
+    url: https://github.com/zlin0/wedefense
+    commit: TODO
+    why: Công thức tăng cường dữ liệu giọng nói (codec_util, rawboost), logits_to_llr
+    license: Apache-2.0
+    owner: M4
+
+  - name: AntiDeepfake
+    url: https://github.com/nii-yamagishilab/AntiDeepfake
+    commit: TODO
+    why: Code nạp và tinh chỉnh mô hình AntiDeepfake
+    license: BSD-3-Clause (code)
+    owner: M4
+
+  - name: LatentSync
+    url: https://github.com/bytedance/LatentSync
+    commit: TODO
+    why: Code chạy stable_syncnet
+    license: Apache-2.0
+    owner: M4
+
+  - name: amplify-ui
+    url: https://github.com/aws-amplify/amplify-ui
+    commit: TODO
+    why: Nguồn để CHÉP file phát màu sang apps/web/src/lib/capture/vendor (không dùng trực tiếp)
+    license: Apache-2.0
+    owner: M1
+
+  - name: creepjs
+    url: https://github.com/abrahamjuliot/creepjs
+    commit: TODO
+    why: Nguồn để CHÉP kỹ thuật phát hiện hàm bị can thiệp (src/lies)
+    license: MIT
+    owner: M1

@@ -1,0 +1,77 @@
+# ── Bí mật và cấu hình cục bộ ───────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# ── Dữ liệu, mô hình, mã nguồn bên ngoài (KHÔNG commit) ─────
+# Mỗi thư mục chỉ giữ README hướng dẫn cách tải về.
+data/*
+!data/README.md
+models/*
+!models/README.md
+!models/manifest.yaml
+external/*
+!external/README.md
+!external/repos.yaml
+artifacts/
+runs/
+outputs/
+checkpoints/
+mlruns/
+wandb/
+*.onnx
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.bin
+*.npz
+*.parquet
+*.wav
+*.mp3
+*.mp4
+*.webm
+*.m4a
+!**/fixtures/**
+
+# ── Python ───────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+.ipynb_checkpoints/
+
+# ── Node.js / Next.js ────────────────────────────────────────
+node_modules/
+.next/
+out/
+dist/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# ── Công cụ AI: cấu hình cá nhân ─────────────────────────────
+.claude/settings.local.json
+.codex/
+
+# ── Editor / hệ điều hành ────────────────────────────────────
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# ── Tạm ──────────────────────────────────────────────────────
+tmp/
+temp/
+*.log

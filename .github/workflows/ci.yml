@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python (lint + test) + kiểm tra kế hoạch
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Install (Python 3.12 + thư viện, đúng uv.lock)
+        run: uv sync --all-packages --frozen
+      - name: Lint
+        run: uv run ruff check . && uv run ruff format --check .
+      - name: Kiểm tra kế hoạch (backlog ↔ task card, phụ thuộc, tải, đường găng)
+        run: uv run python scripts/plan_check.py
+      - name: Test (mô-đun giả lập, CPU)
+        env:
+          USE_MOCK_MODELS: "true"
+        run: uv run pytest
+
+  web:
+    name: Web (lint + test + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check web project exists
+        id: has_web
+        working-directory: .
+        run: test -f apps/web/package.json && echo "yes=true" >> "$GITHUB_OUTPUT" || echo "yes=false" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v4
+        if: steps.has_web.outputs.yes == 'true'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - if: steps.has_web.outputs.yes == 'true'
+        run: npm ci
+      - if: steps.has_web.outputs.yes == 'true'
+        run: npm run lint
+      - if: steps.has_web.outputs.yes == 'true'
+        run: npm run test --if-present
+      - if: steps.has_web.outputs.yes == 'true'
+        run: npm run build
+
+  guard:
+    name: Guard (no data/secrets)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Block large or forbidden files
+        run: |
+          bad=$(git ls-files | grep -E '\.(onnx|pt|pth|ckpt|safetensors|wav|mp3|mp4|webm|m4a|npz)$' | grep -v '/fixtures/' || true)
+          if [ -n "$bad" ]; then echo "Forbidden files committed:"; echo "$bad"; exit 1; fi
+          if git ls-files | grep -E '(^|/)\.env$'; then echo ".env committed"; exit 1; fi
+          big=$(git ls-files -z | xargs -0 du -k 2>/dev/null | awk '$1 > 2048 {print $2}' | grep -v '\.pdf$' || true)
+          if [ -n "$big" ]; then echo "Files > 2MB:"; echo "$big"; exit 1; fi

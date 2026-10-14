@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vericlue.local/contracts/session.schema.json",
+  "title": "Session API",
+  "description": "Hợp đồng giữa web xác minh và API phiên. Bản nháp — chốt ở task PLAT-04.",
+  "$defs": {
+    "ColorStep": {
+      "type": "object",
+      "required": ["rgb", "hold_ms", "transition_ms"],
+      "properties": {
+        "rgb": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+        "hold_ms": { "type": "integer", "minimum": 300, "maximum": 1000 },
+        "transition_ms": { "type": "integer", "minimum": 0, "maximum": 300 }
+      }
+    },
+    "CreateSessionResponse": {
+      "type": "object",
+      "required": ["session_id", "token", "expires_at", "challenge"],
+      "properties": {
+        "session_id": { "type": "string" },
+        "token": { "type": "string", "description": "Token dùng một lần, gắn vào mọi lần tải lên" },
+        "expires_at": { "type": "string", "format": "date-time" },
+        "challenge": {
+          "type": "object",
+          "required": ["challenge_id", "color_sequence"],
+          "properties": {
+            "challenge_id": { "type": "string" },
+            "baseline_ms": { "type": "integer", "default": 1000 },
+            "color_sequence": { "type": "array", "items": { "$ref": "#/$defs/ColorStep" }, "minItems": 8, "maxItems": 8 },
+            "capture_at_ms": { "type": "array", "items": { "type": "integer" }, "description": "Thời điểm server chọn để chụp ảnh chất lượng cao" }
+          }
+        }
+      }
+    },
+    "Signals": {
+      "type": "object",
+      "description": "Tín hiệu trình duyệt đo. Server KHÔNG tin tuyệt đối, sẽ tính lại từ media.",
+      "required": ["color_events", "frame_times"],
+      "properties": {
+        "color_events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["index", "rgb", "painted_at"],
+            "properties": {
+              "index": { "type": "integer" },
+              "rgb": { "type": "string" },
+              "painted_at": { "type": "number", "description": "performance.now() từ requestAnimationFrame" }
+            }
+          }
+        },
+        "frame_times": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "capture_time": { "type": ["number", "null"], "description": "requestVideoFrameCallback captureTime" },
+              "presented_frames": { "type": "integer" },
+              "media_time": { "type": "number" }
+            }
+          }
+        },
+        "region_means": {
+          "type": "array",
+          "description": "Trung vị RGB theo khung cho 5 vùng da + nền (tham khảo)",
+          "items": { "type": "object" }
+        },
+        "camprobe": {
+          "type": "object",
+          "properties": {
+            "api_tamper_flags": { "type": "array", "items": { "type": "string" } },
+            "constraint_probes": { "type": "array", "items": { "type": "object" } },
+            "device_label": { "type": "string" },
+            "track_settings": { "type": "object" },
+            "track_capabilities": { "type": "object" },
+            "duplicate_frame_ratio": { "type": "number" }
+          }
+        },
+        "client_quality": { "type": "object" }
+      }
+    },
+    "FinalizeResponse": {
+      "type": "object",
+      "required": ["status"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "type": "string", "enum": ["pass", "retry", "review", "voice_challenge"] },
+        "retry_hint": {
+          "type": ["string", "null"],
+          "enum": [null, "MORE_LIGHT", "MOVE_CLOSER", "MOVE_BACK", "FACE_CENTER", "HOLD_STILL", "QUIET_PLACE", "BRIGHTNESS_UP"],
+          "description": "Chỉ nói về CHẤT LƯỢNG, không bao giờ nói về giả mạo"
+        },
+        "voice_prompt": { "type": ["string", "null"], "description": "Câu tiếng Việt cần đọc" },
+        "attempts_left": { "type": "integer" }
+      }
+    }
+  }
+}
