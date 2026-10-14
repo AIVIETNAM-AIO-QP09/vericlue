@@ -94,6 +94,37 @@ AGENTS.md §6 luật số <N>). Đọc lại mục đó rồi đề xuất cách
 - Báo "đã xong" mà không chạy test.
 - Code ngày càng dài và rối cho một việc đơn giản.
 
+## Subagent và nhiều phiên song song
+
+Claude Code có thể sinh **subagent** (một AI phụ chạy trong phiên). Nhóm cũng chạy nhiều phiên cùng lúc (Claude và Codex). Luật chung:
+
+| Luật | Vì sao |
+|---|---|
+| **Mỗi task một phiên chính.** Chỉ phiên chính được commit và push. | Một người chịu trách nhiệm cho mỗi nhánh |
+| Subagent chỉ dùng để **đọc, tra cứu, chạy test, duyệt**, hoặc viết vào **file riêng** được giao. | Tránh hai bên ghi đè nhau |
+| **Hai subagent hoặc hai phiên không sửa cùng một file.** | Tránh xung đột và mất code |
+| **Mỗi AI một git worktree**, đặt ngang hàng với `Data4Life` (ví dụ `D:\Projects\vericlue-claude`), không lồng vào trong. | pytest, ruff, tìm kiếm không quét trùng; tránh `git add .` nhầm |
+| **Duyệt chéo:** PR của Codex do Claude duyệt, PR của Claude do Codex duyệt. | AI thứ hai dễ thấy lỗi mà AI thứ nhất bỏ qua |
+
+Trong Claude Code có subagent `reviewer` (`.claude/agents/reviewer.md`): chỉ đọc và chạy test, trả về danh sách vấn đề. Phiên điều phối dùng nó để duyệt PR (xem `docs/ai/lead-playbook.md`).
+
+### Dùng subagent để làm nhanh hơn
+
+Phiên chính giữ phần **viết code và quyết định**. Những việc đọc nhiều, chờ lâu hoặc độc lập với nhau thì giao cho subagent **chạy song song**:
+
+| Lúc | Giao cho subagent (chạy cùng lúc) | Phiên chính làm gì |
+|---|---|---|
+| Bắt đầu task | Mỗi subagent đọc một nhóm tài liệu và tóm tắt ngắn: (a) task card + ADR liên quan; (b) code hiện có ở thư mục sẽ sửa; (c) schema trong `packages/contracts/` và bàn giao gần nhất | Gộp các bản tóm tắt thành kế hoạch, chờ người dùng duyệt |
+| Đang làm | Viết test vào **file test riêng**; tra cứu thư viện hoặc giấy phép; chạy `pytest`/`ruff`/`npm run build` rồi báo lỗi | Viết code chính |
+| Trước khi mở PR | `reviewer` (Claude) hoặc một subagent chỉ đọc: rà theo task card và AGENTS.md §6, §8 | Sửa các mục "phải sửa", ghi bàn giao, mở PR |
+
+Mẹo:
+
+- Giao việc cho subagent phải **cụ thể**: đọc file nào, trả về gì, tối đa bao nhiêu dòng.
+- Các subagent không phụ thuộc nhau thì **gọi cùng lúc** (Claude Code: nhiều lệnh gọi Agent trong một lượt).
+- Không giao subagent việc nhỏ mà phiên chính tự làm nhanh hơn (đọc 1 file, sửa 1 dòng).
+- **Codex:** nếu bản Codex đang dùng có subagent hoặc tác vụ song song thì áp dụng như bảng trên. Nếu không có thì làm tuần tự theo đúng thứ tự đó, và nhờ Claude duyệt chéo thay cho `reviewer`.
+
 ## Phân chia gợi ý giữa các AI
 
 | Việc | Gợi ý |

@@ -388,9 +388,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument("--board", action="store_true", help="chỉ in bảng trạng thái")
     ap.add_argument("--notes", action="store_true", help="in cả các cặp phụ thuộc cùng sprint")
+    # Before parse_args: --help and errors print Vietnamese text (cp1252 console on Windows).
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
     args = ap.parse_args(argv)
-    if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(encoding="utf-8")
     return report(parse_backlog(), args.util, args.board, args.notes)
 
 

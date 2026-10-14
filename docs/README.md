@@ -24,7 +24,7 @@ docs/
 ├── conventions/    coding-standards.md
 ├── runbooks/       onboarding · dev-setup · red-team · demo-day
 ├── templates/      mẫu: bàn giao, thẻ mô hình, báo cáo kết quả, tổng kết sprint
-└── ai/             working-with-ai.md — làm việc với nhiều AI, nhiều phiên
+└── ai/             working-with-ai.md — làm việc với nhiều AI, nhiều phiên · lead-playbook.md — sổ tay trưởng nhóm
 ```
 
 ## Quy tắc tài liệu
