@@ -1,0 +1,51 @@
+{
+  "job_id": "job_0001",
+  "status": "done",
+  "file_sha256": "3a7bd3e2360a3d29eea436fcfb7e44c735d117c42d1c1835420b6b9942dd4f1b",
+  "verdict": "suspect",
+  "segments": [
+    {
+      "t_start": 0.0,
+      "t_end": 4.5,
+      "signals": [
+        {
+          "module": "face_deepfake",
+          "applicable": true,
+          "prob_attack": 0.81
+        },
+        {
+          "module": "voice_spoof",
+          "applicable": false,
+          "prob_attack": null
+        }
+      ]
+    },
+    {
+      "t_start": 4.5,
+      "t_end": 9.0,
+      "signals": [
+        {
+          "module": "face_deepfake",
+          "applicable": true,
+          "prob_attack": 0.74
+        },
+        {
+          "module": "voice_spoof",
+          "applicable": true,
+          "prob_attack": 0.69
+        }
+      ]
+    },
+    {
+      "t_start": 9.0,
+      "t_end": 12.3,
+      "signals": [
+        {
+          "module": "lipsync",
+          "applicable": true,
+          "prob_attack": 0.58
+        }
+      ]
+    }
+  ]
+}

@@ -10,7 +10,8 @@
     "test": "vitest run",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "gen:api": "openapi-typescript ../../packages/contracts/openapi.json -o src/lib/api/schema.d.ts"
   },
   "dependencies": {
     "next": "16.4.0",
@@ -24,6 +25,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.0",
+    "openapi-typescript": "^7.13.0",
     "prettier": "^3.9.10",
     "tailwindcss": "^4",
     "typescript": "^5",

@@ -22,6 +22,8 @@ jobs:
         run: uv run ruff check . && uv run ruff format --check .
       - name: Kiểm tra kế hoạch (backlog ↔ task card, phụ thuộc, tải, đường găng)
         run: uv run python scripts/plan_check.py
+      - name: openapi.json khớp code (chạy lại gen_openapi không được tạo khác biệt)
+        run: uv run python scripts/gen_openapi.py && git diff --exit-code -- packages/contracts/openapi.json
       - name: Test (mô-đun giả lập, CPU)
         env:
           USE_MOCK_MODELS: "true"
@@ -49,6 +51,13 @@ jobs:
         run: npm ci
       - if: steps.has_web.outputs.yes == 'true'
         run: npm run lint
+      - if: steps.has_web.outputs.yes == 'true'
+        run: npm run typecheck
+      - if: steps.has_web.outputs.yes == 'true'
+        run: npm run format:check
+      - name: Type API khớp openapi.json (chạy lại gen:api không được tạo khác biệt)
+        if: steps.has_web.outputs.yes == 'true'
+        run: npm run gen:api && git diff --exit-code -- src/lib/api/schema.d.ts
       - if: steps.has_web.outputs.yes == 'true'
         run: npm run test --if-present
       - if: steps.has_web.outputs.yes == 'true'

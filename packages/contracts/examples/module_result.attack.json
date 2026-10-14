@@ -1,0 +1,26 @@
+{
+  "module": "face_deepfake",
+  "model_version": "gend-clip-l14@ft-2026-10-24",
+  "status": "ok",
+  "score": 3.2,
+  "prob_attack": 0.93,
+  "evidence": [
+    {
+      "type": "segments",
+      "name": "suspect_segments",
+      "value": [
+        [
+          1.0,
+          2.5
+        ],
+        [
+          6.0,
+          7.2
+        ]
+      ],
+      "unit": "s",
+      "label_vi": "Đoạn nghi vấn"
+    }
+  ],
+  "latency_ms": 210.7
+}

@@ -1,0 +1,14 @@
+{
+  "module": "chromapulse",
+  "model_version": "chromapulse@0.1",
+  "status": "degraded",
+  "error_code": "E_LOW_QUALITY",
+  "score": null,
+  "prob_attack": null,
+  "gate": "unclear",
+  "quality": {
+    "snr_db": 4.2,
+    "frames_used": 31
+  },
+  "latency_ms": 320.0
+}

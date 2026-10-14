@@ -1,0 +1,26 @@
+{
+  "color_events": [
+    {
+      "index": 0,
+      "rgb": "#ffcc73",
+      "painted_at": 10234.6
+    },
+    {
+      "index": 1,
+      "rgb": "#73d9ff",
+      "painted_at": 10834.9
+    }
+  ],
+  "frame_times": [
+    {
+      "capture_time": 10240.2,
+      "presented_frames": 301,
+      "media_time": 5.012
+    },
+    {
+      "capture_time": null,
+      "presented_frames": 302,
+      "media_time": 5.045
+    }
+  ]
+}

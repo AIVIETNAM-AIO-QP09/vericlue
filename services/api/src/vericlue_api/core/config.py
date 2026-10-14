@@ -17,6 +17,21 @@ class Settings(BaseSettings):
     models_dir: str = "./models"
     media_dir: str = "./tmp/media"
 
+    # Phiên và thử thách (ADR-0011). Token HMAC/TTL thật do PLAT-06 cài.
+    session_ttl_seconds: int = 300
+    challenge_ttl_seconds: int = 120
+    max_retries: int = 2
+    max_upload_mb: int = 50
+    challenge_palette: str = "#ffcc73,#73d9ff,#ffb3eb,#80e09e"
+
+    # TẠM — ROUT-02 thay thế bằng ngưỡng khóa trong ml/configs/thresholds.yaml.
+    provisional_threshold_b: float = 0.15
+    provisional_threshold_a: float = 0.60
+
+    @property
+    def palette(self) -> list[str]:
+        return [c.strip() for c in self.challenge_palette.split(",") if c.strip()]
+
     @property
     def cors_origins(self) -> list[str]:
         return [o.strip() for o in self.api_cors_origins.split(",") if o.strip()]
