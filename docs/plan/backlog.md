@@ -82,7 +82,7 @@
 
 | Mã | Task | Vai trò | Người | Ngày công | Sprint | Ưu tiên | Phụ thuộc | Trạng thái |
 |---|---|---|---|---|---|---|---|---|
-| ROUT-01 | Hiệu chỉnh xác suất | M5 | | 1 | S1 | P0 | PLAT-03 | todo |
+| ROUT-01 | Hiệu chỉnh xác suất | M5 | Codex | 1 | S1 | P0 | PLAT-03 | done |
 | ROUT-02 ★ | Bộ chính sách quyết định | M5 | | 1,5 | S1 | P0 | ROUT-01, PLAT-08 | todo |
 | ROUT-03 ★ | Chọn ngưỡng bằng Learn-then-Test (MAPIE) | M5 | | 1,5 | S2 | P0 | ROUT-02, FACE-04, VOICE-03 | todo |
 | ROUT-04 | Cổng ngoài phạm vi | M5 | | 1 | S2 | P1 | FACE-02 | todo |

@@ -14,13 +14,14 @@
 **Mục tiêu:** điểm thô của mọi bộ phát hiện → `prob_attack` đáng tin.
 
 **Đầu ra:** `ml/src/vericlue_ml/common/calibration.py`
-- Platt (logistic) và isotonic; chọn theo log-loss trên tập calib.
-- Lưu và nạp calibrator theo `model_version` (`models/calibrators/<module>/<version>.json`).
-- Báo cáo ECE và Brier score kèm biểu đồ reliability.
+- Platt (logistic) và isotonic; chọn bằng log-loss OOF của GroupKFold theo subject (~5 phần) trên **calib_fit**, rồi fit lại trên toàn calib_fit. Isotonic chỉ được chọn khi mỗi lớp ≥ 100 mẫu và log-loss thấp hơn Platt ≥ 2% tương đối.
+- Lưu và nạp calibrator theo `model_version` (`ml/configs/calibrators/<module>/<version>.json`).
+- ECE, Brier và bảng reliability (dữ liệu + Markdown) trong `common/calibration.py`; PNG tùy chọn với matplotlib (extra `eval`, import lười).
+- Artifact JSON ghi epsilon = 1e-4, số mẫu mỗi lớp, tham số, chỉ số trước/sau OOF, ngày và commit. Không dùng calib_ltt/test để fit hay chọn phương pháp.
 
 **Tiêu chí hoàn thành:**
-- [ ] Test với dữ liệu tổng hợp: ECE giảm sau hiệu chỉnh.
-- [ ] Detector nào chưa có calibrator thì báo lỗi rõ ràng (không âm thầm dùng điểm thô).
+- [x] Test với dữ liệu tổng hợp: ECE giảm sau hiệu chỉnh.
+- [x] Detector nào chưa có calibrator thì báo lỗi rõ ràng (không âm thầm dùng điểm thô). Mock `mock@` và module chỉ trả gate/nguồn gốc được miễn theo phạm vi đã chốt.
 
 ---
 
