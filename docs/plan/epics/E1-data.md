@@ -37,11 +37,13 @@
 **Mục tiêu:** `scripts/download_models.py` tải mọi mô hình trong `models/manifest.yaml`, ghi và kiểm SHA-256.
 
 **Tiêu chí hoàn thành:**
-- [ ] Tải đủ GenD, AntiDeepfake, PhoWhisper, SyncNet (`stable_syncnet`), MiniFASNet (qua uniface), SBI, SCRFD.
-- [ ] Lần đầu điền `sha256` vào manifest; các lần sau kiểm tra và báo sai lệch.
-- [ ] Chép link Google Drive của SBI sang Hugging Face riêng của nhóm (để private) để tránh hết lượt tải.
+- [x] Tải đủ GenD, AntiDeepfake, PhoWhisper, SyncNet (`stable_syncnet`), MiniFASNet (qua uniface), SCRFD **det_10g**, CTC aligner và AudioSeal, kèm CLIP nền của GenD vào MODELS_DIR; **trừ SBI (FACE-03) và PerTh (FOR-03)**, theo quyết định trưởng nhóm 15/10.
+- [x] Lần đầu điền `sha256` vào manifest; các lần sau kiểm tra và báo sai lệch.
+- [x] Không mirror SBI (điều khoản hạn chế chia sẻ) — mỗi máy tải từ nguồn gốc; quyết định trưởng nhóm 15/10.
 
 ---
+
+**Quyết định 15/10:** MODELS_DIR từ biến môi trường, mặc định ./models; máy nhóm dùng D:\Projects\vericlue-store\models. SCRFD UniFace phải byte-identical det_10g repo GenD; SyncNet ghi OpenRAIL++; PerTh chờ xác minh quyền trọng số — FOR-03. SBI giữ nguồn gốc/chưa pin, không chặn task.
 
 ### DATA-03 · Chia tập theo người
 

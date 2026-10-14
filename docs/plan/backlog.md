@@ -30,7 +30,7 @@
 | Mã | Task | Vai trò | Người | Ngày công | Sprint | Ưu tiên | Phụ thuộc | Trạng thái |
 |---|---|---|---|---|---|---|---|---|
 | DATA-01 | Script tải dữ liệu công khai | M3 + M4 | | 1 | S0 | P0 | PLAT-01 | todo |
-| DATA-02 | Script tải mô hình + SHA-256 | M2 | | 0,5 | S0 | P0 | PLAT-01 | todo |
+| DATA-02 | Script tải mô hình + SHA-256 | M2 | Codex | 0,5 | S0 | P0 | PLAT-01 | done |
 | DATA-03 | Chia tập theo người | M3 + M4 | | 1 | S1 | P0 | DATA-01 | todo |
 | DATA-04 | Tạo deepfake người Việt | M2 | | 1,5 | S1 | P0 | DATA-01, REDT-01 | todo |
 | DATA-05 | Biến thể nén 3 mức | M4 | | 0,5 | S1 | P0 | DATA-01 | todo |
