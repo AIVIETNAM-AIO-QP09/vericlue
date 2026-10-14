@@ -1,0 +1,18 @@
+{
+  "items": [
+    {
+      "case_id": "case_0001",
+      "session_id": "ses_01k8x4m2q9",
+      "status": "open",
+      "priority": "high",
+      "created_at": "2026-10-15T08:31:20Z"
+    },
+    {
+      "case_id": "case_0002",
+      "session_id": "ses_01k8x3z7ab",
+      "status": "initial_decided",
+      "priority": "normal",
+      "created_at": "2026-10-15T08:20:05Z"
+    }
+  ]
+}

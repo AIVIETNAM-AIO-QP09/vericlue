@@ -1,0 +1,27 @@
+{
+  "case_id": "case_0001",
+  "session_id": "ses_01k8x4m2q9",
+  "status": "open",
+  "priority": "high",
+  "created_at": "2026-10-15T08:31:20Z",
+  "media": [
+    {
+      "kind": "face_image",
+      "url": "/api/v1/review/cases/case_0001/media/face.jpg"
+    },
+    {
+      "kind": "face_video",
+      "url": "/api/v1/review/cases/case_0001/media/face.webm"
+    },
+    {
+      "kind": "voice_audio",
+      "url": "/api/v1/review/cases/case_0001/media/voice.wav"
+    }
+  ],
+  "capture_notes": [
+    "Ánh sáng phòng yếu, khuôn mặt hơi tối.",
+    "Điện thoại camera trước, độ phân giải 720p."
+  ],
+  "initial_decision": null,
+  "final_decision": null
+}

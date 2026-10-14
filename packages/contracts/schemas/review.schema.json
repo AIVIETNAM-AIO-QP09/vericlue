@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vericlue.local/contracts/review.schema.json",
+  "title": "Review API",
+  "description": "Bàn duyệt của nhân viên. DRAFT v1: chỉ cho phép THÊM trường tùy chọn. ReviewCase (hồ sơ bằng chứng) KHÔNG chứa điểm AI; ý kiến AI nằm riêng ở ReviewAiOpinion và chỉ xem được sau khi nhân viên ghi quyết định ban đầu (GET .../ai trả 409 nếu chưa có).",
+  "$defs": {
+    "CaseStatus": { "type": "string", "enum": ["open", "initial_decided", "closed"] },
+    "Priority": { "type": "string", "enum": ["normal", "high"] },
+    "Decision": { "type": "string", "enum": ["accept", "reject", "request_retry"] },
+    "MediaRef": {
+      "type": "object",
+      "required": ["kind", "url"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "type": "string", "enum": ["face_image", "face_video", "voice_audio"] },
+        "url": { "type": "string" }
+      }
+    },
+    "ReviewCaseSummary": {
+      "type": "object",
+      "required": ["case_id", "session_id", "status", "priority", "created_at"],
+      "additionalProperties": false,
+      "properties": {
+        "case_id": { "type": "string" },
+        "session_id": { "type": "string" },
+        "status": { "$ref": "#/$defs/CaseStatus" },
+        "priority": { "$ref": "#/$defs/Priority" },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "ReviewCaseList": {
+      "type": "object",
+      "required": ["items"],
+      "additionalProperties": false,
+      "properties": {
+        "items": { "type": "array", "items": { "$ref": "#/$defs/ReviewCaseSummary" } }
+      }
+    },
+    "ReviewCase": {
+      "type": "object",
+      "description": "Hồ sơ bằng chứng KHÔNG kèm điểm AI: tuyệt đối không có score, prob_attack hay kết quả từng mô-đun.",
+      "required": ["case_id", "session_id", "status", "priority", "created_at", "media"],
+      "additionalProperties": false,
+      "properties": {
+        "case_id": { "type": "string" },
+        "session_id": { "type": "string" },
+        "status": { "$ref": "#/$defs/CaseStatus" },
+        "priority": { "$ref": "#/$defs/Priority" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "media": { "type": "array", "items": { "$ref": "#/$defs/MediaRef" } },
+        "capture_notes": { "type": "array", "items": { "type": "string" }, "description": "Ghi chú về điều kiện chụp (ánh sáng, thiết bị), không phải kết luận AI" },
+        "initial_decision": { "oneOf": [{ "$ref": "#/$defs/Decision" }, { "type": "null" }] },
+        "final_decision": { "oneOf": [{ "$ref": "#/$defs/Decision" }, { "type": "null" }] }
+      }
+    },
+    "InitialDecisionRequest": {
+      "type": "object",
+      "required": ["decision"],
+      "additionalProperties": false,
+      "properties": {
+        "decision": { "$ref": "#/$defs/Decision" },
+        "note": { "type": "string" }
+      }
+    },
+    "ReviewAiOpinion": {
+      "type": "object",
+      "description": "Ý kiến AI cho nhân viên (có điểm). Chỉ trả sau khi có quyết định ban đầu.",
+      "required": ["case_id", "suggestion", "modules"],
+      "additionalProperties": false,
+      "properties": {
+        "case_id": { "type": "string" },
+        "suggestion": { "type": "string", "enum": ["pass", "review", "retry"] },
+        "modules": { "type": "array", "items": { "$ref": "https://vericlue.local/contracts/module_result.schema.json" } }
+      }
+    },
+    "FinalDecisionRequest": {
+      "type": "object",
+      "required": ["decision", "reason_code"],
+      "additionalProperties": false,
+      "properties": {
+        "decision": { "$ref": "#/$defs/Decision" },
+        "reason_code": { "type": "string" },
+        "note": { "type": "string" }
+      }
+    },
+    "DecisionResponse": {
+      "type": "object",
+      "required": ["case_id", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "case_id": { "type": "string" },
+        "status": { "$ref": "#/$defs/CaseStatus" }
+      }
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "case_id": "case_0001",
+  "suggestion": "review",
+  "modules": [
+    {
+      "module": "quality",
+      "model_version": "mock@0.1",
+      "status": "ok",
+      "gate": "pass",
+      "quality": {
+        "brightness": 0.42,
+        "face_ratio": 0.31,
+        "blur": 0.08
+      },
+      "latency_ms": 12.5
+    },
+    {
+      "module": "face_deepfake",
+      "model_version": "gend-clip-l14@ft-2026-10-24",
+      "status": "ok",
+      "score": 1.37,
+      "prob_attack": 0.62,
+      "evidence": [
+        {
+          "type": "scalar",
+          "name": "face_prob",
+          "value": 0.62,
+          "label_vi": "Xác suất khuôn mặt bất thường"
+        }
+      ],
+      "latency_ms": 184.2
+    }
+  ]
+}

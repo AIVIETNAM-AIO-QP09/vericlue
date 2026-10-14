@@ -1,6 +1,6 @@
 # STATUS — Tình trạng dự án
 
-> **Cập nhật:** 14/10/2026 · **Sprint:** chuẩn bị S0 (bắt đầu 15/10) · **Mốc kế tiếp:** M0 — 17/10 · **Hạn nộp:** trước 06/11 (còn 22 ngày)
+> **Cập nhật:** 15/10/2026 · **Sprint:** S0 (15/10 → 17/10) · **Mốc kế tiếp:** M0 — 17/10 · **Hạn nộp:** trước 06/11 (còn 21 ngày)
 > **Chỉ trưởng nhóm sửa file này** (tránh xung đột git). Người khác ghi vào file bàn giao, trưởng nhóm gom lại.
 > Số liệu task luôn mới nhất: `uv run python scripts/plan_check.py --board`.
 
@@ -11,16 +11,17 @@
 | Proposal | ✅ Chốt bản 3 | `docs/proposal/proposal.md` |
 | Kiến trúc | ✅ Bản nháp | `docs/architecture/architecture.md`; API và DB chốt ở PLAT-04, PLAT-05 |
 | Kế hoạch | ✅ 56 task, đã kiểm tự động | `plan_check.py`: 0 lỗi, 0 cảnh báo; không ai vượt 70% sức chứa ở sprint nào |
-| Công cụ và quy trình | ✅ PLAT-01 xong | `setup.ps1` chạy được trên Windows; CI, pre-commit; test trên `main` `c067609`: 153 đạt, 2 bỏ qua. Phiên điều phối: `/lead`, `docs/ai/lead-playbook.md` |
-| Web / API / ML | 🟡 Đang làm | PLAT-03 xong (API + mock). ROUT-01 xong (PR #3). PLAT-02 xong (PR #4: Next.js 3 khu vực, đã thử trên điện thoại). PLAT-04 và EVAL-01 đang làm |
-| Dữ liệu | ⬜ Chưa tải | `docs/data/data-plan.md` |
+| Công cụ và quy trình | ✅ PLAT-01 xong | `setup.ps1` chạy được trên Windows; CI, pre-commit; test trên `main` `4456711`: 255 đạt, 2 bỏ qua. Phiên điều phối: `/lead`, `docs/ai/lead-playbook.md` |
+| Web / API / ML | 🟡 Đang làm | PLAT-03 xong (API + mock). ROUT-01 xong (PR #3). PLAT-02 xong (PR #4: Next.js 3 khu vực, đã thử trên điện thoại). EVAL-01 xong (PR #5: khung đánh giá chung). PLAT-04 chờ sửa sau review (PR #7) |
+| Dữ liệu | 🟡 Đang viết script | DATA-01 (dữ liệu), DATA-02 (mô hình). Lưu chung ngoài worktree: `D:\Projects\vericlue-store\{data,models}`. Ổ D: còn ~119 GB |
 
 ## Đang làm
 
 | Mã | Người | Bắt đầu | Ghi chú |
 |---|---|---|---|
-| PLAT-04 | M5 (+M1) · Claude (thư mục `vericlue-claude`) | 15/10 | `doing` — chốt API v1 theo ADR-0011, sinh type cho web; nằm trên đường găng |
-| EVAL-01 | M5 · Codex (thư mục `vericlue-codex`) | 14/10 | `doing` — khung đánh giá chung; ECE/Brier dùng lại `vericlue_ml.common.calibration` |
+| PLAT-04 | M5 (+M1) · Claude (thư mục `vericlue-claude`) | 15/10 | `review` — PR #7; đang sửa lỗi đi tắt tới `pass` qua `/voice`; nằm trên đường găng |
+| DATA-02 | M2 · Codex (thư mục `vericlue-codex`) | 15/10 | `doing` — script tải mô hình + SHA-256; chờ duyệt bảng mô hình (giấy phép) |
+| DATA-01 | M3 + M4 · Codex (thư mục `vericlue-data`) | 15/10 | `doing` — script tải dữ liệu công khai, `--subset small` < 30 GB |
 
 ## Bị chặn
 
@@ -51,6 +52,9 @@
 | 14/10 | Token theo phiên (~5 phút), mỗi bước nhận một lần (409), thử thách sống 120 giây; nhịp nháy màu ≥ 550 ms/bước | ADR-0011 |
 | 14/10 | Chạy song song 2 AI bằng git worktree: Claude ở `D:\Projects\vericlue-claude` (PLAT-02 → PLAT-04), Codex ở `D:\Projects\vericlue-codex` (ROUT-01 → EVAL-01) | `docs/ai/working-with-ai.md` |
 | 14/10 | Gộp PR #2 (ADR-0010, ADR-0011) và PR #3 (ROUT-01: hiệu chỉnh xác suất, GroupKFold theo người, thiếu calibrator thì báo lỗi) | PR #2, #3 |
+| 15/10 | PLAT-04: phiên đã ra `review` là trạng thái cuối (gọi lại → 409); xác thực nhân viên cho `/review`, `/forensic` giao PLAT-06 | Bàn giao LEAD 15/10, thẻ PLAT-06 |
+| 15/10 | Mở phiên AI ngay tại thư mục worktree của nó; dữ liệu và mô hình để chung ngoài worktree (`DATA_DIR`, `MODELS_DIR`) | `docs/ai/working-with-ai.md` |
+| 15/10 | Gộp PR #5 (EVAL-01) và PR #6 (bộ công cụ trưởng nhóm) | PR #5, #6 |
 | 14/10 | Gộp PR #4 (PLAT-02). `npm audit`: 5 lỗi mức cao chỉ nằm trong công cụ lint (`eslint-config-next`); bản chạy thật báo 0. Không chạy `audit fix --force` | PR #4 |
 | 14/10 | EVAL-01: BPCER@APCER 5% chính lấy ngưỡng từ `calib_fit` rồi khóa, kèm dòng "mô tả" theo đường cong; cột `status` bắt buộc, không âm thầm bỏ mẫu lỗi | Bàn giao LEAD, bàn giao EVAL-01 |
 | 14/10 | Phiên điều phối riêng (`/lead`); luật subagent: mỗi task một phiên chính, chỉ phiên chính commit, không hai bên sửa cùng file, duyệt chéo Claude ↔ Codex | `docs/ai/lead-playbook.md`, `docs/ai/working-with-ai.md` |

@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vericlue.local/contracts/forensic.schema.json",
+  "title": "Forensic API",
+  "description": "Cổng giám định cho điều tra viên. DRAFT v1: chỉ cho phép THÊM trường tùy chọn. Báo cáo (GET .../report) trả HTML/PDF kèm chữ ký trong header; schema ở đây chỉ mô tả phần JSON.",
+  "$defs": {
+    "JobStatus": { "type": "string", "enum": ["queued", "running", "done", "failed"] },
+    "Verdict": { "type": "string", "enum": ["authentic", "suspect", "inconclusive"] },
+    "JobCreated": {
+      "type": "object",
+      "required": ["job_id", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "job_id": { "type": "string" },
+        "status": { "$ref": "#/$defs/JobStatus" }
+      }
+    },
+    "ForensicSegment": {
+      "type": "object",
+      "required": ["t_start", "t_end", "signals"],
+      "additionalProperties": false,
+      "properties": {
+        "t_start": { "type": "number", "minimum": 0 },
+        "t_end": { "type": "number", "minimum": 0 },
+        "signals": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["module", "applicable"],
+            "additionalProperties": false,
+            "properties": {
+              "module": { "type": "string" },
+              "applicable": { "type": "boolean", "description": "false = cờ 'không áp dụng' (ví dụ im lặng, không có mặt)" },
+              "prob_attack": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+            }
+          }
+        }
+      }
+    },
+    "ForensicJob": {
+      "type": "object",
+      "required": ["job_id", "status", "file_sha256", "segments"],
+      "additionalProperties": false,
+      "properties": {
+        "job_id": { "type": "string" },
+        "status": { "$ref": "#/$defs/JobStatus" },
+        "file_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "Hash tính trên byte gốc của file tải lên" },
+        "verdict": { "oneOf": [{ "$ref": "#/$defs/Verdict" }, { "type": "null" }] },
+        "segments": { "type": "array", "items": { "$ref": "#/$defs/ForensicSegment" } }
+      }
+    },
+    "VerifyRequest": {
+      "type": "object",
+      "required": ["report_sha256", "signature"],
+      "additionalProperties": false,
+      "properties": {
+        "report_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "signature": { "type": "string", "description": "Chữ ký Ed25519 (base64)" }
+      }
+    },
+    "VerifyResponse": {
+      "type": "object",
+      "required": ["valid"],
+      "additionalProperties": false,
+      "properties": {
+        "valid": { "type": "boolean" }
+      }
+    }
+  }
+}

@@ -114,10 +114,10 @@
 - Cập nhật `session.schema.json` nếu có thay đổi, kèm `[contract]` trong PR.
 
 **Tiêu chí hoàn thành:**
-- [ ] `/docs` (Swagger) liệt kê đủ endpoint.
-- [ ] Ví dụ trong `packages/contracts/examples` validate được bằng schema (test).
-- [ ] Web gọi `POST /v1/sessions` và nhận challenge (kiểm tra bằng 1 test hoặc trang debug).
-- [ ] API **không bao giờ** trả score ra ngoài trong phản hồi cho `/verify` (có test).
+- [x] `/docs` (Swagger) liệt kê đủ endpoint (15; có test `test_openapi.py`).
+- [x] Ví dụ trong `packages/contracts/examples` validate được bằng schema (test `test_contract_examples.py`).
+- [x] Web gọi `POST /v1/sessions` và nhận challenge (test `client.test.ts` với fetch giả; API thật: `test_sessions_api.py`).
+- [x] API **không bao giờ** trả score ra ngoài trong phản hồi cho `/verify` (có test cho create/finalize/voice và hồ sơ ca duyệt).
 
 ---
 
@@ -160,6 +160,9 @@
 - Giới hạn lượt: tối đa 3 phiên/giờ/IP (cấu hình được); tối đa 2 lần chụp lại mỗi phiên, sau đó chuyển `review`.
 - `scripts/gen_keys.py`: sinh `SESSION_SIGNING_SECRET` và cặp khóa Ed25519 vào `secrets/` (đã gitignore).
 - `core/signing.py`: `sign(payload: bytes) -> sig`, `verify(...)`, `public_key_fingerprint()`.
+- **Xác thực nhân viên** cho `/v1/review/*` và `/v1/forensic/*` (PLAT-04 để trống): đơn giản là đủ cho demo (ví dụ khóa API của nhân viên qua header, cấu hình trong `.env`).
+- Kiểm `Content-Length` trước khi nhận upload (PLAT-04 chỉ kiểm `MAX_UPLOAD_MB` sau khi đã nhận multipart).
+- Xem thêm danh sách việc để lại trong bàn giao PLAT-04 (`docs/status/handoffs/*plat-04*`).
 
 **Tiêu chí hoàn thành:**
 - [ ] Token sai chữ ký hoặc hết hạn → 401 (test).
@@ -168,6 +171,7 @@
 - [ ] Vượt giới hạn lượt → 429 (test).
 - [ ] Quá 2 lần chụp lại → `review` (test).
 - [ ] Ký và xác minh chữ ký Ed25519 (test).
+- [ ] Gọi `/v1/review/*`, `/v1/forensic/*` không có xác thực nhân viên → 401 (test).
 
 ---
 

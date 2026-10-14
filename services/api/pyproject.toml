@@ -6,6 +6,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
   "vericlue-ml",
   "fastapi>=0.115",
+  "python-multipart>=0.0.9",
   "uvicorn[standard]>=0.30",
   "pydantic-settings>=2.4",
 ]
