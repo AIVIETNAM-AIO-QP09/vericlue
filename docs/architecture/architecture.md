@@ -53,7 +53,7 @@ Data4Life/
 │   │   ├── forensic/            segment.py, provenance.py, report.py
 │   │   ├── eval/                chạy kết quả R1–R6
 │   │   └── mock/                mô-đun giả lập
-│   ├── configs/                 models.yaml, thresholds.yaml (ngưỡng đã khóa)
+│   ├── configs/                 models.yaml, thresholds.yaml (ngưỡng đã khóa), calibrators/ (ADR-0010)
 │   └── tests/
 ├── packages/contracts/          JSON Schema + ví dụ: hợp đồng giữa các phần
 ├── scripts/                     setup, tải dữ liệu, tải mô hình, sinh dữ liệu giả
@@ -92,7 +92,7 @@ Quy tắc: `error` và `degraded` **không bao giờ** được hiểu là "đ�
 | Phương thức | Đường dẫn | Mô tả |
 |---|---|---|
 | GET | `/healthz` | Kiểm tra sống |
-| POST | `/v1/sessions` | Tạo phiên → `session_id`, `token`, `challenge` (seed màu, thời gian), `expires_at` |
+| POST | `/v1/sessions` | Tạo phiên → `session_id`, `token` (theo phiên), `challenge` (chuỗi màu, sống 120 giây), `expires_at` |
 | POST | `/v1/sessions/{id}/media` | Tải ảnh mặt chất lượng cao và đoạn video (multipart, gắn token) |
 | POST | `/v1/sessions/{id}/signals` | Tín hiệu trình duyệt đo: thời điểm màu, thời điểm khung, CamProbe, chất lượng |
 | POST | `/v1/sessions/{id}/finalize` | Chạy phân tích → `{status: pass\|retry\|review\|voice_challenge, retry_hint?, voice_prompt?}` |
@@ -106,6 +106,11 @@ Quy tắc: `error` và `degraded` **không bao giờ** được hiểu là "đ�
 | GET | `/v1/forensic/jobs/{id}` | Trạng thái và kết quả theo đoạn |
 | GET | `/v1/forensic/jobs/{id}/report` | Báo cáo HTML/PDF + chữ ký |
 | POST | `/v1/forensic/verify` | Kiểm tra chữ ký của một báo cáo → hợp lệ / không |
+
+**Bảo mật phiên (ADR-0011):**
+- Mọi lần gọi trong phiên gửi `Authorization: Bearer <token>`. Token sai chữ ký hoặc hết hạn → 401.
+- Trong mỗi lượt, mỗi bước (media, signals, finalize, voice) chỉ nhận một lần; gọi lại → 409.
+- Thử thách sống 120 giây; chụp lại thì server cấp thử thách mới.
 
 ## 5. Dữ liệu lưu trữ (bản nháp — chốt ở task PLAT-05)
 

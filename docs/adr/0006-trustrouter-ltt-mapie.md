@@ -1,6 +1,6 @@
 # ADR-0006: TrustRouter chọn ngưỡng bằng Learn-then-Test qua thư viện MAPIE
 
-- **Trạng thái:** đã chấp nhận
+- **Trạng thái:** đã chấp nhận — bổ sung bởi ADR-0010 (tách `calib_fit` / `calib_ltt`)
 - **Ngày:** 2026-10-14
 
 ## Quyết định

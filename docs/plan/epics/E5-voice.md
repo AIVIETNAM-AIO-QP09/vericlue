@@ -66,7 +66,7 @@ Thêm **chống học vẹt**: cắt khoảng lặng hai đầu (Silero VAD), ch
    - giọng thật ViMD (đều 3 miền) + VIVOS;
    - giọng giả MLAAD-vi;
    - **giữ riêng 1 hệ TTS** của MLAAD-vi để kiểm tra trên công cụ chưa từng thấy.
-2. **Huấn luyện:** lr 1e-6, có tăng cường (VOICE-02), chọn checkpoint trên tập calib theo `0,5·EER sạch + 0,5·EER điều kiện xấu nhất`.
+2. **Huấn luyện:** lr 1e-6, có tăng cường (VOICE-02), chọn checkpoint trên `calib_fit` theo `0,5·EER sạch + 0,5·EER điều kiện xấu nhất`.
 3. **Đánh giá trên tập test một lần** → `R3-final.md`, tách theo miền, theo công cụ (gồm ViSpoofDB), theo mức nén.
 
 **Tiêu chí hoàn thành:**

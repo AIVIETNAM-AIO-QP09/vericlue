@@ -41,7 +41,7 @@
    - `fail` → `review` ưu tiên cao;
    - `unclear` → `retry` (`BRIGHTNESS_UP` hoặc `MORE_LIGHT`).
 4. **Cổng ngoài phạm vi** (nếu có ROUT-04) → `review`.
-5. **Bước khuôn mặt:** hợp nhất logistic (`prob_attack` của PAD, GenD, SBI + đặc trưng chất lượng) → Λ.
+5. **Bước khuôn mặt:** hợp nhất logistic (`prob_attack` của PAD, GenD, SBI + đặc trưng chất lượng) → Λ. Trọng số hợp nhất học trên **`calib_fit`** (ADR-0010).
    - Λ ≤ B → `pass`;
    - Λ ≥ A → `review`;
    - ở giữa → `voice_challenge`.
@@ -82,7 +82,7 @@ Lưu `decisions` kèm ngưỡng đã dùng và phiên bản cấu hình.
 - **Ghi báo cáo** vào `docs/status/results/R4-thresholds.md`: p-value, các bộ hợp lệ, bộ đã chọn.
 
 **Tiêu chí hoàn thành:**
-- [ ] Chỉ dùng tập **calib**, không dùng tập test.
+- [ ] Chọn ngưỡng **chỉ bằng `calib_ltt`** — dữ liệu chưa từng dùng để huấn luyện, hiệu chỉnh hay học trọng số hợp nhất (ADR-0010). Không dùng tập test.
 - [ ] Nếu không đạt α = 5% do thiếu mẫu thì ghi rõ α thực tế đạt được (xem Phụ lục C).
 - [ ] Bất đẳng thức hợp: báo cáo tỷ lệ lọt cả quy trình ≤ α_mặt + α_giọng.
 
@@ -98,11 +98,11 @@ Lưu `decisions` kèm ngưỡng đã dùng và phiên bản cấu hình.
 
 **Đầu ra:** `router/ood.py`.
 - Embedding CLIP (lấy từ GenD).
-- Khoảng cách kNN (k = 10) tới tập calib người thật.
-- p-value conformal: p < γ → `review`.
+- Khoảng cách kNN (k = 10) tới tập tham chiếu là người thật trong `calib_fit`.
+- p-value conformal tính từ điểm của người thật trong `calib_ltt`: p < γ → `review`.
 
 **Tiêu chí hoàn thành:**
-- [ ] Trên tập calib người thật, tỷ lệ báo nhầm ≈ γ (kiểm tra).
+- [ ] Trên người thật của tập test, tỷ lệ báo nhầm ≈ γ (kiểm tra).
 - [ ] Ảnh hoạt hình hoặc ảnh không phải mặt người bị chặn.
 
 ---
@@ -120,7 +120,7 @@ Lưu `decisions` kèm ngưỡng đã dùng và phiên bản cấu hình.
    - B1: một ngưỡng trên PAD;
    - B2: hợp nhất + một ngưỡng;
    - B3: hai ngưỡng có vùng xám chọn theo cảm tính.
-2. **Kiểm tra bảo đảm giữ được:** chia lại calib/test ngẫu nhiên ≥ 200 lần; tần suất vi phạm phải ≤ δ.
+2. **Kiểm tra bảo đảm giữ được:** chia lại `calib_ltt`/test ngẫu nhiên ≥ 200 lần, giữ nguyên các thành phần đã học trên `calib_fit`; tần suất vi phạm phải ≤ δ.
 
 **Đầu ra:** `docs/status/results/R4-final.md` + biểu đồ risk–coverage.
 

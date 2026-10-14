@@ -18,7 +18,7 @@
 
 **Đầu ra:**
 - `ml/src/vericlue_ml/face/pad.py`: MiniFASNet qua `uniface` → `ModuleResult`. Không có mặt → `status=not_applicable`.
-- Chạy trên Zalo 2022 (phần calib/test) và Face_anti_spoofing → `docs/status/results/R1-baseline.md`: APCER, BPCER, EER, số mẫu.
+- Chạy trên Zalo 2022 (phần calib_fit/test) và Face_anti_spoofing → `docs/status/results/R1-baseline.md`: APCER, BPCER, EER, số mẫu.
 
 **Tiêu chí hoàn thành:**
 - [ ] Test với ảnh mẫu tổng hợp.
@@ -93,7 +93,7 @@
 
 **Tiêu chí hoàn thành:**
 - [ ] Bảng "trước / sau" cho R1, R2, có số mẫu, khoảng tin cậy bootstrap, commit.
-- [ ] Chọn mô hình **chỉ dựa trên tập calib**, không nhìn tập test.
+- [ ] Chọn mô hình **chỉ dựa trên `calib_fit`**, không nhìn `calib_ltt` hay tập test.
 - [ ] `ml/configs/models.yaml` trỏ tới mô hình đã chọn.
 
 ---

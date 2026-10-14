@@ -150,17 +150,21 @@
 | M2 | 1 | S1 | P0 | PLAT-05 |
 
 **Mục tiêu:** chống phát lại và dò hệ thống; có khóa ký báo cáo.
-**Đọc trước:** proposal §2.7(a), §3.3; ADR-0008.
+**Đọc trước:** proposal §2.7(a), §3.3; ADR-0008; **ADR-0011** (token theo phiên, chống phát lại).
 
 **Đầu ra:**
-- Token phiên ký HMAC (`SESSION_SIGNING_SECRET`), hết hạn 120 giây, **dùng một lần** cho mỗi lần tải lên.
+- Token **theo phiên**, ký HMAC (`SESSION_SIGNING_SECRET`), gắn `session_id`, hết hạn sau `SESSION_TTL_SECONDS` (mặc định 300), gửi qua `Authorization: Bearer`.
+- **Chống phát lại bằng máy trạng thái:** trong mỗi lượt, mỗi bước (media, signals, finalize, voice) chỉ nhận **một lần**.
+- **Mỗi thử thách sống 120 giây** kể từ lúc cấp; chụp lại thì cấp thử thách mới; media gắn thử thách cũ hoặc hết hạn bị từ chối.
 - Seed thử thách chỉ lưu ở server; client chỉ nhận chuỗi màu của phiên.
 - Giới hạn lượt: tối đa 3 phiên/giờ/IP (cấu hình được); tối đa 2 lần chụp lại mỗi phiên, sau đó chuyển `review`.
 - `scripts/gen_keys.py`: sinh `SESSION_SIGNING_SECRET` và cặp khóa Ed25519 vào `secrets/` (đã gitignore).
 - `core/signing.py`: `sign(payload: bytes) -> sig`, `verify(...)`, `public_key_fingerprint()`.
 
 **Tiêu chí hoàn thành:**
-- [ ] Token dùng lại hoặc hết hạn → 401 (test).
+- [ ] Token sai chữ ký hoặc hết hạn → 401 (test).
+- [ ] Gọi lại một bước đã nhận trong cùng lượt → 409 (test).
+- [ ] Media gắn thử thách quá 120 giây hoặc thử thách cũ → bị từ chối (test).
 - [ ] Vượt giới hạn lượt → 429 (test).
 - [ ] Quá 2 lần chụp lại → `review` (test).
 - [ ] Ký và xác minh chữ ký Ed25519 (test).

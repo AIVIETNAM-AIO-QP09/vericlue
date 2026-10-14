@@ -49,10 +49,14 @@
 |---|---|---|---|---|
 | M3 + M4 | 1 | S1 | P0 | DATA-01 |
 
-**Mục tiêu:** mỗi bộ có danh sách train / calib / test, **không trùng người** giữa các tập.
-**Đầu ra:** `scripts/make_splits.py` → `data/splits/<bộ>/{train,calib,test}.csv` (cột: path, label, attack_type, subject_id, source, region nếu có). Thống kê số mẫu theo nhãn và loại tấn công → `data/splits/SUMMARY.md`.
+**Mục tiêu:** mỗi bộ có danh sách train / calib_fit / calib_ltt / test, **không trùng người** giữa các tập (ADR-0010).
+**Đầu ra:** `scripts/make_splits.py` → `data/splits/<bộ>/{train,calib_fit,calib_ltt,test}.csv` (cột: path, label, attack_type, subject_id, source, region nếu có). Thống kê số mẫu theo nhãn và loại tấn công → `data/splits/SUMMARY.md`.
 
 **Quy tắc chia:**
+- Phần calib (khoảng 20%) chia tiếp **theo người** thành `calib_fit` và `calib_ltt`, mặc định 50/50:
+  - `calib_fit`: chọn mô hình, hiệu chỉnh, trọng số hợp nhất, tham chiếu kNN;
+  - `calib_ltt`: **chỉ** để chọn ngưỡng (ROUT-03) và p-value cổng ngoài phạm vi (ROUT-04); không dùng để học gì.
+  - Task card nào ghi "tập calib" mà không nói rõ thì hiểu là `calib_fit`.
 - Zalo 2022 chỉ tập train có nhãn → chia 60/20/20 theo người.
 - MLAAD-vi chia theo câu và hệ TTS.
 - **ViSpoofDB giữ nguyên làm test** (công cụ chưa từng thấy).
@@ -60,8 +64,9 @@
 - ViMD chia theo người, giữ cân bằng 3 miền.
 
 **Tiêu chí hoàn thành:**
-- [ ] Test tự động: không có `subject_id` xuất hiện ở 2 tập.
-- [ ] Mỗi loại tấn công chính có ≥ 60 mẫu trong tập calib (để chứng nhận α = 5%); nếu thiếu thì ghi rõ trong SUMMARY.
+- [ ] Test tự động: không có `subject_id` xuất hiện ở 2 trong 4 tập.
+- [ ] Mỗi loại tấn công chính có ≥ 60 mẫu trong `calib_ltt` (để chứng nhận α = 5%); thiếu thì dồn thêm người sang `calib_ltt`, vẫn thiếu thì ghi rõ trong SUMMARY.
+- [ ] `calib_fit` có ≥ 100 mẫu mỗi lớp (điều kiện để ROUT-01 được chọn isotonic); thiếu thì ghi rõ.
 - [ ] Seed cố định, chạy lại ra cùng kết quả.
 
 ---
