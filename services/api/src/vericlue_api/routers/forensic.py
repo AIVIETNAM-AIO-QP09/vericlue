@@ -12,6 +12,7 @@ from vericlue_api.core.state import AppState, get_state
 from vericlue_api.routers.sessions import resolve_scenario
 from vericlue_api.schemas.forensic import ForensicJob, JobCreated, VerifyRequest, VerifyResponse
 from vericlue_api.schemas.session import ErrorResponse
+from vericlue_api.services.uploads import read_limited
 
 router = APIRouter(prefix="/v1/forensic", tags=["forensic"])
 
@@ -27,7 +28,7 @@ async def create_job(
         str | None, Header(description="Chỉ khi USE_MOCK_MODELS=true: chọn kịch bản mock")
     ] = None,
 ) -> JobCreated:
-    data = await file.read()  # hash tính trên byte gốc
+    data = await read_limited(file, state.settings.max_upload_mb)  # hash tính trên byte gốc
     job = state.forensic.create(data, file.filename, resolve_scenario(x_mock_scenario, state))
     return JobCreated(job_id=job.job_id, status=job.status)
 

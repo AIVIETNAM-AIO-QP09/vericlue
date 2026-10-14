@@ -18,6 +18,8 @@ BASELINE_MS = 1000
 HOLD_RANGE_MS = (400, 650)
 TRANSITION_MS = 150
 CAPTURE_POINTS = 2
+MAX_LUMINANCE_SPREAD = 0.064
+MAX_RED_SHARE = 0.8
 
 
 def relative_luminance(rgb: str) -> float:
@@ -32,14 +34,24 @@ def red_share(rgb: str) -> float:
     return r / (r + g + b) if r + g + b else 0.0
 
 
+def validate_palette(palette: list[str]) -> None:
+    """Bảng màu cấu hình phải giữ các giới hạn an toàn của ADR-0011; sai thì từ chối khởi tạo."""
+    if len(palette) < 2:
+        raise ValueError("Bảng màu cần ít nhất 2 màu")
+    lum = [relative_luminance(c) for c in palette]
+    if max(lum) - min(lum) > MAX_LUMINANCE_SPREAD:
+        raise ValueError(f"Bảng màu chênh độ chói quá {MAX_LUMINANCE_SPREAD}")
+    if any(red_share(c) >= MAX_RED_SHARE for c in palette):
+        raise ValueError(f"Bảng màu có màu với R/(R+G+B) >= {MAX_RED_SHARE}")
+
+
 def generate_challenge(
     settings: Settings, rng: random.Random | None = None, now: datetime | None = None
 ) -> Challenge:
     rng = rng or random.SystemRandom()
     now = now or datetime.now(UTC)
     palette = settings.palette
-    if len(palette) < 2:
-        raise ValueError("Bảng màu cần ít nhất 2 màu")
+    validate_palette(palette)
 
     sequence: list[ColorStep] = []
     previous: str | None = None

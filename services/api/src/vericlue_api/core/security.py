@@ -35,6 +35,8 @@ def require_session(
         raise _unauthorized()
     session = state.sessions.get(session_id)
     # Phiên không tồn tại cũng trả 401 để không lộ phiên nào có thật.
-    if session is None or not secrets.compare_digest(session.token, credentials.credentials):
+    if session is None or not secrets.compare_digest(
+        session.token.encode(), credentials.credentials.encode("utf-8", errors="replace")
+    ):
         raise _unauthorized()
     return session

@@ -9,6 +9,7 @@ from __future__ import annotations
 import random
 
 from vericlue_api.core.config import Settings
+from vericlue_api.core.errors import ApiError
 from vericlue_api.schemas.review import MediaRef
 from vericlue_api.schemas.session import (
     CreateSessionResponse,
@@ -93,6 +94,7 @@ class SessionFlow:
                 challenge=session.challenge,
             )
         if outcome.status == "voice_challenge":
+            session.voice_requested = True
             return FinalizeResponse(
                 status="voice_challenge",
                 voice_prompt=self._new_prompt(session),
@@ -104,6 +106,9 @@ class SessionFlow:
 
     # --- voice -----------------------------------------------------------
     def voice(self, session: Session) -> VoiceResponse:
+        # Chỉ nhận giọng nói khi finalize đã yêu cầu; không thì đây là đường tắt tới `pass`.
+        if not session.voice_requested:
+            raise ApiError(409, "voice_not_requested", "Chưa có yêu cầu đọc câu cho phiên này.")
         results = run_detectors(
             VOICE_STEP_MODULES,
             session_id=session.session_id,
@@ -126,6 +131,7 @@ class SessionFlow:
                 voice_prompt=self._new_prompt(session),
                 attempts_left=MAX_VOICE_REREADS - session.voice_rereads_used,
             )
+        session.voice_requested = False  # kết thúc bước giọng nói
         if outcome.status == "review":
             self._open_case(session, outcome)
             return VoiceResponse(status="review")

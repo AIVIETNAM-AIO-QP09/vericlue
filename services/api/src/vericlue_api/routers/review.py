@@ -98,6 +98,8 @@ def post_decision(case_id: str, body: FinalDecisionRequest, state: StateDep) -> 
         raise ApiError(
             409, "initial_decision_required", "Cần quyết định ban đầu trước quyết định cuối."
         )
+    if record.final_decision is not None:
+        raise ApiError(409, "decision_already_recorded", "Ca này đã có quyết định cuối.")
     record.final_decision = body.decision
     record.status = "closed"
     return DecisionResponse(case_id=record.case_id, status=record.status)

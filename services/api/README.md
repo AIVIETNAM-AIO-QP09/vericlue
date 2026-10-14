@@ -41,7 +41,9 @@ Chạy mock (`USE_MOCK_MODELS=true`, mặc định) chọn kịch bản bằng h
 
 - Token theo phiên, gửi `Authorization: Bearer`; thiếu hoặc sai → 401 (phiên không tồn tại cũng 401).
 - **Lượt = một challenge.** `finalize` trả `retry` (kèm `challenge` mới) hoặc `voice_challenge` thì mở lượt mới. Đọc lại câu tối đa 1 lần. Mỗi challenge sống 120 giây (`challenge.expires_at`), tách khỏi hạn token (`expires_at` ở gốc).
-- Cấu hình: `SESSION_TTL_SECONDS` (300), `CHALLENGE_TTL_SECONDS` (120), `MAX_RETRIES` (2), `CHALLENGE_PALETTE` (bảng màu, phân cách bằng dấu phẩy).
+- `/voice` chỉ nhận khi `finalize` đã trả `voice_challenge` (không thì 409 `voice_not_requested`), và chỉ một lần cho mỗi yêu cầu; không có đường tắt tới `pass` bỏ qua cổng khuôn mặt.
+- Upload quá `MAX_UPLOAD_MB` → 413 `upload_too_large`.
+- Cấu hình: `SESSION_TTL_SECONDS` (300), `CHALLENGE_TTL_SECONDS` (120), `MAX_RETRIES` (2), `MAX_UPLOAD_MB` (50), `CHALLENGE_PALETTE` (bảng màu, phân cách bằng dấu phẩy; bộ sinh từ chối bảng vi phạm giới hạn độ chói 0,064 hoặc R/(R+G+B) >= 0,8).
 
 ## Phần tạm (các task sau thay thế)
 

@@ -26,6 +26,7 @@ class Session:
     retries_used: int = 0
     voice_rereads_used: int = 0
     voice_prompt: str | None = None
+    voice_requested: bool = False  # finalize đã trả voice_challenge
     case_id: str | None = None
 
 

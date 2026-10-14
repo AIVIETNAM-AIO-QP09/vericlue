@@ -178,12 +178,6 @@ def test_voice_clone_goes_through_voice_challenge_then_review(client):
     assert sid in {c["session_id"] for c in cases}
 
 
-def test_genuine_voice_passes(client):
-    sid, auth, _ = run_finalize(client, "genuine")
-    voice = client.post(path(sid, "voice"), headers=auth, files=AUDIO)
-    assert voice.json() == {"status": "pass"}
-
-
 def test_review_case_from_session_has_priority_and_no_score(client):
     sid, _, _ = run_finalize(client, "virtual_cam")
     items = client.get("/v1/review/cases").json()["items"]

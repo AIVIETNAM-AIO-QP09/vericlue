@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     session_ttl_seconds: int = 300
     challenge_ttl_seconds: int = 120
     max_retries: int = 2
+    max_upload_mb: int = 50
     challenge_palette: str = "#ffcc73,#73d9ff,#ffb3eb,#80e09e"
 
     # TẠM — ROUT-02 thay thế bằng ngưỡng khóa trong ml/configs/thresholds.yaml.

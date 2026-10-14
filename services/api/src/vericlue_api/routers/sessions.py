@@ -18,7 +18,7 @@ from vericlue_api.schemas.session import (
     VoiceResponse,
 )
 from vericlue_api.services.session_store import Session
-from vericlue_api.services.uploads import save_upload
+from vericlue_api.services.uploads import read_limited, save_upload
 from vericlue_ml.mock import SCENARIOS
 
 router = APIRouter(prefix="/v1/sessions", tags=["sessions"])
@@ -72,11 +72,21 @@ async def upload_media(
 ) -> StepAck:
     media_dir = state.settings.media_dir
     session.images = [
-        save_upload(media_dir, session.session_id, "face_image", image.filename, await image.read())
+        save_upload(
+            media_dir,
+            session.session_id,
+            "face_image",
+            image.filename,
+            await read_limited(image, state.settings.max_upload_mb),
+        )
     ]
     if video is not None:
         session.video = save_upload(
-            media_dir, session.session_id, "face_video", video.filename, await video.read()
+            media_dir,
+            session.session_id,
+            "face_video",
+            video.filename,
+            await read_limited(video, state.settings.max_upload_mb),
         )
     return StepAck(step="media")
 
@@ -111,10 +121,18 @@ async def voice(
 ) -> VoiceResponse:
     media_dir = state.settings.media_dir
     session.audio = save_upload(
-        media_dir, session.session_id, "voice_audio", audio.filename, await audio.read()
+        media_dir,
+        session.session_id,
+        "voice_audio",
+        audio.filename,
+        await read_limited(audio, state.settings.max_upload_mb),
     )
     if video is not None:
         save_upload(
-            media_dir, session.session_id, "voice_video", video.filename, await video.read()
+            media_dir,
+            session.session_id,
+            "voice_video",
+            video.filename,
+            await read_limited(video, state.settings.max_upload_mb),
         )
     return state.flow.voice(session)

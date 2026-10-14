@@ -68,7 +68,7 @@ def test_challenges_are_random_and_unique():
 
 
 def test_palette_is_configurable_not_hard_coded():
-    ch = _make(1, challenge_palette="#112233,#445566")
-    assert {s.rgb for s in ch.color_sequence} <= {"#112233", "#445566"}
+    ch = _make(1, challenge_palette="#ffcc73,#80e09e")
+    assert {s.rgb for s in ch.color_sequence} <= {"#ffcc73", "#80e09e"}
     with pytest.raises(ValueError):
-        _make(1, challenge_palette="#112233")
+        _make(1, challenge_palette="#ffcc73")
