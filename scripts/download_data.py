@@ -474,6 +474,7 @@ def main(argv: list[str] | None = None) -> int:
             "download_bytes": getattr(client, "download_bytes", 0),
             "stored_bytes": stored,
             "outcomes": outcomes,
+            "measurement_scope": "HTTP bodies qua Client; không gồm header và metadata nội bộ gdown. Thời gian là wall clock, mạng gồm backoff retry; xử lý có thể chồng lấp HTTP.",
             "entire_catalog_complete": len(datasets) == len(DATASETS)
             and all(o["status"] == "complete" for o in outcomes.values()),
         }

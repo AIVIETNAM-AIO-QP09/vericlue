@@ -189,7 +189,16 @@ class Client:
             try:
                 payload = json.loads((cache_dir / "head_sizes.json").read_text(encoding="utf-8"))
                 if isinstance(payload, dict):
-                    self._head_cache = payload
+                    self._head_cache = {
+                        key: {"size": entry["size"], "verified_at": entry["verified_at"]}
+                        for key, entry in payload.items()
+                        if isinstance(key, str)
+                        and re.fullmatch(r"[a-f0-9]{64}", key)
+                        and isinstance(entry, dict)
+                        and isinstance(entry.get("size"), int)
+                        and entry["size"] >= 0
+                        and isinstance(entry.get("verified_at"), (int, float))
+                    }
             except (OSError, ValueError):
                 pass
         self._http = httpx.Client(follow_redirects=True, timeout=httpx.Timeout(120, connect=30))
@@ -514,6 +523,22 @@ class HTTPRangeFile(io.RawIOBase):
         return target
 
     def read(self, size: int = -1) -> bytes:
+        start = self.position
+        for attempt in range(3):
+            try:
+                return self._read_once(size)
+            except SkipDataset:
+                raise
+            except DownloadError as error:
+                self.position = start
+                transient = "HTTP 50" in str(error) or "Range bị gián đoạn" in str(error)
+                if not transient or attempt == 2:
+                    raise
+                with self.client.measured_network():
+                    time.sleep(2**attempt)
+        raise DownloadError("Đọc HTTP Range bị gián đoạn sau retry.")
+
+    def _read_once(self, size: int = -1) -> bytes:
         length = self.size - self.position if size < 0 else min(size, self.size - self.position)
         if length <= 0:
             return b""

@@ -1340,3 +1340,169 @@ def test_media_read_interruption_retries_from_verified_partial_offset(tmp_path, 
     assert dest.read_bytes() == payload
     assert not Path(str(dest) + ".part").exists()
     assert client.download_bytes == len(payload)
+
+
+def test_range_interrupted_body_retries_same_interval_and_advances_once(monkeypatch):
+    pauses, intervals = [], []
+    monkeypatch.setattr(core.time, "sleep", pauses.append)
+    monkeypatch.setattr(core, "CHUNK_BYTES", 2)
+
+    class InterruptedBody(httpx.SyncByteStream):
+        def __iter__(self):
+            yield b"34"
+            raise httpx.ReadError("fixture interrupted partial Range response")
+
+    def handler(request):
+        intervals.append(request.headers["Range"])
+        response = {"Content-Range": "bytes 3-8/10"}
+        if len(intervals) == 1:
+            return httpx.Response(206, headers=response, stream=InterruptedBody())
+        return httpx.Response(206, headers=response, content=b"345678")
+
+    client = make_client(handler)
+    with client.remote_file("https://example.test/audio", 10) as source:
+        source.seek(3)
+        assert source.read(6) == b"345678"
+        assert source.tell() == 9
+    assert intervals == ["bytes=3-8", "bytes=3-8"]
+    assert pauses == [1]
+    assert client.network_bytes == 8  # Partial failed attempt plus complete retry.
+
+
+def test_range_503_retries_then_accepts_exact_206_header(monkeypatch):
+    pauses, intervals = [], []
+    monkeypatch.setattr(core.time, "sleep", pauses.append)
+
+    def handler(request):
+        intervals.append(request.headers["Range"])
+        if len(intervals) == 1:
+            return httpx.Response(503)
+        return httpx.Response(206, headers={"Content-Range": "bytes 2-4/6"}, content=b"cde")
+
+    client = make_client(handler)
+    with client.remote_file("https://example.test/audio", 6) as source:
+        source.seek(2)
+        assert source.read(3) == b"cde"
+        assert source.tell() == 5
+    assert intervals == ["bytes=2-4", "bytes=2-4"]
+    assert pauses == [1]
+
+
+def test_ignored_range_is_not_retried_or_read(monkeypatch):
+    pauses, requests = [], []
+    monkeypatch.setattr(core.time, "sleep", pauses.append)
+
+    class ForbiddenBody(httpx.SyncByteStream):
+        def __iter__(self):
+            pytest.fail("unsupported Range body must not be consumed")
+            yield b""
+
+    def handler(request):
+        requests.append(request)
+        return httpx.Response(200, stream=ForbiddenBody())
+
+    client = make_client(handler)
+    with client.remote_file("https://example.test/audio", 100) as source:
+        source.seek(5)
+        with pytest.raises(core.SkipDataset):
+            source.read(10)
+        assert source.tell() == 5
+    assert len(requests) == 1
+    assert pauses == []
+
+
+def test_multi_block_range_retry_restores_outer_start_and_returns_no_duplicates(monkeypatch):
+    # Scale the block constant to exercise the >64-block branch without a
+    # 65 MiB fixture; HTTP behavior and safety checks still run in full.
+    monkeypatch.setattr(core, "CHUNK_BYTES", 64)
+    pauses, intervals = [], []
+    monkeypatch.setattr(core.time, "sleep", pauses.append)
+    block = b"x" * (64 * core.CHUNK_BYTES)
+    suffix = b"abcdef"
+    payload = block + suffix
+    suffix_attempts = [0]
+
+    def handler(request):
+        interval = request.headers["Range"]
+        intervals.append(interval)
+        if interval == f"bytes=0-{len(block) - 1}":
+            return httpx.Response(
+                206,
+                headers={"Content-Range": f"bytes 0-{len(block) - 1}/{len(payload)}"},
+                content=block,
+            )
+        assert interval == f"bytes={len(block)}-{len(payload) - 1}"
+        suffix_attempts[0] += 1
+        if suffix_attempts[0] <= 3:
+            return httpx.Response(503)
+        return httpx.Response(
+            206,
+            headers={"Content-Range": f"bytes {len(block)}-{len(payload) - 1}/{len(payload)}"},
+            content=suffix,
+        )
+
+    client = make_client(handler)
+    with client.remote_file("https://example.test/audio", len(payload)) as source:
+        assert source.read(len(payload)) == payload
+        assert source.tell() == len(payload)
+    first = f"bytes=0-{len(block) - 1}"
+    last = f"bytes={len(block)}-{len(payload) - 1}"
+    assert intervals == [first, last, last, last, first, last]
+    assert pauses == [1, 2, 1]
+
+
+def test_data_inventory_counts_actual_index_origins_without_guessing_subjects(tmp_path):
+    import csv
+
+    module = load_main()
+    rows = [
+        {
+            "archive": "a.tar",
+            "video_origin_id": "video-1",
+            "source_video_id": "train::video-1",
+            "subject_id": "",
+        },
+        {
+            "archive": "b.tar",
+            "video_origin_id": "video-1",
+            "source_video_id": "train::video-1",
+            "subject_id": "",
+        },
+        {
+            "archive": "b.tar",
+            "video_origin_id": "video-2",
+            "source_video_id": "train::video-2",
+            "subject_id": "",
+        },
+    ]
+    with (tmp_path / "index.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+    result = module.data_inventory(tmp_path)
+    assert result["index_rows"] == 3
+    assert result["source_videos"] == 2
+    assert result["indexed_archives"] == 2
+    assert result["known_subjects"] == 0
+    assert result["video_origin_ids_in_multiple_archives"] == 1
+
+
+def test_data_inventory_counts_region_files_and_unique_subjects(tmp_path):
+    module = load_main()
+    rows = [
+        {"path": "a.wav", "size": 2, "subject_id": "N1", "region": "North"},
+        {"path": "b.wav", "size": 3, "subject_id": "N1", "region": "North"},
+        {"path": "c.wav", "size": 4, "subject_id": "C1", "region": "Central"},
+        {"path": "d.wav", "size": 5, "subject_id": "S1", "region": "South"},
+        {"path": "e.wav", "size": 6, "subject_id": None, "region": "South"},
+    ]
+    (tmp_path / "selected_manifest.json").write_text(json.dumps(rows), encoding="utf-8")
+    result = module.data_inventory(tmp_path)
+    assert result["selected_files"] == 5
+    assert result["manifest_data_bytes"] == 20
+    assert result["known_subjects"] == 3
+    assert result["regions"] == {
+        "North": {"files": 2, "subjects": 1},
+        "Central": {"files": 1, "subjects": 1},
+        "South": {"files": 2, "subjects": 1},
+    }
