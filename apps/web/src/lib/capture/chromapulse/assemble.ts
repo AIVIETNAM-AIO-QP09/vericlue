@@ -55,5 +55,10 @@ export function assembleRecord(input: AssembleInput): LabRecord {
     display_samples: trial.displaySamples,
     frame_times: trial.frames,
     region_defs: REGION_DEFS,
+    quality: {
+      max_raf_gap_ms: trial.maxRafGapMs,
+      hidden_during_trial: trial.hiddenDuringTrial,
+      sample_errors: trial.sampleErrors,
+    },
   };
 }

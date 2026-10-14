@@ -15,6 +15,12 @@ export type TrialResult = {
   startPerformanceNow: number;
   totalMs: number;
   aborted: boolean;
+  /** Khoảng cách lớn nhất giữa hai lần rAF (ms): lớn nghĩa là trình duyệt bị đóng băng/giật. */
+  maxRafGapMs: number;
+  /** Tab bị ẩn hoặc màn hình khóa trong lúc thử (lần thử bị hủy). */
+  hiddenDuringTrial: boolean;
+  /** Số khung lấy mẫu bị lỗi (bỏ qua, không ghi). */
+  sampleErrors: number;
 };
 
 export type TrialOptions = {
@@ -43,13 +49,19 @@ export function runTrial(options: TrialOptions): Promise<TrialResult> {
   const metadataKeys = new Set<string>();
 
   let startNow: number | null = null;
+  let lastTick: number | null = null;
+  let maxRafGapMs = 0;
   let nextEvent = 0;
   let finished = false;
+  let hidden = false;
+  let sampleErrors = 0;
 
   return new Promise<TrialResult>((resolve) => {
     const finish = (aborted: boolean) => {
       if (finished) return;
       finished = true;
+      signal?.removeEventListener("abort", onAbort);
+      document.removeEventListener("visibilitychange", onVisibility);
       resolve({
         colorEvents,
         displaySamples,
@@ -58,44 +70,65 @@ export function runTrial(options: TrialOptions): Promise<TrialResult> {
         startPerformanceNow: startNow ?? 0,
         totalMs: timeline.totalMs,
         aborted,
+        maxRafGapMs,
+        hiddenDuringTrial: hidden,
+        sampleErrors,
       });
     };
+
+    // Bấm Dừng hoặc rời trang phải có tác dụng ngay, kể cả khi rAF bị đóng băng (tab ẩn).
+    const onAbort = () => finish(true);
+    // Tab ẩn hoặc khóa màn hình làm rAF đứng: dữ liệu sẽ sai, nên hủy lần thử.
+    const onVisibility = () => {
+      if (document.visibilityState !== "visible") {
+        hidden = true;
+        finish(true);
+      }
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+    document.addEventListener("visibilitychange", onVisibility);
+    if (signal?.aborted) {
+      finish(true);
+      return;
+    }
 
     const onFrame = (now: number, metadata: VideoFrameCallbackMetadata) => {
       if (finished) return;
       if (startNow !== null) {
-        const sample = sampler.sample(video);
-        onSample?.(sample);
-        for (const key of frameMetadataKeys(metadata)) metadataKeys.add(key);
-        // Các trường có thể không có trên mọi trình duyệt.
-        const extra = metadata as VideoFrameCallbackMetadata & {
-          captureTime?: number;
-          receiveTime?: number;
-        };
-        frames.push({
-          index: frames.length,
-          now,
-          media_time: metadata.mediaTime,
-          presented_frames: metadata.presentedFrames,
-          capture_time: extra.captureTime ?? null,
-          expected_display_time: metadata.expectedDisplayTime ?? null,
-          receive_time: extra.receiveTime ?? null,
-          processing_duration: metadata.processingDuration ?? null,
-          width: metadata.width,
-          height: metadata.height,
-          face_found: sample.faceFound,
-          regions: sample.regions,
-        });
+        try {
+          const sample = sampler.sample(video);
+          onSample?.(sample);
+          for (const key of frameMetadataKeys(metadata)) metadataKeys.add(key);
+          // Các trường có thể không có trên mọi trình duyệt.
+          const extra = metadata as VideoFrameCallbackMetadata & {
+            captureTime?: number;
+            receiveTime?: number;
+          };
+          frames.push({
+            index: frames.length,
+            now,
+            media_time: metadata.mediaTime,
+            presented_frames: metadata.presentedFrames,
+            capture_time: extra.captureTime ?? null,
+            expected_display_time: metadata.expectedDisplayTime ?? null,
+            receive_time: extra.receiveTime ?? null,
+            processing_duration: metadata.processingDuration ?? null,
+            width: metadata.width,
+            height: metadata.height,
+            face_found: sample.faceFound,
+            regions: sample.regions,
+          });
+        } catch {
+          sampleErrors += 1; // ví dụ landmarker đã đóng khi rời trang
+        }
       }
       video.requestVideoFrameCallback(onFrame);
     };
 
     const tick = (t: number) => {
       if (finished) return;
-      if (signal?.aborted) {
-        finish(true);
-        return;
-      }
+      if (lastTick !== null) maxRafGapMs = Math.max(maxRafGapMs, t - lastTick);
+      lastTick = t;
       if (startNow === null) startNow = t;
       const elapsed = t - startNow;
       const { rgb, done } = colorAt(timeline, elapsed);

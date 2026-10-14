@@ -76,7 +76,12 @@ export type LabRecord = {
   display_samples: DisplaySample[];
   frame_times: FrameRecord[];
   region_defs: typeof REGION_DEFS;
+  /** Chất lượng lần thử: giật, tab ẩn, lỗi lấy mẫu. */
+  quality?: { max_raf_gap_ms: number; hidden_during_trial: boolean; sample_errors: number };
 };
+
+/** Khoảng cách rAF vượt ngưỡng này (ms) nghĩa là trình duyệt bị đóng băng: dữ liệu không dùng được. */
+export const MAX_RAF_GAP_MS = 250;
 
 export function sequenceToRecord(steps: readonly SequenceStep[]): LabRecord["sequence"] {
   return steps.map((s) => ({
@@ -155,6 +160,18 @@ export function recordProblems(record: LabRecord): string[] {
   if (record.frame_times.length > 0 && found / record.frame_times.length < 0.8) {
     problems.push(`Chỉ thấy mặt ở ${found}/${record.frame_times.length} khung`);
   }
+  const times = record.color_events.map((e) => e.painted_at);
+  if (times.some((t, i) => i > 0 && t <= times[i - 1])) {
+    problems.push("Nhiều màu có cùng thời điểm vẽ (trình duyệt bị đóng băng), nên thử lại");
+  }
+  const q = record.quality;
+  if (q?.hidden_during_trial) problems.push("Tab bị ẩn hoặc màn hình khóa trong lúc thử");
+  if (q && q.max_raf_gap_ms > MAX_RAF_GAP_MS) {
+    problems.push(
+      `Trình duyệt bị giật: khoảng cách lớn nhất giữa hai lần vẽ ${Math.round(q.max_raf_gap_ms)} ms`,
+    );
+  }
+  if (q && q.sample_errors > 0) problems.push(`${q.sample_errors} khung lấy mẫu bị lỗi`);
   if (!record.support.has_capture_time) problems.push("Trình duyệt này không có captureTime");
   return problems;
 }

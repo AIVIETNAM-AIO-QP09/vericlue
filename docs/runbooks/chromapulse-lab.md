@@ -87,7 +87,7 @@ Lệnh in ra một địa chỉ dạng `https://tên-ngẫu-nhiên.trycloudflare
    - các khung màu: trán, hai má, mũi, cằm phải nằm **trên da mặt**, không nằm trên tóc, kính hay mắt. Hai ô nền nằm ở **hai góc trên**. Nếu lệch nhiều, chỉnh tư thế; báo M1 nếu vẫn lệch.
 6. Chọn **Tình huống** (xem mục 5) và **Lần thứ** (1 hoặc 2). Có thể gõ **Ghi chú** (ánh sáng, khoảng cách).
 7. Cầm máy cách mặt **25 đến 40 cm**, mặt nằm giữa khung hình. Bấm **Bắt đầu thử**.
-8. Trang đếm ngược 3 giây, rồi màn hình đổi màu khoảng **8 giây**. **Giữ yên mặt và nhìn vào màn hình**, không che camera. Muốn dừng, bấm **Dừng**.
+8. Trang đếm ngược 3 giây, rồi màn hình đổi màu khoảng **7 giây**. **Giữ yên mặt và nhìn vào màn hình**, không che camera. Muốn dừng, bấm **Dừng**.
 9. Khi xong, trang hiện tóm tắt: số khung, số khung thấy mặt, số màu ghi được (phải là **8**) và mục **Cần lưu ý**. Nếu có lưu ý như "thấy mặt ở quá ít khung" hay "chỉ ghi được x/8 màu", bấm **Thử lại** và làm lại.
 10. Bấm **Tải file JSON**. File được lưu với **tên tự động**, ví dụ `redmi-note-12_chrome_real_01.json`. **Không đổi tên.**
 11. Muốn thử tiếp, bấm **Lần kế tiếp** (số lần tự tăng).

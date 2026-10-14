@@ -50,6 +50,7 @@ export function ChromaPulseLab() {
   const samplerRef = useRef<FrameSampler | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const previewOn = useRef(false);
+  const aliveRef = useRef(true);
   const showRegionsRef = useRef(true);
 
   const [stage, setStage] = useState<Stage>("intro");
@@ -78,7 +79,15 @@ export function ChromaPulseLab() {
     handleRef.current = null;
   }, []);
 
-  useEffect(() => () => stopCamera(), [stopCamera]);
+  // Rời trang: hủy lần thử đang chạy và tắt camera (kể cả khi đang tải dở).
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+      abortRef.current?.abort();
+      stopCamera();
+    };
+  }, [stopCamera]);
 
   // Vòng xem trước: cập nhật "thấy mặt", captureTime và lớp phủ các vùng đo.
   const startPreview = useCallback(() => {
@@ -107,8 +116,19 @@ export function ChromaPulseLab() {
     setError(null);
     try {
       if (!window.isSecureContext) throw new Error(t.httpsHint);
-      const [stream, handle] = await Promise.all([openFrontCamera(), createLandmarker()]);
-      streamRef.current = stream;
+      stopCamera(); // tránh mở trùng khi bấm lại sau lỗi
+      const stream = await openFrontCamera();
+      streamRef.current = stream; // gán ngay để lỗi hoặc rời trang vẫn tắt được camera
+      if (!aliveRef.current) {
+        stopCamera();
+        return;
+      }
+      const handle = await createLandmarker();
+      if (!aliveRef.current) {
+        handle.landmarker.close();
+        stopCamera();
+        return;
+      }
       handleRef.current = handle;
       setDelegate(handle.delegate);
       samplerRef.current = createFrameSampler(handle.landmarker);
@@ -137,6 +157,7 @@ export function ChromaPulseLab() {
     for (let s = COUNTDOWN_SECONDS; s > 0; s -= 1) {
       setCountdown(s);
       await new Promise((r) => setTimeout(r, 1000)); // chỉ để đếm ngược trên giao diện, không dùng để đo
+      if (!aliveRef.current) return;
     }
     previewOn.current = false;
     abortRef.current = new AbortController();
@@ -163,6 +184,7 @@ export function ChromaPulseLab() {
       },
     });
     await wakeLock?.release().catch(() => undefined);
+    if (!aliveRef.current) return;
 
     const track = stream.getVideoTracks()[0] ?? null;
     const device = collectDeviceInfo(deviceLabel.trim() || "may", track);

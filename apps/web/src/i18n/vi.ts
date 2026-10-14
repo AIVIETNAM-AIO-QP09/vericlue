@@ -29,7 +29,7 @@ export const vi = {
         "Trang chỉ ghi số liệu màu và thời gian, không lưu ảnh hay khung hình. Không gửi gì lên máy chủ: kết quả là một file JSON tải về máy của bạn.",
       warningTitle: "Cảnh báo nháy màu",
       warning:
-        'Màn hình sẽ đổi màu khoảng 5 giây (dưới 2 lần mỗi giây, màu nhạt). Người nhạy cảm với ánh sáng nhấp nháy không nên thử. Bấm "Dừng" bất cứ lúc nào.',
+        'Màn hình sẽ đổi màu khoảng 7 giây (dưới 2 lần mỗi giây, màu nhạt). Người nhạy cảm với ánh sáng nhấp nháy không nên thử. Bấm "Dừng" bất cứ lúc nào.',
       accept: "Tôi đã đọc hai mục trên",
       deviceLabel: "Tên máy (ví dụ: Redmi Note 12)",
       scenarioLabel: "Tình huống",
