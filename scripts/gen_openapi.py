@@ -25,6 +25,7 @@ def render() -> str:
 
 
 def main() -> int:
+    sys.stdout.reconfigure(encoding="utf-8")  # console Windows mặc định cp1252
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="không ghi, chỉ so với file hiện có")
     args = parser.parse_args()

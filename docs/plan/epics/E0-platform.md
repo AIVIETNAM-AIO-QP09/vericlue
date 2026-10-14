@@ -114,10 +114,10 @@
 - Cập nhật `session.schema.json` nếu có thay đổi, kèm `[contract]` trong PR.
 
 **Tiêu chí hoàn thành:**
-- [ ] `/docs` (Swagger) liệt kê đủ endpoint.
-- [ ] Ví dụ trong `packages/contracts/examples` validate được bằng schema (test).
-- [ ] Web gọi `POST /v1/sessions` và nhận challenge (kiểm tra bằng 1 test hoặc trang debug).
-- [ ] API **không bao giờ** trả score ra ngoài trong phản hồi cho `/verify` (có test).
+- [x] `/docs` (Swagger) liệt kê đủ endpoint (15; có test `test_openapi.py`).
+- [x] Ví dụ trong `packages/contracts/examples` validate được bằng schema (test `test_contract_examples.py`).
+- [x] Web gọi `POST /v1/sessions` và nhận challenge (test `client.test.ts` với fetch giả; API thật: `test_sessions_api.py`).
+- [x] API **không bao giờ** trả score ra ngoài trong phản hồi cho `/verify` (có test cho create/finalize/voice và hồ sơ ca duyệt).
 
 ---
 
