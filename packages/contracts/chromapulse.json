@@ -1,0 +1,16 @@
+{
+  "$comment": "Nguồn DUY NHẤT cho bảng màu, nhịp và giới hạn an toàn của ChromaPulse (ADR-0011, proposal Phụ lục A). Đây là file cấu hình, KHÔNG phải JSON Schema: bảng màu có thể đổi sau PRES-01 mà không đổi hợp đồng. API (services/api, bộ sinh thử thách) và web (apps/web, trang lab và CAP-04) cùng đọc file này; test ở cả hai phía kiểm điều đó và kiểm giới hạn an toàn.",
+  "version": 1,
+  "palette": ["#ffcc73", "#73d9ff", "#ffb3eb", "#80e09e"],
+  "baseline_color": "#d1d1d1",
+  "steps": 8,
+  "baseline_ms": 1000,
+  "tail_ms": 500,
+  "hold_ms": { "min": 400, "max": 650 },
+  "transition_ms": 150,
+  "limits": {
+    "max_changes_per_second": 2.5,
+    "max_luminance_spread": 0.064,
+    "max_red_share": 0.8
+  }
+}
