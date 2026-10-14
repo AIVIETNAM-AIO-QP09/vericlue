@@ -9,6 +9,7 @@ import os
 import random
 import re
 import shutil
+import stat
 import tarfile
 import threading
 import time
@@ -131,14 +132,22 @@ def _sha256(path: Path) -> str:
 
 
 def download_required(file: RemoteFile, dest: Path) -> int:
-    """Byte đĩa còn cần cho file này; chỉ trừ partial có đúng identity nguồn."""
+    """Byte đĩa còn cần; mỗi file chỉ stat một lần để resume danh mục lớn."""
     resource = hashlib.sha256((file.url + str(file.size) + str(file.sha256)).encode()).hexdigest()
     record = dest.with_name(dest.name + ".verified.json")
-    if dest.is_file() and dest.stat().st_size == file.size:
+    try:
+        info = dest.stat()
+    except OSError:
+        info = None
+    if info is not None and stat.S_ISREG(info.st_mode) and info.st_size == file.size:
         try:
-            stored = json.loads(record.read_text()) if record.exists() else {}
+            try:
+                stored = json.loads(record.read_text(encoding="utf-8"))
+                has_record = True
+            except FileNotFoundError:
+                stored, has_record = {}, False
             if isinstance(stored, dict) and (
-                not record.exists()
+                not has_record
                 or (stored.get("resource") == resource and isinstance(stored.get("sha256"), str))
             ):
                 return 0
@@ -146,13 +155,14 @@ def download_required(file: RemoteFile, dest: Path) -> int:
             pass
     part = dest.with_name(dest.name + ".part")
     part_record = dest.with_name(dest.name + ".part.json")
-    if part.is_file() and part_record.is_file():
-        try:
-            partial_record = json.loads(part_record.read_text())
+    try:
+        info = part.stat()
+        if stat.S_ISREG(info.st_mode) and info.st_size <= file.size:
+            partial_record = json.loads(part_record.read_text(encoding="utf-8"))
             if isinstance(partial_record, dict) and partial_record.get("resource") == resource:
-                return max(0, file.size - min(file.size, part.stat().st_size))
-        except (OSError, ValueError):
-            pass
+                return file.size - info.st_size
+    except (OSError, ValueError):
+        pass
     return file.size
 
 

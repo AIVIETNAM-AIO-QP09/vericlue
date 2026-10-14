@@ -1506,3 +1506,58 @@ def test_data_inventory_counts_region_files_and_unique_subjects(tmp_path):
         "Central": {"files": 1, "subjects": 1},
         "South": {"files": 2, "subjects": 1},
     }
+
+
+@pytest.mark.parametrize("sidecar", ["verified", "partial"])
+@pytest.mark.parametrize("identity", ["matching", "stale", "malformed"])
+def test_preflight_receipt_identity_credits_only_valid_matching_source(tmp_path, sidecar, identity):
+    file = core.RemoteFile("https://example.test/active-source", "audio.wav", 10)
+    dest = tmp_path / "audio.wav"
+    resource = hashlib.sha256((file.url + str(file.size) + str(file.sha256)).encode()).hexdigest()
+    if sidecar == "verified":
+        dest.write_bytes(b"a" * 10)
+        record = Path(str(dest) + ".verified.json")
+    else:
+        Path(str(dest) + ".part").write_bytes(b"a" * 4)
+        record = Path(str(dest) + ".part.json")
+    if identity == "malformed":
+        record.write_text(json.dumps(["unexpected-list-record"]), encoding="utf-8")
+    else:
+        record.write_text(
+            json.dumps(
+                {
+                    "resource": resource if identity == "matching" else "old-resource",
+                    "sha256": hashlib.sha256(b"a" * 10).hexdigest(),
+                }
+            ),
+            encoding="utf-8",
+        )
+    expected = (0 if sidecar == "verified" else 6) if identity == "matching" else 10
+    assert core.download_required(file, dest) == expected
+    plan = core.Plan(core.Dataset("fixture", "https://example.test", "MIT", 10, 20), [file], 20)
+    assert core.remaining_peak(plan, tmp_path) == 10 + expected
+
+
+def test_oversize_matching_partial_is_not_credited_before_restart(tmp_path, monkeypatch):
+    dest = tmp_path / "audio.wav"
+    file = core.RemoteFile("https://example.test/active-source", "audio.wav", 6)
+    create_partial(dest, b"oversized-partial", file)
+    assert core.download_required(file, dest) == 6
+    plan = core.Plan(core.Dataset("fixture", "https://example.test", "MIT", 6, 16), [file], 16)
+    assert core.remaining_peak(plan, tmp_path) == 16
+    requests = []
+    monkeypatch.setattr(
+        core.time,
+        "sleep",
+        lambda seconds: pytest.fail("invalid local partial should restart without retries"),
+    )
+
+    def handler(request):
+        requests.append(request)
+        assert "Range" not in request.headers
+        return httpx.Response(200, content=b"abcdef")
+
+    make_client(handler).download(file, dest)
+    assert len(requests) == 1
+    assert dest.read_bytes() == b"abcdef"
+    assert not Path(str(dest) + ".part").exists()

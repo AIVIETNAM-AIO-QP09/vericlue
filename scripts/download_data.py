@@ -397,7 +397,10 @@ def main(argv: list[str] | None = None) -> int:
                         **metrics(client, prepare_snapshot, elapsed_prepare),
                     }
                 )
-        required = sum(remaining_peak(p, root / "raw" / p.dataset.name) for p in plans)
+        remaining_by_dataset = {
+            p.dataset.name: remaining_peak(p, root / "raw" / p.dataset.name) for p in plans
+        }
+        required = sum(remaining_by_dataset.values())
         print(
             f"Kế hoạch khả dụng: {len(plans)}/{len(datasets)} bộ, đỉnh dự kiến {required / GB:.3f} GB."
         )
@@ -408,7 +411,7 @@ def main(argv: list[str] | None = None) -> int:
             execute_snapshot = metric_snapshot(client)
             print(f"→ {plan.dataset.name}: tải và xử lý dữ liệu.")
             try:
-                check_disk(root, remaining_peak(plan, dest))
+                check_disk(root, remaining_by_dataset[plan.dataset.name])
                 if plan.execute:
                     plan.execute(dest, client)
                 else:
