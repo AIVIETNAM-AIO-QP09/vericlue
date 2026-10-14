@@ -30,9 +30,16 @@ npm run dev                        # http://localhost:3000
 npm run lint
 npm run test
 npm run typecheck
+npm run gen:api                    # sinh lại type API từ ../../packages/contracts/openapi.json
 npm run format:check               # npm run format để tự sửa
 npm run build
 ```
+
+## Gọi API
+
+- Chỉ qua `src/lib/api/client.ts` (`createApiClient`): tự gắn `Authorization: Bearer` cho các bước của phiên, lỗi thành `ApiError` có `errorCode`.
+- Type nằm ở `src/lib/api/schema.d.ts`, **sinh tự động**, đừng sửa tay. Khi API đổi: `uv run python scripts/gen_openapi.py` rồi `npm run gen:api`, commit cả hai file (CI kiểm chạy lại không lệch).
+- `NEXT_PUBLIC_API_URL` trỏ tới API (mặc định `http://localhost:8000`). Khi API chạy mock, `createSession("print")` chọn kịch bản qua header `X-Mock-Scenario`.
 
 ## Thử trên điện thoại
 
