@@ -67,6 +67,8 @@
 - Tính màu trung vị 5 vùng da + nền bằng MediaPipe.
 - Xuất file JSON tải về.
 
+> **Code xong (PR CAP-03), chờ thu dữ liệu.** Trang `/lab/chromapulse` và runbook `docs/runbooks/chromapulse-lab.md` đã có. Ba tiêu chí dưới đây cần người thu trên máy thật (14 file: mỗi máy × tình huống × 2 lần); dòng CAP-03 ở `review` cho tới khi có dữ liệu.
+
 **Tiêu chí hoàn thành:**
 - [ ] Thu được JSON trên ≥ 3 máy: Android tầm trung, iPhone, laptop. Mỗi máy 3 tình huống: người thật, video phát lại trên màn hình khác, OBS Virtual Camera (trên laptop).
 - [ ] Ghi rõ trình duyệt nào có `captureTime`.
