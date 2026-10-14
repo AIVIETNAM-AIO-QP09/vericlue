@@ -16,7 +16,23 @@ data/
 
 ## Quy tắc
 
-1. Chỉ dùng dữ liệu công khai có giấy phép cho nghiên cứu. **Không** thu dữ liệu sinh trắc học của người ngoài nhóm.
+1. Chỉ dùng nguồn công khai cho nghiên cứu. Bộ chưa rõ giấy phép ghi rõ “giấy phép chưa rõ — không phân phối lại”. **Không** thu dữ liệu sinh trắc học của người ngoài nhóm.
 2. Dữ liệu tự tạo chỉ dùng nội bộ, không phát tán.
 3. Chia tập **theo người**: một người không được xuất hiện ở cả tập train lẫn tập test.
 4. Tập test **không được dùng** để chọn ngưỡng hay chọn mô hình.
+
+
+## Kho dùng chung giữa worktree
+
+Script đọc `DATA_DIR` (biến môi trường ưu tiên `.env`), mặc định `./data` tính từ
+gốc repo. Máy phát triển này dùng `D:\Projects\vericlue-store\data`.
+Tất cả dữ liệu, cache và SOURCE.md nằm trong kho đó; không đưa vào Git hay upload.
+Xem `scripts/README.md` để cài nhóm tùy chọn data và đặt credentials.
+
+`raw/<tên>/SOURCE.md` ghi giấy phép và trạng thái thực; `selected_manifest.json`
+(nếu adapter tạo) giữ đường dẫn, người/video/câu nguồn để DATA-03 chia đúng nhóm.
+Thư mục `.cache/` và archive chưa giải nén không phải danh sách mẫu đã chọn;
+không quét cache làm tập huấn luyện. Báo cáo lượt tải nằm ở `runs/*.json`.
+NC chỉ dùng nghiên cứu, không phân phối lại; ViMD ND không phân phối bản phái
+sinh, ví dụ biến thể nén DATA-05. SOURCE ghi thiếu identity khi nguồn không có,
+không tự coi UUID/file number là người. ViSpoofDB giữ riêng làm test.

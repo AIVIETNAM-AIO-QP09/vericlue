@@ -21,8 +21,14 @@
 
 **Tiêu chí hoàn thành:**
 - [ ] `--subset small` chạy xong < 30 phút, tổng < 30 GB.
-- [ ] Bộ cần đăng ký (HF gated) báo rõ cách lấy token nếu thiếu `HF_TOKEN`.
+- [x] Bộ cần đăng ký (HF gated) báo rõ cách lấy token nếu thiếu `HF_TOKEN`.
 - [ ] Mỗi bộ có `SOURCE.md`.
+
+**Nghiệm thu DATA-01 (15/10/2026):** trưởng nhóm duyệt để `review` sau khi tải
+small thật `vn_celeb_faces` và `vivos`. Chưa đánh dấu <30 phút/<30 GB hoặc SOURCE
+đủ mọi bộ cho đến khi chạy small đủ danh mục với credentials. CelebA-Spoof/LAV-DF
+được phép báo skipped nếu chưa xác minh HTTP Range và metadata nhóm nguồn;
+không tự tải full. Dependency tải dữ liệu nằm trong nhóm tùy chọn `data`.
 
 **Lưu ý:** gửi ngay hôm nay các yêu cầu cần chờ duyệt: SEA-Spoof (email tác giả), FaceForensics++, DeepSpeak v1, Deepfake-Eval-2024. Không chặn việc khác nếu chưa được duyệt.
 
