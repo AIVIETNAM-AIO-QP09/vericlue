@@ -17,7 +17,7 @@
 |---|---|---|---|---|---|---|---|---|
 | PLAT-01 ★ | uv workspace, ruff/pytest, script setup | M5 | Claude | 0,5 | S0 | P0 | — | done |
 | PLAT-02 | Khởi tạo Next.js (3 khu vực) | M1 | | 0,5 | S0 | P0 | — | todo |
-| PLAT-03 ★ | FastAPI + vericlue_ml + ModuleResult + mock | M5 | | 1 | S0 | P0 | PLAT-01 | todo |
+| PLAT-03 ★ | FastAPI + vericlue_ml + ModuleResult + mock | M5 | Claude | 1 | S0 | P0 | PLAT-01 | done |
 | PLAT-04 ★ | Chốt API v1, hợp đồng, sinh type cho web | M5 (+M1) | | 1 | S0 | P0 | PLAT-02, PLAT-03 | todo |
 | PLAT-05 ★ | DB, Alembic, Docker Compose | M5 | | 1 | S1 | P0 | PLAT-04 | todo |
 | PLAT-06 | Token phiên, giới hạn lượt, khóa Ed25519 | M2 | | 1 | S1 | P0 | PLAT-05 | todo |

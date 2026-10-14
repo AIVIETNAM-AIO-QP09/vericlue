@@ -1,5 +1,4 @@
 # Gốc workspace Python của VeriClue (quản lý bằng uv).
-# Gói con (services/api, ml) được thêm vào [tool.uv.workspace] ở task PLAT-03.
 
 [project]
 name = "vericlue-workspace"
@@ -17,11 +16,15 @@ dev = [
   "nbstripout>=0.7",
   "pyyaml>=6.0",
   "jsonschema>=4.22",
+  "httpx>=0.27",
 ]
 
 [tool.uv]
 package = false
 default-groups = ["dev"]
+
+[tool.uv.workspace]
+members = ["services/api", "ml"]
 
 # ── Ruff: định dạng + lint ─────────────────────────────────────
 [tool.ruff]
@@ -32,6 +35,13 @@ extend-exclude = ["external", "data", "models", "notebooks", "apps"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM"]
 ignore = ["E501"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI dùng Depends(...) trong tham số hàm — đây là cách viết chuẩn của framework.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Body"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["vericlue_ml", "vericlue_api"]
 
 [tool.ruff.format]
 quote-style = "double"

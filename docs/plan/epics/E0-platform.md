@@ -69,6 +69,8 @@
 
 ### PLAT-03 · Khung FastAPI + gói vericlue_ml + ModuleResult + mô-đun giả lập
 
+> ✅ **Đã xong 14/10** (nhánh `feat/PLAT-03-api-ml-skeleton`). Đã kiểm trên server chạy thật: `/healthz` và `/docs` trả 200. Thêm ngoài task card: test `test_contract_sync.py` bảo đảm model Python khớp hợp đồng JSON; cấu hình ruff cho FastAPI.
+
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
 |---|---|---|---|---|
 | M5 | 1 | S0 | P0 | PLAT-01 |
@@ -87,10 +89,10 @@
 - Test: `ml/tests/test_result_schema.py` (mọi mock validate được với JSON Schema), `services/api/tests/test_health.py`.
 
 **Tiêu chí hoàn thành:**
-- [ ] `uv run uvicorn vericlue_api.main:app --app-dir services/api/src` chạy; `/healthz` trả 200.
-- [ ] Mọi mock trả `ModuleResult` hợp lệ với JSON Schema (test tự động).
-- [ ] Mock `error` trả `status=error`; có test.
-- [ ] `uv run pytest` xanh trên CPU, không cần GPU hay mô hình.
+- [x] `uv run uvicorn vericlue_api.main:app --app-dir services/api/src` chạy; `/healthz` trả 200.
+- [x] Mọi mock trả `ModuleResult` hợp lệ với JSON Schema (test tự động).
+- [x] Mock `error` trả `status=error`; có test.
+- [x] `uv run pytest` xanh trên CPU, không cần GPU hay mô hình.
 
 ---
 

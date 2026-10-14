@@ -1,0 +1,12 @@
+# Mô hình đang dùng cho từng module. "mock" = mô-đun giả lập (PLAT-03).
+# Khi task mô hình thật xong, đổi thành id trong models/manifest.yaml và phiên bản đã tinh chỉnh.
+modules:
+  quality: mock
+  face_pad: mock          # FACE-01 → minifasnet
+  face_deepfake: mock     # FACE-02 → gend-clip-l14 (+ sbi-ffc23 ở FACE-03)
+  chromapulse: mock       # PRES-02
+  camprobe: mock          # PRES-03
+  voice_spoof: mock       # VOICE-01 → antideepfake-mms300m
+  voice_challenge: mock   # VOICE-04 → phowhisper + ctc-aligner
+  lipsync: mock           # VOICE-05 → syncnet
+  provenance: mock        # FOR-03 → audioseal-detector, perth
