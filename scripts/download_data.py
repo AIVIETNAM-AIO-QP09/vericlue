@@ -8,6 +8,7 @@ Dữ liệu: DATA_DIR (mặc định ./data); không commit hoặc phân phối 
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import os
 import subprocess
@@ -106,7 +107,7 @@ DATASETS = {
             "https://github.com/studie-e/Vietnamese-Audio-Deepfake-Detection",
             "Không ghi — giấy phép chưa rõ",
             2_400_000_000,
-            2_400_000_000,
+            2_600_000_000,
         ),
         Dataset(
             "vsasv",
@@ -194,6 +195,76 @@ def _commit() -> str:
         return "không xác định"
 
 
+def metrics(client: Client, before: tuple[float, int], elapsed: float) -> dict:
+    """Tách thời gian HTTP khỏi xử lý/hash/index/giải nén, đơn vị MB thập phân."""
+    seconds = max(0.0, getattr(client, "network_seconds", 0.0) - before[0])
+    received = max(0, getattr(client, "network_bytes", 0) - before[1])
+    return {
+        "network_seconds": seconds,
+        "processing_seconds": max(0.0, elapsed - seconds),
+        "network_bytes": received,
+        "network_mbps": received / 1_000_000 / seconds if seconds else 0.0,
+    }
+
+
+def metric_snapshot(client: Client) -> tuple[float, int]:
+    return getattr(client, "network_seconds", 0.0), getattr(client, "network_bytes", 0)
+
+
+def data_inventory(dest: Path) -> dict:
+    """Đếm mẫu/nhóm từ chỉ mục thực, không coi archive hoặc SOURCE là mẫu."""
+    result: dict = {}
+    try:
+        index = dest / "index.csv"
+        if index.exists():
+            with index.open(encoding="utf-8", newline="") as stream:
+                rows = list(csv.DictReader(stream))
+            origins: dict[str, set[str]] = {}
+            for row in rows:
+                origin = row.get("video_origin_id") or row.get("source_video_id", "")
+                if origin:
+                    origins.setdefault(origin, set()).add(row.get("archive", ""))
+            result.update(
+                {
+                    "index_rows": len(rows),
+                    "source_videos": len(
+                        {r["source_video_id"] for r in rows if r.get("source_video_id")}
+                    ),
+                    "indexed_archives": len({r["archive"] for r in rows if r.get("archive")}),
+                    "known_subjects": len({r["subject_id"] for r in rows if r.get("subject_id")}),
+                    "video_origin_ids_in_multiple_archives": sum(
+                        len(archives) > 1 for archives in origins.values()
+                    ),
+                }
+            )
+        manifest = dest / "selected_manifest.json"
+        if manifest.exists():
+            rows = json.loads(manifest.read_text(encoding="utf-8"))
+            result.update(
+                {
+                    "selected_files": len(rows),
+                    "manifest_data_bytes": sum(row.get("size", 0) for row in rows),
+                    "known_subjects": len({r["subject_id"] for r in rows if r.get("subject_id")}),
+                    "regions": {
+                        region: {
+                            "files": sum(r.get("region") == region for r in rows),
+                            "subjects": len(
+                                {
+                                    r["subject_id"]
+                                    for r in rows
+                                    if r.get("region") == region and r.get("subject_id")
+                                }
+                            ),
+                        }
+                        for region in sorted({r["region"] for r in rows if r.get("region")})
+                    },
+                }
+            )
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        result["inventory_error"] = "Chỉ mục/manifest không hợp lệ, chưa thể đếm mẫu."
+    return result
+
+
 def main(argv: list[str] | None = None) -> int:
     """Chạy tải; trả 2 khi có bộ bỏ qua, 1 khi lỗi, 0 khi hoàn thành lựa chọn."""
     if hasattr(sys.stdout, "reconfigure"):
@@ -216,7 +287,10 @@ def main(argv: list[str] | None = None) -> int:
 
         load_dotenv(ROOT / ".env", override=False)
     except ImportError:
-        pass
+        if (ROOT / ".env").is_file():
+            print(
+                "! Thiếu python-dotenv: file .env chưa được đọc. Cài uv sync --all-packages --group data hoặc đặt DATA_DIR trực tiếp trong biến môi trường; nếu không, script dùng ./data."
+            )
     root = resolve_data_dir()
     names = args.only or list(DATASETS)
     datasets = [DATASETS[name] for name in names]
@@ -250,13 +324,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"! {error}")
         return 1
     token, kaggle_auth = load_credentials()
-    client = Client(token=token, kaggle_auth=kaggle_auth)
+    client = Client(token=token, kaggle_auth=kaggle_auth, cache_dir=root / ".metadata")
     outcomes: dict[str, dict] = {}
     plans: list[Plan] = []
+    prepared: dict[str, dict] = {}
     started = time.monotonic()
     run_commit = _commit()
     try:
         for dataset in datasets:
+            prepare_started = time.monotonic()
+            prepare_snapshot = metric_snapshot(client)
+            print(f"→ {dataset.name}: đọc metadata và lập kế hoạch.")
             try:
                 if dataset.gated and not token:
                     raise SkipDataset(
@@ -289,6 +367,11 @@ def main(argv: list[str] | None = None) -> int:
                 for file in plan.files:
                     safe_path(root / "raw" / dataset.name, file.path)
                 plans.append(plan)
+                prepare_elapsed = time.monotonic() - prepare_started
+                prepared[dataset.name] = {
+                    "prepare_seconds": prepare_elapsed,
+                    **metrics(client, prepare_snapshot, prepare_elapsed),
+                }
             except (SkipDataset, DownloadError) as error:
                 reason = redact(str(error), client)
                 status = "skipped" if isinstance(error, SkipDataset) else "error"
@@ -304,6 +387,16 @@ def main(argv: list[str] | None = None) -> int:
                 write_source(
                     Plan(dataset, [], 0), root / "raw" / dataset.name, SEED, "error", reason
                 )
+            if dataset.name not in prepared:
+                elapsed_prepare = time.monotonic() - prepare_started
+                outcomes[dataset.name].update(
+                    {
+                        "seconds": elapsed_prepare,
+                        "prepare_seconds": elapsed_prepare,
+                        "execute_seconds": 0.0,
+                        **metrics(client, prepare_snapshot, elapsed_prepare),
+                    }
+                )
         required = sum(remaining_peak(p, root / "raw" / p.dataset.name) for p in plans)
         print(
             f"Kế hoạch khả dụng: {len(plans)}/{len(datasets)} bộ, đỉnh dự kiến {required / GB:.3f} GB."
@@ -312,6 +405,8 @@ def main(argv: list[str] | None = None) -> int:
         for plan in plans:
             dest = root / "raw" / plan.dataset.name
             before = time.monotonic()
+            execute_snapshot = metric_snapshot(client)
+            print(f"→ {plan.dataset.name}: tải và xử lý dữ liệu.")
             try:
                 check_disk(root, remaining_peak(plan, dest))
                 if plan.execute:
@@ -335,21 +430,48 @@ def main(argv: list[str] | None = None) -> int:
             plan.notes = [redact(note, client) for note in plan.notes]
             plan.groups = [redact(group, client) for group in plan.groups]
             write_source(plan, dest, SEED, status, reason)
+            execute_elapsed = time.monotonic() - before
+            prepare_metrics = prepared[plan.dataset.name]
+            measured = metrics(client, execute_snapshot, execute_elapsed)
+            network_seconds = measured["network_seconds"] + prepare_metrics["network_seconds"]
+            network_bytes = measured["network_bytes"] + prepare_metrics["network_bytes"]
             outcomes[plan.dataset.name] = {
                 "status": status,
                 "reason": reason,
-                "seconds": time.monotonic() - before,
                 "revision": plan.revision,
+                "seconds": prepare_metrics["prepare_seconds"] + execute_elapsed,
+                "prepare_seconds": prepare_metrics["prepare_seconds"],
+                "execute_seconds": execute_elapsed,
+                "network_seconds": network_seconds,
+                "processing_seconds": measured["processing_seconds"]
+                + prepare_metrics["processing_seconds"],
+                "network_bytes": network_bytes,
+                "network_mbps": network_bytes / 1_000_000 / network_seconds
+                if network_seconds
+                else 0.0,
+                "stored_bytes": sum(p.stat().st_size for p in dest.rglob("*") if p.is_file()),
+                "inventory": data_inventory(dest),
             }
+            print(
+                f"  {plan.dataset.name}: mạng {network_seconds:.1f}s, xử lý {outcomes[plan.dataset.name]['processing_seconds']:.1f}s; "
+                f"{network_bytes / 1e6:.1f} MB thực nhận, {outcomes[plan.dataset.name]['network_mbps']:.2f} MB/s."
+            )
+        flush_metadata = getattr(client, "flush_metadata", None)
+        if flush_metadata is not None:
+            flush_metadata()
         elapsed = time.monotonic() - started
         files = [p for d in datasets for p in (root / "raw" / d.name).rglob("*") if p.is_file()]
-        stored = sum(p.stat().st_size for p in files)
+        stored = sum(p.stat().st_size for p in files) + sum(
+            p.stat().st_size for p in (root / ".metadata").rglob("*") if p.is_file()
+        )
         summary = {
             "subset": args.subset,
             "seed": SEED,
             "commit": run_commit,
             "selected": names,
             "seconds": elapsed,
+            **metrics(client, (0.0, 0), elapsed),
+            "download_bytes": getattr(client, "download_bytes", 0),
             "stored_bytes": stored,
             "outcomes": outcomes,
             "entire_catalog_complete": len(datasets) == len(DATASETS)

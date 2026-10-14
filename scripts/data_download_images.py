@@ -17,6 +17,7 @@ from data_download_core import (
     Plan,
     RemoteFile,
     SkipDataset,
+    check_disk,
     safe_path,
     sample_groups,
 )
@@ -149,6 +150,37 @@ def _prepare_rtfs(dataset: Dataset, client: Client, seed: int, subset: str) -> P
     return plan
 
 
+def _prepare_fas_zip(dataset: Dataset, client: Client, subset: str) -> Plan:
+    """Giữ ZIP toàn bộ FAS-VN để tránh hàng nghìn request ảnh riêng."""
+    if not client.kaggle_auth:
+        raise SkipDataset("FAS-VN cần KAGGLE_USERNAME/KAGGLE_KEY hoặc ~/.kaggle/kaggle.json.")
+    repo = KAGGLE_REPOS[dataset.name]
+    metadata = client.json(f"{KAGGLE}/view/{repo}", auth=client.kaggle_auth)
+    version = metadata.get("currentVersionNumber")
+    if not isinstance(version, int) or version < 1:
+        raise SkipDataset("FAS-VN không công bố version để ghim archive tải tiếp.")
+    url = f"{KAGGLE}/download/{repo}?{urlencode({'datasetVersionNumber': version})}"
+    size = client.head_size(url)
+    if size <= 0:
+        raise SkipDataset("FAS-VN không xác minh được kích thước ZIP trước preflight.")
+    if subset == "small" and size > dataset.budget_bytes:
+        raise SkipDataset("ZIP FAS-VN vượt ngân sách small; không tải khi thiếu dung lượng.")
+    remote = RemoteFile(url, "face-anti-spoofing.zip", size)
+    return Plan(
+        dataset,
+        [remote],
+        size,
+        revision=f"kaggle-version-{version}",
+        notes=[
+            "Small = full: tải một ZIP toàn bộ FAS-VN, không chọn ngẫu nhiên ảnh.",
+            "Giữ nguyên ZIP, không giải nén/cache thêm bản sao; tải tiếp dùng version ghim.",
+            f"ZIP đã xác minh HTTP size {size} bytes; byte ZIP khác tổng ảnh giải nén.",
+            "Nguồn chưa có subject_id đáng tin; UUID filename không được coi là người. "
+            "DATA-03 phải xác minh danh tính trước khi chia theo người.",
+        ],
+    )
+
+
 def _prepare_kaggle(dataset: Dataset, client: Client, subset: str) -> Plan:
     repo = KAGGLE_REPOS[dataset.name]
     inventory = _kaggle_files(repo, client)
@@ -276,29 +308,54 @@ def _prepare_wild(dataset: Dataset, client: Client, seed: int, subset: str) -> P
     def inspect_archives(dest: Path, _client: Client) -> None:
         groups: set[str] = set()
         records: list[dict] = []
+        origin_archives: dict[str, set[str]] = {}
+        origin_splits: dict[str, set[str]] = {}
         for file in files:
             archive = safe_path(dest, file.path)
             _client.download(file, archive)
             with tarfile.open(archive, "r:*") as stream:
                 for member in stream:
                     if member.isfile() and member.name.lower().endswith((".png", ".jpg", ".jpeg")):
-                        # Include source split/archive to disambiguate local video numbering.
+                        # A source group never includes archive name: preserve cross-shard reuse.
+                        safe_path(dest, member.name)
                         group = str(Path(member.name).parent).replace("\\", "/")
                         if group in (".", ""):
                             raise SkipDataset("WildDeepfake frame thiếu thư mục video gốc.")
                         split = Path(file.path).parent.name
                         source_id = f"{split}::{group}"
                         groups.add(source_id)
+                        origin_archives.setdefault(group, set()).add(file.path)
+                        origin_splits.setdefault(group, set()).add(split)
                         records.append(
                             {
                                 "archive": file.path,
                                 "member": member.name,
                                 "source_video_id": source_id,
+                                "video_origin_id": group,
+                                "source_split": split,
+                                "speaker_id": "",
+                                "subject_id": "",
                             }
                         )
         if not groups:
             raise SkipDataset("WildDeepfake archives không chứa nhóm frame video có thể xác minh.")
         _write_manifest(dest, records, plan)
+        duplicate_origins = sorted(
+            origin for origin, archives in origin_archives.items() if len(archives) > 1
+        )
+        ambiguous_origins = sorted(
+            origin for origin, splits in origin_splits.items() if len(splits) > 1
+        )
+        duplicate_note = (
+            f"Kiểm tra parent video thực tế: {len(duplicate_origins)} video_origin_id xuất hiện "
+            "trong nhiều archive đã tải; archive name không thuộc ID nhóm. "
+            f"{len(ambiguous_origins)} parent ID có nhiều source_split, giữ source_split riêng "
+            "vì chưa có ánh xạ danh tính xuyên real/fake hoặc train/test."
+        )
+        if duplicate_note not in plan.notes:
+            plan.notes.append(duplicate_note)
+        if duplicate_origins:
+            plan.notes.append("Parent video ở nhiều archive: " + ", ".join(duplicate_origins))
         plan.groups[:] = sorted(groups)
         plan.notes.append(
             f"Đã kiểm tra archive: {len(groups)} nhóm video, không lấy frame ngẫu nhiên."
@@ -317,11 +374,37 @@ def _write_manifest(dest: Path, records: list[dict], plan: Plan) -> None:
     encoded = "".join(json.dumps(record, ensure_ascii=False) + "\n" for record in records).encode(
         "utf-8"
     )
-    if len(encoded) > limit:
-        raise SkipDataset("Manifest provenance vượt ngân sách; giữ archive để lần sau kiểm tra.")
+    output = io.StringIO(newline="")
+    columns = [
+        "archive",
+        "member",
+        "members",
+        "sample_key",
+        "video_origin_id",
+        "source_video_id",
+        "speaker_id",
+        "subject_id",
+        "source_split",
+    ]
+    writer = csv.DictWriter(output, fieldnames=columns, extrasaction="ignore")
+    writer.writeheader()
+    for record in records:
+        row = {column: record.get(column, "") for column in columns}
+        row["members"] = json.dumps(record.get("members", []), ensure_ascii=False)
+        writer.writerow(row)
+    index_payload = output.getvalue().encode("utf-8")
+    if len(encoded) + len(index_payload) > limit:
+        raise SkipDataset(
+            "Manifest/index provenance vượt ngân sách; giữ archive để lần sau kiểm tra."
+        )
+    check_disk(dest, len(encoded) + len(index_payload))
     dest.mkdir(parents=True, exist_ok=True)
-    (dest / "video_groups.jsonl").write_bytes(encoded)
-    note = "video_groups.jsonl giữ archive/member → source_video_id để DATA-03 chia nhóm."
+    for name, payload in (("video_groups.jsonl", encoded), ("index.csv", index_payload)):
+        check_disk(dest, len(payload))
+        temporary = dest / f"{name}.part"
+        temporary.write_bytes(payload)
+        temporary.replace(dest / name)
+    note = "video_groups.jsonl và index.csv giữ archive/member → video_origin_id; speaker/subject rỗng nếu nguồn không công bố."
     if note not in plan.notes:
         plan.notes.append(note)
 
@@ -364,6 +447,7 @@ def _prepare_vicocktail(dataset: Dataset, client: Client, seed: int, subset: str
             archive = safe_path(dest, file.path)
             downloader.download(file, archive)
             identities: dict[str, str] = {}
+            speakers: dict[str, str] = {}
             samples: dict[str, list[str]] = {}
             with tarfile.open(archive, "r:*") as stream:
                 for member in stream:
@@ -374,14 +458,21 @@ def _prepare_vicocktail(dataset: Dataset, client: Client, seed: int, subset: str
                         member.name.rsplit(".", 1) if "." in member.name else (member.name, "")
                     )
                     samples.setdefault(key, []).append(member.name)
-                    if extension != "sample_id":
+                    if extension not in ("sample_id", "speaker_id", "speakerID"):
                         continue
                     if member.size > 4096:
-                        raise SkipDataset("ViCocktail sample_id vượt giới hạn metadata.")
+                        raise SkipDataset("ViCocktail ID vượt giới hạn metadata.")
                     extracted = stream.extractfile(member)
                     if extracted is None:
                         raise SkipDataset("Không đọc được ViCocktail sample_id.")
                     sample_id = extracted.read().decode("utf-8").strip()
+                    if extension != "sample_id":
+                        if key in speakers and speakers[key] != sample_id:
+                            raise SkipDataset(
+                                "ViCocktail metadata speaker mâu thuẫn, không đoán người nói."
+                            )
+                        speakers[key] = sample_id
+                        continue
                     match = re.fullmatch(r"([A-Za-z0-9_-]{11})_\d+_.*", sample_id)
                     if not match:
                         raise SkipDataset(
@@ -394,7 +485,21 @@ def _prepare_vicocktail(dataset: Dataset, client: Client, seed: int, subset: str
                 original = identities[key]
                 originals.add(original)
                 records.append(
-                    {"archive": file.path, "members": members, "source_video_id": original}
+                    {
+                        "archive": file.path,
+                        "member": next(
+                            (name for name in members if name.endswith((".video", ".mp4"))), ""
+                        ),
+                        "members": members,
+                        "sample_key": key,
+                        "source_video_id": original,
+                        "video_origin_id": original,
+                        "speaker_id": speakers.get(key, ""),
+                        "subject_id": speakers.get(key, ""),
+                        "source_split": "train"
+                        if "/avvn-train-" in file.path
+                        else Path(file.path).stem,
+                    }
                 )
         if not originals:
             raise SkipDataset("ViCocktail archive không có source video metadata.")
@@ -412,7 +517,9 @@ def prepare(dataset: Dataset, client: Client, seed: int, subset: str) -> Plan:
     """Lập inventory và ngân sách; không tải media trước kiểm tra dung lượng."""
     if dataset.name == "rtfs10k":
         return _prepare_rtfs(dataset, client, seed, subset)
-    if dataset.name in ("zalo2022", "fas_vn"):
+    if dataset.name == "fas_vn":
+        return _prepare_fas_zip(dataset, client, subset)
+    if dataset.name == "zalo2022":
         return _prepare_kaggle(dataset, client, subset)
     if dataset.name == "vn_celeb_faces":
         return _prepare_celeb(dataset, client)

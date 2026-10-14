@@ -25,17 +25,17 @@ Cài nhóm tùy chọn `data` (không thuộc phụ thuộc chính API/ml):
 
 ```powershell
 uv sync --all-packages --group data
-$env:DATA_DIR = 'D:\Projects\vericlue-store\data'
+$env:DATA_DIR = 'E:\shared\vericlue\data'
 uv run --group data python scripts/download_data.py --dry-run
 uv run --group data python scripts/download_data.py --only vn_celeb_faces vivos --subset small
 ```
 
 `DATA_DIR` mặc định `./data`, đường dẫn tương đối tính từ gốc worktree; biến môi
 trường ưu tiên hơn `.env`. Mọi worktree nên trỏ cùng kho để chạy lại không tải trùng.
-Mặc định `--subset small`, seed 42, ngân sách toàn danh mục 28,4 GB gồm
+Mặc định `--subset small`, seed 42, ngân sách toàn danh mục 28,6 GB gồm
 archive/cache. Trước media download, script in tổng và kiểm tra ổ đích phải còn
 ít nhất 10 GB sau tải; kiểm tra lại khi giải nén. `--subset full` tính byte nguồn,
-chi phí giải nén được tính thêm trong adapter; ổ khoảng 119 GB không đủ full.
+chi phí giải nén được tính thêm trong adapter; luôn kiểm tra dung lượng ổ đích trước tải.
 `--only` nhận một hoặc nhiều tên. Dry-run chỉ in danh mục/ngân sách, không tạo file,
 không gọi mạng; byte thực và danh sách chọn được ghi khi chạy thật.
 
@@ -77,4 +77,28 @@ Mã thoát: `0` hoàn thành lựa chọn/dry-run; `2` có bộ skipped; `1` có
 Thiếu token không chặn những bộ khác và không được coi là hoàn thành danh mục.
 Báo cáo thực chạy nằm ở `$DATA_DIR/runs/*.json`, gồm commit, seed, thời gian,
 số byte lưu (kể cả cache), revision và outcome từng bộ. Chỉ xác nhận tiêu chí
-small <30 phút/<30 GB sau khi chạy đủ danh mục và xem cả các bộ bị bỏ qua.
+small chạy hết trong một đêm, tải tiếp được sau ngắt, tổng <30 GB sau khi chạy đủ danh mục và xem cả các bộ bị bỏ qua.
+
+
+Review DATA-01 ngày 15/10: FAS-VN small = full, một gói ZIP dataset ghim phiên bản,
+không tải 11.376 request file lẻ; giữ ZIP gốc để tránh nhân đôi dung lượng.
+ViSpoofDB dự phòng small 2,6 GB. ViCocktail/WildDeepfake được duyệt chọn theo
+shard/archive; `index.csv` cạnh SOURCE ghi từng clip/frame, video nguồn, speaker
+nếu nguồn có (rỗng khi chưa biết), cùng archive/member để DATA-03 nối nhóm.
+Wild ghi kết quả kiểm tra video xuất hiện xuyên archive, chỉ trong phạm vi đã tải.
+
+Tiêu chí small: chạy hết trong một đêm, tải tiếp được sau ngắt, tổng <30 GB;
+ghi tốc độ MB/s và thời gian thực. Báo cáo/log tách `network_seconds` (HTTP có
+hoạt động, không cộng trùng request song song), `processing_seconds` (phần còn
+lại: hash/index/giải nén/ghi file), `network_bytes` và `network_mbps` (MB thập phân/s).
+Lượng byte Range ViMD truyền qua mạng có thể lớn hơn WAV giữ trên đĩa; không có
+cache parquet trên đĩa. Small giữ toàn bộ clip của tối đa bốn người mỗi miền, output
+bị giới hạn và xác minh trước khi ghi. Giọng thật ViSpoofDB có nguồn VIVOS:
+DATA-03 phải nối danh tính xuyên hai bộ để chống rò rỉ người nói.
+CelebA/LAV-DF hiện luôn báo skipped; LAV-DF còn cần triển khai cho đánh giá khớp môi S2.
+
+Kích thước HEAD được checkpoint trong `$DATA_DIR/.metadata/head_sizes.json` (24 giờ),
+chỉ lưu hash URL/kích thước/thời điểm, không lưu token hoặc URL ký. HTTP 5xx và
+ngắt luồng tải được retry tối đa ba lần; .part vẫn giữ để chạy lại khi hết retry.
+Bộ đếm byte không gồm metadata HTTP nội bộ gdown; thời gian discovery gdown
+được tính vào phần mạng, cùng một ít thời gian parse HTML bên trong thư viện.

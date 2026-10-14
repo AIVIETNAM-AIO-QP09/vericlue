@@ -10,37 +10,25 @@ import shutil
 import tarfile
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import nullcontext, redirect_stderr, redirect_stdout
 from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import quote
 
-try:
-    from data_download_core import (
-        Client,
-        Dataset,
-        Plan,
-        RemoteFile,
-        SkipDataset,
-        check_disk,
-        safe_extract_tar,
-        safe_path,
-        sample_groups,
-    )
-except ModuleNotFoundError:
-    from scripts.data_download_core import (
-        Client,
-        Dataset,
-        Plan,
-        RemoteFile,
-        SkipDataset,
-        check_disk,
-        safe_extract_tar,
-        safe_path,
-        sample_groups,
-    )
+from data_download_core import (
+    Client,
+    Dataset,
+    Plan,
+    RemoteFile,
+    SkipDataset,
+    check_disk,
+    safe_extract_tar,
+    safe_path,
+    sample_groups,
+)
 
 HF = "https://huggingface.co/datasets"
+VIMD_SMALL_SPEAKERS_PER_REGION = 4
 AUDIO_REPOS = {
     "mlaad_vi": "mueller91/MLAAD",
     "vsasv": "hustep-lab/VSASV-Dataset",
@@ -135,6 +123,7 @@ def _vivos(dataset: Dataset, client: Client, seed: int, subset: str) -> Plan:
         revision=revision,
         notes=[
             "Chọn trọn người nói từ tar index sau preflight; giữ archive để chạy lại.",
+            "giọng thật của ViSpoofDB lấy từ VIVOS — DATA-03 phải chia theo người xuyên hai bộ, chống rò rỉ người nói",
             f"Seed {seed}; ngân sách WAV {budget} bytes; full giải nén dự phòng 4 GB.",
         ],
         execute=execute,
@@ -231,7 +220,7 @@ def _parquet_audio(dataset: Dataset, client: Client, seed: int, subset: str) -> 
     groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
     regions: dict[str, str] = {}
     shard_info: dict[str, tuple[RemoteFile, list[int]]] = {}
-    for shard in shards:
+    for shard_index, shard in enumerate(shards, start=1):
         remote = RemoteFile(_url(repo, revision, shard["path"]), shard["path"], shard["size"])
         with client.remote_file(remote.url, remote.size) as handle:
             parquet = pq.ParquetFile(handle)
@@ -283,9 +272,12 @@ def _parquet_audio(dataset: Dataset, client: Client, seed: int, subset: str) -> 
                             raise SkipDataset("ViMD: một speakerID thuộc nhiều miền.")
                         regions[subject] = region
             shard_info[remote.path] = remote, costs
+        if dataset.name == "vimd" and (shard_index % 10 == 0 or shard_index == len(shards)):
+            print(f"ViMD metadata: {shard_index}/{len(shards)} shards; chưa tải audio.", flush=True)
     names = sorted(groups)
     random.Random(seed).shuffle(names)
     metadata_allowance = 10_000_000
+    bounded_vimd = dataset.name == "vimd" and subset == "small"
     cap = (
         dataset.budget_bytes
         if subset == "small"
@@ -301,7 +293,7 @@ def _parquet_audio(dataset: Dataset, client: Client, seed: int, subset: str) -> 
         additional = needed - used_groups
         cost = sum(shard_info[path][1][index] for path, index in additional)
         # Compressed rowgroup + decoded audio output conservative factor; no shard cache.
-        if (transfer_cost + cost) * 3 + metadata_allowance > cap:
+        if not bounded_vimd and (transfer_cost + cost) * 3 + metadata_allowance > cap:
             return False
         transfer_cost += cost
         used_groups.update(needed)
@@ -315,8 +307,16 @@ def _parquet_audio(dataset: Dataset, client: Client, seed: int, subset: str) -> 
         }
         if any(not group for group in by_region.values()):
             raise SkipDataset("ViMD: không có metadata đủ ba miền.")
-        for batch in zip(*by_region.values(), strict=False):
-            consider(list(batch))
+        if bounded_vimd:
+            # Four disjoint sets in DATA-03 need at least four speakers per region.
+            per_region = min(
+                VIMD_SMALL_SPEAKERS_PER_REGION, *(len(group) for group in by_region.values())
+            )
+            for index in range(per_region):
+                consider([by_region[region][index] for region in ("North", "Central", "South")])
+        else:
+            for batch in zip(*by_region.values(), strict=False):
+                consider(list(batch))
     else:
         for subject in names:
             consider([subject])
@@ -329,7 +329,14 @@ def _parquet_audio(dataset: Dataset, client: Client, seed: int, subset: str) -> 
     for row in rows:
         by_group[(row["shard"], row["row_group"])].append(row)
 
-    output_allowance = transfer_cost * 2
+    output_allowance = cap - metadata_allowance if bounded_vimd else transfer_cost * 2
+    if output_allowance <= 0:
+        raise SkipDataset("ViMD: ngân sách không đủ phần dự phòng metadata và audio.")
+    if bounded_vimd:
+        print(
+            f"ViMD: {len(selected) // 3} người/miền, trọn mọi clip; Range rowgroups dự kiến {transfer_cost / 1e9:.3f} GB mạng, không cache đĩa.",
+            flush=True,
+        )
 
     def execute(dest: Path, download_client: Client) -> None:
         manifest: list[dict[str, Any]] = []
@@ -380,13 +387,17 @@ def _parquet_audio(dataset: Dataset, client: Client, seed: int, subset: str) -> 
     return Plan(
         dataset,
         [],
-        peak_bytes=transfer_cost * 3 + metadata_allowance,
+        peak_bytes=output_allowance + metadata_allowance
+        if bounded_vimd
+        else transfer_cost * 3 + metadata_allowance,
         revision=revision,
         groups=selected,
         notes=[
             "Shards nguồn: " + ", ".join(sorted({p for p, _ in used_groups})),
+            f"Range rowgroups: dự kiến {transfer_cost} bytes mạng; không lưu parquet/cache trên đĩa.",
+            f"Ngân sách audio output {output_allowance} bytes + metadata {metadata_allowance} bytes; xác minh toàn bộ trước ghi.",
             f"Seed {seed}; metadata tất cả shards, giữ trọn speakerID; HTTP range rowgroups.",
-            "ViMD giữ số người bằng nhau ba miền."
+            "ViMD giữ số người bằng nhau ba miền, small tối đa 4 người/miền để DATA-03 chia bốn tập."
             if dataset.name == "vimd"
             else "Bảo toàn nhóm người nói.",
         ],
@@ -401,7 +412,10 @@ def _vispoof(dataset: Dataset, client: Client, seed: int, subset: str) -> Plan:
         raise SkipDataset("ViSpoofDB cần gdown: uv sync --group data.") from exc
     folder = "https://drive.google.com/drive/folders/1NZWOJi8g9nLfId1fSTkEc9Ay18P0c2LR"
     try:
-        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+        network_context = (
+            client.measured_network() if hasattr(client, "measured_network") else nullcontext()
+        )
+        with network_context, redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
             listing = gdown.download_folder(
                 url=folder, skip_download=True, quiet=True, use_cookies=False
             )
@@ -430,7 +444,15 @@ def _vispoof(dataset: Dataset, client: Client, seed: int, subset: str) -> Plan:
 
     # HEAD only: concurrent metadata calls avoid thousands of sequential waits.
     with ThreadPoolExecutor(max_workers=8) as pool:
-        chosen = list(pool.map(verified_file, listing))
+        chosen = []
+        for index, file in enumerate(pool.map(verified_file, listing), start=1):
+            chosen.append(file)
+            if index % 1000 == 0 or index == len(listing):
+                print(f"ViSpoofDB HEAD: {index}/{len(listing)} file; chưa tải audio.", flush=True)
+    if len({file.path.casefold() for file in chosen}) != len(chosen):
+        raise SkipDataset(
+            "ViSpoofDB: đường dẫn Drive bị trùng; không tải đồng thời file cùng đích."
+        )
     total = sum(file.size for file in chosen)
     peak = total + 10_000_000
     if subset == "small" and peak > dataset.budget_bytes:
@@ -440,8 +462,17 @@ def _vispoof(dataset: Dataset, client: Client, seed: int, subset: str) -> Plan:
         )
 
     def execute(dest: Path, download_client: Client) -> None:
-        for file in chosen:
-            download_client.download(file, safe_path(dest, file.path))
+        # Resolve and validate all destinations serially before workers create dirs.
+        destinations = {file.path: safe_path(dest, file.path) for file in chosen}
+
+        def download_one(file: RemoteFile) -> None:
+            download_client.download(file, destinations[file.path])
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            # Only queue one batch: failures stop without scheduling thousands more.
+            for start in range(0, len(chosen), 8):
+                for _ in pool.map(download_one, chosen[start : start + 8]):
+                    pass
         _manifest(
             dest,
             [
@@ -463,8 +494,10 @@ def _vispoof(dataset: Dataset, client: Client, seed: int, subset: str) -> Plan:
         groups=["vispoofdb_test_only"],
         notes=[
             "Giữ toàn bộ ViSpoofDB làm test; audio_*.wav không có speaker ID, không chia calib/train.",
+            "giọng thật của ViSpoofDB lấy từ VIVOS — DATA-03 phải chia theo người xuyên hai bộ, chống rò rỉ người nói",
             "Danh sách gdown đầy đủ + kích thước HEAD public từng file; không sao chép code nguồn.",
             f"Seed {seed}; toàn bộ test không lấy mẫu.",
+            f"Drive liệt kê {len(chosen)} file; dùng số file tải thực, không dùng số mẫu README thay cho kiểm kê.",
         ],
         execute=execute,
     )

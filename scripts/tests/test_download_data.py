@@ -796,3 +796,547 @@ def test_arbitrary_prepare_failure_continues_and_hides_exception_secrets(
     assert "signed-url-unknown-secret-token" not in captured.out + captured.err
     for path in (tmp_path / "new-data").rglob("SOURCE.md"):
         assert "signed-url-unknown-secret-token" not in path.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("name", ["celeba_spoof", "lavdf"])
+@pytest.mark.parametrize("subset", ["small", "full"])
+def test_explicit_unsupported_image_sources_skip_without_provider_access(name, subset):
+    import data_download_images as images
+
+    class ForbiddenProvider:
+        token = "fixture-token"
+
+        def __getattr__(self, method):
+            pytest.fail(f"unsupported source must not access provider: {method}")
+
+    with pytest.raises(core.SkipDataset):
+        images.prepare(
+            core.Dataset(name, "https://example.test", "unknown", 100, 100),
+            ForbiddenProvider(),
+            2026,
+            subset,
+        )
+
+
+@pytest.mark.parametrize("sidecar", ["verified", "partial"])
+def test_corrupted_resume_json_restarts_download_safely(tmp_path, sidecar):
+    dest = tmp_path / "audio.wav"
+    if sidecar == "verified":
+        dest.write_bytes(b"oldold")
+        Path(str(dest) + ".verified.json").write_text("{not-json", encoding="utf-8")
+    else:
+        Path(str(dest) + ".part").write_bytes(b"old")
+        Path(str(dest) + ".part.json").write_text("{not-json", encoding="utf-8")
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        assert "Range" not in request.headers
+        return httpx.Response(200, content=b"abcdef")
+
+    make_client(handler).download(
+        core.RemoteFile("https://example.test/audio", "audio.wav", 6), dest
+    )
+    assert len(requests) == 1
+    assert dest.read_bytes() == b"abcdef"
+    assert (
+        json.loads(Path(str(dest) + ".verified.json").read_text(encoding="utf-8"))["sha256"]
+        == hashlib.sha256(b"abcdef").hexdigest()
+    )
+
+
+def test_existing_env_without_dotenv_emits_explicit_warning(tmp_path, monkeypatch, capsys):
+    import builtins
+
+    module, _ = configure_main(monkeypatch, tmp_path)
+    monkeypatch.setattr(module, "ROOT", tmp_path)
+    (tmp_path / ".env").write_text("DATA_DIR=./data\n", encoding="utf-8")
+    original_import = builtins.__import__
+
+    def without_dotenv(name, *args, **kwargs):
+        if name == "dotenv":
+            raise ImportError("fixture missing python-dotenv")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", without_dotenv)
+    assert module.main(["--only", "example", "--dry-run"]) == 0
+    text = capsys.readouterr().out
+    assert "dotenv" in text and ".env" in text
+
+
+def test_vispoof_head_verified_manifest_remains_test_only_and_warns_vivos_overlap(
+    tmp_path, monkeypatch
+):
+    from types import SimpleNamespace
+
+    import data_download_audio as audio
+
+    listing = [
+        SimpleNamespace(path=f"audio/audio_{index}.wav", id=f"drive-{index}") for index in range(2)
+    ]
+    listing_calls = []
+
+    def drive_listing(**kwargs):
+        listing_calls.append(kwargs)
+        return listing
+
+    monkeypatch.setitem(sys.modules, "gdown", SimpleNamespace(download_folder=drive_listing))
+    heads, downloads = [], []
+
+    class FakeClient:
+        token = ""
+
+        def head_size(self, url):
+            heads.append(url)
+            return 3
+
+        def download(self, remote, dest):
+            downloads.append(remote.path)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(b"wav")
+
+    dataset = core.Dataset("vispoofdb", "https://example.test", "unknown", 6, 20_000_000)
+    plan = audio.prepare(dataset, FakeClient(), 2026, "small")
+    assert len(heads) == 2 and not downloads
+    assert listing_calls[0]["skip_download"] is True
+    assert plan.peak_bytes >= 6
+    plan.execute(tmp_path, FakeClient())
+    rows = json.loads((tmp_path / "selected_manifest.json").read_text(encoding="utf-8"))
+    assert len(rows) == 2
+    assert all(row["split_policy"] == "test_only" and row["subject_id"] is None for row in rows)
+    assert {row["source_file_id"] for row in rows} == {"drive-0", "drive-1"}
+    assert "vivos" in " ".join(plan.notes).lower()
+
+
+def test_wild_csv_keeps_video_origins_across_archives_without_inventing_speakers(tmp_path):
+    import csv
+
+    import data_download_images as images
+
+    payloads = {
+        "data/fake_train/part-0.tar.gz": archive_bytes([("shared-video/000.jpg", b"a")], gzip=True),
+        "data/fake_train/part-1.tar.gz": archive_bytes([("shared-video/001.jpg", b"b")], gzip=True),
+        "data/real_train/part-0.tar.gz": archive_bytes([("real-video/000.jpg", b"c")], gzip=True),
+    }
+
+    class FakeClient:
+        def hf_files(self, repo, prefix=""):
+            return "revision", [
+                {"path": path, "size": len(payload)} for path, payload in payloads.items()
+            ]
+
+        def download(self, remote, dest):
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(payloads[remote.path])
+
+    dataset = core.Dataset("wilddeepfake", "https://example.test", "unknown", 5_000_000, 5_000_000)
+    plan = images.prepare(dataset, FakeClient(), 2026, "small")
+    plan.execute(tmp_path, FakeClient())
+    with (tmp_path / "index.csv").open(encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    assert len(rows) == 3
+    assert any("video_origin_id" in note and "nhiều archive" in note for note in plan.notes)
+    shared = [row for row in rows if row["video_origin_id"] == "shared-video"]
+    assert len(shared) == 2
+    assert len({row["archive"] for row in shared}) == 2
+    assert {row["source_video_id"] for row in shared} == {"fake_train::shared-video"}
+    assert all(not row["speaker_id"] and not row["subject_id"] for row in rows)
+    assert {row["member"] for row in rows} == {
+        "shared-video/000.jpg",
+        "shared-video/001.jpg",
+        "real-video/000.jpg",
+    }
+
+
+def test_vicocktail_csv_connects_clips_from_multiple_archives_to_one_original(tmp_path):
+    import csv
+
+    import data_download_images as images
+
+    original = "abcdefghijk"
+    payloads = {
+        f"data/avvn-train-{index:03}.tar": archive_bytes(
+            [
+                (f"clip-{index}.sample_id", f"{original}_{index}_original".encode()),
+                (f"clip-{index}.video", b"video"),
+                (f"clip-{index}.wav", b"audio"),
+            ]
+        )
+        for index in range(2)
+    }
+
+    class FakeClient:
+        def hf_files(self, repo, prefix=""):
+            return "revision", [
+                {"path": path, "size": len(payload)} for path, payload in payloads.items()
+            ]
+
+        def download(self, remote, dest):
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(payloads[remote.path])
+
+    dataset = core.Dataset("vicocktail", "https://example.test", "unknown", 5_000_000, 5_000_000)
+    plan = images.prepare(dataset, FakeClient(), 2026, "small")
+    plan.execute(tmp_path, FakeClient())
+    with (tmp_path / "index.csv").open(encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    assert len(rows) == 2
+    assert {row["source_video_id"] for row in rows} == {original}
+    assert {row["video_origin_id"] for row in rows} == {original}
+    assert len({row["archive"] for row in rows}) == 2
+    assert all(not row["speaker_id"] and not row["subject_id"] for row in rows)
+    assert all(row["member"].endswith(".video") for row in rows)
+    assert all(len(json.loads(row["members"])) == 3 for row in rows)
+
+
+@pytest.mark.parametrize("subset", ["small", "full"])
+def test_fas_vn_uses_single_pinned_aggregate_zip_not_per_image_downloads(subset):
+    import data_download_images as images
+
+    calls = []
+
+    class FakeClient:
+        kaggle_auth = ("fixture", "fake-key")
+
+        def json(self, url, **kwargs):
+            calls.append(("json", url))
+            return {"currentVersionNumber": 7, "totalBytes": 8_392_841_360}
+
+        def head_size(self, url, **kwargs):
+            calls.append(("size", url))
+            return 8_392_841_360
+
+    dataset = core.Dataset(
+        "fas_vn",
+        "https://www.kaggle.com/datasets/maihongtng/face-anti-spoofing",
+        "CC0",
+        8_392_841_360,
+        8_500_000_000,
+    )
+    plan = images.prepare(dataset, FakeClient(), 2026, subset)
+    assert len(plan.files) == 1
+    assert plan.files[0].path.endswith(".zip")
+    assert plan.files[0].size == 8_392_841_360
+    assert "datasetVersionNumber=7" in plan.files[0].url
+    assert len(calls) == 2
+    assert all("/list/" not in url for _, url in calls)
+
+
+def test_main_reports_network_and_processing_timing_separately(tmp_path, monkeypatch):
+    module, dataset = configure_main(monkeypatch, tmp_path)
+    dataset.budget_bytes = 2_000_000
+    now = [0.0]
+
+    class TimedClient:
+        token = ""
+        kaggle_auth = None
+        network_seconds = 0.0
+        network_bytes = 0
+        download_bytes = 0
+
+        def __init__(self, **kwargs):
+            pass
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(module, "Client", TimedClient)
+    monkeypatch.setattr(module.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(module, "_commit", lambda: "fixture-commit")
+
+    def prepare(selected, client, seed, subset):
+        client.network_seconds += 1.0
+        client.network_bytes += 1000
+        now[0] += 2.0
+
+        def execute(dest, client):
+            client.network_seconds += 2.0
+            client.network_bytes += 2000
+            client.download_bytes += 2000
+            now[0] += 3.0
+
+        return core.Plan(dataset, [], 0, execute=execute)
+
+    monkeypatch.setattr(module, "prepare_dataset", prepare)
+    assert module.main(["--only", "example"]) == 0
+    reports = list((tmp_path / "new-data/runs").glob("*.json"))
+    assert len(reports) == 1
+    report = json.loads(reports[0].read_text(encoding="utf-8"))
+    outcome = report["outcomes"]["example"]
+    assert outcome["seconds"] == pytest.approx(5.0)
+    assert outcome["prepare_seconds"] == pytest.approx(2.0)
+    assert outcome["execute_seconds"] == pytest.approx(3.0)
+    for metrics in (outcome, report):
+        assert metrics["network_seconds"] == pytest.approx(3.0)
+        assert metrics["processing_seconds"] == pytest.approx(2.0)
+        assert metrics["network_bytes"] == 3000
+        assert metrics["network_mbps"] == pytest.approx(0.001)
+
+
+def test_safe_path_survives_concurrent_creation_of_shared_parent(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+
+    for attempt in range(8):
+        root = tmp_path / f"batch-{attempt}"
+
+        def create_file(index, dataset_root=root):
+            try:
+                target = core.safe_path(dataset_root, f"audio/shared-person/{index}.wav")
+            except core.DownloadError as error:
+                trace = error.__traceback__
+                while trace is not None:
+                    if trace.tb_frame.f_code.co_name == "safe_path":
+                        actual = trace.tb_frame.f_locals
+                        raise AssertionError(
+                            f"Concurrent resolution base={actual.get('base')!r}, "
+                            f"target={actual.get('target')!r}"
+                        ) from error
+                    trace = trace.tb_next
+                raise
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(b"fixture")
+            return target
+
+        with ThreadPoolExecutor(max_workers=16) as workers:
+            paths = list(workers.map(create_file, range(32)))
+        assert len(paths) == 32
+        assert all(path.is_relative_to(root.resolve()) for path in paths)
+        assert all(path.read_bytes() == b"fixture" for path in paths)
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "../escape.wav",
+        "audio/../../escape.wav",
+        "C:\\outside\\escape.wav",
+        "audio\\..\\..\\escape.wav",
+        "/outside/escape.wav",
+    ],
+)
+def test_safe_path_still_rejects_traversal_and_absolute_inputs(tmp_path, relative):
+    with pytest.raises(core.DownloadError):
+        core.safe_path(tmp_path / "dataset", relative)
+    assert not (tmp_path / "escape.wav").exists()
+
+
+@pytest.mark.parametrize("first_failure", ["503", "connection"])
+def test_head_size_retries_transient_failure_without_body_or_real_sleep(monkeypatch, first_failure):
+    attempts, pauses = [], []
+
+    def handler(request):
+        attempts.append(request.method)
+        assert request.method == "HEAD"
+        if len(attempts) == 1:
+            if first_failure == "connection":
+                raise httpx.ConnectError("fixture connection interrupted", request=request)
+            return httpx.Response(503)
+        return httpx.Response(200, headers={"Content-Length": "1234"})
+
+    monkeypatch.setattr(core.time, "sleep", pauses.append)
+    client = make_client(handler)
+    assert client.head_size("https://example.test/audio.wav") == 1234
+    assert attempts == ["HEAD", "HEAD"]
+    assert pauses == [1]
+    assert client.network_bytes == 0
+
+
+def test_head_404_falls_back_to_range_headers_without_consuming_body():
+    class ForbiddenBody(httpx.SyncByteStream):
+        def __iter__(self):
+            pytest.fail("size preflight must never read media body")
+            yield b""
+
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        if request.method == "HEAD":
+            return httpx.Response(404)
+        assert request.headers["Range"] == "bytes=0-0"
+        return httpx.Response(
+            206, headers={"Content-Range": "bytes 0-0/1234"}, stream=ForbiddenBody()
+        )
+
+    client = make_client(handler)
+    assert client.head_size("https://example.test/audio.wav") == 1234
+    assert [request.method for request in requests] == ["HEAD", "GET"]
+    assert client.network_bytes == 0
+
+
+def cached_head_client(cache_dir, handler):
+    client = core.Client(
+        token="private-hf-token", kaggle_auth=("private-user", "private-key"), cache_dir=cache_dir
+    )
+    client._http.close()
+    client._http = httpx.Client(transport=httpx.MockTransport(handler))
+    return client
+
+
+def test_head_cache_reused_by_second_client_and_contains_no_url_or_secrets(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        core.shutil,
+        "disk_usage",
+        lambda _: shutil._ntuple_diskusage(100_000_000_000, 0, 100_000_000_000),
+    )
+    cache = tmp_path / "metadata"
+    url = "https://example.test/audio.wav?token=private-signed-query"
+    requests = []
+
+    def verified(request):
+        requests.append(request)
+        return httpx.Response(200, headers={"Content-Length": "1234"})
+
+    first = cached_head_client(cache, verified)
+    assert first.head_size(url) == 1234
+    first.close()
+    payload = (cache / "head_sizes.json").read_text(encoding="utf-8")
+    assert set(json.loads(payload)) == {hashlib.sha256(url.encode()).hexdigest()}
+    for sensitive in [
+        url,
+        "private-signed-query",
+        "private-hf-token",
+        "private-user",
+        "private-key",
+    ]:
+        assert sensitive not in payload
+
+    def no_network(request):
+        pytest.fail("fresh verified size must survive a new client")
+
+    second = cached_head_client(cache, no_network)
+    assert second.head_size(url) == 1234
+    second.close()
+    assert len(requests) == 1
+
+
+@pytest.mark.parametrize("cache_state", ["expired", "corrupt"])
+def test_stale_or_corrupt_head_cache_is_refreshed(tmp_path, monkeypatch, cache_state):
+    monkeypatch.setattr(
+        core.shutil,
+        "disk_usage",
+        lambda _: shutil._ntuple_diskusage(100_000_000_000, 0, 100_000_000_000),
+    )
+    now = 100_000.0
+    monkeypatch.setattr(core.time, "time", lambda: now)
+    url = "https://example.test/audio.wav"
+    path = tmp_path / "head_sizes.json"
+    if cache_state == "corrupt":
+        path.write_text("{not-json", encoding="utf-8")
+    else:
+        key = hashlib.sha256(url.encode()).hexdigest()
+        path.write_text(
+            json.dumps({key: {"size": 111, "verified_at": now - 86_401}}), encoding="utf-8"
+        )
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        return httpx.Response(200, headers={"Content-Length": "222"})
+
+    client = cached_head_client(tmp_path, handler)
+    assert client.head_size(url) == 222
+    client.close()
+    assert len(requests) == 1
+    assert (
+        json.loads(path.read_text(encoding="utf-8"))[hashlib.sha256(url.encode()).hexdigest()][
+            "size"
+        ]
+        == 222
+    )
+
+
+def test_head_cache_checkpoints_each_128_verified_entries(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        core.shutil,
+        "disk_usage",
+        lambda _: shutil._ntuple_diskusage(100_000_000_000, 0, 100_000_000_000),
+    )
+    client = cached_head_client(
+        tmp_path, lambda _: httpx.Response(200, headers={"Content-Length": "123"})
+    )
+    for index in range(128):
+        assert client.head_size(f"https://example.test/audio/{index}") == 123
+    path = tmp_path / "head_sizes.json"
+    assert path.exists()
+    assert len(json.loads(path.read_text(encoding="utf-8"))) == 128
+    client.close()
+
+
+def test_media_download_retries_503_then_verifies_atomic_result(tmp_path, monkeypatch):
+    pauses, requests = [], []
+    monkeypatch.setattr(core.time, "sleep", pauses.append)
+    dest = tmp_path / "audio.wav"
+    payload = b"complete-audio"
+
+    def handler(request):
+        requests.append(request)
+        assert not dest.exists()
+        if len(requests) == 1:
+            return httpx.Response(503)
+        return httpx.Response(200, content=payload)
+
+    client = make_client(handler)
+    client.download(
+        core.RemoteFile(
+            "https://example.test/audio",
+            "audio.wav",
+            len(payload),
+            hashlib.sha256(payload).hexdigest(),
+        ),
+        dest,
+    )
+    assert len(requests) == 2
+    assert pauses == [1]
+    assert dest.read_bytes() == payload
+    assert not Path(str(dest) + ".part").exists()
+    assert (
+        json.loads(Path(str(dest) + ".verified.json").read_text(encoding="utf-8"))["sha256"]
+        == hashlib.sha256(payload).hexdigest()
+    )
+
+
+def test_media_read_interruption_retries_from_verified_partial_offset(tmp_path, monkeypatch):
+    pauses, requests = [], []
+    monkeypatch.setattr(core.time, "sleep", pauses.append)
+    dest = tmp_path / "audio.wav"
+    prefix = b"a" * core.CHUNK_BYTES
+    suffix = b"abcdef"
+    payload = prefix + suffix
+
+    class InterruptedBody(httpx.SyncByteStream):
+        def __iter__(self):
+            yield prefix
+            raise httpx.ReadError("fixture interrupted after a complete chunk")
+
+    def handler(request):
+        requests.append(request)
+        assert not dest.exists()
+        if len(requests) == 1:
+            assert "Range" not in request.headers
+            return httpx.Response(
+                200, headers={"Content-Length": str(len(payload))}, stream=InterruptedBody()
+            )
+        assert Path(str(dest) + ".part").read_bytes() == prefix
+        assert request.headers["Range"] == f"bytes={len(prefix)}-"
+        return httpx.Response(
+            206,
+            headers={"Content-Range": f"bytes {len(prefix)}-{len(payload) - 1}/{len(payload)}"},
+            content=suffix,
+        )
+
+    client = make_client(handler)
+    client.download(
+        core.RemoteFile(
+            "https://example.test/audio",
+            "audio.wav",
+            len(payload),
+            hashlib.sha256(payload).hexdigest(),
+        ),
+        dest,
+    )
+    assert len(requests) == 2
+    assert pauses == [1]
+    assert dest.read_bytes() == payload
+    assert not Path(str(dest) + ".part").exists()
+    assert client.download_bytes == len(payload)

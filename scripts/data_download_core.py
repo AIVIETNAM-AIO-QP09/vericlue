@@ -10,7 +10,10 @@ import random
 import re
 import shutil
 import tarfile
+import threading
+import time
 from collections.abc import Callable
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
@@ -59,14 +62,27 @@ class Plan:
     execute: Callable[[Path, Client], None] | None = None
 
 
+def _canonical_path(path: Path) -> Path:
+    resolved = path.resolve()
+    if os.name == "nt":
+        value = str(resolved)
+        prefix = "\\" + "\\" + "?" + "\\"
+        if value.startswith(prefix + "UNC" + "\\"):
+            resolved = Path("\\" + "\\" + value[len(prefix) + 4 :])
+        elif value.startswith(prefix) and re.match(r"[A-Za-z]:", value[len(prefix) :]):
+            resolved = Path(value[len(prefix) :])
+    return resolved
+
+
 def safe_path(root: Path, relative: str) -> Path:
     """Chặn đường dẫn thoát thư mục, kể cả đường dẫn Windows trong archive."""
     normalized = relative.replace("\\", "/")
     parts = PurePosixPath(normalized).parts
     if not parts or normalized.startswith("/") or any(p in ("..", "") or ":" in p for p in parts):
         raise DownloadError("Đường dẫn nguồn không an toàn.")
-    target = root.joinpath(*parts).resolve()
-    if not target.is_relative_to(root.resolve()):
+    base = _canonical_path(root)
+    target = _canonical_path(base.joinpath(*parts))
+    if not target.is_relative_to(base):
         raise DownloadError("Đường dẫn nguồn thoát thư mục dữ liệu.")
     return target
 
@@ -121,7 +137,10 @@ def download_required(file: RemoteFile, dest: Path) -> int:
     if dest.is_file() and dest.stat().st_size == file.size:
         try:
             stored = json.loads(record.read_text()) if record.exists() else {}
-            if not stored or stored.get("resource") == resource:
+            if isinstance(stored, dict) and (
+                not record.exists()
+                or (stored.get("resource") == resource and isinstance(stored.get("sha256"), str))
+            ):
                 return 0
         except (OSError, ValueError):
             pass
@@ -129,7 +148,8 @@ def download_required(file: RemoteFile, dest: Path) -> int:
     part_record = dest.with_name(dest.name + ".part.json")
     if part.is_file() and part_record.is_file():
         try:
-            if json.loads(part_record.read_text()).get("resource") == resource:
+            partial_record = json.loads(part_record.read_text())
+            if isinstance(partial_record, dict) and partial_record.get("resource") == resource:
                 return max(0, file.size - min(file.size, part.stat().st_size))
         except (OSError, ValueError):
             pass
@@ -147,14 +167,65 @@ def remaining_peak(plan: Plan, dest: Path) -> int:
 class Client:
     """HTTP có kiểm tra kích thước, Range và ghi file nguyên tử."""
 
-    def __init__(self, token: str = "", kaggle_auth: tuple[str, str] | None = None):
+    def __init__(
+        self,
+        token: str = "",
+        kaggle_auth: tuple[str, str] | None = None,
+        cache_dir: Path | None = None,
+    ):
         self.token = token
         self.kaggle_auth = kaggle_auth
+        self.network_seconds = 0.0
+        self.network_bytes = 0
+        self.download_bytes = 0
+        self._timing_lock = threading.Lock()
+        self._active_requests = 0
+        self._network_started = 0.0
+        self._head_cache_dir = cache_dir
+        self._head_cache_lock = threading.Lock()
+        self._head_cache: dict[str, dict] = {}
+        self._head_cache_updates = 0
+        if cache_dir is not None:
+            try:
+                payload = json.loads((cache_dir / "head_sizes.json").read_text(encoding="utf-8"))
+                if isinstance(payload, dict):
+                    self._head_cache = payload
+            except (OSError, ValueError):
+                pass
         self._http = httpx.Client(follow_redirects=True, timeout=httpx.Timeout(120, connect=30))
+
+    @contextmanager
+    def measured_network(self):
+        """Đo thời gian tường HTTP đang hoạt động, không cộng trùng HEAD song song."""
+        with self._timing_lock:
+            if not self._active_requests:
+                self._network_started = time.monotonic()
+            self._active_requests += 1
+        try:
+            yield
+        finally:
+            with self._timing_lock:
+                self._active_requests -= 1
+                if not self._active_requests:
+                    self.network_seconds += time.monotonic() - self._network_started
+
+    def count_bytes(self, count: int, *, media: bool = False) -> None:
+        """Đếm byte thực nhận, kể cả lượt tải lại/đọc Range."""
+        with self._timing_lock:
+            self.network_bytes += count
+            if media:
+                self.download_bytes += count
+
+    def flush_metadata(self) -> None:
+        """Ghi checkpoint còn lại trước khi thống kê dung lượng lượt tải."""
+        with self._head_cache_lock:
+            self._save_head_cache()
 
     def close(self) -> None:
         """Đóng kết nối HTTP."""
         self._http.close()
+        with self._head_cache_lock:
+            self._save_head_cache()
 
     def _kwargs(self, url: str, kwargs: dict | None = None) -> dict:
         options = dict(kwargs or {})
@@ -171,10 +242,14 @@ class Client:
     def get_bytes(self, url: str, limit: int = 10_000_000, **kwargs) -> bytes:
         """Đọc metadata có giới hạn; không xuất nội dung lỗi HTTP."""
         try:
-            with self._http.stream("GET", url, **self._kwargs(url, kwargs)) as response:
+            with (
+                self.measured_network(),
+                self._http.stream("GET", url, **self._kwargs(url, kwargs)) as response,
+            ):
                 self._check_status(response)
                 result = bytearray()
                 for chunk in response.iter_bytes(CHUNK_BYTES):
+                    self.count_bytes(len(chunk))
                     result.extend(chunk)
                     if len(result) > limit:
                         raise DownloadError("Metadata vượt giới hạn đọc.")
@@ -210,7 +285,9 @@ class Client:
         entries: list[dict] = []
         while url:
             try:
-                response = self._http.get(url, **self._kwargs(url))
+                with self.measured_network():
+                    response = self._http.get(url, **self._kwargs(url))
+                    self.count_bytes(len(response.content))
                 self._check_status(response)
                 entries.extend(response.json())
                 url = response.links.get("next", {}).get("url", "")
@@ -218,25 +295,102 @@ class Client:
                 raise DownloadError("Không đọc được danh sách file HF.") from None
         return revision, entries
 
-    def head_size(self, url: str) -> int:
-        """Đọc kích thước HTTP mà không tải body; từ chối HTML/quota page."""
+    def _save_head_cache(self) -> None:
+        if self._head_cache_dir is None or not self._head_cache_updates:
+            return
+        payload = json.dumps(self._head_cache).encode("utf-8")
+        check_disk(self._head_cache_dir, len(payload))
+        self._head_cache_dir.mkdir(parents=True, exist_ok=True)
+        path = self._head_cache_dir / "head_sizes.json"
+        temporary = path.with_suffix(".json.part")
+        temporary.write_bytes(payload)
+        os.replace(temporary, path)
+        self._head_cache_updates = 0
+
+    def _head_once(self, url: str) -> int:
         try:
-            response = self._http.head(url, **self._kwargs(url))
-            self._check_status(response)
-            if "text/html" in response.headers.get("Content-Type", ""):
-                raise SkipDataset("Nguồn trả trang HTML/quota, không phải dữ liệu.")
-            size = int(response.headers.get("Content-Length", "-1"))
-            if size < 0:
-                raise SkipDataset("Nguồn không công bố kích thước file để preflight.")
-            return size
+            with self.measured_network():
+                response = self._http.head(url, **self._kwargs(url))
+            if response.status_code not in (404, 405):
+                self._check_status(response)
+                if "text/html" not in response.headers.get("Content-Type", ""):
+                    size = int(response.headers.get("Content-Length", "-1"))
+                    if size >= 0:
+                        return size
+            with (
+                self.measured_network(),
+                self._http.stream(
+                    "GET", url, **self._kwargs(url, {"headers": {"Range": "bytes=0-0"}})
+                ) as response,
+            ):
+                self._check_status(response)
+                if "text/html" in response.headers.get("Content-Type", ""):
+                    raise SkipDataset("Nguồn trả trang HTML/quota, không phải dữ liệu.")
+                if response.status_code == 206:
+                    match = re.fullmatch(
+                        r"bytes 0-0/(\d+)", response.headers.get("Content-Range", "")
+                    )
+                    size = int(match[1]) if match else -1
+                else:
+                    size = int(response.headers.get("Content-Length", "-1"))
+                if size < 0:
+                    raise SkipDataset("Nguồn không công bố kích thước file để preflight.")
+                return size
         except (httpx.HTTPError, ValueError):
             raise DownloadError("Không xác minh được kích thước nguồn.") from None
+
+    def head_size(self, url: str) -> int:
+        """HEAD/Range header có retry lỗi tạm và checkpoint size 24 giờ; không tải body."""
+        key = hashlib.sha256(url.encode()).hexdigest()
+        with self._head_cache_lock:
+            entry = self._head_cache.get(key)
+            if (
+                isinstance(entry, dict)
+                and isinstance(entry.get("size"), int)
+                and entry["size"] >= 0
+                and isinstance(entry.get("verified_at"), (int, float))
+                and 0 <= time.time() - entry["verified_at"] < 86_400
+            ):
+                return entry["size"]
+        for attempt in range(3):
+            try:
+                size = self._head_once(url)
+                with self._head_cache_lock:
+                    self._head_cache[key] = {"size": size, "verified_at": time.time()}
+                    self._head_cache_updates += 1
+                    if self._head_cache_updates >= 128:
+                        self._save_head_cache()
+                return size
+            except SkipDataset:
+                raise
+            except DownloadError as error:
+                transient = "HTTP 50" in str(error) or "kích thước nguồn" in str(error)
+                if not transient or attempt == 2:
+                    raise
+                with self.measured_network():
+                    time.sleep(2**attempt)
+        raise DownloadError("Không xác minh được kích thước nguồn sau retry.")
 
     def remote_file(self, url: str, size: int) -> HTTPRangeFile:
         """Mở file seekable, chỉ đọc byte ranges cho metadata Parquet/TAR."""
         return HTTPRangeFile(self, url, size)
 
     def download(self, file: RemoteFile, dest: Path) -> None:
+        """Retry lỗi HTTP 5xx/ngắt mạng có giới hạn; lần sau tiếp tục .part."""
+        for attempt in range(3):
+            try:
+                self._download_once(file, dest)
+                return
+            except SkipDataset:
+                raise
+            except DownloadError as error:
+                transient = "HTTP 50" in str(error) or "Tải bị ngắt" in str(error)
+                if not transient or attempt == 2:
+                    raise
+                with self.measured_network():
+                    time.sleep(2**attempt)
+
+    def _download_once(self, file: RemoteFile, dest: Path) -> None:
         """Tải tiếp .part; chỉ đổi tên khi đúng kích thước và checksum nếu có."""
         if file.size < 0:
             raise DownloadError("Kích thước file chưa xác minh.")
@@ -246,17 +400,32 @@ class Client:
             (file.url + str(file.size) + str(file.sha256)).encode()
         ).hexdigest()
         if dest.exists() and dest.stat().st_size == file.size:
-            stored = json.loads(record.read_text()) if record.exists() else {}
+            try:
+                stored = json.loads(record.read_text()) if record.exists() else {}
+                valid_record = isinstance(stored, dict) and (
+                    not record.exists()
+                    or (
+                        isinstance(stored.get("resource"), str)
+                        and isinstance(stored.get("sha256"), str)
+                    )
+                )
+                if not valid_record:
+                    stored = {}
+            except (OSError, ValueError):
+                stored, valid_record = {}, False
             expected = file.sha256 or stored.get("sha256")
             if expected and _sha256(dest) != expected:
                 raise DownloadError("Checksum file đã tải không khớp; cần kiểm tra/xóa file lỗi.")
-            if not stored or stored.get("resource") == resource:
+            if valid_record and (not stored or stored.get("resource") == resource):
                 return
         part = dest.with_name(dest.name + ".part")
         part_record = dest.with_name(dest.name + ".part.json")
         if part.exists():
             try:
-                same = json.loads(part_record.read_text()).get("resource") == resource
+                partial_record = json.loads(part_record.read_text())
+                same = (
+                    isinstance(partial_record, dict) and partial_record.get("resource") == resource
+                )
             except (OSError, ValueError):
                 same = False
             if not same or part.stat().st_size > file.size:
@@ -267,9 +436,12 @@ class Client:
         if start < file.size:
             headers = {"Range": f"bytes={start}-"} if start else {}
             try:
-                with self._http.stream(
-                    "GET", file.url, **self._kwargs(file.url, {"headers": headers})
-                ) as response:
+                with (
+                    self.measured_network(),
+                    self._http.stream(
+                        "GET", file.url, **self._kwargs(file.url, {"headers": headers})
+                    ) as response,
+                ):
                     self._check_status(response)
                     if response.status_code == 206:
                         match = re.fullmatch(
@@ -294,6 +466,7 @@ class Client:
                     reported = start
                     with part.open("ab" if start else "wb") as stream:
                         for chunk in response.iter_bytes(CHUNK_BYTES):
+                            self.count_bytes(len(chunk), media=True)
                             written += len(chunk)
                             if written > file.size:
                                 raise DownloadError("Nội dung tải vượt kích thước nguồn công bố.")
@@ -359,11 +532,14 @@ class HTTPRangeFile(io.RawIOBase):
             return b"".join(chunks)
         start, end = self.position, self.position + length - 1
         try:
-            with self.client._http.stream(
-                "GET",
-                self.url,
-                **self.client._kwargs(self.url, {"headers": {"Range": f"bytes={start}-{end}"}}),
-            ) as response:
+            with (
+                self.client.measured_network(),
+                self.client._http.stream(
+                    "GET",
+                    self.url,
+                    **self.client._kwargs(self.url, {"headers": {"Range": f"bytes={start}-{end}"}}),
+                ) as response,
+            ):
                 self.client._check_status(response)
                 expected = f"bytes {start}-{end}/{self.size}"
                 if response.status_code != 206 or response.headers.get("Content-Range") != expected:
@@ -374,6 +550,7 @@ class HTTPRangeFile(io.RawIOBase):
                     raise DownloadError("HTTP Range không trả byte gốc.")
                 result = bytearray()
                 for chunk in response.iter_bytes(CHUNK_BYTES):
+                    self.client.count_bytes(len(chunk))
                     result.extend(chunk)
                     if len(result) > length:
                         raise DownloadError("HTTP Range trả vượt số byte.")
@@ -464,6 +641,9 @@ def write_source(plan: Plan, dest: Path, seed: int, status: str, reason: str = "
     if reason:
         lines.extend([f"Lý do: {reason}", ""])
     lines.extend(plan.notes)
+    cross_note = "giọng thật của ViSpoofDB lấy từ VIVOS — DATA-03 phải chia theo người xuyên hai bộ, chống rò rỉ người nói"
+    if plan.dataset.name in ("vispoofdb", "vivos") and cross_note not in plan.notes:
+        lines.append(cross_note)
     lines.extend(["", "## Nhóm nguồn được giữ", ""])
     lines.extend(f"- `{group}`" for group in sorted(set(plan.groups)))
     lines.extend(["", "## Danh sách file thực tế", ""])
