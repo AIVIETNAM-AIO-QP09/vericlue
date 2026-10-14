@@ -42,14 +42,17 @@
 - **Chỉ số:**
   - APCER theo từng loại tấn công, APCER max, BPCER, BPCER@APCER 5% (ISO/IEC 30107-3);
   - EER, AUC;
-  - ECE.
+  - ECE và Brier (import từ `common/calibration.py`, không viết lại).
 - **Khoảng tin cậy 95%:** bootstrap theo người.
 - **Clopper–Pearson** cho tỷ lệ nhỏ.
-- **Bảng Markdown** tự sinh, kèm commit, phiên bản mô hình, bộ dữ liệu, số mẫu.
+- **Bảng Markdown** tự sinh, kèm commit từ Git (+ `-dirty` nếu có thay đổi), phiên bản mô hình, bộ dữ liệu, số mẫu, seed và số lần bootstrap.
+- CSV bắt buộc `sample_id,subject_id,label,attack_type,prob_attack,status,module,model_version`; status khác ok mặc định lỗi. Bật loại tường minh thì báo số/tỷ lệ loại theo bona fide và từng loại tấn công.
+- BPCER@APCER 5% có hai dòng riêng: ngưỡng benchmark khóa từ **calib_fit** với APCER max <=5%, kèm APCER thực đạt trên tập đánh giá; và chỉ số mô tả nội suy ROC trên tập đánh giá (APCER gộp), không xuất/lưu/dùng ngưỡng mô tả. Không chọn cấu hình trên calib_ltt/test.
+- Bootstrap theo subject_id, giữ mọi dòng và multiplicity của người lấy lặp; dưới 10 subject in cảnh báo CI không đáng tin nhưng vẫn sinh báo cáo.
 
 **Tiêu chí hoàn thành:**
-- [ ] Test với dữ liệu tổng hợp có đáp án biết trước.
-- [ ] R1–R4 đều được sinh bằng khung này.
+- [x] Test với dữ liệu tổng hợp có đáp án biết trước.
+- [x] Khung sinh báo cáo thống nhất chạy được trên dữ liệu tổng hợp (nghiệm thu EVAL-01). **Xác minh R1–R4 thật đều dùng khung này** thực hiện tại FACE-01/VOICE-01/ROUT-05, theo quyết định của người giao việc; không yêu cầu tạo số liệu thật ở task khung.
 
 ---
 
