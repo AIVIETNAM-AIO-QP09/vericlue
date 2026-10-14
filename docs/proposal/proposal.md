@@ -191,7 +191,7 @@ Sơ đồ đầy đủ (bản cho người không chuyên và bản kỹ thuật
 ### 2.7 Trụ cột 2 — Chế độ kiểm tra tức thời trong eKYC
 
 **(a) Thu nhận và ràng buộc phiên**
-- Server tạo **mã phiên** và **seed thử thách**. Từng bước thử thách chỉ gửi đúng lúc cần. Mỗi lần tải lên gắn token dùng một lần.
+- Server tạo **mã phiên** và **seed thử thách**. Từng bước thử thách chỉ gửi đúng lúc cần. Mọi lần tải lên gắn token của phiên (hết hạn sau vài phút); mỗi bước chỉ được nhận một lần, và mỗi thử thách chỉ có hiệu lực 120 giây, nên không phát lại được dữ liệu cũ.
 - Web gửi vài **ảnh mặt chất lượng cao** chụp tại thời điểm do server chọn, cùng video ngắn.
 - Màn hình đồng ý tách riêng, ghi rõ "dữ liệu sinh trắc học là dữ liệu nhạy cảm" (Luật 91/2025; NĐ 356/2025).
 
@@ -203,7 +203,7 @@ Sơ đồ đầy đủ (bản cho người không chuyên và bản kỹ thuật
 **(c) Cổng chứng minh hiện diện: ChromaPulse và CamProbe**
 
 *ChromaPulse.*
-- Màn hình phát 8 màu nhạt ngẫu nhiên trong khoảng 4 giây, đổi màu chậm (tối đa 2,5 lần/giây, an toàn cho người nhạy cảm ánh sáng theo WCAG 2.3.1).
+- Màn hình phát 8 màu nhạt ngẫu nhiên trong khoảng 4–6 giây, đổi màu chậm (dưới 2 lần/giây, trong giới hạn 2,5 lần/giây, an toàn cho người nhạy cảm ánh sáng theo WCAG 2.3.1).
 - Hệ thống đo da mặt có phản chiếu **đúng chuỗi màu** và **kịp thời** không:
   - Người thật phản chiếu ngay.
   - Video quay sẵn và camera ảo không phản chiếu.
@@ -254,7 +254,7 @@ Ngưỡng được chỉnh qua **chạy thử của nhóm** trên điện thoạ
 **(d) TrustRouter — quyết định có bảo đảm thống kê**
 
 *Khuôn mặt (bước 1):*
-1. Điểm PAD và deepfake được **hiệu chỉnh** thành xác suất trên dữ liệu kiểm định tách theo người.
+1. Điểm PAD và deepfake được **hiệu chỉnh** thành xác suất trên dữ liệu kiểm định tách theo người. Dữ liệu kiểm định được chia tiếp theo người thành hai phần không giao nhau: một phần để hiệu chỉnh và học trọng số hợp nhất, một phần **chỉ** để chọn ngưỡng — điều kiện để bảo đảm thống kê bên dưới hợp lệ.
 2. **Hợp nhất** bằng hồi quy logistic có tính đến chất lượng ảnh.
 3. **Cổng ngoài phạm vi** (nên có): mẫu quá khác dữ liệu đã kiểm thử → chuyển nhân viên.
 4. So điểm với hai ngưỡng:
@@ -275,7 +275,7 @@ Ngưỡng được chỉnh qua **chạy thử của nhóm** trên điện thoạ
 - Rõ là thật → **Cho qua**; còn lại → **Chuyển nhân viên**.
 
 *Bảo đảm thống kê bằng Learn-then-Test* (Angelopoulos et al., *Annals of Applied Statistics* 2025):
-- Ngưỡng của **từng bước** được chọn trên tập kiểm định sao cho, với **mỗi loại tấn công đã biết** — ảnh in, phát lại, ghép mặt; từng hệ TTS — tỷ lệ bị **tự động cho qua** không vượt α, với xác suất ≥ 1 − δ. Trong các bộ ngưỡng thỏa điều kiện, chọn bộ ít phải chuyển nhân viên nhất.
+- Ngưỡng của **từng bước** được chọn trên phần kiểm định dành riêng cho việc chọn ngưỡng sao cho, với **mỗi loại tấn công đã biết** — ảnh in, phát lại, ghép mặt; từng hệ TTS — tỷ lệ bị **tự động cho qua** không vượt α, với xác suất ≥ 1 − δ. Trong các bộ ngưỡng thỏa điều kiện, chọn bộ ít phải chuyển nhân viên nhất.
 - Kẻ tấn công chỉ lọt qua tự động khi (được cho qua ở bước 1) hoặc (lọt vào vùng giữa rồi được cho qua ở bước 2). Do đó **tỷ lệ lọt của cả quy trình ≤ α_mặt + α_giọng** (bất đẳng thức hợp).
 - **Giới hạn nêu rõ:**
   - Dữ liệu công khai không có phiên nào chứa đồng thời mặt và giọng của cùng một người, nên bảo đảm được tính **cho từng bước**, rồi cộng lại theo bất đẳng thức hợp.
@@ -585,7 +585,7 @@ Danh mục đầy đủ có đường dẫn: `docs/research/sources.md`.
 
 **Trình tự phát màu:**
 1. Nền xám #d1d1d1 trong 1 giây.
-2. 8 đoạn màu ngẫu nhiên từ {#ffcc73, #73d9ff, #ffb3eb, #80e09e}; hai đoạn liền nhau khác màu; mỗi đoạn 400–650 ms; chuyển màu mượt trong 150 ms.
+2. 8 đoạn màu ngẫu nhiên từ {#ffcc73, #73d9ff, #ffb3eb, #80e09e}; hai đoạn liền nhau khác màu; mỗi đoạn giữ màu 400–650 ms rồi chuyển màu mượt trong 150 ms (mỗi bước ≥ 550 ms; tổng khoảng 4,4–6,4 giây).
 3. Nền xám trong 0,5 giây.
 
 **An toàn:**

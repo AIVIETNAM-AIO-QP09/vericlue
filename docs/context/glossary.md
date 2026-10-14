@@ -32,4 +32,5 @@
 | **M1–M5** | Năm vai trò trong đội (docs/context/team.md) |
 | **ADR** | Architecture Decision Record — ghi lại một quyết định thiết kế và lý do |
 | **Task card** | Mô tả đầy đủ một việc: mục tiêu, bước, tiêu chí xong (docs/plan/epics/) |
+| **calib_fit / calib_ltt** | Hai nửa của tập hiệu chỉnh, chia theo người. `calib_fit`: hiệu chỉnh, hợp nhất, chọn mô hình. `calib_ltt`: **chỉ** để chọn ngưỡng có bảo đảm (ADR-0010) |
 | **Handoff** | Ghi chú bàn giao cuối mỗi phiên làm việc — mỗi lần một file trong docs/status/handoffs/ |
