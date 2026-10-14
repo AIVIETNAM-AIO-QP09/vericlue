@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
+import { vi } from "@/i18n/vi";
+
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "VeriClue",
-  description: "Hệ thống xác minh danh tính điện tử VeriClue",
+  title: vi.app.name,
+  description: vi.app.description,
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

@@ -4,6 +4,7 @@
 export const vi = {
   app: {
     name: "VeriClue",
+    description: "Hệ thống xác minh danh tính điện tử VeriClue",
   },
   verify: {
     title: "Xác minh danh tính",
