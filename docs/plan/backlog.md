@@ -104,7 +104,7 @@
 | Mã | Task | Vai trò | Người | Ngày công | Sprint | Ưu tiên | Phụ thuộc | Trạng thái |
 |---|---|---|---|---|---|---|---|---|
 | REDT-01 | Máy red-team + kịch bản tấn công | M2 (+M3, M4) | | 1 | S1 | P0 | — | todo |
-| EVAL-01 | Khung đánh giá chung (chỉ số, bootstrap) | M5 | | 1 | S1 | P0 | PLAT-03 | todo |
+| EVAL-01 | Khung đánh giá chung (chỉ số, bootstrap) | M5 | Codex | 1 | S1 | P0 | PLAT-03 | done |
 | EVAL-02 | Đo độ trễ (R6) | M5 | | 0,5 | S3 | P0 | PLAT-08, VOICE-06 | todo |
 | EVAL-03 | Đánh giá chế độ giám định theo đoạn (R7) | M4 | | 1 | S3 | P1 | FOR-01, DATA-04, EVAL-01 | todo |
 | DEMO-01 ★ | Kịch bản demo 7 tình huống | M2 | | 1 | S3 | P0 | PLAT-09, CAP-07, REV-02, FOR-02, FOR-04, VOICE-06, PRES-04 | todo |

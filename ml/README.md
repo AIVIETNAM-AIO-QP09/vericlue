@@ -107,16 +107,14 @@ PNG chỉ dùng `plot_reliability(rows, destination)` khi cài extra tùy chọn
 không cần matplotlib. Không commit dữ liệu, trọng số hay PNG phát sinh; artifact
 calibrator số và metadata có thể được review trong configs.
 
-## Định dạng predictions.csv cho EVAL-01
+## Khung đánh giá EVAL-01
 
-Mỗi dòng giữ các cột của file chia tập:
-`path,label,attack_type,subject_id,source,region`, bổ sung `module,model_version`
-và **score hoặc prob_attack** (có thể có cả hai); `compression` là cột tùy chọn.
-Nhãn 0 = người thật, 1 = tấn công; score càng cao càng giống tấn công;
-prob_attack nằm trong [0,1]. Không trộn module/phiên bản khi hiệu chỉnh. Giữ
-subject_id nhất quán để chia tập và bootstrap theo người, không theo dòng.
-Điểm thô chưa có calibrator không được diễn giải như xác suất để tính ECE.
+Dùng `vericlue_ml.eval.metrics` và `vericlue_ml.eval.report` cho các kết quả chung.
+Hướng dẫn CSV, công thức, hai dòng BPCER@APCER 5%, bootstrap theo người, loại mẫu
+không ok và CLI: [README của eval](src/vericlue_ml/eval/README.md).
 
-EVAL-01 được nghiệm thu bằng dữ liệu tổng hợp có đáp án biết trước. Việc xác nhận
-R1–R4 thật được sinh bằng khung chung thực hiện ở FACE-01/VOICE-01/ROUT-05;
-không tạo hay tuyên bố kết quả thực nghiệm khi các task đó chưa chạy.
+predictions.csv bắt buộc `sample_id,subject_id,label,attack_type,prob_attack,status,module,model_version`.
+Các cột metadata `path,source,region,score,compression` được giữ khi có; score không
+thay xác suất. ECE/Brier nhập trực tiếp từ calibration, không định nghĩa lại.
+Nghiệm thu EVAL-01 bằng tổng hợp có đáp án biết trước; xác nhận R1–R4 thật dùng
+khung chung tại FACE-01/VOICE-01/ROUT-05. Không dùng calib_ltt/test để chọn cấu hình.
