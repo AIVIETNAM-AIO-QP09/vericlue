@@ -80,7 +80,8 @@ Chỉ trưởng nhóm sửa. Mỗi lần cập nhật:
 - **Mỗi task một phiên chính.** Chỉ phiên chính commit và push.
 - **Subagent** dùng để: đọc, tra cứu, chạy test, duyệt PR, hoặc viết vào **file riêng** được giao.
 - **Hai subagent (hoặc hai phiên) không sửa cùng một file.**
-- **Mỗi AI một worktree**, đặt ngang hàng với `Data4Life` (ví dụ `D:\Projects\vericlue-claude`), không lồng bên trong.
+- **Mỗi AI một worktree**, đặt ngang hàng với `Data4Life` (ví dụ `D:\Projects\vericlue-claude`), không lồng bên trong. **Mở phiên AI ngay tại thư mục worktree đó**; `Data4Life` chỉ dành cho phiên điều phối.
+- Tạo worktree mới: `git worktree add -b <nhánh> ../vericlue-<tên> origin/main` (chạy trong `Data4Life`), rồi nhắc người dùng mở phiên AI ở thư mục mới.
 - Hook pre-commit dùng chung `.venv` của `Data4Life`: không xóa `.venv` đó.
 
 Chi tiết cho thành viên: `docs/ai/working-with-ai.md` mục "Subagent và nhiều phiên song song".
