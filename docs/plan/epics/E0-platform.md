@@ -59,9 +59,9 @@
 - `.env.local.example` có `NEXT_PUBLIC_API_URL`.
 
 **Tiêu chí hoàn thành:**
-- [ ] `npm run dev` mở được 3 trang.
-- [ ] `npm run lint`, `npm run test`, `npm run build` xanh.
-- [ ] Mở trên điện thoại cùng mạng Wi-Fi (`npm run dev -- -H 0.0.0.0`) hiển thị đúng.
+- [x] `npm run dev` mở được 3 trang (kiểm: 200 trên localhost và IP LAN).
+- [x] `npm run lint`, `npm run test`, `npm run build` xanh.
+- [x] Mở trên điện thoại cùng mạng Wi-Fi (`npm run dev -- -H 0.0.0.0`) hiển thị đúng — đã xác nhận trên điện thoại thật (14/10).
 
 **Lưu ý:** camera trên điện thoại cần **HTTPS** (trừ localhost). Ghi vào README cách dùng `next dev --experimental-https` hoặc tunnel (cloudflared hoặc ngrok) để thử trên điện thoại.
 
