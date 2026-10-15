@@ -20,9 +20,11 @@
 - Chữ tiếng Việt trong `src/i18n/vi.ts`.
 
 **Tiêu chí hoàn thành:**
-- [ ] Với API mock đi được cả 4 nhánh: pass, retry, voice_challenge, review.
-- [ ] Không có màn hình nào hiển thị điểm số hay chữ "giả mạo".
-- [ ] Test Vitest cho máy trạng thái.
+- [x] Với API mock đi được cả 4 nhánh: pass, retry, voice_challenge, review (test `runner.e2e.test.ts` với API mock thật; chọn kịch bản bằng `?scenario=`).
+- [x] Không có màn hình nào hiển thị điểm số hay chữ "giả mạo" (test quét toàn bộ chuỗi `vi.verify` trong `messages.test.ts`).
+- [x] Test Vitest cho máy trạng thái (`flow.test.ts`, `runner.test.ts`).
+
+> **Chỗ giữ chỗ trong CAP-01 (mỗi chỗ có chú thích "TẠM — CAP-0x thay" trong code):** `quality_check` luôn cho qua (CAP-02); `flash_challenge` chỉ phát màu theo thử thách, chưa có bộ lấy mẫu và `frame_times` (CAP-04); `uploading` gửi ảnh giữ chỗ (CAP-06); bước đọc câu chỉ hiện câu cần đọc, có nút gửi âm thanh giả ở môi trường dev (CAP-07).
 
 ---
 

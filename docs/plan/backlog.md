@@ -39,7 +39,7 @@
 
 | Mã | Task | Vai trò | Người | Ngày công | Sprint | Ưu tiên | Phụ thuộc | Trạng thái |
 |---|---|---|---|---|---|---|---|---|
-| CAP-01 ★ | Luồng /verify + màn hình đồng ý | M1 | | 1 | S0–S1 | P0 | PLAT-02, PLAT-04 | todo |
+| CAP-01 ★ | Luồng /verify + màn hình đồng ý | M1 | Claude | 1 | S0–S1 | P0 | PLAT-02, PLAT-04 | done |
 | CAP-02 ★ | Camera, oval, cổng chất lượng | M1 | | 1,5 | S1 | P0 | CAP-01 | todo |
 | CAP-03 | Trang thử ChromaPulse (spike) | M1 (+M3) | Claude | 1 | S0 | P0 | PLAT-02 | review |
 | CAP-04 | ChromaPulse chính thức (chép Amplify) | M1 | | 1,5 | S1 | P0 | CAP-03, PRES-01, PLAT-04 | todo |
