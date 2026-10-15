@@ -1,10 +1,10 @@
 # VOICE-04 — Kiểm tra câu đọc
 
 - Bộ dữ liệu: ViMD selected_manifest (original human speech)
-- Commit: 8ba9e6a0ccdf27e97b19f93a6a5667bd51a91d70 (dirty=False)
+- Commit: dd344f2a35ef54756d3c40270f731173d74c6a52 (dirty=False)
 - Mô hình: phowhisper-small@a86b604c346caf7148c37512eafe783a16420adb+voice04-v1
 - Revision dữ liệu: 3a5b30157034e7eadd5c75fae1a820c6f9383398
-- Ngày: 2026-10-15T10:35:30.982650+07:00
+- Ngày: 2026-10-15T23:42:29.204854+07:00
 - Ngưỡng cố định: WER ≤ 0.3; giống bỏ dấu ≥ 0.9.
 - Tỷ lệ không đạt tính cả đọc sai và lỗi xử lý; không bỏ mẫu lỗi.
 
@@ -25,6 +25,33 @@ CP95 tính theo câu, giả định các câu độc lập; nhiều câu cùng n
 - Central: spk_37_0269, spk_77_0056, spk_78_0243, spk_79_0063
 - South: spk_70_0040, spk_71_0092, spk_83_0108, spk_93_0184
 
-## TTS đọc đúng / đọc sai
+## TTS — đối chiếu gate kỳ vọng
 
-2 ca: 1 đọc đúng, 1 đọc sai; 2 phân loại đúng, 0 lỗi xử lý.
+4 ca: 3 kỳ vọng pass, 1 kỳ vọng fail; 4 phân loại đúng, 0 lỗi xử lý.
+
+Kỳ vọng pass có thể gồm câu gần đúng trong ngưỡng dung sai, không đồng nghĩa đọc nguyên văn.
+
+| Ca | Gate kỳ vọng | Status | Gate | WER âm tiết | Giống bỏ dấu | Đối chiếu kỳ vọng |
+|---|---|---|---|---:|---:|---|
+| correct | pass | ok | pass | 0.1111 | 1.0000 | đúng |
+| wrong | fail | ok | fail | 1.2222 | 0.5250 | đúng |
+| near_syllable | pass | ok | pass | 0.2222 | 0.9118 | đúng |
+| near_tone | pass | ok | pass | 0.0000 | 1.0000 | đúng |
+
+### Ca gần đúng — review PR #14
+
+TTS local `facebook/mms-tts-vie@b58928d033932a49aa8e3d6cf11625b25fe928d2`,
+CC BY-NC 4.0, CPU FP32, seed 42; không dùng dịch vụ TTS mạng. Bốn văn bản được
+cố định trong `scripts/prepare_voice_tts.py` trước khi quan sát ASR:
+
+- `near_syllable`: đổi đúng một âm tiết mẹ → bố. ASR còn nhận vẫn → dẫn,
+  nên WER thực tế là 2/9, khác WER văn bản nguồn 1/9; ratio 0,9118 gần ngưỡng 0,9.
+- `near_tone`: đổi đúng một thanh mẹ → mè. ASR trả lại mẹ, WER thực tế 0;
+  ca này không chứng minh hệ thống phát hiện được mọi lỗi thanh của audio.
+- Hai ca gần đúng dự kiến pass theo dung sai hiện có; pass không có nghĩa đọc nguyên văn.
+  Không thay ngưỡng 0,3/0,9 theo kết quả. Test văn bản với ASR giả xác minh cả hai
+  thay đổi đơn lẻ có WER 1/9; đổi thanh có ratio bỏ dấu 1.
+
+Audio, SOURCE.md và manifest nằm trong DATA_DIR/eval/VOICE04/tts-mms;
+JSON chi tiết của lượt này: DATA_DIR/eval/VOICE04/evaluation-review.json.
+Kết quả ViMD vẫn là 2/19 không đạt, không lỗi xử lý; dùng mọi câu của 12 người.
