@@ -6,6 +6,8 @@ from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from vericlue_api.core.chromapulse_config import load_chromapulse_config
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
@@ -22,7 +24,8 @@ class Settings(BaseSettings):
     challenge_ttl_seconds: int = 120
     max_retries: int = 2
     max_upload_mb: int = 50
-    challenge_palette: str = "#ffcc73,#73d9ff,#ffb3eb,#80e09e"
+    # Để trống = dùng bảng màu trong packages/contracts/chromapulse.json (nguồn chung với web).
+    challenge_palette: str = ""
 
     # TẠM — ROUT-02 thay thế bằng ngưỡng khóa trong ml/configs/thresholds.yaml.
     provisional_threshold_b: float = 0.15
@@ -30,7 +33,8 @@ class Settings(BaseSettings):
 
     @property
     def palette(self) -> list[str]:
-        return [c.strip() for c in self.challenge_palette.split(",") if c.strip()]
+        override = [c.strip() for c in self.challenge_palette.split(",") if c.strip()]
+        return override or list(load_chromapulse_config().palette)
 
     @property
     def cors_origins(self) -> list[str]:
