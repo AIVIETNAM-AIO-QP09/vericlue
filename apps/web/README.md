@@ -41,6 +41,14 @@ npm run build
 - Type nằm ở `src/lib/api/schema.d.ts`, **sinh tự động**, đừng sửa tay. Khi API đổi: `uv run python scripts/gen_openapi.py` rồi `npm run gen:api`, commit cả hai file (CI kiểm chạy lại không lệch).
 - `NEXT_PUBLIC_API_URL` trỏ tới API (mặc định `http://localhost:8000`). Khi API chạy mock, `createSession("print")` chọn kịch bản qua header `X-Mock-Scenario`.
 
+## Cổng chất lượng ảnh (CAP-02)
+
+Bước xem trước camera (`framing`) đo từng khung ngay trong trình duyệt và **chưa gửi gì lên máy chủ** cho tới khi đủ `QUALITY_REQUIRED_FRAMES` khung đạt liên tục. Logic thuần ở `src/lib/capture/quality.ts` (số khuôn mặt, oval/IoU, khoảng cách, nghiêng đầu, độ nét, thiếu sáng, **quá sáng**, độ yên); `pickGuidance` chọn **một** chỉ dẫn theo `GUIDANCE_PRIORITY`. Máy trạng thái giữ bộ đếm (`flow.ts`); vòng đo ở `app/verify/useQualityGate.ts` (MediaPipe chạy offline từ `public/mediapipe/`). Chỉ dẫn là chỉ dẫn cục bộ của web, **không** phải `retry_hint` của API (hợp đồng không đổi).
+
+- FPS dưới 15, độ phân giải dưới 640×480 hoặc trình duyệt thiếu `requestVideoFrameCallback`: màn "Thiết bị hoặc trình duyệt chưa đáp ứng", không phải lỗi của người dùng, không gửi gì đi.
+- Ngưỡng có số trong tài liệu: 1 mặt, IoU ≥ 0,6, nghiêng ≤ 20°, mặt chiếm 35–60% chiều rộng, ≥ 15 fps, ≥ 640×480. Các ngưỡng còn lại là **TẠM** (ghi `TẠM — chỉnh khi thử máy thật` cạnh từng hằng số).
+- Thử: `npm run dev`, mở `/verify`, đi qua màn đồng ý; che bớt đèn để thấy "Ra chỗ sáng hơn", chiếu đèn pin sát mặt để thấy "Tránh nắng chiếu thẳng vào mặt".
+
 ## Luồng /verify (CAP-01)
 
 Máy trạng thái là logic thuần ở `src/lib/capture/flow.ts` (reducer, test bằng Vitest); `runner.ts` gọi API qua `src/lib/api/client.ts` và trả sự kiện cho reducer; `VerifyFlow.tsx` chỉ nối giao diện. Chỉ `status = pass` của API mới thành "xác minh thành công"; mọi lỗi (mạng, 401, 409, 413, 422, 5xx, phản hồi lạ) thành màn hình lỗi.

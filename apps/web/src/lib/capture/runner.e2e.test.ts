@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { createApiClient } from "@/lib/api/client";
 
 import { type FlowEvent, type FlowState, initialState, reduce } from "./flow";
+import { qualityGateEvents } from "./flowTestUtils";
 import { type RunnerDeps, sendVoiceAnswer, startSession, uploadAndFinalize } from "./runner";
 
 const API = process.env.E2E_API_URL;
@@ -21,8 +22,7 @@ async function run(scenario: string, deps: RunnerDeps): Promise<FlowState> {
     { type: "TOGGLE_CONSENT", accepted: true },
     { type: "CONTINUE" },
     { type: "CAMERA_GRANTED" },
-    { type: "FRAMING_READY" },
-    { type: "QUALITY_PASSED", run: 1 },
+    ...qualityGateEvents(1),
   ];
   let state = events.reduce(reduce, initialState);
   state = reduce(state, await startSession(deps, { run: 1 }, scenario));

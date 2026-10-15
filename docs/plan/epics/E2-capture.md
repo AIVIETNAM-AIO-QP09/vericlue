@@ -49,9 +49,11 @@
 - **Mỗi lần chỉ hiện 1 chỉ dẫn**, theo thứ tự ưu tiên.
 
 **Tiêu chí hoàn thành:**
-- [ ] Chạy ≥ 15 khung/giây trên 1 điện thoại Android tầm trung.
-- [ ] Phòng tối → hiện "Ra chỗ sáng hơn"; mặt xa → "Lại gần hơn".
-- [ ] Test hàm chất lượng với ảnh mẫu tổng hợp.
+- [ ] Chạy ≥ 15 khung/giây trên 1 điện thoại Android tầm trung. **Cần người thử máy thật** (cổng tự đo FPS và hiện màn "thiết bị chưa đáp ứng" nếu dưới 15; chưa chạy trên Android).
+- [x] Phòng tối → hiện "Ra chỗ sáng hơn"; mặt xa → "Lại gần hơn" (xác nhận bằng số liệu tổng hợp trong `quality.test.ts`; ngưỡng tối/sáng là TẠM, cần chỉnh khi thử máy thật).
+- [x] Test hàm chất lượng với ảnh mẫu tổng hợp (`quality.test.ts`, `flow.test.ts`, `messagesQuality.test.ts`).
+
+> **Ghi chú CAP-02:** `camera.ts` không tạo riêng — mở camera dùng lại `chromapulse/device.ts` (CAP-03); đo FPS và độ phân giải nằm ở `quality.ts` và `useQualityGate.ts`. Oval và IoU tự viết (không chép Amplify). Bước `framing` và `quality_check` của CAP-01 đã gộp thành một bước xem trước có cổng chất lượng.
 
 ---
 

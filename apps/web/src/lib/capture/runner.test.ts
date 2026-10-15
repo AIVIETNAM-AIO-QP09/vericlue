@@ -11,6 +11,7 @@ import {
   initialState,
   reduce,
 } from "./flow";
+import { qualityGateEvents } from "./flowTestUtils";
 import { type RunnerDeps, sendVoiceAnswer, startSession, uploadAndFinalize } from "./runner";
 
 // --- fetch giả -------------------------------------------------------------------------------
@@ -96,8 +97,7 @@ function toUploading(): FlowState {
     { type: "TOGGLE_CONSENT", accepted: true },
     { type: "CONTINUE" },
     { type: "CAMERA_GRANTED" },
-    { type: "FRAMING_READY" },
-    { type: "QUALITY_PASSED", run: SESSION.run },
+    ...qualityGateEvents(SESSION.run),
     { type: "SESSION_CREATED", session: SESSION },
     { type: "FLASH_DONE" },
   ];

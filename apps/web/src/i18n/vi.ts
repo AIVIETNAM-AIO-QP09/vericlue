@@ -37,9 +37,36 @@ export const vi = {
     framing: {
       title: "Đưa khuôn mặt vào giữa khung hình",
       description: "Giữ điện thoại cách mặt khoảng 25 đến 40 cm, ở nơi đủ sáng.",
-      ready: "Tôi đã sẵn sàng",
+      loading: "Đang chuẩn bị camera...",
+      checkingNow: "Đang kiểm tra...",
+      allGood: "Tốt, giữ nguyên tư thế",
+      ovalLabel: "Khung đặt khuôn mặt",
     },
-    checking: "Đang kiểm tra...",
+    // Chỉ dẫn của cổng chất lượng ở web: mỗi lần hiện MỘT câu, CHỈ nói về chất lượng ảnh. "Lại gần hơn" và
+    // "Ra chỗ sáng hơn" có trong tài liệu (E2-capture); các câu còn lại do nhóm soạn, đưa vào mô tả PR.
+    quality: {
+      NO_FACE: "Hãy đưa khuôn mặt vào khung hình",
+      MULTIPLE_FACES: "Chỉ để một khuôn mặt trong khung hình",
+      FACE_CENTER: "Đưa khuôn mặt vào giữa khung hình",
+      MOVE_CLOSER: "Lại gần hơn",
+      MOVE_BACK: "Lùi ra xa hơn một chút",
+      TURN_STRAIGHT: "Nhìn thẳng vào camera",
+      TOO_BRIGHT: "Tránh nắng chiếu thẳng vào mặt",
+      LOW_LIGHT: "Ra chỗ sáng hơn",
+      HOLD_STILL: "Giữ yên điện thoại và khuôn mặt",
+      BLURRY: "Ảnh chưa nét, hãy giữ yên và lau sạch camera",
+    },
+    // Màn báo riêng khi thiết bị hoặc trình duyệt chưa đáp ứng. Không phải lỗi của người dùng, không gửi gì đi.
+    deviceUnsupported: {
+      title: "Thiết bị hoặc trình duyệt chưa đáp ứng",
+      body: "Hãy thử bằng trình duyệt hoặc thiết bị khác.",
+      reasons: {
+        low_fps: "Camera hoạt động dưới 15 khung hình mỗi giây.",
+        low_resolution: "Camera có độ phân giải thấp hơn 640 x 480.",
+        no_frame_callback: "Trình duyệt chưa hỗ trợ đo khung hình của camera.",
+      },
+      restart: "Thử lại",
+    },
     creating: "Đang chuẩn bị phiên...",
     flash: {
       title: "Chuẩn bị đổi màu màn hình",

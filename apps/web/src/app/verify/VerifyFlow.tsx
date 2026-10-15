@@ -16,15 +16,26 @@ import { buildTimeline } from "@/lib/capture/chromapulse/sequence";
 import { runTrial, supportsFrameCallback } from "@/lib/capture/chromapulse/trial";
 import {
   type CameraProblem,
+  type FlowEvent,
   type FlowState,
   hasTimeToFlash,
   initialState,
+  qualityWouldPass,
   reduce,
   sessionExpired,
 } from "@/lib/capture/flow";
-import { cameraMessage, errorMessage, retryMessage } from "@/lib/capture/messages";
+import {
+  cameraMessage,
+  errorMessage,
+  qualityMessage,
+  retryMessage,
+  unsupportedReason,
+} from "@/lib/capture/messages";
 import { sendVoiceAnswer, startSession, uploadAndFinalize } from "@/lib/capture/runner";
 import { resolveScenario } from "@/lib/capture/scenario";
+
+import { CameraView } from "./CameraView";
+import { useQualityGate } from "./useQualityGate";
 
 const t = vi.verify;
 const IS_DEV = process.env.NODE_ENV !== "production";
@@ -85,6 +96,13 @@ export function VerifyFlow() {
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
+
+  // Gửi sự kiện và cập nhật stateRef NGAY (reducer thuần nên kết quả giống hệt): hai lần đo liên tiếp
+  // không bị đọc trạng thái cũ khi quyết định có cấp mã lần chạy mới hay không.
+  const send = useCallback((event: FlowEvent) => {
+    stateRef.current = reduce(stateRef.current, event);
+    dispatch(event);
+  }, []);
 
   useEffect(() => {
     aliveRef.current = true;
@@ -183,12 +201,30 @@ export function VerifyFlow() {
     };
   }, [state.step, openCamera, adoptStream]);
 
-  useEffect(() => {
-    if (state.step !== "quality_check") return;
-    if (!startOnce(state)) return;
-    // TẠM — CAP-02 thay bằng cổng chất lượng thật; hiện luôn cho qua. Mã lần chạy mới bắt đầu từ đây.
-    dispatch({ type: "QUALITY_PASSED", run: nextRun() });
-  }, [state, startOnce, nextRun]);
+  // Cổng chất lượng (CAP-02): đo từng khung khi xem trước. Chỉ đủ N khung đạt LIÊN TIẾP mới đi tiếp, và
+  // mã lần chạy mới chỉ được cấp đúng khung cuối cùng làm đủ N (qualityWouldPass).
+  const qualityCallbacks = useMemo(
+    () => ({
+      onGuidance: (guidance: Parameters<typeof qualityWouldPass>[1]) => {
+        const current = stateRef.current;
+        if (current.step !== "framing") return;
+        send({
+          type: "QUALITY_FRAME",
+          guidance,
+          run: qualityWouldPass(current, guidance) ? nextRun() : undefined,
+        });
+      },
+      onUnsupported: (reason: Extract<FlowEvent, { type: "DEVICE_UNSUPPORTED" }>["reason"]) =>
+        send({ type: "DEVICE_UNSUPPORTED", reason }),
+      onFailure: () => send({ type: "FAILED", kind: "unexpected" }),
+    }),
+    [send, nextRun],
+  );
+  useQualityGate({
+    active: state.step === "framing",
+    videoRef,
+    callbacks: qualityCallbacks,
+  });
 
   useEffect(() => {
     if (state.step !== "creating_session") return;
@@ -213,7 +249,9 @@ export function VerifyFlow() {
   }, [state, deps, startOnce, apiSignal]);
 
   useEffect(() => {
-    if (state.step === "result" || state.step === "error") stopStream();
+    if (state.step === "result" || state.step === "error" || state.step === "device_unsupported") {
+      stopStream();
+    }
   }, [state.step, stopStream]);
 
   // Đổi bước thì đưa tiêu đề mới vào focus (trình đọc màn hình đọc được); không cướp focus lúc mới vào trang.
@@ -322,12 +360,12 @@ export function VerifyFlow() {
 
   return (
     <div ref={containerRef} className="flex flex-col gap-4">
-      <video
-        ref={videoRef}
-        playsInline
-        muted
-        // Không dùng display:none khi đang chạy: iOS Safari có thể ngừng cấp khung. Lớp màu phủ che nó.
-        className={showVideo ? "w-full max-w-md -scale-x-100 rounded" : "hidden"}
+      {/* Video luôn nằm trong DOM; lúc nháy màu lớp màu phủ che nó (không display:none: iOS có thể ngừng cấp khung). */}
+      <CameraView
+        videoRef={videoRef}
+        visible={showVideo}
+        showOval={state.step === "framing"}
+        ok={state.step === "framing" && state.guidance === null && state.streak > 0}
       />
 
       {state.step === "consent" && (
@@ -386,17 +424,33 @@ export function VerifyFlow() {
             {t.framing.title}
           </h2>
           <p>{t.framing.description}</p>
-          <button
-            type="button"
-            onClick={() => dispatch({ type: "FRAMING_READY" })}
-            className="rounded bg-green-600 px-4 py-2 text-white"
-          >
-            {t.framing.ready}
-          </button>
+          {/* Mỗi lần chỉ MỘT chỉ dẫn, chỉ nói về chất lượng ảnh. */}
+          <p role="status" aria-live="polite" className="text-lg font-medium">
+            {state.guidance !== null
+              ? qualityMessage(state.guidance)
+              : state.streak > 0
+                ? qualityMessage(null)
+                : t.framing.checkingNow}
+          </p>
         </section>
       )}
 
-      {state.step === "quality_check" && <p role="status">{t.checking}</p>}
+      {state.step === "device_unsupported" && (
+        <section className="flex flex-col gap-3 rounded border p-4" role="status">
+          <h2 className="text-lg font-semibold" tabIndex={-1} data-step-heading>
+            {t.deviceUnsupported.title}
+          </h2>
+          <p>{unsupportedReason(state.reason)}</p>
+          <p>{t.deviceUnsupported.body}</p>
+          <button
+            type="button"
+            onClick={() => dispatch({ type: "RESTART" })}
+            className="rounded bg-blue-600 px-4 py-2 text-white"
+          >
+            {t.deviceUnsupported.restart}
+          </button>
+        </section>
+      )}
       {state.step === "creating_session" && <p role="status">{t.creating}</p>}
 
       {state.step === "flash_challenge" && !flashing && (
