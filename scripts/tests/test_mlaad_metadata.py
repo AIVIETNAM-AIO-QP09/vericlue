@@ -177,6 +177,7 @@ def test_optional_reference_path_and_original_group_survive_manifest_and_source(
     rows = json.loads((tmp_path / "selected_manifest.json").read_text(encoding="utf-8"))
     by_path = {row["path"]: row for row in rows}
     assert len(rows) == 2
+    assert all(row["size"] == 4 for row in rows)
     assert by_path["fake/vi/a/a.wav"]["reference_speaker"] == reference
     assert not by_path["fake/vi/b/b.wav"].get("reference_speaker")
     assert all(row["source_group"] == original for row in rows)

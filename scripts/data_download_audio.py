@@ -169,7 +169,13 @@ def _mlaad(dataset: Dataset, client: Client, seed: int, subset: str) -> Plan:
                 excluded[candidate] = "missing_original_file"
                 records.pop(candidate, None)
                 continue
-            record = {**row, "path": candidate, "source_group": original, "tts": model}
+            record = {
+                **row,
+                "path": candidate,
+                "source_group": original,
+                "tts": model,
+                "size": files[candidate]["size"],
+            }
             if candidate in records and records[candidate] != record:
                 excluded[candidate] = "metadata_conflict"
                 records.pop(candidate, None)
