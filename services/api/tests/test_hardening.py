@@ -47,7 +47,8 @@ def test_voice_step_is_single_use_after_it_finishes(client):
 def test_genuine_voice_passes_once_requested(client):
     body, auth = start_session(client, "genuine")
     sid = body["session_id"]
-    client.app.state.vericlue.sessions.get(sid).voice_requested = True
+    with client.app.state.vericlue.transaction() as state:
+        state.sessions.get(sid).voice_requested = True
     assert client.post(VOICE.format(sid=sid), headers=auth, files=AUDIO).json() == {
         "status": "pass"
     }
@@ -105,7 +106,8 @@ def test_safe_configured_palette_is_accepted():
 
 
 def _session(client, sid):
-    return client.app.state.vericlue.sessions.get(sid)
+    with client.app.state.vericlue.transaction() as state:
+        return state.sessions.get(sid)
 
 
 def test_finalize_resets_voice_request_so_a_review_blocks_voice(client):
@@ -114,7 +116,8 @@ def test_finalize_resets_voice_request_so_a_review_blocks_voice(client):
     assert client.post(FINALIZE.format(sid=sid), headers=auth).json()["status"] == "voice_challenge"
     assert _session(client, sid).voice_requested is True
 
-    _session(client, sid).scenario = "print"  # lần finalize sau ra review
+    with client.app.state.vericlue.transaction() as state:
+        state.sessions.get(sid).scenario = "print"  # lần finalize sau ra review
     assert client.post(FINALIZE.format(sid=sid), headers=auth).json() == {"status": "review"}
     assert _session(client, sid).voice_requested is False
     res = client.post(VOICE.format(sid=sid), headers=auth, files=AUDIO)
@@ -126,7 +129,8 @@ def test_review_is_final_finalize_and_voice_return_409_never_pass(client):
     sid = body["session_id"]
     assert client.post(FINALIZE.format(sid=sid), headers=auth).json() == {"status": "review"}
 
-    _session(client, sid).scenario = "genuine"  # kể cả khi dữ liệu sau đó "đẹp"
+    with client.app.state.vericlue.transaction() as state:
+        state.sessions.get(sid).scenario = "genuine"  # kể cả khi dữ liệu sau đó "đẹp"
     for _ in range(2):
         again = client.post(FINALIZE.format(sid=sid), headers=auth)
         assert again.status_code == 409 and again.json()["error_code"] == "session_closed"

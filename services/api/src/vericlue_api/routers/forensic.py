@@ -16,7 +16,7 @@ from vericlue_api.services.uploads import read_limited
 
 router = APIRouter(prefix="/v1/forensic", tags=["forensic"])
 
-StateDep = Annotated[AppState, Depends(get_state)]
+StateDep = Annotated[AppState, Depends(get_state, scope="function")]
 NOT_FOUND = {404: {"model": ErrorResponse, "description": "Không có job này"}}
 
 
