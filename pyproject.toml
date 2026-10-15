@@ -59,3 +59,4 @@ quote-style = "double"
 [tool.pytest.ini_options]
 testpaths = ["scripts/tests", "services/api/tests", "ml/tests"]
 addopts = "-q"
+markers = ["slow: requires local model weights and audio; skips when unavailable"]

@@ -23,3 +23,19 @@ Giữ nguyên thông báo Apache-2.0 khi phân phối. Sau này gộp mô hình 
 ## Giấy phép KHÔNG được chép vào sản phẩm
 
 GPL, AGPL, LGPL (ví dụ Deep-Live-Cam, DeepFaceLive, pyVHR, heartbeat-js, Sherloq), và **repo không có giấy phép** (mặc định giữ mọi quyền). Những repo này chỉ được dùng để tham khảo ý tưởng hoặc làm công cụ thử tấn công.
+
+## VOICE-04
+
+Không chép mã nguồn thư viện vào repo:
+
+| Thành phần | Giấy phép | Cách dùng |
+|---|---|---|
+| [webrtcvad-wheels](https://github.com/daanzu/py-webrtcvad-wheels/blob/release/LICENSE) | MIT wrapper; BSD-3-Clause WebRTC | Dependency optional voice; VAD CPU, không checkpoint |
+| [Transformers](https://github.com/huggingface/transformers/blob/v4.57.1/LICENSE) | Apache-2.0 | Đọc PhoWhisper local, không remote code |
+| [PhoWhisper](https://huggingface.co/vinai/PhoWhisper-small/blob/a86b604c346caf7148c37512eafe783a16420adb/README.md) | BSD-3-Clause | Weights ngoài repo, theo manifest DATA-02 |
+| [eSpeak NG 1.52.0](https://github.com/espeak-ng/espeak-ng/blob/1.52.0/COPYING) | GPL-3.0-or-later | **Công cụ thử nghiệm độc lập**, chỉ tạo TTS nội bộ trong DATA_DIR; không chép/link/import vào sản phẩm và không phân phối binary/audio |
+
+eSpeak GPL §2 cho phép chạy công cụ; không suy ra output có giấy phép CC/public
+domain. Script chuẩn bị ghi phiên bản, SHA-256 và nguồn ở SOURCE.md cạnh fixture.
+
+TTS thử nghiệm còn dùng [facebook/mms-tts-vie](https://huggingface.co/facebook/mms-tts-vie/blob/b58928d033932a49aa8e3d6cf11625b25fe928d2/README.md), weights **CC BY-NC 4.0**, chỉ nghiên cứu phi thương mại. Model ngoài repo trong MODELS_DIR; không chép code, không gọi ở inference sản phẩm. Script chuẩn bị ghim revision/SHA, không gán giấy phép Transformers cho weights.

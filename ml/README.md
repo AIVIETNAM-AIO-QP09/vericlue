@@ -118,3 +118,8 @@ Các cột metadata `path,source,region,score,compression` được giữ khi c�
 thay xác suất. ECE/Brier nhập trực tiếp từ calibration, không định nghĩa lại.
 Nghiệm thu EVAL-01 bằng tổng hợp có đáp án biết trước; xác nhận R1–R4 thật dùng
 khung chung tại FACE-01/VOICE-01/ROUT-05. Không dùng calib_ltt/test để chọn cấu hình.
+
+## Kiểm câu đọc VOICE-04
+
+PhoWhisper CPU offline, VAD và so khớp hai lớp: [hướng dẫn voice](src/vericlue_ml/voice/README.md).
+Thư viện inference nằm trong extra `voice`; mock/normalization test không cần model.

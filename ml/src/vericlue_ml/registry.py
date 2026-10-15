@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Callable
+from functools import lru_cache
 
 from vericlue_ml.common.detector import Detector
 from vericlue_ml.common.result import Module
@@ -26,8 +27,18 @@ REAL_TASK: dict[Module, str] = {
     Module.PROVENANCE: "FOR-03",
 }
 
+
 # Module → hàm tạo mô hình thật. Các task mô hình đăng ký vào đây.
-_REAL_FACTORIES: dict[Module, Callable[[], Detector]] = {}
+@lru_cache(maxsize=1)
+def _voice_challenge() -> Detector:
+    from vericlue_ml.voice.challenge import VoiceChallengeDetector
+
+    return VoiceChallengeDetector()
+
+
+_REAL_FACTORIES: dict[Module, Callable[[], Detector]] = {
+    Module.VOICE_CHALLENGE: _voice_challenge,
+}
 
 
 def use_mock_models() -> bool:
