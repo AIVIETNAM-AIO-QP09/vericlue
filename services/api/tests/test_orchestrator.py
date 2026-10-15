@@ -4,12 +4,15 @@ import threading
 import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import func, select
 
 from vericlue_api.core.config import Settings, get_settings
+from vericlue_api.db.models import ModuleResultRow
 from vericlue_api.main import create_app
 from vericlue_api.services import orchestrator as orchestration
 from vericlue_api.services.orchestrator import Orchestrator
@@ -58,7 +61,8 @@ def build(detectors=None, *, timeout=0.1):
         return instances[Module(module)]
 
     orchestrator = Orchestrator(
-        Settings(detector_timeout_seconds=timeout, detector_workers=9), detector_factory=factory
+        Settings(detector_timeout_seconds=timeout, detector_workers=9, detector_queue_size=0),
+        detector_factory=factory,
     )
     return orchestrator, instances, constructed
 
@@ -157,9 +161,17 @@ def test_busy_module_is_not_queued_or_run_twice():
         first = run(orchestrator, [Module.FACE_PAD])
         assert entered.is_set()
         assert first[Module.FACE_PAD].error_code == ErrorCode.E_TIMEOUT
+        assert any(
+            item.name == "orchestration_reason" and item.value == "timeout"
+            for item in first[Module.FACE_PAD].evidence
+        )
         second = run(orchestrator, [Module.FACE_PAD])
         assert second[Module.FACE_PAD].status == Status.ERROR
         assert second[Module.FACE_PAD].error_code == ErrorCode.E_TIMEOUT
+        assert any(
+            item.name == "orchestration_reason" and item.value == "busy"
+            for item in second[Module.FACE_PAD].evidence
+        )
         assert detector.calls == 1
     finally:
         release.set()
@@ -477,7 +489,7 @@ def test_expired_queued_work_keeps_slot_until_drained_without_predicting():
     instances = {module: FakeDetector(module) for module in Module}
     instances.update({Module.FACE_PAD: first, Module.FACE_DEEPFAKE: queued})
     orchestrator = Orchestrator(
-        Settings(detector_timeout_seconds=0.04, detector_workers=1),
+        Settings(detector_timeout_seconds=0.04, detector_workers=1, detector_queue_size=0),
         detector_factory=lambda module: instances[Module(module)],
     )
     orchestrator.start()
@@ -569,4 +581,220 @@ def test_orchestrator_passes_settings_models_dir_to_real_voice_preload(tmp_path,
         assert captured == [configured]
         assert not orchestrator.failed_modules
     finally:
+        orchestrator.close()
+
+
+def test_three_concurrent_runs_wait_fifo_without_false_detector_errors():
+    gate = threading.Barrier(4)
+    activity = {"active": 0, "peak": 0}
+    lock = threading.Lock()
+
+    def slow(inp):
+        with lock:
+            activity["active"] += 1
+            activity["peak"] = max(activity["peak"], activity["active"])
+        try:
+            time.sleep(1)
+            return answer(Module.FACE_PAD, prob_attack=0)
+        finally:
+            with lock:
+                activity["active"] -= 1
+
+    detector = FakeDetector(Module.FACE_PAD, slow)
+    instances = {module: FakeDetector(module) for module in Module}
+    instances[Module.FACE_PAD] = detector
+    orchestrator = Orchestrator(
+        Settings(detector_timeout_seconds=4, detector_workers=9, detector_queue_size=3),
+        detector_factory=lambda module: instances[Module(module)],
+    )
+    orchestrator.start()
+
+    def invoke(index):
+        gate.wait(timeout=3)
+        return orchestrator.run([Module.FACE_PAD], session_id=f"fifo-{index}", scenario="genuine")
+
+    try:
+        with ThreadPoolExecutor(max_workers=3) as workers:
+            futures = [workers.submit(invoke, index) for index in range(3)]
+            gate.wait(timeout=3)
+            started = time.perf_counter()
+            results = [future.result(timeout=5)[Module.FACE_PAD] for future in futures]
+            elapsed = time.perf_counter() - started
+        assert all(result.status == Status.OK for result in results)
+        assert detector.calls == 3 and activity["peak"] == 1
+        assert 2.8 <= elapsed < 4, f"three serial 1s inferences took {elapsed:.3f}s"
+    finally:
+        orchestrator.close()
+
+
+def test_three_concurrent_finalize_requests_all_pass_and_store_five_results(monkeypatch):
+    def slow_face(inp):
+        if not (inp.session_id or "").startswith("ses_demo_"):
+            time.sleep(1)
+        return MockDetector(Module.FACE_PAD).predict(inp)
+
+    def factory(module, *, mock=None):
+        return (
+            FakeDetector(module, slow_face)
+            if Module(module) == Module.FACE_PAD
+            else MockDetector(module)
+        )
+
+    monkeypatch.setattr(orchestration, "get_detector", factory)
+    with TestClient(create_app()) as client:
+        sessions = [client.post("/v1/sessions").json() for _ in range(3)]
+        gate = threading.Barrier(3)
+
+        def finalize(body):
+            gate.wait(timeout=3)
+            return client.post(
+                f"/v1/sessions/{body['session_id']}/finalize",
+                headers={"Authorization": "Bearer " + body["token"]},
+            )
+
+        with ThreadPoolExecutor(max_workers=3) as workers:
+            responses = list(workers.map(finalize, sessions))
+        assert all(
+            response.status_code == 200 and response.json() == {"status": "pass"}
+            for response in responses
+        )
+        database = client.app.state.vericlue.database
+        with database.sessions() as connection:
+            for body in sessions:
+                count = connection.scalar(
+                    select(func.count())
+                    .select_from(ModuleResultRow)
+                    .where(ModuleResultRow.session_id == body["session_id"])
+                )
+                assert count == 5
+
+
+@pytest.mark.parametrize("step", ["finalize", "voice"])
+def test_sqlite_guarded_routes_pass_lock_timeout_and_consume_absolute_budget(monkeypatch, step):
+    monkeypatch.setenv("INFERENCE_BUDGET_SECONDS", "0.25")
+    get_settings.cache_clear()
+    try:
+        with TestClient(create_app()) as client:
+            body = client.post("/v1/sessions").json()
+            sid = body["session_id"]
+            root = client.app.state.vericlue
+            headers = {"Authorization": "Bearer " + body["token"]}
+            if step == "voice":
+                with root.transaction() as state:
+                    session = state.sessions.get(sid)
+                    session.voice_requested = True
+                    session.voice_prompt = "CÃ¢u thá»­ nghiá»‡m"
+            transaction_arguments, runner_arguments = [], []
+            real_transaction, real_run = root.transaction, root.orchestrator.run
+
+            @contextmanager
+            def spy_transaction(*, lock_timeout_seconds=None, inference_deadline=None):
+                transaction_arguments.append((lock_timeout_seconds, inference_deadline))
+                if inference_deadline is not None:
+                    time.sleep(0.04)  # Work before inference must consume the same budget.
+                with real_transaction(
+                    lock_timeout_seconds=lock_timeout_seconds, inference_deadline=inference_deadline
+                ) as state:
+                    yield state
+
+            def spy_run(*args, **kwargs):
+                runner_arguments.append((kwargs.get("deadline"), time.perf_counter()))
+                return real_run(*args, **kwargs)
+
+            monkeypatch.setattr(root, "transaction", spy_transaction)
+            monkeypatch.setattr(root.orchestrator, "run", spy_run)
+            before = time.perf_counter()
+            options = (
+                {"files": {"audio": ("voice.wav", b"synthetic", "audio/wav")}}
+                if step == "voice"
+                else {}
+            )
+            response = client.post(f"/v1/sessions/{sid}/{step}", headers=headers, **options)
+            assert response.status_code == 200 and response.json() == {"status": "pass"}
+            timeout, deadline = transaction_arguments[-1]
+            assert timeout == root.settings.db_lock_timeout_seconds
+            assert before < deadline <= before + 0.3
+            assert runner_arguments and runner_arguments[0][0] == deadline
+            assert 0 < deadline - runner_arguments[0][1] < 0.23
+            # Non-inference endpoints retain their original unguarded transaction policy.
+            client.post(
+                f"/v1/sessions/{sid}/signals",
+                headers=headers,
+                json={"color_events": [], "frame_times": []},
+            )
+            assert transaction_arguments[-1] == (None, None)
+    finally:
+        get_settings.cache_clear()
+
+
+def test_queue_overflow_is_busy_and_expired_waiters_are_pruned_without_inference():
+    entered, release = threading.Event(), threading.Event()
+    predicted = []
+
+    def action(inp):
+        predicted.append(inp.session_id)
+        if inp.session_id == "running":
+            entered.set()
+            assert release.wait(timeout=3)
+        return answer(Module.FACE_PAD, prob_attack=0)
+
+    instances = {module: FakeDetector(module) for module in Module}
+    instances[Module.FACE_PAD] = FakeDetector(Module.FACE_PAD, action)
+    orchestrator = Orchestrator(
+        Settings(detector_timeout_seconds=2, detector_workers=9, detector_queue_size=3),
+        detector_factory=lambda module: instances[Module(module)],
+    )
+    orchestrator.start()
+
+    def invoke(identifier, deadline=None):
+        return orchestrator.run(
+            [Module.FACE_PAD], session_id=identifier, scenario="genuine", deadline=deadline
+        )[Module.FACE_PAD]
+
+    def wait_for_pending(count):
+        limit = time.perf_counter() + 1
+        while True:
+            with orchestrator._lifecycle:
+                actual = len(orchestrator._queues[Module.FACE_PAD])
+            if actual == count:
+                return
+            assert time.perf_counter() < limit, f"expected {count} pending jobs, observed {actual}"
+            time.sleep(0.002)
+
+    try:
+        with ThreadPoolExecutor(max_workers=5) as workers:
+            running = workers.submit(invoke, "running")
+            assert entered.wait(timeout=1)
+            waiting = [
+                workers.submit(invoke, f"expired-{index}", time.perf_counter() + 0.3)
+                for index in range(3)
+            ]
+            try:
+                wait_for_pending(3)
+                overflow = invoke("overflow")
+                assert (
+                    overflow.status == Status.ERROR and overflow.error_code == ErrorCode.E_TIMEOUT
+                )
+                assert any(
+                    item.name == "orchestration_reason" and item.value == "busy"
+                    for item in overflow.evidence
+                )
+                for future in waiting:
+                    result = future.result(timeout=1)
+                    assert result.error_code == ErrorCode.E_TIMEOUT
+                    assert any(
+                        item.name == "orchestration_reason" and item.value == "timeout"
+                        for item in result.evidence
+                    )
+                fresh = workers.submit(invoke, "fresh")
+                wait_for_pending(1)  # Admission prunes all three expired waiters first.
+                assert predicted == ["running"]
+                release.set()
+                assert fresh.result(timeout=1).status == Status.OK
+                assert running.result(timeout=1).status == Status.OK
+                assert predicted == ["running", "fresh"]
+            finally:
+                release.set()
+    finally:
+        release.set()
         orchestrator.close()

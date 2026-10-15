@@ -124,6 +124,7 @@ Khi dùng port DB riêng, export DATABASE_URL tương ứng cho smoke; biến m�
 Kết thúc kiểm thử phải chạy `docker compose down` (giữ volume, không -v), với đúng
 -p/-f đã dùng lúc up nếu dùng project/override riêng; kiểm docker compose ps không
 còn container của project để giải phóng cổng. DETECTOR_TIMEOUT_SECONDS (mặc định4),
-DETECTOR_WORKERS (9), DB_LOCK_TIMEOUT_SECONDS (2) được Compose truyền từ .env.
+DETECTOR_WORKERS (9), DETECTOR_QUEUE_SIZE (3 tác vụ chờ),
+INFERENCE_BUDGET_SECONDS (4,8), DB_LOCK_TIMEOUT_SECONDS (2) được Compose truyền từ .env.
 Health degraded chỉ có tên module preload lỗi; không copy log hay thông tin nội bộ
 sang thông báo cho công dân.

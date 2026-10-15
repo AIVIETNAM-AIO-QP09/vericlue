@@ -157,11 +157,13 @@ Nhật ký ghi actor `staff-unverified` vì xác thực nhân viên thuộc PLAT
 7. Nếu ở vùng giữa → trả `voice_challenge` kèm câu tiếng Việt → web gửi `voice` → chạy bước giọng nói → quyết định cuối.
 8. Ca `review` tạo `review_case`; mọi bước ghi nhật ký.
 
-PLAT-08 dùng executor chung, giới hạn một tác vụ mỗi module và bản sao input riêng;
+PLAT-08 dùng executor chung, một predict/module và FIFO tối đa3 tác vụ chờ/module
+(DETECTOR_QUEUE_SIZE), với bản sao input riêng;
 worker không truy cập DB/session. Deadline detector mặc định4 giây (kể cả queue),
 error/degraded không pass; kết quả muộn bị bỏ. Preload lỗi giữ error tới restart,
 health degraded chỉ công khai tên module. Finalize/voice dùng ngân sách inference
-chung4,8 giây tính trước chờ DB, chừa200ms cho commit/response trên DB bình thường;
+chung theo Settings INFERENCE_BUDGET_SECONDS (mặc định4,8 giây) tính trước chờ DB,
+chừa200ms cho commit/response trên DB bình thường;
 PostgreSQL lock_timeout mặc định2 giây trả503 storage_busy khi hết chờ khóa.
 Latency thực từng detector được lưu trong ModuleResult và log không transcript.
 

@@ -36,7 +36,8 @@ def main() -> None:
     with httpx.Client(base_url=args.api_url, timeout=10) as client:
         health = client.get("/healthz")
         health.raise_for_status()
-        assert health.json()["mock_models"] and health.json()["status"] == "ok"
+        if not health.json().get("mock_models") or health.json().get("status") != "ok":
+            raise SystemExit("Benchmark requires a healthy mock API")
         for _ in range(args.runs):
             created = client.post("/v1/sessions", headers={"X-Mock-Scenario": "genuine"})
             created.raise_for_status()
@@ -59,7 +60,8 @@ def main() -> None:
             response = client.post(prefix + "/finalize", headers=headers)
             elapsed = (perf_counter() - started) * 1000
             response.raise_for_status()
-            assert response.json() == {"status": "pass"}
+            if response.json() != {"status": "pass"}:
+                raise SystemExit("Mock finalize did not return pass; latency acceptance aborted")
             durations.append(elapsed)
     ordered = sorted(durations)
     report = {

@@ -213,6 +213,8 @@
 **Tiêu chí hoàn thành:**
 - [x] Một detector bị lỗi hoặc timeout thì phiên **không** được `pass` (test).
 - [x] Log thời gian từng detector.
+- [x] FIFO giới hạn từng module; ba finalize đồng thời với detector fake chậm1 giây đều đúng kết quả; busy/timeout phân biệt nội bộ.
+- [x] Budget lấy Settings; test SQLite bảo vệ lock_timeout cho cả finalize và voice.
 - [x] Với mock, `finalize` < 1 giây (20 lần HTTP trên Docker, xem bàn giao PLAT-08 ngày 16/10).
 - [x] Preload lỗi: API vẫn khởi động, module error tới restart, health degraded chỉ tên module.
 - [x] PostgreSQL lock_timeout cấu hình cho finalize/voice: quá hạn trả 503 storage_busy, rollback và không pass.

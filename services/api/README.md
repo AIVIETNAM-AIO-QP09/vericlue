@@ -113,20 +113,27 @@ không kết nối DB hay preload model.
 
 - DETECTOR_TIMEOUT_SECONDS: mặc định/tối đa 4 giây cho mỗi nhóm chạy song song,
   tính từ submit, bao gồm chờ hàng đợi. Exception/kết quả sai module -> error
-  E_INTERNAL; timeout/module còn bận -> error E_TIMEOUT. error/degraded không
+  E_INTERNAL; hết hạn/hàng đợi đầy -> error E_TIMEOUT. error/degraded không
   bao giờ được dùng để pass; B/A và cổng quyết định vẫn giữ nguyên cho ROUT-02.
-- DETECTOR_WORKERS: mặc định 9. Mỗi module chỉ có một task đang chờ/chạy; module
-  bận trả lỗi ngay, không nối hàng đợi vô hạn. Model instance không bị predict
-  đồng thời. Thread inference đang chạy không thể bị giết an toàn; task giữ slot
-  tới khi thật sự xong, kết quả muộn bị bỏ và không được ghi session/DB. Task chờ
-  quá deadline không gọi model. Shutdown ngừng nhận việc, hủy task chưa chạy;
-  detector native treo cần process restart, không thể hứa shutdown thread hữu hạn.
+- DETECTOR_WORKERS: mặc định 9. Mỗi module có một driver trong pool và chỉ một
+  predict tại một thời điểm, bảo vệ model instance dùng chung. Tác vụ chờ nằm
+  trong FIFO riêng, không giữ thread để chờ khóa của model.
+- DETECTOR_QUEUE_SIZE: mặc định **3 tác vụ chờ mỗi module**, ngoài một tác vụ
+  đang chạy/được giao cho pool (tối đa 4 được nhận/module/process). Đặt 0 để
+  không xếp hàng. Vượt giới hạn trả error E_TIMEOUT; evidence nội bộ
+  orchestration_reason và log reason=busy phân biệt với reason=timeout khi hết
+  deadline. Không trả các chi tiết này cho công dân; không thay ErrorCode.
+  Cả queue wait và inference dùng chung hạn 4 giây. Tác vụ chờ đã quá hạn bị
+  loại, không gọi model; kết quả chạy quá hạn bị bỏ, không ghi session/DB muộn.
+  Thread inference đang chạy không thể bị giết an toàn. Shutdown ngừng nhận việc,
+  kết thúc task chờ bằng error; detector native treo cần restart process.
 - DB_LOCK_TIMEOUT_SECONDS: mặc định 2 giây, PostgreSQL SET LOCAL lock_timeout cho
   transaction finalize/voice, đặt trước SELECT FOR UPDATE xác thực phiên. Hết chờ
   khóa trả HTTP503 storage_busy với thông báo chung; transaction rollback, không
   trả pass. Timeout cục bộ không rò sang connection pool. SQLite unit không giả
   lập khóa PostgreSQL; test CI dùng service PostgreSQL16 thật.
-- Finalize/voice chia sẻ deadline inference 4,8 giây tính từ dependency request,
+- INFERENCE_BUDGET_SECONDS: mặc định/tối đa 4,8 giây, lấy từ Settings.
+  Finalize/voice chia sẻ deadline inference tính từ dependency request,
   gồm thời gian chờ khóa; phần đã chờ DB được trừ khỏi ngân sách detector. Chừa
   200ms cho policy/commit/response trên DB bình thường để nghiệm thu endpoint
   <=5 giây. Lock timeout không giới hạn toàn bộ connect/query/commit nếu DB hỏng;
@@ -157,3 +164,20 @@ trong health degraded theo chính sách trên.
 Báo cáo ignored tmp/plat-08-latency.json ghi máy, OS/CPU, commit/dirty, từng mẫu,
 median/p95/max và số lần chạy. Đây là kiểm mock cho PLAT-08, chưa phải số R6 của
 mô hình thật. Test không cần GPU/weights; test timeout dùng fake CPU/event.
+
+### Giới hạn để chạy demo có nhiều người
+
+Kịch bản nghiệm thu: **3 người với 3 phiên khác nhau finalize đồng thời**, detector
+mock chậm 1 giây, tất cả nhận đúng kết quả, không bị review chỉ vì tranh slot.
+Với một lần predict/module/process, ba lượt cùng đến cần khoảng 3 giây ở detector
+1 giây; cấu hình mặc định vẫn nằm trong deadline4 giây. Hàng đợi nhận tối đa4 tác
+vụ/module (1 chạy +3 chờ), nhưng không bảo đảm người thứ4 kịp hạn khi mỗi lượt
+mất1 giây, cũng không bảo đảm3 người với mô hình thật chậm hơn. **Demo giới hạn
+3 người quét đồng thời trên một process**, điều phối lượt tiếp theo; đo lại trước
+khi tăng giới hạn hay đổi mô hình/CPU. Đây là test fake CPU, không phải số R6.
+
+DB dùng SQLAlchemy QueuePool mặc định: pool_size=5, max_overflow=10, pool_timeout=30s
+**mỗi process API**; nhiều process sẽ nhân số connection. Không nhầm pool_timeout
+với lock_timeout2s của finalize/voice. Nếu hết connection pool, thời gian chờ có
+thể vượt ngân sách endpoint; không nhận quá tải làm pass. Với demo3 người, vẫn
+chừa connection cho các bước lưu trữ/cleanup. Chưa thêm tham số pool mới trong PR.

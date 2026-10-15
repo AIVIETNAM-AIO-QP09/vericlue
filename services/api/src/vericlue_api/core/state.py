@@ -90,8 +90,8 @@ class ApplicationState:
 
 def get_state(request: Request) -> Iterator[AppState]:
     # Leave 200 ms for policy/flush/commit/serialization under a healthy DB.
-    inference_deadline = perf_counter() + 4.8
     root = request.app.state.vericlue
+    inference_deadline = perf_counter() + root.settings.inference_budget_seconds
     root.initialize()
     route = request.scope.get("route")
     guarded = request.method == "POST" and getattr(route, "path", "") in {

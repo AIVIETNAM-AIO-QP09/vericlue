@@ -46,6 +46,8 @@ class Settings(BaseSettings):
         return self
 
     detector_timeout_seconds: float = Field(default=4.0, gt=0, le=4.0)
+    detector_queue_size: int = Field(default=3, ge=0, le=32)
+    inference_budget_seconds: float = Field(default=4.8, gt=0, le=4.8)
     detector_workers: int = Field(default=9, ge=1, le=32)
     db_lock_timeout_seconds: float = Field(default=2.0, gt=0, le=10.0)
 
