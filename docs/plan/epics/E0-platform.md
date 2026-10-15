@@ -211,9 +211,11 @@
 - Ghi `latency_ms` từng bước để làm R6.
 
 **Tiêu chí hoàn thành:**
-- [ ] Một detector bị lỗi hoặc timeout thì phiên **không** được `pass` (test).
-- [ ] Log thời gian từng detector.
-- [ ] Với mock, `finalize` < 1 giây.
+- [x] Một detector bị lỗi hoặc timeout thì phiên **không** được `pass` (test).
+- [x] Log thời gian từng detector.
+- [x] Với mock, `finalize` < 1 giây (20 lần HTTP trên Docker, xem bàn giao PLAT-08 ngày 16/10).
+- [x] Preload lỗi: API vẫn khởi động, module error tới restart, health degraded chỉ tên module.
+- [x] PostgreSQL lock_timeout cấu hình cho finalize/voice: quá hạn trả 503 storage_busy, rollback và không pass.
 
 ---
 
