@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
@@ -156,6 +157,13 @@ class VoiceChallengeDetector:
 
         self.asr = asr if asr is not None else PhoWhisperASR()
         self.version = self.asr.version
+
+    def preload(self, *, models_dir: Path | None = None) -> None:
+        """Prepare the ASR model without transcribing or supplying a prompt."""
+        if models_dir is None:
+            self.asr.preload()
+        else:
+            self.asr.preload(models_dir=models_dir)
 
     def predict(self, inp: DetectorInput) -> ModuleResult:
         """Return a content gate; infrastructure/decode failures never pass."""

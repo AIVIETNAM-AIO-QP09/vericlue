@@ -112,3 +112,19 @@ Bản smoke HTTP không chứng minh camera trên điện thoại đã hoạt đ
 (localhost trên cùng máy hoặc địa chỉ LAN/HTTPS), không dùng hostname nội bộ `api`.
 Nếu đổi URL, rebuild web. API image copy `chromapulse.json` và đặt đường dẫn tuyệt đối;
 kiểm container khởi động là một phần nghiệm thu, không chỉ build thành công.
+
+### Kiểm PLAT-08 rồi dừng Compose
+
+Sau smoke chạy `uv run python scripts/benchmark_finalize.py --runs 20` để ghi
+latency HTTP mock cùng provenance máy/commit. Nếu worktree khác giữ cổng5432,
+dùng project Compose và override port riêng; không dừng container của người khác.
+Khi dùng port DB riêng, export DATABASE_URL tương ứng cho smoke; biến môi trường
+được ưu tiên trước .env. Đặt --api-url/--web-url tương ứng ở smoke và benchmark.
+
+Kết thúc kiểm thử phải chạy `docker compose down` (giữ volume, không -v), với đúng
+-p/-f đã dùng lúc up nếu dùng project/override riêng; kiểm docker compose ps không
+còn container của project để giải phóng cổng. DETECTOR_TIMEOUT_SECONDS (mặc định4),
+DETECTOR_WORKERS (9), DETECTOR_QUEUE_SIZE (3 tác vụ chờ),
+INFERENCE_BUDGET_SECONDS (4,8), DB_LOCK_TIMEOUT_SECONDS (2) được Compose truyền từ .env.
+Health degraded chỉ có tên module preload lỗi; không copy log hay thông tin nội bộ
+sang thông báo cho công dân.

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import time
 from pathlib import Path
@@ -52,7 +53,9 @@ def main() -> None:
         finalized = client.post(f"/v1/sessions/{sid}/finalize", headers=auth)
         finalized.raise_for_status()
         assert finalized.json() == {"status": "pass"}
-        database_url = dotenv_values(ROOT / ".env").get("DATABASE_URL")
+        database_url = os.environ.get("DATABASE_URL") or dotenv_values(ROOT / ".env").get(
+            "DATABASE_URL"
+        )
         if not database_url:
             raise ValueError("DATABASE_URL must be set in local .env for host-side DB verification")
         database = Database(database_url)

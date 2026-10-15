@@ -421,6 +421,13 @@
       },
       "Health": {
         "properties": {
+          "failed_modules": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Failed Modules",
+            "type": "array"
+          },
           "mock_models": {
             "title": "Mock Models",
             "type": "boolean"
@@ -437,7 +444,8 @@
         "required": [
           "status",
           "version",
-          "mock_models"
+          "mock_models",
+          "failed_modules"
         ],
         "title": "Health",
         "type": "object"
@@ -1573,6 +1581,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Kho dữ liệu đang bận hoặc không khả dụng"
           }
         },
         "security": [
@@ -1804,6 +1822,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Kho dữ liệu đang bận hoặc không khả dụng"
           }
         },
         "security": [

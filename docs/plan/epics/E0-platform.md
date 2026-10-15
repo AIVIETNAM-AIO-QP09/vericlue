@@ -201,6 +201,8 @@
 | M5 | 1 | S1 | P0 | PLAT-05 |
 
 **Mục tiêu:** `finalize` chạy song song các bộ phát hiện, lưu kết quả, gọi TrustRouter, trả quyết định trong ≤ 5 giây.
+> Quyết định trưởng nhóm 16/10: giữ luật B/A tạm, ROUT-02 mới thay TrustRouter; preload lỗi giữ error tới restart và health degraded chỉ tên module; lock_timeout PostgreSQL mặc định2 giây cho finalize/voice, hết chờ trả503 storage_busy.
+
 **Đọc trước:** `docs/architecture/architecture.md` §6.
 
 **Đầu ra:**
@@ -209,9 +211,13 @@
 - Ghi `latency_ms` từng bước để làm R6.
 
 **Tiêu chí hoàn thành:**
-- [ ] Một detector bị lỗi hoặc timeout thì phiên **không** được `pass` (test).
-- [ ] Log thời gian từng detector.
-- [ ] Với mock, `finalize` < 1 giây.
+- [x] Một detector bị lỗi hoặc timeout thì phiên **không** được `pass` (test).
+- [x] Log thời gian từng detector.
+- [x] FIFO giới hạn từng module; ba finalize đồng thời với detector fake chậm1 giây đều đúng kết quả; busy/timeout phân biệt nội bộ.
+- [x] Budget lấy Settings; test SQLite bảo vệ lock_timeout cho cả finalize và voice.
+- [x] Với mock, `finalize` < 1 giây (20 lần HTTP trên Docker, xem bàn giao PLAT-08 ngày 16/10).
+- [x] Preload lỗi: API vẫn khởi động, module error tới restart, health degraded chỉ tên module.
+- [x] PostgreSQL lock_timeout cấu hình cho finalize/voice: quá hạn trả 503 storage_busy, rollback và không pass.
 
 ---
 

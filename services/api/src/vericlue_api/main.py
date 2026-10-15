@@ -25,7 +25,6 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     state = app.state.vericlue
-    state.initialize()
     stop = asyncio.Event()
 
     async def cleanup_loop():
@@ -39,12 +38,16 @@ async def lifespan(app: FastAPI):
                     stop.wait(), timeout=state.settings.media_cleanup_interval_seconds
                 )
 
-    worker = asyncio.create_task(cleanup_loop())
+    worker = None
     try:
+        state.initialize()
+        worker = asyncio.create_task(cleanup_loop())
         yield
     finally:
         stop.set()
-        await worker
+        if worker is not None:
+            await worker
+        state.orchestrator.close()
         state.database.dispose()
 
 
