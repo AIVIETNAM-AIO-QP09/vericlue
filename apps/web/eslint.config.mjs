@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // File MediaPipe của bên thứ ba (tải bằng scripts/fetch_web_assets.py), không lint.
+    "public/mediapipe/**",
   ]),
 ]);
 

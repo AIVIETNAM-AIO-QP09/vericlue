@@ -41,6 +41,10 @@ npm run build
 - Type nằm ở `src/lib/api/schema.d.ts`, **sinh tự động**, đừng sửa tay. Khi API đổi: `uv run python scripts/gen_openapi.py` rồi `npm run gen:api`, commit cả hai file (CI kiểm chạy lại không lệch).
 - `NEXT_PUBLIC_API_URL` trỏ tới API (mặc định `http://localhost:8000`). Khi API chạy mock, `createSession("print")` chọn kịch bản qua header `X-Mock-Scenario`.
 
+## Trang thử ChromaPulse (CAP-03, nội bộ)
+
+`/lab/chromapulse` thu số liệu phản chiếu màu cho PRES-01. Không gọi API phiên, không lưu ảnh hay khung hình; kết quả là file JSON tải về máy. Bảng màu và nhịp lấy từ `packages/contracts/chromapulse.json` (cùng file với API). MediaPipe chạy offline từ `public/mediapipe/`, chuẩn bị bằng `uv run python scripts/fetch_web_assets.py` (sau `npm ci`). Hướng dẫn thu dữ liệu từng bước: `docs/runbooks/chromapulse-lab.md`.
+
 ## Thử trên điện thoại
 
 1. Cùng mạng Wi-Fi với máy tính. Chạy `npm run dev -- -H 0.0.0.0`, mở `http://<IP-máy>:3000` (xem IP bằng `ipconfig`). Cách này đủ để xem giao diện; Windows Firewall có thể hỏi quyền cho Node.

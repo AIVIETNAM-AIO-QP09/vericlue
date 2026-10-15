@@ -10,16 +10,19 @@ import random
 import secrets
 from datetime import UTC, datetime, timedelta
 
+from vericlue_api.core.chromapulse_config import load_chromapulse_config
 from vericlue_api.core.config import Settings
 from vericlue_api.schemas.session import Challenge, ColorStep
 
-STEPS = 8
-BASELINE_MS = 1000
-HOLD_RANGE_MS = (400, 650)
-TRANSITION_MS = 150
+# Bảng màu, nhịp và giới hạn lấy từ packages/contracts/chromapulse.json (nguồn chung với web).
+_CFG = load_chromapulse_config()
+STEPS = _CFG.steps
+BASELINE_MS = _CFG.baseline_ms
+HOLD_RANGE_MS = (_CFG.hold_min_ms, _CFG.hold_max_ms)
+TRANSITION_MS = _CFG.transition_ms
+MAX_LUMINANCE_SPREAD = _CFG.max_luminance_spread
+MAX_RED_SHARE = _CFG.max_red_share
 CAPTURE_POINTS = 2
-MAX_LUMINANCE_SPREAD = 0.064
-MAX_RED_SHARE = 0.8
 
 
 def relative_luminance(rgb: str) -> float:

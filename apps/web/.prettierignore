@@ -4,3 +4,4 @@ package-lock.json
 next-env.d.ts
 coverage
 src/lib/api/schema.d.ts
+public/mediapipe

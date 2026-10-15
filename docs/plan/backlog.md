@@ -29,7 +29,7 @@
 
 | Mã | Task | Vai trò | Người | Ngày công | Sprint | Ưu tiên | Phụ thuộc | Trạng thái |
 |---|---|---|---|---|---|---|---|---|
-| DATA-01 | Script tải dữ liệu công khai | M3 + M4 | | 1 | S0 | P0 | PLAT-01 | todo |
+| DATA-01 | Script tải dữ liệu công khai | M3 + M4 | Codex | 1 | S0 | P0 | PLAT-01 | review |
 | DATA-02 | Script tải mô hình + SHA-256 | M2 | Codex | 0,5 | S0 | P0 | PLAT-01 | done |
 | DATA-03 | Chia tập theo người | M3 + M4 | | 1 | S1 | P0 | DATA-01 | todo |
 | DATA-04 | Tạo deepfake người Việt | M2 | | 1,5 | S1 | P0 | DATA-01, REDT-01 | todo |
@@ -41,7 +41,7 @@
 |---|---|---|---|---|---|---|---|---|
 | CAP-01 ★ | Luồng /verify + màn hình đồng ý | M1 | | 1 | S0–S1 | P0 | PLAT-02, PLAT-04 | todo |
 | CAP-02 ★ | Camera, oval, cổng chất lượng | M1 | | 1,5 | S1 | P0 | CAP-01 | todo |
-| CAP-03 | Trang thử ChromaPulse (spike) | M1 (+M3) | | 1 | S0 | P0 | PLAT-02 | todo |
+| CAP-03 | Trang thử ChromaPulse (spike) | M1 (+M3) | Claude | 1 | S0 | P0 | PLAT-02 | review |
 | CAP-04 | ChromaPulse chính thức (chép Amplify) | M1 | | 1,5 | S1 | P0 | CAP-03, PRES-01, PLAT-04 | todo |
 | CAP-05 ★ | CamProbe phía trình duyệt | M1 | | 1 | S1 | P0 | CAP-02 | todo |
 | CAP-06 ★ | Gửi media, xử lý kết quả | M1 | | 1 | S1 | P0 | CAP-04, CAP-05, PLAT-06 | todo |

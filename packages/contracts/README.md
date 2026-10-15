@@ -8,6 +8,7 @@
 | `schemas/session.schema.json` | API phiên eKYC: tạo phiên, tín hiệu, kết quả (API v1, chốt ở PLAT-04) |
 | `schemas/review.schema.json` | Bàn duyệt. **Draft v1**: chỉ thêm trường tùy chọn. `ReviewCase` không có điểm AI; `ReviewAiOpinion` tách riêng |
 | `schemas/forensic.schema.json` | Cổng giám định. **Draft v1**: chỉ thêm trường tùy chọn |
+| `chromapulse.json` | **File cấu hình** (không phải JSON Schema): bảng màu, nhịp và giới hạn an toàn của ChromaPulse. Nguồn duy nhất cho API (`challenge.py`) và web (trang lab, CAP-04); test ở cả hai phía kiểm điều đó và kiểm các giới hạn ADR-0011 |
 | `examples/` | Ví dụ JSON hợp lệ, tên `<schema>.<Def>[.<biến thể>].json` (`Def` là khóa trong `$defs`); test: `services/api/tests/test_contract_examples.py` |
 
 ## Quy tắc
