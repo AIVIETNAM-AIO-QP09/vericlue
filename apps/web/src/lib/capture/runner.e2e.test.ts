@@ -22,10 +22,10 @@ async function run(scenario: string, deps: RunnerDeps): Promise<FlowState> {
     { type: "CONTINUE" },
     { type: "CAMERA_GRANTED" },
     { type: "FRAMING_READY" },
-    { type: "QUALITY_PASSED" },
+    { type: "QUALITY_PASSED", run: 1 },
   ];
   let state = events.reduce(reduce, initialState);
-  state = reduce(state, await startSession(deps, scenario));
+  state = reduce(state, await startSession(deps, { run: 1 }, scenario));
   state = reduce(state, { type: "FLASH_DONE" });
   if (state.step !== "uploading") throw new Error(`mong đợi uploading, nhận ${state.step}`);
   return reduce(
@@ -37,7 +37,7 @@ async function run(scenario: string, deps: RunnerDeps): Promise<FlowState> {
 describe.skipIf(!API)("luồng /verify với API mock thật", () => {
   const deps = (): RunnerDeps => ({
     client: createApiClient({ baseUrl: API }),
-    nowMs: () => Date.now(),
+    monoMs: () => performance.now(),
   });
 
   it("genuine → pass", async () => {
@@ -85,18 +85,22 @@ describe.skipIf(!API)("luồng /verify với API mock thật", () => {
 
   it("token sai → lỗi session, không bao giờ pass", async () => {
     const d = deps();
-    const created = await startSession(d, "genuine");
+    const created = await startSession(d, { run: 1 }, "genuine");
     if (created.type !== "SESSION_CREATED") throw new Error("không tạo được phiên");
     const bad = { ...created.session, token: "sai-token" };
     const event = await uploadAndFinalize(d, bad, { image: IMAGE, signals: SIGNALS });
-    expect(event).toEqual({ type: "FAILED", kind: "session" });
+    expect(event).toEqual({ type: "FAILED", kind: "session", run: 1 });
   });
 
   it("máy chủ không chạy → lỗi network", async () => {
     const down: RunnerDeps = {
       client: createApiClient({ baseUrl: "http://127.0.0.1:9" }),
-      nowMs: () => Date.now(),
+      monoMs: () => performance.now(),
     };
-    expect(await startSession(down)).toEqual({ type: "FAILED", kind: "network" });
+    expect(await startSession(down, { run: 1 })).toEqual({
+      type: "FAILED",
+      kind: "network",
+      run: 1,
+    });
   });
 });

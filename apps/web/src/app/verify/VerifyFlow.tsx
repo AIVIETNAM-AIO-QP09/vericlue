@@ -12,8 +12,16 @@ import { challengeToSteps, configForChallenge, flashProblems } from "@/lib/captu
 import { chromaPulseConfig } from "@/lib/capture/chromapulse/config";
 import { openFrontCamera } from "@/lib/capture/chromapulse/device";
 import type { FrameSampler } from "@/lib/capture/chromapulse/sampler";
+import { buildTimeline } from "@/lib/capture/chromapulse/sequence";
 import { runTrial, supportsFrameCallback } from "@/lib/capture/chromapulse/trial";
-import { type FlowState, initialState, reduce, sessionExpired } from "@/lib/capture/flow";
+import {
+  type CameraProblem,
+  type FlowState,
+  hasTimeToFlash,
+  initialState,
+  reduce,
+  sessionExpired,
+} from "@/lib/capture/flow";
 import { cameraMessage, errorMessage, retryMessage } from "@/lib/capture/messages";
 import { sendVoiceAnswer, startSession, uploadAndFinalize } from "@/lib/capture/runner";
 import { resolveScenario } from "@/lib/capture/scenario";
@@ -33,55 +41,91 @@ const PLACEHOLDER_AUDIO = new Blob([new Uint8Array([0x52, 0x49, 0x46, 0x46])], {
   type: "audio/wav",
 });
 
+type CameraResult = { ok: true; stream: MediaStream } | { ok: false; problem: CameraProblem };
+
+function stopTracks(stream: MediaStream | null) {
+  stream?.getTracks().forEach((track) => track.stop());
+}
+
 export function VerifyFlow() {
   const [state, dispatch] = useReducer(reduce, initialState);
   const client = useMemo(() => createApiClient(), []);
 
+  const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
   const colorLayerRef = useRef<HTMLDivElement>(null);
-  const abortRef = useRef<AbortController | null>(null);
+  const stopButtonRef = useRef<HTMLButtonElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const stateRef = useRef<FlowState>(state);
+  const lifeAbortRef = useRef<AbortController | null>(null); // hủy mọi lời gọi API khi rời trang
+  const flashAbortRef = useRef<AbortController | null>(null); // nút Dừng lúc nháy màu
   const signalsRef = useRef<Signals | null>(null);
   const scenarioRef = useRef<string | undefined>(undefined);
   const aliveRef = useRef(true);
   const flashStartedRef = useRef(false);
+  const runCounterRef = useRef(0);
+  const previousStepRef = useRef<FlowState["step"] | null>(null);
   const [flashing, setFlashing] = useState(false);
 
-  const deps = useMemo(() => ({ client, nowMs: () => Date.now() }), [client]);
+  // Đồng hồ đơn điệu: hết hạn không phụ thuộc giờ máy (có thể lệch cả chục phút).
+  const deps = useMemo(() => ({ client, monoMs: () => performance.now() }), [client]);
+
+  /** Mã lần chạy mới (tăng dần): kết quả bất đồng bộ của lần cũ bị reducer bỏ qua. */
+  const nextRun = useCallback(() => {
+    runCounterRef.current += 1;
+    return runCounterRef.current;
+  }, []);
+  const apiSignal = useCallback(() => lifeAbortRef.current?.signal, []);
 
   const stopStream = useCallback(() => {
-    streamRef.current?.getTracks().forEach((track) => track.stop());
+    stopTracks(streamRef.current);
     streamRef.current = null;
   }, []);
 
   useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  useEffect(() => {
     aliveRef.current = true;
+    lifeAbortRef.current = new AbortController();
     scenarioRef.current = resolveScenario(window.location.search, process.env.NODE_ENV);
+    // Rời trang hoặc đưa vào bộ nhớ đệm: tắt camera và hủy lời gọi ngay (cleanup có thể không kịp chạy).
+    const onPageHide = () => {
+      flashAbortRef.current?.abort();
+      stopStream();
+    };
+    window.addEventListener("pagehide", onPageHide);
     return () => {
+      window.removeEventListener("pagehide", onPageHide);
       aliveRef.current = false;
-      abortRef.current?.abort();
+      lifeAbortRef.current?.abort();
+      flashAbortRef.current?.abort();
       stopStream();
     };
   }, [stopStream]);
 
-  // Mở camera (dùng cho bước xin quyền và khi bắt đầu lại mà camera đã tắt).
-  const openCamera = useCallback(async (): Promise<
-    "ok" | "denied" | "unavailable" | "insecure"
-  > => {
-    if (!window.isSecureContext) return "insecure";
-    stopStream();
+  // Mở camera và TRẢ luồng cục bộ (không gán vào ref): bên gọi quyết định có nhận luồng hay không.
+  const openCamera = useCallback(async (): Promise<CameraResult> => {
+    if (!window.isSecureContext) return { ok: false, problem: "insecure" };
     try {
-      const stream = await openFrontCamera();
-      streamRef.current = stream; // gán ngay để rời trang vẫn tắt được camera
-      if (!aliveRef.current) {
-        stopStream();
-        return "unavailable";
-      }
-      return "ok";
+      return { ok: true, stream: await openFrontCamera() };
     } catch (e) {
-      return e instanceof DOMException && e.name === "NotAllowedError" ? "denied" : "unavailable";
+      const denied = e instanceof DOMException && e.name === "NotAllowedError";
+      return { ok: false, problem: denied ? "denied" : "unavailable" };
     }
-  }, [stopStream]);
+  }, []);
+
+  // Nhận luồng vừa mở nếu còn hiệu lực. Nếu không, chỉ tắt luồng CỦA CHÍNH NÓ, không đụng luồng khác.
+  const adoptStream = useCallback((stream: MediaStream, valid: boolean) => {
+    if (!valid || !aliveRef.current) {
+      stopTracks(stream);
+      return false;
+    }
+    if (streamRef.current && streamRef.current !== stream) stopTracks(streamRef.current);
+    streamRef.current = stream;
+    return true;
+  }, []);
 
   // Mỗi trạng thái (một đối tượng riêng cho mỗi lần vào bước) chỉ khởi chạy việc bất đồng bộ một lần,
   // kể cả khi React StrictMode (chế độ phát triển) chạy effect hai lần.
@@ -96,14 +140,18 @@ export function VerifyFlow() {
 
   useEffect(() => {
     if (state.step !== "camera_permission" || state.problem !== null) return;
-    if (!startOnce(state)) return; // StrictMode chạy effect hai lần: chỉ mở camera một lần cho mỗi lần xin
+    if (!startOnce(state)) return; // chỉ mở camera một lần cho mỗi lần xin
+    const started = state;
     void openCamera().then((result) => {
-      if (!aliveRef.current) return;
-      dispatch(
-        result === "ok" ? { type: "CAMERA_GRANTED" } : { type: "CAMERA_FAILED", problem: result },
-      );
+      // Còn hiệu lực = trang còn sống và luồng vẫn đang ở đúng bước xin quyền này.
+      const stillHere = aliveRef.current && stateRef.current === started;
+      if (result.ok) {
+        if (adoptStream(result.stream, stillHere)) dispatch({ type: "CAMERA_GRANTED" });
+      } else if (stillHere) {
+        dispatch({ type: "CAMERA_FAILED", problem: result.problem });
+      }
     });
-  }, [state, openCamera, startOnce]);
+  }, [state, openCamera, adoptStream, startOnce]);
 
   // Gắn luồng camera vào video mỗi khi bước cần xem (khung hình, nháy màu).
   useEffect(() => {
@@ -112,76 +160,108 @@ export function VerifyFlow() {
     const needsVideo =
       state.step === "framing" || state.step === "flash_challenge" || state.step === "uploading";
     if (!needsVideo) return;
+    const stepAtStart = state.step;
     let cancelled = false;
     void (async () => {
-      if (!streamRef.current) {
+      let stream = streamRef.current;
+      if (!stream) {
         const result = await openCamera(); // bắt đầu lại sau khi camera đã tắt
-        if (cancelled || !aliveRef.current) {
-          stopStream(); // bước đã đổi trong lúc mở: không để camera mở thừa
+        const valid = !cancelled && stateRef.current.step === stepAtStart;
+        if (!result.ok) {
+          if (valid) dispatch({ type: "FAILED", kind: "unexpected" });
           return;
         }
-        if (result !== "ok") {
-          dispatch({ type: "FAILED", kind: "unexpected" });
-          return;
-        }
+        if (!adoptStream(result.stream, valid)) return;
+        stream = result.stream;
       }
-      if (video.srcObject !== streamRef.current) video.srcObject = streamRef.current;
+      if (cancelled) return;
+      if (video.srcObject !== stream) video.srcObject = stream;
       await video.play().catch(() => undefined);
     })();
     return () => {
       cancelled = true;
     };
-  }, [state.step, openCamera, stopStream]);
+  }, [state.step, openCamera, adoptStream]);
 
   useEffect(() => {
-    // TẠM — CAP-02 thay bằng cổng chất lượng thật; hiện luôn cho qua.
-    if (state.step === "quality_check") dispatch({ type: "QUALITY_PASSED" });
-  }, [state.step]);
+    if (state.step !== "quality_check") return;
+    if (!startOnce(state)) return;
+    // TẠM — CAP-02 thay bằng cổng chất lượng thật; hiện luôn cho qua. Mã lần chạy mới bắt đầu từ đây.
+    dispatch({ type: "QUALITY_PASSED", run: nextRun() });
+  }, [state, startOnce, nextRun]);
 
   useEffect(() => {
     if (state.step !== "creating_session") return;
     if (!startOnce(state)) return; // chỉ tạo MỘT phiên cho mỗi lần vào bước này
-    void startSession(deps, scenarioRef.current).then((event) => {
-      if (aliveRef.current) dispatch(event);
-    });
-  }, [state, deps, startOnce]);
+    void startSession(deps, { run: state.run, signal: apiSignal() }, scenarioRef.current).then(
+      (event) => {
+        if (aliveRef.current) dispatch(event);
+      },
+    );
+  }, [state, deps, startOnce, apiSignal]);
 
   useEffect(() => {
     if (state.step !== "uploading") return;
     if (!startOnce(state)) return; // gửi MỘT lần: gửi hai lần có thể bị 409 ở lần finalize thứ hai
     const signals = signalsRef.current;
     const run = signals
-      ? uploadAndFinalize(deps, state.session, { image: PLACEHOLDER_IMAGE, signals })
-      : Promise.resolve({ type: "FAILED", kind: "unexpected" } as const);
+      ? uploadAndFinalize(deps, state.session, { image: PLACEHOLDER_IMAGE, signals }, apiSignal())
+      : Promise.resolve({ type: "FAILED", kind: "unexpected", run: state.session.run } as const);
     void run.then((event) => {
       if (aliveRef.current) dispatch(event);
     });
-  }, [state, deps, startOnce]);
+  }, [state, deps, startOnce, apiSignal]);
 
   useEffect(() => {
     if (state.step === "result" || state.step === "error") stopStream();
   }, [state.step, stopStream]);
 
+  // Đổi bước thì đưa tiêu đề mới vào focus (trình đọc màn hình đọc được); không cướp focus lúc mới vào trang.
+  useEffect(() => {
+    const previous = previousStepRef.current;
+    previousStepRef.current = state.step;
+    if (previous === null || previous === state.step) return;
+    containerRef.current?.querySelector<HTMLElement>("[data-step-heading]")?.focus();
+  }, [state.step]);
+
+  // Lúc nháy màu, nút Dừng được focus để dùng bàn phím/trình đọc màn hình.
+  useEffect(() => {
+    if (flashing) stopButtonRef.current?.focus();
+  }, [flashing]);
+
   // --- Hành động của người dùng ----------------------------------------------------------------
+
+  const expire = useCallback(
+    (run: number) => {
+      dispatch({ type: "EXPIRED", run, nextRun: nextRun() });
+    },
+    [nextRun],
+  );
 
   const startFlash = useCallback(async () => {
     if (state.step !== "flash_challenge") return;
     const video = videoRef.current;
     const { session } = state;
     // Hết hạn thì không dùng thử thách cũ: quay về tạo phiên mới.
-    if (sessionExpired(session, deps.nowMs())) {
-      dispatch({ type: "EXPIRED" });
+    if (sessionExpired(session, deps.monoMs())) {
+      expire(session.run);
       return;
     }
     const steps = challengeToSteps(session.challenge);
     // Không nháy nếu thử thách vi phạm giới hạn an toàn hoặc trình duyệt không hỗ trợ.
     if (!video || !steps || flashProblems(steps).length > 0 || !supportsFrameCallback(video)) {
-      dispatch({ type: "FAILED", kind: "unexpected" });
+      dispatch({ type: "FAILED", kind: "unexpected", run: session.run });
+      return;
+    }
+    const config = configForChallenge(session.challenge);
+    // Còn đủ thời gian để nháy xong và gửi? Không đủ thì tạo phiên mới NGAY, không nháy rồi mới bỏ.
+    if (!hasTimeToFlash(session, deps.monoMs(), buildTimeline(steps, config).totalMs)) {
+      expire(session.run);
       return;
     }
     if (flashStartedRef.current) return; // bấm Bắt đầu hai lần: chỉ chạy một lần
     flashStartedRef.current = true;
-    abortRef.current = new AbortController();
+    flashAbortRef.current = new AbortController();
     setFlashing(true);
     let trial: Awaited<ReturnType<typeof runTrial>>;
     try {
@@ -189,8 +269,8 @@ export function VerifyFlow() {
         video,
         sampler: NO_SAMPLER,
         steps,
-        config: configForChallenge(session.challenge),
-        signal: abortRef.current.signal,
+        config,
+        signal: flashAbortRef.current.signal,
         onColor: (rgb) => {
           if (colorLayerRef.current)
             colorLayerRef.current.style.backgroundColor = `rgb(${rgb.join(",")})`;
@@ -200,7 +280,7 @@ export function VerifyFlow() {
       flashStartedRef.current = false;
       if (aliveRef.current) {
         setFlashing(false); // không để màn hình nháy kẹt
-        dispatch({ type: "FAILED", kind: "unexpected" });
+        dispatch({ type: "FAILED", kind: "unexpected", run: session.run });
       }
       return;
     }
@@ -214,23 +294,26 @@ export function VerifyFlow() {
     // TẠM — CAP-04 thay bằng tín hiệu đầy đủ (frame_times, region_means).
     signalsRef.current = { color_events: trial.colorEvents, frame_times: [] };
     dispatch({ type: "FLASH_DONE" });
-  }, [state, deps]);
+  }, [state, deps, expire]);
 
   const continueRetry = useCallback(() => {
     if (state.step !== "retry") return;
-    dispatch(
-      sessionExpired(state.session, deps.nowMs())
-        ? { type: "EXPIRED" }
-        : { type: "RETRY_CONTINUE" },
-    );
-  }, [state, deps]);
+    if (sessionExpired(state.session, deps.monoMs())) expire(state.session.run);
+    else dispatch({ type: "RETRY_CONTINUE" });
+  }, [state, deps, expire]);
 
   const sendDevVoice = useCallback(async () => {
     if (state.step !== "voice_challenge") return;
     dispatch({ type: "VOICE_SENDING" });
-    const event = await sendVoiceAnswer(deps, state.session, PLACEHOLDER_AUDIO);
+    const event = await sendVoiceAnswer(
+      deps,
+      state.session,
+      PLACEHOLDER_AUDIO,
+      undefined,
+      apiSignal(),
+    );
     if (aliveRef.current) dispatch(event);
-  }, [state, deps]);
+  }, [state, deps, apiSignal]);
 
   // --- Giao diện -------------------------------------------------------------------------------
 
@@ -238,7 +321,7 @@ export function VerifyFlow() {
     state.step === "framing" || state.step === "flash_challenge" || state.step === "uploading";
 
   return (
-    <div className="flex flex-col gap-4">
+    <div ref={containerRef} className="flex flex-col gap-4">
       <video
         ref={videoRef}
         playsInline
@@ -249,7 +332,9 @@ export function VerifyFlow() {
 
       {state.step === "consent" && (
         <section className="flex flex-col gap-3 rounded border p-4">
-          <h2 className="text-lg font-semibold">{t.consent.title}</h2>
+          <h2 className="text-lg font-semibold" tabIndex={-1} data-step-heading>
+            {t.consent.title}
+          </h2>
           <p className="font-medium">{t.consent.sensitive}</p>
           <h3 className="font-semibold">{t.consent.purposeTitle}</h3>
           <p>{t.consent.purpose}</p>
@@ -278,7 +363,9 @@ export function VerifyFlow() {
 
       {state.step === "camera_permission" && (
         <section className="flex flex-col gap-3 rounded border p-4">
-          <h2 className="text-lg font-semibold">{t.camera.title}</h2>
+          <h2 className="text-lg font-semibold" tabIndex={-1} data-step-heading>
+            {t.camera.title}
+          </h2>
           <p>{t.camera.description}</p>
           <p role="status">{cameraMessage(state.problem)}</p>
           {state.problem !== null && (
@@ -295,7 +382,9 @@ export function VerifyFlow() {
 
       {state.step === "framing" && (
         <section className="flex flex-col gap-3 rounded border p-4">
-          <h2 className="text-lg font-semibold">{t.framing.title}</h2>
+          <h2 className="text-lg font-semibold" tabIndex={-1} data-step-heading>
+            {t.framing.title}
+          </h2>
           <p>{t.framing.description}</p>
           <button
             type="button"
@@ -312,7 +401,9 @@ export function VerifyFlow() {
 
       {state.step === "flash_challenge" && !flashing && (
         <section className="flex flex-col gap-3 rounded border p-4">
-          <h2 className="text-lg font-semibold">{t.flash.title}</h2>
+          <h2 className="text-lg font-semibold" tabIndex={-1} data-step-heading>
+            {t.flash.title}
+          </h2>
           <p>{t.flash.warning}</p>
           <p>{t.flash.brightness}</p>
           <button
@@ -337,7 +428,8 @@ export function VerifyFlow() {
           <p className="text-center text-black/70">{t.flash.running}</p>
           <button
             type="button"
-            onClick={() => abortRef.current?.abort()}
+            ref={stopButtonRef}
+            onClick={() => flashAbortRef.current?.abort()}
             className="rounded bg-black/60 px-4 py-2 text-white"
           >
             {t.flash.stop}
@@ -353,7 +445,9 @@ export function VerifyFlow() {
           role="status"
           aria-live="polite"
         >
-          <h2 className="text-lg font-semibold">{t.result.retryTitle}</h2>
+          <h2 className="text-lg font-semibold" tabIndex={-1} data-step-heading>
+            {t.result.retryTitle}
+          </h2>
           <p>{retryMessage(state.hint)}</p>
           {state.attemptsLeft !== null && (
             <p>
@@ -376,7 +470,9 @@ export function VerifyFlow() {
           role="status"
           aria-live="polite"
         >
-          <h2 className="text-lg font-semibold">{t.voice.title}</h2>
+          <h2 className="text-lg font-semibold" tabIndex={-1} data-step-heading>
+            {t.voice.title}
+          </h2>
           <p className="text-sm opacity-70">{t.voice.promptLabel}</p>
           <p className="text-xl font-medium">{state.prompt}</p>
           {state.rereadsLeft !== null && (
@@ -407,21 +503,27 @@ export function VerifyFlow() {
 
       {state.step === "result" && state.outcome === "pass" && (
         <section className="flex flex-col gap-2 rounded border p-4" role="status">
-          <h2 className="text-lg font-semibold">{t.result.passTitle}</h2>
+          <h2 className="text-lg font-semibold" tabIndex={-1} data-step-heading>
+            {t.result.passTitle}
+          </h2>
           <p>{t.result.passBody}</p>
         </section>
       )}
 
       {state.step === "result" && state.outcome === "review" && (
         <section className="flex flex-col gap-2 rounded border p-4" role="status">
-          <h2 className="text-lg font-semibold">{t.result.reviewTitle}</h2>
+          <h2 className="text-lg font-semibold" tabIndex={-1} data-step-heading>
+            {t.result.reviewTitle}
+          </h2>
           <p>{t.result.reviewBody}</p>
         </section>
       )}
 
       {state.step === "error" && (
         <section className="flex flex-col gap-3 rounded border border-red-300 p-4" role="alert">
-          <h2 className="text-lg font-semibold">{t.errors.title}</h2>
+          <h2 className="text-lg font-semibold" tabIndex={-1} data-step-heading>
+            {t.errors.title}
+          </h2>
           <p>{errorMessage(state.kind)}</p>
           <button
             type="button"

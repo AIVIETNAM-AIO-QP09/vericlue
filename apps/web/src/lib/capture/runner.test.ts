@@ -2,12 +2,20 @@ import { describe, expect, it } from "vitest";
 
 import { createApiClient } from "@/lib/api/client";
 
-import { type FlowEvent, type FlowState, type SessionInfo, initialState, reduce } from "./flow";
+import {
+  CHALLENGE_TTL_MS,
+  type FlowEvent,
+  type FlowState,
+  type SessionInfo,
+  TOKEN_TTL_MS,
+  initialState,
+  reduce,
+} from "./flow";
 import { type RunnerDeps, sendVoiceAnswer, startSession, uploadAndFinalize } from "./runner";
 
 // --- fetch giả -------------------------------------------------------------------------------
 
-type Reply = { status?: number; body?: unknown; throws?: Error; raw?: string };
+type Reply = { status?: number; body?: unknown; throws?: Error; raw?: string; hang?: boolean };
 type Call = { url: string; init: RequestInit };
 
 function fakeFetch(replies: Reply[]) {
@@ -17,6 +25,14 @@ function fakeFetch(replies: Reply[]) {
     const next = replies.shift();
     if (!next) throw new Error("hết phản hồi giả");
     if (next.throws) throw next.throws;
+    if (next.hang) {
+      // Lời gọi treo cho tới khi bị hủy (giống fetch thật với AbortSignal).
+      return new Promise<Response>((_resolve, reject) => {
+        init.signal?.addEventListener("abort", () =>
+          reject(new DOMException("The operation was aborted.", "AbortError")),
+        );
+      });
+    }
     return new Response(next.raw ?? JSON.stringify(next.body ?? {}), {
       status: next.status ?? 200,
       headers: { "Content-Type": "application/json" },
@@ -25,15 +41,14 @@ function fakeFetch(replies: Reply[]) {
   return { impl, calls };
 }
 
-const NOW = Date.parse("2026-10-15T08:00:00Z");
-
-function makeDeps(replies: Reply[], nowMs = NOW) {
+/** Đồng hồ đơn điệu giả: có thể chỉnh tay giữa các lời gọi. */
+function makeDeps(replies: Reply[], mono = { now: 0 }) {
   const { impl, calls } = fakeFetch(replies);
   const deps: RunnerDeps = {
     client: createApiClient({ baseUrl: "http://api.test", fetchImpl: impl }),
-    nowMs: () => nowMs,
+    monoMs: () => mono.now,
   };
-  return { deps, calls };
+  return { deps, calls, mono };
 }
 
 // --- dữ liệu mẫu -----------------------------------------------------------------------------
@@ -61,8 +76,11 @@ const CREATE_OK = {
 const SESSION: SessionInfo = {
   sessionId: "ses_1",
   token: "tok_1",
-  tokenExpiresAt: "2026-10-15T08:05:00Z",
   challenge: challenge("ch_1") as SessionInfo["challenge"],
+  run: 3,
+  tokenIssuedAtMono: 0,
+  challengeIssuedAtMono: 0,
+  expiredStreak: 0,
 };
 
 const PAYLOAD = {
@@ -72,14 +90,14 @@ const PAYLOAD = {
 const ACK_MEDIA = { status: 200, body: { step: "media", received: true } };
 const ACK_SIGNALS = { status: 200, body: { step: "signals", received: true } };
 
-/** Đưa luồng tới bước `uploading` bằng các sự kiện thật. */
+/** Đưa luồng tới bước `uploading` bằng các sự kiện thật (mã lần chạy = SESSION.run). */
 function toUploading(): FlowState {
   const events: FlowEvent[] = [
     { type: "TOGGLE_CONSENT", accepted: true },
     { type: "CONTINUE" },
     { type: "CAMERA_GRANTED" },
     { type: "FRAMING_READY" },
-    { type: "QUALITY_PASSED" },
+    { type: "QUALITY_PASSED", run: SESSION.run },
     { type: "SESSION_CREATED", session: SESSION },
     { type: "FLASH_DONE" },
   ];
@@ -89,15 +107,17 @@ function toUploading(): FlowState {
 // --- startSession ----------------------------------------------------------------------------
 
 describe("startSession", () => {
-  it("tạo phiên và gắn kịch bản mock vào header", async () => {
-    const { deps, calls } = makeDeps([{ body: CREATE_OK }]);
-    const event = await startSession(deps, "low_quality");
+  it("tạo phiên, ghi mốc đồng hồ đơn điệu, gắn mã lần chạy và header kịch bản mock", async () => {
+    const { deps, calls } = makeDeps([{ body: CREATE_OK }], { now: 5000 });
+    const event = await startSession(deps, { run: 9 }, "low_quality");
 
     expect(event.type).toBe("SESSION_CREATED");
     if (event.type === "SESSION_CREATED") {
       expect(event.session.sessionId).toBe("ses_1");
       expect(event.session.token).toBe("tok_1");
-      expect(event.session.tokenExpiresAt).toBe(CREATE_OK.expires_at);
+      expect(event.session.run).toBe(9);
+      expect(event.session.tokenIssuedAtMono).toBe(5000);
+      expect(event.session.challengeIssuedAtMono).toBe(5000);
       expect(event.session.challenge.challenge_id).toBe("ch_1");
     }
     expect(calls[0].init.headers).toMatchObject({ "X-Mock-Scenario": "low_quality" });
@@ -108,9 +128,30 @@ describe("startSession", () => {
     ["thiếu thử thách", { ...CREATE_OK, challenge: undefined }],
     ["thử thách rỗng", { ...CREATE_OK, challenge: { ...CREATE_OK.challenge, color_sequence: [] } }],
     ["không phải đối tượng", "abc"],
-  ])("phản hồi sai dạng (%s) thành lỗi unexpected, không tạo phiên", async (_name, body) => {
+  ])("phản hồi sai dạng (%s) thành lỗi phiên, không tạo phiên", async (_name, body) => {
     const { deps } = makeDeps([{ body }]);
-    expect(await startSession(deps)).toEqual({ type: "FAILED", kind: "unexpected" });
+    expect(await startSession(deps, { run: 1 })).toEqual({
+      type: "FAILED",
+      kind: "session",
+      run: 1,
+    });
+  });
+
+  it.each([
+    ["expires_at của phiên hỏng", { ...CREATE_OK, expires_at: "không phải ngày" }],
+    ["expires_at bị thiếu", { ...CREATE_OK, expires_at: undefined }],
+    [
+      "challenge.expires_at hỏng",
+      { ...CREATE_OK, challenge: challenge("ch_1", "không phải ngày") },
+    ],
+  ])("%s bị từ chối bằng thông báo lỗi phiên", async (_name, body) => {
+    const { deps } = makeDeps([{ body }]);
+    const event = await startSession(deps, { run: 1 });
+    expect(event).toEqual({ type: "FAILED", kind: "session", run: 1 });
+    expect(reduce({ step: "creating_session", run: 1, expiredStreak: 0 }, event)).toEqual({
+      step: "error",
+      kind: "session",
+    });
   });
 
   it.each([
@@ -119,12 +160,77 @@ describe("startSession", () => {
     [404, "unexpected"],
   ])("HTTP %i thành lỗi %s", async (status, kind) => {
     const { deps } = makeDeps([{ status, body: { error_code: "x", message: "y" } }]);
-    expect(await startSession(deps)).toEqual({ type: "FAILED", kind });
+    expect(await startSession(deps, { run: 2 })).toEqual({ type: "FAILED", kind, run: 2 });
   });
 
   it("mất mạng (fetch ném TypeError) thành lỗi network", async () => {
     const { deps } = makeDeps([{ throws: new TypeError("Failed to fetch") }]);
-    expect(await startSession(deps)).toEqual({ type: "FAILED", kind: "network" });
+    expect(await startSession(deps, { run: 2 })).toEqual({
+      type: "FAILED",
+      kind: "network",
+      run: 2,
+    });
+  });
+
+  it("200 nhưng thân không phải JSON là lỗi máy chủ, không phải lỗi mạng", async () => {
+    const { deps } = makeDeps([{ status: 200, raw: "<html>không phải JSON</html>" }]);
+    expect(await startSession(deps, { run: 2 })).toEqual({
+      type: "FAILED",
+      kind: "server",
+      run: 2,
+    });
+  });
+});
+
+// --- Giờ máy lệch không làm hỏng hạn ---------------------------------------------------------
+
+describe("hết hạn theo đồng hồ đơn điệu, bỏ qua giờ treo tường", () => {
+  // Điện thoại nhanh +10 phút: expires_at của máy chủ trông như đã qua từ lâu.
+  // Điện thoại chậm -10 phút: expires_at trông như còn rất lâu. Cả hai không được ảnh hưởng.
+  const FAST_PHONE = {
+    ...CREATE_OK,
+    expires_at: "2000-01-01T00:00:00Z",
+    challenge: challenge("ch_1", "2000-01-01T00:00:00Z"),
+  };
+  const SLOW_PHONE = {
+    ...CREATE_OK,
+    expires_at: "2999-01-01T00:00:00Z",
+    challenge: challenge("ch_1", "2999-01-01T00:00:00Z"),
+  };
+
+  it.each([
+    ["nhanh +10 phút", FAST_PHONE],
+    ["chậm -10 phút", SLOW_PHONE],
+  ])("điện thoại %s: phiên mới tạo vẫn dùng được và gửi bình thường", async (_name, body) => {
+    const mono = { now: 1000 };
+    const { deps, calls } = makeDeps(
+      [{ body }, ACK_MEDIA, ACK_SIGNALS, { body: { status: "pass" } }],
+      mono,
+    );
+    const created = await startSession(deps, { run: 1 });
+    if (created.type !== "SESSION_CREATED") throw new Error("phải tạo được phiên");
+
+    mono.now += 30_000; // 30 giây sau
+    const result = await uploadAndFinalize(deps, created.session, PAYLOAD);
+    expect(result.type).toBe("FINALIZE_RESULT");
+    expect(calls).toHaveLength(4);
+  });
+
+  it.each([
+    ["nhanh +10 phút", FAST_PHONE],
+    ["chậm -10 phút", SLOW_PHONE],
+  ])("điện thoại %s: quá 120 giây vẫn bị coi là hết hạn và không gửi gì", async (_name, body) => {
+    const mono = { now: 1000 };
+    const { deps, calls } = makeDeps([{ body }], mono);
+    const created = await startSession(deps, { run: 1 });
+    if (created.type !== "SESSION_CREATED") throw new Error("phải tạo được phiên");
+
+    mono.now += CHALLENGE_TTL_MS;
+    expect(await uploadAndFinalize(deps, created.session, PAYLOAD)).toEqual({
+      type: "EXPIRED",
+      run: 1,
+    });
+    expect(calls).toHaveLength(1); // chỉ có lần tạo phiên
   });
 });
 
@@ -132,7 +238,9 @@ describe("startSession", () => {
 
 describe("uploadAndFinalize", () => {
   it("gửi media, signals, finalize theo thứ tự và gắn Bearer ở mọi bước", async () => {
-    const { deps, calls } = makeDeps([ACK_MEDIA, ACK_SIGNALS, { body: { status: "pass" } }]);
+    const { deps, calls } = makeDeps([ACK_MEDIA, ACK_SIGNALS, { body: { status: "pass" } }], {
+      now: 777,
+    });
     const event = await uploadAndFinalize(deps, SESSION, PAYLOAD);
 
     expect(calls.map((c) => c.url)).toEqual([
@@ -143,25 +251,24 @@ describe("uploadAndFinalize", () => {
     for (const call of calls) {
       expect(call.init.headers).toMatchObject({ Authorization: "Bearer tok_1" });
     }
-    expect(event).toEqual({ type: "FINALIZE_RESULT", response: { status: "pass" } });
+    expect(event).toEqual({
+      type: "FINALIZE_RESULT",
+      response: { status: "pass" },
+      run: 3,
+      requestedAtMono: 777,
+    });
   });
 
-  it("token hết hạn: không gửi gì cả, trả EXPIRED", async () => {
-    const { deps, calls } = makeDeps([], Date.parse("2026-10-15T08:05:01Z"));
-    expect(await uploadAndFinalize(deps, SESSION, PAYLOAD)).toEqual({ type: "EXPIRED" });
+  it("thử thách hết hạn (120 giây): không gửi media cũ, trả EXPIRED kèm mã lần chạy", async () => {
+    const { deps, calls } = makeDeps([], { now: CHALLENGE_TTL_MS });
+    expect(await uploadAndFinalize(deps, SESSION, PAYLOAD)).toEqual({ type: "EXPIRED", run: 3 });
     expect(calls).toHaveLength(0);
   });
 
-  it("thử thách (120 giây) hết hạn: không gửi media cũ, trả EXPIRED", async () => {
-    const { deps, calls } = makeDeps([], Date.parse("2026-10-15T08:02:00Z"));
-    expect(await uploadAndFinalize(deps, SESSION, PAYLOAD)).toEqual({ type: "EXPIRED" });
-    expect(calls).toHaveLength(0);
-  });
-
-  it("hạn không đọc được cũng coi là hết hạn", async () => {
-    const { deps, calls } = makeDeps([]);
-    const session = { ...SESSION, tokenExpiresAt: "không phải ngày" };
-    expect(await uploadAndFinalize(deps, session, PAYLOAD)).toEqual({ type: "EXPIRED" });
+  it("token hết hạn (TTL mặc định) cũng không gửi gì", async () => {
+    const { deps, calls } = makeDeps([], { now: TOKEN_TTL_MS });
+    const session = { ...SESSION, challengeIssuedAtMono: TOKEN_TTL_MS - 1 };
+    expect(await uploadAndFinalize(deps, session, PAYLOAD)).toEqual({ type: "EXPIRED", run: 3 });
     expect(calls).toHaveLength(0);
   });
 
@@ -182,7 +289,11 @@ describe("uploadAndFinalize", () => {
     replies.push({ status, body: { error_code: "x", message: "y" } });
     const { deps, calls } = makeDeps(replies);
 
-    expect(await uploadAndFinalize(deps, SESSION, PAYLOAD)).toEqual({ type: "FAILED", kind });
+    expect(await uploadAndFinalize(deps, SESSION, PAYLOAD)).toEqual({
+      type: "FAILED",
+      kind,
+      run: 3,
+    });
     expect(calls).toHaveLength(callCount); // không gọi tiếp các bước sau
   });
 
@@ -195,6 +306,7 @@ describe("uploadAndFinalize", () => {
     expect(await uploadAndFinalize(deps, SESSION, PAYLOAD)).toEqual({
       type: "FAILED",
       kind: "network",
+      run: 3,
     });
   });
 
@@ -203,7 +315,64 @@ describe("uploadAndFinalize", () => {
     expect(await uploadAndFinalize(deps, SESSION, PAYLOAD)).toEqual({
       type: "FAILED",
       kind: "server",
+      run: 3,
     });
+  });
+
+  it("finalize trả 200 nhưng thân hỏng là lỗi máy chủ (không phải mạng, không phải đạt)", async () => {
+    const { deps } = makeDeps([ACK_MEDIA, ACK_SIGNALS, { status: 200, raw: "{không phải json" }]);
+    const event = await uploadAndFinalize(deps, SESSION, PAYLOAD);
+    expect(event).toEqual({ type: "FAILED", kind: "server", run: 3 });
+    expect(reduce(toUploading(), event)).toEqual({ step: "error", kind: "server" });
+  });
+});
+
+// --- Hủy khi rời trang -----------------------------------------------------------------------
+
+describe("hủy lời gọi khi rời trang (AbortSignal)", () => {
+  it("signal được nối tới fetch của từng bước", async () => {
+    const controller = new AbortController();
+    const { deps, calls } = makeDeps([ACK_MEDIA, ACK_SIGNALS, { body: { status: "pass" } }]);
+    await uploadAndFinalize(deps, SESSION, PAYLOAD, controller.signal);
+    for (const call of calls) expect(call.init.signal).toBe(controller.signal);
+  });
+
+  it("hủy giữa lúc đang gửi media: fetch bị hủy, trả FAILED interrupted, không gọi bước sau", async () => {
+    const controller = new AbortController();
+    const { deps, calls } = makeDeps([{ hang: true }]);
+    const pending = uploadAndFinalize(deps, SESSION, PAYLOAD, controller.signal);
+    controller.abort();
+    expect(await pending).toEqual({ type: "FAILED", kind: "interrupted", run: 3 });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("hủy giữa các bước (sau media) thì không gửi signals và finalize", async () => {
+    const controller = new AbortController();
+    const { deps, calls } = makeDeps([ACK_MEDIA, ACK_SIGNALS, { body: { status: "pass" } }]);
+    // hủy ngay khi lời gọi media vừa trả về
+    const originalFetch = deps.client;
+    const wrapped: RunnerDeps = {
+      ...deps,
+      client: {
+        ...originalFetch,
+        uploadMedia: async (...args) => {
+          const res = await originalFetch.uploadMedia(...args);
+          controller.abort();
+          return res;
+        },
+      },
+    };
+    const event = await uploadAndFinalize(wrapped, SESSION, PAYLOAD, controller.signal);
+    expect(event).toEqual({ type: "FAILED", kind: "interrupted", run: 3 });
+    expect(calls).toHaveLength(1); // chỉ có media
+  });
+
+  it("hủy khi đang tạo phiên trả FAILED interrupted (không phải lỗi mạng)", async () => {
+    const controller = new AbortController();
+    const { deps } = makeDeps([{ hang: true }]);
+    const pending = startSession(deps, { run: 4, signal: controller.signal });
+    controller.abort();
+    expect(await pending).toEqual({ type: "FAILED", kind: "interrupted", run: 4 });
   });
 });
 
@@ -237,6 +406,8 @@ describe("bốn nhánh kết quả của finalize", () => {
       expect(state.attemptsLeft).toBe(1);
       expect(state.session.challenge.challenge_id).toBe("ch_2");
       expect(state.session.token).toBe("tok_1");
+      // thử thách mới có mốc xin riêng (thời điểm trước khi gọi finalize)
+      expect(state.session.challengeIssuedAtMono).toBe(0);
       // bấm "Thử lại" quay về nháy màu với thử thách mới
       const next = reduce(state, { type: "RETRY_CONTINUE" });
       expect(next.step).toBe("flash_challenge");
@@ -340,17 +511,40 @@ describe("lỗi không bao giờ thành kết quả đạt", () => {
   });
 
   it("thử thách hết hạn đưa về tạo phiên mới và không gửi lại dữ liệu cũ", async () => {
-    const { deps, calls } = makeDeps([], Date.parse("2026-10-15T09:00:00Z"));
-    const state = reduce(toUploading(), await uploadAndFinalize(deps, SESSION, PAYLOAD));
-    expect(state).toEqual({ step: "creating_session" });
+    const { deps, calls } = makeDeps([], { now: CHALLENGE_TTL_MS + 1 });
+    const event = await uploadAndFinalize(deps, SESSION, PAYLOAD);
+    const state = reduce(toUploading(), { ...event, nextRun: 10 } as FlowEvent);
+    expect(state).toEqual({ step: "creating_session", run: 10, expiredStreak: 1 });
     expect(calls).toHaveLength(0);
   });
-});
 
-describe("phản hồi retry/voice sai dạng", () => {
-  it("retry có thử thách với phần tử sai dạng thành error (không nháy)", async () => {
-    const bad = { challenge_id: "ch_x", color_sequence: [{}] };
-    const state = await finalizeWith({ status: "retry", challenge: bad, retry_hint: "MORE_LIGHT" });
-    expect(state).toEqual({ step: "error", kind: "unexpected" });
+  it("kết quả muộn của lần chạy cũ không ghi đè lần chạy mới", async () => {
+    // lần chạy 3 đang gửi; người dùng bắt đầu lại (lần 8) rồi kết quả cũ mới về
+    const { deps } = makeDeps([ACK_MEDIA, ACK_SIGNALS, { body: { status: "pass" } }]);
+    const late = await uploadAndFinalize(deps, SESSION, PAYLOAD);
+    const newer: FlowState = { step: "uploading", session: { ...SESSION, run: 8 } };
+    expect(reduce(newer, late)).toBe(newer);
+  });
+
+  it("chuỗi hết hạn liên tiếp dừng ở lỗi phiên thay vì lặp mãi", async () => {
+    const mono = { now: 0 };
+    let state: FlowState = {
+      step: "creating_session",
+      run: 1,
+      expiredStreak: 0,
+    };
+    for (let round = 1; round <= 3 && state.step === "creating_session"; round += 1) {
+      const { deps } = makeDeps([{ body: CREATE_OK }], mono);
+      state = reduce(state, await startSession(deps, { run: state.run }));
+      if (state.step !== "flash_challenge") break;
+      mono.now += CHALLENGE_TTL_MS + 1000; // người dùng nán lại, hết hạn trước khi gửi
+      const { deps: d2 } = makeDeps([], mono);
+      const expired = await uploadAndFinalize(d2, state.session, PAYLOAD);
+      state = reduce({ step: "uploading", session: state.session }, {
+        ...(expired as object),
+        nextRun: round + 1,
+      } as FlowEvent);
+    }
+    expect(state).toEqual({ step: "error", kind: "session" });
   });
 });

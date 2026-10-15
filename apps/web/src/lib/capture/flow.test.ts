@@ -6,13 +6,20 @@ import { describe, expect, it } from "vitest";
 import { ApiError, type Challenge } from "@/lib/api/client";
 
 import {
+  CHALLENGE_TTL_MS,
   classifyError,
+  challengeRemainingMs,
+  hasTimeToFlash,
   initialState,
-  isExpired,
+  isValidIsoDate,
   normalizeHint,
+  photoHint,
   reduce,
   RETRY_HINTS,
   sessionExpired,
+  tokenRemainingMs,
+  TOKEN_TTL_MS,
+  UPLOAD_SLACK_MS,
   type ErrorKind,
   type FlowEvent,
   type FlowState,
@@ -38,8 +45,11 @@ function makeSession(id = "ch-1"): SessionInfo {
   return {
     sessionId: "sess-1",
     token: "tok-1",
-    tokenExpiresAt: FUTURE,
     challenge: makeChallenge(id),
+    run: 0,
+    tokenIssuedAtMono: 0,
+    challengeIssuedAtMono: 0,
+    expiredStreak: 0,
   };
 }
 
@@ -63,7 +73,7 @@ const ALL_STATES: FlowState[] = [
   { step: "camera_permission", problem: null },
   { step: "framing" },
   { step: "quality_check" },
-  { step: "creating_session" },
+  { step: "creating_session", run: 0, expiredStreak: 0 },
   { step: "flash_challenge", session },
   uploading,
   { step: "retry", session, hint: null, attemptsLeft: 1 },
@@ -150,7 +160,10 @@ describe("đường đi đầy đủ", () => {
   });
 
   it("SESSION_CREATED giữ nguyên session", () => {
-    const s = reduce({ step: "creating_session" }, { type: "SESSION_CREATED", session });
+    const s = reduce(
+      { step: "creating_session", run: 0, expiredStreak: 0 },
+      { type: "SESSION_CREATED", session },
+    );
     expect(s).toEqual({ step: "flash_challenge", session });
   });
 
@@ -433,7 +446,8 @@ describe("dừng, gián đoạn, hết hạn", () => {
     ["retry", { step: "retry", session, hint: null, attemptsLeft: 1 } as FlowState],
   ])("EXPIRED từ %s về creating_session, không giữ session", (_name, state) => {
     const s = reduce(state, { type: "EXPIRED" });
-    expect(s).toEqual({ step: "creating_session" });
+    // hết hạn lần đầu: tạo phiên mới (mã lần chạy tăng, chuỗi hết hạn = 1), không giữ session cũ
+    expect(s).toEqual({ step: "creating_session", run: 1, expiredStreak: 1 });
     expect("session" in s).toBe(false);
   });
 });
@@ -553,43 +567,186 @@ describe("normalizeHint / RETRY_HINTS", () => {
   });
 });
 
-describe("isExpired / sessionExpired", () => {
-  const now = Date.parse("2026-10-15T00:00:00.000Z");
-
-  it("quá khứ thì hết hạn", () => {
-    expect(isExpired("2026-10-14T23:59:59.000Z", now)).toBe(true);
+describe("hết hạn theo đồng hồ đơn điệu (không so giờ máy)", () => {
+  const issued = (mono: number): SessionInfo => ({
+    ...session,
+    tokenIssuedAtMono: mono,
+    challengeIssuedAtMono: mono,
   });
 
-  it("tương lai thì chưa hết hạn", () => {
-    expect(isExpired("2026-10-15T00:00:01.000Z", now)).toBe(false);
+  it("thử thách sống 120 giây tính từ mốc xin", () => {
+    const s = issued(1000);
+    expect(challengeRemainingMs(s, 1000)).toBe(CHALLENGE_TTL_MS);
+    expect(sessionExpired(s, 1000 + CHALLENGE_TTL_MS - 1)).toBe(false);
+    expect(sessionExpired(s, 1000 + CHALLENGE_TTL_MS)).toBe(true);
   });
 
-  it("đúng bằng now thì hết hạn", () => {
-    expect(isExpired("2026-10-15T00:00:00.000Z", now)).toBe(true);
+  it("token hết hạn theo TTL mặc định, tách khỏi thử thách", () => {
+    const s: SessionInfo = { ...issued(0), challengeIssuedAtMono: 250_000 };
+    expect(tokenRemainingMs(s, 250_000)).toBe(TOKEN_TTL_MS - 250_000);
+    expect(sessionExpired(s, 250_000)).toBe(false);
+    expect(sessionExpired(s, TOKEN_TTL_MS)).toBe(true);
   });
 
-  it("chuỗi không phải ngày thì hết hạn", () => {
-    expect(isExpired("không phải ngày", now)).toBe(true);
-  });
-
-  it("null/undefined thì chưa hết hạn", () => {
-    expect(isExpired(null, now)).toBe(false);
-    expect(isExpired(undefined, now)).toBe(false);
-  });
-
-  it("sessionExpired false khi cả hai còn hạn", () => {
-    expect(sessionExpired(session, now)).toBe(false);
-  });
-
-  it("sessionExpired true khi token hết hạn", () => {
-    expect(sessionExpired({ ...session, tokenExpiresAt: "2020-01-01T00:00:00Z" }, now)).toBe(true);
-  });
-
-  it("sessionExpired true khi challenge hết hạn", () => {
-    const s = {
-      ...session,
-      challenge: { ...session.challenge, expires_at: "2020-01-01T00:00:00Z" },
+  it("giờ máy lệch (nhanh hay chậm 10 phút) không ảnh hưởng: expires_at trong phản hồi bị bỏ qua", () => {
+    // Điện thoại nhanh +10 phút: expires_at của máy chủ tưởng như đã qua. Điện thoại chậm -10 phút: tưởng như còn lâu.
+    const tooEarly = {
+      ...issued(0),
+      challenge: { ...session.challenge, expires_at: "2000-01-01T00:00:00Z" },
     };
-    expect(sessionExpired(s, now)).toBe(true);
+    const tooLate = { ...issued(0), challenge: { ...session.challenge, expires_at: FUTURE } };
+    for (const s of [tooEarly, tooLate]) {
+      expect(sessionExpired(s, 60_000)).toBe(false);
+      expect(sessionExpired(s, CHALLENGE_TTL_MS + 1)).toBe(true);
+    }
+  });
+
+  it("mốc xin là -Infinity (không biết) thì coi là đã hết hạn", () => {
+    expect(sessionExpired({ ...session, challengeIssuedAtMono: Number.NEGATIVE_INFINITY }, 0)).toBe(
+      true,
+    );
+  });
+
+  it("hasTimeToFlash cần đủ thời gian nháy cộng khoảng gửi", () => {
+    const s = issued(0);
+    const flash = 7000;
+    expect(hasTimeToFlash(s, 0, flash)).toBe(true);
+    expect(hasTimeToFlash(s, CHALLENGE_TTL_MS - flash - UPLOAD_SLACK_MS, flash)).toBe(false);
+    expect(hasTimeToFlash(s, CHALLENGE_TTL_MS - flash - UPLOAD_SLACK_MS - 1, flash)).toBe(true);
+  });
+
+  it("isValidIsoDate chỉ nhận mốc ISO đọc được", () => {
+    expect(isValidIsoDate("2026-10-15T08:00:00Z")).toBe(true);
+    for (const bad of ["không phải ngày", "", null, undefined, 5, {}]) {
+      expect(isValidIsoDate(bad)).toBe(false);
+    }
+  });
+});
+
+describe("chốt vòng lặp hết hạn", () => {
+  it("hết hạn một lần thì tạo phiên mới; hai lần liên tiếp thì báo lỗi phiên", () => {
+    const first = reduce(
+      { step: "flash_challenge", session },
+      { type: "EXPIRED", run: 0, nextRun: 1 },
+    );
+    expect(first).toEqual({ step: "creating_session", run: 1, expiredStreak: 1 });
+
+    // phiên mới tạo xong (mang chuỗi hết hạn = 1) rồi lại hết hạn ngay
+    const created = reduce(first, { type: "SESSION_CREATED", session: { ...session, run: 1 } });
+    expect(created.step).toBe("flash_challenge");
+    const second = reduce(created, { type: "EXPIRED", run: 1, nextRun: 2 });
+    expect(second).toEqual({ step: "error", kind: "session" });
+  });
+
+  it("luồng có tiến triển (finalize trả retry) thì chuỗi hết hạn được đặt lại về 0", () => {
+    const afterExpiry = reduce(
+      reduce({ step: "uploading", session }, { type: "EXPIRED", run: 0, nextRun: 1 }),
+      { type: "SESSION_CREATED", session: { ...session, run: 1 } },
+    );
+    if (afterExpiry.step !== "flash_challenge") throw new Error("phải ở flash_challenge");
+    expect(afterExpiry.session.expiredStreak).toBe(1);
+
+    const retry = reduce(
+      { step: "uploading", session: afterExpiry.session },
+      {
+        type: "FINALIZE_RESULT",
+        run: 1,
+        requestedAtMono: 5,
+        response: { status: "retry", challenge: makeChallenge("ch-2") },
+      },
+    );
+    if (retry.step !== "retry") throw new Error("phải ở retry");
+    expect(retry.session.expiredStreak).toBe(0);
+    expect(retry.session.challengeIssuedAtMono).toBe(5);
+  });
+
+  it("retry thiếu mốc xin thì thử thách coi như đã hết hạn (không dùng nhầm)", () => {
+    const retry = reduce(uploading, {
+      type: "FINALIZE_RESULT",
+      response: { status: "retry", challenge: makeChallenge("ch-2") },
+    });
+    if (retry.step !== "retry") throw new Error("phải ở retry");
+    expect(sessionExpired(retry.session, 0)).toBe(true);
+  });
+});
+
+describe("mã lần chạy: bỏ kết quả muộn của lần cũ", () => {
+  const current: SessionInfo = { ...session, run: 5 };
+  const uploadingNow: FlowState = { step: "uploading", session: current };
+
+  it("FINALIZE_RESULT của lần chạy khác bị bỏ qua, đúng lần thì xử lý", () => {
+    expect(
+      reduce(uploadingNow, { type: "FINALIZE_RESULT", run: 4, response: { status: "pass" } }),
+    ).toBe(uploadingNow);
+    expect(
+      reduce(uploadingNow, { type: "FINALIZE_RESULT", run: 5, response: { status: "pass" } }),
+    ).toEqual({ step: "result", outcome: "pass" });
+  });
+
+  it("FAILED của lần chạy cũ không phá lần chạy hiện tại; FAILED không mã vẫn có tác dụng", () => {
+    expect(reduce(uploadingNow, { type: "FAILED", kind: "network", run: 4 })).toBe(uploadingNow);
+    expect(reduce(uploadingNow, { type: "FAILED", kind: "network", run: 5 })).toEqual({
+      step: "error",
+      kind: "network",
+    });
+    expect(reduce(uploadingNow, { type: "FAILED", kind: "network" })).toEqual({
+      step: "error",
+      kind: "network",
+    });
+  });
+
+  it("VOICE_RESULT của lần chạy cũ bị bỏ qua", () => {
+    const voice: FlowState = { ...voiceState, session: current };
+    expect(reduce(voice, { type: "VOICE_RESULT", run: 3, response: { status: "pass" } })).toBe(
+      voice,
+    );
+    expect(reduce(voice, { type: "VOICE_RESULT", run: 5, response: { status: "pass" } })).toEqual({
+      step: "result",
+      outcome: "pass",
+    });
+  });
+
+  it("SESSION_CREATED của lần chạy khác bị bỏ qua", () => {
+    const creating: FlowState = { step: "creating_session", run: 7, expiredStreak: 0 };
+    expect(reduce(creating, { type: "SESSION_CREATED", session: { ...session, run: 6 } })).toBe(
+      creating,
+    );
+    expect(
+      reduce(creating, { type: "SESSION_CREATED", session: { ...session, run: 7 } }).step,
+    ).toBe("flash_challenge");
+  });
+
+  it("FAILED của lần cũ khi đang tạo phiên mới bị bỏ qua", () => {
+    const creating: FlowState = { step: "creating_session", run: 7, expiredStreak: 0 };
+    expect(reduce(creating, { type: "FAILED", kind: "network", run: 6 })).toBe(creating);
+  });
+
+  it("EXPIRED muộn của lần cũ không đặt lại lần hiện tại", () => {
+    expect(reduce(uploadingNow, { type: "EXPIRED", run: 4, nextRun: 9 })).toBe(uploadingNow);
+  });
+
+  it("QUALITY_PASSED mang mã lần chạy mới vào bước tạo phiên", () => {
+    expect(reduce({ step: "quality_check" }, { type: "QUALITY_PASSED", run: 12 })).toEqual({
+      step: "creating_session",
+      run: 12,
+      expiredStreak: 0,
+    });
+  });
+});
+
+describe("QUIET_PLACE chỉ có nghĩa ở bước đọc câu", () => {
+  it("photoHint bỏ gợi ý âm thanh nhưng giữ gợi ý chất lượng ảnh", () => {
+    expect(photoHint("QUIET_PLACE")).toBeNull();
+    expect(photoHint("MORE_LIGHT")).toBe("MORE_LIGHT");
+    expect(photoHint("FOO")).toBeNull();
+  });
+
+  it("retry ở bước chụp lại với QUIET_PLACE dùng câu chung (hint null)", () => {
+    const retry = reduce(uploading, {
+      type: "FINALIZE_RESULT",
+      response: { status: "retry", retry_hint: "QUIET_PLACE", challenge: makeChallenge("ch-2") },
+    });
+    if (retry.step !== "retry") throw new Error("phải ở retry");
+    expect(retry.hint).toBeNull();
   });
 });
