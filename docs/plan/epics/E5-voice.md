@@ -87,7 +87,7 @@ Thêm **chống học vẹt**: cắt khoảng lặng hai đầu (Silero VAD), ch
 
 **Đầu ra:** `ml/src/vericlue_ml/voice/challenge.py`, `asr.py`.
 - **Ngân hàng mẫu câu:** 8–12 âm tiết, phủ đủ 6 thanh, từ thông dụng, viết số bằng chữ, tránh tên riêng. Có cặp phụ âm dễ nhầm theo miền (tr/ch, s/x, r/d/gi, n/ng cuối).
-- **Nhận dạng:** PhoWhisper (`vad_filter=True`, `condition_on_previous_text=False`). **Không** đưa câu đề bài làm `initial_prompt` hay hotword.
+- **Nhận dạng:** PhoWhisper qua Transformers CPU và WebRTC VAD riêng (`condition_on_prev_tokens=False`, tương đương yêu cầu không điều kiện theo đoạn trước; trưởng nhóm duyệt 15/10). **Không** đưa câu đề bài làm `initial_prompt` hay hotword.
 - **Chuẩn hóa:** NFC, chữ thường, bỏ dấu câu, số thành chữ, thống nhất vị trí dấu thanh (hoà/hòa).
 - **So khớp hai lớp:**
   - lỗi âm tiết có dấu (jiwer) ≤ 0,3;
@@ -95,8 +95,13 @@ Thêm **chống học vẹt**: cắt khoảng lặng hai đầu (Silero VAD), ch
 - Đọc sai → được thử 1 lần nữa với câu mới.
 
 **Tiêu chí hoàn thành:**
-- [ ] Test với audio TTS đọc đúng và đọc sai.
-- [ ] Thử với giọng thật của ViMD ở 3 miền: tỷ lệ bị bắt lỗi oan theo miền; ghi kết quả.
+- [x] Test với audio TTS đọc đúng và đọc sai.
+- [x] Thử với giọng thật của ViMD ở 3 miền: tỷ lệ bị bắt lỗi oan theo miền; ghi kết quả.
+
+**Nghiệm thu 15/10:** TTS MMS đọc đúng/sai 2/2; chạy mọi câu của 12 người ViMD đã
+chọn (19 câu, đã đối chiếu đủ qua 130 shard metadata). Kết quả và CP95 theo miền:
+[VOICE-04.md](../../status/results/VOICE-04.md). Giữ ngưỡng theo thẻ, không chỉnh
+bằng kết quả. Lỗi xử lý tính riêng và không được xem là đạt.
 
 ---
 
