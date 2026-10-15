@@ -49,6 +49,23 @@ Bước xem trước camera (`framing`) đo từng khung ngay trong trình duy�
 - Ngưỡng có số trong tài liệu: 1 mặt, IoU ≥ 0,6, nghiêng ≤ 20°, mặt chiếm 35–60% chiều rộng, ≥ 15 fps, ≥ 640×480. Các ngưỡng còn lại là **TẠM** (ghi `TẠM — chỉnh khi thử máy thật` cạnh từng hằng số).
 - Thử: `npm run dev`, mở `/verify`, đi qua màn đồng ý; che bớt đèn để thấy "Ra chỗ sáng hơn", chiếu đèn pin sát mặt để thấy "Tránh nắng chiếu thẳng vào mặt".
 
+## Bài thử trình duyệt thật (Playwright)
+
+Test Vitest chạy trong Node, không có DOM, camera hay React thật nên **không bắt được lỗi nối giao diện** (một lỗi so sánh trạng thái từng làm luồng kẹt ở bước xin camera mà mọi test đơn vị vẫn xanh). Vì vậy có bài thử tự động trên Chromium thật, dùng camera giả:
+
+```bash
+cd apps/web
+npm ci
+npx playwright install chromium             # lần đầu (khoảng 150 MB, lưu ngoài repo)
+uv run python ../../scripts/fetch_web_assets.py   # MediaPipe offline (nếu chưa có)
+npm run test:e2e
+```
+
+- Tự khởi động **API mock** (cổng 8002, SQLite tạm trong thư mục tạm, chạy migration; không cần Docker hay PostgreSQL) và **web dev** (cổng 3202), không tranh cổng 3000/8000/5432. Cần `uv` và Node như khi phát triển.
+- Chromium chạy với `--use-fake-ui-for-media-stream --use-fake-device-for-media-stream`: tự cấp camera, hình giả không có khuôn mặt nên cổng chất lượng báo "chưa thấy mặt" (không thể vượt cổng bằng camera giả). Bài thử kiểm: đồng ý không tích sẵn; camera được cấp và **không kẹt** ở bước xin camera; xin camera đúng một lần dù React StrictMode chạy effect hai lần; bị từ chối rồi thử lại; trình duyệt thiếu `requestVideoFrameCallback` ra màn "thiết bị chưa đáp ứng"; màn người dân không lộ điểm số.
+- Không có dev server `next dev` nào khác đang chạy trong `apps/web` (Next khóa thư mục `.next`). Mất khoảng 1–2 phút (lần đầu lâu hơn do biên dịch).
+- **Chưa chạy trong CI** (cần cài trình duyệt và tải mô hình, dễ vượt 3 phút); chạy tay trước khi gộp thay đổi ở `app/verify/` hay `lib/capture/`.
+
 ## Luồng /verify (CAP-01)
 
 Máy trạng thái là logic thuần ở `src/lib/capture/flow.ts` (reducer, test bằng Vitest); `runner.ts` gọi API qua `src/lib/api/client.ts` và trả sự kiện cho reducer; `VerifyFlow.tsx` chỉ nối giao diện. Chỉ `status = pass` của API mới thành "xác minh thành công"; mọi lỗi (mạng, 401, 409, 413, 422, 5xx, phản hồi lạ) thành màn hình lỗi.

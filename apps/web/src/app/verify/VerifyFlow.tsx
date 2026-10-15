@@ -111,15 +111,27 @@ export function VerifyFlow() {
       flashAbortRef.current?.abort();
       stopStream();
     };
+    // Trang được khôi phục từ bộ nhớ đệm (bfcache): camera và mô hình đã bị đóng ở pagehide, luồng đang dở
+    // không thể chạy tiếp. Báo gián đoạn để người dùng bấm "Bắt đầu lại", thay vì đứng ở bước chuẩn bị.
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      const step = stateRef.current.step;
+      if (step === "consent" || step === "result" || step === "error") return;
+      if (step === "device_unsupported") return;
+      stopStream();
+      send({ type: "FAILED", kind: "interrupted" });
+    };
     window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("pageshow", onPageShow);
     return () => {
       window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("pageshow", onPageShow);
       aliveRef.current = false;
       lifeAbortRef.current?.abort();
       flashAbortRef.current?.abort();
       stopStream();
     };
-  }, [stopStream]);
+  }, [stopStream, send]);
 
   // Mở camera và TRẢ luồng cục bộ (không gán vào ref): bên gọi quyết định có nhận luồng hay không.
   const openCamera = useCallback(async (): Promise<CameraResult> => {
@@ -157,14 +169,21 @@ export function VerifyFlow() {
   useEffect(() => {
     if (state.step !== "camera_permission" || state.problem !== null) return;
     if (!startOnce(state)) return; // chỉ mở camera một lần cho mỗi lần xin
-    const started = state;
+    const attempt = state.attempt;
     void openCamera().then((result) => {
-      // Còn hiệu lực = trang còn sống và luồng vẫn đang ở đúng bước xin quyền này.
-      const stillHere = aliveRef.current && stateRef.current === started;
+      // Còn hiệu lực = trang còn sống và luồng vẫn đang xin quyền, ĐÚNG lần xin này. So NỘI DUNG
+      // (step, problem, attempt): stateRef (do send() tạo) và state của React là hai đối tượng khác nhau,
+      // nên KHÔNG được so danh tính (===) giữa chúng.
+      const cur = stateRef.current;
+      const stillHere =
+        aliveRef.current &&
+        cur.step === "camera_permission" &&
+        cur.problem === null &&
+        cur.attempt === attempt;
       if (result.ok) {
-        if (adoptStream(result.stream, stillHere)) send({ type: "CAMERA_GRANTED" });
+        if (adoptStream(result.stream, stillHere)) send({ type: "CAMERA_GRANTED", attempt });
       } else if (stillHere) {
-        send({ type: "CAMERA_FAILED", problem: result.problem });
+        send({ type: "CAMERA_FAILED", problem: result.problem, attempt });
       }
     });
   }, [state, openCamera, adoptStream, startOnce, send]);

@@ -60,7 +60,12 @@ function run(state: FlowState, ...events: FlowEvent[]): FlowState {
   return events.reduce(reduce, state);
 }
 
-const initialFraming = (): FlowState => ({ step: "framing", guidance: null, streak: 0 });
+const initialFraming = (): FlowState => ({
+  step: "framing",
+  guidance: null,
+  streak: 0,
+  resume: null,
+});
 const frame = (guidance: QualityGuidance | null, runId?: number): FlowEvent => ({
   type: "QUALITY_FRAME",
   guidance,
@@ -80,8 +85,8 @@ const voiceState: FlowState = {
 
 const ALL_STATES: FlowState[] = [
   { step: "consent", accepted: true },
-  { step: "camera_permission", problem: null },
-  { step: "framing", guidance: null, streak: 0 },
+  { step: "camera_permission", problem: null, attempt: 0 },
+  { step: "framing", guidance: null, streak: 0, resume: null },
   { step: "device_unsupported", reason: "low_fps" },
   { step: "creating_session", run: 0, expiredStreak: 0 },
   { step: "flash_challenge", session },
@@ -123,7 +128,7 @@ describe("đồng ý", () => {
       { type: "TOGGLE_CONSENT", accepted: true },
       { type: "CONTINUE" },
     );
-    expect(next).toEqual({ step: "camera_permission", problem: null });
+    expect(next).toEqual({ step: "camera_permission", problem: null, attempt: 0 });
   });
 
   it("tích rồi bỏ tích thì CONTINUE không đi", () => {
@@ -207,15 +212,67 @@ describe("FINALIZE_RESULT", () => {
       expect(s.session.sessionId).toBe(session.sessionId);
     });
 
-    it("RETRY_CONTINUE sang flash_challenge với challenge mới", () => {
+    it("RETRY_CONTINUE quay về đặt mặt (qua cổng chất lượng lại), giữ phiên với challenge mới", () => {
       const s = run(
         uploading,
         { type: "FINALIZE_RESULT", response: retryResponse },
         { type: "RETRY_CONTINUE" },
       );
+      expect(s.step).toBe("framing");
+      if (s.step !== "framing") return;
+      expect(s.streak).toBe(0);
+      expect(s.resume?.challenge.challenge_id).toBe("ch-2");
+      expect(s.resume?.token).toBe(session.token);
+    });
+
+    it("qua cổng xong thì vào thẳng nháy màu với mã lần chạy MỚI, không tạo phiên lại", () => {
+      const s = run(
+        uploading,
+        { type: "FINALIZE_RESULT", response: retryResponse },
+        { type: "RETRY_CONTINUE" },
+        ...qualityGateEvents(42),
+      );
       expect(s.step).toBe("flash_challenge");
       if (s.step !== "flash_challenge") return;
+      expect(s.session.run).toBe(42);
       expect(s.session.challenge.challenge_id).toBe("ch-2");
+      expect(s.session.token).toBe(session.token);
+      expect(s.session.sessionId).toBe(session.sessionId);
+    });
+
+    it("chưa qua cổng thì KHÔNG vào nháy màu: N-1 khung đạt vẫn ở đặt mặt", () => {
+      const s = run(
+        uploading,
+        { type: "FINALIZE_RESULT", response: retryResponse },
+        { type: "RETRY_CONTINUE" },
+        ...qualityGateEvents(42).slice(0, QUALITY_REQUIRED_FRAMES - 1),
+      );
+      expect(s.step).toBe("framing");
+    });
+
+    it("khung kém sau retry đặt lại bộ đếm nhưng vẫn giữ phiên để tiếp tục", () => {
+      const s = run(
+        uploading,
+        { type: "FINALIZE_RESULT", response: retryResponse },
+        { type: "RETRY_CONTINUE" },
+        frame(null),
+        frame("TOO_BRIGHT"),
+      );
+      expect(s.step).toBe("framing");
+      if (s.step !== "framing") return;
+      expect(s.guidance).toBe("TOO_BRIGHT");
+      expect(s.streak).toBe(0);
+      expect(s.resume?.challenge.challenge_id).toBe("ch-2");
+    });
+
+    it("RESTART giữa chừng bỏ phiên cũ (không còn resume)", () => {
+      const s = run(
+        uploading,
+        { type: "FINALIZE_RESULT", response: retryResponse },
+        { type: "RETRY_CONTINUE" },
+        { type: "RESTART" },
+      );
+      expect(s).toEqual({ step: "framing", guidance: null, streak: 0, resume: null });
     });
 
     it("thiếu challenge thì lỗi unexpected", () => {
@@ -431,6 +488,7 @@ describe("FAILED, RESTART và trạng thái cuối", () => {
       step: "framing",
       guidance: null,
       streak: 0,
+      resume: null,
     });
   });
 });
@@ -470,7 +528,7 @@ describe("sự kiện sai bước bị bỏ qua", () => {
     ],
     [
       "FINALIZE_RESULT ở framing",
-      { step: "framing", guidance: null, streak: 0 } as FlowState,
+      { step: "framing", guidance: null, streak: 0, resume: null } as FlowState,
       { type: "FINALIZE_RESULT", response: { status: "pass" } } as FlowEvent,
     ],
     [
@@ -480,7 +538,7 @@ describe("sự kiện sai bước bị bỏ qua", () => {
     ],
     [
       "SESSION_CREATED ở framing",
-      { step: "framing", guidance: null, streak: 3 } as FlowState,
+      { step: "framing", guidance: null, streak: 3, resume: null } as FlowState,
       { type: "SESSION_CREATED", session } as FlowEvent,
     ],
     [
@@ -501,15 +559,18 @@ describe("sự kiện sai bước bị bỏ qua", () => {
 describe("camera", () => {
   it("CAMERA_FAILED giữ ở camera_permission kèm problem", () => {
     const s = reduce(
-      { step: "camera_permission", problem: null },
+      { step: "camera_permission", problem: null, attempt: 0 },
       { type: "CAMERA_FAILED", problem: "denied" },
     );
-    expect(s).toEqual({ step: "camera_permission", problem: "denied" });
+    expect(s).toEqual({ step: "camera_permission", problem: "denied", attempt: 0 });
   });
 
   it("CONTINUE xóa problem để thử lại", () => {
-    const s = reduce({ step: "camera_permission", problem: "denied" }, { type: "CONTINUE" });
-    expect(s).toEqual({ step: "camera_permission", problem: null });
+    const s = reduce(
+      { step: "camera_permission", problem: "denied", attempt: 0 },
+      { type: "CONTINUE" },
+    );
+    expect(s).toEqual({ step: "camera_permission", problem: null, attempt: 1 });
   });
 });
 
@@ -764,15 +825,18 @@ describe("cổng chất lượng (framing)", () => {
   const N = QUALITY_REQUIRED_FRAMES;
 
   it("camera được cấp thì vào bước đặt mặt với bộ đếm bằng 0", () => {
-    const s = run({ step: "camera_permission", problem: null }, { type: "CAMERA_GRANTED" });
-    expect(s).toEqual({ step: "framing", guidance: null, streak: 0 });
+    const s = run(
+      { step: "camera_permission", problem: null, attempt: 0 },
+      { type: "CAMERA_GRANTED" },
+    );
+    expect(s).toEqual({ step: "framing", guidance: null, streak: 0, resume: null });
   });
 
   it("khung đạt tăng bộ đếm từng bước, chưa đi tiếp trước khi đủ N khung", () => {
     let s = initialFraming();
     for (let i = 1; i < N; i += 1) {
       s = reduce(s, frame(null));
-      expect(s).toEqual({ step: "framing", guidance: null, streak: i });
+      expect(s).toEqual({ step: "framing", guidance: null, streak: i, resume: null });
     }
   });
 
@@ -791,12 +855,12 @@ describe("cổng chất lượng (framing)", () => {
   it("một khung kém giữa chừng đặt lại bộ đếm: N-1 đạt, 1 kém, N-1 đạt vẫn chưa đi tiếp", () => {
     const good = qualityGateEvents(1).slice(0, N - 1);
     const s = run(initialFraming(), ...good, frame("HOLD_STILL"), ...good);
-    expect(s).toEqual({ step: "framing", guidance: null, streak: N - 1 });
+    expect(s).toEqual({ step: "framing", guidance: null, streak: N - 1, resume: null });
   });
 
   it("khung kém đặt lại bộ đếm về 0 và hiện đúng chỉ dẫn mới", () => {
     const s = run(initialFraming(), frame(null), frame(null), frame("LOW_LIGHT"));
-    expect(s).toEqual({ step: "framing", guidance: "LOW_LIGHT", streak: 0 });
+    expect(s).toEqual({ step: "framing", guidance: "LOW_LIGHT", streak: 0, resume: null });
   });
 
   it.each(GUIDANCE_PRIORITY.map((g) => [g]))(
@@ -804,7 +868,7 @@ describe("cổng chất lượng (framing)", () => {
     (guidance) => {
       let s = initialFraming();
       for (let i = 0; i < N * 5; i += 1) s = reduce(s, frame(guidance, 99));
-      expect(s).toEqual({ step: "framing", guidance, streak: 0 });
+      expect(s).toEqual({ step: "framing", guidance, streak: 0, resume: null });
     },
   );
 
@@ -817,10 +881,12 @@ describe("cổng chất lượng (framing)", () => {
   });
 
   it("qualityWouldPass chỉ đúng với khung đạt làm đủ N khung ở bước framing", () => {
-    const almost: FlowState = { step: "framing", guidance: null, streak: N - 1 };
+    const almost: FlowState = { step: "framing", guidance: null, streak: N - 1, resume: null };
     expect(qualityWouldPass(almost, null)).toBe(true);
     expect(qualityWouldPass(almost, "BLURRY")).toBe(false);
-    expect(qualityWouldPass({ step: "framing", guidance: null, streak: N - 2 }, null)).toBe(false);
+    expect(
+      qualityWouldPass({ step: "framing", guidance: null, streak: N - 2, resume: null }, null),
+    ).toBe(false);
     expect(qualityWouldPass(initialFraming(), null)).toBe(false);
     expect(qualityWouldPass(uploading, null)).toBe(false);
     expect(qualityWouldPass({ step: "consent", accepted: true }, null)).toBe(false);
@@ -840,7 +906,7 @@ describe("cổng chất lượng (framing)", () => {
       { type: "TOGGLE_CONSENT", accepted: true },
     ];
     for (const event of events) {
-      const s = reduce({ step: "framing", guidance: null, streak: N - 1 }, event);
+      const s = reduce({ step: "framing", guidance: null, streak: N - 1, resume: null }, event);
       expect(["creating_session", "result", "flash_challenge", "uploading"]).not.toContain(s.step);
     }
   });
@@ -871,7 +937,7 @@ describe("thiết bị chưa đáp ứng (không phải lỗi của người dù
 
   it("cũng ra màn báo riêng khi phát hiện ngay ở bước xin quyền camera", () => {
     const s = reduce(
-      { step: "camera_permission", problem: null },
+      { step: "camera_permission", problem: null, attempt: 0 },
       { type: "DEVICE_UNSUPPORTED", reason: "no_frame_callback" },
     );
     expect(s).toEqual({ step: "device_unsupported", reason: "no_frame_callback" });
@@ -881,7 +947,12 @@ describe("thiết bị chưa đáp ứng (không phải lỗi của người dù
     const s: FlowState = { step: "device_unsupported", reason: "low_fps" };
     expect(run(s, ...qualityGateEvents(1))).toBe(s);
     expect(reduce(s, { type: "CAMERA_GRANTED" })).toBe(s);
-    expect(reduce(s, { type: "RESTART" })).toEqual({ step: "framing", guidance: null, streak: 0 });
+    expect(reduce(s, { type: "RESTART" })).toEqual({
+      step: "framing",
+      guidance: null,
+      streak: 0,
+      resume: null,
+    });
   });
 
   it("không ghi đè kết quả cuối và bị bỏ qua ở các bước không dùng camera", () => {
@@ -898,5 +969,45 @@ describe("thiết bị chưa đáp ứng (không phải lỗi của người dù
     const s = reduce(initialFraming(), { type: "DEVICE_UNSUPPORTED", reason: "low_fps" });
     expect(s).not.toHaveProperty("run");
     expect(s).not.toHaveProperty("session");
+  });
+});
+
+describe("mã lần xin camera (attempt)", () => {
+  const asking = (attempt: number): FlowState => ({
+    step: "camera_permission",
+    problem: null,
+    attempt,
+  });
+
+  it("vào bước xin camera với attempt 0; mỗi lần Thử lại tăng attempt", () => {
+    const first = run(
+      { step: "consent", accepted: false },
+      { type: "TOGGLE_CONSENT", accepted: true },
+      {
+        type: "CONTINUE",
+      },
+    );
+    expect(first).toEqual(asking(0));
+    const failed = reduce(first, { type: "CAMERA_FAILED", problem: "denied", attempt: 0 });
+    expect(failed).toEqual({ step: "camera_permission", problem: "denied", attempt: 0 });
+    expect(reduce(failed, { type: "CONTINUE" })).toEqual(asking(1));
+  });
+
+  it("CAMERA_GRANTED đúng lần xin thì vào đặt mặt", () => {
+    expect(reduce(asking(2), { type: "CAMERA_GRANTED", attempt: 2 })).toEqual(initialFraming());
+  });
+
+  it("CAMERA_GRANTED của lần xin cũ (đến muộn) bị bỏ qua", () => {
+    const s = asking(2);
+    expect(reduce(s, { type: "CAMERA_GRANTED", attempt: 1 })).toBe(s);
+  });
+
+  it("CAMERA_FAILED của lần xin cũ không phá lần xin mới", () => {
+    const s = asking(2);
+    expect(reduce(s, { type: "CAMERA_FAILED", problem: "denied", attempt: 1 })).toBe(s);
+  });
+
+  it("sự kiện không mang attempt vẫn xử lý bình thường (tương thích)", () => {
+    expect(reduce(asking(3), { type: "CAMERA_GRANTED" })).toEqual(initialFraming());
   });
 });

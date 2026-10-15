@@ -18,7 +18,11 @@ import { type Point, type Rect, faceBox } from "./chromapulse/regions";
 export const FACE_WIDTH_MIN_FRACTION = 0.35;
 /** Mặt chiếm tối đa chừng này chiều rộng khung (tài liệu: 60%). Trên mức này là gần. */
 export const FACE_WIDTH_MAX_FRACTION = 0.6;
-/** IoU tối thiểu giữa hộp mặt và oval (tài liệu: >= 0,6). */
+/**
+ * IoU tối thiểu giữa hộp mặt và oval (tài liệu: >= 0,6). Lưu ý: IoU tính giữa HỘP BAO của mặt (từ landmark)
+ * và HỘP BAO của oval (không phải diện tích elip). Với oval và tỉ lệ mặt hiện tại, hệ quả thực tế là mặt cần
+ * chiếm khoảng 43-60% chiều rộng khung (chặt hơn mốc 35% của tài liệu ở phía xa); cận trên 60% vẫn theo tài liệu.
+ */
 export const OVAL_IOU_MIN = 0.6;
 /** Góc quay đầu tối đa, tính bằng độ (tài liệu: <= 20). */
 export const YAW_MAX_DEG = 20;

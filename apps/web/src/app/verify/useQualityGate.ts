@@ -63,11 +63,13 @@ export function useQualityGate({ active, videoRef, callbacks }: Options) {
     let handle: LandmarkerHandle | null = null;
     let callbackId = 0;
     let watchdog: ReturnType<typeof setTimeout> | null = null;
+    let removePlayingListener: (() => void) | null = null;
 
     const cleanup = () => {
       cancelled = true;
       if (watchdog) clearTimeout(watchdog);
       watchdog = null;
+      removePlayingListener?.();
       if (callbackId && typeof video.cancelVideoFrameCallback === "function") {
         video.cancelVideoFrameCallback(callbackId);
       }
@@ -104,11 +106,21 @@ export function useQualityGate({ active, videoRef, callbacks }: Options) {
         return;
       }
 
-      // Camera đứng (rVFC không bao giờ bắn): báo lỗi thay vì chờ mãi.
-      watchdog = setTimeout(fail, FIRST_FRAME_TIMEOUT_MS);
-
       let callbacksSeen = 0;
-      let window: number[] = [];
+
+      // Camera đứng (rVFC không bao giờ bắn): báo lỗi thay vì chờ mãi. Đồng hồ chỉ bắt đầu khi video đã có
+      // luồng và đang phát (nếu không, thời gian xin quyền camera hay tải mô hình bị tính nhầm là "đứng").
+      const startWatchdog = () => {
+        if (cancelled || watchdog || callbacksSeen > 0) return;
+        watchdog = setTimeout(fail, FIRST_FRAME_TIMEOUT_MS);
+      };
+      const isPlaying = () => video.srcObject !== null && !video.paused && video.readyState >= 2;
+      const onPlaying = () => startWatchdog();
+      if (isPlaying()) startWatchdog();
+      else video.addEventListener("playing", onPlaying, { once: true });
+      removePlayingListener = () => video.removeEventListener("playing", onPlaying);
+
+      let fpsTimes: number[] = [];
       const windowFps: (number | null)[] = [];
       let sampling = false;
       let prevFace: Rect | null = null;
@@ -131,10 +143,10 @@ export function useQualityGate({ active, videoRef, callbacks }: Options) {
         if (!sampling) {
           // Pha 1: đo FPS khi CHƯA có việc nặng. Bỏ qua các khung khởi động.
           if (callbacksSeen > FPS_WARMUP_CALLBACKS) {
-            window.push(now);
-            if (window.length >= FPS_WINDOW) {
-              windowFps.push(estimateFps(window));
-              window = [];
+            fpsTimes.push(now);
+            if (fpsTimes.length >= FPS_WINDOW) {
+              windowFps.push(estimateFps(fpsTimes));
+              fpsTimes = [];
               const verdict = evaluateFpsWindows(windowFps);
               if (verdict === "low") {
                 callbacksRef.current.onUnsupported("low_fps");

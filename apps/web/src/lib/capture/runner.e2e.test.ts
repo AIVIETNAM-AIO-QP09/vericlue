@@ -57,8 +57,14 @@ describe.skipIf(!API)("luồng /verify với API mock thật", () => {
     expect(state.attemptsLeft).toBe(1);
 
     // lượt 2 và 3: gửi lại với thử thách mới
+    let attempt = 0;
     for (const expected of ["retry", "result"]) {
-      const flash = reduce(reduce(state, { type: "RETRY_CONTINUE" }), { type: "FLASH_DONE" });
+      const gate = [...qualityGateEvents(2 + attempt)].reduce(
+        reduce,
+        reduce(state, { type: "RETRY_CONTINUE" }),
+      );
+      attempt += 1;
+      const flash = reduce(gate, { type: "FLASH_DONE" });
       if (flash.step !== "uploading") throw new Error("phải ở uploading");
       state = reduce(
         flash,

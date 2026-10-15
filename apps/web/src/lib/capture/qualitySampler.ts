@@ -8,7 +8,7 @@ import type { Point } from "./chromapulse/regions";
 import { faceBox } from "./chromapulse/regions";
 import { type FrameAnalysisInput, type PixelCrop, cropRectForFace } from "./quality";
 
-/** Chiều rộng canvas đệm; đủ cho đo độ nét/độ sáng và nhẹ cho điện thoại. */
+/** TẠM — chỉnh khi thử máy thật. Chiều rộng canvas đệm; đủ cho đo độ nét/độ sáng và nhẹ cho điện thoại. */
 const SAMPLE_WIDTH = 480;
 
 export type QualitySampler = {
