@@ -41,6 +41,15 @@ npm run build
 - Type nằm ở `src/lib/api/schema.d.ts`, **sinh tự động**, đừng sửa tay. Khi API đổi: `uv run python scripts/gen_openapi.py` rồi `npm run gen:api`, commit cả hai file (CI kiểm chạy lại không lệch).
 - `NEXT_PUBLIC_API_URL` trỏ tới API (mặc định `http://localhost:8000`). Khi API chạy mock, `createSession("print")` chọn kịch bản qua header `X-Mock-Scenario`.
 
+## Luồng /verify (CAP-01)
+
+Máy trạng thái là logic thuần ở `src/lib/capture/flow.ts` (reducer, test bằng Vitest); `runner.ts` gọi API qua `src/lib/api/client.ts` và trả sự kiện cho reducer; `VerifyFlow.tsx` chỉ nối giao diện. Chỉ `status = pass` của API mới thành "xác minh thành công"; mọi lỗi (mạng, 401, 409, 413, 422, 5xx, phản hồi lạ) thành màn hình lỗi.
+
+- **Thử với API mock:** chạy API (`uv run uvicorn vericlue_api.main:app --app-dir services/api/src`) và web (`npm run dev`), mở `http://localhost:3000/verify?scenario=<tên>`. `scenario` chỉ hoạt động khi không phải bản build production. Kịch bản: `genuine` (đạt), `low_quality` (thử lại, 2 lần rồi chuyển duyệt), `voice_clone` (đọc câu rồi chuyển duyệt), `print`/`replay`/`virtual_cam`/`faceswap`/`error` (chuyển duyệt).
+- **Test với API thật:** khởi động API mock rồi `E2E_API_URL=http://localhost:8000 npx vitest run src/lib/capture/runner.e2e.test.ts` (CI bỏ qua).
+- **Thử trên điện thoại qua IP LAN:** API chỉ cho phép origin `http://localhost:3000` theo mặc định. Đặt `API_CORS_ORIGINS` (phân cách bằng dấu phẩy) trước khi chạy API, ví dụ `API_CORS_ORIGINS=http://localhost:3000,https://192.168.1.23:3000`, và đặt `NEXT_PUBLIC_API_URL` trong `apps/web/.env.local` trỏ tới địa chỉ API mà điện thoại truy cập được (ví dụ `http://192.168.1.23:8000`; trang HTTPS gọi API HTTP có thể bị chặn nội dung hỗn hợp, khi đó chạy API sau một đường hầm HTTPS). Camera cần HTTPS (xem bên dưới).
+- **Chỗ giữ chỗ:** `quality_check` (CAP-02), nháy màu chưa lấy mẫu (CAP-04), ảnh gửi lên là ảnh giữ chỗ (CAP-06), đọc câu (CAP-07). Mỗi chỗ có chú thích `TẠM — CAP-0x thay` trong code.
+
 ## Trang thử ChromaPulse (CAP-03, nội bộ)
 
 `/lab/chromapulse` thu số liệu phản chiếu màu cho PRES-01. Không gọi API phiên, không lưu ảnh hay khung hình; kết quả là file JSON tải về máy. Bảng màu và nhịp lấy từ `packages/contracts/chromapulse.json` (cùng file với API). MediaPipe chạy offline từ `public/mediapipe/`, chuẩn bị bằng `uv run python scripts/fetch_web_assets.py` (sau `npm ci`). Hướng dẫn thu dữ liệu từng bước: `docs/runbooks/chromapulse-lab.md`.

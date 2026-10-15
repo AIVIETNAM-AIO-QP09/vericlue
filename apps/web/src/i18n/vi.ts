@@ -9,6 +9,90 @@ export const vi = {
   verify: {
     title: "Xác minh danh tính",
     description: "Làm theo hướng dẫn trên màn hình để hoàn tất xác minh.",
+    // Màn đồng ý: chỉ dùng câu chữ và con số có trong tài liệu (proposal, E2-capture). Những mục chưa có
+    // trong tài liệu (quyền rút lại hoặc xóa sớm, bên kiểm soát dữ liệu, hạn lưu giọng nói) để trống.
+    consent: {
+      title: "Đồng ý xử lý dữ liệu",
+      sensitive: "Dữ liệu sinh trắc học là dữ liệu nhạy cảm.",
+      purposeTitle: "Mục đích",
+      purpose:
+        "Xác minh danh tính của bạn. Ứng dụng chụp ảnh và quay video ngắn khuôn mặt, đổi màu màn hình trong vài giây để kiểm tra camera, và có thể yêu cầu bạn đọc một câu.",
+      retentionTitle: "Thời hạn lưu",
+      retention:
+        "Ảnh và video tự xóa sau 24 giờ nếu xác minh thành công, hoặc sau 30 ngày nếu hồ sơ cần được xem xét. Dữ liệu chỉ được lưu đúng mục đích và xóa khi hết mục đích.",
+      stopAnytime: "Bạn có thể dừng bất cứ lúc nào.",
+      checkbox: "Tôi đã đọc và đồng ý cho xử lý dữ liệu sinh trắc học của tôi như trên.",
+      continue: "Tiếp tục",
+    },
+    camera: {
+      title: "Cho phép dùng camera",
+      description: "Ứng dụng cần camera trước để chụp khuôn mặt của bạn.",
+      asking: "Đang mở camera...",
+      denied:
+        "Bạn chưa cho phép dùng camera. Hãy cho phép trong cài đặt của trình duyệt rồi thử lại.",
+      unavailable: "Không mở được camera. Hãy kiểm tra camera rồi thử lại.",
+      insecure: "Camera chỉ hoạt động trên kết nối an toàn (HTTPS).",
+      retry: "Thử lại",
+    },
+    framing: {
+      title: "Đưa khuôn mặt vào giữa khung hình",
+      description: "Giữ điện thoại cách mặt khoảng 25 đến 40 cm, ở nơi đủ sáng.",
+      ready: "Tôi đã sẵn sàng",
+    },
+    checking: "Đang kiểm tra...",
+    creating: "Đang chuẩn bị phiên...",
+    flash: {
+      title: "Chuẩn bị đổi màu màn hình",
+      warning:
+        "Màn hình sẽ đổi màu nhạt trong vài giây. Người nhạy cảm với ánh sáng nhấp nháy không nên tiếp tục. Bạn có thể bấm Dừng bất cứ lúc nào.",
+      brightness: "Hãy tăng độ sáng màn hình lên cao và giữ yên khuôn mặt.",
+      start: "Bắt đầu",
+      stop: "Dừng",
+      running: "Giữ yên khuôn mặt...",
+    },
+    uploading: "Đang gửi, vui lòng chờ...",
+    result: {
+      passTitle: "Xác minh thành công",
+      passBody: "Bạn đã hoàn tất xác minh.",
+      reviewTitle: "Hồ sơ đang được kiểm tra",
+      reviewBody: "Hồ sơ của bạn đang được kiểm tra. Chúng tôi sẽ thông báo khi có kết quả.",
+      retryTitle: "Vui lòng thử lại",
+      retryAttempts: "Số lần thử còn lại",
+      retryButton: "Thử lại",
+    },
+    // Gợi ý chụp lại: CHỈ nói về chất lượng ảnh. "Ra chỗ sáng hơn" và "Lại gần hơn" có trong tài liệu
+    // (E2-capture); 5 câu còn lại do nhóm soạn, đã đưa vào mô tả PR để trưởng nhóm xem.
+    retryHints: {
+      MORE_LIGHT: "Ra chỗ sáng hơn",
+      MOVE_CLOSER: "Lại gần hơn",
+      MOVE_BACK: "Lùi ra xa hơn một chút",
+      FACE_CENTER: "Đưa khuôn mặt vào giữa khung hình",
+      HOLD_STILL: "Giữ yên điện thoại và khuôn mặt",
+      QUIET_PLACE: "Chuyển đến nơi yên tĩnh hơn",
+      BRIGHTNESS_UP: "Tăng độ sáng màn hình",
+    },
+    retryHintFallback: "Hãy chụp lại ở nơi đủ sáng và giữ yên khuôn mặt",
+    voice: {
+      title: "Đọc to câu sau",
+      promptLabel: "Câu cần đọc",
+      pending: "Bước đọc câu sẽ có trong bản sau.",
+      devSend: "Gửi âm thanh thử nghiệm (chỉ khi phát triển)",
+      sending: "Đang gửi...",
+      attemptsLeft: "Số lần đọc lại còn lại",
+    },
+    errors: {
+      title: "Có sự cố",
+      restart: "Bắt đầu lại",
+      network: "Không kết nối được. Hãy kiểm tra mạng rồi thử lại.",
+      session: "Phiên đã hết hạn hoặc không còn hợp lệ. Hãy bắt đầu lại.",
+      conflict: "Không thể tiếp tục phiên này. Hãy bắt đầu lại.",
+      tooLarge: "Dữ liệu quá lớn nên chưa gửi được. Hãy bắt đầu lại.",
+      invalid: "Dữ liệu gửi đi chưa hợp lệ. Hãy bắt đầu lại.",
+      server: "Hệ thống đang bận. Vui lòng thử lại sau ít phút.",
+      unexpected: "Có lỗi không mong muốn. Hãy bắt đầu lại.",
+      stopped: "Bạn đã dừng. Hãy bắt đầu lại khi sẵn sàng.",
+      interrupted: "Phiên bị gián đoạn, ví dụ do chuyển sang ứng dụng khác. Hãy bắt đầu lại.",
+    },
   },
   review: {
     title: "Bàn duyệt",
