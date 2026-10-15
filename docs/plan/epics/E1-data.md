@@ -36,6 +36,21 @@ nếu nguồn có; không tạo ID người giả. WildDeepfake kiểm tra video
 FAS-VN small = full, tải nguyên gói dataset một lần. ViSpoofDB small dự phòng 2,6 GB.
 Log tách thời gian HTTP/mạng và xử lý/hash/index/giải nén.
 
+**Sửa MLAAD-vi/VSASV — quyết định trưởng nhóm 16/10:**
+MLAAD chỉ giữ WAV có metadata và `original_file` hợp lệ, giữ nguyên nhóm câu nguồn
+xuyên TTS; bỏ riêng file thiếu metadata (pin khảo sát: 159/5.000 WAV VieNeu-TTS),
+ghi số lượng/lý do theo hệ vào SOURCE, không bỏ cả bộ. Giữ đường dẫn
+`reference_speaker` nếu có; không tạo ID người từ đường dẫn tham chiếu.
+VSASV dùng `label` làm mã người nói công bố, xác minh với thư mục `file`;
+small chỉ lấy **bonafide + replay**, nguyên nhóm hợp lệ xuyên shard, ưu tiên người
+có replay. Loại **60.949 voice_conversion + 60.949 adversarial_attack** ở pin khảo sát
+vì không xác minh được người nguồn; SOURCE phải ghi số lượng thực theo revision.
+Adapter cũng giới hạn full ở phần hợp lệ này, không tự mở lại loại tấn công bị loại.
+Audio Parquet dạng mảng được xuất **WAV float32, giữ nguyên sampling_rate**, không
+resample/clipping. DATA-03 phải kiểm trùng người xuyên bộ qua giọng tham chiếu MLAAD
+và đối chiếu **VSASV ↔ VIVOS/ViMD**; ID nội bộ bộ dữ liệu không chứng minh danh tính
+xuyên bộ. DATA-01 vẫn review cho đến nghiệm thu đủ danh mục.
+
 **Lưu ý:** gửi ngay hôm nay các yêu cầu cần chờ duyệt: SEA-Spoof (email tác giả), FaceForensics++, DeepSpeak v1, Deepfake-Eval-2024. Không chặn việc khác nếu chưa được duyệt.
 
 ---
