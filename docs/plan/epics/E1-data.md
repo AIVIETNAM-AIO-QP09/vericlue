@@ -41,9 +41,9 @@
 - [x] Lần đầu điền `sha256` vào manifest; các lần sau kiểm tra và báo sai lệch.
 - [x] Không mirror SBI (điều khoản hạn chế chia sẻ) — mỗi máy tải từ nguồn gốc; quyết định trưởng nhóm 15/10.
 
----
-
 **Quyết định 15/10:** MODELS_DIR từ biến môi trường, mặc định ./models; máy nhóm dùng D:\Projects\vericlue-store\models. SCRFD UniFace phải byte-identical det_10g repo GenD; SyncNet ghi OpenRAIL++; PerTh chờ xác minh quyền trọng số — FOR-03. SBI giữ nguồn gốc/chưa pin, không chặn task.
+
+---
 
 ### DATA-03 · Chia tập theo người
 

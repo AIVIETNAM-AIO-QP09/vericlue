@@ -21,7 +21,6 @@ Bash: `export MODELS_DIR=/path/to/vericlue-store/models`. Mỗi checkout/worktre
 đọc manifest riêng nhưng dùng chung weights; **không chạy hai downloader cùng
 lúc ghi cùng model/file**. Biến trong `.env` chỉ có tác dụng khi được nạp vào môi
 trường shell; downloader dùng `os.environ`, không tự sửa/nạp `.env` hay token.
-Từ phiên sau mở Codex ngay tại `D:\Projects\vericlue-codex`.
 
 Mỗi artifact lưu ở `MODELS_DIR/<id>/<path>` trong manifest. Trọng số, tokenizer,
 config tải về đều không được commit. `.gitignore` giữ ngoại lệ duy nhất trong
@@ -62,6 +61,23 @@ Xem đầy đủ file/revision/bytes/hash tại manifest. Các mục ready gồm
 GenD CLIP L/14, AntiDeepfake MMS300M, PhoWhisper-small, stable_syncnet, SCRFD,
 CTC aligner, AudioSeal detector và dependency CLIP nền.
 
+Cột **Phi thương mại?** cho biết trọng số có bắt buộc giới hạn mục đích phi
+thương mại hay không; giấy phép code được ghi riêng theo đúng thành phần.
+
+| Mô hình | Giấy phép trọng số | Giấy phép code | Phi thương mại? | Ghi chú |
+|---|---|---|---|---|
+| GenD CLIP L/14 | [MIT](https://huggingface.co/yermandy/GenD_CLIP_L_14/blob/891ce014a0308386c4d7d25b3dcf436a22db5504/README.md) | [MIT](https://github.com/yermandy/GenD/blob/387a42266dd385fbe8f7626c5d3aa03eea3bfaab/LICENSE) | Không | Theo model card; CLIP nền có hàng riêng. |
+| AntiDeepfake MMS300M | [CC-BY-NC-SA-4.0](https://github.com/nii-yamagishilab/AntiDeepfake/blob/0dea622bde8f064c8ee5a557f2598643123fc6b6/LICENSE-CHECKPOINT) | [BSD-3-Clause](https://github.com/nii-yamagishilab/AntiDeepfake/blob/0dea622bde8f064c8ee5a557f2598643123fc6b6/LICENSE-CODE) | Có | Không gán BSD của code cho checkpoint. |
+| PhoWhisper-small | [BSD-3-Clause](https://huggingface.co/vinai/PhoWhisper-small/blob/a86b604c346caf7148c37512eafe783a16420adb/README.md) | [BSD-3-Clause](https://github.com/VinAIResearch/PhoWhisper/blob/main/LICENSE) | Không | Theo model card. |
+| stable_syncnet | [OpenRAIL++](https://huggingface.co/ByteDance/LatentSync-1.6/blob/c42c7e6c8e9c213626389fa7d9a3c444b8536353/README.md) | [Apache-2.0](https://github.com/bytedance/LatentSync/blob/main/LICENSE) (LatentSync) | Không | Vẫn có hạn chế mục đích sử dụng có hại. |
+| MiniFASNet V2 (UniFace) | [Apache-2.0](https://huggingface.co/yakhyo/uniface-weights/blob/bfcc7d48ea8412d55de406cecf96b65b3ca720b2/README.md) | [MIT](https://github.com/yakhyo/uniface/blob/fb5a1983ecce94c651c519f82dc049fc5325564a/LICENSE) (UniFace) | Không | Giấy phép weights theo card UniFace, khác code wrapper. |
+| SCRFD det_10g | [Nghiên cứu phi thương mại](https://huggingface.co/yakhyo/uniface-weights/blob/bfcc7d48ea8412d55de406cecf96b65b3ca720b2/README.md) | [Apache-2.0](https://github.com/deepinsight/insightface/blob/81929474ec02e54e3655f6841bced800009c592d/detection/scrfd/LICENSE) (SCRFD); [MIT](https://github.com/deepinsight/insightface/blob/81929474ec02e54e3655f6841bced800009c592d/python-package/README.md) (InsightFace Python) | Có | UniFace scrfd_10g.onnx khớp byte det_10g gốc; code UniFace dùng MIT. |
+| CTC aligner | [CC-BY-NC-4.0](https://huggingface.co/MahmoudAshraf/mms-300m-1130-forced-aligner/blob/49402e9577b1158620820667c218cd494cc44486/README.md) | [BSD-2-Clause](https://github.com/MahmoudAshraf97/ctc-forced-aligner/blob/main/LICENSE) | Có | Giấy phép weights khác thư viện căn chỉnh. |
+| AudioSeal detector | [MIT](https://huggingface.co/facebook/audioseal/blob/3c19eba53390776cf2cc9ed5f6c9ac67ce72ecba/README.md) | [MIT](https://github.com/facebookresearch/audioseal/blob/e63a8a0e5cdf7bb797159c92ba15961557fe9bd2/LICENSE) | Không | Chỉ detector_base.pth. |
+| CLIP nền | [Không khai giấy phép trọng số](https://huggingface.co/openai/clip-vit-large-patch14/blob/32bd64288804d66eefd0ccbe215aa642df71cc41/README.md) | [MIT](https://github.com/openai/CLIP/blob/d05afc436d78f1c48dc0dbf8e5980a9d471f35f6/LICENSE) (repo code) | Chưa rõ | MIT chỉ là repo code; trưởng nhóm 15/10 chốt không chặn tải. |
+| SBI FFc23 | [Nghiên cứu nội bộ phi thương mại](https://github.com/mapooon/SelfBlendedImages/blob/d6d9a351f32334ae9a3a250872c05836e0dd0f2c/LICENSE) | [Nghiên cứu nội bộ phi thương mại](https://github.com/mapooon/SelfBlendedImages/blob/d6d9a351f32334ae9a3a250872c05836e0dd0f2c/LICENSE) | Có | Không mirror/chia sẻ lại, kể cả private; nguồn gốc, FACE-03. |
+| PerTh | Chưa xác minh | [MIT](https://github.com/resemble-ai/Perth/blob/ff1c8ac55a976971245cdd53c18d6131ca00d993/LICENSE) | Chưa rõ | Chưa tải; xác minh quyền trọng số ở FOR-03. |
+
 - **MiniFASNet V2:** weights Apache-2.0 từ UniFace HF; code UniFace MIT là giấy
   phép khác. Không tải mọi model trong snapshot UniFace.
 - **SCRFD:** nguồn UniFace `scrfd_10g.onnx`, lưu tên **det_10g.onnx**. Đã đối chiếu
@@ -76,8 +92,9 @@ CTC aligner, AudioSeal detector và dependency CLIP nền.
   code BSD-2. Giữ mục đích nghiên cứu phi thương mại, trích dẫn và điều kiện nguồn.
 - **PhoWhisper:** model card BSD-3-Clause. **AudioSeal detector:** model card MIT;
   chỉ tải detector_base, không tải generator không cần thiết.
-- **CLIP nền:** ghi MIT theo nguồn repo/software `openai/CLIP` kèm link LICENSE
-  đã pin trong manifest. Model card HF không công bố riêng license weights;
+- **CLIP nền:** trọng số không khai giấy phép; MIT chỉ thuộc repo code
+  `openai/CLIP`, kèm link LICENSE đã pin trong manifest. Model card HF không công bố
+  riêng license weights;
   giữ rõ phạm vi bằng chứng và quyết định trưởng nhóm 15/10 không chặn. GenD dùng
   backbone/processor này; downloader không xác nhận inference offline hay sửa
   wrapper, FACE-02 phải chọn đường dẫn local và cấm tự tải ngoài snapshot đã ghim.
