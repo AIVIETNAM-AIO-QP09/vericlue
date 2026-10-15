@@ -1,7 +1,7 @@
 # services/api — Máy chủ API (FastAPI)
 
 **Phụ trách:** M5
-**Trạng thái:** API v1 chạy với dữ liệu mock (PLAT-03 khung, **PLAT-04** endpoint + hợp đồng). Token, DB, orchestrator và luật quyết định đầy đủ còn là phần TẠM, xem "Phần tạm" bên dưới.
+**Trạng thái:** API v1 chạy với dữ liệu mock (PLAT-03 khung, **PLAT-04** endpoint + hợp đồng). DB đã chuyển sang SQLAlchemy/PostgreSQL ở PLAT-05. Token, orchestrator và luật quyết định đầy đủ còn là phần TẠM, xem "Phần tạm" bên dưới.
 
 ## Trách nhiệm
 
@@ -50,12 +50,51 @@ Chạy mock (`USE_MOCK_MODELS=true`, mặc định) chọn kịch bản bằng h
 | Phần | Hiện nay | Thay bằng |
 |---|---|---|
 | Token | chuỗi ngẫu nhiên, chỉ so khớp | **PLAT-06**: HMAC gắn `session_id`, TTL ~5 phút, 409 và máy trạng thái "mỗi bước một lần mỗi lượt", 429 (3 phiên/giờ/IP), hết hạn challenge 120 giây thật |
-| Lưu trữ | bộ nhớ (`core/state.py`) | **PLAT-05**: PostgreSQL |
+| Lưu trữ | **PLAT-05**: PostgreSQL, migration Alembic, transaction theo request | Đã có persistence; nghiệp vụ tiếp tục ở các task tương ứng |
 | Chạy detector | tuần tự (`services/detection.py`) | **PLAT-08**: orchestrator song song |
 | Luật quyết định | `services/provisional_decision.py`, B=0,15, A=0,60 trong cấu hình (`PROVISIONAL_THRESHOLD_B/A`) | **ROUT-02**: TrustRouter, ngưỡng từ `ml/configs/thresholds.yaml` |
 | Giám định, chữ ký | segment và chữ ký `MOCK-<sha256>` | **FOR-01 / FOR-04**, khóa Ed25519 ở PLAT-06 |
-| Bàn duyệt | kho bộ nhớ, URL media giả | **REV-01**: DB và nhật ký chuỗi băm |
+| Bàn duyệt | DB và sự kiện append-only/chuỗi băm cơ bản; URL media vẫn là chỗ giữ chỗ | **REV-01**: nghiệp vụ và phục vụ media hoàn chỉnh |
 | Giới hạn upload | `MAX_UPLOAD_MB` chỉ kiểm **sau khi** Starlette đã nhận multipart (và trước khi xác thực token vẫn nhận được body) | **PLAT-06** / reverse proxy: giới hạn cứng ở lớp trước ứng dụng |
 | Xác thực nhân viên | `/v1/review/*` và `/v1/forensic/*` chưa có xác thực | **PLAT-06** / REV-02 |
 
 Luật quyết định tạm, thứ tự cổng: quality (chụp lại tối đa 2 lần rồi `review`) → chromapulse/camprobe (fail → `review` ưu tiên cao; chưa rõ → chụp lại) → ngưỡng trên **max `prob_attack`** của `face_pad` và `face_deepfake` (dưới B `pass`; từ B đến dưới A `voice_challenge`; từ A trở lên `review`). `error`/`degraded`/thiếu ở bước bắt buộc → `review`, không bao giờ `pass`.
+
+
+## DB, migration và vòng đời file (PLAT-05)
+
+`DATABASE_URL` đọc từ env/.env cho native. Compose dùng DATABASE_HOST và POSTGRES_* riêng; SQLAlchemy URL.create encode thông tin xác thực, không ghép mật khẩu thô vào URL. PostgreSQL 16 là DB của Compose; SQLite chỉ dùng
+cho unit test độc lập. `create_app()` không kết nối DB; migration phải chạy trước
+API. Container tự chạy `alembic -c services/api/alembic.ini upgrade head` trước Uvicorn.
+Chạy native: `uv run alembic -c services/api/alembic.ini upgrade head`.
+
+Các kho session/review/forensic dùng cùng transaction request và ghi snapshot
+JSON tường minh; nested signals/challenge/ModuleResult được phục hồi sau restart.
+Seed hai ca mock idempotent, có khóa PostgreSQL khi nhiều worker khởi động đồng thời.
+`review_events` bị trigger DB chặn UPDATE/DELETE, không cascade xóa; actor hiện là
+`staff-unverified`, xác thực nhân viên vẫn thuộc PLAT-06. Test dùng
+`app.state.vericlue.transaction()` để setup/kiểm snapshot, không sửa object RAM toàn cục.
+
+- `MEDIA_DIR/<session_id>/`: file phiên; tên và đuôi do server kiểm soát.
+- `MEDIA_DIR/forensic/<job_id>/`: byte nguồn và HTML báo cáo; hash tính trên byte nguồn.
+- Pass chưa vào review: 24 giờ từ quyết định cuối (`MEDIA_TTL_PASS_HOURS`).
+- Phiên từng vào review: 30 ngày từ quyết định cuối (`MEDIA_TTL_REVIEW_DAYS`), không rút xuống 24 giờ khi nhân viên chấp nhận.
+- Phiên bỏ dở/retry/đang đọc câu: 24 giờ từ hoạt động thành công cuối (`MEDIA_TTL_INCOMPLETE_HOURS`).
+- **Giám định KHÔNG tự xóa mặc định:** `FORENSIC_TTL_DAYS=` để trống. Số ngày dương bật TTL từ lúc tạo job; chỉ bật sau khi nhóm phê duyệt quyền xóa chứng cứ/chuỗi bằng chứng.
+
+Lifespan chạy dọn lúc khởi động rồi mỗi `MEDIA_CLEANUP_INTERVAL_SECONDS` (300 giây).
+Mỗi lượt thêm `cleanup_audits` và ghi một dòng `media_cleanup_audit`, gồm file thực
+đã xóa và lý do, job giám định được bảo vệ, lỗi nếu có; không có file để xóa vẫn
+có audit. Xóa từng phần gặp lỗi vẫn giữ dấu file đã xóa. Nếu DB không commit được
+sau unlink, log vẫn ghi sự việc để đối soát; filesystem và DB không có transaction
+phân tán. Không xóa metadata/audit theo TTL file. Từ chối traversal/symlink ngoài
+MEDIA_DIR. Upload mới và report được tạo lại sẽ reset dấu đã dọn.
+
+Container phải có `CHROMAPULSE_CONFIG=/app/config/chromapulse.json`; Dockerfile
+chép đúng file nguồn chung. Không dùng đường dẫn suy từ site-packages. Model/data
+là volumes read-only, media là volume writable, không có weights trong image.
+
+Kiểm PostgreSQL thật: đặt `TEST_DATABASE_URL` tới DB test đã cấp quyền rồi chạy
+`uv run pytest services/api/tests/test_db_postgres.py`; không đặt thì test này skip.
+Job Python CI có service PostgreSQL16 với credential mẫu chỉ cho DB test tạm;
+các bước CI hiện có được giữ nguyên. Tuyệt đối không dùng credential CI cho triển khai.

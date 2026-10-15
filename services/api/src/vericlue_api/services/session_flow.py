@@ -106,6 +106,9 @@ class SessionFlow:
             b=s.provisional_threshold_b,
             a=s.provisional_threshold_a,
         )
+        self.sessions.record_decision(
+            session, outcome.status, b=s.provisional_threshold_b, a=s.provisional_threshold_a
+        )
         if outcome.status == "retry":
             hint = outcome.retry_hint if outcome.retry_hint in RETRY_HINTS else DEFAULT_HINT
             session.retries_used += 1
@@ -145,6 +148,12 @@ class SessionFlow:
             results,
             rereads_used=session.voice_rereads_used,
             b=self.settings.provisional_threshold_b,
+        )
+        self.sessions.record_decision(
+            session,
+            outcome.status,
+            b=self.settings.provisional_threshold_b,
+            a=self.settings.provisional_threshold_a,
         )
         if outcome.status == "voice_challenge":
             session.voice_rereads_used += 1

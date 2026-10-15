@@ -3,6 +3,7 @@ import path from "node:path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   /* config options here */
   // Cho phép điện thoại cùng Wi-Fi và đường hầm cloudflared mở trang dev (runbook chromapulse-lab).
   allowedDevOrigins: ["*.trycloudflare.com", "192.168.*.*", "10.*.*.*", "172.*.*.*"],

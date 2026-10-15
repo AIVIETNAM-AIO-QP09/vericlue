@@ -137,9 +137,9 @@
 - `docs/runbooks/dev-setup.md` cập nhật lệnh chạy.
 
 **Tiêu chí hoàn thành:**
-- [ ] `docker compose up` → web :3000, api :8000, db chạy; một phiên mock đi hết luồng và được lưu vào DB.
-- [ ] `alembic upgrade head` chạy trên DB trống.
-- [ ] Test dọn file quá hạn.
+- [x] `docker compose up` → web :3000, api :8000, db chạy; một phiên mock đi hết luồng và được lưu vào DB.
+- [x] `alembic upgrade head` chạy trên DB trống.
+- [x] Test dọn file quá hạn.
 
 ---
 

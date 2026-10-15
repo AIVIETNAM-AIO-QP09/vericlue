@@ -112,19 +112,39 @@ Quy tắc: `error` và `degraded` **không bao giờ** được hiểu là "đ�
 - Trong mỗi lượt, mỗi bước (media, signals, finalize, voice) chỉ nhận một lần; gọi lại → 409.
 - Thử thách sống 120 giây; chụp lại thì server cấp thử thách mới.
 
-## 5. Dữ liệu lưu trữ (bản nháp — chốt ở task PLAT-05)
+## 5. Dữ liệu lưu trữ (PLAT-05)
+
+SQLAlchemy 2 + Alembic, PostgreSQL 16 khi chạy Compose. Mỗi request nghiệp vụ dùng
+một transaction, commit trước khi gửi response; rollback khi lỗi. Không kết nối DB
+khi import ứng dụng/sinh OpenAPI. SQLite dùng cho unit test; PostgreSQL thật được
+kiểm riêng trong CI và khi smoke Compose.
 
 | Bảng | Nội dung chính |
 |---|---|
-| `sessions` | id, trạng thái, seed thử thách, thời điểm tạo/hết hạn, số lần chụp lại |
-| `module_results` | session_id, module, model_version, status, score, prob_attack, quality (JSON), evidence (JSON) |
-| `decisions` | session_id, hành động, mức tin cậy, ngưỡng đã dùng, phiên bản cấu hình |
-| `review_cases` | session_id, ưu tiên, người nhận, trạng thái, quyết định ban đầu, quyết định cuối |
-| `review_events` | **chỉ ghi thêm**: case_id, người, hành động, mã lý do, ghi chú, `prev_hash`, `hash` |
-| `forensic_jobs` | file_sha256, thông số file, trạng thái, kết luận, đường dẫn báo cáo, chữ ký |
-| `forensic_segments` | job_id, t_start, t_end, điểm từng tín hiệu, cờ "không áp dụng" |
+| `sessions` | id, trạng thái, challenge/token tạm và snapshot luồng (JSON), thời điểm tạo/hoạt động cuối/quyết định cuối, cờ từng vào review, dấu media đã dọn |
+| `module_results` | session_id, module, model_version, status, score, prob_attack, quality/evidence và payload JSON; snapshot mỗi lần quyết định |
+| `decisions` | session_id, hành động, confidence nếu có (không tự bịa), ngưỡng tạm đã dùng, phiên bản cấu hình, thời điểm |
+| `review_cases` | session_id duy nhất, ưu tiên, người nhận, trạng thái, quyết định ban đầu/cuối và snapshot bằng chứng |
+| `review_events` | **Chỉ ghi thêm**: case_id, actor, hành động, lý do, ghi chú, payload, `prev_hash`, `hash`; trigger DB từ chối UPDATE/DELETE |
+| `forensic_jobs` | SHA-256 trên byte gốc, filename/payload, trạng thái, kết luận, đường dẫn nguồn/báo cáo, chữ ký mock |
+| `forensic_segments` | job_id, t_start, t_end, tín hiệu từng module và cờ applicable |
+| `cleanup_audits` | mỗi lượt dọn một dòng: thời điểm, file thực đã xóa, lý do từng file, chứng cứ được bảo vệ và lỗi nếu có |
 
-Ảnh và video nằm trong `MEDIA_DIR`, tự xóa sau 24 giờ (ca đạt) hoặc 30 ngày (ca cần duyệt). Cơ sở dữ liệu chỉ lưu điểm, hash và đường dẫn.
+Media phiên nằm ở `MEDIA_DIR/<session_id>/`; chứng cứ/báo cáo giám định ở
+`MEDIA_DIR/forensic/<job_id>/`. DB lưu metadata/kết quả/hash/path, không lưu byte media.
+`MODELS_DIR` và `DATA_DIR` mount read-only, `MEDIA_DIR` mount writable; không bake
+trọng số/dataset/bí mật vào image. PostgreSQL có volume bền vững riêng.
+
+Chính sách dọn (quyết định trưởng nhóm 15/10):
+
+- Pass chưa từng vào review: `MEDIA_TTL_PASS_HOURS=24`, từ quyết định cuối.
+- Từng vào review: `MEDIA_TTL_REVIEW_DAYS=30`, từ quyết định cuối, kể cả sau đó được chấp nhận. Quyết định cuối của nhân viên cập nhật mốc này.
+- Chưa kết luận: `MEDIA_TTL_INCOMPLETE_HOURS=24`, từ hoạt động thành công cuối, không từ thời điểm tạo/file mtime.
+- Giám định: `FORENSIC_TTL_DAYS` để trống mặc định = **không tự xóa**. Số ngày dương là opt-in; nhóm phải phê duyệt chính sách chứng cứ trước khi bật.
+- Job dọn chạy lúc API khởi động và mỗi `MEDIA_CLEANUP_INTERVAL_SECONDS=300`; mỗi lượt ghi audit DB và một dòng log, gồm cả lượt không xóa được file. Lỗi giữa chừng vẫn ghi các file đã xóa thành công. DB metadata/audit không bị dọn theo TTL media.
+
+Token hiện vẫn là token tạm PLAT-04, không thêm HMAC/TTL enforcement/409 mới/429 ở task này.
+Nhật ký ghi actor `staff-unverified` vì xác thực nhân viên thuộc PLAT-06; không coi đây là chữ ký giám định thật.
 
 ## 6. Luồng một phiên eKYC
 

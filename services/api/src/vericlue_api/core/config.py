@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import URL
 
 from vericlue_api.core.chromapulse_config import load_chromapulse_config
 
@@ -18,6 +20,41 @@ class Settings(BaseSettings):
     device: str = "cpu"
     models_dir: str = "./models"
     media_dir: str = "./tmp/media"
+    data_dir: str = "./data"
+    database_url: str = "postgresql+psycopg://localhost/vericlue"
+    database_host: str | None = None
+    database_port: int = Field(default=5432, ge=1, le=65535)
+    postgres_user: str | None = None
+    postgres_password: SecretStr | None = None
+    postgres_db: str | None = None
+
+    @model_validator(mode="after")
+    def database_components(self):
+        if self.database_host:
+            if not self.postgres_user or self.postgres_password is None or not self.postgres_db:
+                raise ValueError(
+                    "DATABASE_HOST requires POSTGRES_USER/POSTGRES_PASSWORD/POSTGRES_DB"
+                )
+            self.database_url = URL.create(
+                "postgresql+psycopg",
+                username=self.postgres_user,
+                password=self.postgres_password.get_secret_value(),
+                host=self.database_host,
+                port=self.database_port,
+                database=self.postgres_db,
+            ).render_as_string(hide_password=False)
+        return self
+
+    media_ttl_pass_hours: int = Field(default=24, gt=0)
+    media_ttl_review_days: int = Field(default=30, gt=0)
+    media_ttl_incomplete_hours: int = Field(default=24, gt=0)
+    forensic_ttl_days: int | None = Field(default=None, gt=0)
+    media_cleanup_interval_seconds: float = Field(default=300, gt=0)
+
+    @field_validator("forensic_ttl_days", mode="before")
+    @classmethod
+    def blank_disables_forensic_expiration(cls, value):
+        return None if isinstance(value, str) and not value.strip() else value
 
     # Phiên và thử thách (ADR-0011). Token HMAC/TTL thật do PLAT-06 cài.
     session_ttl_seconds: int = 300
