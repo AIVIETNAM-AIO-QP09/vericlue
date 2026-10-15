@@ -13,7 +13,7 @@ import { chromaPulseConfig } from "@/lib/capture/chromapulse/config";
 import { openFrontCamera } from "@/lib/capture/chromapulse/device";
 import type { FrameSampler } from "@/lib/capture/chromapulse/sampler";
 import { runTrial, supportsFrameCallback } from "@/lib/capture/chromapulse/trial";
-import { initialState, reduce, sessionExpired } from "@/lib/capture/flow";
+import { type FlowState, initialState, reduce, sessionExpired } from "@/lib/capture/flow";
 import { cameraMessage, errorMessage, retryMessage } from "@/lib/capture/messages";
 import { sendVoiceAnswer, startSession, uploadAndFinalize } from "@/lib/capture/runner";
 import { resolveScenario } from "@/lib/capture/scenario";
@@ -44,6 +44,7 @@ export function VerifyFlow() {
   const signalsRef = useRef<Signals | null>(null);
   const scenarioRef = useRef<string | undefined>(undefined);
   const aliveRef = useRef(true);
+  const flashStartedRef = useRef(false);
   const [flashing, setFlashing] = useState(false);
 
   const deps = useMemo(() => ({ client, nowMs: () => Date.now() }), [client]);
@@ -82,21 +83,27 @@ export function VerifyFlow() {
     }
   }, [stopStream]);
 
+  // Mỗi trạng thái (một đối tượng riêng cho mỗi lần vào bước) chỉ khởi chạy việc bất đồng bộ một lần,
+  // kể cả khi React StrictMode (chế độ phát triển) chạy effect hai lần.
+  const startedFor = useRef<FlowState | null>(null);
+  const startOnce = useCallback((s: FlowState) => {
+    if (startedFor.current === s) return false;
+    startedFor.current = s;
+    return true;
+  }, []);
+
   // --- Hiệu ứng theo từng bước -----------------------------------------------------------------
 
   useEffect(() => {
     if (state.step !== "camera_permission" || state.problem !== null) return;
-    let cancelled = false;
+    if (!startOnce(state)) return; // StrictMode chạy effect hai lần: chỉ mở camera một lần cho mỗi lần xin
     void openCamera().then((result) => {
-      if (cancelled || !aliveRef.current) return;
+      if (!aliveRef.current) return;
       dispatch(
         result === "ok" ? { type: "CAMERA_GRANTED" } : { type: "CAMERA_FAILED", problem: result },
       );
     });
-    return () => {
-      cancelled = true;
-    };
-  }, [state, openCamera]);
+  }, [state, openCamera, startOnce]);
 
   // Gắn luồng camera vào video mỗi khi bước cần xem (khung hình, nháy màu).
   useEffect(() => {
@@ -105,18 +112,26 @@ export function VerifyFlow() {
     const needsVideo =
       state.step === "framing" || state.step === "flash_challenge" || state.step === "uploading";
     if (!needsVideo) return;
+    let cancelled = false;
     void (async () => {
       if (!streamRef.current) {
         const result = await openCamera(); // bắt đầu lại sau khi camera đã tắt
+        if (cancelled || !aliveRef.current) {
+          stopStream(); // bước đã đổi trong lúc mở: không để camera mở thừa
+          return;
+        }
         if (result !== "ok") {
-          if (aliveRef.current) dispatch({ type: "FAILED", kind: "unexpected" });
+          dispatch({ type: "FAILED", kind: "unexpected" });
           return;
         }
       }
       if (video.srcObject !== streamRef.current) video.srcObject = streamRef.current;
       await video.play().catch(() => undefined);
     })();
-  }, [state.step, openCamera]);
+    return () => {
+      cancelled = true;
+    };
+  }, [state.step, openCamera, stopStream]);
 
   useEffect(() => {
     // TẠM — CAP-02 thay bằng cổng chất lượng thật; hiện luôn cho qua.
@@ -125,29 +140,23 @@ export function VerifyFlow() {
 
   useEffect(() => {
     if (state.step !== "creating_session") return;
-    let cancelled = false;
+    if (!startOnce(state)) return; // chỉ tạo MỘT phiên cho mỗi lần vào bước này
     void startSession(deps, scenarioRef.current).then((event) => {
-      if (!cancelled && aliveRef.current) dispatch(event);
+      if (aliveRef.current) dispatch(event);
     });
-    return () => {
-      cancelled = true;
-    };
-  }, [state.step, deps]);
+  }, [state, deps, startOnce]);
 
   useEffect(() => {
     if (state.step !== "uploading") return;
-    let cancelled = false;
+    if (!startOnce(state)) return; // gửi MỘT lần: gửi hai lần có thể bị 409 ở lần finalize thứ hai
     const signals = signalsRef.current;
     const run = signals
       ? uploadAndFinalize(deps, state.session, { image: PLACEHOLDER_IMAGE, signals })
       : Promise.resolve({ type: "FAILED", kind: "unexpected" } as const);
     void run.then((event) => {
-      if (!cancelled && aliveRef.current) dispatch(event);
+      if (aliveRef.current) dispatch(event);
     });
-    return () => {
-      cancelled = true;
-    };
-  }, [state, deps]);
+  }, [state, deps, startOnce]);
 
   useEffect(() => {
     if (state.step === "result" || state.step === "error") stopStream();
@@ -170,19 +179,32 @@ export function VerifyFlow() {
       dispatch({ type: "FAILED", kind: "unexpected" });
       return;
     }
+    if (flashStartedRef.current) return; // bấm Bắt đầu hai lần: chỉ chạy một lần
+    flashStartedRef.current = true;
     abortRef.current = new AbortController();
     setFlashing(true);
-    const trial = await runTrial({
-      video,
-      sampler: NO_SAMPLER,
-      steps,
-      config: configForChallenge(session.challenge),
-      signal: abortRef.current.signal,
-      onColor: (rgb) => {
-        if (colorLayerRef.current)
-          colorLayerRef.current.style.backgroundColor = `rgb(${rgb.join(",")})`;
-      },
-    });
+    let trial: Awaited<ReturnType<typeof runTrial>>;
+    try {
+      trial = await runTrial({
+        video,
+        sampler: NO_SAMPLER,
+        steps,
+        config: configForChallenge(session.challenge),
+        signal: abortRef.current.signal,
+        onColor: (rgb) => {
+          if (colorLayerRef.current)
+            colorLayerRef.current.style.backgroundColor = `rgb(${rgb.join(",")})`;
+        },
+      });
+    } catch {
+      flashStartedRef.current = false;
+      if (aliveRef.current) {
+        setFlashing(false); // không để màn hình nháy kẹt
+        dispatch({ type: "FAILED", kind: "unexpected" });
+      }
+      return;
+    }
+    flashStartedRef.current = false;
     if (!aliveRef.current) return;
     setFlashing(false);
     if (trial.aborted) {
@@ -326,7 +348,11 @@ export function VerifyFlow() {
       {state.step === "uploading" && <p role="status">{t.uploading}</p>}
 
       {state.step === "retry" && (
-        <section className="flex flex-col gap-3 rounded border p-4">
+        <section
+          className="flex flex-col gap-3 rounded border p-4"
+          role="status"
+          aria-live="polite"
+        >
           <h2 className="text-lg font-semibold">{t.result.retryTitle}</h2>
           <p>{retryMessage(state.hint)}</p>
           {state.attemptsLeft !== null && (
@@ -345,7 +371,11 @@ export function VerifyFlow() {
       )}
 
       {state.step === "voice_challenge" && (
-        <section className="flex flex-col gap-3 rounded border p-4">
+        <section
+          className="flex flex-col gap-3 rounded border p-4"
+          role="status"
+          aria-live="polite"
+        >
           <h2 className="text-lg font-semibold">{t.voice.title}</h2>
           <p className="text-sm opacity-70">{t.voice.promptLabel}</p>
           <p className="text-xl font-medium">{state.prompt}</p>

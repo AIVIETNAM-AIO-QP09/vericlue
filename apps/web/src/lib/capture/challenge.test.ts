@@ -59,6 +59,17 @@ describe("flashProblems: web không nháy nếu thử thách vi phạm giới h�
     expect(flashProblems(fast).join(" ")).toContain("quá nhanh");
   });
 
+  it.each([
+    ["hold_ms âm", { holdMs: -1000, transitionMs: 300 }],
+    ["hold_ms bằng 0", { holdMs: 0, transitionMs: 150 }],
+    ["hold_ms dưới khoảng cho phép", { holdMs: 399, transitionMs: 150 }],
+    ["hold_ms trên khoảng cho phép", { holdMs: 651, transitionMs: 150 }],
+    ["transition_ms khác cấu hình", { holdMs: 500, transitionMs: 100 }],
+  ])("%s bị chặn (kể cả khi tốc độ tính ra có vẻ chậm)", (_name, patchStep) => {
+    const bad = steps().map((s, i) => (i === 2 ? { ...s, ...patchStep } : s));
+    expect(flashProblems(bad).length).toBeGreaterThan(0);
+  });
+
   it("sai số bước bị chặn", () => {
     expect(flashProblems(steps().slice(0, 7)).join(" ")).toContain("Cần 8 bước");
   });

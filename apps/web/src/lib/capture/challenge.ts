@@ -36,6 +36,12 @@ export function flashProblems(
 ): string[] {
   const problems: string[] = [];
   if (steps.length !== cfg.steps) problems.push(`Cần ${cfg.steps} bước, nhận ${steps.length}`);
+  if (steps.some((s) => s.holdMs < cfg.holdMinMs || s.holdMs > cfg.holdMaxMs)) {
+    problems.push(`Thời gian giữ màu ngoài khoảng ${cfg.holdMinMs}–${cfg.holdMaxMs} ms`);
+  }
+  if (steps.some((s) => s.transitionMs !== cfg.transitionMs)) {
+    problems.push(`Thời gian chuyển màu khác ${cfg.transitionMs} ms`);
+  }
   if (steps.length > 0 && maxChangesPerSecond(steps) > cfg.maxChangesPerSecond) {
     problems.push(`Đổi màu quá nhanh (hơn ${cfg.maxChangesPerSecond} lần mỗi giây)`);
   }

@@ -368,11 +368,15 @@ describe("an toàn: chỉ đúng {status:'pass'} mới ra pass", () => {
 describe("FAILED, RESTART và trạng thái cuối", () => {
   it.each(
     ALL_STATES.map((s) => [s.step + (s.step === "result" ? `:${s.outcome}` : ""), s] as const),
-  )("FAILED từ %s ra error đúng kind, không bao giờ result", (_name, state) => {
+  )("FAILED từ %s: ra error đúng kind (trừ kết quả cuối, giữ nguyên)", (_name, state) => {
     for (const kind of ALL_KINDS) {
       const s = reduce(state, { type: "FAILED", kind });
-      expect(s).toEqual({ step: "error", kind });
-      expect(s.step).not.toBe("result");
+      if (state.step === "result") {
+        expect(s).toBe(state); // result là trạng thái cuối: lỗi đến muộn không đổi được
+      } else {
+        expect(s).toEqual({ step: "error", kind });
+        expect(s.step).not.toBe("result");
+      }
     }
   });
 

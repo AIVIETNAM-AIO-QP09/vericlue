@@ -159,9 +159,10 @@ export function normalizeHint(value: unknown): RetryHint | null {
 const error = (kind: ErrorKind): FlowState => ({ step: "error", kind });
 
 export function reduce(state: FlowState, event: FlowEvent): FlowState {
-  // Lỗi và bắt đầu lại hợp lệ ở mọi bước.
-  if (event.type === "FAILED") return error(event.kind);
+  // Bắt đầu lại hợp lệ ở mọi bước. Lỗi hợp lệ ở mọi bước TRỪ kết quả cuối: một lỗi đến muộn (ví dụ từ
+  // một lời gọi bất đồng bộ cũ) không được biến kết quả đã có thành lỗi, và ngược lại.
   if (event.type === "RESTART") return { step: "framing" };
+  if (event.type === "FAILED") return state.step === "result" ? state : error(event.kind);
 
   switch (state.step) {
     case "consent":
