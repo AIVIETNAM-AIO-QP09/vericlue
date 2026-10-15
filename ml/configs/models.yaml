@@ -7,6 +7,13 @@ modules:
   chromapulse: mock       # PRES-02
   camprobe: mock          # PRES-03
   voice_spoof: mock       # VOICE-01 → antideepfake-mms300m
-  voice_challenge: mock   # VOICE-04 → phowhisper + ctc-aligner
+  voice_challenge: phowhisper # VOICE-04; CTC alignment belongs to VOICE-05
   lipsync: mock           # VOICE-05 → syncnet
   provenance: mock        # FOR-03 → audioseal-detector, perth
+
+# VOICE-04: VAD has no checkpoint; matching constants live in voice/challenge.py.
+voice:
+  model_subdir: phowhisper
+  revision: a86b604c346caf7148c37512eafe783a16420adb
+  vad_mode: 1
+  cpu_threads: 4

@@ -15,7 +15,14 @@ dependencies = [
 # Thư viện nặng chỉ cài khi làm task mô hình thật (FACE-*, VOICE-*, PRES-*).
 # Thêm phiên bản cụ thể ở các task đó.
 face = []
-voice = []
+voice = [
+  "torch>=2.6,<3",
+  "transformers>=4.57.1,<5",
+  "soundfile>=0.13,<1",
+  "webrtcvad-wheels>=2.0.14,<3",
+  "jiwer>=4,<5",
+  "rapidfuzz>=3,<4",
+]
 eval = ["matplotlib>=3.9,<4"]
 
 [build-system]
