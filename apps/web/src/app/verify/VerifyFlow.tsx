@@ -59,7 +59,7 @@ function stopTracks(stream: MediaStream | null) {
 }
 
 export function VerifyFlow() {
-  const [state, dispatch] = useReducer(reduce, initialState);
+  const [state, rawDispatch] = useReducer(reduce, initialState);
   const client = useMemo(() => createApiClient(), []);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -67,7 +67,8 @@ export function VerifyFlow() {
   const colorLayerRef = useRef<HTMLDivElement>(null);
   const stopButtonRef = useRef<HTMLButtonElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const stateRef = useRef<FlowState>(state);
+  // Luôn đúng ngay lập tức: mọi sự kiện đi qua send() (xem bên dưới), không chờ render hay effect.
+  const stateRef = useRef<FlowState>(initialState);
   const lifeAbortRef = useRef<AbortController | null>(null); // hủy mọi lời gọi API khi rời trang
   const flashAbortRef = useRef<AbortController | null>(null); // nút Dừng lúc nháy màu
   const signalsRef = useRef<Signals | null>(null);
@@ -93,15 +94,12 @@ export function VerifyFlow() {
     streamRef.current = null;
   }, []);
 
-  useEffect(() => {
-    stateRef.current = state;
-  }, [state]);
-
-  // Gửi sự kiện và cập nhật stateRef NGAY (reducer thuần nên kết quả giống hệt): hai lần đo liên tiếp
-  // không bị đọc trạng thái cũ khi quyết định có cấp mã lần chạy mới hay không.
+  // Gửi MỌI sự kiện qua đây: cập nhật stateRef ngay bằng chính reducer thuần (kết quả giống hệt) rồi mới giao
+  // cho React. Nhờ vậy hai lần đo liên tiếp, hay một callback đến muộn, không bao giờ đọc trạng thái cũ
+  // (ví dụ khi quyết định có cấp mã lần chạy mới hay không).
   const send = useCallback((event: FlowEvent) => {
     stateRef.current = reduce(stateRef.current, event);
-    dispatch(event);
+    rawDispatch(event);
   }, []);
 
   useEffect(() => {
@@ -164,12 +162,12 @@ export function VerifyFlow() {
       // Còn hiệu lực = trang còn sống và luồng vẫn đang ở đúng bước xin quyền này.
       const stillHere = aliveRef.current && stateRef.current === started;
       if (result.ok) {
-        if (adoptStream(result.stream, stillHere)) dispatch({ type: "CAMERA_GRANTED" });
+        if (adoptStream(result.stream, stillHere)) send({ type: "CAMERA_GRANTED" });
       } else if (stillHere) {
-        dispatch({ type: "CAMERA_FAILED", problem: result.problem });
+        send({ type: "CAMERA_FAILED", problem: result.problem });
       }
     });
-  }, [state, openCamera, adoptStream, startOnce]);
+  }, [state, openCamera, adoptStream, startOnce, send]);
 
   // Gắn luồng camera vào video mỗi khi bước cần xem (khung hình, nháy màu).
   useEffect(() => {
@@ -186,7 +184,7 @@ export function VerifyFlow() {
         const result = await openCamera(); // bắt đầu lại sau khi camera đã tắt
         const valid = !cancelled && stateRef.current.step === stepAtStart;
         if (!result.ok) {
-          if (valid) dispatch({ type: "FAILED", kind: "unexpected" });
+          if (valid) send({ type: "FAILED", kind: "unexpected" });
           return;
         }
         if (!adoptStream(result.stream, valid)) return;
@@ -199,7 +197,7 @@ export function VerifyFlow() {
     return () => {
       cancelled = true;
     };
-  }, [state.step, openCamera, adoptStream]);
+  }, [state.step, openCamera, adoptStream, send]);
 
   // Cổng chất lượng (CAP-02): đo từng khung khi xem trước. Chỉ đủ N khung đạt LIÊN TIẾP mới đi tiếp, và
   // mã lần chạy mới chỉ được cấp đúng khung cuối cùng làm đủ N (qualityWouldPass).
@@ -231,10 +229,10 @@ export function VerifyFlow() {
     if (!startOnce(state)) return; // chỉ tạo MỘT phiên cho mỗi lần vào bước này
     void startSession(deps, { run: state.run, signal: apiSignal() }, scenarioRef.current).then(
       (event) => {
-        if (aliveRef.current) dispatch(event);
+        if (aliveRef.current) send(event);
       },
     );
-  }, [state, deps, startOnce, apiSignal]);
+  }, [state, deps, startOnce, apiSignal, send]);
 
   useEffect(() => {
     if (state.step !== "uploading") return;
@@ -244,9 +242,9 @@ export function VerifyFlow() {
       ? uploadAndFinalize(deps, state.session, { image: PLACEHOLDER_IMAGE, signals }, apiSignal())
       : Promise.resolve({ type: "FAILED", kind: "unexpected", run: state.session.run } as const);
     void run.then((event) => {
-      if (aliveRef.current) dispatch(event);
+      if (aliveRef.current) send(event);
     });
-  }, [state, deps, startOnce, apiSignal]);
+  }, [state, deps, startOnce, apiSignal, send]);
 
   useEffect(() => {
     if (state.step === "result" || state.step === "error" || state.step === "device_unsupported") {
@@ -271,9 +269,9 @@ export function VerifyFlow() {
 
   const expire = useCallback(
     (run: number) => {
-      dispatch({ type: "EXPIRED", run, nextRun: nextRun() });
+      send({ type: "EXPIRED", run, nextRun: nextRun() });
     },
-    [nextRun],
+    [nextRun, send],
   );
 
   const startFlash = useCallback(async () => {
@@ -288,7 +286,7 @@ export function VerifyFlow() {
     const steps = challengeToSteps(session.challenge);
     // Không nháy nếu thử thách vi phạm giới hạn an toàn hoặc trình duyệt không hỗ trợ.
     if (!video || !steps || flashProblems(steps).length > 0 || !supportsFrameCallback(video)) {
-      dispatch({ type: "FAILED", kind: "unexpected", run: session.run });
+      send({ type: "FAILED", kind: "unexpected", run: session.run });
       return;
     }
     const config = configForChallenge(session.challenge);
@@ -318,7 +316,7 @@ export function VerifyFlow() {
       flashStartedRef.current = false;
       if (aliveRef.current) {
         setFlashing(false); // không để màn hình nháy kẹt
-        dispatch({ type: "FAILED", kind: "unexpected", run: session.run });
+        send({ type: "FAILED", kind: "unexpected", run: session.run });
       }
       return;
     }
@@ -326,23 +324,23 @@ export function VerifyFlow() {
     if (!aliveRef.current) return;
     setFlashing(false);
     if (trial.aborted) {
-      dispatch({ type: trial.hiddenDuringTrial ? "FLASH_INTERRUPTED" : "FLASH_STOPPED" });
+      send({ type: trial.hiddenDuringTrial ? "FLASH_INTERRUPTED" : "FLASH_STOPPED" });
       return;
     }
     // TẠM — CAP-04 thay bằng tín hiệu đầy đủ (frame_times, region_means).
     signalsRef.current = { color_events: trial.colorEvents, frame_times: [] };
-    dispatch({ type: "FLASH_DONE" });
-  }, [state, deps, expire]);
+    send({ type: "FLASH_DONE" });
+  }, [state, deps, expire, send]);
 
   const continueRetry = useCallback(() => {
     if (state.step !== "retry") return;
     if (sessionExpired(state.session, deps.monoMs())) expire(state.session.run);
-    else dispatch({ type: "RETRY_CONTINUE" });
-  }, [state, deps, expire]);
+    else send({ type: "RETRY_CONTINUE" });
+  }, [state, deps, expire, send]);
 
   const sendDevVoice = useCallback(async () => {
     if (state.step !== "voice_challenge") return;
-    dispatch({ type: "VOICE_SENDING" });
+    send({ type: "VOICE_SENDING" });
     const event = await sendVoiceAnswer(
       deps,
       state.session,
@@ -350,8 +348,8 @@ export function VerifyFlow() {
       undefined,
       apiSignal(),
     );
-    if (aliveRef.current) dispatch(event);
-  }, [state, deps, apiSignal]);
+    if (aliveRef.current) send(event);
+  }, [state, deps, apiSignal, send]);
 
   // --- Giao diện -------------------------------------------------------------------------------
 
@@ -383,7 +381,7 @@ export function VerifyFlow() {
             <input
               type="checkbox"
               checked={state.accepted}
-              onChange={(e) => dispatch({ type: "TOGGLE_CONSENT", accepted: e.target.checked })}
+              onChange={(e) => send({ type: "TOGGLE_CONSENT", accepted: e.target.checked })}
               className="mt-1"
             />
             <span>{t.consent.checkbox}</span>
@@ -391,7 +389,7 @@ export function VerifyFlow() {
           <button
             type="button"
             disabled={!state.accepted}
-            onClick={() => dispatch({ type: "CONTINUE" })}
+            onClick={() => send({ type: "CONTINUE" })}
             className="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-40"
           >
             {t.consent.continue}
@@ -409,7 +407,7 @@ export function VerifyFlow() {
           {state.problem !== null && (
             <button
               type="button"
-              onClick={() => dispatch({ type: "CONTINUE" })}
+              onClick={() => send({ type: "CONTINUE" })}
               className="rounded bg-blue-600 px-4 py-2 text-white"
             >
               {t.camera.retry}
@@ -430,7 +428,7 @@ export function VerifyFlow() {
               ? qualityMessage(state.guidance)
               : state.streak > 0
                 ? qualityMessage(null)
-                : t.framing.checkingNow}
+                : t.framing.loading}
           </p>
         </section>
       )}
@@ -444,7 +442,7 @@ export function VerifyFlow() {
           <p>{t.deviceUnsupported.body}</p>
           <button
             type="button"
-            onClick={() => dispatch({ type: "RESTART" })}
+            onClick={() => send({ type: "RESTART" })}
             className="rounded bg-blue-600 px-4 py-2 text-white"
           >
             {t.deviceUnsupported.restart}
@@ -547,7 +545,7 @@ export function VerifyFlow() {
           )}
           <button
             type="button"
-            onClick={() => dispatch({ type: "RESTART" })}
+            onClick={() => send({ type: "RESTART" })}
             className="rounded border px-4 py-2"
           >
             {t.errors.restart}
@@ -581,7 +579,7 @@ export function VerifyFlow() {
           <p>{errorMessage(state.kind)}</p>
           <button
             type="button"
-            onClick={() => dispatch({ type: "RESTART" })}
+            onClick={() => send({ type: "RESTART" })}
             className="rounded bg-blue-600 px-4 py-2 text-white"
           >
             {t.errors.restart}

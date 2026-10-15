@@ -38,7 +38,6 @@ export const vi = {
       title: "Đưa khuôn mặt vào giữa khung hình",
       description: "Giữ điện thoại cách mặt khoảng 25 đến 40 cm, ở nơi đủ sáng.",
       loading: "Đang chuẩn bị camera...",
-      checkingNow: "Đang kiểm tra...",
       allGood: "Tốt, giữ nguyên tư thế",
       ovalLabel: "Khung đặt khuôn mặt",
     },

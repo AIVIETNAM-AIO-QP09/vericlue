@@ -57,6 +57,10 @@ export const SHARPNESS_MIN = 50;
 export const MOVEMENT_MAX_FRACTION = 0.08;
 /** TẠM — chỉnh khi thử máy thật. Số lần gọi khung hình dùng để ước lượng FPS. */
 export const FPS_WINDOW = 30;
+/** TẠM — chỉnh khi thử máy thật. Bỏ qua chừng này lần gọi khung hình đầu (camera đang chỉnh phơi sáng, khởi động). */
+export const FPS_WARMUP_CALLBACKS = 15;
+/** TẠM — chỉnh khi thử máy thật. Cần chừng này cửa sổ FPS thấp LIÊN TIẾP mới báo "thiết bị chưa đáp ứng". */
+export const FPS_LOW_WINDOWS_REQUIRED = 2;
 
 // --- Kiểu dữ liệu ----------------------------------------------------------------------------------
 
@@ -248,6 +252,26 @@ export function estimateFps(timesMs: readonly number[]): number | null {
   const mid = gaps.length >> 1;
   const median = gaps.length % 2 ? gaps[mid] : (gaps[mid - 1] + gaps[mid]) / 2;
   return 1000 / median;
+}
+
+export type FpsVerdict = "ok" | "low" | "need_more";
+
+/**
+ * Kết luận về FPS từ các cửa sổ đo lần lượt (mỗi phần tử là FPS của một cửa sổ; null = chưa ước lượng được).
+ * Chống báo oan: một cửa sổ thấp chưa đủ, phải thấp LIÊN TIẾP `FPS_LOW_WINDOWS_REQUIRED` cửa sổ; một cửa sổ
+ * đạt (>= 15) là đủ để coi là ổn. Chưa đủ thông tin thì "need_more" (tiếp tục đo, không kết luận).
+ */
+export function evaluateFpsWindows(windows: readonly (number | null)[]): FpsVerdict {
+  const last = windows[windows.length - 1];
+  if (last === undefined || last === null) return "need_more";
+  if (!isFpsTooLow(last)) return "ok";
+  let lowRun = 0;
+  for (let i = windows.length - 1; i >= 0; i -= 1) {
+    const w = windows[i];
+    if (w !== null && isFpsTooLow(w)) lowRun += 1;
+    else break;
+  }
+  return lowRun >= FPS_LOW_WINDOWS_REQUIRED ? "low" : "need_more";
 }
 
 /** Camera dưới 15 khung/giây (chưa biết FPS thì không kết luận là chậm). */

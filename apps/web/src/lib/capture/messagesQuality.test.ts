@@ -40,7 +40,6 @@ describe("chỉ dẫn của cổng chất lượng", () => {
     const texts = [
       ...GUIDANCE_PRIORITY.map((g) => qualityMessage(g)),
       qualityMessage(null),
-      vi.verify.framing.checkingNow,
       vi.verify.framing.loading,
     ];
     for (const text of texts) {
