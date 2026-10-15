@@ -30,6 +30,8 @@ export type ApiClientOptions = {
 };
 
 type RequestOptions = {
+  /** Hủy lời gọi (ví dụ khi người dùng rời trang). */
+  signal?: AbortSignal;
   token?: string;
   json?: unknown;
   form?: FormData;
@@ -53,7 +55,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
       body = opts.form; // trình duyệt tự đặt boundary
     }
 
-    const res = await doFetch(`${baseUrl}${path}`, { method, headers, body });
+    const res = await doFetch(`${baseUrl}${path}`, { method, headers, body, signal: opts.signal });
     if (!res.ok) {
       const err = (await res.json().catch(() => null)) as Partial<ErrorResponse> | null;
       throw new ApiError(
@@ -62,45 +64,54 @@ export function createApiClient(options: ApiClientOptions = {}) {
         err?.message ?? res.statusText,
       );
     }
-    return (await res.json()) as T;
+    try {
+      return (await res.json()) as T;
+    } catch {
+      // 2xx nhưng thân không phải JSON hợp lệ: lỗi phía máy chủ, không phải lỗi mạng.
+      throw new ApiError(res.status, "invalid_response", "Phản hồi của máy chủ không hợp lệ");
+    }
   }
 
   return {
     /** Tạo phiên. `scenario` chỉ có tác dụng khi API chạy mock (header X-Mock-Scenario). */
-    createSession(scenario?: string) {
+    createSession(scenario?: string, signal?: AbortSignal) {
       return request<CreateSessionResponse>("POST", "/v1/sessions", {
         headers: scenario ? { "X-Mock-Scenario": scenario } : undefined,
+        signal,
       });
     },
-    uploadMedia(sessionId: string, token: string, image: Blob, video?: Blob) {
+    uploadMedia(sessionId: string, token: string, image: Blob, video?: Blob, signal?: AbortSignal) {
       const form = new FormData();
       form.append("image", image, "face.jpg");
       if (video) form.append("video", video, "face.webm");
       return request<StepAck>("POST", `/v1/sessions/${encodeURIComponent(sessionId)}/media`, {
         token,
         form,
+        signal,
       });
     },
-    sendSignals(sessionId: string, token: string, signals: Signals) {
+    sendSignals(sessionId: string, token: string, signals: Signals, signal?: AbortSignal) {
       return request<StepAck>("POST", `/v1/sessions/${encodeURIComponent(sessionId)}/signals`, {
         token,
         json: signals,
+        signal,
       });
     },
-    finalize(sessionId: string, token: string) {
+    finalize(sessionId: string, token: string, signal?: AbortSignal) {
       return request<FinalizeResponse>(
         "POST",
         `/v1/sessions/${encodeURIComponent(sessionId)}/finalize`,
-        { token },
+        { token, signal },
       );
     },
-    sendVoice(sessionId: string, token: string, audio: Blob, video?: Blob) {
+    sendVoice(sessionId: string, token: string, audio: Blob, video?: Blob, signal?: AbortSignal) {
       const form = new FormData();
       form.append("audio", audio, "voice.wav");
       if (video) form.append("video", video, "voice.webm");
       return request<VoiceResponse>("POST", `/v1/sessions/${encodeURIComponent(sessionId)}/voice`, {
         token,
         form,
+        signal,
       });
     },
   };
