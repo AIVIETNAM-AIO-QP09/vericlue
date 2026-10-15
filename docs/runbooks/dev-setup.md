@@ -1,6 +1,6 @@
 # Cài đặt môi trường phát triển
 
-> Phần công cụ (PLAT-01) **đã chạy được**. Phần chạy web, API, cơ sở dữ liệu sẽ có sau PLAT-02…05.
+> PLAT-05: chạy web/API/PostgreSQL bằng Docker Compose; mặc định dùng mock, không cần GPU/trọng số.
 
 ## 1. Cài một lần trên máy
 
@@ -32,10 +32,11 @@ uv run python scripts/plan_check.py       # in bảng trạng thái, "0 lỗi"
 
 Nếu PowerShell chặn chạy script: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`, rồi chạy lại.
 
-## 3. Chạy hằng ngày (sau PLAT-03…05)
+## 3. Chạy hằng ngày (native API/web)
 
 ```powershell
 docker compose up -d db                                                        # PostgreSQL
+uv run alembic -c services/api/alembic.ini upgrade head                       # DB trống cần migration
 uv run uvicorn vericlue_api.main:app --reload --app-dir services/api/src       # API :8000
 cd apps/web; npm run dev                                                       # Web :3000
 ```
@@ -56,3 +57,58 @@ Camera trên trình duyệt điện thoại **bắt buộc HTTPS**. Chọn một
 | `make` không có | Repo không dùng `make`; dùng script trong `scripts/` |
 | Camera không mở trên điện thoại | Kiểm tra đang dùng HTTPS |
 | Xuống dòng CRLF làm lệch diff | Repo đã có `.gitattributes`; chạy `git add --renormalize .` một lần |
+
+
+## 6. Docker Compose (PLAT-05, Windows + Docker Desktop)
+
+Mở PowerShell **tại worktree của mình**, ví dụ `D:\Projects\vericlue-codex`.
+Docker Desktop phải đang chạy Linux containers; kiểm `docker info` trước.
+
+1. Tạo `.env` từ `.env.example` nếu chưa có. Điền mật khẩu DB riêng trong `.env`,
+   không commit hoặc đưa file này vào build. `DATABASE_URL` cho lệnh native dùng
+   `127.0.0.1:5432` (khớp binding IPv4); Compose truyền các trường DB riêng, API dùng SQLAlchemy URL.create để encode mật khẩu đúng và dùng hostname `db`.
+   Nếu mật khẩu có ký tự đặc biệt của URL, percent-encode khi điền `DATABASE_URL`;
+   Compose tự encode các ký tự đặc biệt từ POSTGRES_PASSWORD; ví dụ demo vẫn nên dùng chuỗi ngẫu nhiên URL-safe. Đổi mật khẩu env không tự đổi
+   mật khẩu trong volume PostgreSQL đã khởi tạo.
+2. Đặt `MODELS_DIR`, `DATA_DIR`, `MEDIA_DIR` là đường dẫn host. Windows nên dùng
+   dạng `D:/Projects/vericlue-store/models`, `.../data`, `.../media`. Model/data
+   chỉ đọc; media ghi được. Linux cần cấp quyền ghi thư mục media cho UID10001
+   của API (UID/GID 10001:10001). Tạo thư mục riêng dành cho media rồi dùng
+   `sudo chown 10001:10001 /duong/dan/media` và `sudo chmod 750 /duong/dan/media`
+   trên đúng thư mục bind-mount; không đổi quyền models/data và không chmod 777.
+   Docker Desktop quản lý chia sẻ đường dẫn Windows.
+3. Chạy các lệnh từ gốc worktree:
+
+```powershell
+docker compose config --quiet
+docker compose up -d --build --wait
+docker compose ps
+uv run python scripts/smoke_compose.py --restart-api
+```
+
+Kết quả mong đợi: db/api/web healthy; web `http://localhost:3000`, API
+`http://localhost:8000/docs`. Migration chạy trước Uvicorn. Smoke tạo phiên genuine,
+upload bytes giả, gửi signals, finalize pass, kiểm sessions/module_results/decisions
+trong PostgreSQL, restart API rồi xác minh token/trạng thái còn; báo cáo tại
+`tmp/plat-05-smoke.json`, không chứa token/mật khẩu. Script yêu cầu mock bật và
+`DATABASE_URL` trong `.env` truy cập được từ host.
+
+Dừng bằng `docker compose down` (giữ volume DB); không xóa volume DB khi cần giữ
+phiên/kết quả. `docker compose logs api` có log startup và audit dọn file.
+Giám định mặc định **không tự xóa** (`FORENSIC_TTL_DAYS=`); xem chính sách trong README API.
+
+### MediaPipe và nội dung image
+
+Không model/dataset/media/.env nào được đưa vào build context/image. Dockerfile
+web chỉ chứa standalone app; `public/mediapipe` được mount read-only từ
+`WEB_ASSETS_DIR` trên host. Chuẩn bị assets theo CAP-03 trước khi dùng camera lab:
+`npm.cmd --prefix apps/web ci`, `uv run python scripts/fetch_web_assets.py`, rồi
+`uv run python scripts/fetch_web_assets.py --check`. Trên Linux dùng `npm`.
+Mặc định assets ở `apps/web/public/mediapipe` (ignored); không tải model trong Docker build.
+Chưa chuẩn bị assets thì web/mock API vẫn khởi động, nhưng không thể chạy MediaPipe lab.
+Bản smoke HTTP không chứng minh camera trên điện thoại đã hoạt động; điện thoại cần HTTPS.
+
+`NEXT_PUBLIC_API_URL` được chốt lúc build web. Dùng URL trình duyệt truy cập được
+(localhost trên cùng máy hoặc địa chỉ LAN/HTTPS), không dùng hostname nội bộ `api`.
+Nếu đổi URL, rebuild web. API image copy `chromapulse.json` và đặt đường dẫn tuyệt đối;
+kiểm container khởi động là một phần nghiệm thu, không chỉ build thành công.

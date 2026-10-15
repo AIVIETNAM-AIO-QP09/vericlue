@@ -34,7 +34,7 @@ SESSION_ERRORS: dict[int | str, dict] = {
 }
 
 SessionDep = Annotated[Session, Depends(require_session)]
-StateDep = Annotated[AppState, Depends(get_state)]
+StateDep = Annotated[AppState, Depends(get_state, scope="function")]
 
 
 def resolve_scenario(header: str | None, state: AppState) -> str:

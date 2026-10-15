@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 
@@ -23,6 +24,13 @@ def _json(status_code: int, error_code: str, message: str) -> JSONResponse:
 
 
 def install_error_handlers(app: FastAPI) -> None:
+    @app.exception_handler(SQLAlchemyError)
+    async def _storage_error(_: Request, exc: SQLAlchemyError) -> JSONResponse:
+        # Never return SQL, connection URLs, tokens or driver parameters to callers.
+        return _json(
+            503, "storage_unavailable", "Không thể truy cập kho dữ liệu. Vui lòng thử lại."
+        )
+
     @app.exception_handler(ApiError)
     async def _api_error(_: Request, exc: ApiError) -> JSONResponse:
         return _json(exc.status_code, exc.error_code, exc.message)

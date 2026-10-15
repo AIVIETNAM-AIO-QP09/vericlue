@@ -29,7 +29,7 @@ def _unauthorized() -> ApiError:
 def require_session(
     session_id: str,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-    state: AppState = Depends(get_state),
+    state: AppState = Depends(get_state, scope="function"),
 ) -> Session:
     if credentials is None or credentials.scheme.lower() != "bearer":
         raise _unauthorized()

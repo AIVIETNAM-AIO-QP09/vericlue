@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import hashlib
 import secrets
-from dataclasses import dataclass
 from html import escape
 
+from sqlalchemy import select
+from sqlalchemy.orm import Session as DBSession
+
+from vericlue_api.db.models import ForensicJobRow, ForensicSegmentRow
 from vericlue_api.schemas.forensic import ForensicJob, ForensicSegment, SegmentSignal, Verdict
 from vericlue_api.services.detection import run_detectors
+from vericlue_api.services.storage import save_generated, save_upload
 from vericlue_ml.common.result import Module, ModuleResult, Status
 
 FORENSIC_MODULES = (Module.FACE_DEEPFAKE, Module.VOICE_SPOOF, Module.LIPSYNC, Module.PROVENANCE)
@@ -23,16 +27,10 @@ def _signal(r: ModuleResult) -> SegmentSignal:
     )
 
 
-@dataclass
-class JobRecord:
-    job: ForensicJob
-    filename: str
-
-
 class ForensicStore:
-    def __init__(self, b: float, a: float) -> None:
+    def __init__(self, b: float, a: float, db: DBSession, media_dir: str) -> None:
         self._b, self._a = b, a
-        self._jobs: dict[str, JobRecord] = {}
+        self.db, self.media_dir = db, media_dir
 
     def create(self, data: bytes, filename: str | None, scenario: str) -> ForensicJob:
         results = run_detectors(FORENSIC_MODULES, session_id=None, scenario=scenario)
@@ -66,12 +64,34 @@ class ForensicStore:
             verdict=verdict,
             segments=segments,
         )
-        self._jobs[job.job_id] = JobRecord(job=job, filename=filename or "")
+        path = save_upload(self.media_dir, "forensic/" + job.job_id, "source", filename, data)
+        self.db.add(
+            ForensicJobRow(
+                job_id=job.job_id,
+                file_sha256=job.file_sha256,
+                status=job.status,
+                verdict=job.verdict,
+                source_path=str(path),
+                payload={"job": job.model_dump(mode="json"), "filename": filename or ""},
+            )
+        )
+        self.db.flush()
+        for segment in job.segments:
+            self.db.add(
+                ForensicSegmentRow(
+                    job_id=job.job_id,
+                    t_start=segment.t_start,
+                    t_end=segment.t_end,
+                    signals=[s.model_dump(mode="json") for s in segment.signals],
+                )
+            )
         return job
 
     def get(self, job_id: str) -> ForensicJob | None:
-        record = self._jobs.get(job_id)
-        return record.job if record else None
+        record = self.db.scalar(
+            select(ForensicJobRow).where(ForensicJobRow.job_id == job_id).with_for_update()
+        )
+        return ForensicJob.model_validate(record.payload["job"]) if record else None
 
     def report(self, job_id: str) -> tuple[str, str, str] | None:
         """(html, sha256 của html, chữ ký mock)."""
@@ -100,7 +120,15 @@ class ForensicStore:
             f"<table>{rows}</table></html>"
         )
         digest = hashlib.sha256(html.encode("utf-8")).hexdigest()
-        return html, digest, f"{MOCK_SIGNATURE_PREFIX}{digest}"
+        row = self.db.get(ForensicJobRow, job_id)
+        row.signature = f"{MOCK_SIGNATURE_PREFIX}{digest}"
+        row.media_deleted_at = None
+        row.report_path = str(
+            save_generated(
+                self.media_dir, "forensic/" + job_id, "report.html", html.encode("utf-8")
+            )
+        )
+        return html, digest, row.signature
 
     @staticmethod
     def verify(report_sha256: str, signature: str) -> bool:

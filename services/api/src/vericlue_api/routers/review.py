@@ -27,7 +27,7 @@ from vericlue_api.services.review_store import CaseRecord
 
 router = APIRouter(prefix="/v1/review", tags=["review"])
 
-StateDep = Annotated[AppState, Depends(get_state)]
+StateDep = Annotated[AppState, Depends(get_state, scope="function")]
 NOT_FOUND = {404: {"model": ErrorResponse, "description": "Không có ca này"}}
 
 
@@ -64,6 +64,7 @@ def post_initial(case_id: str, body: InitialDecisionRequest, state: StateDep) ->
         raise ApiError(409, "initial_already_recorded", "Ca này đã có quyết định ban đầu.")
     record.initial_decision = body.decision
     record.status = "initial_decided"
+    state.reviews.record_event(record, "initial", body.decision, note=body.note)
     return DecisionResponse(case_id=record.case_id, status=record.status)
 
 
@@ -102,4 +103,7 @@ def post_decision(case_id: str, body: FinalDecisionRequest, state: StateDep) -> 
         raise ApiError(409, "decision_already_recorded", "Ca này đã có quyết định cuối.")
     record.final_decision = body.decision
     record.status = "closed"
+    state.reviews.record_event(
+        record, "final", body.decision, reason_code=body.reason_code, note=body.note
+    )
     return DecisionResponse(case_id=record.case_id, status=record.status)
