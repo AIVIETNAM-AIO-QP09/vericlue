@@ -1,64 +1,331 @@
-# Danh sách mô hình dùng cho VeriClue. Script tải: scripts/download_models.py (task DATA-02)
-# license: ghi đúng giấy phép; nc = chỉ dùng phi thương mại.
-# sha256: điền sau lần tải đầu tiên để kiểm tra toàn vẹn.
-
+# DATA-02: pin nguồn; sha256 ghi sau tải/kiểm byte thực. Không commit weights.
+schema_version: 1
 models:
-  - id: minifasnet
-    purpose: PAD (ảnh in, màn hình) — chạy nhanh
-    source: pip:uniface  # uniface tự tải MiniFASNet ONNX
-    license: MIT / Apache-2.0
-    owner: M3
-
-  - id: gend-clip-l14
-    purpose: Deepfake khuôn mặt — mô hình chính
-    source: hf:yermandy/GenD_CLIP_L_14
-    license: MIT
-    owner: M3
-
-  - id: sbi-ffc23
-    purpose: Deepfake khuôn mặt — dự phòng, nguồn heatmap
-    source: gdrive (xem external/repos.yaml -> SelfBlendedImages README)
-    license: research-only (nc)
-    owner: M3
-
-  - id: scrfd-10g
-    purpose: Dò và căn chỉnh khuôn mặt cho GenD
-    source: hf/insightface buffalo_l det_10g.onnx
-    license: research-only (nc)
-    owner: M3
-
-  - id: antideepfake-mms300m
-    purpose: Giọng giả — mô hình nền
-    source: hf:nii-yamagishilab/mms-300m-anti-deepfake
-    license: CC BY-NC-SA 4.0 (nc)
-    owner: M4
-
-  - id: phowhisper
-    purpose: Nhận dạng câu đọc tiếng Việt
-    source: hf:vinai/PhoWhisper-small  # GPU: hf:kiendt/PhoWhisper-large-ct2
-    license: BSD-3-Clause
-    owner: M4
-
-  - id: ctc-aligner
-    purpose: Căn chỉnh câu đề bài theo thời gian
-    source: pip:ctc-forced-aligner (mms-300m-1130-forced-aligner)
-    license: BSD-2-Clause / CC BY-NC (mô hình MMS)
-    owner: M4
-
-  - id: syncnet
-    purpose: Khớp môi–âm
-    source: hf:ByteDance/LatentSync-1.6 (stable_syncnet.pt)
-    license: Apache-2.0
-    owner: M4
-
-  - id: audioseal-detector
-    purpose: Dò thủy vân AudioSeal
-    source: pip:audioseal
-    license: MIT
-    owner: M4
-
-  - id: perth
-    purpose: Dò thủy vân PerTh (Resemble / Chatterbox)
-    source: pip:resemble-perth
-    license: MIT
-    owner: M4
+- id: minifasnet
+  purpose: PAD (ảnh in, màn hình) — chạy nhanh
+  source:
+    type: hf
+    repo: yakhyo/uniface-weights
+    revision: bfcc7d48ea8412d55de406cecf96b65b3ca720b2
+  license: Apache-2.0
+  license_url: https://huggingface.co/yakhyo/uniface-weights/blob/bfcc7d48ea8412d55de406cecf96b65b3ca720b2/README.md
+  license_status: verified
+  owner: M3
+  status: ready
+  files:
+  - path: minifasnet_v2.onnx
+    url: https://huggingface.co/yakhyo/uniface-weights/resolve/bfcc7d48ea8412d55de406cecf96b65b3ca720b2/minifasnet_v2.onnx?download=true
+    size_bytes: 1743581
+    sha256: b32929adc2d9c34b9486f8c4c7bc97c1b69bc0ea9befefc380e4faae4e463907
+    upstream_sha256: b32929adc2d9c34b9486f8c4c7bc97c1b69bc0ea9befefc380e4faae4e463907
+- id: gend-clip-l14
+  purpose: Deepfake khuôn mặt — mô hình chính
+  source:
+    type: hf
+    repo: yermandy/GenD_CLIP_L_14
+    revision: 891ce014a0308386c4d7d25b3dcf436a22db5504
+  license: MIT
+  license_url: https://huggingface.co/yermandy/GenD_CLIP_L_14/blob/891ce014a0308386c4d7d25b3dcf436a22db5504/README.md
+  license_status: verified
+  owner: M3
+  status: ready
+  files:
+  - path: config.json
+    url: https://huggingface.co/yermandy/GenD_CLIP_L_14/resolve/891ce014a0308386c4d7d25b3dcf436a22db5504/config.json?download=true
+    size_bytes: 193
+    sha256: 7f2761e13678191774a152121f1630d19baa33a74216dd264d54445d96b16229
+    upstream_sha256: null
+  - path: model.safetensors
+    url: https://huggingface.co/yermandy/GenD_CLIP_L_14/resolve/891ce014a0308386c4d7d25b3dcf436a22db5504/model.safetensors?download=true
+    size_bytes: 1215928160
+    sha256: d76f0bdfd74a29fe1b1c1b84a80ac92486993e426878e8c7a3944281fbb96833
+    upstream_sha256: d76f0bdfd74a29fe1b1c1b84a80ac92486993e426878e8c7a3944281fbb96833
+  dependencies:
+  - clip-vit-large-patch14
+  - scrfd-10g
+  note: Chỉ weights/config; loader/tiền xử lý repo gốc thực hiện ở FACE-02, không
+    tải remote Python code.
+- id: scrfd-10g
+  purpose: Dò và căn chỉnh khuôn mặt cho GenD
+  source:
+    type: hf
+    repo: yakhyo/uniface-weights
+    revision: bfcc7d48ea8412d55de406cecf96b65b3ca720b2
+  license: nghiên cứu phi thương mại
+  license_url: https://huggingface.co/yakhyo/uniface-weights/blob/bfcc7d48ea8412d55de406cecf96b65b3ca720b2/README.md
+  license_status: accepted-research
+  owner: M3
+  status: ready
+  files:
+  - path: det_10g.onnx
+    url: https://huggingface.co/yakhyo/uniface-weights/resolve/bfcc7d48ea8412d55de406cecf96b65b3ca720b2/scrfd_10g.onnx?download=true
+    size_bytes: 16923827
+    sha256: 5838f7fe053675b1c7a08b633df49e7af5495cee0493c7dcf6697200b85b5b91
+    upstream_sha256: 5838f7fe053675b1c7a08b633df49e7af5495cee0493c7dcf6697200b85b5b91
+  artifact: SCRFD buffalo_l det_10g.onnx
+  note: UniFace scrfd_10g.onnx byte-identical det_10g.onnx gốc; chỉ nghiên cứu phi
+    thương mại.
+  identity_evidence:
+    gend_source: https://github.com/yermandy/GenD/blob/387a42266dd385fbe8f7626c5d3aa03eea3bfaab/src/retinaface.py
+    official_archive: https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_l.zip
+    original_size_bytes: 16923827
+    original_sha256: 5838f7fe053675b1c7a08b633df49e7af5495cee0493c7dcf6697200b85b5b91
+- id: antideepfake-mms300m
+  purpose: Giọng giả — mô hình nền
+  source:
+    type: hf
+    repo: nii-yamagishilab/mms-300m-anti-deepfake
+    revision: 7928e119e09f616b2ce698892e00ca22dbaa40bf
+  license: CC-BY-NC-SA-4.0
+  license_url: https://github.com/nii-yamagishilab/AntiDeepfake/blob/0dea622bde8f064c8ee5a557f2598643123fc6b6/LICENSE-CHECKPOINT
+  license_status: accepted-research
+  owner: M4
+  status: ready
+  files:
+  - path: config.json
+    url: https://huggingface.co/nii-yamagishilab/mms-300m-anti-deepfake/resolve/7928e119e09f616b2ce698892e00ca22dbaa40bf/config.json?download=true
+    size_bytes: 2046
+    sha256: be5a16e7bf332832f0a5583357ed37dd67cc4a39abd24832cf6a74a8217b046c
+    upstream_sha256: null
+  - path: model.safetensors
+    url: https://huggingface.co/nii-yamagishilab/mms-300m-anti-deepfake/resolve/7928e119e09f616b2ce698892e00ca22dbaa40bf/model.safetensors?download=true
+    size_bytes: 1269622944
+    sha256: 9bd5d9785bf72f91dfca8508651354946c4b307921cb358505e1b94035102224
+    upstream_sha256: 9bd5d9785bf72f91dfca8508651354946c4b307921cb358505e1b94035102224
+- id: phowhisper
+  purpose: Nhận dạng câu đọc tiếng Việt
+  source:
+    type: hf
+    repo: vinai/PhoWhisper-small
+    revision: a86b604c346caf7148c37512eafe783a16420adb
+  license: BSD-3-Clause
+  license_url: https://huggingface.co/vinai/PhoWhisper-small/blob/a86b604c346caf7148c37512eafe783a16420adb/README.md
+  license_status: verified
+  owner: M4
+  status: ready
+  files:
+  - path: config.json
+    url: https://huggingface.co/vinai/PhoWhisper-small/resolve/a86b604c346caf7148c37512eafe783a16420adb/config.json?download=true
+    size_bytes: 1329
+    sha256: c9d7e721876727d437cfb145229936926b439d1ab483db572e5f9b5fb6b6d0bf
+    upstream_sha256: null
+  - path: generation_config.json
+    url: https://huggingface.co/vinai/PhoWhisper-small/resolve/a86b604c346caf7148c37512eafe783a16420adb/generation_config.json?download=true
+    size_bytes: 3832
+    sha256: ba8dbcc6416b036d6f596ab70619bb713f0e996a0bbd142cc8e8eea80b93ebd7
+    upstream_sha256: null
+  - path: preprocessor_config.json
+    url: https://huggingface.co/vinai/PhoWhisper-small/resolve/a86b604c346caf7148c37512eafe783a16420adb/preprocessor_config.json?download=true
+    size_bytes: 339
+    sha256: a6a76d28c93edb273669eb9e0b0636a2bddbb1272c3261e47b7ca6dfdbac1b8d
+    upstream_sha256: null
+  - path: tokenizer.json
+    url: https://huggingface.co/vinai/PhoWhisper-small/resolve/a86b604c346caf7148c37512eafe783a16420adb/tokenizer.json?download=true
+    size_bytes: 2204003
+    sha256: c218b12acbc2168cad951ae8a8c8d345df09dfa63b787214d4ac27762170fd7b
+    upstream_sha256: null
+  - path: tokenizer_config.json
+    url: https://huggingface.co/vinai/PhoWhisper-small/resolve/a86b604c346caf7148c37512eafe783a16420adb/tokenizer_config.json?download=true
+    size_bytes: 805
+    sha256: 14f84bdf4b9ecdbd4738ddc81c17a1baedfc02bb93c6e049c951e15a1b40b70d
+    upstream_sha256: null
+  - path: special_tokens_map.json
+    url: https://huggingface.co/vinai/PhoWhisper-small/resolve/a86b604c346caf7148c37512eafe783a16420adb/special_tokens_map.json?download=true
+    size_bytes: 2077
+    sha256: b0aac6950381c4ae2f60b3f0fab04bcfe399a6a320cb3e4c7aee2d52924d733e
+    upstream_sha256: null
+  - path: added_tokens.json
+    url: https://huggingface.co/vinai/PhoWhisper-small/resolve/a86b604c346caf7148c37512eafe783a16420adb/added_tokens.json?download=true
+    size_bytes: 2082
+    sha256: ce949fe720c14311cb6c446e69cfe340dc669d7b006077a6feed6ae571dd7e88
+    upstream_sha256: null
+  - path: merges.txt
+    url: https://huggingface.co/vinai/PhoWhisper-small/resolve/a86b604c346caf7148c37512eafe783a16420adb/merges.txt?download=true
+    size_bytes: 493864
+    sha256: 78f27f801feb4283ae969d4cadacb28fc051b655647402b1a252c7079ea11c46
+    upstream_sha256: null
+  - path: vocab.json
+    url: https://huggingface.co/vinai/PhoWhisper-small/resolve/a86b604c346caf7148c37512eafe783a16420adb/vocab.json?download=true
+    size_bytes: 835550
+    sha256: 8f680bba319e01a653d2e8a5dbc17a9157179e0576e6ce74ce0c06356c6e24f9
+    upstream_sha256: null
+  - path: normalizer.json
+    url: https://huggingface.co/vinai/PhoWhisper-small/resolve/a86b604c346caf7148c37512eafe783a16420adb/normalizer.json?download=true
+    size_bytes: 52666
+    sha256: bf1c507dc8724ca9cf9903640dacfb69dae2f00edee4f21ceba106a7392f26dd
+    upstream_sha256: null
+  - path: pytorch_model.bin
+    url: https://huggingface.co/vinai/PhoWhisper-small/resolve/a86b604c346caf7148c37512eafe783a16420adb/pytorch_model.bin?download=true
+    size_bytes: 967102729
+    sha256: 9ec6f07c5bd321fc8f477cf778c43c3fd94b0e33a9f20283fc61cc6d22cbfded
+    upstream_sha256: 9ec6f07c5bd321fc8f477cf778c43c3fd94b0e33a9f20283fc61cc6d22cbfded
+- id: ctc-aligner
+  purpose: Căn chỉnh câu đề bài theo thời gian
+  source:
+    type: hf
+    repo: MahmoudAshraf/mms-300m-1130-forced-aligner
+    revision: 49402e9577b1158620820667c218cd494cc44486
+  license: CC-BY-NC-4.0
+  license_url: https://huggingface.co/MahmoudAshraf/mms-300m-1130-forced-aligner/blob/49402e9577b1158620820667c218cd494cc44486/README.md
+  license_status: accepted-research
+  owner: M4
+  status: ready
+  files:
+  - path: config.json
+    url: https://huggingface.co/MahmoudAshraf/mms-300m-1130-forced-aligner/resolve/49402e9577b1158620820667c218cd494cc44486/config.json?download=true
+    size_bytes: 2076
+    sha256: 2af7f73073d212b0ef91d3c73839355ca504c24a6b361c58a9e4e64210376ba9
+    upstream_sha256: null
+  - path: preprocessor_config.json
+    url: https://huggingface.co/MahmoudAshraf/mms-300m-1130-forced-aligner/resolve/49402e9577b1158620820667c218cd494cc44486/preprocessor_config.json?download=true
+    size_bytes: 211
+    sha256: 6334d6e0c5f2084c9a99b85ddff243cbc79dbaa4aa790bcddf8c41c496fab6fb
+    upstream_sha256: null
+  - path: special_tokens_map.json
+    url: https://huggingface.co/MahmoudAshraf/mms-300m-1130-forced-aligner/resolve/49402e9577b1158620820667c218cd494cc44486/special_tokens_map.json?download=true
+    size_bytes: 74
+    sha256: 5e4d1f5e759d74cb1c2fe1d165cfc62b5237aa904de759380cd6f43042eec723
+    upstream_sha256: null
+  - path: tokenizer_config.json
+    url: https://huggingface.co/MahmoudAshraf/mms-300m-1130-forced-aligner/resolve/49402e9577b1158620820667c218cd494cc44486/tokenizer_config.json?download=true
+    size_bytes: 1047
+    sha256: e0fe11ce3a3231f3147b4539a93b30a9aefaca0c2717fbd35881695610417497
+    upstream_sha256: null
+  - path: vocab.json
+    url: https://huggingface.co/MahmoudAshraf/mms-300m-1130-forced-aligner/resolve/49402e9577b1158620820667c218cd494cc44486/vocab.json?download=true
+    size_bytes: 286
+    sha256: 6b6f1632d08b489faf2c954eb70e71f39d0861053feb9ae40da59cfa8d0ef5bb
+    upstream_sha256: null
+  - path: model.safetensors
+    url: https://huggingface.co/MahmoudAshraf/mms-300m-1130-forced-aligner/resolve/49402e9577b1158620820667c218cd494cc44486/model.safetensors?download=true
+    size_bytes: 1261930388
+    sha256: 9aa5229a1af4d7714285cfa14bcaab6af2a39a9e810b475722b24975d5cb1dab
+    upstream_sha256: 9aa5229a1af4d7714285cfa14bcaab6af2a39a9e810b475722b24975d5cb1dab
+- id: syncnet
+  purpose: Khớp môi–âm
+  source:
+    type: hf
+    repo: ByteDance/LatentSync-1.6
+    revision: c42c7e6c8e9c213626389fa7d9a3c444b8536353
+  license: OpenRAIL++
+  license_url: https://huggingface.co/ByteDance/LatentSync-1.6/blob/c42c7e6c8e9c213626389fa7d9a3c444b8536353/README.md
+  license_status: accepted-research
+  owner: M4
+  status: ready
+  files:
+  - path: stable_syncnet.pt
+    url: https://huggingface.co/ByteDance/LatentSync-1.6/resolve/c42c7e6c8e9c213626389fa7d9a3c444b8536353/stable_syncnet.pt?download=true
+    size_bytes: 1605328746
+    sha256: 77678d13861a02d6e83d0b169962175b6266be773f1f6f85fda2b0182e225118
+    upstream_sha256: 77678d13861a02d6e83d0b169962175b6266be773f1f6f85fda2b0182e225118
+- id: audioseal-detector
+  purpose: Dò thủy vân AudioSeal
+  source:
+    type: hf
+    repo: facebook/audioseal
+    revision: 3c19eba53390776cf2cc9ed5f6c9ac67ce72ecba
+  license: MIT
+  license_url: https://huggingface.co/facebook/audioseal/blob/3c19eba53390776cf2cc9ed5f6c9ac67ce72ecba/README.md
+  license_status: verified
+  owner: M4
+  status: ready
+  files:
+  - path: detector_base.pth
+    url: https://huggingface.co/facebook/audioseal/resolve/3c19eba53390776cf2cc9ed5f6c9ac67ce72ecba/detector_base.pth?download=true
+    size_bytes: 34667641
+    sha256: 8a78e8a83584113523e161fc599fcab10fd0e94c04d2eb9d2fa1e9ec91ab69d9
+    upstream_sha256: 8a78e8a83584113523e161fc599fcab10fd0e94c04d2eb9d2fa1e9ec91ab69d9
+- id: clip-vit-large-patch14
+  purpose: CLIP nền/processor cho GenD — dependency offline
+  source:
+    type: hf
+    repo: openai/clip-vit-large-patch14
+    revision: 32bd64288804d66eefd0ccbe215aa642df71cc41
+  license: MIT
+  license_url: https://github.com/openai/CLIP/blob/d05afc436d78f1c48dc0dbf8e5980a9d471f35f6/LICENSE
+  license_status: accepted-research
+  owner: M3
+  status: ready
+  files:
+  - path: config.json
+    url: https://huggingface.co/openai/clip-vit-large-patch14/resolve/32bd64288804d66eefd0ccbe215aa642df71cc41/config.json?download=true
+    size_bytes: 4519
+    sha256: 8a09b467700c58138c29d53c605b34ebc69beaadd13274a8a2af8ad2c2f4032a
+    upstream_sha256: null
+  - path: preprocessor_config.json
+    url: https://huggingface.co/openai/clip-vit-large-patch14/resolve/32bd64288804d66eefd0ccbe215aa642df71cc41/preprocessor_config.json?download=true
+    size_bytes: 316
+    sha256: 910e70b3956ac9879ebc90b22fb3bc8a75b6a0677814500101a4c072bd7857bd
+    upstream_sha256: null
+  - path: tokenizer.json
+    url: https://huggingface.co/openai/clip-vit-large-patch14/resolve/32bd64288804d66eefd0ccbe215aa642df71cc41/tokenizer.json?download=true
+    size_bytes: 2224003
+    sha256: a83e0809aa4c3af7208b2df632a7a69668c6d48775b3c3fe4e1b1199d1f8b8f4
+    upstream_sha256: null
+  - path: tokenizer_config.json
+    url: https://huggingface.co/openai/clip-vit-large-patch14/resolve/32bd64288804d66eefd0ccbe215aa642df71cc41/tokenizer_config.json?download=true
+    size_bytes: 905
+    sha256: deef455e52fa5e8151e339add0582e4235f066009601360999d3a9cda83b1129
+    upstream_sha256: null
+  - path: special_tokens_map.json
+    url: https://huggingface.co/openai/clip-vit-large-patch14/resolve/32bd64288804d66eefd0ccbe215aa642df71cc41/special_tokens_map.json?download=true
+    size_bytes: 389
+    sha256: f8c0d6c39aee3f8431078ef6646567b0aba7f2246e9c54b8b99d55c22b707cbf
+    upstream_sha256: null
+  - path: merges.txt
+    url: https://huggingface.co/openai/clip-vit-large-patch14/resolve/32bd64288804d66eefd0ccbe215aa642df71cc41/merges.txt?download=true
+    size_bytes: 524619
+    sha256: 9fd691f7c8039210e0fced15865466c65820d09b63988b0174bfe25de299051a
+    upstream_sha256: null
+  - path: vocab.json
+    url: https://huggingface.co/openai/clip-vit-large-patch14/resolve/32bd64288804d66eefd0ccbe215aa642df71cc41/vocab.json?download=true
+    size_bytes: 961143
+    sha256: 3f0c4f7d2086b61b38487075278ea9ed04edb53a03cbb045b86c27190fa8fb69
+    upstream_sha256: null
+  - path: model.safetensors
+    url: https://huggingface.co/openai/clip-vit-large-patch14/resolve/32bd64288804d66eefd0ccbe215aa642df71cc41/model.safetensors?download=true
+    size_bytes: 1710540580
+    sha256: a2bf730a0c7debf160f7a6b50b3aaf3703e7e88ac73de7a314903141db026dcb
+    upstream_sha256: a2bf730a0c7debf160f7a6b50b3aaf3703e7e88ac73de7a314903141db026dcb
+  license_scope: MIT của repo/software openai/CLIP; HF card không khai báo riêng weights
+  note: Trưởng nhóm 15/10 chốt nguồn giấy phép openai/CLIP, không chặn; giữ rõ phạm
+    vi chứng cứ.
+- id: sbi-ffc23
+  purpose: Deepfake khuôn mặt — dự phòng, nguồn heatmap
+  source:
+    type: gdrive
+    file_id: 1X0-NYT8KPursLZZdxduRQju6E52hauV0
+    revision: chưa pin
+    reference_repo_commit: d6d9a351f32334ae9a3a250872c05836e0dd0f2c
+  license: research-only (nc)
+  license_url: https://github.com/mapooon/SelfBlendedImages/blob/d6d9a351f32334ae9a3a250872c05836e0dd0f2c/LICENSE
+  license_status: accepted-research
+  owner: M3
+  status: deferred
+  note: Chưa pin file Drive/size/hash; mỗi máy tải nguồn gốc, KHÔNG mirror; theo dõi
+    FACE-03, không chặn DATA-02. --only sbi-ffc23 chỉ thử nguồn gốc, lỗi HTML/quota
+    báo rõ.
+  files:
+  - path: FFc23.tar
+    url: https://drive.google.com/uc?export=download&id=1X0-NYT8KPursLZZdxduRQju6E52hauV0
+    size_bytes: null
+    sha256: null
+    upstream_sha256: null
+- id: perth
+  purpose: Dò thủy vân PerTh (Resemble / Chatterbox)
+  source:
+    type: http
+    repo: resemble-ai/Perth
+    revision: ff1c8ac55a976971245cdd53c18d6131ca00d993
+  license: chờ xác minh quyền trọng số — FOR-03
+  license_url: https://github.com/resemble-ai/Perth/blob/ff1c8ac55a976971245cdd53c18d6131ca00d993/LICENSE
+  license_status: pending
+  owner: M4
+  status: blocked
+  note: Chờ xác minh quyền trọng số — FOR-03; không tải.
+  files:
+  - path: perth_net_250000.pth.tar
+    url: https://raw.githubusercontent.com/resemble-ai/Perth/ff1c8ac55a976971245cdd53c18d6131ca00d993/src/perth/perth_net/pretrained/implicit/perth_net_250000.pth.tar
+    size_bytes: 37429684
+    sha256: null
+    upstream_sha256: null
