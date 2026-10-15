@@ -9,11 +9,18 @@ from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 
 from vericlue_api.core.config import Settings
 from vericlue_api.db.database import Database
-from vericlue_api.db.models import CleanupAuditRow, ForensicJobRow, SessionRow, aware, utcnow
+from vericlue_api.db.models import (
+    CleanupAuditRow,
+    ForensicJobRow,
+    ReviewCaseRow,
+    SessionRow,
+    aware,
+    utcnow,
+)
 
 logger = logging.getLogger(__name__)
 ALLOWED_SUFFIXES = frozenset(
@@ -90,33 +97,52 @@ def cleanup_expired(
     protected: list[str] = []
     try:
         with database.sessions.begin() as db:
+            has_review = (
+                select(ReviewCaseRow.case_id)
+                .where(ReviewCaseRow.session_id == SessionRow.session_id)
+                .exists()
+            )
+            closed_review = (
+                select(ReviewCaseRow.case_id)
+                .where(
+                    ReviewCaseRow.session_id == SessionRow.session_id,
+                    ReviewCaseRow.status == "closed",
+                )
+                .exists()
+            )
+            never_reviewed = and_(SessionRow.ever_review.is_(False), ~has_review)
+            expired = or_(
+                and_(
+                    never_reviewed,
+                    SessionRow.status == "pass",
+                    SessionRow.decided_at <= now - timedelta(hours=settings.media_ttl_pass_hours),
+                ),
+                and_(
+                    SessionRow.ever_review.is_(True),
+                    closed_review,
+                    SessionRow.decided_at <= now - timedelta(days=settings.media_ttl_review_days),
+                ),
+                and_(
+                    never_reviewed,
+                    SessionRow.status == "incomplete",
+                    SessionRow.last_activity_at
+                    <= now - timedelta(hours=settings.media_ttl_incomplete_hours),
+                ),
+            )
             rows = db.scalars(
                 select(SessionRow)
-                .where(SessionRow.media_deleted_at.is_(None))
+                .where(SessionRow.media_deleted_at.is_(None), expired)
                 .order_by(SessionRow.session_id)
-                .with_for_update()
+                .with_for_update(skip_locked=True, of=SessionRow)
             )
             for row in rows:
-                if row.ever_review:
-                    base, ttl, reason = (
-                        row.decided_at,
-                        timedelta(days=settings.media_ttl_review_days),
-                        "review_expired",
-                    )
-                elif row.status == "pass":
-                    base, ttl, reason = (
-                        row.decided_at,
-                        timedelta(hours=settings.media_ttl_pass_hours),
-                        "pass_expired",
-                    )
-                else:
-                    base, ttl, reason = (
-                        row.last_activity_at,
-                        timedelta(hours=settings.media_ttl_incomplete_hours),
-                        "incomplete_expired",
-                    )
-                if base is None or now < aware(base) + ttl:
-                    continue
+                reason = (
+                    "review_expired"
+                    if row.ever_review
+                    else "pass_expired"
+                    if row.status == "pass"
+                    else "incomplete_expired"
+                )
                 try:
                     folder = _folder(settings.media_dir, row.session_id)
                     _delete_folder(
@@ -129,17 +155,28 @@ def cleanup_expired(
                     row.media_deleted_at = now
                 except (OSError, ValueError) as exc:
                     errors.append({"id": row.session_id, "error": str(exc)})
-            for job in db.scalars(
-                select(ForensicJobRow)
-                .where(ForensicJobRow.media_deleted_at.is_(None))
-                .order_by(ForensicJobRow.job_id)
-                .with_for_update()
-            ):
-                if settings.forensic_ttl_days is None:
-                    protected.append(job.job_id)
-                    continue
-                if now < aware(job.created_at) + timedelta(days=settings.forensic_ttl_days):
-                    continue
+            if settings.forensic_ttl_days is None:
+                # IDs only, without row locks: evidence retention is disabled by default.
+                protected.extend(
+                    db.scalars(
+                        select(ForensicJobRow.job_id).where(
+                            ForensicJobRow.media_deleted_at.is_(None)
+                        )
+                    )
+                )
+                jobs = []
+            else:
+                jobs = db.scalars(
+                    select(ForensicJobRow)
+                    .where(
+                        ForensicJobRow.media_deleted_at.is_(None),
+                        ForensicJobRow.created_at
+                        <= now - timedelta(days=settings.forensic_ttl_days),
+                    )
+                    .order_by(ForensicJobRow.job_id)
+                    .with_for_update(skip_locked=True)
+                )
+            for job in jobs:
                 try:
                     folder = _folder(settings.media_dir, "forensic/" + job.job_id)
                     # Never follow an arbitrary persisted source_path outside this job folder.

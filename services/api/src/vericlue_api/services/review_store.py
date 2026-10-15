@@ -128,8 +128,14 @@ class ReviewStore:
         )
         if row is None:
             return None
+        record = self._record(row)
+        self._loaded[case_id] = (record, row)
+        return record
+
+    @staticmethod
+    def _record(row: ReviewCaseRow) -> CaseRecord:
         data = row.payload
-        record = CaseRecord(
+        return CaseRecord(
             case_id=row.case_id,
             session_id=row.session_id,
             priority=row.priority,
@@ -142,17 +148,15 @@ class ReviewStore:
             initial_decision=row.initial_decision,
             final_decision=row.final_decision,
         )
-        self._loaded[case_id] = (record, row)
-        return record
 
     def list(self, status: CaseStatus | None, priority: Priority | None) -> list[CaseRecord]:
-        items = [
-            c
-            for c in (self.get(key) for key in self.db.scalars(select(ReviewCaseRow.case_id)))
-            if (status is None or c.status == status)
-            and (priority is None or c.priority == priority)
-        ]
-        # ưu tiên cao lên trước, rồi mới nhất trước
+        # Listing is read-only: neither row locks nor entries in the writable cache.
+        query = select(ReviewCaseRow)
+        if status is not None:
+            query = query.where(ReviewCaseRow.status == status)
+        if priority is not None:
+            query = query.where(ReviewCaseRow.priority == priority)
+        items = [self._record(row) for row in self.db.scalars(query)]
         return sorted(items, key=lambda c: (c.priority != "high", -c.created_at.timestamp()))
 
     def seed_demo(self) -> None:
@@ -170,11 +174,7 @@ class ReviewStore:
             if self.db.scalar(select(ReviewCaseRow.case_id).where(ReviewCaseRow.session_id == sid)):
                 continue
             if self.db.get(SessionRow, sid) is None:
-                self.db.add(
-                    SessionRow(
-                        session_id=sid, status="review", ever_review=True, decided_at=utcnow()
-                    )
-                )
+                self.db.add(SessionRow(session_id=sid, status="review", ever_review=True))
                 self.db.flush()
             self.add(
                 session_id=sid,

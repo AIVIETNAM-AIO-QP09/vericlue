@@ -1,7 +1,11 @@
 """Real PostgreSQL migration/transaction tests (CI service or local Docker)."""
 
 import os
+from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from threading import Barrier, Event
+from uuid import uuid4
 
 import pytest
 from alembic import command
@@ -10,10 +14,17 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, inspect, select, text
 from sqlalchemy.exc import DBAPIError
 
-from vericlue_api.core.config import get_settings
+from vericlue_api.core.config import Settings, get_settings
 from vericlue_api.db.database import Database
-from vericlue_api.db.models import DecisionRow, ModuleResultRow, ReviewEventRow, SessionRow
+from vericlue_api.db.models import (
+    DecisionRow,
+    ModuleResultRow,
+    ReviewCaseRow,
+    ReviewEventRow,
+    SessionRow,
+)
 from vericlue_api.main import create_app
+from vericlue_api.services import storage
 
 
 @pytest.fixture
@@ -28,6 +39,7 @@ def postgres(monkeypatch):
     command.upgrade(config, "head")
     monkeypatch.setenv("DATABASE_URL", url)
     get_settings.cache_clear()
+    monkeypatch.setenv("PGOPTIONS", "-c lock_timeout=3000 -c statement_timeout=10000")
     database = Database(url)
     yield database
     database.dispose()
@@ -131,3 +143,124 @@ def test_postgres_review_events_are_append_only(postgres):
             )
             == 2
         )
+
+
+def test_postgres_concurrent_finalize_creates_exactly_one_review_case(postgres):
+    with TestClient(create_app()) as client:
+        created = client.post("/v1/sessions", headers={"X-Mock-Scenario": "print"}).json()
+        sid = created["session_id"]
+        barrier = Barrier(2)
+
+        def finalize_once():
+            barrier.wait(timeout=5)
+            return client.post(
+                f"/v1/sessions/{sid}/finalize",
+                headers={"Authorization": "Bearer " + created["token"]},
+            )
+
+        with ThreadPoolExecutor(max_workers=2) as workers:
+            futures = [workers.submit(finalize_once) for _ in range(2)]
+            results = [future.result(timeout=15) for future in futures]
+        assert sorted(response.status_code for response in results) == [200, 409]
+        accepted = next(response for response in results if response.status_code == 200)
+        rejected = next(response for response in results if response.status_code == 409)
+        assert accepted.json() == {"status": "review"}
+        assert rejected.json()["error_code"] == "session_closed"
+        assert all(response.json().get("status") != "pass" for response in results)
+    with postgres.sessions() as connection:
+        assert (
+            connection.scalar(
+                select(func.count())
+                .select_from(ReviewCaseRow)
+                .where(ReviewCaseRow.session_id == sid)
+            )
+            == 1
+        )
+
+
+def test_postgres_cleanup_skips_locked_expired_and_does_not_lock_fresh_or_open(
+    postgres, tmp_path, monkeypatch
+):
+    now = datetime.now(UTC)
+    prefix = "locking_" + uuid4().hex
+    identifiers = {kind: f"{prefix}_{kind}" for kind in ("locked", "expired", "fresh", "open")}
+    settings = Settings(media_dir=str(tmp_path / "lock-media"))
+    paths = {}
+    with postgres.sessions.begin() as connection:
+        for kind, sid in identifiers.items():
+            age = timedelta(hours=1) if kind == "fresh" else timedelta(days=40)
+            connection.add(
+                SessionRow(
+                    session_id=sid,
+                    status="review" if kind == "open" else "pass",
+                    ever_review=kind == "open",
+                    created_at=now - age,
+                    last_activity_at=now - age,
+                    decided_at=now - age,
+                    payload={},
+                )
+            )
+            target = Path(settings.media_dir) / sid / "face.jpg"
+            target.parent.mkdir(parents=True)
+            target.write_bytes(b"synthetic")
+            paths[kind] = target
+        connection.flush()
+        connection.add(
+            ReviewCaseRow(
+                case_id=prefix + "_case",
+                session_id=identifiers["open"],
+                status="open",
+                payload={"scenario": "print", "results": {}, "media": [], "notes": []},
+            )
+        )
+    entered, release = Event(), Event()
+    original_delete = storage._delete_folder
+
+    def pause_expired(folder, *args, **kwargs):
+        if folder.name == identifiers["expired"]:
+            entered.set()
+            assert release.wait(timeout=10), "test failed to release cleanup"
+        return original_delete(folder, *args, **kwargs)
+
+    monkeypatch.setattr(storage, "_delete_folder", pause_expired)
+    with postgres.sessions.begin() as locker:
+        locker.scalar(
+            select(SessionRow)
+            .where(SessionRow.session_id == identifiers["locked"])
+            .with_for_update()
+        )
+        with ThreadPoolExecutor(max_workers=1) as worker:
+            future = worker.submit(storage.cleanup_expired, postgres, settings, now=now)
+            try:
+                assert entered.wait(timeout=5), (
+                    "cleanup blocked on an already locked expired session"
+                )
+                with postgres.sessions.begin() as probe:
+                    for kind in ("fresh", "open"):
+                        row = probe.scalar(
+                            select(SessionRow)
+                            .where(SessionRow.session_id == identifiers[kind])
+                            .with_for_update(nowait=True)
+                        )
+                        assert row is not None
+            finally:
+                release.set()
+            future.result(timeout=10)
+    assert paths["locked"].exists()
+    assert not paths["expired"].exists()
+    assert paths["fresh"].exists() and paths["open"].exists()
+
+
+def test_postgres_review_list_does_not_lock_cases(postgres):
+    with TestClient(create_app()) as client:
+        cases = client.get("/v1/review/cases").json()["items"]
+        assert cases
+        with postgres.sessions.begin() as locked:
+            locked.scalar(
+                select(ReviewCaseRow)
+                .where(ReviewCaseRow.case_id == cases[0]["case_id"])
+                .with_for_update()
+            )
+            with ThreadPoolExecutor(max_workers=1) as worker:
+                result = worker.submit(client.get, "/v1/review/cases").result(timeout=5)
+            assert result.status_code == 200

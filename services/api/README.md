@@ -78,7 +78,7 @@ Seed hai ca mock idempotent, có khóa PostgreSQL khi nhiều worker khởi đ�
 - `MEDIA_DIR/<session_id>/`: file phiên; tên và đuôi do server kiểm soát.
 - `MEDIA_DIR/forensic/<job_id>/`: byte nguồn và HTML báo cáo; hash tính trên byte nguồn.
 - Pass chưa vào review: 24 giờ từ quyết định cuối (`MEDIA_TTL_PASS_HOURS`).
-- Phiên từng vào review: 30 ngày từ quyết định cuối (`MEDIA_TTL_REVIEW_DAYS`), không rút xuống 24 giờ khi nhân viên chấp nhận.
+- Ca review chưa `closed`: **không xóa media**, kể cả mở quá 30 ngày. Khi nhân viên đóng ca, `sessions.decided_at` ghi thời điểm đóng; từ mốc đó giữ 30 ngày (`MEDIA_TTL_REVIEW_DAYS`), kể cả được chấp nhận, không rút xuống 24 giờ.
 - Phiên bỏ dở/retry/đang đọc câu: 24 giờ từ hoạt động thành công cuối (`MEDIA_TTL_INCOMPLETE_HOURS`).
 - **Giám định KHÔNG tự xóa mặc định:** `FORENSIC_TTL_DAYS=` để trống. Số ngày dương bật TTL từ lúc tạo job; chỉ bật sau khi nhóm phê duyệt quyền xóa chứng cứ/chuỗi bằng chứng.
 
@@ -98,3 +98,5 @@ Kiểm PostgreSQL thật: đặt `TEST_DATABASE_URL` tới DB test đã cấp qu
 `uv run pytest services/api/tests/test_db_postgres.py`; không đặt thì test này skip.
 Job Python CI có service PostgreSQL16 với credential mẫu chỉ cho DB test tạm;
 các bước CI hiện có được giữ nguyên. Tuyệt đối không dùng credential CI cho triển khai.
+
+Cleanup lọc điều kiện hết hạn ngay trong SQL và dùng `FOR UPDATE SKIP LOCKED`; không khóa phiên/job chưa hết hạn. GET danh sách ca duyệt chỉ đọc, không khóa row. Token tạm hiện lưu **dạng rõ** trong `sessions.payload`; PLAT-06 phải đổi sang lưu hash (không lưu token gốc).

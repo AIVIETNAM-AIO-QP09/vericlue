@@ -106,6 +106,16 @@ def test_pass_review_incomplete_ttls_and_forensic_default_protection(database, t
     paths = {}
     for identifier, status, age, ever_review, _expired in cases:
         add_session(database, identifier, status, age, ever_review=ever_review)
+        if ever_review:
+            with database.sessions.begin() as connection:
+                connection.add(
+                    ReviewCaseRow(
+                        case_id=f"case-{identifier}",
+                        session_id=identifier,
+                        status="closed",
+                        payload={},
+                    )
+                )
         paths[identifier] = media_file(settings, identifier)
     forensic = media_file(settings, "forensic/job-protected", "original.wav")
     with database.sessions.begin() as connection:
@@ -426,3 +436,35 @@ def test_database_commit_failure_returns_safe_503_and_rolls_back(client, monkeyp
     with database.sessions() as connection:
         after = connection.scalar(select(func.count()).select_from(SessionRow))
     assert after == before
+
+
+@pytest.mark.parametrize(
+    "case_status,closure_age,should_delete",
+    [
+        ("open", None, False),
+        ("initial_decided", None, False),
+        ("closed", timedelta(days=31), True),
+        ("closed", timedelta(days=1), False),
+    ],
+)
+def test_review_retention_starts_only_after_staff_closes_case(
+    database, tmp_path, case_status, closure_age, should_delete
+):
+    settings = settings_for(tmp_path)
+    add_session(database, "review-retention", "review", timedelta(days=40), ever_review=True)
+    target = media_file(settings, "review-retention")
+    with database.sessions.begin() as connection:
+        row = connection.get(SessionRow, "review-retention")
+        # Old AI timestamps must never start the retention clock for an open case.
+        row.decided_at = NOW - timedelta(days=40) if closure_age is None else NOW - closure_age
+        connection.add(
+            ReviewCaseRow(
+                case_id="retention-case", session_id=row.session_id, status=case_status, payload={}
+            )
+        )
+    cleanup_expired(database, settings, now=NOW)
+    assert target.exists() is (not should_delete)
+    with database.sessions() as connection:
+        assert (
+            connection.get(SessionRow, "review-retention").media_deleted_at is not None
+        ) is should_delete

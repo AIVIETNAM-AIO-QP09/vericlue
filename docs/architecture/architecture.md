@@ -138,7 +138,7 @@ trọng số/dataset/bí mật vào image. PostgreSQL có volume bền vững ri
 Chính sách dọn (quyết định trưởng nhóm 15/10):
 
 - Pass chưa từng vào review: `MEDIA_TTL_PASS_HOURS=24`, từ quyết định cuối.
-- Từng vào review: `MEDIA_TTL_REVIEW_DAYS=30`, từ quyết định cuối, kể cả sau đó được chấp nhận. Quyết định cuối của nhân viên cập nhật mốc này.
+- Ca review chưa `closed`: không xóa media. Nhân viên đóng ca thì ghi `sessions.decided_at`; `MEDIA_TTL_REVIEW_DAYS=30` tính từ thời điểm đóng, kể cả được chấp nhận.
 - Chưa kết luận: `MEDIA_TTL_INCOMPLETE_HOURS=24`, từ hoạt động thành công cuối, không từ thời điểm tạo/file mtime.
 - Giám định: `FORENSIC_TTL_DAYS` để trống mặc định = **không tự xóa**. Số ngày dương là opt-in; nhóm phải phê duyệt chính sách chứng cứ trước khi bật.
 - Job dọn chạy lúc API khởi động và mỗi `MEDIA_CLEANUP_INTERVAL_SECONDS=300`; mỗi lượt ghi audit DB và một dòng log, gồm cả lượt không xóa được file. Lỗi giữa chừng vẫn ghi các file đã xóa thành công. DB metadata/audit không bị dọn theo TTL media.

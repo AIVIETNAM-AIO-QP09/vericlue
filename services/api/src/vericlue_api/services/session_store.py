@@ -85,7 +85,8 @@ class SessionStore:
         row = self._loaded[session.session_id][1]
         row.status = action if action in {"pass", "review"} else "incomplete"
         row.ever_review = row.ever_review or action == "review"
-        row.decided_at = utcnow() if action in {"pass", "review"} else None
+        # Review retention starts only when staff close the case, not at routing time.
+        row.decided_at = utcnow() if action == "pass" else None
         self.db.add(
             DecisionRow(session_id=session.session_id, action=action, thresholds={"b": b, "a": a})
         )

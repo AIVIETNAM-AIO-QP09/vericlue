@@ -73,7 +73,10 @@ Docker Desktop phải đang chạy Linux containers; kiểm `docker info` trư�
 2. Đặt `MODELS_DIR`, `DATA_DIR`, `MEDIA_DIR` là đường dẫn host. Windows nên dùng
    dạng `D:/Projects/vericlue-store/models`, `.../data`, `.../media`. Model/data
    chỉ đọc; media ghi được. Linux cần cấp quyền ghi thư mục media cho UID10001
-   của API; Docker Desktop quản lý chia sẻ đường dẫn Windows.
+   của API (UID/GID 10001:10001). Tạo thư mục riêng dành cho media rồi dùng
+   `sudo chown 10001:10001 /duong/dan/media` và `sudo chmod 750 /duong/dan/media`
+   trên đúng thư mục bind-mount; không đổi quyền models/data và không chmod 777.
+   Docker Desktop quản lý chia sẻ đường dẫn Windows.
 3. Chạy các lệnh từ gốc worktree:
 
 ```powershell
