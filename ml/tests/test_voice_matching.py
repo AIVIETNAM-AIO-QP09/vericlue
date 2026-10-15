@@ -212,3 +212,34 @@ def test_real_libraries_agree_with_independent_oracles_when_installed():
 @pytest.mark.parametrize("word", ["quyển", "quyết", "tuyển", "chuyển", "nguyệt", "ngoại", "hoài"])
 def test_canonical_tone_preserves_long_vowel_clusters(word):
     assert normalize_text(word) == word
+
+
+@pytest.mark.parametrize(
+    ("number", "spoken"),
+    [
+        ("1005", "một nghìn không trăm linh năm"),
+        ("2001", "hai nghìn không trăm linh một"),
+        ("1050", "một nghìn không trăm năm mươi"),
+        ("1500", "một nghìn năm trăm"),
+    ],
+)
+def test_number_groups_preserve_missing_hundreds(number, spoken):
+    assert normalize_text(number) == spoken
+
+
+@pytest.mark.parametrize("replacement", ["bố", "mè"])
+def test_one_syllable_or_tone_change_in_prompt_remains_within_tolerance(
+    fake_match_libraries, replacement
+):
+    from vericlue_ml.voice.phrases import PROMPTS
+
+    expected = PROMPTS[0]
+    recognized = expected.replace("mẹ", replacement, 1)
+    assert expected.count("mẹ") == 1
+    result = compare_transcripts(expected, recognized)
+    assert result.syllable_wer == pytest.approx(1 / 9)
+    assert result.matched is True
+    if replacement == "mè":
+        assert result.unaccented_similarity == 1
+    else:
+        assert result.unaccented_similarity >= 0.9

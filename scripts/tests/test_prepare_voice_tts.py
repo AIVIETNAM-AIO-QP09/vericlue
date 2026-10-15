@@ -29,7 +29,7 @@ def test_fixed_fixtures_use_pinned_tool_and_explicit_data_path(tmp_path, monkeyp
     monkeypatch.setattr(module.subprocess, "run", run)
     manifest = module.prepare_fixtures(tmp_path, executable)
     rows = json.loads(manifest.read_text(encoding="utf-8"))
-    assert len(rows) == 2
+    assert len(rows) == 4
     assert rows[0]["expected"] == rows[0]["spoken"]
     assert rows[0]["should_match"] is True and rows[1]["should_match"] is False
     assert rows[1]["expected"] != rows[1]["spoken"]
@@ -61,3 +61,17 @@ def test_mms_corrupted_weights_are_not_loaded(tmp_path, monkeypatch):
     monkeypatch.setattr(module, "MMS_FILES", {"model.safetensors": 3})
     with pytest.raises(RuntimeError, match="SHA-256"):
         module.prepare_mms(tmp_path / "data", tmp_path / "models")
+
+
+def test_near_cases_change_exactly_one_syllable_or_tone():
+    from vericlue_ml.voice.challenge import strip_diacritics
+
+    cases = {name: (spoken, expected) for name, spoken, expected in module.fixed_cases()}
+    reference = cases["correct"][0]
+    for name in ("near_syllable", "near_tone"):
+        spoken, should_match = cases[name]
+        assert should_match is True
+        assert len(reference.split()) == len(spoken.split())
+        assert sum(a != b for a, b in zip(reference.split(), spoken.split(), strict=True)) == 1
+    assert strip_diacritics(reference) == strip_diacritics(cases["near_tone"][0])
+    assert strip_diacritics(reference) != strip_diacritics(cases["near_syllable"][0])

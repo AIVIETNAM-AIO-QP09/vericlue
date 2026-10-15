@@ -278,3 +278,103 @@ def test_invalid_tts_case_is_rejected_before_any_vimd_inference(manifest):
             manifest, detector, expected_people_per_region=1, tts_manifest=tts
         )
     assert detector.calls == []
+
+
+def test_tts_manifest_preserves_case_and_defaults_to_audio_stem(manifest):
+    rows = []
+    for name, case in [("near-word.wav", "near_one_syllable"), ("fallback-name.wav", None)]:
+        (manifest.parent / name).write_bytes(b"synthetic-fixture")
+        row = {
+            "path": name,
+            "expected": "xin chào bạn",
+            "spoken": "xin chào mẹ",
+            "should_match": True,
+        }
+        if case is not None:
+            row["case"] = case
+        rows.append(row)
+    tts = manifest.with_name("tts-cases.json")
+    tts.write_text(json.dumps(rows), encoding="utf-8")
+    result = evaluation.evaluate_manifest(
+        manifest, FakeDetector(), expected_people_per_region=1, tts_manifest=tts
+    )
+    assert [row["case"] for row in result["tts"]["details"]] == [
+        "near_one_syllable",
+        "fallback-name",
+    ]
+
+
+def test_tts_case_report_shows_expected_gates_metrics_and_classification_without_text(manifest):
+    result = evaluation.evaluate_manifest(manifest, FakeDetector(), expected_people_per_region=1)
+    result["tts"] = {
+        "n_cases": 2,
+        "n_expected_match": 1,
+        "n_expected_mismatch": 1,
+        "n_correct_classification": 1,
+        "n_processing_errors": 1,
+        "details": [
+            {
+                "case": "near_one_syllable",
+                "path": "PRIVATE_AUDIO_PATH.wav",
+                "expected": "PRIVATE_REFERENCE",
+                "spoken": "PRIVATE_SPOKEN",
+                "should_match": True,
+                "classification_correct": True,
+                "result": {
+                    "status": "ok",
+                    "gate": "pass",
+                    "quality": {"syllable_error_rate": 0.2, "unaccented_similarity": 0.93},
+                    "evidence": [{"value": "PRIVATE_TRANSCRIPT"}],
+                },
+            },
+            {
+                "case": "different_sentence",
+                "should_match": False,
+                "classification_correct": False,
+                "result": {"status": "error", "gate": "unclear"},
+            },
+        ],
+    }
+    report = evaluation.render_report(result)
+    assert "| near_one_syllable | pass | ok | pass | 0.2000 | 0.9300 | đúng |" in report
+    assert "| different_sentence | fail | error | unclear | — | — | sai |" in report
+    assert "kỳ vọng pass" in report and "kỳ vọng fail" in report
+    assert "đọc đúng / đọc sai" not in report
+    for private in [
+        "PRIVATE_AUDIO_PATH",
+        "PRIVATE_REFERENCE",
+        "PRIVATE_SPOKEN",
+        "PRIVATE_TRANSCRIPT",
+    ]:
+        assert private not in report
+
+
+@pytest.mark.parametrize(
+    "quality",
+    [
+        None,
+        "invalid",
+        {},
+        {"syllable_error_rate": None, "unaccented_similarity": float("nan")},
+        {"syllable_error_rate": True, "unaccented_similarity": "0.9"},
+    ],
+)
+def test_tts_report_missing_or_invalid_quality_is_safe(manifest, quality):
+    result = evaluation.evaluate_manifest(manifest, FakeDetector(), expected_people_per_region=1)
+    result["tts"] = {
+        "n_cases": 1,
+        "n_expected_match": 1,
+        "n_expected_mismatch": 0,
+        "n_correct_classification": 0,
+        "n_processing_errors": 1,
+        "details": [
+            {
+                "case": "missing_quality",
+                "should_match": True,
+                "classification_correct": False,
+                "result": {"status": "error", "gate": "unclear", "quality": quality},
+            }
+        ],
+    }
+    report = evaluation.render_report(result)
+    assert "| missing_quality | pass | error | unclear | — | — | sai |" in report

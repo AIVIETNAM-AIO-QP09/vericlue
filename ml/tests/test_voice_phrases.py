@@ -62,8 +62,13 @@ def test_bank_covers_regional_consonant_pairs():
     assert any(word.endswith("ng") for word in syllables)
 
 
-def test_numbers_are_spelled_out_in_authored_prompts():
-    assert any("hai" in prompt.split() for prompt in PROMPTS)
+@pytest.mark.parametrize("word", ["hai", "mười", "mươi", "lăm"])
+def test_numbers_are_spelled_out_in_authored_prompts(word):
+    assert any(word in prompt.split() for prompt in PROMPTS)
+
+
+def test_first_prompt_remains_stable_for_fixed_tts_fixtures():
+    assert PROMPTS[0] == "Buổi sáng mẹ vẫn mở cửa nhà cho em"
 
 
 @pytest.mark.parametrize("previous", PROMPTS)

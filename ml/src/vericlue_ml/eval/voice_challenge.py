@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import math
 import os
 import re
 import subprocess
@@ -140,8 +141,12 @@ def _tts_rows(manifest: Path) -> list[dict[str, Any]]:
         if not isinstance(should_match, bool) or not normalize_text(expected):
             raise ValueError("TTS cần should_match dạng bool và câu expected hợp lệ.")
         path = _audio_path(manifest.parent, _required_text(row, "path"), allow_absolute=True)
+        case = row.get("case") or path.stem
+        if not isinstance(case, str) or not case.strip():
+            raise ValueError("TTS case phải là tên không rỗng.")
         prepared.append(
             {
+                "case": case.strip(),
                 "path": str(path),
                 "expected": expected,
                 "spoken": spoken,
@@ -241,6 +246,21 @@ def evaluate_manifest(
     return summary
 
 
+def _report_cell(value: Any) -> str:
+    return (
+        str(value if value is not None else "—")
+        .replace("|", "\\|")
+        .replace("\n", " ")
+        .replace("\r", " ")
+    )
+
+
+def _metric_cell(value: Any) -> str:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        return "—"
+    return f"{value:.4f}"
+
+
 def render_report(result: dict[str, Any]) -> str:
     """Render aggregate counts only; transcripts and audio paths stay in local JSON."""
     lines = [
@@ -272,12 +292,33 @@ def render_report(result: dict[str, Any]) -> str:
         lines.extend(
             [
                 "",
-                "## TTS đọc đúng / đọc sai",
+                "## TTS — đối chiếu gate kỳ vọng",
                 "",
-                f"{tts['n_cases']} ca: {tts['n_expected_match']} đọc đúng, {tts['n_expected_mismatch']} đọc sai; "
+                f"{tts['n_cases']} ca: {tts['n_expected_match']} kỳ vọng pass, {tts['n_expected_mismatch']} kỳ vọng fail; "
                 f"{tts['n_correct_classification']} phân loại đúng, {tts['n_processing_errors']} lỗi xử lý.",
             ]
         )
+        lines.extend(
+            [
+                "",
+                "Kỳ vọng pass có thể gồm câu gần đúng trong ngưỡng dung sai, không đồng nghĩa đọc nguyên văn.",
+                "",
+                "| Ca | Gate kỳ vọng | Status | Gate | WER âm tiết | Giống bỏ dấu | Đối chiếu kỳ vọng |",
+                "|---|---|---|---|---:|---:|---|",
+            ]
+        )
+        for row in tts["details"]:
+            outcome = row.get("result") or {}
+            quality = outcome.get("quality")
+            quality = quality if isinstance(quality, dict) else {}
+            expected_gate = "pass" if row["should_match"] else "fail"
+            correct = "đúng" if row.get("classification_correct") else "sai"
+            lines.append(
+                f"| {_report_cell(row.get('case') or 'không đặt tên')} | {expected_gate} | "
+                f"{_report_cell(outcome.get('status'))} | {_report_cell(outcome.get('gate'))} | "
+                f"{_metric_cell(quality.get('syllable_error_rate'))} | "
+                f"{_metric_cell(quality.get('unaccented_similarity'))} | {correct} |"
+            )
     return "\n".join(lines) + "\n"
 
 

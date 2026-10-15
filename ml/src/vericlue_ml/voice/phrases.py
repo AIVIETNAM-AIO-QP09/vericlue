@@ -30,6 +30,9 @@ PROMPTS: tuple[str, ...] = (
     "Mẹ để những chiếc áo sạch gần cửa sổ cho em",
     "Trẻ nhỏ vẫn thích nghe bà kể chuyện xưa",
     "Buổi sáng chị dẫn hai em đi giữa hàng cây",
+    "Buổi sáng mẹ vẫn mở cửa cho em lúc mười giờ",
+    "Những quả táo mẹ mua giá hai mươi nghìn đồng",
+    "Buổi chiều mẹ vẫn để mười lăm quả táo cho em",
 )
 
 

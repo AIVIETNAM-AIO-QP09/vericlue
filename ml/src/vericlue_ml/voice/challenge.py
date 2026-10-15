@@ -52,7 +52,10 @@ def _integer_words(number: int) -> str:
     for scale, name in ((10**9, "tỷ"), (10**6, "triệu"), (1000, "nghìn")):
         if number >= scale:
             high, tail = divmod(number, scale)
-            return _integer_words(high) + " " + name + (" " + _integer_words(tail) if tail else "")
+            suffix = _integer_words(tail) if tail else ""
+            if 0 < tail < 100:
+                suffix = "không trăm " + ("linh " if tail < 10 else "") + suffix
+            return _integer_words(high) + " " + name + (" " + suffix if tail else "")
     raise ValueError("Số không hợp lệ.")
 
 
@@ -176,6 +179,7 @@ class VoiceChallengeDetector:
                 status="ok",
                 gate="pass" if match.matched else "fail",
                 error_code=None if match.matched else ErrorCode.E_CHALLENGE_MISMATCH,
+                # ROUT-02: reading error rate, NOT an attack probability.
                 score=match.syllable_wer,
                 quality={
                     "syllable_error_rate": match.syllable_wer,

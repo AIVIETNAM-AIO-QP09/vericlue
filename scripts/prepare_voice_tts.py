@@ -22,6 +22,17 @@ ESPEAK_URL = (
 ESPEAK_BYTES = 12_765_862
 
 
+def fixed_cases() -> tuple[tuple[str, str, bool], ...]:
+    """Freeze texts before ASR; should_match denotes the fixed gate tolerances."""
+    expected = PROMPTS[0]
+    return (
+        ("correct", expected, True),
+        ("wrong", "tôi đang đọc một câu khác hoàn toàn với đề bài", False),
+        ("near_syllable", expected.replace("mẹ", "bố", 1), True),
+        ("near_tone", expected.replace("mẹ", "mè", 1), True),
+    )
+
+
 def prepare_tool(root: Path) -> Path:
     """Download the official MSI and extract administratively, without installation."""
     tool_dir = root / "tools" / f"espeak-ng-{ESPEAK_VERSION}"
@@ -57,7 +68,7 @@ def prepare_tool(root: Path) -> Path:
 
 
 def prepare_fixtures(root: Path, executable: Path) -> Path:
-    """Generate both fixtures from fixed text, before observing any ASR results."""
+    """Generate all fixtures from fixed text, before observing any ASR results."""
     version_output = subprocess.run(
         [str(executable), f"--path={executable.parent}", "--version"],
         check=True,
@@ -71,12 +82,8 @@ def prepare_fixtures(root: Path, executable: Path) -> Path:
     destination = root / "eval" / "VOICE-04" / "tts"
     destination.mkdir(parents=True, exist_ok=True)
     expected = PROMPTS[0]
-    cases = [
-        ("correct", expected, True),
-        ("wrong", "tôi đang đọc một câu khác hoàn toàn với đề bài", False),
-    ]
     rows = []
-    for name, spoken, should_match in cases:
+    for name, spoken, should_match in fixed_cases():
         text = destination / f"{name}.txt"
         audio = destination / f"{name}.wav"
         text.write_text(spoken, encoding="utf-8")
@@ -98,6 +105,7 @@ def prepare_fixtures(root: Path, executable: Path) -> Path:
         )
         rows.append(
             {
+                "case": name,
                 "path": str(audio.resolve()),
                 "expected": expected,
                 "spoken": spoken,
@@ -184,10 +192,7 @@ def prepare_mms(root: Path, models_dir: Path, *, download: bool = False) -> Path
     destination.mkdir(parents=True, exist_ok=True)
     expected = PROMPTS[0]
     rows = []
-    for name, spoken, should_match in (
-        ("correct", expected, True),
-        ("wrong", "tôi đang đọc một câu khác hoàn toàn với đề bài", False),
-    ):
+    for name, spoken, should_match in fixed_cases():
         set_seed(42)
         with torch.inference_mode():
             waveform = model(**tokenizer(spoken, return_tensors="pt")).waveform[0].numpy()
@@ -195,6 +200,7 @@ def prepare_mms(root: Path, models_dir: Path, *, download: bool = False) -> Path
         sf.write(audio, waveform, model.config.sampling_rate, subtype="PCM_16")
         rows.append(
             {
+                "case": name,
                 "path": str(audio.resolve()),
                 "expected": expected,
                 "spoken": spoken,
@@ -208,7 +214,8 @@ def prepare_mms(root: Path, models_dir: Path, *, download: bool = False) -> Path
         f"Weights SHA-256: {MMS_SHA256}\nLicense: CC BY-NC 4.0, research/noncommercial.\n"
         f"https://huggingface.co/facebook/mms-tts-vie/blob/{MMS_REVISION}/README.md\n"
         "No online TTS service; explicit preparation download only; generation local CPU FP32.\n"
-        "Same two fixed texts as the eSpeak experiment; seed 42 before each generation.\n"
+        "Four fixed texts shared with eSpeak: correct, wrong, near_syllable, near_tone; seed 42.\n"
+        "Near cases expect pass under fixed tolerances, not verbatim identity.\n"
         "Internal research audio, not redistributed. Do not claim a public-domain output license.\n"
     )
     (destination / "SOURCE.md").write_text(source, encoding="utf-8")

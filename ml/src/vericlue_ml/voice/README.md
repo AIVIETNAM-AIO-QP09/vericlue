@@ -9,6 +9,7 @@
 - `not_applicable/unclear`: không tìm thấy tiếng nói; không được pass.
 
 WER, tương đồng và transcript chỉ nằm trong evidence nội bộ, không gửi cho người dân.
+`score` là tỷ lệ lỗi đọc (WER), không phải xác suất tấn công.
 `prob_attack` để trống: đây là cổng nội dung, không giả định xác suất giọng giả.
 Registry cache detector/model; mock riêng không cần thư viện inference.
 
@@ -33,7 +34,7 @@ khoảng lặng bên trong. Whisper dùng `language="vi"`, `task="transcribe"`,
 
 ## Câu và so khớp
 
-24 câu tự soạn, mỗi câu 8–12 âm tiết và đủ sáu thanh; ngân hàng phủ tr/ch, s/x,
+27 câu tự soạn, mỗi câu 8–12 âm tiết và đủ sáu thanh; ngân hàng phủ tr/ch, s/x,
 r/d/gi và n/ng cuối. `generate_prompt(previous=...)` dùng `secrets.choice`, loại
 câu trước; RNG có seed chỉ dành test. TTL, số lần đọc lại, chống gọi trùng thuộc API.
 
@@ -64,7 +65,9 @@ sinh CPU local, seed 42 trước mỗi câu. Không có dịch vụ TTS mạng, 
 Nguồn/điều khoản: https://huggingface.co/facebook/mms-tts-vie/blob/b58928d033932a49aa8e3d6cf11625b25fe928d2/README.md.
 
 Thử nghiệm eSpeak trước đó đọc đúng bị ASR từ chối; giữ ở thư mục TTS riêng.
-MMS dùng **cùng hai văn bản cố định**, không chỉnh ngưỡng theo kết quả.
+Hai bộ sinh dùng bốn ca cố định: đúng, sai hoàn toàn, đổi một âm tiết (mẹ → bố),
+đổi một thanh (mẹ → mè). Hai ca gần đúng dự kiến pass theo dung sai cố định,
+không đồng nghĩa đọc nguyên văn; ASR có thể sửa lại thanh. Không chỉnh ngưỡng theo kết quả.
 Có thể tái lập eSpeak bằng `--provider espeak --download-tool`.
 eSpeak NG 1.52.0 chỉ chạy riêng để chuẩn bị thử nghiệm. Windows script tải MSI chính thức và extract vào DATA_DIR/tools, không
 cài hệ thống. Mạng chỉ dùng để chuẩn bị công cụ; không có dịch vụ TTS mạng.
