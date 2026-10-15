@@ -95,4 +95,36 @@ describe("api client", () => {
 
     expect(calls[0].url).toBe("http://api.test/v1/sessions/a%2Fb%3Fc/finalize");
   });
+
+  it("nối AbortSignal tới fetch của mọi lời gọi", async () => {
+    const { impl, calls } = fakeFetch([
+      { body: SESSION },
+      { body: { step: "media", received: true } },
+      { body: { step: "signals", received: true } },
+      { body: { status: "pass" } },
+      { body: { status: "pass" } },
+    ]);
+    const api = createApiClient({ baseUrl: "http://api.test", fetchImpl: impl });
+    const controller = new AbortController();
+    const { signal } = controller;
+
+    await api.createSession("genuine", signal);
+    await api.uploadMedia("ses_1", "tok", new Blob(["x"]), undefined, signal);
+    await api.sendSignals("ses_1", "tok", { color_events: [], frame_times: [] }, signal);
+    await api.finalize("ses_1", "tok", signal);
+    await api.sendVoice("ses_1", "tok", new Blob(["x"]), undefined, signal);
+
+    expect(calls).toHaveLength(5);
+    for (const call of calls) expect(call.init.signal).toBe(signal);
+  });
+
+  it("2xx nhưng thân không phải JSON là ApiError invalid_response (không phải lỗi mạng)", async () => {
+    const impl = (async () =>
+      new Response("{không phải json", { status: 200 })) as unknown as typeof fetch;
+    const api = createApiClient({ baseUrl: "http://api.test", fetchImpl: impl });
+
+    const failure = api.finalize("ses_1", "tok");
+    await expect(failure).rejects.toBeInstanceOf(ApiError);
+    await expect(failure).rejects.toMatchObject({ status: 200, errorCode: "invalid_response" });
+  });
 });

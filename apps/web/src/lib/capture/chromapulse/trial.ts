@@ -1,7 +1,7 @@
 // Một lần thử: phát chuỗi màu bằng requestAnimationFrame và ghi mỗi khung video bằng
 // requestVideoFrameCallback. Mọi mốc thời gian dùng performance.now() (không Date.now, không MediaRecorder).
 
-import type { Rgb } from "./config";
+import type { ChromaPulseConfig, Rgb } from "./config";
 import type { ColorEvent, DisplaySample, FrameRecord } from "./record";
 import { frameMetadataKeys } from "./record";
 import type { FrameSampler, FrameSample } from "./sampler";
@@ -33,6 +33,8 @@ export type TrialOptions = {
   onSample?: (sample: FrameSample) => void;
   onProgress?: (elapsedMs: number, totalMs: number) => void;
   signal?: AbortSignal;
+  /** Cấu hình thời gian (mặc định: chromapulse.json); /verify truyền nền đầu lấy từ máy chủ. */
+  config?: ChromaPulseConfig;
 };
 
 export function supportsFrameCallback(video: HTMLVideoElement): boolean {
@@ -40,8 +42,8 @@ export function supportsFrameCallback(video: HTMLVideoElement): boolean {
 }
 
 export function runTrial(options: TrialOptions): Promise<TrialResult> {
-  const { video, sampler, steps, onColor, onSample, onProgress, signal } = options;
-  const timeline = buildTimeline(steps);
+  const { video, sampler, steps, onColor, onSample, onProgress, signal, config } = options;
+  const timeline = buildTimeline(steps, config);
 
   const colorEvents: ColorEvent[] = [];
   const displaySamples: DisplaySample[] = [];
