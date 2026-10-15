@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import secrets
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
@@ -86,8 +87,9 @@ class CaseRecord:
 
 
 class ReviewStore:
-    def __init__(self, db: DBSession) -> None:
+    def __init__(self, db: DBSession, *, runner: Callable = run_detectors) -> None:
         self.db = db
+        self._run = runner
         self._loaded: dict[str, tuple[CaseRecord, ReviewCaseRow]] = {}
 
     def add(
@@ -180,7 +182,7 @@ class ReviewStore:
                 session_id=sid,
                 priority=priority,
                 scenario=scenario,
-                results=run_detectors(DEMO_MODULES, session_id=sid, scenario=scenario),
+                results=self._run(DEMO_MODULES, session_id=sid, scenario=scenario),
                 media=[
                     MediaRef(kind="face_image", url=f"/media/{sid}/face_image"),
                     MediaRef(kind="face_video", url=f"/media/{sid}/face_video"),

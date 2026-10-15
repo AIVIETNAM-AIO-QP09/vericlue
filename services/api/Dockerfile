@@ -15,6 +15,7 @@ FROM python:3.12-slim AS runtime
 WORKDIR /app
 ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1 \
     CHROMAPULSE_CONFIG=/app/config/chromapulse.json \
+    ML_MODELS_CONFIG=/app/ml/configs/models.yaml \
     CALIBRATORS_DIR=/app/ml/configs/calibrators
 RUN useradd --uid 10001 --create-home api && mkdir -p /media /models /data && chown api:api /media
 COPY --from=builder /app/.venv /app/.venv

@@ -201,6 +201,8 @@
 | M5 | 1 | S1 | P0 | PLAT-05 |
 
 **Mục tiêu:** `finalize` chạy song song các bộ phát hiện, lưu kết quả, gọi TrustRouter, trả quyết định trong ≤ 5 giây.
+> Quyết định trưởng nhóm 16/10: giữ luật B/A tạm, ROUT-02 mới thay TrustRouter; preload lỗi giữ error tới restart và health degraded chỉ tên module; lock_timeout PostgreSQL mặc định2 giây cho finalize/voice, hết chờ trả503 storage_busy.
+
 **Đọc trước:** `docs/architecture/architecture.md` §6.
 
 **Đầu ra:**

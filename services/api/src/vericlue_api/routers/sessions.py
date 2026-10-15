@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Header, UploadFile
+from starlette.concurrency import run_in_threadpool
 
 from vericlue_api.core.errors import ApiError
 from vericlue_api.core.security import bearer_scheme, require_session
@@ -102,7 +103,10 @@ def upload_signals(session: SessionDep, state: StateDep, signals: Signals) -> St
     "/{session_id}/finalize",
     response_model=FinalizeResponse,
     response_model_exclude_none=True,
-    responses=SESSION_ERRORS,
+    responses={
+        **SESSION_ERRORS,
+        503: {"model": ErrorResponse, "description": "Kho dữ liệu đang bận hoặc không khả dụng"},
+    },
 )
 def finalize(session: SessionDep, state: StateDep) -> FinalizeResponse:
     return state.flow.finalize(session)
@@ -112,7 +116,10 @@ def finalize(session: SessionDep, state: StateDep) -> FinalizeResponse:
     "/{session_id}/voice",
     response_model=VoiceResponse,
     response_model_exclude_none=True,
-    responses=SESSION_ERRORS,
+    responses={
+        **SESSION_ERRORS,
+        503: {"model": ErrorResponse, "description": "Kho dữ liệu đang bận hoặc không khả dụng"},
+    },
 )
 async def voice(
     session: SessionDep,
@@ -137,4 +144,4 @@ async def voice(
             video.filename,
             await read_limited(video, state.settings.max_upload_mb),
         )
-    return state.flow.voice(session)
+    return await run_in_threadpool(state.flow.voice, session)

@@ -1,4 +1,4 @@
-"""Chạy các bộ phát hiện (tuần tự, TẠM — PLAT-08 thay bằng orchestrator song song)."""
+"""Helper trực tiếp cho test/harness; request API dùng orchestrator đã preload trong lifespan."""
 
 from __future__ import annotations
 
