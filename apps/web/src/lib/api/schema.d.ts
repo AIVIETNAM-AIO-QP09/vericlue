@@ -420,6 +420,8 @@ export interface components {
         };
         /** Health */
         Health: {
+            /** Failed Modules */
+            failed_modules: string[];
             /** Mock Models */
             mock_models: boolean;
             /** Status */
@@ -1090,6 +1092,15 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
+            /** @description Kho dữ liệu đang bận hoặc không khả dụng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     upload_media_v1_sessions__session_id__media_post: {
@@ -1247,6 +1258,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Kho dữ liệu đang bận hoặc không khả dụng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

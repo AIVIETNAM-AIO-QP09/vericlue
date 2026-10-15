@@ -78,12 +78,13 @@ class PhoWhisperASR:
 
     def __init__(self, models_dir: Path | None = None) -> None:
         repo = Path(__file__).resolve().parents[4]
-        config_path = repo / "ml/configs/models.yaml"
+        config_path = Path(os.environ.get("ML_MODELS_CONFIG") or repo / "ml/configs/models.yaml")
         config = yaml.safe_load(config_path.read_text(encoding="utf-8")).get("voice", {})
         root = Path(models_dir or os.environ.get("MODELS_DIR", repo / "models"))
         if not root.is_absolute():
             root = repo / root
-        self.model_dir = root / config.get("model_subdir", "phowhisper")
+        self._model_subdir = config.get("model_subdir", "phowhisper")
+        self.model_dir = root / self._model_subdir
         revision = config.get("revision", "a86b604c346caf7148c37512eafe783a16420adb")
         self.version = f"phowhisper-small@{revision}+voice04-v1"
         self.vad_mode = config.get("vad_mode", 1)
@@ -122,6 +123,16 @@ class PhoWhisperASR:
             )
         except (OSError, ValueError, RuntimeError) as exc:
             raise ASRError("Không nạp được PhoWhisper local.") from exc
+
+    def preload(self, *, models_dir: Path | None = None) -> None:
+        """Load local weights once before the API accepts inference requests."""
+        with self._lock:
+            if models_dir is not None:
+                target = models_dir.resolve() / self._model_subdir
+                if self._model is not None and target != self.model_dir:
+                    raise ASRError("ASR đã nạp với MODELS_DIR khác; cần restart.")
+                self.model_dir = target
+            self._load()
 
     def transcribe(self, audio_path: Path) -> str:
         """Transcribe local audio only; no expected-text argument."""

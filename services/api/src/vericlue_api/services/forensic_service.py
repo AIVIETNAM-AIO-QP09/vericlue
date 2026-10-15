@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import secrets
+from collections.abc import Callable
 from html import escape
 
 from sqlalchemy import select
@@ -28,12 +29,21 @@ def _signal(r: ModuleResult) -> SegmentSignal:
 
 
 class ForensicStore:
-    def __init__(self, b: float, a: float, db: DBSession, media_dir: str) -> None:
+    def __init__(
+        self,
+        b: float,
+        a: float,
+        db: DBSession,
+        media_dir: str,
+        *,
+        runner: Callable = run_detectors,
+    ) -> None:
         self._b, self._a = b, a
+        self._run = runner
         self.db, self.media_dir = db, media_dir
 
     def create(self, data: bytes, filename: str | None, scenario: str) -> ForensicJob:
-        results = run_detectors(FORENSIC_MODULES, session_id=None, scenario=scenario)
+        results = self._run(FORENSIC_MODULES, session_id=None, scenario=scenario)
         segments = [
             ForensicSegment(
                 t_start=i * SEGMENT_SECONDS,
