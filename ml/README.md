@@ -123,3 +123,12 @@ khung chung tại FACE-01/VOICE-01/ROUT-05. Không dùng calib_ltt/test để ch
 
 PhoWhisper CPU offline, VAD và so khớp hai lớp: [hướng dẫn voice](src/vericlue_ml/voice/README.md).
 Thư viện inference nằm trong extra `voice`; mock/normalization test không cần model.
+
+### Preload trong API (PLAT-08)
+
+VoiceChallengeDetector.preload() gọi PhoWhisperASR.preload() dưới khóa, nạp weights
+local một lần trước request; không nhận audio/prompt. API truyền models_dir từ
+Settings/.env; thay root sau khi đã nạp bị từ chối để tránh trộn phiên bản.
+ML_MODELS_CONFIG trỏ models.yaml khi chạy wheel ngoài source tree (Dockerfile API
+đã cấu hình). Không đổi tiền xử lý/threshold/ModuleResult; lỗi preload được API
+lưu là unavailable tới restart và báo health degraded.

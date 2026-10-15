@@ -152,10 +152,20 @@ Nhật ký ghi actor `staff-unverified` vì xác thực nhân viên thuộc PLAT
 2. Web chạy cổng chất lượng (MediaPipe). Chưa đạt thì nhắc chụp lại, chưa gửi gì lên.
 3. Web phát chuỗi màu, ghi thời điểm vẽ (`requestAnimationFrame`) và thời điểm từng khung (`requestVideoFrameCallback`), chạy CamProbe.
 4. Web gửi media và signals, rồi gọi `finalize`.
-5. Server chạy song song: PAD, GenD, SBI, ChromaPulse, CamProbe → `ModuleResult[]`.
-6. TrustRouter: cổng hợp lệ → cổng chất lượng → cổng hiện diện → hiệu chỉnh và hợp nhất → so với ngưỡng đã khóa trong `ml/configs/thresholds.yaml`.
+5. Server chạy song song qua orchestrator preload trong lifespan → `ModuleResult[]`. Hiện nhóm finalize gồm quality, face_pad, face_deepfake, chromapulse, camprobe; SBI thuộc task mô hình, không thêm tên module ngoài hợp đồng.
+6. ROUT-02 sẽ thay bằng TrustRouter: cổng hợp lệ → cổng chất lượng → cổng hiện diện → hiệu chỉnh và hợp nhất → ngưỡng đã khóa. Hiện vẫn dùng luật B/A tạm của PLAT-04; PLAT-08 không thay ngưỡng.
 7. Nếu ở vùng giữa → trả `voice_challenge` kèm câu tiếng Việt → web gửi `voice` → chạy bước giọng nói → quyết định cuối.
 8. Ca `review` tạo `review_case`; mọi bước ghi nhật ký.
+
+PLAT-08 dùng executor chung, một predict/module và FIFO tối đa3 tác vụ chờ/module
+(DETECTOR_QUEUE_SIZE), với bản sao input riêng;
+worker không truy cập DB/session. Deadline detector mặc định4 giây (kể cả queue),
+error/degraded không pass; kết quả muộn bị bỏ. Preload lỗi giữ error tới restart,
+health degraded chỉ công khai tên module. Finalize/voice dùng ngân sách inference
+chung theo Settings INFERENCE_BUDGET_SECONDS (mặc định4,8 giây) tính trước chờ DB,
+chừa200ms cho commit/response trên DB bình thường;
+PostgreSQL lock_timeout mặc định2 giây trả503 storage_busy khi hết chờ khóa.
+Latency thực từng detector được lưu trong ModuleResult và log không transcript.
 
 ## 7. Môi trường chạy
 

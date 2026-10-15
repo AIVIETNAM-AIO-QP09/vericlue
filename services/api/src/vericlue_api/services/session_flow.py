@@ -1,7 +1,7 @@
 """Luồng một phiên eKYC (kiến trúc §6). Router chỉ gọi các hàm ở đây.
 
 Giai đoạn PLAT-04: chưa có máy trạng thái chống phát lại "mỗi bước một lần mỗi lượt" (409), HMAC,
-TTL hay 429 (PLAT-06), chưa có DB (PLAT-05), chưa chạy song song (PLAT-08), luật quyết định là TẠM.
+TTL hay 429 (PLAT-06); DB/transaction và inference song song đã có (PLAT-05/08). Luật quyết định là TẠM.
 Chỉ kiểm THỨ TỰ luồng để không có đường tắt tới `pass`: 409 `session_closed` khi phiên đã vào bàn
 duyệt, 409 `voice_not_requested` khi `finalize` chưa yêu cầu đọc câu.
 """
@@ -9,6 +9,7 @@ duyệt, 409 `voice_not_requested` khi `finalize` chưa yêu cầu đọc câu.
 from __future__ import annotations
 
 import random
+from collections.abc import Callable
 from typing import get_args
 
 from vericlue_api.core.config import Settings
@@ -49,8 +50,16 @@ DEFAULT_HINT = "MORE_LIGHT"
 
 
 class SessionFlow:
-    def __init__(self, settings: Settings, sessions: SessionStore, reviews: ReviewStore) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        sessions: SessionStore,
+        reviews: ReviewStore,
+        *,
+        runner: Callable = run_detectors,
+    ) -> None:
         self.settings = settings
+        self._run = runner
         self.sessions = sessions
         self.reviews = reviews
 
@@ -88,7 +97,7 @@ class SessionFlow:
     def finalize(self, session: Session) -> FinalizeResponse:
         self.ensure_open(session)
         session.voice_requested = False  # chỉ bật lại nếu lần này ra voice_challenge
-        results = run_detectors(
+        results = self._run(
             FINALIZE_MODULES,
             session_id=session.session_id,
             scenario=session.scenario,
@@ -134,7 +143,7 @@ class SessionFlow:
     # --- voice -----------------------------------------------------------
     def voice(self, session: Session) -> VoiceResponse:
         self.ensure_voice_allowed(session)
-        results = run_detectors(
+        results = self._run(
             VOICE_STEP_MODULES,
             session_id=session.session_id,
             scenario=session.scenario,

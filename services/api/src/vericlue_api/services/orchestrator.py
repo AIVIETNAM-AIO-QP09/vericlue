@@ -1,0 +1,277 @@
+"""Bounded parallel inference; workers never access request state or the database."""
+
+from __future__ import annotations
+
+import logging
+from collections import deque
+from collections.abc import Callable, Iterable
+from concurrent.futures import Future, ThreadPoolExecutor, wait
+from dataclasses import dataclass, field
+from pathlib import Path
+from threading import Lock
+from time import perf_counter
+from typing import Any
+
+from vericlue_api.core.config import Settings
+from vericlue_ml.common.detector import Detector, DetectorInput
+from vericlue_ml.common.result import ErrorCode, Evidence, Module, ModuleResult, Status
+from vericlue_ml.registry import get_detector
+from vericlue_ml.voice.challenge import VoiceChallengeDetector
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class _Job:
+    module: Module
+    inp: DetectorInput
+    submitted: float
+    deadline: float
+    result: Future = field(default_factory=Future)
+
+
+class Orchestrator:
+    """One serialized detector instance per module, with bounded FIFO waiting queues."""
+
+    def __init__(
+        self, settings: Settings, *, detector_factory: Callable[[Module], Detector] | None = None
+    ) -> None:
+        self.settings = settings
+        self._factory = detector_factory or (
+            lambda module: get_detector(module, mock=settings.use_mock_models)
+        )
+        self._detectors: dict[Module, Detector] = {}
+        self._failed: set[Module] = set()
+        self._queues: dict[Module, deque[_Job]] = {module: deque() for module in Module}
+        self._running: set[Module] = set()
+        self._lifecycle = Lock()
+        self._started = self._closed = False
+        self._executor: ThreadPoolExecutor | None = None
+
+    @property
+    def failed_modules(self) -> list[str]:
+        """Only public module names; never expose preload exception details."""
+        with self._lifecycle:
+            return sorted(str(module) for module in self._failed)
+
+    def start(self) -> None:
+        """Resolve/preload once; failed modules remain unavailable until restart."""
+        with self._lifecycle:
+            if self._closed:
+                raise RuntimeError("Orchestrator is closed")
+            if self._started:
+                return
+            for module in Module:
+                try:
+                    detector = self._factory(module)
+                    if Module(detector.name) != module:
+                        raise ValueError("Detector module mismatch")
+                    preload = getattr(detector, "preload", None)
+                    if preload is not None:
+                        if isinstance(detector, VoiceChallengeDetector):
+                            preload(models_dir=Path(self.settings.models_dir))
+                        else:
+                            preload()
+                    self._detectors[module] = detector
+                except Exception:
+                    self._failed.add(module)
+                    logger.warning("detector_preload_failed module=%s", module)
+            self._executor = ThreadPoolExecutor(
+                max_workers=self.settings.detector_workers, thread_name_prefix="vericlue-detector"
+            )
+            self._started = True
+
+    def close(self) -> None:
+        """Stop accepting work; running inference cannot be safely killed in a thread."""
+        with self._lifecycle:
+            self._closed = True
+            for queue in self._queues.values():
+                while queue:
+                    job = queue.popleft()
+                    finished = perf_counter()
+                    job.result.set_result(
+                        (
+                            self._error(
+                                job.module,
+                                ErrorCode.E_TIMEOUT,
+                                (finished - job.submitted) * 1000,
+                                reason="timeout",
+                            ),
+                            finished,
+                        )
+                    )
+            if self._executor is not None:
+                self._executor.shutdown(wait=False, cancel_futures=True)
+
+    def _error(
+        self, module: Module, code: ErrorCode, latency_ms: float, *, reason: str | None = None
+    ) -> ModuleResult:
+        detector = self._detectors.get(module)
+        return ModuleResult(
+            module=module,
+            model_version=getattr(detector, "version", "unavailable"),
+            status=Status.ERROR,
+            error_code=code,
+            latency_ms=max(0.0, latency_ms),
+            evidence=[Evidence(type="text", name="orchestration_reason", value=reason)]
+            if reason
+            else [],
+        )
+
+    def _predict(
+        self, module: Module, inp: DetectorInput, submitted: float, deadline: float
+    ) -> tuple[ModuleResult, float]:
+        if perf_counter() >= deadline:
+            finished = perf_counter()
+            return self._error(
+                module, ErrorCode.E_TIMEOUT, (finished - submitted) * 1000, reason="timeout"
+            ), finished
+        try:
+            result = self._detectors[module].predict(inp)
+            if not isinstance(result, ModuleResult) or Module(result.module) != module:
+                raise ValueError("Invalid detector result")
+            result = ModuleResult.model_validate(result.model_dump())
+        except Exception:
+            result = self._error(module, ErrorCode.E_INTERNAL, 0.0)
+        finished = perf_counter()
+        return result.model_copy(update={"latency_ms": (finished - submitted) * 1000}), finished
+
+    def _drain(self, job: _Job) -> None:
+        # Only one executor worker per module; queued requests do not occupy pool threads.
+        module = job.module
+        while True:
+            result = self._predict(module, job.inp, job.submitted, job.deadline)
+            job.result.set_result(result)
+            with self._lifecycle:
+                queue = self._queues[module]
+                if not queue:
+                    self._running.remove(module)
+                    return
+                job = queue.popleft()
+
+    def _prune(self, module: Module) -> None:
+        # Waiting jobs are owned by this queue, so expiring them creates no executor tombstones.
+        now = perf_counter()
+        queue = self._queues[module]
+        remaining = deque()
+        while queue:
+            job = queue.popleft()
+            if job.deadline <= now:
+                job.result.set_result(
+                    (
+                        self._error(
+                            module,
+                            ErrorCode.E_TIMEOUT,
+                            (now - job.submitted) * 1000,
+                            reason="timeout",
+                        ),
+                        now,
+                    )
+                )
+            else:
+                remaining.append(job)
+        self._queues[module] = remaining
+
+    def run(
+        self,
+        modules: Iterable[Module],
+        *,
+        session_id: str | None,
+        scenario: str,
+        images: list[Path] | None = None,
+        video: Path | None = None,
+        audio: Path | None = None,
+        signals: dict[str, Any] | None = None,
+        extra_metadata: dict[str, Any] | None = None,
+        deadline: float | None = None,
+    ) -> dict[Module, ModuleResult]:
+        """Use a common submission deadline; discard late results without state writes."""
+        started = perf_counter()
+        deadline = min(
+            started + self.settings.detector_timeout_seconds,
+            deadline if deadline is not None else float("inf"),
+        )
+        inp = DetectorInput(
+            session_id=session_id,
+            images=images or [],
+            video=video,
+            audio=audio,
+            signals=signals or {},
+            metadata={"scenario": scenario, **(extra_metadata or {})},
+        )
+        out: dict[Module, ModuleResult] = {}
+        futures: dict[Module, Future] = {}
+        with self._lifecycle:
+            for value in dict.fromkeys(modules):
+                module = Module(value)
+                if not self._started or self._closed or module in self._failed:
+                    out[module] = self._error(
+                        module, ErrorCode.E_INTERNAL, (perf_counter() - started) * 1000
+                    )
+                    continue
+                if perf_counter() >= deadline:
+                    out[module] = self._error(
+                        module,
+                        ErrorCode.E_TIMEOUT,
+                        (perf_counter() - started) * 1000,
+                        reason="timeout",
+                    )
+                    continue
+                self._prune(module)
+                if (
+                    module in self._running
+                    and len(self._queues[module]) >= self.settings.detector_queue_size
+                ):
+                    out[module] = self._error(
+                        module,
+                        ErrorCode.E_TIMEOUT,
+                        (perf_counter() - started) * 1000,
+                        reason="busy",
+                    )
+                    continue
+                job = _Job(module, inp.model_copy(deep=True), started, deadline)
+                futures[module] = job.result
+                if module in self._running:
+                    self._queues[module].append(job)
+                else:
+                    self._running.add(module)
+                    try:
+                        self._executor.submit(self._drain, job)
+                    except Exception:
+                        self._running.remove(module)
+                        job.result.set_result(
+                            (
+                                self._error(
+                                    module, ErrorCode.E_INTERNAL, (perf_counter() - started) * 1000
+                                ),
+                                perf_counter(),
+                            )
+                        )
+        if futures:
+            wait(futures.values(), timeout=max(0.0, deadline - perf_counter()))
+        for module, future in futures.items():
+            if future.done() and not future.cancelled():
+                result, finished = future.result()
+                if finished <= deadline:
+                    out[module] = result
+                    continue
+            # The driver owns pending/running jobs; never enqueue unbounded executor work.
+            # Discard late results; waiting jobs are pruned before further admission.
+            out[module] = self._error(
+                module, ErrorCode.E_TIMEOUT, (perf_counter() - started) * 1000, reason="timeout"
+            )
+        for module, result in out.items():
+            reason = next(
+                (e.value for e in result.evidence if e.name == "orchestration_reason"), None
+            )
+            logger.info(
+                "detector_result session_id=%s module=%s model_version=%s status=%s error_code=%s reason=%s latency_ms=%.3f",
+                session_id,
+                module,
+                result.model_version,
+                result.status,
+                result.error_code,
+                reason,
+                result.latency_ms,
+            )
+        return out

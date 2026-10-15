@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
 from vericlue_api import __version__
@@ -15,8 +15,15 @@ class Health(BaseModel):
     status: str
     version: str
     mock_models: bool
+    failed_modules: list[str]
 
 
 @router.get("/healthz", response_model=Health)
-def healthz(settings: Settings = Depends(get_settings)) -> Health:
-    return Health(status="ok", version=__version__, mock_models=settings.use_mock_models)
+def healthz(request: Request, settings: Settings = Depends(get_settings)) -> Health:
+    failed = request.app.state.vericlue.orchestrator.failed_modules
+    return Health(
+        status="degraded" if failed else "ok",
+        version=__version__,
+        mock_models=settings.use_mock_models,
+        failed_modules=failed,
+    )

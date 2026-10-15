@@ -1,7 +1,7 @@
 # services/api — Máy chủ API (FastAPI)
 
 **Phụ trách:** M5
-**Trạng thái:** API v1 chạy với dữ liệu mock (PLAT-03 khung, **PLAT-04** endpoint + hợp đồng). DB đã chuyển sang SQLAlchemy/PostgreSQL ở PLAT-05. Token, orchestrator và luật quyết định đầy đủ còn là phần TẠM, xem "Phần tạm" bên dưới.
+**Trạng thái:** API v1 chạy với dữ liệu mock (PLAT-03 khung, **PLAT-04** endpoint + hợp đồng). DB đã chuyển sang SQLAlchemy/PostgreSQL ở PLAT-05. Token và luật quyết định đầy đủ còn là phần TẠM; PLAT-08 đã có orchestrator song song, xem "Phần tạm" bên dưới.
 
 ## Trách nhiệm
 
@@ -51,7 +51,7 @@ Chạy mock (`USE_MOCK_MODELS=true`, mặc định) chọn kịch bản bằng h
 |---|---|---|
 | Token | chuỗi ngẫu nhiên, chỉ so khớp | **PLAT-06**: HMAC gắn `session_id`, TTL ~5 phút, 409 và máy trạng thái "mỗi bước một lần mỗi lượt", 429 (3 phiên/giờ/IP), hết hạn challenge 120 giây thật |
 | Lưu trữ | **PLAT-05**: PostgreSQL, migration Alembic, transaction theo request | Đã có persistence; nghiệp vụ tiếp tục ở các task tương ứng |
-| Chạy detector | tuần tự (`services/detection.py`) | **PLAT-08**: orchestrator song song |
+| Chạy detector | **PLAT-08**: executor chung, preload lifespan, deadline/timeout và latency thực | Đã có; detector thật được bổ sung bởi các task mô hình |
 | Luật quyết định | `services/provisional_decision.py`, B=0,15, A=0,60 trong cấu hình (`PROVISIONAL_THRESHOLD_B/A`) | **ROUT-02**: TrustRouter, ngưỡng từ `ml/configs/thresholds.yaml` |
 | Giám định, chữ ký | segment và chữ ký `MOCK-<sha256>` | **FOR-01 / FOR-04**, khóa Ed25519 ở PLAT-06 |
 | Bàn duyệt | DB và sự kiện append-only/chuỗi băm cơ bản; URL media vẫn là chỗ giữ chỗ | **REV-01**: nghiệp vụ và phục vụ media hoàn chỉnh |
@@ -100,3 +100,84 @@ Job Python CI có service PostgreSQL16 với credential mẫu chỉ cho DB test 
 các bước CI hiện có được giữ nguyên. Tuyệt đối không dùng credential CI cho triển khai.
 
 Cleanup lọc điều kiện hết hạn ngay trong SQL và dùng `FOR UPDATE SKIP LOCKED`; không khóa phiên/job chưa hết hạn. GET danh sách ca duyệt chỉ đọc, không khóa row. Token tạm hiện lưu **dạng rõ** trong `sessions.payload`; PLAT-06 phải đổi sang lưu hash (không lưu token gốc).
+
+## Điều phối detector (PLAT-08)
+
+API preload một instance mỗi module trong lifespan, trước khi nhận request. Hook
+`preload()` nạp trọng số thật, không dùng audio giả hay câu đề bài để warmup.
+Mock không cần weights. Preload lỗi không làm API dừng: module đó trả error cho
+đến khi restart; không tự đổi sang mock và không thử nạp lại mỗi request.
+`/healthz` trả status degraded và failed_modules (chỉ tên module), không có
+exception, đường dẫn hay thông tin xác thực. Khởi tạo/import app để sinh OpenAPI
+không kết nối DB hay preload model.
+
+- DETECTOR_TIMEOUT_SECONDS: mặc định/tối đa 4 giây cho mỗi nhóm chạy song song,
+  tính từ submit, bao gồm chờ hàng đợi. Exception/kết quả sai module -> error
+  E_INTERNAL; hết hạn/hàng đợi đầy -> error E_TIMEOUT. error/degraded không
+  bao giờ được dùng để pass; B/A và cổng quyết định vẫn giữ nguyên cho ROUT-02.
+- DETECTOR_WORKERS: mặc định 9. Mỗi module có một driver trong pool và chỉ một
+  predict tại một thời điểm, bảo vệ model instance dùng chung. Tác vụ chờ nằm
+  trong FIFO riêng, không giữ thread để chờ khóa của model.
+- DETECTOR_QUEUE_SIZE: mặc định **3 tác vụ chờ mỗi module**, ngoài một tác vụ
+  đang chạy/được giao cho pool (tối đa 4 được nhận/module/process). Đặt 0 để
+  không xếp hàng. Vượt giới hạn trả error E_TIMEOUT; evidence nội bộ
+  orchestration_reason và log reason=busy phân biệt với reason=timeout khi hết
+  deadline. Không trả các chi tiết này cho công dân; không thay ErrorCode.
+  Cả queue wait và inference dùng chung hạn 4 giây. Tác vụ chờ đã quá hạn bị
+  loại, không gọi model; kết quả chạy quá hạn bị bỏ, không ghi session/DB muộn.
+  Thread inference đang chạy không thể bị giết an toàn. Shutdown ngừng nhận việc,
+  kết thúc task chờ bằng error; detector native treo cần restart process.
+- DB_LOCK_TIMEOUT_SECONDS: mặc định 2 giây, PostgreSQL SET LOCAL lock_timeout cho
+  transaction finalize/voice, đặt trước SELECT FOR UPDATE xác thực phiên. Hết chờ
+  khóa trả HTTP503 storage_busy với thông báo chung; transaction rollback, không
+  trả pass. Timeout cục bộ không rò sang connection pool. SQLite unit không giả
+  lập khóa PostgreSQL; test CI dùng service PostgreSQL16 thật.
+- INFERENCE_BUDGET_SECONDS: mặc định/tối đa 4,8 giây, lấy từ Settings.
+  Finalize/voice chia sẻ deadline inference tính từ dependency request,
+  gồm thời gian chờ khóa; phần đã chờ DB được trừ khỏi ngân sách detector. Chừa
+  200ms cho policy/commit/response trên DB bình thường để nghiệm thu endpoint
+  <=5 giây. Lock timeout không giới hạn toàn bộ connect/query/commit nếu DB hỏng;
+  không tuyên bố SLA5s cho sự cố DB/mạng hay thời gian upload của client.
+
+Worker chỉ nhận bản sao DetectorInput, không cầm ORM/store. Luồng nghiệp vụ giữ
+khóa hàng tới commit, lưu module_results và quyết định. /voice offload inference
+khỏi event loop; prompt lấy từ session server. recognized_text/expected_text,
+WER, similarity và evidence chỉ nội bộ; response công dân chỉ dùng schema hiện có.
+VOICE-04 đã được registry nối vào nhánh voice; không mở rộng VOICE-05/06 trong task
+này. Voice spoof/lipsync chưa có mô hình thật thì error, không dùng gate đọc câu
+để thay bằng chứng chống giả giọng.
+
+Log detector_result chứa module/model_version/status/error_code/latency_ms đo bằng
+perf_counter, không log media/transcript/prompt/score. Timing của mock (vốn cố
+định trong model) được thay bằng thời gian thực của orchestrator. Helper trực tiếp
+services/detection.py giữ cho unit/harness cũ; tất cả consumer của API dùng runner
+được inject từ instance chung, kể cả seed mock và giám định mock.
+
+PhoWhisper public preload nhận MODELS_DIR từ Settings (.env), không phụ thuộc việc
+.env đã được export thành os.environ. Khi cài wheel, đặt ML_MODELS_CONFIG tới
+models.yaml; Dockerfile đã đặt /app/ml/configs/models.yaml. Không có model/data
+trong image, không download lúc inference. Dependency/model thật thiếu sẽ hiện
+trong health degraded theo chính sách trên.
+
+Đo mock HTTP finalize (bao gồm auth/DB/commit/inference, loại upload) bằng
+`uv run python scripts/benchmark_finalize.py --api-url http://localhost:8000 --runs 20`.
+Báo cáo ignored tmp/plat-08-latency.json ghi máy, OS/CPU, commit/dirty, từng mẫu,
+median/p95/max và số lần chạy. Đây là kiểm mock cho PLAT-08, chưa phải số R6 của
+mô hình thật. Test không cần GPU/weights; test timeout dùng fake CPU/event.
+
+### Giới hạn để chạy demo có nhiều người
+
+Kịch bản nghiệm thu: **3 người với 3 phiên khác nhau finalize đồng thời**, detector
+mock chậm 1 giây, tất cả nhận đúng kết quả, không bị review chỉ vì tranh slot.
+Với một lần predict/module/process, ba lượt cùng đến cần khoảng 3 giây ở detector
+1 giây; cấu hình mặc định vẫn nằm trong deadline4 giây. Hàng đợi nhận tối đa4 tác
+vụ/module (1 chạy +3 chờ), nhưng không bảo đảm người thứ4 kịp hạn khi mỗi lượt
+mất1 giây, cũng không bảo đảm3 người với mô hình thật chậm hơn. **Demo giới hạn
+3 người quét đồng thời trên một process**, điều phối lượt tiếp theo; đo lại trước
+khi tăng giới hạn hay đổi mô hình/CPU. Đây là test fake CPU, không phải số R6.
+
+DB dùng SQLAlchemy QueuePool mặc định: pool_size=5, max_overflow=10, pool_timeout=30s
+**mỗi process API**; nhiều process sẽ nhân số connection. Không nhầm pool_timeout
+với lock_timeout2s của finalize/voice. Nếu hết connection pool, thời gian chờ có
+thể vượt ngân sách endpoint; không nhận quá tải làm pass. Với demo3 người, vẫn
+chừa connection cho các bước lưu trữ/cleanup. Chưa thêm tham số pool mới trong PR.
