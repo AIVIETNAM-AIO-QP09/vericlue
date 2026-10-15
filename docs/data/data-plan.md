@@ -28,7 +28,7 @@
 | Bộ dữ liệu | Nội dung | Người Việt? | Cách lấy | Giấy phép | Đường dẫn | Kiểm tra |
 |---|---|---|---|---|---|---|
 | **Zalo AI 2022 Liveness** (bản mirror đầy đủ) | 2,81 GB. Tập train: 1.168 video selfie 1–5 giây, có nhãn. Các tập test **không có nhãn**. Tấn công: phát lại, ảnh in | **Có** | Kaggle, tải ngay | Người đăng ghi MIT; điều khoản gốc của Zalo chưa rõ | kaggle.com/datasets/hlly34/liveness-detection-zalo-2022 | Có |
-| **Face_anti_spoofing** (Mai Hoàng Tùng) | 8,4 GB, 11.376 ảnh: thật / chụp lại màn hình. Đã chia sẵn train và test | **Có** | Kaggle, tải ngay | CC BY 4.0 | kaggle.com/datasets/maihongtng/face-anti-spoofing | Có |
+| **Face_anti_spoofing** (Mai Hoàng Tùng) | 8,90 GB theo API Kaggle, 11.376 ảnh: thật / chụp lại màn hình. Đã chia sẵn train và test | **Có** | Kaggle, tải ngay | CC BY 4.0 | kaggle.com/datasets/maihongtng/face-anti-spoofing | Có |
 | CelebA-Spoof | 625.537 ảnh, 10.177 người | Không | Google Drive, tải ngay | Phi thương mại | github.com/ZhangYuanhan-AI/CelebA-Spoof | Có |
 | LCC-FASD | 5,2 GB | Không | Kaggle, tải ngay | Không rõ | kaggle.com/datasets/faber24/lcc-fasd | Có |
 
@@ -38,7 +38,7 @@
 
 | Bộ dữ liệu | Nội dung | Cách lấy | Giấy phép | Đường dẫn | Kiểm tra |
 |---|---|---|---|---|---|
-| **RTFS-10k** | 9.772 video face-swap làm bằng inswapper — chính công cụ Deep-Live-Cam dùng; bối cảnh giống hội nghị video. 17,7 GB | Kaggle, tải ngay | CC BY-SA 4.0 | kaggle.com/datasets/stplusplus/rtfs-10k | Có |
+| **RTFS-10k** | 9.772 video face-swap: 4.875 inswapper (công cụ Deep-Live-Cam dùng) + 4.897 uniface; bối cảnh hội nghị video; 1.636 video gốc, có CSV truy vết nguồn/donor. 17,66 GB | Kaggle, tải ngay | CC BY-SA 4.0 | kaggle.com/datasets/stplusplus/rtfs-10k | Có |
 | **WildDeepfake** | Khoảng 1,16 triệu khung hình deepfake lấy từ Internet, đã bị nén. 72,8 GB (có thể tải một phần) | HF, tải ngay | Apache-2.0 (theo trang) | huggingface.co/datasets/xingjunm/WildDeepfake | Có |
 | FaceForensics++ | Bộ chuẩn, có mức nén c23 và c40 | Điền form, chờ khoảng 1 tuần | Điều khoản riêng | github.com/ondyari/FaceForensics | Có |
 | DeepSpeak v1 | Video webcam, có **FaceFusion Live** (face-swap thời gian thực) và lip-sync | HF, điền form | Riêng | huggingface.co/datasets/faridlab/deepspeak_v1 | Có |
@@ -106,7 +106,7 @@ Toàn bộ dữ liệu tự tạo **chỉ dùng nội bộ để kiểm thử, k
 
 **Tải ngay hôm nay (không cần chờ duyệt):**
 - Zalo AI 2022 (2,8 GB)
-- Face_anti_spoofing (8,4 GB)
+- Face_anti_spoofing (8,90 GB theo API Kaggle)
 - RTFS-10k (17,7 GB)
 - Vietnamese Celebrity Faces
 - ViSpoofDB (2,4 GB)
@@ -125,7 +125,7 @@ Toàn bộ dữ liệu tự tạo **chỉ dùng nội bộ để kiểm thử, k
 - DeepSpeak v1
 - Deepfake-Eval-2024
 
-**Dung lượng:** khoảng 100–150 GB nếu chỉ tải phần cần thiết.
+**Dung lượng:** khoảng 100–150 GB nếu chỉ tải phần cần thiết. DATA-01 mặc định `--subset small` có ngân sách 28,6 GB gồm cache/giải nén; đây là giới hạn thiết kế, phải chạy đủ danh mục mới nghiệm thu dung lượng và thời gian. Số byte nguồn FAS-VN/RTFS ở trên được đối chiếu API Kaggle khi làm DATA-01 ngày 15/10/2026.
 
 ---
 
