@@ -243,7 +243,7 @@
   | `voice_clone` | `voice_challenge` → `review` |
   | `error` | không bao giờ `pass` |
 
-- `apps/web/e2e/verify.spec.ts` (Playwright, nếu kịp): mở `/verify` với camera giả của Chromium (`--use-fake-device-for-media-stream`) và đi hết luồng `genuine`.
+- `apps/web/e2e/verify.spec.ts` (Playwright): **đã có từ CAP-02** (5 test, chạy local bằng `npm run test:e2e`, camera giả của Chromium). PLAT-09 đưa vào CI (cài Chromium, tải MediaPipe, chạy API mock + web) và mở rộng tới hết luồng `genuine`. Đến khi vào CI: chạy tay trước mỗi PR chạm `apps/web/src/app/verify` hoặc `src/lib/capture`.
 - Chạy trong CI.
 
 **Tiêu chí hoàn thành:**

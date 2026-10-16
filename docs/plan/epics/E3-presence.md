@@ -59,6 +59,11 @@
 - [ ] Test với JSON thật từ CAP-03 cho kết quả khớp PRES-01.
 - [ ] Chạy < 500 ms trên CPU cho video 6 giây.
 
+**Lưu ý (trưởng nhóm 16/10):**
+- **Trời quá sáng / nắng chiếu thẳng:** ánh màn hình bị ánh sáng nền lấn át nên biên độ phản chiếu rất thấp. Đây là "không đo được", **không phải** "giả": trả `unclear` (không `fail`, không bao giờ `pass`); router cho chụp lại với chỉ dẫn tránh nắng, quá số lần thì `voice_challenge`/`review`. Cổng web đã có chỉ dẫn "Tránh nắng chiếu thẳng vào mặt" (CAP-02); nếu server cần phát mã gợi ý riêng thì PR `[contract]` thêm mã `retry_hint`.
+- Thu thêm vài mẫu "người thật gần cửa sổ có nắng" khi có dịp, để đặt ngưỡng biên độ có số liệu.
+- **Tùy chọn, không bắt buộc:** đo thêm phản chiếu trên giác mạc (vùng nhỏ quanh con ngươi, điểm mốc mống mắt của MediaPipe; chỉ lưu con số, không lưu ảnh) làm tín hiệu phụ khi da yếu. Chỉ làm nếu dư thời gian và có số liệu cho thấy có ích.
+
 ---
 
 ### PRES-03 · Mô-đun camprobe.py
