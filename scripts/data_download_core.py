@@ -13,6 +13,8 @@ import stat
 import tarfile
 import threading
 import time
+import zipfile
+import zlib
 from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -28,6 +30,10 @@ CHUNK_BYTES = 1_048_576
 
 class DownloadError(Exception):
     """Lỗi tải có thông báo không chứa URL ký hay token."""
+
+
+class _RestartDownload(DownloadError):
+    """Range bị từ chối: đã bỏ partial, retry từ đầu có giới hạn."""
 
 
 class SkipDataset(DownloadError):
@@ -402,6 +408,12 @@ class Client:
                 return
             except SkipDataset:
                 raise
+            except _RestartDownload:
+                if attempt == 2:
+                    raise DownloadError(
+                        "Nguồn trả HTTP 416 lặp lại sau khi bỏ .part; dừng sau 3 lần."
+                    ) from None
+                continue
             except DownloadError as error:
                 transient = "HTTP 50" in str(error) or "Tải bị ngắt" in str(error)
                 if not transient or attempt == 2:
@@ -461,6 +473,10 @@ class Client:
                         "GET", file.url, **self._kwargs(file.url, {"headers": headers})
                     ) as response,
                 ):
+                    if response.status_code == 416:
+                        part.unlink(missing_ok=True)
+                        part_record.unlink(missing_ok=True)
+                        raise _RestartDownload("HTTP 416: bỏ .part và tải lại từ đầu.")
                     self._check_status(response)
                     if response.status_code == 206:
                         match = re.fullmatch(
@@ -640,6 +656,78 @@ def safe_extract_tar(archive: Path, dest: Path, members: list[str] | None = None
             if partial.stat().st_size != member.size:
                 raise DownloadError("File giải nén thiếu byte.")
             os.replace(partial, target)
+
+
+def safe_zip_members(source: zipfile.ZipFile, dest: Path) -> dict[str, zipfile.ZipInfo]:
+    """Kiểm toàn inventory ZIP trước ghi: cấm traversal, link và file đặc biệt."""
+    members: dict[str, zipfile.ZipInfo] = {}
+    for member in source.infolist():
+        safe_path(dest, member.filename)
+        mode = stat.S_IFMT(member.external_attr >> 16)
+        if mode not in (0, stat.S_IFREG, stat.S_IFDIR) or member.external_attr & 0x400:
+            raise DownloadError("ZIP chứa symlink/reparse point hoặc file đặc biệt.")
+        if (mode == stat.S_IFDIR and not member.is_dir()) or member.flag_bits & 1:
+            raise DownloadError("ZIP chứa mục không hợp lệ hoặc mã hóa.")
+        normalized = PurePosixPath(member.filename.replace("\\", "/")).as_posix().rstrip("/")
+        key = normalized.casefold()
+        if key in members:
+            raise DownloadError("ZIP chứa đường dẫn trùng hoặc xung đột hoa/thường.")
+        members[key] = member
+    return {member.filename: member for member in members.values()}
+
+
+def _zip_matches(path: Path, member: zipfile.ZipInfo) -> bool:
+    if not path.is_file() or path.stat().st_size != member.file_size:
+        return False
+    crc = 0
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(CHUNK_BYTES), b""):
+            crc = zlib.crc32(chunk, crc)
+    return crc == member.CRC
+
+
+def safe_extract_zip(archive: Path, dest: Path, members: list[str] | None = None) -> None:
+    """Giữ nguyên đường dẫn ZIP, chỉ xuất file thường đã chọn, kiểm CRC khi resume."""
+    dest = _canonical_path(dest)
+    try:
+        with zipfile.ZipFile(archive) as source:
+            inventory = safe_zip_members(source, dest)
+            wanted = set(members) if members is not None else set(inventory)
+            if not wanted <= inventory.keys():
+                raise DownloadError("ZIP thiếu file được yêu cầu.")
+            pending = []
+            for name in sorted(wanted):
+                member = inventory[name]
+                if member.is_dir():
+                    continue
+                target = safe_path(dest, name)
+                # Do not follow even an in-root link when writing archive members.
+                logical = dest.joinpath(*PurePosixPath(name.replace("\\", "/")).parts)
+                current = logical
+                while current != dest:
+                    if current.is_symlink() or (
+                        hasattr(current, "is_junction") and current.is_junction()
+                    ):
+                        raise DownloadError("Đích giải nén ZIP chứa symlink/junction.")
+                    current = current.parent
+                if not _zip_matches(target, member):
+                    pending.append((member, target))
+            check_disk(dest, sum(member.file_size for member, _ in pending))
+            for member, target in pending:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                check_disk(dest, member.file_size)
+                partial = target.with_name(target.name + ".extract.part")
+                if partial.is_symlink() or (
+                    hasattr(partial, "is_junction") and partial.is_junction()
+                ):
+                    raise DownloadError("File giải nén dở là symlink/junction.")
+                with source.open(member) as stream, partial.open("wb") as output:
+                    shutil.copyfileobj(stream, output, CHUNK_BYTES)
+                if not _zip_matches(partial, member):
+                    raise DownloadError("ZIP giải nén thiếu byte hoặc sai CRC.")
+                os.replace(partial, target)
+    except (zipfile.BadZipFile, RuntimeError, EOFError):
+        raise DownloadError("ZIP hỏng/không đọc được; không dùng dữ liệu giải nén lỗi.") from None
 
 
 def write_source(plan: Plan, dest: Path, seed: int, status: str, reason: str = "") -> Path:

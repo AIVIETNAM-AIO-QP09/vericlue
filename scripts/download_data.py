@@ -42,7 +42,7 @@ DATASETS = {
             "https://www.kaggle.com/datasets/hlly34/liveness-detection-zalo-2022",
             "MIT theo mirror; điều khoản Zalo gốc chưa rõ",
             2_817_457_304,
-            3 * GB,
+            4_800_000_000,
         ),
         Dataset(
             "fas_vn",
@@ -122,7 +122,7 @@ DATASETS = {
             "https://huggingface.co/datasets/nguyendv02/ViMD_Dataset",
             "CC BY-NC-ND 4.0",
             59_828_312_520,
-            800_000_000,
+            300_000_000,
         ),
         Dataset(
             "vivos",
