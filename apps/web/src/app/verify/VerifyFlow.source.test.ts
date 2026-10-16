@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -14,12 +14,19 @@ export function stripComments(source: string): string {
     .replace(/\s\/\/ .*$/gm, "");
 }
 
-describe("VerifyFlow.tsx không viết thẳng chữ tiếng Việt", () => {
+// Mọi component của luồng /verify (VerifyFlow, CameraView, ...) phải lấy chữ từ vi.verify.
+const COMPONENT_FILES = readdirSync(import.meta.dirname).filter((name) => name.endsWith(".tsx"));
+
+describe("component của /verify không viết thẳng chữ tiếng Việt", () => {
   const file = path.resolve(import.meta.dirname, "VerifyFlow.tsx");
   const source = readFileSync(file, "utf-8");
 
-  it("ngoài chú thích, không còn chữ tiếng Việt có dấu nào", () => {
-    const code = stripComments(source);
+  it("có ít nhất VerifyFlow.tsx và CameraView.tsx để quét", () => {
+    expect(COMPONENT_FILES).toEqual(expect.arrayContaining(["VerifyFlow.tsx", "CameraView.tsx"]));
+  });
+
+  it.each(COMPONENT_FILES)("%s: ngoài chú thích, không còn chữ tiếng Việt có dấu nào", (name) => {
+    const code = stripComments(readFileSync(path.resolve(import.meta.dirname, name), "utf-8"));
     const offenders = code
       .split("\n")
       .map((line, i) => ({ line: i + 1, text: line.trim() }))

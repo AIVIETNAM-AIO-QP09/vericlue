@@ -12,6 +12,8 @@
 
 import type { ApiError, Challenge, FinalizeResponse, VoiceResponse } from "@/lib/api/client";
 
+import { QUALITY_REQUIRED_FRAMES, type QualityGuidance } from "./quality";
+
 // ---------------------------------------------------------------------------------------------
 // Kiểu dữ liệu
 
@@ -41,6 +43,12 @@ export type ErrorKind =
   | "interrupted";
 
 export type CameraProblem = "denied" | "unavailable" | "insecure";
+
+/**
+ * Vì sao thiết bị/trình duyệt chưa đáp ứng: đây KHÔNG phải lỗi của người dùng và không đếm vào lượt thử lại
+ * (không gửi gì lên máy chủ). FPS thấp không nằm trong danh sách chỉ dẫn mà có màn báo riêng.
+ */
+export type UnsupportedReason = "low_fps" | "low_resolution" | "no_frame_callback";
 
 /** Thời sống thử thách theo ADR-0011 (CHALLENGE_TTL_SECONDS mặc định). */
 export const CHALLENGE_TTL_MS = 120_000;
@@ -72,9 +80,26 @@ export type SessionInfo = {
 
 export type FlowState =
   | { step: "consent"; accepted: boolean }
-  | { step: "camera_permission"; problem: CameraProblem | null }
-  | { step: "framing" }
-  | { step: "quality_check" }
+  /**
+   * `attempt`: mã lần xin camera (tăng mỗi lần bấm "Thử lại"). Kết quả của lần xin cũ bị bỏ qua. UI so sánh
+   * NỘI DUNG (step, problem, attempt), không so danh tính đối tượng state (stateRef và state React là hai đối tượng).
+   */
+  | { step: "camera_permission"; problem: CameraProblem | null; attempt: number }
+  /**
+   * Xem trước camera kèm cổng chất lượng (gộp bước đặt mặt và kiểm tra). `guidance` là chỉ dẫn của khung
+   * mới nhất (null = khung đạt), `streak` là số khung đạt LIÊN TIẾP; đủ `QUALITY_REQUIRED_FRAMES` mới đi tiếp.
+   */
+  | {
+      step: "framing";
+      guidance: QualityGuidance | null;
+      streak: number;
+      /**
+       * Có giá trị khi quay lại đặt mặt SAU `retry`: giữ phiên và thử thách mới của máy chủ; qua cổng xong
+       * thì vào thẳng nháy màu với mã lần chạy mới (không tạo phiên lại).
+       */
+      resume: SessionInfo | null;
+    }
+  | { step: "device_unsupported"; reason: UnsupportedReason }
   | { step: "creating_session"; run: number; expiredStreak: number }
   | { step: "flash_challenge"; session: SessionInfo }
   | { step: "uploading"; session: SessionInfo }
@@ -92,11 +117,16 @@ export type FlowState =
 export type FlowEvent =
   | { type: "TOGGLE_CONSENT"; accepted: boolean }
   | { type: "CONTINUE" }
-  | { type: "CAMERA_GRANTED" }
-  | { type: "CAMERA_FAILED"; problem: CameraProblem }
-  | { type: "FRAMING_READY" }
-  /** `run`: mã lần chạy mới do UI cấp (tăng dần); mọi kết quả bất đồng bộ sau đó phải mang đúng mã này. */
-  | { type: "QUALITY_PASSED"; run?: number }
+  | { type: "CAMERA_GRANTED"; attempt?: number }
+  | { type: "CAMERA_FAILED"; problem: CameraProblem; attempt?: number }
+  /**
+   * Kết quả của MỘT lần đo chất lượng (đã phân loại bởi quality.ts). `run`: mã lần chạy mới do UI cấp,
+   * chỉ dùng khi chính khung này làm đủ `QUALITY_REQUIRED_FRAMES` (xem `qualityWouldPass`); mọi kết quả
+   * bất đồng bộ sau đó phải mang đúng mã này.
+   */
+  | { type: "QUALITY_FRAME"; guidance: QualityGuidance | null; run?: number }
+  /** Camera/trình duyệt chưa đáp ứng (FPS < 15, độ phân giải thấp, thiếu requestVideoFrameCallback). */
+  | { type: "DEVICE_UNSUPPORTED"; reason: UnsupportedReason }
   | { type: "SESSION_CREATED"; session: SessionInfo }
   | { type: "FLASH_DONE" }
   | { type: "FLASH_STOPPED" }
@@ -227,6 +257,33 @@ export function hasTimeToFlash(session: SessionInfo, monoNow: number, flashMs: n
 
 const error = (kind: ErrorKind): FlowState => ({ step: "error", kind });
 
+/** Bước đặt mặt mới: chưa có khung nào đạt. */
+const freshFraming = (resume: SessionInfo | null = null): FlowState => ({
+  step: "framing",
+  guidance: null,
+  streak: 0,
+  resume,
+});
+
+/** Kết quả xin camera của một lần xin khác lần hiện tại (đến muộn) thì bỏ qua. */
+const staleAttempt = (current: number, eventAttempt: number | undefined): boolean =>
+  eventAttempt !== undefined && eventAttempt !== current;
+
+const deviceUnsupported = (reason: UnsupportedReason): FlowState => ({
+  step: "device_unsupported",
+  reason,
+});
+
+/**
+ * Khung `guidance` này có làm luồng rời bước đặt mặt không? UI dùng để cấp mã lần chạy mới (`nextRun`)
+ * ĐÚNG lúc cần, tránh tăng mã mỗi khung.
+ */
+export function qualityWouldPass(state: FlowState, guidance: QualityGuidance | null): boolean {
+  return (
+    state.step === "framing" && guidance === null && state.streak + 1 >= QUALITY_REQUIRED_FRAMES
+  );
+}
+
 /** Mã lần chạy của trạng thái hiện tại (null nếu bước chưa gắn với lần chạy nào). */
 function currentRun(state: FlowState): number | null {
   if (state.step === "creating_session") return state.run;
@@ -242,7 +299,8 @@ function isStale(state: FlowState, eventRun: number | undefined): boolean {
 
 export function reduce(state: FlowState, event: FlowEvent): FlowState {
   // Bắt đầu lại hợp lệ ở mọi bước.
-  if (event.type === "RESTART") return { step: "framing" };
+  if (event.type === "RESTART") return freshFraming();
+  // Thiết bị chưa đáp ứng chỉ xét ở hai bước dùng camera (xử lý riêng trong từng case); bỏ qua ở bước khác.
   // Lỗi hợp lệ ở mọi bước TRỪ kết quả cuối (một lỗi đến muộn không được biến kết quả đã có thành lỗi),
   // và bỏ qua lỗi của lần chạy cũ.
   if (event.type === "FAILED") {
@@ -255,27 +313,49 @@ export function reduce(state: FlowState, event: FlowEvent): FlowState {
       if (event.type === "TOGGLE_CONSENT") return { step: "consent", accepted: event.accepted };
       // Chỉ đi tiếp khi người dùng đã tự tích đồng ý (không bao giờ tích sẵn).
       if (event.type === "CONTINUE" && state.accepted) {
-        return { step: "camera_permission", problem: null };
+        return { step: "camera_permission", problem: null, attempt: 0 };
       }
       return state;
 
     case "camera_permission":
-      if (event.type === "CAMERA_GRANTED") return { step: "framing" };
-      if (event.type === "CAMERA_FAILED")
-        return { step: "camera_permission", problem: event.problem };
-      if (event.type === "CONTINUE") return { step: "camera_permission", problem: null };
+      if (event.type === "CAMERA_GRANTED") {
+        return staleAttempt(state.attempt, event.attempt) ? state : freshFraming();
+      }
+      if (event.type === "DEVICE_UNSUPPORTED") return deviceUnsupported(event.reason);
+      if (event.type === "CAMERA_FAILED") {
+        if (staleAttempt(state.attempt, event.attempt)) return state;
+        return { step: "camera_permission", problem: event.problem, attempt: state.attempt };
+      }
+      // "Thử lại": lần xin mới, kết quả của lần cũ đến muộn sẽ bị bỏ qua.
+      if (event.type === "CONTINUE") {
+        return { step: "camera_permission", problem: null, attempt: state.attempt + 1 };
+      }
       return state;
 
     case "framing":
-      if (event.type === "FRAMING_READY") return { step: "quality_check" };
-      return state;
-
-    case "quality_check":
-      // TẠM — CAP-02 thay bằng cổng chất lượng thật (MediaPipe).
-      if (event.type === "QUALITY_PASSED") {
-        return { step: "creating_session", run: event.run ?? 0, expiredStreak: 0 };
+      if (event.type === "DEVICE_UNSUPPORTED") return deviceUnsupported(event.reason);
+      if (event.type === "QUALITY_FRAME") {
+        // Khung kém: đặt lại bộ đếm và hiện chỉ dẫn mới. Chỉ đi tiếp khi đủ N khung đạt LIÊN TIẾP.
+        if (event.guidance !== null) {
+          return { step: "framing", guidance: event.guidance, streak: 0, resume: state.resume };
+        }
+        const streak = state.streak + 1;
+        if (streak >= QUALITY_REQUIRED_FRAMES) {
+          // Sau `retry`: vào thẳng nháy màu với thử thách mới, mã lần chạy MỚI. Lần đầu: tạo phiên.
+          if (state.resume) {
+            return {
+              step: "flash_challenge",
+              session: { ...state.resume, run: event.run ?? state.resume.run },
+            };
+          }
+          return { step: "creating_session", run: event.run ?? 0, expiredStreak: 0 };
+        }
+        return { step: "framing", guidance: null, streak, resume: state.resume };
       }
       return state;
+
+    case "device_unsupported":
+      return state; // chỉ RESTART mới rời khỏi (xử lý ở đầu hàm)
 
     case "creating_session":
       if (event.type === "SESSION_CREATED") {
@@ -305,8 +385,8 @@ export function reduce(state: FlowState, event: FlowEvent): FlowState {
 
     case "retry":
       if (event.type === "EXPIRED") return expire(state, state.session, event);
-      if (event.type === "RETRY_CONTINUE")
-        return { step: "flash_challenge", session: state.session };
+      // Chụp lại phải qua cổng chất lượng LẠI (ánh sáng, vị trí có thể đã đổi), rồi mới nháy màu.
+      if (event.type === "RETRY_CONTINUE") return freshFraming(state.session);
       return state;
 
     case "voice_challenge":

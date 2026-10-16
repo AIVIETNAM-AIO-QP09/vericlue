@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { createApiClient } from "@/lib/api/client";
 
 import { type FlowEvent, type FlowState, initialState, reduce } from "./flow";
+import { qualityGateEvents } from "./flowTestUtils";
 import { type RunnerDeps, sendVoiceAnswer, startSession, uploadAndFinalize } from "./runner";
 
 const API = process.env.E2E_API_URL;
@@ -21,8 +22,7 @@ async function run(scenario: string, deps: RunnerDeps): Promise<FlowState> {
     { type: "TOGGLE_CONSENT", accepted: true },
     { type: "CONTINUE" },
     { type: "CAMERA_GRANTED" },
-    { type: "FRAMING_READY" },
-    { type: "QUALITY_PASSED", run: 1 },
+    ...qualityGateEvents(1),
   ];
   let state = events.reduce(reduce, initialState);
   state = reduce(state, await startSession(deps, { run: 1 }, scenario));
@@ -57,8 +57,14 @@ describe.skipIf(!API)("luồng /verify với API mock thật", () => {
     expect(state.attemptsLeft).toBe(1);
 
     // lượt 2 và 3: gửi lại với thử thách mới
+    let attempt = 0;
     for (const expected of ["retry", "result"]) {
-      const flash = reduce(reduce(state, { type: "RETRY_CONTINUE" }), { type: "FLASH_DONE" });
+      const gate = [...qualityGateEvents(2 + attempt)].reduce(
+        reduce,
+        reduce(state, { type: "RETRY_CONTINUE" }),
+      );
+      attempt += 1;
+      const flash = reduce(gate, { type: "FLASH_DONE" });
       if (flash.step !== "uploading") throw new Error("phải ở uploading");
       state = reduce(
         flash,

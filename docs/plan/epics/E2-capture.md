@@ -24,7 +24,7 @@
 - [x] Không có màn hình nào hiển thị điểm số hay chữ "giả mạo" (test quét toàn bộ chuỗi `vi.verify` trong `messages.test.ts`).
 - [x] Test Vitest cho máy trạng thái (`flow.test.ts`, `runner.test.ts`).
 
-> **Chỗ giữ chỗ trong CAP-01 (mỗi chỗ có chú thích "TẠM — CAP-0x thay" trong code):** `quality_check` luôn cho qua (CAP-02); `flash_challenge` chỉ phát màu theo thử thách, chưa có bộ lấy mẫu và `frame_times` (CAP-04); `uploading` gửi ảnh giữ chỗ (CAP-06); bước đọc câu chỉ hiện câu cần đọc, có nút gửi âm thanh giả ở môi trường dev (CAP-07).
+> **Chỗ giữ chỗ trong CAP-01 (mỗi chỗ có chú thích "TẠM — CAP-0x thay" trong code):** `quality_check` luôn cho qua (CAP-02); `flash_challenge` chỉ phát màu theo thử thách, chưa có bộ lấy mẫu và `frame_times` (CAP-04); `uploading` gửi ảnh giữ chỗ (CAP-06); bước đọc câu chỉ hiện câu cần đọc, có nút gửi âm thanh giả ở môi trường dev (CAP-07). *(Đã cập nhật ở CAP-02: `quality_check` không còn, `framing` có cổng chất lượng thật.)*
 
 ---
 
@@ -49,9 +49,11 @@
 - **Mỗi lần chỉ hiện 1 chỉ dẫn**, theo thứ tự ưu tiên.
 
 **Tiêu chí hoàn thành:**
-- [ ] Chạy ≥ 15 khung/giây trên 1 điện thoại Android tầm trung.
-- [ ] Phòng tối → hiện "Ra chỗ sáng hơn"; mặt xa → "Lại gần hơn".
-- [ ] Test hàm chất lượng với ảnh mẫu tổng hợp.
+- [ ] Chạy ≥ 15 khung/giây trên 1 điện thoại Android tầm trung. **Cần người thử máy thật** (cổng tự đo FPS và hiện màn "thiết bị chưa đáp ứng" nếu dưới 15; chưa chạy trên Android).
+- [x] Phòng tối → hiện "Ra chỗ sáng hơn"; mặt xa → "Lại gần hơn" (xác nhận bằng số liệu tổng hợp trong `quality.test.ts`; ngưỡng tối/sáng là TẠM, cần chỉnh khi thử máy thật).
+- [x] Test hàm chất lượng với ảnh mẫu tổng hợp (`quality.test.ts`, `flow.test.ts`, `messagesQuality.test.ts`).
+
+> **Ghi chú CAP-02:** `camera.ts` không tạo riêng — mở camera dùng lại `chromapulse/device.ts` (CAP-03); đo FPS và độ phân giải nằm ở `quality.ts` và `useQualityGate.ts`. Oval và IoU tự viết (không chép Amplify). Bước `framing` và `quality_check` của CAP-01 đã gộp thành một bước xem trước có cổng chất lượng. Sau `retry`, luồng quay về `framing` (qua cổng lại, mã lần chạy mới) rồi mới nháy màu. Có bài thử trình duyệt thật tự động (Playwright, `npm run test:e2e`, xem README web). **Chờ đo ≥ 15 khung/giây trên Android thật nên dòng backlog để `review`.**
 
 ---
 
@@ -88,7 +90,7 @@
 **Đọc trước:** `docs/research/github-references.md` §8.1, ADR-0007, `third_party/README.md`.
 
 **Các bước:**
-1. Chép `ColorSequenceDisplay.ts`, `fillOverlayCanvasFractional`, các hàm khung oval và IoU từ `amplify-ui/packages/react-liveness` vào `src/lib/capture/vendor/amplify/`. Giữ dòng giấy phép Apache-2.0, ghi bảng trong `third_party/README.md`.
+1. Chép `ColorSequenceDisplay.ts`, `fillOverlayCanvasFractional` từ `amplify-ui/packages/react-liveness` vào `src/lib/capture/vendor/amplify/`. **Khung oval và IoU không chép: CAP-02 đã tự viết, dùng lại `src/lib/capture/quality.ts` (`ovalRect`, `rectIou`).** Giữ dòng giấy phép Apache-2.0, ghi bảng trong `third_party/README.md`.
 2. Đổi sang **bảng màu và thời gian của nhóm**: 8 màu từ server, `hold_ms` 400–650, chuyển màu 150 ms, ≤ 2,5 lần đổi màu/giây.
 3. Trước khi nháy: cảnh báo ánh sáng nhấp nháy, có nút "Bỏ qua" (chuyển sang đọc câu); bật `wakeLock`; nhắc tăng độ sáng; giữ yên 1 giây.
 4. Ghi `color_events` và `frame_times` theo `Signals`; gửi kèm `region_means`.

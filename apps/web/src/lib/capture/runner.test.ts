@@ -11,6 +11,7 @@ import {
   initialState,
   reduce,
 } from "./flow";
+import { qualityGateEvents } from "./flowTestUtils";
 import { type RunnerDeps, sendVoiceAnswer, startSession, uploadAndFinalize } from "./runner";
 
 // --- fetch giả -------------------------------------------------------------------------------
@@ -96,8 +97,7 @@ function toUploading(): FlowState {
     { type: "TOGGLE_CONSENT", accepted: true },
     { type: "CONTINUE" },
     { type: "CAMERA_GRANTED" },
-    { type: "FRAMING_READY" },
-    { type: "QUALITY_PASSED", run: SESSION.run },
+    ...qualityGateEvents(SESSION.run),
     { type: "SESSION_CREATED", session: SESSION },
     { type: "FLASH_DONE" },
   ];
@@ -408,11 +408,14 @@ describe("bốn nhánh kết quả của finalize", () => {
       expect(state.session.token).toBe("tok_1");
       // thử thách mới có mốc xin riêng (thời điểm trước khi gọi finalize)
       expect(state.session.challengeIssuedAtMono).toBe(0);
-      // bấm "Thử lại" quay về nháy màu với thử thách mới
-      const next = reduce(state, { type: "RETRY_CONTINUE" });
+      // bấm "Thử lại" quay về đặt mặt (qua cổng chất lượng lại), rồi mới nháy màu với thử thách mới
+      const gate = reduce(state, { type: "RETRY_CONTINUE" });
+      expect(gate.step).toBe("framing");
+      const next = [...qualityGateEvents(SESSION.run + 1)].reduce(reduce, gate);
       expect(next.step).toBe("flash_challenge");
       if (next.step === "flash_challenge") {
         expect(next.session.challenge.challenge_id).toBe("ch_2");
+        expect(next.session.run).toBe(SESSION.run + 1);
       }
     }
   });
