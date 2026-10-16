@@ -7,6 +7,7 @@ import importlib
 import json
 import sys
 from collections import Counter
+from copy import deepcopy
 from pathlib import Path
 from types import ModuleType
 
@@ -158,6 +159,8 @@ def test_all_audio_rows_appear_once_with_explicit_labels(tmp_path: Path) -> None
         assert len({row["path"] for row in rows}) == expected
         assert {row["label"] for row in rows} <= {"0", "1"}
         assert all(row["source"] for row in rows)
+        assert all(not Path(row["path"]).is_absolute() for row in rows)
+        assert all(row["path"].startswith(f"raw/{name}/") for row in rows)
     assert {r["label"] for r in flatten(splits, "mlaad_vi")} == {"1"}
     assert {r["label"] for r in flatten(splits, "vivos")} == {"0"}
     assert {r["label"] for r in flatten(splits, "vimd")} == {"0"}
@@ -251,7 +254,7 @@ def test_missing_mlaad_reference_does_not_union_all_vix_tts_clips(tmp_path: Path
     write_manifest(tmp_path, "mlaad_vi", rows)
     splits = implementation().build_splits(tmp_path)
     nonempty = [split for split, members in splits["mlaad_vi"].items() if members]
-    assert len(nonempty) == 4
+    assert len(nonempty) >= 2
     assert len(flatten(splits, "mlaad_vi")) == 20
     assert all(not row["subject_id"] for row in flatten(splits, "mlaad_vi"))
 
@@ -318,7 +321,7 @@ def test_data_dir_location_does_not_change_assignment_or_component_ids(tmp_path:
     def snapshot(data_dir: Path) -> dict[tuple[str, str], tuple[str, str]]:
         splits = module.build_splits(data_dir, seed=42)
         return {
-            (source, Path(row["path"]).relative_to(data_dir).as_posix()): (split, row["group_id"])
+            (source, row["path"]): (split, row["group_id"])
             for source, part in splits.items()
             for split, rows in part.items()
             for row in rows
@@ -383,39 +386,39 @@ def test_crosswalk_unknown_identity_is_rejected(
         implementation().build_splits(tmp_path, identity_links=links)
 
 
-def unique_audio_bytes(splits: dict) -> None:
+def unique_audio_bytes(splits: dict, data_dir: Path) -> None:
     """Give placeholders distinct tiny payloads so hashes exercise only intentional duplicates."""
     for source, part in splits.items():
         for rows in part.values():
             for index, row in enumerate(rows):
-                Path(row["path"]).write_bytes(f"{source}|{row['path']}|{index}".encode())
+                (data_dir / row["path"]).write_bytes(f"{source}|{row['path']}|{index}".encode())
 
 
 def test_hash_audit_rejects_known_byte_duplicate_across_test_boundary(tmp_path: Path) -> None:
     audio_fixture(tmp_path)
     module = implementation()
     splits = module.build_splits(tmp_path)
-    unique_audio_bytes(splits)
-    target = splits["vsasv"]["train"][0]
+    unique_audio_bytes(splits, tmp_path)
+    target = next(row for split, rows in splits["vsasv"].items() if split != "test" for row in rows)
     heldout = splits["vispoofdb"]["test"][0]
     payload = b"intentional-identical-fixture-audio"
-    Path(target["path"]).write_bytes(payload)
-    Path(heldout["path"]).write_bytes(payload)
+    (tmp_path / target["path"]).write_bytes(payload)
+    (tmp_path / heldout["path"]).write_bytes(payload)
     with pytest.raises(ValueError):
-        module.audit_hashes(splits)
+        module.audit_hashes(splits, tmp_path)
 
 
 def test_hash_audit_allows_identical_bytes_when_both_sources_stay_in_test(tmp_path: Path) -> None:
     audio_fixture(tmp_path)
     module = implementation()
     splits = module.build_splits(tmp_path)
-    unique_audio_bytes(splits)
+    unique_audio_bytes(splits, tmp_path)
     target = splits["vivos"]["test"][0]
     heldout = splits["vispoofdb"]["test"][0]
     payload = b"intentional-identical-test-only-fixture"
-    Path(target["path"]).write_bytes(payload)
-    Path(heldout["path"]).write_bytes(payload)
-    result = module.audit_hashes(splits)
+    (tmp_path / target["path"]).write_bytes(payload)
+    (tmp_path / heldout["path"]).write_bytes(payload)
+    result = module.audit_hashes(splits, tmp_path)
     assert isinstance(result, list) and result
 
 
@@ -464,7 +467,7 @@ def test_placeholder_reference_is_missing_and_never_unions_all_vix(
     assert len(members) == 20
     assert all(not row["reference_group"] for row in members)
     assert len({row["group_id"] for row in members}) == 20
-    assert all(splits["mlaad_vi"][split] for split in SPLIT_NAMES)
+    assert sum(bool(members) for members in splits["mlaad_vi"].values()) >= 2
 
 
 @pytest.mark.parametrize(
@@ -483,3 +486,148 @@ def test_identity_metadata_mismatch_is_rejected(
     write_manifest(tmp_path, name, manifests[name])
     with pytest.raises(ValueError):
         implementation().build_splits(tmp_path)
+
+
+def empty_split_map() -> dict:
+    return {name: {split: [] for split in sorted(SPLIT_NAMES)} for name in sorted(DATASETS)}
+
+
+def component_rows(
+    source: str,
+    component: str,
+    count: int,
+    *,
+    label: str = "1",
+    attack: str = "tts",
+    subject: str = "",
+) -> list[dict[str, str]]:
+    return [
+        {
+            "path": f"raw/{source}/{component}/{index}.wav",
+            "label": label,
+            "attack_type": attack,
+            "subject_id": subject,
+            "source": source,
+            "region": "",
+            "source_group": component,
+            "reference_group": "",
+            "tts": "vixTTS" if attack == "tts" else "",
+            "group_id": component,
+        }
+        for index in range(count)
+    ]
+
+
+@pytest.mark.parametrize("field", ["subject_id", "source_group", "reference_group"])
+def test_validate_rejects_identity_field_crossing_splits_independent_of_group_id(
+    tmp_path: Path, field: str
+) -> None:
+    splits = empty_split_map()
+    source = "vsasv" if field == "subject_id" else "mlaad_vi"
+    first = component_rows(source, "distinct-component-a", 1)[0]
+    second = component_rows(source, "distinct-component-b", 1)[0]
+    first[field] = second[field] = "same-known-identity"
+    for split, row in [("train", first), ("calib_fit", second)]:
+        target = tmp_path / row["path"]
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.touch()
+        splits[source][split].append(row)
+    assert first["path"] != second["path"]
+    assert first["group_id"] != second["group_id"]
+    with pytest.raises(ValueError):
+        implementation().validate_splits(splits, tmp_path)
+
+
+def test_global_ltt_tts_quota_moves_small_train_components_only() -> None:
+    splits = empty_split_map()
+    splits["mlaad_vi"]["calib_ltt"] = component_rows("mlaad_vi", "existing-ltt", 23)
+    splits["mlaad_vi"]["calib_fit"] = component_rows("mlaad_vi", "existing-fake-fit", 100)
+    splits["vsasv"]["calib_fit"] = component_rows(
+        "vsasv", "existing-real-fit", 100, label="0", attack="bonafide", subject="fit-person"
+    )
+    splits["vispoofdb"]["test"] = component_rows("vispoofdb", "heldout-test", 8)
+    splits["mlaad_vi"]["train"] = component_rows("mlaad_vi", "large-reader-component", 69)
+    for index in range(37):
+        splits["mlaad_vi"]["train"] += component_rows("mlaad_vi", f"singleton-{index:02}", 1)
+    protected = {
+        (source, split): deepcopy(part[split])
+        for source, part in splits.items()
+        for split in ("calib_fit", "test")
+    }
+    implementation().fill_calibration_quotas(splits, seed=42)
+    assert len(splits["mlaad_vi"]["calib_ltt"]) == 60
+    assert {row["group_id"] for row in splits["mlaad_vi"]["train"]} == {"large-reader-component"}
+    assert len(splits["mlaad_vi"]["train"]) == 69
+    for (source, split), rows in protected.items():
+        assert splits[source][split] == rows
+
+
+def test_fit_real_quota_moves_whole_people_and_preserves_any_component_touching_vimd() -> None:
+    splits = empty_split_map()
+    splits["mlaad_vi"]["calib_ltt"] = component_rows("mlaad_vi", "tts-ltt", 60)
+    splits["mlaad_vi"]["calib_fit"] = component_rows("mlaad_vi", "fake-fit", 100)
+    splits["vsasv"]["calib_fit"] = component_rows(
+        "vsasv", "real-fit", 10, label="0", attack="bonafide", subject="fit-person"
+    )
+    for person, count in (("person-a", 60), ("person-b", 50), ("linked-with-vimd", 20)):
+        splits["vsasv"]["train"] += component_rows(
+            "vsasv", person, count, label="0", attack="bonafide", subject=person
+        )
+    for split in SPLIT_NAMES:
+        for index, region in enumerate(("North", "Central", "South")):
+            component = (
+                "linked-with-vimd" if split == "train" and index == 0 else f"vimd-{split}-{region}"
+            )
+            rows = component_rows(
+                "vimd", component, 1, label="0", attack="bonafide", subject=component
+            )
+            rows[0]["region"] = region
+            splits["vimd"][split] += rows
+    before_vimd = deepcopy(splits["vimd"])
+    implementation().fill_calibration_quotas(splits, seed=42)
+    assert splits["vimd"] == before_vimd
+    assert {row["subject_id"] for row in splits["vsasv"]["train"]} == {"linked-with-vimd"}
+    fit = splits["vsasv"]["calib_fit"]
+    assert sum(row["label"] == "0" for row in fit) >= 100
+    assert Counter(row["subject_id"] for row in fit) == {
+        "fit-person": 10,
+        "person-a": 60,
+        "person-b": 50,
+    }
+
+
+def test_no_available_train_components_leave_honest_quota_deficits() -> None:
+    splits = empty_split_map()
+    splits["mlaad_vi"]["calib_ltt"] = component_rows("mlaad_vi", "one-ltt", 1)
+    splits["mlaad_vi"]["calib_fit"] = component_rows("mlaad_vi", "one-fake-fit", 1)
+    splits["vsasv"]["calib_fit"] = component_rows(
+        "vsasv", "one-real-fit", 1, label="0", attack="bonafide", subject="fit-person"
+    )
+    splits["vimd"]["train"] = component_rows(
+        "vimd", "protected-vimd-person", 1, label="0", attack="bonafide", subject="vimd-person"
+    )
+    before = deepcopy(splits)
+    module = implementation()
+    module.fill_calibration_quotas(splits, seed=42)
+    assert splits == before
+    messages = module.quota_report(splits)
+    assert sum("1/100" in message and "99" in message for message in messages) == 2
+    assert any(
+        "calib_ltt tts:" in message and "1/60" in message and "59" in message
+        for message in messages
+    )
+
+
+@pytest.mark.parametrize("path_kind", ["absolute", "traversal"])
+def test_hash_audit_rejects_paths_escaping_data_dir(tmp_path: Path, path_kind: str) -> None:
+    data_dir = tmp_path / "data"
+    audio_fixture(data_dir)
+    module = implementation()
+    splits = module.build_splits(data_dir)
+    outside = tmp_path / "outside.wav"
+    outside.write_bytes(b"outside-fixture")
+    splits["vispoofdb"]["test"][0]["path"] = (
+        outside.as_posix() if path_kind == "absolute" else "../outside.wav"
+    )
+    with pytest.raises(ValueError):
+        module.audit_hashes(splits, data_dir)

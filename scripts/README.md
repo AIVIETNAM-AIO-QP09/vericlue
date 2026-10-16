@@ -156,7 +156,9 @@ ViMD, VIVOS, ViSpoofDB đã tải. Không gọi mạng, không decode/chỉnh au
 `DATA_DIR` đọc từ môi trường rồi `.env`, mặc định `./data` tính từ gốc worktree;
 `--data-dir` ưu tiên cao nhất. Thiếu dotenv khi có `.env` sẽ cảnh báo rõ.
 Chạy lại ghi cùng 20 CSV và `splits/SUMMARY.md` khi input/seed/commit không đổi;
-đường dẫn audio trong CSV là tuyệt đối, UTF-8, nhãn `0` thật / `1` giả.
+đường dẫn audio trong CSV tương đối với DATA_DIR: `raw/<bộ>/...`, UTF-8,
+nhãn `0` thật / `1` giả. Thành viên ghép `Path(DATA_DIR) / row["path"]` khi đọc;
+validate và audit hash cũng ghép như vậy, từ chối absolute/traversal và file thiếu.
 Ngoài cột task card có `source_group`, `reference_group`, `tts`, `group_id` để
 kiểm toán liên kết; hai cột group không phải ID người. `subject_id` trống khi
 nguồn không công bố. Không commit CSV/SUMMARY/audio; chỉ chép thống kê bàn giao.
@@ -167,7 +169,18 @@ ViSpoofDB + VIVOS giữ test-only do bằng chứng chung nguồn. VSASV/ViMD **
 và giọng tham chiếu; mẫu thiếu reference chỉ nhóm theo câu nguồn, không gom
 vixTTS. Mục tiêu nhóm train/fit/LTT/test 60/10/10/20; phân tầng TTS theo nhóm,
 nhóm lớn ưu tiên train nên tỷ lệ mẫu có thể lệch lớn. Không hứa test TTS chưa thấy.
-LTT replay thiếu 60 được chuyển nguyên người từ train; không lấy test/calib_fit.
+Mọi loại tấn công chính thiếu 60 LTT được dồn nguyên component từ train;
+nhóm nhỏ ưu tiên, hòa chọn bằng seed 42, không lấy test/calib_fit. Sau đó fit
+thiếu 100 mẫu/lớp được dồn từ train theo cùng quy tắc, không lấy test/LTT.
+Giữ nguyên người ViMD để không phá cân bằng miền; component liên kết chứa
+ViMD cũng không được dồn. Chỉ báo thiếu sau khi đã thử các nhóm train hợp lệ.
+Tỷ lệ calib thực tế theo mẫu/người ghi trong SUMMARY, không chỉ tỷ lệ nhóm:
+ViMD 50% số người; VSASV ban đầu 25% người, có thể tăng sau dồn quota fit/LTT.
+
+**Rủi ro cho VOICE-01/03:** vixTTS thiếu reference có thể dùng chung giọng mặc
+định, nên nhóm theo câu nguồn có thể để cùng giọng tổng hợp qua cả bốn tập.
+Test MLAAD chỉ có vixTTS; bốn TTS còn lại đều ở train. Không coi đây là test
+hệ TTS chưa thấy hay bằng chứng độc lập người nói đã xác minh.
 Quota là số đếm báo cáo, không phải chứng nhận chất lượng/độc lập. Thiếu quota
 không làm mã thoát lỗi và không đánh dấu đạt task; đọc SUMMARY trước khi dùng.
 

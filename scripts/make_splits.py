@@ -12,7 +12,7 @@ import subprocess
 import sys
 import time
 from collections import Counter, defaultdict
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 ROOT = Path(__file__).resolve().parent.parent
 DATASETS = ("mlaad_vi", "vsasv", "vimd", "vivos", "vispoofdb")
@@ -60,6 +60,7 @@ def reference_identity(reference: str) -> str:
 
 
 def _load(data_dir: Path, name: str) -> list[Row]:
+    data_dir = data_dir.resolve()
     folder = (data_dir / "raw" / name).resolve()
     records = json.loads((folder / "selected_manifest.json").read_text(encoding="utf-8"))
     if not isinstance(records, list):
@@ -78,7 +79,7 @@ def _load(data_dir: Path, name: str) -> list[Row]:
         paths.add(str(path))
         row = dict.fromkeys(FIELDS, "")
         row.update(
-            path=path.as_posix(),
+            path=path.relative_to(data_dir).as_posix(),
             source=name,
             subject_id=str(item.get("subject_id") or ""),
             region=str(item.get("region") or ""),
@@ -133,7 +134,7 @@ def _load(data_dir: Path, name: str) -> list[Row]:
     return sorted(rows, key=lambda r: r["path"])
 
 
-def _groups(rows: list[Row], folder: Path) -> list[list[Row]]:
+def _groups(rows: list[Row]) -> list[list[Row]]:
     uf = UnionFind()
     for row in rows:
         key = "file:" + row["path"]
@@ -146,11 +147,7 @@ def _groups(rows: list[Row], folder: Path) -> list[list[Row]]:
     result = sorted(groups.values(), key=lambda group: group[0]["path"])
     for group in result:
         # Opaque component ID is NOT a person ID.
-        identity = (
-            group[0]["source"]
-            + "\n"
-            + "\n".join(Path(row["path"]).relative_to(folder.resolve()).as_posix() for row in group)
-        )
+        identity = group[0]["source"] + "\n" + "\n".join(row["path"] for row in group)
         group_id = hashlib.sha256(identity.encode()).hexdigest()[:20]
         for row in group:
             row["group_id"] = group_id
@@ -196,26 +193,91 @@ def _partition(groups: list[list[Row]], seed: int) -> dict[str, list[Row]]:
     return result
 
 
-def _ensure_replay_ltt(partition: dict[str, list[Row]]) -> None:
-    # Task card permits moving WHOLE people from train to LTT for >=60 attacks.
-    # Never consume test or calib_fit to improve a reported metric.
-    count = sum(row["attack_type"] == "replay" for row in partition["calib_ltt"])
-    candidates: dict[str, list[Row]] = defaultdict(list)
-    for row in partition["train"]:
-        candidates[row["group_id"]].append(row)
-    for key in sorted(candidates):
-        group = candidates[key]
-        attacks = sum(row["attack_type"] == "replay" for row in group)
-        if count >= 60:
-            break
-        if attacks:
-            partition["calib_ltt"].extend(group)
-            partition["train"] = [r for r in partition["train"] if r["group_id"] != key]
-            count += attacks
+def fill_calibration_quotas(splits: SplitMap, seed: int = 42) -> None:
+    """Dồn nguyên component từ train: LTT ≥60/attack, rồi fit ≥100/lớp.
+
+    Không lấy test/fit cho LTT; không lấy LTT/test cho fit. Giữ nguyên ViMD
+    để không phá một người/miền/tập. Nhóm nhỏ ưu tiên, hòa chọn bằng seed.
+    """
+    candidates: dict[str, list[tuple[str, Row]]] = defaultdict(list)
+    for source, part in splits.items():
+        for row in part["train"]:
+            candidates[row["group_id"]].append((source, row))
+    keys = sorted(candidates)
+    random.Random(seed).shuffle(keys)
+    # Sorting is stable: seeded shuffle breaks equal-size ties reproducibly.
+    keys.sort(key=lambda key: len(candidates[key]))
+    eligible = [
+        key
+        for key in keys
+        if all(source not in {"vimd", "vivos", "vispoofdb"} for source, _ in candidates[key])
+    ]
+    attacks = sorted(
+        {
+            row["attack_type"]
+            for part in splits.values()
+            for rows in part.values()
+            for row in rows
+            if row["label"] == "1"
+        }
+    )
+    for destination, field, targets, minimum in (
+        ("calib_ltt", "attack_type", attacks, 60),
+        ("calib_fit", "label", ["0", "1"], 100),
+    ):
+        counts = Counter(
+            row[field]
+            for part in splits.values()
+            for row in part[destination]
+            if destination != "calib_ltt" or row["label"] == "1"
+        )
+        for target in targets:
+            for key in list(eligible):
+                if counts[target] >= minimum:
+                    break
+                group = candidates[key]
+                if not any(
+                    row[field] == target and (destination != "calib_ltt" or row["label"] == "1")
+                    for _, row in group
+                ):
+                    continue
+                for source, row in group:
+                    splits[source][destination].append(row)
+                    if destination != "calib_ltt" or row["label"] == "1":
+                        counts[row[field]] += 1
+                for source in {source for source, _ in group}:
+                    splits[source]["train"] = [
+                        row for row in splits[source]["train"] if row["group_id"] != key
+                    ]
+                eligible.remove(key)
 
 
-def validate_splits(splits: SplitMap) -> None:
+def resolve_audio(data_dir: Path, row: Row) -> Path:
+    """Ghép audio tương đối với DATA_DIR và kiểm tra file local."""
+    return _resolve_audio(data_dir.resolve(), row)
+
+
+def _resolve_audio(root: Path, row: Row) -> Path:
+    """Ghép path tương đối DATA_DIR; từ chối absolute, traversal, symlink ra ngoài."""
+    relative = PurePosixPath(row["path"])
+    expected = ("raw", row["source"])
+    if (
+        relative.is_absolute()
+        or PureWindowsPath(row["path"]).drive
+        or ".." in relative.parts
+        or "\\" in row["path"]
+        or relative.parts[:2] != expected
+    ):
+        raise ValueError(f"Đường dẫn audio phải tương đối DATA_DIR: {row['path']}")
+    path = (root / relative).resolve()
+    if not path.is_relative_to(root / "raw" / row["source"]) or not path.is_file():
+        raise ValueError(f"Audio thiếu hoặc nằm ngoài DATA_DIR: {row['path']}")
+    return path
+
+
+def validate_splits(splits: SplitMap, data_dir: Path, *, check_files: bool = True) -> None:
     """Từ chối tách người/nhóm nguồn/reference đã biết hoặc rò bộ test-only."""
+    data_dir = data_dir.resolve()
     global_groups: dict[str, str] = {}
     for source, partition in splits.items():
         seen: dict[tuple[str, str], str] = {}
@@ -224,6 +286,8 @@ def validate_splits(splits: SplitMap) -> None:
             if source in {"vivos", "vispoofdb"} and split != "test" and rows:
                 raise ValueError(f"{source}: phải test-only")
             for row in rows:
+                if check_files:
+                    _resolve_audio(data_dir, row)
                 if row["path"] in paths:
                     raise ValueError("Audio xuất hiện nhiều lần")
                 paths.add(row["path"])
@@ -292,7 +356,7 @@ def build_splits(data_dir: Path, seed: int = 42, identity_links: Path | None = N
     result: SplitMap = {}
     for name in DATASETS:
         rows = _load(data_dir, name)
-        groups = _groups(rows, data_dir / "raw" / name)
+        groups = _groups(rows)
         if name in {"vivos", "vispoofdb"}:
             result[name] = {split: rows if split == "test" else [] for split in SPLITS}
         elif name == "vimd":
@@ -313,8 +377,6 @@ def build_splits(data_dir: Path, seed: int = 42, identity_links: Path | None = N
                     result[name][split].extend(group)
         else:
             result[name] = _partition(groups, seed)
-            if name == "vsasv":
-                _ensure_replay_ltt(result[name])
         for rows_in_split in result[name].values():
             rows_in_split.sort(key=lambda row: row["path"])
     if identity_links is not None:
@@ -322,7 +384,12 @@ def build_splits(data_dir: Path, seed: int = 42, identity_links: Path | None = N
         for part in result.values():
             for values in part.values():
                 values.sort(key=lambda row: row["path"])
-    validate_splits(result)
+    validate_splits(result, data_dir, check_files=False)
+    fill_calibration_quotas(result, seed)
+    for part in result.values():
+        for values in part.values():
+            values.sort(key=lambda row: row["path"])
+    validate_splits(result, data_dir, check_files=False)
     return result
 
 
@@ -372,15 +439,16 @@ def quota_report(splits: SplitMap) -> list[str]:
     return messages
 
 
-def audit_hashes(splits: SplitMap) -> list[str]:
+def audit_hashes(splits: SplitMap, data_dir: Path) -> list[str]:
     """Hash file có cùng size: bằng chứng yếu, không xác minh danh tính."""
+    data_dir = data_dir.resolve()
     rows = {
         source: [row for values in part.values() for row in values]
         for source, part in splits.items()
     }
     target: dict[int, list[Path]] = defaultdict(list)
     for row in rows["vispoofdb"]:
-        path = Path(row["path"])
+        path = _resolve_audio(data_dir, row)
         target[path.stat().st_size].append(path)
     assignment = {
         row["path"]: split
@@ -401,7 +469,7 @@ def audit_hashes(splits: SplitMap) -> list[str]:
         matches = 0
         sizes: dict[int, set[str]] = {}
         for row in rows[source]:
-            path = Path(row["path"])
+            path = _resolve_audio(data_dir, row)
             size = path.stat().st_size
             if size not in target:
                 continue
@@ -424,7 +492,7 @@ def write_splits(
     data_dir: Path, splits: SplitMap, seed: int = 42, hash_audit: list[str] | None = None
 ) -> Path:
     """Ghi CSV và báo cáo ngoài repo; chạy lại cùng input cho cùng nội dung."""
-    validate_splits(splits)
+    validate_splits(splits, data_dir)
     output = data_dir / "splits"
     output.mkdir(parents=True, exist_ok=True)
     commit = (
@@ -432,6 +500,17 @@ def write_splits(
             ["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=False
         ).stdout.strip()
         or "unknown"
+    )
+    mlaad_test_tts = sorted({row["tts"] for row in splits["mlaad_vi"]["test"] if row["tts"]})
+    other_tts = {
+        row["tts"]
+        for split, rows in splits["mlaad_vi"].items()
+        if split != "train"
+        for row in rows
+        if row["tts"]
+    }
+    train_only_tts = sorted(
+        {row["tts"] for row in splits["mlaad_vi"]["train"] if row["tts"]} - other_tts
     )
     lines = [
         "# DATA-03 — chia tập âm thanh",
@@ -448,13 +527,16 @@ def write_splits(
         "MLAAD union câu original_file ∪ reference theo thư mục reader M-AILABS (nhóm rủi ro, chưa xác minh danh tính).",
         "Reference khác cấu trúc dùng nguyên đường dẫn; mẫu thiếu reference CHỈ nhóm theo câu nguồn, không gom vixTTS.",
         "Chưa có crosswalk reference MLAAD sang bộ khác trong dữ liệu nguồn; dùng --identity-links cho liên kết đã xác minh, nhóm liên kết với VIVOS/ViSpoofDB phải theo test.",
+        "CSV path tương đối DATA_DIR (raw/<bộ>/...), ghép DATA_DIR/path khi đọc; không phụ thuộc ổ đĩa của người sinh CSV.",
+        "Rủi ro VOICE-01/03: vixTTS thiếu reference có thể dùng chung giọng mặc định; nhóm theo câu nguồn có thể để cùng giọng tổng hợp ở cả bốn tập. Không chứng minh độc lập người cho phần này.",
+        f"VOICE-01/03: test MLAAD hiện có TTS={mlaad_test_tts}; hệ chỉ có trong train={train_only_tts}. Không tự coi đây là test hệ TTS chưa thấy.",
         "subject_id để trống khi nguồn không có ID; group_id/reference_group không phải ID người giả.",
         "VSASV/MLAAD mục tiêu 60/10/10/20 theo số nhóm; nhóm lớn nhất ưu tiên train; seed cố định và thứ tự ổn định.",
         "Phân tầng TTS theo số nhóm trong giới hạn liên kết; TTS được thống kê theo từng tập; không bảo đảm giữ riêng một TTS chưa thấy. Nhóm liên kết ưu tiên hơn tỷ lệ/TTS.",
-        "VSASV có thể chuyển nguyên người từ train sang calib_ltt để đủ 60 replay, không tách người.",
+        "Dồn quota mọi loại tấn công chính từ train sang calib_ltt ≥60, rồi từ train sang calib_fit ≥100/lớp; ưu tiên nhóm nhỏ, tie seed cấu hình, không tách nhóm/người, không đổi ViMD.",
         "ViMD mục tiêu một người/miền/tập (25% người mỗi tập), rất nhỏ; crosswalk đã xác minh có thể ưu tiên hơn cân bằng miền. Đã dùng 19 câu báo cáo VOICE-04, không chỉnh ngưỡng.",
         "ViSpoofDB loại corpus.txt; giữ WAV và MP3. Dữ liệu test không dùng chọn mô hình/ngưỡng.",
-        "DATA-03 còn doing: chưa có phần ảnh; quota thiếu không được đánh dấu đạt.",
+        "DATA-03 còn doing: chưa có phần ảnh; quota còn thiếu sau khi dồn phải ghi rõ, không tự chứng nhận LTT.",
         "",
         "## Kiểm hash",
         "",
@@ -506,6 +588,26 @@ def write_splits(
             ]
             details.extend(revision)
         details.append("")
+    lines += [
+        "",
+        "## Tỷ lệ calib thực tế (fit + LTT)",
+        "",
+        "Tỷ lệ sau dồn quota; tỷ lệ mục tiêu theo nhóm không tương đương tỷ lệ mẫu.",
+    ]
+    for source, part in splits.items():
+        rows = [row for values in part.values() for row in values]
+        calib = part["calib_fit"] + part["calib_ltt"]
+        people = {row["subject_id"] for row in rows if row["subject_id"]}
+        calib_people = {row["subject_id"] for row in calib if row["subject_id"]}
+        ratio = len(calib) / len(rows) * 100
+        lines.append(f"- {source}: calib {len(calib)}/{len(rows)} mẫu = {ratio:.2f}%.")
+        if people:
+            person_ratio = len(calib_people) / len(people) * 100
+            lines.append(f"  Người: {len(calib_people)}/{len(people)} = {person_ratio:.2f}%.")
+        if source == "vsasv":
+            lines.append(
+                "  Baseline audio small 16 người trước dồn: 4/16 = 25.00%; dồn từ train sang fit/LTT có thể tăng tỷ lệ thực tế ở trên."
+            )
     lines += details
     lines += [
         "## Quota toàn pool",
@@ -550,8 +652,14 @@ def main(argv: list[str] | None = None) -> int:
     folder = folder.resolve()
     start = time.perf_counter()
     try:
+        print("Đọc manifest và chia nhóm local...", flush=True)
         splits = build_splits(folder, args.seed, args.identity_links)
-        hashes = audit_hashes(splits) if args.audit_hashes else None
+        print(f"Chia nhóm: {time.perf_counter() - start:.3f}s; audit hash local...", flush=True)
+        hashes = audit_hashes(splits, folder) if args.audit_hashes else None
+        print(
+            f"Đã audit: {time.perf_counter() - start:.3f}s tính từ đầu; ghi CSV/SUMMARY...",
+            flush=True,
+        )
         summary = write_splits(folder, splits, args.seed, hashes)
         if args.identity_links:
             with summary.open("a", encoding="utf-8") as stream:
