@@ -32,7 +32,7 @@ uv run --group data python scripts/download_data.py --only vn_celeb_faces vivos 
 
 `DATA_DIR` mặc định `./data`, đường dẫn tương đối tính từ gốc worktree; biến môi
 trường ưu tiên hơn `.env`. Mọi worktree nên trỏ cùng kho để chạy lại không tải trùng.
-Mặc định `--subset small`, seed 42, ngân sách toàn danh mục 28,6 GB gồm
+Mặc định `--subset small`, seed 42, ngân sách toàn danh mục 29,9 GB gồm
 archive/cache. Trước media download, script in tổng và kiểm tra ổ đích phải còn
 ít nhất 10 GB sau tải; kiểm tra lại khi giải nén. `--subset full` tính byte nguồn,
 chi phí giải nén được tính thêm trong adapter; luôn kiểm tra dung lượng ổ đích trước tải.
@@ -197,3 +197,45 @@ Hash bằng 0 không chứng minh khác người: có thể đổi định dạn
 
 Mã thoát `0`: đã xuất split và cảnh báo quota; `1`: metadata/file/nhóm không hợp lệ.
 DATA-03 vẫn `doing`, phần ảnh và các quota còn thiếu được ghi trong bàn giao.
+
+### Zalo 2022 whole ZIP và phục hồi HTTP 416 (17/10)
+
+Zalo `small = full`: tải **một ZIP toàn dataset**, ghim Kaggle version, không tải
+file video/CSV lẻ. Chỉ giải nén `train/train/label.csv` và video được `fname`
+tham chiếu; giữ nguyên đường dẫn và `liveness_score` gốc. Test không nhãn và
+video không có dòng nhãn không được giải nén. Không suy ID người từ filename.
+ZIP gốc giữ trong `.cache/` để resume/xác minh; dữ liệu dùng ở ngoài cache chỉ
+là train có nhãn. `selected_manifest.json` liệt kê video/nhãn gốc, không tính
+label.csv hay ZIP là mẫu. Giấy phép: MIT theo mirror, điều khoản Zalo gốc chưa rõ;
+chỉ nghiên cứu, không phân phối lại.
+
+Preflight tính **ZIP + train giải nén**; ngân sách Zalo 4,8 GB, toàn danh mục small
+29,9 GB, vẫn chừa ít nhất 10 GB trống. Archive và file giải nén phải qua kiểm
+path traversal, symlink/junction, kiểu file đặc biệt; CRC kiểm cả file đã tồn tại
+để sửa bản lỗi dù đủ byte. Không dùng `extractall` trên ZIP chưa kiểm.
+
+```powershell
+uv sync --all-packages --group data
+$env:DATA_DIR = 'E:\shared\vericlue\data'
+uv run --group data python scripts/download_data.py --only zalo2022 --subset small
+```
+
+HTTP download chung: nếu `.part` lớn hơn nguồn, bỏ partial và tải từ đầu. Gặp
+HTTP 416 cũng bỏ `.part`/biên nhận partial rồi GET mới không Range; tối đa ba
+lần, không nối sai hoặc lặp vô hạn. Sau gián đoạn mạng hợp lệ vẫn giữ Range
+resume và kiểm kích thước/SHA trước rename. Trước chuyển Zalo từ file lẻ sang ZIP,
+xóa riêng `.part`/`.part.json` cũ trong `raw/zalo2022`, không xóa dữ liệu bộ khác.
+
+Dự phòng ViMD small giảm từ 800 xuống 300 MB dựa trên bản đã tải ~63 MB;
+không đổi seed, bốn người/miền, không bỏ clip của người được chọn. Giải phóng
+0,5 GB dự phòng cho ZIP + train Zalo để tổng small vẫn dưới 30 GB.
+
+Review PR #24: `safe_extract_zip(..., max_total_bytes=...)` giới hạn tổng byte
+file được chọn, kể cả file có sẵn; Zalo truyền đúng ngân sách train đã preflight.
+Header ZIP vượt trần bị từ chối trước ghi; byte thực được kiểm tiếp trong stream.
+Lỗi CRC/zlib/phương thức nén không hỗ trợ trả thông báo giải nén rõ, dọn file tạm
+bị lỗi. Đầu lượt tải và đầu giải nén dọn `*.extract.part` thường, từ chối link;
+thống kê mẫu bỏ qua các đường dẫn này. `safe_path` cũng chặn tên dành riêng
+Windows (CON/NUL/COM...) và dấu chấm/khoảng trắng cuối thành phần đường dẫn.
+SOURCE Zalo ghi **Video nguồn** thay cho nhóm người chưa xác minh; hai biên nhận
+file lẻ cũ đã được xóa khỏi kho chung, giữ biên nhận ZIP hiện tại.

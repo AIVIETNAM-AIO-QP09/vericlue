@@ -8,17 +8,22 @@ import json
 import random
 import re
 import tarfile
+import zipfile
+import zlib
 from pathlib import Path
 from urllib.parse import quote, urlencode
 
 from data_download_core import (
     Client,
     Dataset,
+    DownloadError,
     Plan,
     RemoteFile,
     SkipDataset,
     check_disk,
+    safe_extract_zip,
     safe_path,
+    safe_zip_members,
     sample_groups,
 )
 
@@ -36,7 +41,7 @@ HF_REPOS = {
 }
 
 
-def _kaggle_files(repo: str, client: Client) -> list[dict]:
+def _kaggle_files(repo: str, client: Client, version: int | None = None) -> list[dict]:
     """Đọc hết danh sách file, không tải media hoặc ghi credentials."""
     if not client.kaggle_auth:
         raise SkipDataset(
@@ -47,7 +52,13 @@ def _kaggle_files(repo: str, client: Client) -> list[dict]:
     token = ""
     seen: set[str] = set()
     for _ in range(2000):
-        query = urlencode({"pageSize": 200, **({"pageToken": token} if token else {})})
+        query = urlencode(
+            {
+                "pageSize": 200,
+                **({"pageToken": token} if token else {}),
+                **({"datasetVersionNumber": version} if version is not None else {}),
+            }
+        )
         data = client.json(f"{KAGGLE}/list/{repo}?{query}", auth=client.kaggle_auth)
         items.extend(data.get("datasetFiles", []))
         token = data.get("nextPageToken", "")
@@ -181,34 +192,132 @@ def _prepare_fas_zip(dataset: Dataset, client: Client, subset: str) -> Plan:
     )
 
 
-def _prepare_kaggle(dataset: Dataset, client: Client, subset: str) -> Plan:
+def _prepare_zalo_zip(dataset: Dataset, client: Client, subset: str) -> Plan:
+    """Tải một ZIP version ghim; chỉ giải nén train có label gốc."""
+    if not client.kaggle_auth:
+        raise SkipDataset("Zalo 2022 cần KAGGLE_USERNAME/KAGGLE_KEY hoặc ~/.kaggle/kaggle.json.")
     repo = KAGGLE_REPOS[dataset.name]
-    inventory = _kaggle_files(repo, client)
-    files = [_kaggle_remote(repo, item) for item in inventory]
-    if dataset.name == "zalo2022" and subset == "small":
-        # Only labeled training data; test labels are not available.
-        files = [
-            file
-            for file in files
-            if "train" in file.path.lower() or file.path.lower().endswith((".csv", ".json", ".txt"))
-        ]
-        if not any(file.path.lower().endswith(".mp4") for file in files):
-            raise SkipDataset("Không tìm được video train Zalo có nhãn trong inventory.")
-    peak = sum(file.size for file in files)
+    metadata = client.json(f"{KAGGLE}/view/{repo}", auth=client.kaggle_auth)
+    version = metadata.get("currentVersionNumber")
+    if not isinstance(version, int) or version < 1:
+        raise SkipDataset("Zalo 2022 thiếu version để ghim ZIP tải tiếp.")
+    url = f"{KAGGLE}/download/{repo}?{urlencode({'datasetVersionNumber': version})}"
+    size = client.head_size(url)
+    inventory = _kaggle_files(repo, client, version)
+    labels = [
+        item
+        for item in inventory
+        if item["name"].replace("\\", "/").endswith("/label.csv")
+        and all(part.lower() == "train" for part in Path(item["name"]).parts[:-1])
+    ]
+    if len(labels) != 1:
+        raise SkipDataset("Zalo 2022 không có đúng một label.csv trong thư mục train.")
+    label_path = labels[0]["name"]
+    train_root = Path(label_path).parent.as_posix()
+    video_prefix = train_root + "/videos/"
+    train_sizes = {
+        item["name"]: int(item["totalBytes"])
+        for item in inventory
+        if item["name"] == label_path
+        or (item["name"].startswith(video_prefix) and item["name"].lower().endswith(".mp4"))
+    }
+    if size <= 0 or len(train_sizes) < 2 or any(value < 0 for value in train_sizes.values()):
+        raise SkipDataset("Zalo 2022 chưa xác minh được ZIP hoặc inventory train.")
+    train_bytes = sum(train_sizes.values())
+    peak = size + train_bytes
     if subset == "small" and peak > dataset.budget_bytes:
         raise SkipDataset(
-            "Bộ Kaggle vượt ngân sách small; không chọn ảnh ngẫu nhiên thiếu ID người."
+            "ZIP Zalo + train giải nén vượt ngân sách small; không tải vượt đỉnh đĩa."
         )
-    return Plan(
+    remote = RemoteFile(url, ".cache/liveness-detection-zalo-2022.zip", size)
+    plan = Plan(
         dataset,
-        files,
+        [remote],
         peak,
+        revision=f"kaggle-version-{version}",
         notes=[
-            "Tải file lẻ, giữ đường dẫn/nhãn gốc; không tải ZIP full và giải nén trùng.",
-            "Chưa có subject_id đáng tin: DATA-03 phải xác minh danh tính trước "
-            "khi chia theo người; filename/UUID không được tự coi là identity.",
+            "Small = full: tải một ZIP toàn dataset, không tải từng video/CSV lẻ từ Kaggle.",
+            "Chỉ giải nén label.csv gốc và videos có nhãn trong train; không giải nén test không nhãn.",
+            "Giữ ZIP gốc trong .cache để resume/xác minh; byte lưu gồm cache ZIP và train, không phải chỉ media.",
+            f"Preflight: ZIP {size} bytes + train tối đa {train_bytes} bytes.",
+            "Giữ fname/liveness_score gốc; subject_id chưa rõ, không coi filename là ID người. DATA-03 cần xác minh người.",
         ],
     )
+
+    def execute(dest: Path, downloader: Client) -> None:
+        archive = safe_path(dest, remote.path)
+        downloader.download(remote, archive)
+        try:
+            with zipfile.ZipFile(archive) as source:
+                members = safe_zip_members(source, dest)
+                if label_path not in members or members[label_path].file_size > 5_000_000:
+                    raise DownloadError("Zalo ZIP thiếu label.csv hợp lệ hoặc CSV quá lớn.")
+                raw_labels = source.read(label_path).decode("utf-8-sig")
+                rows = list(csv.DictReader(io.StringIO(raw_labels)))
+                selected = [label_path]
+                manifest = []
+                seen: set[str] = set()
+                for row in rows:
+                    fname = row.get("fname", "")
+                    label = row.get("liveness_score", "")
+                    if (
+                        not fname
+                        or Path(fname).name != fname
+                        or "\\" in fname
+                        or not fname.lower().endswith(".mp4")
+                        or label not in {"0", "1"}
+                        or fname in seen
+                    ):
+                        raise DownloadError(
+                            "Zalo label.csv thiếu/trùng fname hoặc nhãn gốc không hợp lệ."
+                        )
+                    seen.add(fname)
+                    path = video_prefix + fname
+                    member = members.get(path)
+                    if member is None or member.is_dir():
+                        raise DownloadError(
+                            "Zalo ZIP thiếu video có nhãn; không sử dụng tập train thiếu."
+                        )
+                    selected.append(path)
+                    manifest.append(
+                        {
+                            "path": path,
+                            "size": member.file_size,
+                            "fname": fname,
+                            "liveness_score": label,
+                            "source_video_id": fname,
+                            "subject_id": None,
+                        }
+                    )
+                if not manifest:
+                    raise DownloadError("Zalo label.csv không có video có nhãn.")
+                if any(
+                    name not in train_sizes or members[name].file_size != train_sizes[name]
+                    for name in selected
+                ):
+                    raise DownloadError("Zalo ZIP không khớp inventory đã preflight.")
+        except (
+            zipfile.BadZipFile,
+            UnicodeDecodeError,
+            KeyError,
+            zlib.error,
+            NotImplementedError,
+            RuntimeError,
+        ):
+            raise DownloadError(
+                "ZIP/label.csv Zalo không đọc được; không dùng train lỗi."
+            ) from None
+        safe_extract_zip(archive, dest, selected, max_total_bytes=train_bytes)
+        (dest / "selected_manifest.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        plan.groups[:] = sorted(seen)
+        plan.notes.append(
+            f"Đã xác minh {len(manifest)} video có nhãn; giữ nguyên CSV. Nhãn 0: {sum(row['liveness_score'] == '0' for row in manifest)}, nhãn 1: {sum(row['liveness_score'] == '1' for row in manifest)}."
+        )
+
+    plan.execute = execute
+    return plan
 
 
 def _hf_remote(repo: str, revision: str, item: dict) -> RemoteFile:
@@ -520,7 +629,7 @@ def prepare(dataset: Dataset, client: Client, seed: int, subset: str) -> Plan:
     if dataset.name == "fas_vn":
         return _prepare_fas_zip(dataset, client, subset)
     if dataset.name == "zalo2022":
-        return _prepare_kaggle(dataset, client, subset)
+        return _prepare_zalo_zip(dataset, client, subset)
     if dataset.name == "vn_celeb_faces":
         return _prepare_celeb(dataset, client)
     if dataset.name == "wilddeepfake":

@@ -33,7 +33,10 @@ không tự tải full. Dependency tải dữ liệu nằm trong nhóm tùy ch�
 **Ngoại lệ chọn tập con:** ViCocktail, WildDeepfake: chọn theo shard/archive, có chỉ mục video
 — quyết định trưởng nhóm 15/10. `index.csv` cạnh SOURCE ghi source_video_id và subject_id
 nếu nguồn có; không tạo ID người giả. WildDeepfake kiểm tra video xuất hiện xuyên archive.
-FAS-VN small = full, tải nguyên gói dataset một lần. ViSpoofDB small dự phòng 2,6 GB.
+FAS-VN small = full, tải nguyên gói dataset một lần. Zalo 2022 cũng small = full:
+tải một ZIP ghim version, chỉ giải nén label.csv + video train có nhãn; giữ cache ZIP
+để resume, không tải file lẻ. Ngân sách đỉnh Zalo 4,8 GB (ZIP + train), tổng small 29,9 GB.
+HTTP 416 hoặc partial quá nguồn phải bỏ partial rồi tải lại từ đầu có giới hạn. ViSpoofDB small dự phòng 2,6 GB.
 Log tách thời gian HTTP/mạng và xử lý/hash/index/giải nén.
 
 **Sửa MLAAD-vi/VSASV — quyết định trưởng nhóm 16/10:**
