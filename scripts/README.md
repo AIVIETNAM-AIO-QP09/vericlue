@@ -229,3 +229,13 @@ xóa riêng `.part`/`.part.json` cũ trong `raw/zalo2022`, không xóa dữ li�
 Dự phòng ViMD small giảm từ 800 xuống 300 MB dựa trên bản đã tải ~63 MB;
 không đổi seed, bốn người/miền, không bỏ clip của người được chọn. Giải phóng
 0,5 GB dự phòng cho ZIP + train Zalo để tổng small vẫn dưới 30 GB.
+
+Review PR #24: `safe_extract_zip(..., max_total_bytes=...)` giới hạn tổng byte
+file được chọn, kể cả file có sẵn; Zalo truyền đúng ngân sách train đã preflight.
+Header ZIP vượt trần bị từ chối trước ghi; byte thực được kiểm tiếp trong stream.
+Lỗi CRC/zlib/phương thức nén không hỗ trợ trả thông báo giải nén rõ, dọn file tạm
+bị lỗi. Đầu lượt tải và đầu giải nén dọn `*.extract.part` thường, từ chối link;
+thống kê mẫu bỏ qua các đường dẫn này. `safe_path` cũng chặn tên dành riêng
+Windows (CON/NUL/COM...) và dấu chấm/khoảng trắng cuối thành phần đường dẫn.
+SOURCE Zalo ghi **Video nguồn** thay cho nhóm người chưa xác minh; hai biên nhận
+file lẻ cũ đã được xóa khỏi kho chung, giữ biên nhận ZIP hiện tại.

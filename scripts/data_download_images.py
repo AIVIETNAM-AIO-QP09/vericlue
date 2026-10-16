@@ -9,6 +9,7 @@ import random
 import re
 import tarfile
 import zipfile
+import zlib
 from pathlib import Path
 from urllib.parse import quote, urlencode
 
@@ -295,11 +296,18 @@ def _prepare_zalo_zip(dataset: Dataset, client: Client, subset: str) -> Plan:
                     for name in selected
                 ):
                     raise DownloadError("Zalo ZIP không khớp inventory đã preflight.")
-        except (zipfile.BadZipFile, UnicodeDecodeError, KeyError):
+        except (
+            zipfile.BadZipFile,
+            UnicodeDecodeError,
+            KeyError,
+            zlib.error,
+            NotImplementedError,
+            RuntimeError,
+        ):
             raise DownloadError(
                 "ZIP/label.csv Zalo không đọc được; không dùng train lỗi."
             ) from None
-        safe_extract_zip(archive, dest, selected)
+        safe_extract_zip(archive, dest, selected, max_total_bytes=train_bytes)
         (dest / "selected_manifest.json").write_text(
             json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
         )

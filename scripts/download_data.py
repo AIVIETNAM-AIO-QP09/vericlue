@@ -24,6 +24,7 @@ from data_download_core import (
     Plan,
     SkipDataset,
     check_disk,
+    cleanup_extract_parts,
     remaining_peak,
     safe_path,
     write_source,
@@ -218,7 +219,11 @@ def data_inventory(dest: Path) -> dict:
         index = dest / "index.csv"
         if index.exists():
             with index.open(encoding="utf-8", newline="") as stream:
-                rows = list(csv.DictReader(stream))
+                rows = [
+                    row
+                    for row in csv.DictReader(stream)
+                    if not row.get("path", "").endswith(".extract.part")
+                ]
             origins: dict[str, set[str]] = {}
             for row in rows:
                 origin = row.get("video_origin_id") or row.get("source_video_id", "")
@@ -239,7 +244,11 @@ def data_inventory(dest: Path) -> dict:
             )
         manifest = dest / "selected_manifest.json"
         if manifest.exists():
-            rows = json.loads(manifest.read_text(encoding="utf-8"))
+            rows = [
+                row
+                for row in json.loads(manifest.read_text(encoding="utf-8"))
+                if not row.get("path", "").endswith(".extract.part")
+            ]
             result.update(
                 {
                     "selected_files": len(rows),
@@ -336,6 +345,7 @@ def main(argv: list[str] | None = None) -> int:
             prepare_snapshot = metric_snapshot(client)
             print(f"→ {dataset.name}: đọc metadata và lập kế hoạch.")
             try:
+                cleanup_extract_parts(root / "raw" / dataset.name)
                 if dataset.gated and not token:
                     raise SkipDataset(
                         "Thiếu HF_TOKEN: đăng nhập huggingface.co, chấp nhận điều khoản trang bộ dữ liệu, tạo token Read tại https://huggingface.co/settings/tokens rồi đặt $env:HF_TOKEN."

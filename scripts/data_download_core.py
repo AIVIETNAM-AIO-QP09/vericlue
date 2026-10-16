@@ -19,7 +19,7 @@ from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from urllib.parse import urlsplit
 
 import httpx
@@ -85,7 +85,17 @@ def safe_path(root: Path, relative: str) -> Path:
     """Chặn đường dẫn thoát thư mục, kể cả đường dẫn Windows trong archive."""
     normalized = relative.replace("\\", "/")
     parts = PurePosixPath(normalized).parts
-    if not parts or normalized.startswith("/") or any(p in ("..", "") or ":" in p for p in parts):
+    if (
+        not parts
+        or normalized.startswith("/")
+        or any(
+            p in ("..", "")
+            or ":" in p
+            or p.endswith((".", " "))
+            or PureWindowsPath(p).is_reserved()
+            for p in parts
+        )
+    ):
         raise DownloadError("Đường dẫn nguồn không an toàn.")
     base = _canonical_path(root)
     target = _canonical_path(base.joinpath(*parts))
@@ -621,6 +631,7 @@ class HTTPRangeFile(io.RawIOBase):
 
 def safe_extract_tar(archive: Path, dest: Path, members: list[str] | None = None) -> None:
     """Giải nén file thường; cấm traversal, link và file thiết bị."""
+    cleanup_extract_parts(dest)
     wanted = set(members) if members is not None else None
     with tarfile.open(archive) as source:
         selected = [m for m in source.getmembers() if wanted is None or m.name in wanted]
@@ -673,6 +684,11 @@ def safe_zip_members(source: zipfile.ZipFile, dest: Path) -> dict[str, zipfile.Z
         if key in members:
             raise DownloadError("ZIP chứa đường dẫn trùng hoặc xung đột hoa/thường.")
         members[key] = member
+    for key in members:
+        for parent in PurePosixPath(key).parents:
+            ancestor = members.get(parent.as_posix())
+            if ancestor is not None and not ancestor.is_dir():
+                raise DownloadError("ZIP chứa xung đột file/thư mục trong đường dẫn.")
     return {member.filename: member for member in members.values()}
 
 
@@ -686,22 +702,56 @@ def _zip_matches(path: Path, member: zipfile.ZipInfo) -> bool:
     return crc == member.CRC
 
 
-def safe_extract_zip(archive: Path, dest: Path, members: list[str] | None = None) -> None:
-    """Giữ nguyên đường dẫn ZIP, chỉ xuất file thường đã chọn, kiểm CRC khi resume."""
+def cleanup_extract_parts(dest: Path) -> int:
+    """Bỏ file giải nén dở thường trong đúng đích; từ chối link/traversal."""
+    root = _canonical_path(dest)
+    stale = list(root.rglob("*.extract.part")) if root.exists() else []
+    targets = []
+    for path in stale:
+        # Validate every target before unlinking the first one.
+        relative = path.relative_to(root).as_posix()
+        target = safe_path(root, relative)
+        current = path
+        while current != root:
+            if current.is_symlink() or (hasattr(current, "is_junction") and current.is_junction()):
+                raise DownloadError("File giải nén dở là symlink/junction; không dọn qua link.")
+            current = current.parent
+        if path.is_file():
+            targets.append(target)
+    for target in targets:
+        target.unlink()
+    return len(targets)
+
+
+def safe_extract_zip(
+    archive: Path,
+    dest: Path,
+    members: list[str] | None = None,
+    max_total_bytes: int | None = None,
+) -> None:
+    """Giải nén nguyên tử từng file, kiểm CRC và trần byte tổng (cả file có sẵn)."""
     dest = _canonical_path(dest)
+    if max_total_bytes is not None and max_total_bytes < 0:
+        raise DownloadError("Trần byte giải nén ZIP không hợp lệ.")
+    cleanup_extract_parts(dest)
+    partial: Path | None = None
     try:
         with zipfile.ZipFile(archive) as source:
             inventory = safe_zip_members(source, dest)
             wanted = set(members) if members is not None else set(inventory)
             if not wanted <= inventory.keys():
                 raise DownloadError("ZIP thiếu file được yêu cầu.")
+            declared_total = sum(
+                inventory[name].file_size for name in wanted if not inventory[name].is_dir()
+            )
+            if max_total_bytes is not None and declared_total > max_total_bytes:
+                raise DownloadError("ZIP vượt trần tổng byte giải nén (max_total_bytes).")
             pending = []
             for name in sorted(wanted):
                 member = inventory[name]
                 if member.is_dir():
                     continue
                 target = safe_path(dest, name)
-                # Do not follow even an in-root link when writing archive members.
                 logical = dest.joinpath(*PurePosixPath(name.replace("\\", "/")).parts)
                 current = logical
                 while current != dest:
@@ -713,6 +763,7 @@ def safe_extract_zip(archive: Path, dest: Path, members: list[str] | None = None
                 if not _zip_matches(target, member):
                     pending.append((member, target))
             check_disk(dest, sum(member.file_size for member, _ in pending))
+            total = declared_total - sum(member.file_size for member, _ in pending)
             for member, target in pending:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 check_disk(dest, member.file_size)
@@ -721,13 +772,30 @@ def safe_extract_zip(archive: Path, dest: Path, members: list[str] | None = None
                     hasattr(partial, "is_junction") and partial.is_junction()
                 ):
                     raise DownloadError("File giải nén dở là symlink/junction.")
+                written = 0
                 with source.open(member) as stream, partial.open("wb") as output:
-                    shutil.copyfileobj(stream, output, CHUNK_BYTES)
+                    for chunk in iter(lambda: stream.read(CHUNK_BYTES), b""):
+                        written += len(chunk)
+                        total += len(chunk)
+                        if written > member.file_size or (
+                            max_total_bytes is not None and total > max_total_bytes
+                        ):
+                            raise DownloadError(
+                                "ZIP vượt kích thước khai báo hoặc trần tổng byte giải nén."
+                            )
+                        output.write(chunk)
                 if not _zip_matches(partial, member):
                     raise DownloadError("ZIP giải nén thiếu byte hoặc sai CRC.")
                 os.replace(partial, target)
-    except (zipfile.BadZipFile, RuntimeError, EOFError):
-        raise DownloadError("ZIP hỏng/không đọc được; không dùng dữ liệu giải nén lỗi.") from None
+                partial = None
+    except (zipfile.BadZipFile, RuntimeError, EOFError, zlib.error, NotImplementedError):
+        raise DownloadError(
+            "ZIP hỏng/sai CRC hoặc phương thức nén không hỗ trợ; giải nén thất bại."
+        ) from None
+    finally:
+        if partial is not None and not partial.is_symlink() and partial.is_file():
+            # Unlink only the local temporary file, never its link target.
+            partial.unlink()
 
 
 def write_source(plan: Plan, dest: Path, seed: int, status: str, reason: str = "") -> Path:
@@ -768,7 +836,8 @@ def write_source(plan: Plan, dest: Path, seed: int, status: str, reason: str = "
     cross_note = "giọng thật của ViSpoofDB lấy từ VIVOS — DATA-03 phải chia theo người xuyên hai bộ, chống rò rỉ người nói"
     if plan.dataset.name in ("vispoofdb", "vivos") and cross_note not in plan.notes:
         lines.append(cross_note)
-    lines.extend(["", "## Nhóm nguồn được giữ", ""])
+    heading = "Video nguồn" if plan.dataset.name == "zalo2022" else "Nhóm nguồn được giữ"
+    lines.extend(["", f"## {heading}", ""])
     lines.extend(f"- `{group}`" for group in sorted(set(plan.groups)))
     lines.extend(["", "## Danh sách file thực tế", ""])
     lines.extend(
