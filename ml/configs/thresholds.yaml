@@ -1,0 +1,19 @@
+version: rout-02-v1
+provisional: true
+face:
+  b: 0.15
+  a: 0.60
+  sources:
+    b: "Tạm từ PLAT-04; trưởng nhóm chốt ROUT-02; chờ ROUT-03 calib_ltt"
+    a: "Tạm từ PLAT-04; trưởng nhóm chốt ROUT-02; chờ ROUT-03 calib_ltt"
+voice:
+  spoof_threshold: 0.15
+  max_syllable_wer: 0.3
+  min_unaccented_similarity: 0.9
+  sources:
+    spoof_threshold: "tạm — chờ ROUT-03"
+    max_syllable_wer: "VOICE-04 PR14; trưởng nhóm duyệt, chưa đo trên calib_fit thật"
+    min_unaccented_similarity: "VOICE-04 PR14; trưởng nhóm duyệt, chưa đo trên calib_fit thật"
+fusion:
+  method: max
+  source: "Tạm PLAT-04; chưa có calib_fit thật để học logistic (DATA-03)"
