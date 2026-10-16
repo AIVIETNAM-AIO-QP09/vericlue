@@ -54,6 +54,11 @@
 - [ ] Không thể xem điểm AI trước khi chọn quyết định ban đầu.
 - [ ] Chụp màn hình bỏ vào PR.
 
+**Ghi chú từ REV-01 (16/10):**
+- API bàn duyệt đã có: danh sách/hồ sơ ca, quyết định ban đầu → `.../ai` → quyết định cuối, `GET /v1/review/reason-codes`, `GET .../audit/verify`, `history` trong hồ sơ. Hồ sơ **không** có điểm AI; `ModuleResult[]` chỉ ở `.../ai`.
+- **Còn thiếu:** API phục vụ ảnh/video của ca (URL media hiện là chỗ giữ chỗ). REV-02 làm phần này (endpoint có kiểm quyền nhân viên sau PLAT-06, chỉ phục vụ file trong `MEDIA_DIR/<session_id>/`).
+- 9 mã lý do hiện là **danh sách tạm**; M2 chốt danh sách cuối khi làm giao diện.
+
 ---
 
 ### FOR-01 · API giám định: tiếp nhận, chia đoạn, chạy bộ não
@@ -155,5 +160,6 @@
 
 **Tiêu chí hoàn thành:**
 - [ ] Sửa 1 ký tự trong báo cáo → xác minh thất bại.
+- [ ] (Từ REV-01) Neo **hash cuối chuỗi** `review_events` của ca liên quan vào báo cáo đã ký, để phát hiện việc cắt bớt đuôi nhật ký (`verify_chain()` chỉ bắt được sửa/xóa giữa chuỗi).
 - [ ] Bảng thang lời được kiểm tra lại với tài liệu ENFSI 2015 trước khi dùng.
 - [ ] Mục giới hạn luôn có mặt (test).

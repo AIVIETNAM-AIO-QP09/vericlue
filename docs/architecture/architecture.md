@@ -148,8 +148,8 @@ Nhật ký ghi actor `staff-unverified` vì xác thực nhân viên thuộc PLAT
 
 ## 6. Luồng một phiên eKYC
 
-1. Web gọi `POST /v1/sessions` và nhận seed thử thách.
-2. Web chạy cổng chất lượng (MediaPipe). Chưa đạt thì nhắc chụp lại, chưa gửi gì lên.
+1. Web hiện màn đồng ý, xin quyền camera, rồi chạy cổng chất lượng (MediaPipe). Chưa đạt thì nhắc chụp lại, chưa gửi gì lên.
+2. Đạt cổng chất lượng xong, web mới gọi `POST /v1/sessions` và nhận thử thách. Tạo phiên **ngay trước bước nháy màu** (không phải ngay sau đồng ý) vì thử thách chỉ sống 120 giây (ADR-0011); quyết định trưởng nhóm 15/10, CAP-01. Mỗi lần chụp lại cũng đi qua cổng chất lượng trước (CAP-02).
 3. Web phát chuỗi màu, ghi thời điểm vẽ (`requestAnimationFrame`) và thời điểm từng khung (`requestVideoFrameCallback`), chạy CamProbe.
 4. Web gửi media và signals, rồi gọi `finalize`.
 5. Server chạy song song qua orchestrator preload trong lifespan → `ModuleResult[]`. Hiện nhóm finalize gồm quality, face_pad, face_deepfake, chromapulse, camprobe; SBI thuộc task mô hình, không thêm tên module ngoài hợp đồng.
