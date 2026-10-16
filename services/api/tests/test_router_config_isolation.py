@@ -75,3 +75,31 @@ def test_cached_voice_wrapper_is_cloned_before_binding_each_application_config(t
     finally:
         first.close()
         second.close()
+
+
+def test_dotenv_thresholds_path_is_shared_by_router_and_forensic(tmp_path, monkeypatch):
+    from vericlue_api.core.state import AppState
+    from vericlue_api.db.database import Database
+
+    monkeypatch.delenv("THRESHOLDS_CONFIG", raising=False)
+    raw = yaml.safe_load(
+        (Path(__file__).parents[3] / "ml/configs/thresholds.yaml").read_text(encoding="utf-8")
+    )
+    raw["face"].update(b=0.11, a=0.85)
+    config_path = tmp_path / "custom thresholds.yaml"
+    config_path.write_text(yaml.safe_dump(raw), encoding="utf-8")
+    env_path = tmp_path / "api.env"
+    env_path.write_text(f'THRESHOLDS_CONFIG="{config_path.as_posix()}"\n', encoding="utf-8")
+    settings = Settings(_env_file=env_path)
+    assert settings.router_config.face.b == 0.11
+    assert settings.router_config.face.a == 0.85
+    database = Database("sqlite:///:memory:")
+    orchestrator = Orchestrator(settings)
+    try:
+        with database.sessions() as db:
+            state = AppState(settings, db, orchestrator)
+            assert (state.forensic._b, state.forensic._a) == (0.11, 0.85)
+            assert state.flow.router.config is settings.router_config
+    finally:
+        orchestrator.close()
+        database.dispose()

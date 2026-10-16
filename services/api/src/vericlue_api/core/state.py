@@ -38,8 +38,8 @@ class AppState:
         self.sessions = SessionStore(self.db)
         self.reviews = ReviewStore(self.db, runner=runner)
         self.forensic = ForensicStore(
-            self.settings.provisional_threshold_b,
-            self.settings.provisional_threshold_a,
+            self.settings.router_config.face.b,
+            self.settings.router_config.face.a,
             self.db,
             self.settings.media_dir,
             runner=runner,

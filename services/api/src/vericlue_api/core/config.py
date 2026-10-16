@@ -79,15 +79,6 @@ class Settings(BaseSettings):
         return load_config(self.thresholds_config)
 
     @property
-    def provisional_threshold_b(self) -> float:
-        # Compatibility for REV-01/forensic consumers; YAML is the single source.
-        return self.router_config.face.b
-
-    @property
-    def provisional_threshold_a(self) -> float:
-        return self.router_config.face.a
-
-    @property
     def palette(self) -> list[str]:
         override = [c.strip() for c in self.challenge_palette.split(",") if c.strip()]
         return override or list(load_chromapulse_config().palette)

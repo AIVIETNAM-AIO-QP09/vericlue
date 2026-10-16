@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -124,7 +125,9 @@ class TrustRouter:
         gates = [results[m].gate for m in PRESENCE_MODULES]
         if Gate.FAIL in gates:
             return self._decision("review", results, reason="presence failed", priority="high")
-        if any(g != Gate.PASS for g in gates):
+        if any(g not in (Gate.PASS, Gate.FAIL, Gate.UNCLEAR) for g in gates):
+            return self._decision("review", results, reason="presence gate missing/invalid")
+        if Gate.UNCLEAR in gates:
             return self._retry(
                 results, retries_used, max_retries, "BRIGHTNESS_UP", "presence unclear"
             )
@@ -149,18 +152,31 @@ class TrustRouter:
         *,
         rereads_used: int = 0,
         session_valid: bool = True,
-        splice_flags: int | None = None,
+        splice_flags: int | float | None = None,
     ) -> Decision:
         """Match the phrase and independently gate spoof/lipsync; WER never enters fusion."""
         if not session_valid:
             return self._decision("review", results, reason="invalid session", priority="high")
+        flags = [e.value for r in results.values() for e in r.evidence if e.name == "splice_flags"]
+        if splice_flags is not None:
+            flags.append(splice_flags)
+        invalid_flag = False
+        positive_flag = False
+        for value in flags:
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or (isinstance(value, float) and not math.isfinite(value))
+            ):
+                invalid_flag = True
+            elif value > 0:
+                positive_flag = True
+        if positive_flag:
+            return self._decision("review", results, reason="positive splice flag", priority="high")
+        if invalid_flag:
+            return self._decision("review", results, reason="invalid splice flag")
         if not self._usable(results, VOICE_STEP_MODULES):
             return self._decision("review", results, reason="voice missing/error/degraded")
-        flags = [e.value for r in results.values() for e in r.evidence if e.name == "splice_flags"]
-        if (splice_flags is not None and splice_flags > 0) or any(
-            isinstance(v, (int, float)) and v > 0 for v in flags
-        ):
-            return self._decision("review", results, reason="positive splice flag")
         challenge = results[Module.VOICE_CHALLENGE]
         if challenge.gate == Gate.FAIL:
             action = "voice_challenge" if rereads_used < MAX_VOICE_REREADS else "review"

@@ -184,7 +184,7 @@ def test_positive_splice_flag_requires_review(router, where):
         ]
         replace_result(values, Module.VOICE_CHALLENGE, evidence=evidence)
         decision = router.voice(values)
-    assert decision.status == "review"
+    assert decision.status == "review" and decision.priority == "high"
 
 
 def test_policy_does_not_mutate_results_or_counters(router):
@@ -232,3 +232,60 @@ def test_missing_optional_splice_evidence_is_not_required_for_voice_pass(router)
     ]
     replace_result(values, Module.VOICE_CHALLENGE, evidence=evidence)
     assert router.voice(values, splice_flags=None).status == "pass"
+
+
+@pytest.mark.parametrize("module", [Module.CHROMAPULSE, Module.CAMPROBE])
+@pytest.mark.parametrize("gate", [None, "", "unknown"])
+def test_missing_or_unknown_presence_gate_reviews_instead_of_retry(router, module, gate):
+    values = replace_result(results(), module, gate=gate)
+    decision = router.finalize(values)
+    assert decision.status == "review"
+    assert decision.retry_hint is None
+
+
+@pytest.mark.parametrize("where", ["context", "evidence"])
+@pytest.mark.parametrize(
+    "value", ["1", "0", "bad", [], {}, True, False, float("nan"), float("inf")]
+)
+def test_invalid_splice_flag_is_review_not_pass_or_exception(router, where, value):
+    values = results()
+    if where == "context":
+        decision = router.voice(values, splice_flags=value)
+    else:
+        evidence = [
+            *values[Module.VOICE_CHALLENGE].evidence,
+            Evidence(type="scalar", name="splice_flags", value=value),
+        ]
+        replace_result(values, Module.VOICE_CHALLENGE, evidence=evidence)
+        decision = router.voice(values)
+    assert decision.status == "review"
+
+
+def test_present_null_splice_evidence_is_invalid_even_though_absence_is_optional(router):
+    values = results()
+    replace_result(
+        values,
+        Module.VOICE_CHALLENGE,
+        evidence=[Evidence(type="scalar", name="splice_flags", value=None)],
+    )
+    assert router.voice(values).status == "review"
+
+
+def test_positive_splice_keeps_high_priority_even_with_an_invalid_flag(router):
+    values = results()
+    replace_result(
+        values,
+        Module.VOICE_CHALLENGE,
+        evidence=[Evidence(type="scalar", name="splice_flags", value="bad")],
+    )
+    decision = router.voice(values, splice_flags=1)
+    assert decision.status == "review" and decision.priority == "high"
+
+
+@pytest.mark.parametrize("status", [Status.ERROR, Status.DEGRADED])
+def test_positive_splice_is_high_priority_even_when_another_voice_module_is_unusable(
+    router, status
+):
+    values = replace_result(results(), Module.VOICE_SPOOF, status=status)
+    decision = router.voice(values, splice_flags=1)
+    assert decision.status == "review" and decision.priority == "high"
