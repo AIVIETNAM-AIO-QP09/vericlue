@@ -1,4 +1,4 @@
-"""Luật quyết định TẠM theo bảng kịch bản mock (dùng lại cho PLAT-09). ROUT-02 sẽ thay luật."""
+"""Bảng kịch bản mock gọi trực tiếp TrustRouter với snapshot cấu hình API."""
 
 from __future__ import annotations
 
@@ -9,13 +9,13 @@ from vericlue_api.services.detection import run_detectors
 from vericlue_api.services.provisional_decision import (
     FINALIZE_MODULES,
     VOICE_STEP_MODULES,
-    decide_finalize,
-    decide_voice,
 )
 from vericlue_ml.common.result import Gate, Module, ModuleResult, Status
+from vericlue_ml.router.policy import TrustRouter
 
 S = Settings()
-B, A = S.provisional_threshold_b, S.provisional_threshold_a
+B, A = S.router_config.face.b, S.router_config.face.a
+ROUTER = TrustRouter(S.router_config)
 
 
 def test_provisional_thresholds_are_the_agreed_values():
@@ -24,12 +24,12 @@ def test_provisional_thresholds_are_the_agreed_values():
 
 def finalize(scenario: str, retries_used: int = 0, results=None):
     results = results or run_detectors(FINALIZE_MODULES, session_id="t", scenario=scenario)
-    return decide_finalize(results, retries_used=retries_used, max_retries=2, b=B, a=A)
+    return ROUTER.finalize(results, retries_used=retries_used, max_retries=2)
 
 
 def voice(scenario: str, rereads_used: int = 0):
     results = run_detectors(VOICE_STEP_MODULES, session_id="t", scenario=scenario)
-    return decide_voice(results, rereads_used=rereads_used, b=B)
+    return ROUTER.voice(results, rereads_used=rereads_used)
 
 
 @pytest.mark.parametrize(
@@ -134,8 +134,8 @@ def test_presence_unclear_retries_with_brightness_hint_then_review():
 def test_wrong_sentence_allows_one_reread_then_review():
     base = run_detectors(VOICE_STEP_MODULES, session_id="t", scenario="genuine")
     wrong = _replace(base, Module.VOICE_CHALLENGE, gate=Gate.FAIL)
-    assert decide_voice(wrong, rereads_used=0, b=B).status == "voice_challenge"
-    assert decide_voice(wrong, rereads_used=1, b=B).status == "review"
+    assert ROUTER.voice(wrong, rereads_used=0).status == "voice_challenge"
+    assert ROUTER.voice(wrong, rereads_used=1).status == "review"
 
 
 def test_detector_exception_becomes_error_and_never_passes(monkeypatch):

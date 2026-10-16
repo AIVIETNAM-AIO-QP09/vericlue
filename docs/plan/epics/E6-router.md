@@ -40,7 +40,8 @@
 2. **Chất lượng đạt?** Không → `retry` + gợi ý. Quá 2 lần → `review`.
 3. **Cổng hiện diện** (chromapulse, camprobe):
    - `fail` → `review` ưu tiên cao;
-   - `unclear` → `retry` (`BRIGHTNESS_UP` hoặc `MORE_LIGHT`).
+   - `unclear` → `retry` (`BRIGHTNESS_UP` hoặc `MORE_LIGHT`);
+   - gate rỗng/không xác định dù status ok → `review`.
 4. **Cổng ngoài phạm vi** (nếu có ROUT-04) → `review`.
 5. **Bước khuôn mặt:** hợp nhất logistic (`prob_attack` của PAD, GenD, SBI + đặc trưng chất lượng) → Λ. Trọng số hợp nhất học trên **`calib_fit`** (ADR-0010).
    - Λ ≤ B → `pass`;
@@ -58,7 +59,7 @@ quality fail → retry, retry, review; quality error/degraded → review.
 Face Λ ≤ B pass, Λ ≥ A review; voice dùng spoof_threshold riêng (≤ pass).
 Nguồn số duy nhất thresholds.yaml, provisional:true; fusion hiện max(prob_attack)
 đã hiệu chỉnh. Logistic chỉ chuẩn bị API học trên calib_fit sau DATA-03; không học
-trọng số giả, không dùng calib_ltt/test. WER chỉ là gate; splice dương review,
+trọng số giả, không dùng calib_ltt/test. WER chỉ là gate; splice dương review ưu tiên cao; splice sai kiểu/không hữu hạn review,
 không có splice giữ absent/chờ VOICE-05. Metadata dùng cột JSON/hash hiện có,
 không migration mới và không sửa hai file review của REV-01.
 

@@ -149,7 +149,7 @@ thiếu, error, degraded, timeout hoặc busy tại bước đã tới không ba
 Hiện fusion là **max xác suất đã hiệu chỉnh**, không có trọng số học giả:
 Λ ≤ face.b thì pass; Λ ≥ face.a thì review; vùng giữa yêu cầu đọc câu.
 Giọng dùng `voice.spoof_threshold` riêng, ≤ ngưỡng thì pass. VOICE-04 chỉ là cổng nội dung:
-score WER không phải xác suất và không vào fusion. Cờ cắt ghép dương → review;
+score WER không phải xác suất và không vào fusion. Cờ cắt ghép dương → review ưu tiên cao; cờ không phải số/không hữu hạn → review;
 không có cờ thì giữ absent, không tạo số 0 hay feature thay thế (chờ VOICE-05).
 Sai câu cho đọc lại một lần; chưa rõ/lỗi chuyển review.
 

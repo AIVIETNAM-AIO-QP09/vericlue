@@ -72,7 +72,7 @@ Chạy mock (`USE_MOCK_MODELS=true`, mặc định) chọn kịch bản bằng h
 | Giới hạn upload | `MAX_UPLOAD_MB` chỉ kiểm **sau khi** Starlette đã nhận multipart (và trước khi xác thực token vẫn nhận được body) | **PLAT-06** / reverse proxy: giới hạn cứng ở lớp trước ứng dụng |
 | Xác thực nhân viên | `/v1/review/*` và `/v1/forensic/*` chưa có xác thực; nhật ký ghi `actor` cố định `staff-unverified` | **PLAT-06** / REV-02 |
 
-Chính sách ROUT-02, thứ tự cổng: phiên/thời gian hợp lệ → quality (chụp lại tối đa 2 lần rồi `review`) → chromapulse/camprobe (fail → `review` ưu tiên cao; chưa rõ → chụp lại) → ngưỡng trên **max `prob_attack`** của `face_pad` và `face_deepfake` (≤ B `pass`; trên B đến dưới A `voice_challenge`; ≥ A `review`). `error`/`degraded`/thiếu ở bước bắt buộc → `review`, không bao giờ `pass`.
+Chính sách ROUT-02, thứ tự cổng: phiên/thời gian hợp lệ → quality (chụp lại tối đa 2 lần rồi `review`) → chromapulse/camprobe (fail → `review` ưu tiên cao; unclear → chụp lại; gate rỗng/không xác định → `review`) → ngưỡng trên **max `prob_attack`** của `face_pad` và `face_deepfake` (≤ B `pass`; trên B đến dưới A `voice_challenge`; ≥ A `review`). `error`/`degraded`/thiếu ở bước bắt buộc → `review`, không bao giờ `pass`.
 
 
 ## DB, migration và vòng đời file (PLAT-05)
@@ -206,12 +206,12 @@ Nguồn duy nhất là `ml/configs/thresholds.yaml` (override đường dẫn b�
 byte YAML. Dùng cột JSON hiện có, **không có migration mới**. Quyết định tự động ở
 SessionStore được ghi metadata này; nghiệp vụ quyết định nhân viên thuộc REV-01.
 Hai file review_store.py/routers/review.py được giữ nguyên để tránh xung đột REV-01.
-Consumer bàn duyệt/giám định vẫn đọc B/A từ YAML qua property tương thích.
+Consumer bàn duyệt/giám định đọc trực tiếp `settings.router_config.face.b/a`.
 
 Quality fail → retry, retry, review; face degraded chưa xét khi quality fail.
 Quality error/degraded và module bắt buộc lỗi ở bước đã tới → review. Voice dùng
 `voice.spoof_threshold` riêng với biên ≤ pass, không dùng B và không trộn WER.
-Cờ splice dương → review; thiếu là absent. Sai câu chỉ đọc lại một lần.
+Cờ splice dương → review ưu tiên cao; giá trị không phải số/không hữu hạn → review; thiếu là absent. Sai câu chỉ đọc lại một lần.
 SessionFlow tăng counters/cấp challenge hoặc câu mới; ML chỉ trả quyết định thuần.
 Token không khớp vẫn 401; deadline token đã lưu hoặc challenge màu quá hạn (finalize)
 → review ưu tiên cao, không chạy detector. Voice kiểm hạn token, không dùng lại hạn
