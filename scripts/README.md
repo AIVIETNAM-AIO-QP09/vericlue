@@ -102,3 +102,43 @@ chỉ lưu hash URL/kích thước/thời điểm, không lưu token hoặc URL 
 ngắt luồng tải được retry tối đa ba lần; .part vẫn giữ để chạy lại khi hết retry.
 Bộ đếm byte không gồm metadata HTTP nội bộ gdown; thời gian discovery gdown
 được tính vào phần mạng, cùng một ít thời gian parse HTML bên trong thư viện.
+
+### Sửa metadata MLAAD-vi và VSASV (16/10)
+
+MLAAD giữ các WAV có `original_file` hợp lệ, nhóm câu nguồn xuyên TTS; thiếu một
+phần metadata không làm bỏ cả bộ. SOURCE ghi số file bị bỏ theo lý do/hệ TTS.
+`reference_speaker` giữ đường dẫn gốc, không được coi là subject ID tự tạo.
+
+VSASV có `label` là **ID người**, `utt_type` mới là loại mẫu. Adapter riêng chỉ
+lấy bonafide/replay và giữ nguyên nhóm người qua mọi shard; VC/AA bị loại vì thiếu
+mapping người nguồn (quyết định trưởng nhóm 16/10), kể cả khi chạy full. Manifest
+đổi `label` thành 0=thật/1=phát lại, giữ `source_label`, `subject_id`, `source_group`
+là ID công bố; không dùng tên shard làm ID người. WAV IEEE float32 giữ nguyên
+sampling rate và giá trị trong độ chính xác float32, không resample/clipping.
+
+Prepare đọc đúng footer và các cột metadata qua HTTP Range, không đọc audio.
+Sau preflight, execute chỉ đọc các rowgroup cần thiết, giữ waveform trong Arrow
+và đổi từng mẫu được chọn sang NumPy; không tạo danh sách Python cho cả shard.
+Biên nhận identity/SHA-256 cho từng WAV giúp bỏ qua audio đã xác minh khi chạy lại;
+file hỏng được tạo lại. Không cache Parquet trên đĩa; metadata vẫn được khảo sát lại.
+
+```powershell
+$env:DATA_DIR = 'E:\shared\vericlue\data'
+uv run --group data python scripts/download_data.py --only mlaad_vi --subset small
+uv run --group data python scripts/download_data.py --only vsasv --subset small
+```
+
+Dùng HF_TOKEN đã chấp nhận điều khoản hai bộ; không ghi token trong lệnh literal,
+log, SOURCE hoặc bàn giao. DATA-03 phải đối chiếu người xuyên bộ qua reference
+MLAAD và VSASV ↔ VIVOS/ViMD; không mặc định ID namespace khác nhau là người khác.
+
+Review PR #17: nhóm `data` khai báo trực tiếp NumPy/SciPy để adapter VSASV chạy
+độc lập, không dựa vào dependency gián tiếp của ML. MLAAD kiểm đủ hệ TTS theo
+các thư mục có `meta.csv`, không lấy danh sách từ chính records còn hợp lệ.
+VSASV SOURCE đo max |x| và số WAV vượt [-1,1] trên file float32 đã lưu; không clipping.
+
+Quy ước byte: `manifest_data_bytes` là tổng size của media được chọn;
+`outcomes.<bộ>.stored_bytes` là toàn bộ file trong thư mục bộ đó, gồm SOURCE,
+manifest và biên nhận. `stored_bytes` ở đầu báo cáo cộng thêm cache `.metadata`
+dùng chung, không phải chỉ media. Dòng “Số byte lưu” trong SOURCE gồm media,
+metadata/archive và manifest, loại SOURCE.md, biên nhận `.verified.json` và file part.

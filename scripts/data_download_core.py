@@ -669,6 +669,7 @@ def write_source(plan: Plan, dest: Path, seed: int, status: str, reason: str = "
         f"- Seed: {seed}",
         f"- Số file lưu: {len(entries)} (bao gồm metadata/archive, không coi là số mẫu)",
         f"- Số byte lưu: {sum(p.stat().st_size for p in entries)}",
+        "- Cách đếm byte SOURCE: gồm media, metadata/archive và manifest; không gồm SOURCE.md, biên nhận .verified.json hoặc file .part/.part.json.",
         "",
         restrictions,
         "",

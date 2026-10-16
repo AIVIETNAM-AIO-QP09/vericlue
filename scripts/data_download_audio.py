@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import json
 import random
+import re
 import shutil
 import tarfile
 from collections import defaultdict
@@ -18,6 +20,7 @@ from urllib.parse import quote
 from data_download_core import (
     Client,
     Dataset,
+    DownloadError,
     Plan,
     RemoteFile,
     SkipDataset,
@@ -141,34 +144,48 @@ def _mlaad(dataset: Dataset, client: Client, seed: int, subset: str) -> Plan:
         raise SkipDataset("MLAAD vi: không có meta.csv để nhóm theo câu/người nguồn.")
     grouped: dict[str, list[RemoteFile]] = defaultdict(list)
     records: dict[str, dict[str, Any]] = {}
+    wavs = {path for path in files if path.endswith(".wav")}
+    excluded: dict[str, str] = {}
     for meta in metadata:
         payload = client.get_bytes(_url(repo, revision, meta["path"]), limit=10_000_000)
         reader = csv.DictReader(io.StringIO(payload.decode("utf-8-sig")), delimiter="|")
-        if not reader.fieldnames or "original_file" not in reader.fieldnames:
-            raise SkipDataset(
-                "MLAAD vi: meta.csv thiếu original_file; không thể bảo toàn câu nguồn."
-            )
         model = PurePosixPath(meta["path"]).parent.name
+        if not reader.fieldnames or "original_file" not in reader.fieldnames:
+            excluded.update(
+                (path, "missing_original_file_column")
+                for path in wavs
+                if PurePosixPath(path).parent == PurePosixPath(meta["path"]).parent
+            )
+            continue
         for row in reader:
-            raw = row.get("path", "")
+            raw = row.get("path") or ""
             candidate = raw.replace("\\", "/").lstrip("./")
             if not candidate.startswith("fake/vi/"):
                 candidate = f"fake/vi/{model}/{PurePosixPath(candidate).name}"
-            item = files.get(candidate)
-            if not item or not candidate.endswith(".wav"):
+            if candidate not in wavs or candidate in excluded:
                 continue
-            original = row.get("original_file", "").strip()
-            if not original:
-                raise SkipDataset("MLAAD vi: có câu thiếu original_file; không lấy mẫu ngẫu nhiên.")
-            # Group the same source sentence across ALL TTS systems together.
-            key = original
-            grouped[key].append(
-                RemoteFile(_url(repo, revision, candidate), candidate, item["size"])
-            )
-            records[candidate] = {**row, "path": candidate, "source_group": key, "tts": model}
-    if {path for path in files if path.endswith(".wav")} != set(records):
-        raise SkipDataset(
-            "MLAAD vi: meta.csv không bao phủ mọi WAV; không chọn nhóm thiếu câu nguồn."
+            original = (row.get("original_file") or "").strip()
+            if not original or original.casefold() in {"none", "null", "nan", "unknown"}:
+                excluded[candidate] = "missing_original_file"
+                records.pop(candidate, None)
+                continue
+            record = {
+                **row,
+                "path": candidate,
+                "source_group": original,
+                "tts": model,
+                "size": files[candidate]["size"],
+            }
+            if candidate in records and records[candidate] != record:
+                excluded[candidate] = "metadata_conflict"
+                records.pop(candidate, None)
+                continue
+            records[candidate] = record
+    for path in wavs - records.keys():
+        excluded.setdefault(path, "no_metadata")
+    for candidate, row in records.items():
+        grouped[row["source_group"]].append(
+            RemoteFile(_url(repo, revision, candidate), candidate, files[candidate]["size"])
         )
     if not grouped:
         raise SkipDataset("MLAAD vi: metadata không khớp danh sách WAV trên nguồn.")
@@ -185,8 +202,12 @@ def _mlaad(dataset: Dataset, client: Client, seed: int, subset: str) -> Plan:
         raise SkipDataset("MLAAD vi: ngân sách không chứa được nhóm câu nguồn có đủ các hệ TTS.")
 
     def execute(dest: Path, download_client: Client) -> None:
-        for file in chosen:
+        def download_one(file: RemoteFile) -> None:
             download_client.download(file, safe_path(dest, file.path))
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            for start in range(0, len(chosen), 8):
+                list(pool.map(download_one, chosen[start : start + 8]))
         for meta in metadata:
             download_client.download(
                 RemoteFile(_url(repo, revision, meta["path"]), meta["path"], meta["size"]),
@@ -194,6 +215,11 @@ def _mlaad(dataset: Dataset, client: Client, seed: int, subset: str) -> Plan:
             )
         _manifest(dest, [records[file.path] for file in chosen])
 
+    reasons: dict[str, int] = defaultdict(int)
+    excluded_tts: dict[str, int] = defaultdict(int)
+    for path, reason in excluded.items():
+        reasons[reason] += 1
+        excluded_tts[PurePosixPath(path).parent.name] += 1
     return Plan(
         dataset,
         chosen,
@@ -201,10 +227,354 @@ def _mlaad(dataset: Dataset, client: Client, seed: int, subset: str) -> Plan:
         revision=revision,
         groups=selected,
         notes=[
-            f"Seed {seed}; câu original_file giữ cùng nhóm qua mọi hệ TTS; reference_speaker trong manifest."
+            f"Seed {seed}; câu original_file giữ cùng nhóm qua mọi hệ TTS; reference_speaker trong manifest.",
+            f"WAV nguồn {len(wavs)}; WAV có nhóm hợp lệ {len(records)}; bỏ {len(excluded)} WAV: "
+            + json.dumps(dict(reasons), ensure_ascii=False),
+            "WAV bị bỏ theo hệ TTS: " + json.dumps(dict(excluded_tts), ensure_ascii=False),
+            "no_metadata: không có dòng meta.csv; không suy câu nguồn từ basename.",
+            "DATA-03: kiểm trùng người xuyên bộ qua original_file và đường dẫn reference_speaker; "
+            "reference là đường dẫn âm thanh tham chiếu, không tự tạo subject_id hoặc suy ID người.",
         ],
         execute=execute,
     )
+
+
+def _parquet_footer(handle: Any, size: int) -> Any:
+    """Read only the exact Parquet footer, avoiding the default 64-KiB audio tail."""
+    import pyarrow.parquet as pq
+
+    if size < 12:
+        raise DownloadError("Parquet quá ngắn.")
+    handle.seek(size - 8)
+    trailer = handle.read(8)
+    if len(trailer) != 8 or trailer[4:] != b"PAR1":
+        raise DownloadError("Parquet footer không hợp lệ.")
+    length = int.from_bytes(trailer[:4], "little")
+    if not 0 < length <= min(size - 12, 16 * 1024 * 1024):
+        raise DownloadError("Kích thước Parquet footer không hợp lệ.")
+    handle.seek(size - 8 - length)
+    footer = handle.read(length)
+    if len(footer) != length:
+        raise DownloadError("Parquet footer chưa đủ byte.")
+    return pq.read_metadata(io.BytesIO(b"PAR1" + footer + trailer))
+
+
+def _float32_wav(samples: Any, sample_rate: int) -> bytes:
+    """Encode mono IEEE float32 WAV at the source rate, without resampling/clipping."""
+    import numpy as np
+    from scipy.io import wavfile
+
+    if isinstance(sample_rate, bool) or not isinstance(sample_rate, int) or sample_rate <= 0:
+        raise DownloadError("VSASV: sampling_rate phải là số nguyên dương.")
+    with np.errstate(over="ignore", invalid="ignore"):
+        values = np.asarray(samples, dtype=np.float32)
+    if values.ndim != 1 or not values.size or not np.isfinite(values).all():
+        raise DownloadError("VSASV: waveform mono rỗng hoặc có giá trị không hữu hạn.")
+    buffer = io.BytesIO()
+    wavfile.write(buffer, sample_rate, values)
+    return buffer.getvalue()
+
+
+def _vsasv_waveform_stats(dest: Path) -> dict[str, Any]:
+    """Measure saved waveforms without clipping; usable for existing local downloads."""
+    import numpy as np
+    from scipy.io import wavfile
+
+    rows = json.loads((dest / "selected_manifest.json").read_text(encoding="utf-8"))
+    maximum, outside = 0.0, 0
+    for row in rows:
+        _, values = wavfile.read(safe_path(dest, row["path"]), mmap=True)
+        if not values.size or not np.isfinite(values).all():
+            raise DownloadError("VSASV: waveform đã lưu rỗng hoặc không hữu hạn.")
+        peak = float(np.max(np.abs(values)))
+        maximum = max(maximum, peak)
+        outside += int(peak > 1.0)
+    return {"n_files": len(rows), "max_abs": maximum, "out_of_range_files": outside}
+
+
+def _vsasv_amplitude_note(stats: dict[str, Any]) -> str:
+    return (
+        f"WAV float32 đã lưu: max |x| = {stats['max_abs']}; "
+        f"số file vượt [-1,1] = {stats['out_of_range_files']}; kiểm {stats['n_files']} file, không clipping."
+    )
+
+
+def _vsasv_receipt(path: Path, identity: str) -> dict[str, Any] | None:
+    try:
+        receipt = json.loads(
+            path.with_name(path.name + ".verified.json").read_text(encoding="utf-8")
+        )
+        if receipt["identity"] != identity or path.stat().st_size != receipt["size"]:
+            return None
+        with path.open("rb") as stream:
+            digest = hashlib.file_digest(stream, "sha256").hexdigest()
+        if digest != receipt["sha256"]:
+            return None
+        if (
+            not isinstance(receipt["sampling_rate"], int)
+            or receipt["sampling_rate"] <= 0
+            or not isinstance(receipt["n_samples"], int)
+            or receipt["n_samples"] <= 0
+        ):
+            return None
+        return receipt
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+def _vsasv(dataset: Dataset, client: Client, seed: int, subset: str) -> Plan:
+    """VSASV label is a speaker identity; only verified bonafide/replay scope."""
+    try:
+        import pyarrow.parquet as pq
+    except ImportError as exc:
+        raise SkipDataset("VSASV cần pyarrow: uv sync --all-packages --group data.") from exc
+    repo = AUDIO_REPOS[dataset.name]
+    revision, entries = client.hf_files(repo)
+    shards = sorted(
+        (item for item in entries if item["path"].endswith(".parquet")), key=lambda x: x["path"]
+    )
+    if not shards:
+        raise SkipDataset("VSASV: không có Parquet trên nguồn.")
+
+    def inspect(shard: dict[str, Any]) -> tuple[RemoteFile, Any, list[dict], list[tuple[int, int]]]:
+        remote = RemoteFile(_url(repo, revision, shard["path"]), shard["path"], shard["size"])
+        rows, costs = [], []
+        with client.remote_file(remote.url, remote.size) as handle:
+            metadata = _parquet_footer(handle, remote.size)
+            columns = metadata.schema.to_arrow_schema().names
+            if not {"file", "label", "utt_type", "audio"}.issubset(columns):
+                return remote, metadata, [], []
+            parquet = pq.ParquetFile(handle, metadata=metadata, pre_buffer=False, buffer_size=0)
+            for group_index in range(metadata.num_row_groups):
+                group = metadata.row_group(group_index)
+                compressed = sum(
+                    group.column(i).total_compressed_size for i in range(group.num_columns)
+                )
+                audio_columns = [
+                    group.column(i)
+                    for i in range(group.num_columns)
+                    if group.column(i).path_in_schema == "audio.array.list.element"
+                ]
+                if len(audio_columns) != 1:
+                    return remote, metadata, [], []
+                costs.append((compressed, audio_columns[0].num_values * 4))
+                table = parquet.read_row_group(
+                    group_index, columns=["file", "label", "utt_type"], use_threads=False
+                )
+                rows.extend(
+                    {**row, "row_group": group_index, "row": index}
+                    for index, row in enumerate(table.to_pylist())
+                )
+        return remote, metadata, rows, costs
+
+    groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    source_info: dict[str, tuple[RemoteFile, Any, list[tuple[int, int]]]] = {}
+    excluded: dict[str, int] = defaultdict(int)
+    total = 0
+    paths: set[str] = set()
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        for index, (remote, metadata, rows, costs) in enumerate(pool.map(inspect, shards), start=1):
+            total += metadata.num_rows
+            source_info[remote.path] = remote, metadata, costs
+            if not costs:
+                excluded["missing_required_columns"] += metadata.num_rows
+                continue
+            for row in rows:
+                kind, subject, source = row.get("utt_type"), row.get("label"), row.get("file")
+                if kind not in {"bonafide", "replay"}:
+                    excluded[str(kind) if isinstance(kind, str) else "missing_utt_type"] += 1
+                    continue
+                if (
+                    not isinstance(subject, str)
+                    or re.fullmatch(r"id[0-9]{5}", subject) is None
+                    or not isinstance(source, str)
+                    or not source.startswith(subject + "/")
+                ):
+                    excluded["missing_or_inconsistent_speaker"] += 1
+                    continue
+                try:
+                    safe_path(Path("."), source)
+                except DownloadError:
+                    excluded["unsafe_source_path"] += 1
+                    continue
+                if source in paths:
+                    raise DownloadError("VSASV: file nguồn trùng; không ghi đè hoặc cắt nhóm.")
+                paths.add(source)
+                groups[subject].append(
+                    {
+                        **row,
+                        "source_label": subject,
+                        "subject_id": subject,
+                        "source_group": subject,
+                        "label": 0 if kind == "bonafide" else 1,
+                        "shard": remote.path,
+                    }
+                )
+            if index % 32 == 0 or index == len(shards):
+                print(f"VSASV metadata: {index}/{len(shards)} shards; chưa tải audio.", flush=True)
+    if not groups:
+        raise SkipDataset("VSASV: không còn nhóm người có metadata hợp lệ.")
+    names = sorted(groups)
+    random.Random(seed).shuffle(names)
+    # Reserve space for replay populations before filling with bonafide-only people.
+    names = [s for s in names if any(r["utt_type"] == "replay" for r in groups[s])] + [
+        s for s in names if all(r["utt_type"] != "replay" for r in groups[s])
+    ]
+    cap = (
+        dataset.budget_bytes
+        if subset == "small"
+        else sum(item["size"] for item in shards) * 8 + 10_000_000
+    )
+    selected: list[str] = []
+    used: set[tuple[str, int]] = set()
+    compressed, float_bytes, row_count = 0, 0, 0
+    metadata_allowance = 10_000_000
+    metadata_cost = 0
+    # Reserve manifests AND verified receipts; long paths are counted per row.
+    overhead = {
+        subject: sum(
+            len(json.dumps(row, ensure_ascii=False).encode()) + 2 * len(row["file"].encode()) + 2048
+            for row in records
+        )
+        for subject, records in groups.items()
+    }
+    for subject in names:
+        batch = groups[subject]
+        needed = {(row["shard"], row["row_group"]) for row in batch}
+        additional = needed - used
+        extra_compressed = sum(source_info[path][2][g][0] for path, g in additional)
+        extra_float = sum(source_info[path][2][g][1] for path, g in additional)
+        allowance = max(10_000_000, metadata_cost + overhead[subject])
+        peak = (
+            max((compressed + extra_compressed) * 3, float_bytes + extra_float)
+            + (row_count + len(batch)) * 128
+            + allowance
+        )
+        if peak <= cap:
+            selected.append(subject)
+            used.update(needed)
+            compressed += extra_compressed
+            float_bytes += extra_float
+            row_count += len(batch)
+            metadata_cost += overhead[subject]
+            metadata_allowance = allowance
+    if not selected:
+        raise SkipDataset("VSASV: không đủ ngân sách để giữ trọn một nhóm người hợp lệ.")
+    rows = [row for subject in selected for row in groups[subject]]
+    by_group: dict[tuple[str, int], list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        by_group[(row["shard"], row["row_group"])].append(row)
+    output_allowance = float_bytes + len(rows) * 128
+
+    def execute(dest: Path, download_client: Client) -> None:
+        manifest, used_bytes = [], 0
+        receipt_bytes = 0
+        for (shard, group_index), records in sorted(by_group.items()):
+            remote, metadata, _ = source_info[shard]
+            pending = []
+            for row in records:
+                filename = "audio/" + row["file"]
+                target = safe_path(dest, filename)
+                identity = hashlib.sha256(
+                    json.dumps(
+                        [revision, shard, group_index, row["row"], row["file"], "float32-wav-v1"]
+                    ).encode()
+                ).hexdigest()
+                receipt = _vsasv_receipt(target, identity)
+                if receipt is None:
+                    pending.append((row, target, identity))
+                else:
+                    used_bytes += receipt["size"]
+                    receipt_bytes += target.with_name(target.name + ".verified.json").stat().st_size
+                    if receipt_bytes > metadata_allowance:
+                        raise DownloadError("VSASV: biên nhận vượt dự phòng metadata.")
+                    manifest.append(
+                        {
+                            **row,
+                            "path": filename,
+                            "original_path": row["file"],
+                            **{k: receipt[k] for k in ("size", "sampling_rate", "n_samples")},
+                        }
+                    )
+            if not pending:
+                continue
+            with download_client.remote_file(remote.url, remote.size) as handle:
+                table = pq.ParquetFile(
+                    handle, metadata=metadata, pre_buffer=False, buffer_size=0
+                ).read_row_group(group_index, columns=["audio"], use_threads=False)
+            for row, target, identity in pending:
+                payload = table.column("audio")[row["row"]]
+                if (
+                    not payload.is_valid
+                    or not payload["array"].is_valid
+                    or not payload["sampling_rate"].is_valid
+                ):
+                    raise DownloadError(
+                        "VSASV: audio hoặc sampling_rate thiếu; giữ file đã xác minh để tải tiếp."
+                    )
+                samples = payload["array"].values.to_numpy(zero_copy_only=False)
+                rate = payload["sampling_rate"].as_py()
+                blob = _float32_wav(samples, rate)
+                used_bytes += len(blob)
+                if used_bytes > output_allowance:
+                    raise DownloadError("VSASV: audio vượt preflight; không cắt nhóm người.")
+                receipt = {
+                    "identity": identity,
+                    "size": len(blob),
+                    "sha256": hashlib.sha256(blob).hexdigest(),
+                    "sampling_rate": rate,
+                    "n_samples": len(samples),
+                }
+                receipt_payload = json.dumps(receipt).encode()
+                receipt_bytes += len(receipt_payload)
+                if receipt_bytes > metadata_allowance:
+                    raise DownloadError("VSASV: biên nhận vượt dự phòng metadata.")
+                check_disk(dest, len(blob) + metadata_allowance)
+                _atomic_bytes(target, blob)
+                _atomic_bytes(target.with_name(target.name + ".verified.json"), receipt_payload)
+                manifest.append(
+                    {
+                        **row,
+                        "path": "audio/" + row["file"],
+                        "original_path": row["file"],
+                        "size": len(blob),
+                        "sampling_rate": rate,
+                        "n_samples": len(samples),
+                    }
+                )
+            del table
+        if used_bytes > output_allowance:
+            raise DownloadError("VSASV: output đã có vượt giới hạn preflight.")
+        manifest.sort(key=lambda r: (r["shard"], r["row_group"], r["row"]))
+        payload = (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode()
+        if len(payload) + receipt_bytes > metadata_allowance:
+            raise DownloadError("VSASV: manifest và biên nhận vượt dự phòng metadata.")
+        check_disk(dest, len(payload))
+        _atomic_bytes(dest / "selected_manifest.json", payload)
+        note = _vsasv_amplitude_note(_vsasv_waveform_stats(dest))
+        plan.notes = [text for text in plan.notes if not text.startswith("WAV float32 đã lưu:")] + [
+            note
+        ]
+
+    plan = Plan(
+        dataset,
+        [],
+        max(compressed * 3, float_bytes) + len(rows) * 128 + metadata_allowance,
+        revision=revision,
+        groups=selected,
+        notes=[
+            f"Seed {seed}; ID người = label công bố, xác minh khớp thư mục file; giữ trọn nhóm hợp lệ xuyên shard.",
+            f"Dòng nguồn {total}; hợp lệ {sum(map(len, groups.values()))}; loại {sum(excluded.values())}: "
+            + json.dumps(dict(excluded), ensure_ascii=False),
+            "Loại voice_conversion và adversarial_attack vì không xác minh được người nguồn — quyết định trưởng nhóm 16/10.",
+            "Phạm vi DATA-01 chỉ bonafide + replay, kể cả khi yêu cầu full; full là toàn bộ phần hợp lệ này.",
+            "WAV IEEE float32; giữ nguyên sampling_rate, không resample, không clipping; label manifest 0=thật/1=phát lại, source_label giữ mã người gốc.",
+            f"Range rowgroups dự kiến {compressed} bytes mạng (gồm metadata cột); WAV upper bound {output_allowance} bytes; không cache parquet đĩa.",
+            "DATA-03: kiểm trùng người xuyên bộ VSASV ↔ VIVOS/ViMD; subject_id chỉ là mã nội bộ VSASV, chưa phải danh tính xuyên bộ.",
+        ],
+        execute=execute,
+    )
+    return plan
 
 
 def _parquet_audio(dataset: Dataset, client: Client, seed: int, subset: str) -> Plan:
@@ -514,7 +884,7 @@ def prepare(dataset: Dataset, client: Client, seed: int, subset: str) -> Plan:
         "vivos": _vivos,
         "mlaad_vi": _mlaad,
         "vimd": _parquet_audio,
-        "vsasv": _parquet_audio,
+        "vsasv": _vsasv,
         "vispoofdb": _vispoof,
     }
     return adapters[dataset.name](dataset, client, seed, subset)

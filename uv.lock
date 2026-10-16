@@ -1792,8 +1792,10 @@ data = [
     { name = "gdown" },
     { name = "httpx" },
     { name = "huggingface-hub" },
+    { name = "numpy" },
     { name = "pyarrow" },
     { name = "python-dotenv" },
+    { name = "scipy" },
 ]
 dev = [
     { name = "httpx" },
@@ -1813,8 +1815,10 @@ data = [
     { name = "gdown", specifier = ">=5.2" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "huggingface-hub", specifier = ">=0.26" },
+    { name = "numpy", specifier = ">=1.26" },
     { name = "pyarrow", specifier = ">=17" },
     { name = "python-dotenv", specifier = ">=1.0" },
+    { name = "scipy", specifier = ">=1.11,<2" },
 ]
 dev = [
     { name = "httpx", specifier = ">=0.27" },
