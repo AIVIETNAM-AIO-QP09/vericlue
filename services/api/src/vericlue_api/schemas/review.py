@@ -29,11 +29,21 @@ class ReviewCaseList(BaseModel):
     items: list[ReviewCaseSummary]
 
 
+class ReviewEvent(BaseModel):
+    action: Literal["initial", "final"]
+    decision: Decision
+    reason_code: str | None = None
+    note: str | None = None
+    actor: str
+    created_at: datetime
+
+
 class ReviewCase(ReviewCaseSummary):
     media: list[MediaRef]
     capture_notes: list[str] = []
     initial_decision: Decision | None = None
     final_decision: Decision | None = None
+    history: list[ReviewEvent] = []
 
 
 class InitialDecisionRequest(BaseModel):
@@ -55,6 +65,24 @@ class FinalDecisionRequest(BaseModel):
     decision: Decision
     reason_code: str
     note: str | None = None
+
+
+class ReasonCode(BaseModel):
+    code: str
+    label: str
+    note_required: bool
+
+
+class ReasonCodeList(BaseModel):
+    items: list[ReasonCode]
+
+
+class AuditVerification(BaseModel):
+    case_id: str
+    ok: bool
+    checked: int
+    bad_index: int | None = None
+    reason: str | None = None
 
 
 class DecisionResponse(BaseModel):
