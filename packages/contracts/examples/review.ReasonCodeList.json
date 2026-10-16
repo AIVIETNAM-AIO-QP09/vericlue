@@ -1,0 +1,6 @@
+{
+  "items": [
+    { "code": "AI_AGREES", "label": "Đồng ý với ý kiến AI", "note_required": false },
+    { "code": "OTHER", "label": "Lý do khác (bắt buộc ghi chú)", "note_required": true }
+  ]
+}

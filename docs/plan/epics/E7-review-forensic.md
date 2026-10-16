@@ -15,15 +15,15 @@
 
 **Đầu ra:** `services/api/src/vericlue_api/routers/review.py`, `services/api/src/vericlue_api/services/audit_log.py`.
 - `GET /v1/review/cases`: lọc theo trạng thái, sắp theo ưu tiên rồi thời gian.
-- `GET /v1/review/cases/{id}`: hồ sơ gồm ảnh, `ModuleResult[]`, lịch sử.
+- `GET /v1/review/cases/{id}`: hồ sơ gồm ảnh (media), ghi chú chụp, lịch sử quyết định — **không** có `ModuleResult[]`/điểm AI (chống thiên kiến tự động hóa; theo hợp đồng `review.schema.json`). `ModuleResult[]` chỉ ở `GET …/ai`, sau quyết định ban đầu.
 - `POST .../decision`: quyết định + mã lý do bắt buộc + ghi chú.
 - **Bắt buộc ghi quyết định riêng của nhân viên trước** khi API trả điểm AI. Ví dụ endpoint `.../ai` chỉ mở sau khi đã có `human_initial_decision`.
 - `review_events` chỉ ghi thêm (`hash = sha256(prev_hash ‖ json chuẩn hóa)`), kèm hàm `verify_chain()`.
 
 **Tiêu chí hoàn thành:**
-- [ ] Test: sửa một dòng trong `review_events` → `verify_chain()` báo sai.
-- [ ] Test: gọi `.../ai` trước khi ghi quyết định ban đầu → 409.
-- [ ] Mã lý do theo danh sách cố định (`config`).
+- [x] Test: sửa một dòng trong `review_events` → `verify_chain()` báo sai.
+- [x] Test: gọi `.../ai` trước khi ghi quyết định ban đầu → 409.
+- [x] Mã lý do theo danh sách cố định (`services/review_reasons.py`, danh sách tạm — M2 chỉnh; sai → 422).
 
 ---
 

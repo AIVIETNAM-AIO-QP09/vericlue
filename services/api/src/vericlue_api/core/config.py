@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from functools import lru_cache
+from functools import cached_property, lru_cache
 
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -70,9 +70,22 @@ class Settings(BaseSettings):
     # Để trống = dùng bảng màu trong packages/contracts/chromapulse.json (nguồn chung với web).
     challenge_palette: str = ""
 
-    # TẠM — ROUT-02 thay thế bằng ngưỡng khóa trong ml/configs/thresholds.yaml.
-    provisional_threshold_b: float = 0.15
-    provisional_threshold_a: float = 0.60
+    thresholds_config: str | None = None
+
+    @cached_property
+    def router_config(self):
+        from vericlue_ml.router.config import load_config
+
+        return load_config(self.thresholds_config)
+
+    @property
+    def provisional_threshold_b(self) -> float:
+        # Compatibility for REV-01/forensic consumers; YAML is the single source.
+        return self.router_config.face.b
+
+    @property
+    def provisional_threshold_a(self) -> float:
+        return self.router_config.face.a
 
     @property
     def palette(self) -> list[str]:

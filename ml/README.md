@@ -132,3 +132,39 @@ Settings/.env; thay root sau khi đã nạp bị từ chối để tránh trộn
 ML_MODELS_CONFIG trỏ models.yaml khi chạy wheel ngoài source tree (Dockerfile API
 đã cấu hình). Không đổi tiền xử lý/threshold/ModuleResult; lỗi preload được API
 lưu là unavailable tới restart và báo health degraded.
+
+
+## TrustRouter (ROUT-02)
+
+`router.policy.TrustRouter` đọc snapshot `ml/configs/thresholds.yaml` khi API khởi động;
+`THRESHOLDS_CONFIG` cho phép chọn file khác. Thiếu/hỏng YAML làm startup báo lỗi, không lấy
+ngưỡng môi trường cũ làm mặc định. `provisional: true`: chưa có bảo đảm LTT trước ROUT-03.
+Mỗi giá trị có nguồn trong YAML; phiên bản quyết định là `sha256:` + SHA-256 byte file gốc.
+Khởi động lại API sau khi đổi file; không reload giữa các request.
+
+Thứ tự: phiên/thời gian hợp lệ → quality → chromapulse/camprobe → OOD nếu được cung cấp
+→ hiệu chỉnh từng module → fusion mặt. Quality fail được retry hai lần rồi review,
+trước khi xét face degraded; chính quality error/degraded luôn review. Module bắt buộc
+thiếu, error, degraded, timeout hoặc busy tại bước đã tới không bao giờ cho pass.
+Hiện fusion là **max xác suất đã hiệu chỉnh**, không có trọng số học giả:
+Λ ≤ face.b thì pass; Λ ≥ face.a thì review; vùng giữa yêu cầu đọc câu.
+Giọng dùng `voice.spoof_threshold` riêng, ≤ ngưỡng thì pass. VOICE-04 chỉ là cổng nội dung:
+score WER không phải xác suất và không vào fusion. Cờ cắt ghép dương → review;
+không có cờ thì giữ absent, không tạo số 0 hay feature thay thế (chờ VOICE-05).
+Sai câu cho đọc lại một lần; chưa rõ/lỗi chuyển review.
+
+`FusionFit(..., split="calib_fit")` và `fusion.fit(calib_fit, commit=...)` chuẩn bị cho
+học logistic sau DATA-03. Đầu vào phải là **calib_fit đã chia theo subject**, chỉ gồm
+`prob_attack:<module>` và quality có tên `quality:<module>:<key>`, đủ module/version,
+nhãn, subject_id, dataset. Không dùng score thô, WER, calib_ltt hay test. StandardScaler
+và logistic có thiết lập cố định, không chọn mô hình/ngưỡng. Artifact JSON ghi thứ tự
+feature, scaler, hệ số thật, nguồn, ngày, commit và số mẫu hai lớp; predict/load kiểm
+kích thước và giá trị. Artifact học được **chưa tự kích hoạt**: cần dữ liệu thật và
+quyết định cấu hình được duyệt. Unit test chỉ fit dữ liệu tổng hợp, artifact ở thư mục tạm.
+SBI chưa có ModuleResult riêng, OOD (ROUT-04), quality feature thật và splice (VOICE-05)
+không được tự bịa hoặc điền số 0; tích hợp khi module tương ứng cung cấp đúng hợp đồng.
+
+`Decision.results` chứa bản kết quả sau calibration để API lưu; không sửa input.
+Thiếu calibrator đúng module/version → bản kết quả error, prob_attack=None → review.
+Mock `mock@` được miễn theo ROUT-01. Router chỉ đọc counters, không tăng lượt thử;
+SessionFlow của API giữ counters/challenge/prompt/khóa hàng và persist snapshot quyết định.

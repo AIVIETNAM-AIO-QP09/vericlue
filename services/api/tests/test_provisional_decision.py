@@ -111,7 +111,7 @@ def test_missing_module_never_passes():
     [
         (0.0, "pass"),
         (B - 0.001, "pass"),
-        (B, "voice_challenge"),
+        (B, "pass"),
         (A - 0.001, "voice_challenge"),
         (A, "review"),
         (0.99, "review"),

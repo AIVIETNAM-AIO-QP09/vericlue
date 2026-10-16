@@ -65,7 +65,7 @@ def test_non_ascii_bearer_is_401_not_500(client, token):
 def test_final_decision_can_only_be_recorded_once(client):
     case_id = client.get("/v1/review/cases").json()["items"][0]["case_id"]
     client.post(f"/v1/review/cases/{case_id}/initial", json={"decision": "accept"})
-    final = {"decision": "accept", "reason_code": "OK"}
+    final = {"decision": "accept", "reason_code": "AI_AGREES"}
     assert client.post(f"/v1/review/cases/{case_id}/decision", json=final).status_code == 200
     again = client.post(f"/v1/review/cases/{case_id}/decision", json=final)
     assert again.status_code == 409 and again.json()["error_code"] == "decision_already_recorded"
@@ -154,7 +154,9 @@ def test_unknown_retry_hint_falls_back_to_more_light(client, monkeypatch):
     from vericlue_api.services.provisional_decision import Outcome
 
     monkeypatch.setattr(
-        session_flow, "decide_finalize", lambda *a, **k: Outcome("retry", retry_hint="LẠ_HOẮC_XẤU")
+        session_flow.TrustRouter,
+        "finalize",
+        lambda *a, **k: Outcome("retry", retry_hint="LẠ_HOẮC_XẤU"),
     )
     body, auth = start_session(client, "genuine")
     res = client.post(FINALIZE.format(sid=body["session_id"]), headers=auth)

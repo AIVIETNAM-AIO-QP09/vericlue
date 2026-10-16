@@ -6,6 +6,7 @@ import logging
 from collections import deque
 from collections.abc import Callable, Iterable
 from concurrent.futures import Future, ThreadPoolExecutor, wait
+from copy import copy
 from dataclasses import dataclass, field
 from pathlib import Path
 from threading import Lock
@@ -16,6 +17,7 @@ from vericlue_api.core.config import Settings
 from vericlue_ml.common.detector import Detector, DetectorInput
 from vericlue_ml.common.result import ErrorCode, Evidence, Module, ModuleResult, Status
 from vericlue_ml.registry import get_detector
+from vericlue_ml.router.policy import TrustRouter
 from vericlue_ml.voice.challenge import VoiceChallengeDetector
 
 logger = logging.getLogger(__name__)
@@ -37,6 +39,7 @@ class Orchestrator:
         self, settings: Settings, *, detector_factory: Callable[[Module], Detector] | None = None
     ) -> None:
         self.settings = settings
+        self.router = TrustRouter(settings.router_config)
         self._factory = detector_factory or (
             lambda module: get_detector(module, mock=settings.use_mock_models)
         )
@@ -66,6 +69,10 @@ class Orchestrator:
                     detector = self._factory(module)
                     if Module(detector.name) != module:
                         raise ValueError("Detector module mismatch")
+                    if isinstance(detector, VoiceChallengeDetector):
+                        # Registry caches the model; each application owns its policy wrapper.
+                        detector = copy(detector)
+                        detector.match_config = self.settings.router_config.voice
                     preload = getattr(detector, "preload", None)
                     if preload is not None:
                         if isinstance(detector, VoiceChallengeDetector):

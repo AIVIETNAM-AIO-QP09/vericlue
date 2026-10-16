@@ -153,7 +153,7 @@ Nhật ký ghi actor `staff-unverified` vì xác thực nhân viên thuộc PLAT
 3. Web phát chuỗi màu, ghi thời điểm vẽ (`requestAnimationFrame`) và thời điểm từng khung (`requestVideoFrameCallback`), chạy CamProbe.
 4. Web gửi media và signals, rồi gọi `finalize`.
 5. Server chạy song song qua orchestrator preload trong lifespan → `ModuleResult[]`. Hiện nhóm finalize gồm quality, face_pad, face_deepfake, chromapulse, camprobe; SBI thuộc task mô hình, không thêm tên module ngoài hợp đồng.
-6. ROUT-02 sẽ thay bằng TrustRouter: cổng hợp lệ → cổng chất lượng → cổng hiện diện → hiệu chỉnh và hợp nhất → ngưỡng đã khóa. Hiện vẫn dùng luật B/A tạm của PLAT-04; PLAT-08 không thay ngưỡng.
+6. ROUT-02 dùng TrustRouter: cổng hợp lệ/thời gian → chất lượng → hiện diện → OOD nếu có → hiệu chỉnh từng module → hợp nhất và ngưỡng khóa trong `ml/configs/thresholds.yaml`. Hiện max-fusion và ngưỡng vẫn `provisional: true`, chờ dữ liệu calib_fit và ROUT-03. Quality fail được retry trước khi xét face degraded; lỗi tại bước đã tới không pass. Mặt ≤ B pass, ≥ A review; giọng ≤ voice.spoof_threshold riêng thì pass. WER chỉ dùng khớp câu, không vào fusion. API giữ counters, khóa hàng và lưu snapshot ngưỡng/hash YAML trong decisions; không thêm migration.
 7. Nếu ở vùng giữa → trả `voice_challenge` kèm câu tiếng Việt → web gửi `voice` → chạy bước giọng nói → quyết định cuối.
 8. Ca `review` tạo `review_case`; mọi bước ghi nhật ký.
 

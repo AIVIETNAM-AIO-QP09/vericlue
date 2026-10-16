@@ -50,7 +50,54 @@
         "media": { "type": "array", "items": { "$ref": "#/$defs/MediaRef" } },
         "capture_notes": { "type": "array", "items": { "type": "string" }, "description": "Ghi chú về điều kiện chụp (ánh sáng, thiết bị), không phải kết luận AI" },
         "initial_decision": { "oneOf": [{ "$ref": "#/$defs/Decision" }, { "type": "null" }] },
-        "final_decision": { "oneOf": [{ "$ref": "#/$defs/Decision" }, { "type": "null" }] }
+        "final_decision": { "oneOf": [{ "$ref": "#/$defs/Decision" }, { "type": "null" }] },
+        "history": { "type": "array", "items": { "$ref": "#/$defs/ReviewEvent" }, "description": "Lịch sử quyết định của ca, theo thứ tự ghi. Không có điểm AI." }
+      }
+    },
+    "ReviewEvent": {
+      "type": "object",
+      "description": "Một dòng trong nhật ký ca (chỉ ghi thêm, nối chuỗi băm). Không chứa điểm AI.",
+      "required": ["action", "decision", "actor", "created_at"],
+      "additionalProperties": false,
+      "properties": {
+        "action": { "type": "string", "enum": ["initial", "final"] },
+        "decision": { "$ref": "#/$defs/Decision" },
+        "reason_code": { "type": ["string", "null"] },
+        "note": { "type": ["string", "null"] },
+        "actor": { "type": "string", "description": "Tạm 'staff-unverified' cho tới khi PLAT-06 có xác thực nhân viên" },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "ReasonCode": {
+      "type": "object",
+      "required": ["code", "label", "note_required"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string" },
+        "label": { "type": "string" },
+        "note_required": { "type": "boolean" }
+      }
+    },
+    "ReasonCodeList": {
+      "type": "object",
+      "description": "Mã lý do hợp lệ cho quyết định cuối (danh sách tạm — M2 chỉnh). reason_code ngoài danh sách bị từ chối 422 invalid_reason_code.",
+      "required": ["items"],
+      "additionalProperties": false,
+      "properties": {
+        "items": { "type": "array", "items": { "$ref": "#/$defs/ReasonCode" } }
+      }
+    },
+    "AuditVerification": {
+      "type": "object",
+      "description": "Kết quả kiểm chuỗi băm của một ca.",
+      "required": ["case_id", "ok", "checked"],
+      "additionalProperties": false,
+      "properties": {
+        "case_id": { "type": "string" },
+        "ok": { "type": "boolean" },
+        "checked": { "type": "integer" },
+        "bad_index": { "type": ["integer", "null"] },
+        "reason": { "type": ["string", "null"] }
       }
     },
     "InitialDecisionRequest": {
@@ -79,7 +126,7 @@
       "additionalProperties": false,
       "properties": {
         "decision": { "$ref": "#/$defs/Decision" },
-        "reason_code": { "type": "string" },
+        "reason_code": { "type": "string", "description": "Mã trong GET /v1/review/reason-codes; OTHER bắt buộc có note" },
         "note": { "type": "string" }
       }
     },

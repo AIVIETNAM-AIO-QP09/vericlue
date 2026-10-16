@@ -1,7 +1,7 @@
 # services/api — Máy chủ API (FastAPI)
 
 **Phụ trách:** M5
-**Trạng thái:** API v1 chạy với dữ liệu mock (PLAT-03 khung, **PLAT-04** endpoint + hợp đồng). DB đã chuyển sang SQLAlchemy/PostgreSQL ở PLAT-05. Token và luật quyết định đầy đủ còn là phần TẠM; PLAT-08 đã có orchestrator song song, xem "Phần tạm" bên dưới.
+**Trạng thái:** API v1 chạy với dữ liệu mock (PLAT-03 khung, **PLAT-04** endpoint + hợp đồng). DB đã chuyển sang SQLAlchemy/PostgreSQL ở PLAT-05. Token còn là phần TẠM; chính sách ROUT-02 đã nối ML, ngưỡng/fusion đang provisional; PLAT-08 đã có orchestrator song song, xem "Phần tạm" bên dưới.
 
 ## Trách nhiệm
 
@@ -32,7 +32,7 @@ uv run python scripts/gen_openapi.py        # sinh lại packages/contracts/open
 |---|---|
 | Sức khỏe | `GET /healthz` |
 | Phiên (Bearer, trừ tạo phiên) | `POST /v1/sessions`, `POST /v1/sessions/{id}/{media,signals,finalize,voice}` |
-| Bàn duyệt | `GET /v1/review/cases`, `GET /v1/review/cases/{id}`, `POST …/initial`, `GET …/ai` (409 nếu chưa có quyết định ban đầu), `POST …/decision` |
+| Bàn duyệt | `GET /v1/review/cases`, `GET /v1/review/cases/{id}`, `POST …/initial`, `GET …/ai` (409 nếu chưa có quyết định ban đầu), `POST …/decision` (422 `invalid_reason_code`), `GET /v1/review/reason-codes`, `GET …/audit/verify` |
 | Giám định | `POST /v1/forensic/jobs`, `GET …/jobs/{id}`, `GET …/jobs/{id}/report`, `POST /v1/forensic/verify` |
 
 Chạy mock (`USE_MOCK_MODELS=true`, mặc định) chọn kịch bản bằng header **`X-Mock-Scenario`** khi tạo phiên hoặc giám định: `genuine`, `print`, `replay`, `virtual_cam`, `faceswap`, `voice_clone`, `low_quality`, `error`. Khi tắt mock, header bị bỏ qua. App mock có sẵn 2 ca duyệt mẫu.
@@ -45,6 +45,20 @@ Chạy mock (`USE_MOCK_MODELS=true`, mặc định) chọn kịch bản bằng h
 - Upload quá `MAX_UPLOAD_MB` → 413 `upload_too_large`.
 - Cấu hình: `SESSION_TTL_SECONDS` (300), `CHALLENGE_TTL_SECONDS` (120), `MAX_RETRIES` (2), `MAX_UPLOAD_MB` (50), `CHALLENGE_PALETTE` (bảng màu, phân cách bằng dấu phẩy; bộ sinh từ chối bảng vi phạm giới hạn độ chói 0,064 hoặc R/(R+G+B) >= 0,8).
 
+## Bàn duyệt và nhật ký băm (REV-01)
+
+- **Hồ sơ `GET /cases/{id}` không có điểm AI** (chống thiên kiến tự động hóa); `ModuleResult[]` chỉ ở `GET …/ai`, và chỉ sau khi nhân viên ghi quyết định ban đầu (chưa thì 409 `initial_decision_required`). Hồ sơ có `history` (quyết định, mã lý do, ghi chú, người ghi, giờ).
+- **Mã lý do** (`services/review_reasons.py`, *danh sách tạm — M2 chỉnh*): xem `GET /v1/review/reason-codes`. Quyết định cuối có mã ngoài danh sách, hoặc `OTHER` thiếu ghi chú → 422 `invalid_reason_code`. Quyết định ban đầu không cần mã lý do. Schema giữ `reason_code` là chuỗi tự do.
+- **Nhật ký `review_events`** chỉ ghi thêm (trigger DB chặn UPDATE/DELETE), mỗi ca một chuỗi. Định nghĩa băm, "‖" là nối chuỗi ký tự không dấu phân cách:
+
+  `hash = sha256( prev_hash ‖ json_chuẩn_hóa(payload) )`
+
+  `prev_hash` của sự kiện đầu là 64 ký tự `0`; JSON chuẩn hóa = `json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":"))` mã hóa UTF-8. Code: `services/audit_log.py`.
+- `verify_chain()` băm lại payload ĐÃ LƯU và báo sự kiện sai đầu tiên (sửa nội dung, sửa `prev_hash`, xóa/đảo/cắt đoạn giữa). **Không bắt được** việc cắt cụt phần đuôi nếu không neo hash cuối ở nơi khác. `GET …/audit/verify` chạy hàm này cho một ca.
+- **Bảo đảm chuỗi không rẽ nhánh nằm ở tầng DB:** migration `0002` thêm `UNIQUE(case_id, prev_hash)` trên `review_events` (sự kiện đầu dùng hash genesis nên cũng bị ràng buộc). `SELECT … FOR UPDATE` chỉ giúp tuần tự hóa trên PostgreSQL; SQLite bỏ qua khóa hàng nên chỉ dựa vào UNIQUE. Hai ghi đồng thời vào cùng một ca: bên thua vi phạm UNIQUE, giao dịch rollback và API trả **409 `review_conflict`** (tải lại rồi thử lại), không 500 và không để chuỗi gãy. Lần `POST …/initial` thứ hai trên ca đã có quyết định ban đầu vẫn 409 `initial_already_recorded`.
+- Nâng cấp lên `0002` giữ nguyên chuỗi hợp lệ cũ; chuỗi đã rẽ nhánh (không hợp lệ) làm `upgrade` lỗi. Hạ về `0001` chỉ bỏ index, không mất sự kiện.
+- Ca mẫu (`seed_demo`) chỉ có khi `USE_MOCK_MODELS=true`.
+
 ## Phần tạm (các task sau thay thế)
 
 | Phần | Hiện nay | Thay bằng |
@@ -52,13 +66,13 @@ Chạy mock (`USE_MOCK_MODELS=true`, mặc định) chọn kịch bản bằng h
 | Token | chuỗi ngẫu nhiên, chỉ so khớp | **PLAT-06**: HMAC gắn `session_id`, TTL ~5 phút, 409 và máy trạng thái "mỗi bước một lần mỗi lượt", 429 (3 phiên/giờ/IP), hết hạn challenge 120 giây thật |
 | Lưu trữ | **PLAT-05**: PostgreSQL, migration Alembic, transaction theo request | Đã có persistence; nghiệp vụ tiếp tục ở các task tương ứng |
 | Chạy detector | **PLAT-08**: executor chung, preload lifespan, deadline/timeout và latency thực | Đã có; detector thật được bổ sung bởi các task mô hình |
-| Luật quyết định | `services/provisional_decision.py`, B=0,15, A=0,60 trong cấu hình (`PROVISIONAL_THRESHOLD_B/A`) | **ROUT-02**: TrustRouter, ngưỡng từ `ml/configs/thresholds.yaml` |
+| Luật quyết định | **ROUT-02**: ML TrustRouter, snapshot `ml/configs/thresholds.yaml`, provisional max-fusion | **ROUT-03**: ngưỡng LTT trên calib_ltt; logistic học trên calib_fit khi có dữ liệu thật |
 | Giám định, chữ ký | segment và chữ ký `MOCK-<sha256>` | **FOR-01 / FOR-04**, khóa Ed25519 ở PLAT-06 |
-| Bàn duyệt | DB và sự kiện append-only/chuỗi băm cơ bản; URL media vẫn là chỗ giữ chỗ | **REV-01**: nghiệp vụ và phục vụ media hoàn chỉnh |
+| Bàn duyệt | **REV-01**: DB, nhật ký băm nối chuỗi, `verify_chain`, mã lý do cố định; URL media vẫn là chỗ giữ chỗ | **REV-02** (giao diện, phục vụ media) |
 | Giới hạn upload | `MAX_UPLOAD_MB` chỉ kiểm **sau khi** Starlette đã nhận multipart (và trước khi xác thực token vẫn nhận được body) | **PLAT-06** / reverse proxy: giới hạn cứng ở lớp trước ứng dụng |
-| Xác thực nhân viên | `/v1/review/*` và `/v1/forensic/*` chưa có xác thực | **PLAT-06** / REV-02 |
+| Xác thực nhân viên | `/v1/review/*` và `/v1/forensic/*` chưa có xác thực; nhật ký ghi `actor` cố định `staff-unverified` | **PLAT-06** / REV-02 |
 
-Luật quyết định tạm, thứ tự cổng: quality (chụp lại tối đa 2 lần rồi `review`) → chromapulse/camprobe (fail → `review` ưu tiên cao; chưa rõ → chụp lại) → ngưỡng trên **max `prob_attack`** của `face_pad` và `face_deepfake` (dưới B `pass`; từ B đến dưới A `voice_challenge`; từ A trở lên `review`). `error`/`degraded`/thiếu ở bước bắt buộc → `review`, không bao giờ `pass`.
+Chính sách ROUT-02, thứ tự cổng: phiên/thời gian hợp lệ → quality (chụp lại tối đa 2 lần rồi `review`) → chromapulse/camprobe (fail → `review` ưu tiên cao; chưa rõ → chụp lại) → ngưỡng trên **max `prob_attack`** của `face_pad` và `face_deepfake` (≤ B `pass`; trên B đến dưới A `voice_challenge`; ≥ A `review`). `error`/`degraded`/thiếu ở bước bắt buộc → `review`, không bao giờ `pass`.
 
 
 ## DB, migration và vòng đời file (PLAT-05)
@@ -181,3 +195,32 @@ DB dùng SQLAlchemy QueuePool mặc định: pool_size=5, max_overflow=10, pool_
 với lock_timeout2s của finalize/voice. Nếu hết connection pool, thời gian chờ có
 thể vượt ngân sách endpoint; không nhận quá tải làm pass. Với demo3 người, vẫn
 chừa connection cho các bước lưu trữ/cleanup. Chưa thêm tham số pool mới trong PR.
+
+
+## Cấu hình quyết định ROUT-02
+
+Nguồn duy nhất là `ml/configs/thresholds.yaml` (override đường dẫn bằng
+`THRESHOLDS_CONFIG`, container `/app/ml/configs/thresholds.yaml`). Không dùng
+`PROVISIONAL_THRESHOLD_B/A` nữa. Snapshot được giữ suốt vòng đời API; đổi file cần restart.
+`decisions.thresholds` lưu cả ngưỡng/nguồn/phương pháp tạm, `config_version` là SHA-256
+byte YAML. Dùng cột JSON hiện có, **không có migration mới**. Quyết định tự động ở
+SessionStore được ghi metadata này; nghiệp vụ quyết định nhân viên thuộc REV-01.
+Hai file review_store.py/routers/review.py được giữ nguyên để tránh xung đột REV-01.
+Consumer bàn duyệt/giám định vẫn đọc B/A từ YAML qua property tương thích.
+
+Quality fail → retry, retry, review; face degraded chưa xét khi quality fail.
+Quality error/degraded và module bắt buộc lỗi ở bước đã tới → review. Voice dùng
+`voice.spoof_threshold` riêng với biên ≤ pass, không dùng B và không trộn WER.
+Cờ splice dương → review; thiếu là absent. Sai câu chỉ đọc lại một lần.
+SessionFlow tăng counters/cấp challenge hoặc câu mới; ML chỉ trả quyết định thuần.
+Token không khớp vẫn 401; deadline token đã lưu hoặc challenge màu quá hạn (finalize)
+→ review ưu tiên cao, không chạy detector. Voice kiểm hạn token, không dùng lại hạn
+challenge màu. HMAC/replay/429 vẫn ở PLAT-06. Các chốt409/row lock/deadline/queue/503
+storage_busy của PLAT-04/05/08 giữ nguyên. Công dân chỉ nhận schema cũ, không nhận
+xác suất, Λ, hash cấu hình, ngưỡng, lý do nội bộ hay transcript.
+
+Kiểm bảy kịch bản trên Compose đang chạy (mock):
+`uv run python scripts/smoke_router.py --api-url http://localhost:8000 --web-url http://localhost:3000`.
+Script đọc DATABASE_URL từ env/.env để đối chiếu decisions/hash và không in URL/credential;
+`ROUTER_SMOKE_DATABASE_PORT` chỉ đổi port DB phía host khi dùng Compose project riêng.
+Report mặc định `tmp/rout02-compose-smoke.json` (gitignored); xong chạy `docker compose down`.

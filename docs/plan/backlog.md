@@ -83,7 +83,7 @@
 | Mã | Task | Vai trò | Người | Ngày công | Sprint | Ưu tiên | Phụ thuộc | Trạng thái |
 |---|---|---|---|---|---|---|---|---|
 | ROUT-01 | Hiệu chỉnh xác suất | M5 | Codex | 1 | S1 | P0 | PLAT-03 | done |
-| ROUT-02 ★ | Bộ chính sách quyết định | M5 | | 1,5 | S1 | P0 | ROUT-01, PLAT-08 | todo |
+| ROUT-02 ★ | Bộ chính sách quyết định | M5 | Codex | 1,5 | S1 | P0 | ROUT-01, PLAT-08 | done |
 | ROUT-03 ★ | Chọn ngưỡng bằng Learn-then-Test (MAPIE) | M5 | | 1,5 | S2 | P0 | ROUT-02, FACE-04, VOICE-03 | todo |
 | ROUT-04 | Cổng ngoài phạm vi | M5 | | 1 | S2 | P1 | FACE-02 | todo |
 | ROUT-05 ★ | Đánh giá R4 | M5 | | 1 | S3 | P0 | ROUT-03 | todo |
@@ -92,7 +92,7 @@
 
 | Mã | Task | Vai trò | Người | Ngày công | Sprint | Ưu tiên | Phụ thuộc | Trạng thái |
 |---|---|---|---|---|---|---|---|---|
-| REV-01 | API bàn duyệt + nhật ký chuỗi băm | M2 | | 1 | S1 | P0 | PLAT-05 | todo |
+| REV-01 | API bàn duyệt + nhật ký chuỗi băm | M2 | Claude | 1 | S1 | P0 | PLAT-05 | done |
 | REV-02 | Giao diện bàn duyệt + hồ sơ bằng chứng | M2 | | 2 | S1–S2 | P0 | REV-01, PLAT-04 | todo |
 | FOR-01 | API giám định: chia đoạn, chạy bộ não | M5 | | 1,5 | S2 | P0 | PLAT-05, FACE-02, VOICE-01 | todo |
 | FOR-02 | Giao diện giám định | M2 | | 1,5 | S2 | P0 | FOR-01 | todo |

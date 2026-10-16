@@ -16,9 +16,8 @@ from typing import Any
 from vericlue_ml.common.detector import Detector, DetectorInput
 from vericlue_ml.common.result import ModuleResult
 from vericlue_ml.eval.metrics import clopper_pearson
+from vericlue_ml.router.config import load_config
 from vericlue_ml.voice.challenge import (
-    MAX_SYLLABLE_WER,
-    MIN_UNACCENTED_SIMILARITY,
     VoiceChallengeDetector,
     normalize_text,
 )
@@ -210,6 +209,7 @@ def evaluate_manifest(
         region: _summarize([row for row in details if row["region"] == region])
         for region in REGIONS
     }
+    match_config = getattr(detector, "match_config", None) or load_config().voice
     summary = {
         "dataset": "ViMD selected_manifest (original human speech)",
         "manifest": str(manifest),
@@ -218,8 +218,8 @@ def evaluate_manifest(
         "date": datetime.now(timezone(timedelta(hours=7))).isoformat(),
         **_git_metadata(),
         "thresholds": {
-            "max_syllable_wer": MAX_SYLLABLE_WER,
-            "min_unaccented_similarity": MIN_UNACCENTED_SIMILARITY,
+            "max_syllable_wer": match_config.max_syllable_wer,
+            "min_unaccented_similarity": match_config.min_unaccented_similarity,
         },
         "regions": regions,
         "overall": _summarize(details),
@@ -271,7 +271,7 @@ def render_report(result: dict[str, Any]) -> str:
         f"- Mô hình: {result['model_version']}",
         f"- Revision dữ liệu: {result['source_revision']}",
         f"- Ngày: {result['date']}",
-        f"- Ngưỡng cố định: WER ≤ {MAX_SYLLABLE_WER}; giống bỏ dấu ≥ {MIN_UNACCENTED_SIMILARITY}.",
+        f"- Ngưỡng cố định: WER ≤ {result['thresholds']['max_syllable_wer']}; giống bỏ dấu ≥ {result['thresholds']['min_unaccented_similarity']}.",
         "- Tỷ lệ không đạt tính cả đọc sai và lỗi xử lý; không bỏ mẫu lỗi.",
         "",
         "| Miền | Người | Câu | Đọc sai | Lỗi xử lý | Không đạt | Tỷ lệ không đạt | CP95 theo câu |",

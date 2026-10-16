@@ -117,7 +117,7 @@ def test_postgres_review_events_are_append_only(postgres):
         assert (
             client.post(
                 f"/v1/review/cases/{case}/decision",
-                json={"decision": "reject", "reason_code": "TEST"},
+                json={"decision": "reject", "reason_code": "SPOOF_CONFIRMED"},
             ).status_code
             == 200
         )

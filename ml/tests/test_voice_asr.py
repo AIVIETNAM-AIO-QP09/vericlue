@@ -84,7 +84,7 @@ def test_expected_text_stays_in_matcher(monkeypatch):
     monkeypatch.setattr(
         challenge,
         "compare_transcripts",
-        lambda expected, actual: SimpleNamespace(
+        lambda expected, actual, **kwargs: SimpleNamespace(
             matched=expected == actual, syllable_wer=0.0, unaccented_similarity=1.0
         ),
     )
@@ -102,7 +102,9 @@ def test_mismatch_is_ok_fail_not_infrastructure_error(monkeypatch):
     monkeypatch.setattr(
         challenge,
         "compare_transcripts",
-        lambda *args: SimpleNamespace(matched=False, syllable_wer=1.0, unaccented_similarity=0.0),
+        lambda *args, **kwargs: SimpleNamespace(
+            matched=False, syllable_wer=1.0, unaccented_similarity=0.0
+        ),
     )
     result = VoiceChallengeDetector(FakeASR("wrong")).predict(
         DetectorInput(audio=Path("x.wav"), metadata={"prompt": "expected"})

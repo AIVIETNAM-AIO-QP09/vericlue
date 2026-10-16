@@ -81,14 +81,21 @@ class SessionStore:
             row.last_activity_at = utcnow()
             row.media_deleted_at = None
 
-    def record_decision(self, session: Session, action: str, *, b: float, a: float) -> None:
+    def record_decision(
+        self, session: Session, action: str, *, thresholds: dict, config_version: str
+    ) -> None:
         row = self._loaded[session.session_id][1]
         row.status = action if action in {"pass", "review"} else "incomplete"
         row.ever_review = row.ever_review or action == "review"
         # Review retention starts only when staff close the case, not at routing time.
         row.decided_at = utcnow() if action == "pass" else None
         self.db.add(
-            DecisionRow(session_id=session.session_id, action=action, thresholds={"b": b, "a": a})
+            DecisionRow(
+                session_id=session.session_id,
+                action=action,
+                thresholds=thresholds,
+                config_version=config_version,
+            )
         )
         for result in session.results.values():
             payload = result.to_contract()
