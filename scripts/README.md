@@ -131,3 +131,14 @@ uv run --group data python scripts/download_data.py --only vsasv --subset small
 Dùng HF_TOKEN đã chấp nhận điều khoản hai bộ; không ghi token trong lệnh literal,
 log, SOURCE hoặc bàn giao. DATA-03 phải đối chiếu người xuyên bộ qua reference
 MLAAD và VSASV ↔ VIVOS/ViMD; không mặc định ID namespace khác nhau là người khác.
+
+Review PR #17: nhóm `data` khai báo trực tiếp NumPy/SciPy để adapter VSASV chạy
+độc lập, không dựa vào dependency gián tiếp của ML. MLAAD kiểm đủ hệ TTS theo
+các thư mục có `meta.csv`, không lấy danh sách từ chính records còn hợp lệ.
+VSASV SOURCE đo max |x| và số WAV vượt [-1,1] trên file float32 đã lưu; không clipping.
+
+Quy ước byte: `manifest_data_bytes` là tổng size của media được chọn;
+`outcomes.<bộ>.stored_bytes` là toàn bộ file trong thư mục bộ đó, gồm SOURCE,
+manifest và biên nhận. `stored_bytes` ở đầu báo cáo cộng thêm cache `.metadata`
+dùng chung, không phải chỉ media. Dòng “Số byte lưu” trong SOURCE gồm media,
+metadata/archive và manifest, loại SOURCE.md, biên nhận `.verified.json` và file part.

@@ -117,7 +117,7 @@ def test_blank_original_file_excludes_only_ungroupable_wav() -> None:
     assert "missing_original_file" in " ".join(plan.notes)
 
 
-def test_missing_original_column_in_one_system_keeps_other_system() -> None:
+def test_missing_entire_tts_system_does_not_silently_claim_full_coverage() -> None:
     client = FakeClient(
         {
             "fake/vi/a/meta.csv": metadata_csv(("path", "transcript"), [("a.wav", "text")]),
@@ -127,10 +127,8 @@ def test_missing_original_column_in_one_system_keeps_other_system() -> None:
         },
         {"fake/vi/a/a.wav": 4, "fake/vi/b/b.wav": 4},
     )
-    plan = prepare(client)
-    assert [f.path for f in plan.files] == ["fake/vi/b/b.wav"]
-    assert plan.groups == ["original/b.wav"]
-    assert "original_file" in " ".join(plan.notes)
+    with pytest.raises(core.SkipDataset, match="đủ các hệ TTS"):
+        prepare(client)
 
 
 def test_conflicting_duplicate_path_is_excluded_without_duplicate_downloads() -> None:

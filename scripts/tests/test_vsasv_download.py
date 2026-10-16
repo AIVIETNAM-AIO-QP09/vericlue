@@ -322,3 +322,13 @@ def test_oversized_cached_receipt_fails_before_manifest_without_audio_refetch(
     assert client.audio_reads == previous_reads
     assert output.read_bytes() == previous_output
     assert not manifest_path.exists()
+
+
+def test_saved_waveform_stats_report_out_of_range_without_clipping(tmp_path):
+    path = tmp_path / "sample.wav"
+    wavfile.write(path, 8000, np.asarray([-1.25, 0.0, 1.0], dtype=np.float32))
+    (tmp_path / "selected_manifest.json").write_text(json.dumps([{"path": "sample.wav"}]))
+    stats = audio._vsasv_waveform_stats(tmp_path)
+    assert stats == {"n_files": 1, "max_abs": 1.25, "out_of_range_files": 1}
+    assert "1.25" in audio._vsasv_amplitude_note(stats)
+    assert wavfile.read(path)[1][0] == -1.25

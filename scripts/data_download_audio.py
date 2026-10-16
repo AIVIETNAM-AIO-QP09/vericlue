@@ -196,7 +196,7 @@ def _mlaad(dataset: Dataset, client: Client, seed: int, subset: str) -> Plan:
         else max(0, dataset.budget_bytes - sum(m["size"] for m in metadata) - 10_000_000),
         seed,
     )
-    expected = {row["tts"] for row in records.values()}
+    expected = {PurePosixPath(item["path"]).parent.name for item in metadata}
     present = {PurePosixPath(file.path).parent.name for file in chosen}
     if not selected or present != expected:
         raise SkipDataset("MLAAD vi: ngân sách không chứa được nhóm câu nguồn có đủ các hệ TTS.")
@@ -273,6 +273,30 @@ def _float32_wav(samples: Any, sample_rate: int) -> bytes:
     buffer = io.BytesIO()
     wavfile.write(buffer, sample_rate, values)
     return buffer.getvalue()
+
+
+def _vsasv_waveform_stats(dest: Path) -> dict[str, Any]:
+    """Measure saved waveforms without clipping; usable for existing local downloads."""
+    import numpy as np
+    from scipy.io import wavfile
+
+    rows = json.loads((dest / "selected_manifest.json").read_text(encoding="utf-8"))
+    maximum, outside = 0.0, 0
+    for row in rows:
+        _, values = wavfile.read(safe_path(dest, row["path"]), mmap=True)
+        if not values.size or not np.isfinite(values).all():
+            raise DownloadError("VSASV: waveform đã lưu rỗng hoặc không hữu hạn.")
+        peak = float(np.max(np.abs(values)))
+        maximum = max(maximum, peak)
+        outside += int(peak > 1.0)
+    return {"n_files": len(rows), "max_abs": maximum, "out_of_range_files": outside}
+
+
+def _vsasv_amplitude_note(stats: dict[str, Any]) -> str:
+    return (
+        f"WAV float32 đã lưu: max |x| = {stats['max_abs']}; "
+        f"số file vượt [-1,1] = {stats['out_of_range_files']}; kiểm {stats['n_files']} file, không clipping."
+    )
 
 
 def _vsasv_receipt(path: Path, identity: str) -> dict[str, Any] | None:
@@ -527,8 +551,12 @@ def _vsasv(dataset: Dataset, client: Client, seed: int, subset: str) -> Plan:
             raise DownloadError("VSASV: manifest và biên nhận vượt dự phòng metadata.")
         check_disk(dest, len(payload))
         _atomic_bytes(dest / "selected_manifest.json", payload)
+        note = _vsasv_amplitude_note(_vsasv_waveform_stats(dest))
+        plan.notes = [text for text in plan.notes if not text.startswith("WAV float32 đã lưu:")] + [
+            note
+        ]
 
-    return Plan(
+    plan = Plan(
         dataset,
         [],
         max(compressed * 3, float_bytes) + len(rows) * 128 + metadata_allowance,
@@ -546,6 +574,7 @@ def _vsasv(dataset: Dataset, client: Client, seed: int, subset: str) -> Plan:
         ],
         execute=execute,
     )
+    return plan
 
 
 def _parquet_audio(dataset: Dataset, client: Client, seed: int, subset: str) -> Plan:
