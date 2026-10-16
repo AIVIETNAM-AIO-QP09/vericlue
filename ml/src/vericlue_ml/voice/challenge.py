@@ -11,14 +11,21 @@ from pydantic import BaseModel, ConfigDict
 
 from vericlue_ml.common.detector import DetectorInput
 from vericlue_ml.common.result import ModuleResult
+from vericlue_ml.router.config import VoiceConfig, load_config
 
 if TYPE_CHECKING:
     from vericlue_ml.voice.asr import PhoWhisperASR
 
-# ROUT-02 chuyển vào ml/configs/thresholds.yaml (mục voice).
-# Nguồn: thẻ VOICE-04 và proposal §2.7(d); không chỉnh bằng ViMD/test.
-MAX_SYLLABLE_WER = 0.3
-MIN_UNACCENTED_SIMILARITY = 0.9
+
+def __getattr__(name: str) -> float:
+    # Legacy imports remain supported without reading YAML while importing the module.
+    if name == "MAX_SYLLABLE_WER":
+        return load_config().voice.max_syllable_wer
+    if name == "MIN_UNACCENTED_SIMILARITY":
+        return load_config().voice.min_unaccented_similarity
+    raise AttributeError(name)
+
+
 _DIGITS = ("không", "một", "hai", "ba", "bốn", "năm", "sáu", "bảy", "tám", "chín")
 _TONES = "\u0300\u0301\u0303\u0309\u0323"
 
@@ -125,8 +132,11 @@ class MatchResult(BaseModel):
     matched: bool
 
 
-def compare_transcripts(expected: str, recognized: str) -> MatchResult:
+def compare_transcripts(
+    expected: str, recognized: str, *, config: VoiceConfig | None = None
+) -> MatchResult:
     """Vietnamese challenge matching; VOICE-04 / proposal section 2.7(d)."""
+    config = config if config is not None else load_config().voice
     reference, hypothesis = normalize_text(expected), normalize_text(recognized)
     if not reference:
         raise ValueError("Câu đề bài không được rỗng.")
@@ -143,7 +153,7 @@ def compare_transcripts(expected: str, recognized: str) -> MatchResult:
         recognized_normalized=hypothesis,
         syllable_wer=error,
         unaccented_similarity=similarity,
-        matched=error <= MAX_SYLLABLE_WER and similarity >= MIN_UNACCENTED_SIMILARITY,
+        matched=error <= config.max_syllable_wer and similarity >= config.min_unaccented_similarity,
     )
 
 
@@ -157,6 +167,7 @@ class VoiceChallengeDetector:
 
         self.asr = asr if asr is not None else PhoWhisperASR()
         self.version = self.asr.version
+        self.match_config: VoiceConfig | None = None
 
     def preload(self, *, models_dir: Path | None = None) -> None:
         """Prepare the ASR model without transcribing or supplying a prompt."""
@@ -181,7 +192,7 @@ class VoiceChallengeDetector:
             if inp.audio is None:
                 raise DecodeError("Thiếu audio.")
             transcript = self.asr.transcribe(inp.audio)
-            match = compare_transcripts(prompt, transcript)
+            match = compare_transcripts(prompt, transcript, config=self.match_config)
             return ModuleResult(
                 **base,
                 status="ok",
