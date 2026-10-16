@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -75,6 +75,10 @@ class ReviewCaseRow(Base):
 
 class ReviewEventRow(Base):
     __tablename__ = "review_events"
+    # Chuỗi băm không rẽ nhánh ở tầng DB (migration 0002); sự kiện đầu dùng hash genesis.
+    __table_args__ = (
+        Index("uq_review_events_case_prev_hash", "case_id", "prev_hash", unique=True),
+    )
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     case_id: Mapped[str] = mapped_column(ForeignKey("review_cases.case_id"), index=True)
     actor: Mapped[str] = mapped_column(String(100), default="staff-unverified")

@@ -1,6 +1,51 @@
 {
   "components": {
     "schemas": {
+      "AuditVerification": {
+        "properties": {
+          "bad_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bad Index"
+          },
+          "case_id": {
+            "title": "Case Id",
+            "type": "string"
+          },
+          "checked": {
+            "title": "Checked",
+            "type": "integer"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "case_id",
+          "ok",
+          "checked"
+        ],
+        "title": "AuditVerification",
+        "type": "object"
+      },
       "Body_create_job_v1_forensic_jobs_post": {
         "properties": {
           "file": {
@@ -527,6 +572,45 @@
         "title": "MediaRef",
         "type": "object"
       },
+      "ReasonCode": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "note_required": {
+            "title": "Note Required",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "code",
+          "label",
+          "note_required"
+        ],
+        "title": "ReasonCode",
+        "type": "object"
+      },
+      "ReasonCodeList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ReasonCode"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "ReasonCodeList",
+        "type": "object"
+      },
       "ReviewAiOpinion": {
         "properties": {
           "case_id": {
@@ -593,6 +677,14 @@
               }
             ],
             "title": "Final Decision"
+          },
+          "history": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ReviewEvent"
+            },
+            "title": "History",
+            "type": "array"
           },
           "initial_decision": {
             "anyOf": [
@@ -707,6 +799,66 @@
           "created_at"
         ],
         "title": "ReviewCaseSummary",
+        "type": "object"
+      },
+      "ReviewEvent": {
+        "properties": {
+          "action": {
+            "enum": [
+              "initial",
+              "final"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "actor": {
+            "title": "Actor",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "decision": {
+            "enum": [
+              "accept",
+              "reject",
+              "request_retry"
+            ],
+            "title": "Decision",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          }
+        },
+        "required": [
+          "action",
+          "decision",
+          "actor",
+          "created_at"
+        ],
+        "title": "ReviewEvent",
         "type": "object"
       },
       "SegmentSignal": {
@@ -1332,6 +1484,59 @@
         ]
       }
     },
+    "/v1/review/cases/{case_id}/audit/verify": {
+      "get": {
+        "description": "Kiểm chuỗi băm của ca (rehash payload đã lưu).",
+        "operationId": "verify_audit_v1_review_cases__case_id__audit_verify_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "title": "Case Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditVerification"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Không có ca này"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Verify Audit",
+        "tags": [
+          "review"
+        ]
+      }
+    },
     "/v1/review/cases/{case_id}/decision": {
       "post": {
         "operationId": "post_decision_v1_review_cases__case_id__decision_post",
@@ -1385,17 +1590,17 @@
                 }
               }
             },
-            "description": "Chưa có quyết định ban đầu"
+            "description": "initial_decision_required, decision_already_recorded hoặc review_conflict (ghi đồng thời, tải lại rồi thử lại)"
           },
           "422": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "invalid_reason_code"
           }
         },
         "summary": "Post Decision",
@@ -1457,7 +1662,7 @@
                 }
               }
             },
-            "description": "Đã có quyết định ban đầu"
+            "description": "initial_already_recorded (đã có quyết định ban đầu) hoặc review_conflict (ghi đồng thời, tải lại rồi thử lại)"
           },
           "422": {
             "content": {
@@ -1471,6 +1676,28 @@
           }
         },
         "summary": "Post Initial",
+        "tags": [
+          "review"
+        ]
+      }
+    },
+    "/v1/review/reason-codes": {
+      "get": {
+        "description": "Mã lý do hợp lệ cho quyết định cuối (danh sách tạm — M2 chỉnh).",
+        "operationId": "list_reason_codes_v1_review_reason_codes_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReasonCodeList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Reason Codes",
         "tags": [
           "review"
         ]

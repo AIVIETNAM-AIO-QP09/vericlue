@@ -7,7 +7,7 @@ from typing import Any
 from conftest import start_session
 from contract_utils import validate
 
-FINAL = {"decision": "accept", "reason_code": "ok"}
+FINAL = {"decision": "accept", "reason_code": "AI_AGREES"}
 FORBIDDEN_KEYS = {"score", "prob_attack", "gate", "modules", "suggestion"}
 
 

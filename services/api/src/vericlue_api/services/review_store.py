@@ -3,15 +3,16 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import secrets
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from sqlalchemy import select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DBSession
 
+from vericlue_api.core.errors import ApiError
 from vericlue_api.db.models import (
     DecisionRow,
     ReviewCaseRow,
@@ -28,6 +29,14 @@ from vericlue_api.schemas.review import (
     ReviewAiOpinion,
     ReviewCase,
     ReviewCaseSummary,
+    ReviewEvent,
+)
+from vericlue_api.services.audit_log import (
+    GENESIS_HASH,
+    ChainCheck,
+    ChainEvent,
+    compute_hash,
+    verify_chain,
 )
 from vericlue_api.services.detection import run_detectors
 from vericlue_api.services.provisional_decision import FACE_MODULES, fused_prob
@@ -55,6 +64,7 @@ class CaseRecord:
     initial_decision: Decision | None = None
     final_decision: Decision | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    history: list[ReviewEvent] = field(default_factory=list)
 
     def summary(self) -> ReviewCaseSummary:
         return ReviewCaseSummary(
@@ -73,12 +83,13 @@ class CaseRecord:
             capture_notes=self.notes,
             initial_decision=self.initial_decision,
             final_decision=self.final_decision,
+            history=self.history,
         )
 
     def ai_opinion(self, b: float) -> ReviewAiOpinion:
         p = fused_prob(self.results, FACE_MODULES)
         usable = all(r.is_usable for r in self.results.values())
-        suggestion = "pass" if usable and p is not None and p < b else "review"
+        suggestion = "pass" if usable and p is not None and p <= b else "review"
         return ReviewAiOpinion(
             case_id=self.case_id,
             suggestion=suggestion,
@@ -131,6 +142,7 @@ class ReviewStore:
         if row is None:
             return None
         record = self._record(row)
+        record.history = self._history(case_id)
         self._loaded[case_id] = (record, row)
         return record
 
@@ -149,6 +161,34 @@ class ReviewStore:
             notes=data["notes"],
             initial_decision=row.initial_decision,
             final_decision=row.final_decision,
+        )
+
+    def _events(self, case_id: str) -> list[ReviewEventRow]:
+        return list(
+            self.db.scalars(
+                select(ReviewEventRow)
+                .where(ReviewEventRow.case_id == case_id)
+                .order_by(ReviewEventRow.id)
+            )
+        )
+
+    def _history(self, case_id: str) -> list[ReviewEvent]:
+        return [
+            ReviewEvent(
+                action=e.action,
+                decision=e.payload["decision"],
+                reason_code=e.reason_code,
+                note=e.note,
+                actor=e.actor,
+                created_at=aware(e.created_at),
+            )
+            for e in self._events(case_id)
+        ]
+
+    def verify(self, case_id: str) -> ChainCheck:
+        """Rehash payload ĐÃ LƯU của mọi sự kiện trong ca."""
+        return verify_chain(
+            [ChainEvent(e.prev_hash, e.hash, e.payload) for e in self._events(case_id)]
         )
 
     def list(self, status: CaseStatus | None, priority: Priority | None) -> list[CaseRecord]:
@@ -219,7 +259,7 @@ class ReviewStore:
                 .order_by(ReviewEventRow.id.desc())
                 .limit(1)
             )
-            or "0" * 64
+            or GENESIS_HASH
         )
         now = utcnow()
         payload = {
@@ -231,12 +271,7 @@ class ReviewStore:
             "note": note,
             "created_at": now.isoformat(),
         }
-        digest = hashlib.sha256(
-            (
-                previous
-                + json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
-            ).encode()
-        ).hexdigest()
+        digest = compute_hash(previous, payload)
         self.db.add(
             ReviewEventRow(
                 case_id=record.case_id,
@@ -246,6 +281,23 @@ class ReviewStore:
                 prev_hash=previous,
                 hash=digest,
                 payload=payload,
+                created_at=now,
+            )
+        )
+        try:
+            # Flush ngay để vi phạm UNIQUE(case_id, prev_hash) thành 409 chứ không phải 500.
+            self.db.flush()
+        except IntegrityError as exc:
+            raise ApiError(
+                409, "review_conflict", "Ca vừa được người khác cập nhật. Hãy tải lại và thử lại."
+            ) from exc
+        record.history.append(
+            ReviewEvent(
+                action=action,  # type: ignore[arg-type]
+                decision=decision,  # type: ignore[arg-type]
+                reason_code=reason_code,
+                note=note,
+                actor="staff-unverified",
                 created_at=now,
             )
         )

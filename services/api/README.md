@@ -32,7 +32,7 @@ uv run python scripts/gen_openapi.py        # sinh lại packages/contracts/open
 |---|---|
 | Sức khỏe | `GET /healthz` |
 | Phiên (Bearer, trừ tạo phiên) | `POST /v1/sessions`, `POST /v1/sessions/{id}/{media,signals,finalize,voice}` |
-| Bàn duyệt | `GET /v1/review/cases`, `GET /v1/review/cases/{id}`, `POST …/initial`, `GET …/ai` (409 nếu chưa có quyết định ban đầu), `POST …/decision` |
+| Bàn duyệt | `GET /v1/review/cases`, `GET /v1/review/cases/{id}`, `POST …/initial`, `GET …/ai` (409 nếu chưa có quyết định ban đầu), `POST …/decision` (422 `invalid_reason_code`), `GET /v1/review/reason-codes`, `GET …/audit/verify` |
 | Giám định | `POST /v1/forensic/jobs`, `GET …/jobs/{id}`, `GET …/jobs/{id}/report`, `POST /v1/forensic/verify` |
 
 Chạy mock (`USE_MOCK_MODELS=true`, mặc định) chọn kịch bản bằng header **`X-Mock-Scenario`** khi tạo phiên hoặc giám định: `genuine`, `print`, `replay`, `virtual_cam`, `faceswap`, `voice_clone`, `low_quality`, `error`. Khi tắt mock, header bị bỏ qua. App mock có sẵn 2 ca duyệt mẫu.
@@ -45,6 +45,20 @@ Chạy mock (`USE_MOCK_MODELS=true`, mặc định) chọn kịch bản bằng h
 - Upload quá `MAX_UPLOAD_MB` → 413 `upload_too_large`.
 - Cấu hình: `SESSION_TTL_SECONDS` (300), `CHALLENGE_TTL_SECONDS` (120), `MAX_RETRIES` (2), `MAX_UPLOAD_MB` (50), `CHALLENGE_PALETTE` (bảng màu, phân cách bằng dấu phẩy; bộ sinh từ chối bảng vi phạm giới hạn độ chói 0,064 hoặc R/(R+G+B) >= 0,8).
 
+## Bàn duyệt và nhật ký băm (REV-01)
+
+- **Hồ sơ `GET /cases/{id}` không có điểm AI** (chống thiên kiến tự động hóa); `ModuleResult[]` chỉ ở `GET …/ai`, và chỉ sau khi nhân viên ghi quyết định ban đầu (chưa thì 409 `initial_decision_required`). Hồ sơ có `history` (quyết định, mã lý do, ghi chú, người ghi, giờ).
+- **Mã lý do** (`services/review_reasons.py`, *danh sách tạm — M2 chỉnh*): xem `GET /v1/review/reason-codes`. Quyết định cuối có mã ngoài danh sách, hoặc `OTHER` thiếu ghi chú → 422 `invalid_reason_code`. Quyết định ban đầu không cần mã lý do. Schema giữ `reason_code` là chuỗi tự do.
+- **Nhật ký `review_events`** chỉ ghi thêm (trigger DB chặn UPDATE/DELETE), mỗi ca một chuỗi. Định nghĩa băm, "‖" là nối chuỗi ký tự không dấu phân cách:
+
+  `hash = sha256( prev_hash ‖ json_chuẩn_hóa(payload) )`
+
+  `prev_hash` của sự kiện đầu là 64 ký tự `0`; JSON chuẩn hóa = `json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":"))` mã hóa UTF-8. Code: `services/audit_log.py`.
+- `verify_chain()` băm lại payload ĐÃ LƯU và báo sự kiện sai đầu tiên (sửa nội dung, sửa `prev_hash`, xóa/đảo/cắt đoạn giữa). **Không bắt được** việc cắt cụt phần đuôi nếu không neo hash cuối ở nơi khác. `GET …/audit/verify` chạy hàm này cho một ca.
+- **Bảo đảm chuỗi không rẽ nhánh nằm ở tầng DB:** migration `0002` thêm `UNIQUE(case_id, prev_hash)` trên `review_events` (sự kiện đầu dùng hash genesis nên cũng bị ràng buộc). `SELECT … FOR UPDATE` chỉ giúp tuần tự hóa trên PostgreSQL; SQLite bỏ qua khóa hàng nên chỉ dựa vào UNIQUE. Hai ghi đồng thời vào cùng một ca: bên thua vi phạm UNIQUE, giao dịch rollback và API trả **409 `review_conflict`** (tải lại rồi thử lại), không 500 và không để chuỗi gãy. Lần `POST …/initial` thứ hai trên ca đã có quyết định ban đầu vẫn 409 `initial_already_recorded`.
+- Nâng cấp lên `0002` giữ nguyên chuỗi hợp lệ cũ; chuỗi đã rẽ nhánh (không hợp lệ) làm `upgrade` lỗi. Hạ về `0001` chỉ bỏ index, không mất sự kiện.
+- Ca mẫu (`seed_demo`) chỉ có khi `USE_MOCK_MODELS=true`.
+
 ## Phần tạm (các task sau thay thế)
 
 | Phần | Hiện nay | Thay bằng |
@@ -54,9 +68,9 @@ Chạy mock (`USE_MOCK_MODELS=true`, mặc định) chọn kịch bản bằng h
 | Chạy detector | **PLAT-08**: executor chung, preload lifespan, deadline/timeout và latency thực | Đã có; detector thật được bổ sung bởi các task mô hình |
 | Luật quyết định | **ROUT-02**: ML TrustRouter, snapshot `ml/configs/thresholds.yaml`, provisional max-fusion | **ROUT-03**: ngưỡng LTT trên calib_ltt; logistic học trên calib_fit khi có dữ liệu thật |
 | Giám định, chữ ký | segment và chữ ký `MOCK-<sha256>` | **FOR-01 / FOR-04**, khóa Ed25519 ở PLAT-06 |
-| Bàn duyệt | DB và sự kiện append-only/chuỗi băm cơ bản; URL media vẫn là chỗ giữ chỗ | **REV-01**: nghiệp vụ và phục vụ media hoàn chỉnh |
+| Bàn duyệt | **REV-01**: DB, nhật ký băm nối chuỗi, `verify_chain`, mã lý do cố định; URL media vẫn là chỗ giữ chỗ | **REV-02** (giao diện, phục vụ media) |
 | Giới hạn upload | `MAX_UPLOAD_MB` chỉ kiểm **sau khi** Starlette đã nhận multipart (và trước khi xác thực token vẫn nhận được body) | **PLAT-06** / reverse proxy: giới hạn cứng ở lớp trước ứng dụng |
-| Xác thực nhân viên | `/v1/review/*` và `/v1/forensic/*` chưa có xác thực | **PLAT-06** / REV-02 |
+| Xác thực nhân viên | `/v1/review/*` và `/v1/forensic/*` chưa có xác thực; nhật ký ghi `actor` cố định `staff-unverified` | **PLAT-06** / REV-02 |
 
 Chính sách ROUT-02, thứ tự cổng: phiên/thời gian hợp lệ → quality (chụp lại tối đa 2 lần rồi `review`) → chromapulse/camprobe (fail → `review` ưu tiên cao; chưa rõ → chụp lại) → ngưỡng trên **max `prob_attack`** của `face_pad` và `face_deepfake` (≤ B `pass`; trên B đến dưới A `voice_challenge`; ≥ A `review`). `error`/`degraded`/thiếu ở bước bắt buộc → `review`, không bao giờ `pass`.
 
