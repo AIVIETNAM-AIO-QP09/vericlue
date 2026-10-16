@@ -44,12 +44,19 @@ class AppState:
             self.settings.media_dir,
             runner=runner,
         )
-        self.flow = SessionFlow(self.settings, self.sessions, self.reviews, runner=runner)
+        self.flow = SessionFlow(
+            self.settings,
+            self.sessions,
+            self.reviews,
+            runner=runner,
+            router=self.orchestrator.router,
+        )
 
 
 class ApplicationState:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
+        _ = settings.router_config  # Freeze the raw-file snapshot once for this application.
         self.database = Database(settings.database_url)
         self.orchestrator = Orchestrator(settings)
         self._initialized = False

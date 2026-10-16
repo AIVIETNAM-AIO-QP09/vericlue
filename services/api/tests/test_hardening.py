@@ -154,7 +154,9 @@ def test_unknown_retry_hint_falls_back_to_more_light(client, monkeypatch):
     from vericlue_api.services.provisional_decision import Outcome
 
     monkeypatch.setattr(
-        session_flow, "decide_finalize", lambda *a, **k: Outcome("retry", retry_hint="LẠ_HOẮC_XẤU")
+        session_flow.TrustRouter,
+        "finalize",
+        lambda *a, **k: Outcome("retry", retry_hint="LẠ_HOẮC_XẤU"),
     )
     body, auth = start_session(client, "genuine")
     res = client.post(FINALIZE.format(sid=body["session_id"]), headers=auth)

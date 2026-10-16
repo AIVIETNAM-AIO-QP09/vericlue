@@ -1,7 +1,8 @@
 """Luồng một phiên eKYC (kiến trúc §6). Router chỉ gọi các hàm ở đây.
 
 Giai đoạn PLAT-04: chưa có máy trạng thái chống phát lại "mỗi bước một lần mỗi lượt" (409), HMAC,
-TTL hay 429 (PLAT-06); DB/transaction và inference song song đã có (PLAT-05/08). Luật quyết định là TẠM.
+TTL token HMAC hay 429 (PLAT-06); DB/transaction và inference song song đã có (PLAT-05/08).
+ROUT-02 dùng TrustRouter và kiểm deadline đã lưu; ngưỡng/fusion còn provisional.
 Chỉ kiểm THỨ TỰ luồng để không có đường tắt tới `pass`: 409 `session_closed` khi phiên đã vào bàn
 duyệt, 409 `voice_not_requested` khi `finalize` chưa yêu cầu đọc câu.
 """
@@ -10,6 +11,7 @@ from __future__ import annotations
 
 import random
 from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import get_args
 
 from vericlue_api.core.config import Settings
@@ -29,12 +31,11 @@ from vericlue_api.services.provisional_decision import (
     MAX_VOICE_REREADS,
     VOICE_STEP_MODULES,
     Outcome,
-    decide_finalize,
-    decide_voice,
 )
 from vericlue_api.services.review_store import ReviewStore
 from vericlue_api.services.session_store import Session, SessionStore
 from vericlue_ml.common.result import Module
+from vericlue_ml.router.policy import TrustRouter
 
 VOICE_PROMPTS = (
     "Hôm nay trời đẹp, tôi đang xác minh danh tính của mình.",
@@ -57,7 +58,9 @@ class SessionFlow:
         reviews: ReviewStore,
         *,
         runner: Callable = run_detectors,
+        router: TrustRouter | None = None,
     ) -> None:
+        self.router = router if router is not None else TrustRouter(settings.router_config)
         self.settings = settings
         self._run = runner
         self.sessions = sessions
@@ -81,6 +84,15 @@ class SessionFlow:
     def accept_signals(self, session: Session, signals: Signals) -> None:
         session.signals = signals.model_dump(mode="json")
 
+    @staticmethod
+    def _valid_time(session: Session, *, color_challenge: bool = False) -> bool:
+        now = datetime.now(UTC)
+        deadlines = [session.token_expires_at]
+        if color_challenge and session.challenge.expires_at is not None:
+            deadlines.append(session.challenge.expires_at)
+        # Legacy snapshots may be naive UTC; never compare naive to aware datetime.
+        return all((d.replace(tzinfo=UTC) if d.tzinfo is None else d) > now for d in deadlines)
+
     # --- finalize --------------------------------------------------------
     @staticmethod
     def ensure_open(session: Session) -> None:
@@ -97,26 +109,34 @@ class SessionFlow:
     def finalize(self, session: Session) -> FinalizeResponse:
         self.ensure_open(session)
         session.voice_requested = False  # chỉ bật lại nếu lần này ra voice_challenge
-        results = self._run(
-            FINALIZE_MODULES,
-            session_id=session.session_id,
-            scenario=session.scenario,
-            images=session.images,
-            video=session.video,
-            signals=session.signals,
-            extra_metadata={"challenge_id": session.challenge.challenge_id},
+        session_valid = self._valid_time(session, color_challenge=True)
+        results = (
+            self._run(
+                FINALIZE_MODULES,
+                session_id=session.session_id,
+                scenario=session.scenario,
+                images=session.images,
+                video=session.video,
+                signals=session.signals,
+                extra_metadata={"challenge_id": session.challenge.challenge_id},
+            )
+            if session_valid
+            else {}
         )
         session.results.update(results)
         s = self.settings
-        outcome = decide_finalize(
+        outcome = self.router.finalize(
             results,
             retries_used=session.retries_used,
             max_retries=s.max_retries,
-            b=s.provisional_threshold_b,
-            a=s.provisional_threshold_a,
+            session_valid=session_valid and self._valid_time(session, color_challenge=True),
         )
+        session.results.update(outcome.results)
         self.sessions.record_decision(
-            session, outcome.status, b=s.provisional_threshold_b, a=s.provisional_threshold_a
+            session,
+            outcome.status,
+            thresholds=outcome.thresholds,
+            config_version=outcome.config_version,
         )
         if outcome.status == "retry":
             hint = outcome.retry_hint if outcome.retry_hint in RETRY_HINTS else DEFAULT_HINT
@@ -143,26 +163,32 @@ class SessionFlow:
     # --- voice -----------------------------------------------------------
     def voice(self, session: Session) -> VoiceResponse:
         self.ensure_voice_allowed(session)
-        results = self._run(
-            VOICE_STEP_MODULES,
-            session_id=session.session_id,
-            scenario=session.scenario,
-            images=session.images,
-            video=session.video,
-            audio=session.audio,
-            extra_metadata={"prompt": session.voice_prompt},
+        session_valid = self._valid_time(session)
+        results = (
+            self._run(
+                VOICE_STEP_MODULES,
+                session_id=session.session_id,
+                scenario=session.scenario,
+                images=session.images,
+                video=session.video,
+                audio=session.audio,
+                extra_metadata={"prompt": session.voice_prompt},
+            )
+            if session_valid
+            else {}
         )
         session.results.update(results)
-        outcome = decide_voice(
+        outcome = self.router.voice(
             results,
             rereads_used=session.voice_rereads_used,
-            b=self.settings.provisional_threshold_b,
+            session_valid=session_valid and self._valid_time(session),
         )
+        session.results.update(outcome.results)
         self.sessions.record_decision(
             session,
             outcome.status,
-            b=self.settings.provisional_threshold_b,
-            a=self.settings.provisional_threshold_a,
+            thresholds=outcome.thresholds,
+            config_version=outcome.config_version,
         )
         if outcome.status == "voice_challenge":
             session.voice_rereads_used += 1

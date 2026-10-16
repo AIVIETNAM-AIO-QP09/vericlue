@@ -53,9 +53,18 @@
 
 Lưu `decisions` kèm ngưỡng đã dùng và phiên bản cấu hình.
 
+**Chốt nghiệm thu trưởng nhóm 16/10:** chất lượng xét trước trạng thái module mặt;
+quality fail → retry, retry, review; quality error/degraded → review.
+Face Λ ≤ B pass, Λ ≥ A review; voice dùng spoof_threshold riêng (≤ pass).
+Nguồn số duy nhất thresholds.yaml, provisional:true; fusion hiện max(prob_attack)
+đã hiệu chỉnh. Logistic chỉ chuẩn bị API học trên calib_fit sau DATA-03; không học
+trọng số giả, không dùng calib_ltt/test. WER chỉ là gate; splice dương review,
+không có splice giữ absent/chờ VOICE-05. Metadata dùng cột JSON/hash hiện có,
+không migration mới và không sửa hai file review của REV-01.
+
 **Tiêu chí hoàn thành:**
-- [ ] Test cho **từng nhánh** (≥ 12 test), gồm "lỗi thì không bao giờ pass" và "quá số lần chụp lại thì review".
-- [ ] Mock theo kịch bản `genuine`, `print`, `replay`, `virtual_cam`, `faceswap`, `voice_clone`, `low_quality` cho kết quả đúng mong đợi.
+- [x] Test cho **từng nhánh** (≥ 12 test), gồm "lỗi thì không bao giờ pass" và "quá số lần chụp lại thì review".
+- [x] Mock theo kịch bản `genuine`, `print`, `replay`, `virtual_cam`, `faceswap`, `voice_clone`, `low_quality` cho kết quả đúng mong đợi.
 
 ---
 
