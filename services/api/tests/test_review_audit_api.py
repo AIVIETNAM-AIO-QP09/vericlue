@@ -238,3 +238,16 @@ def test_postgres_concurrent_initial_and_decisions(monkeypatch):
         assert sorted(r.status_code for r in results) == [200, 409], [r.text for r in results]
         body = _verify(client, cid)
         assert body["ok"] is True and body["checked"] == 2
+
+
+def test_ai_suggestion_boundary_matches_router(monkeypatch):
+    """Λ ≤ B là pass (cùng biên với bộ quyết định)."""
+    from vericlue_api.services import review_store
+    from vericlue_api.services.review_store import CaseRecord
+
+    record = CaseRecord(
+        case_id="c", session_id="s", priority="normal", scenario="genuine", results={}, media=[]
+    )
+    for p, expected in ((0.15, "pass"), (0.1500001, "review")):
+        monkeypatch.setattr(review_store, "fused_prob", lambda *_a, _p=p: _p)
+        assert record.ai_opinion(0.15).suggestion == expected

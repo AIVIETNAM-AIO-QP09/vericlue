@@ -124,7 +124,7 @@ def get_ai_opinion(case_id: str, state: StateDep) -> ReviewAiOpinion:
         raise ApiError(
             409, "initial_decision_required", "Hãy ghi quyết định ban đầu trước khi xem ý kiến AI."
         )
-    return record.ai_opinion(state.settings.provisional_threshold_b)
+    return record.ai_opinion(state.settings.router_config.face.b)
 
 
 @router.post(

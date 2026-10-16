@@ -89,7 +89,7 @@ class CaseRecord:
     def ai_opinion(self, b: float) -> ReviewAiOpinion:
         p = fused_prob(self.results, FACE_MODULES)
         usable = all(r.is_usable for r in self.results.values())
-        suggestion = "pass" if usable and p is not None and p < b else "review"
+        suggestion = "pass" if usable and p is not None and p <= b else "review"
         return ReviewAiOpinion(
             case_id=self.case_id,
             suggestion=suggestion,
