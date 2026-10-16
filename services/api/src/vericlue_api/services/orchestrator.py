@@ -141,13 +141,17 @@ class Orchestrator:
         module = job.module
         while True:
             result = self._predict(module, job.inp, job.submitted, job.deadline)
-            job.result.set_result(result)
             with self._lifecycle:
                 queue = self._queues[module]
-                if not queue:
+                next_job = queue.popleft() if queue else None
+                if next_job is None:
                     self._running.remove(module)
-                    return
-                job = queue.popleft()
+            # Admission must observe the released/reserved slot before callers see success.
+            # Publish outside the lifecycle lock so callbacks cannot block admission.
+            job.result.set_result(result)
+            if next_job is None:
+                return
+            job = next_job
 
     def _prune(self, module: Module) -> None:
         # Waiting jobs are owned by this queue, so expiring them creates no executor tombstones.
