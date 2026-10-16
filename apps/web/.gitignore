@@ -43,3 +43,8 @@ next-env.d.ts
 
 # MediaPipe (wasm + face_landmarker.task) tải bằng scripts/fetch_web_assets.py, không commit
 /public/mediapipe/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
