@@ -142,3 +142,58 @@ Quy ước byte: `manifest_data_bytes` là tổng size của media được ch�
 manifest và biên nhận. `stored_bytes` ở đầu báo cáo cộng thêm cache `.metadata`
 dùng chung, không phải chỉ media. Dòng “Số byte lưu” trong SOURCE gồm media,
 metadata/archive và manifest, loại SOURCE.md, biên nhận `.verified.json` và file part.
+
+## Chia tập âm thanh local (DATA-03, phần ảnh chưa làm)
+
+```powershell
+uv sync --all-packages --group data
+$env:DATA_DIR = 'E:\shared\vericlue\data'
+uv run --group data python scripts/make_splits.py --seed 42 --audit-hashes
+```
+
+Script cần `raw/<bộ>/selected_manifest.json` và audio của MLAAD-vi, VSASV,
+ViMD, VIVOS, ViSpoofDB đã tải. Không gọi mạng, không decode/chỉnh audio.
+`DATA_DIR` đọc từ môi trường rồi `.env`, mặc định `./data` tính từ gốc worktree;
+`--data-dir` ưu tiên cao nhất. Thiếu dotenv khi có `.env` sẽ cảnh báo rõ.
+Chạy lại ghi cùng 20 CSV và `splits/SUMMARY.md` khi input/seed/commit không đổi;
+đường dẫn audio trong CSV tương đối với DATA_DIR: `raw/<bộ>/...`, UTF-8,
+nhãn `0` thật / `1` giả. Thành viên ghép `Path(DATA_DIR) / row["path"]` khi đọc;
+validate và audit hash cũng ghép như vậy, từ chối absolute/traversal và file thiếu.
+Ngoài cột task card có `source_group`, `reference_group`, `tts`, `group_id` để
+kiểm toán liên kết; hai cột group không phải ID người. `subject_id` trống khi
+nguồn không công bố. Không commit CSV/SUMMARY/audio; chỉ chép thống kê bàn giao.
+
+ViSpoofDB + VIVOS giữ test-only do bằng chứng chung nguồn. VSASV/ViMD **giả định
+độc lập**, không phải đã chứng minh khác người xuyên bộ (quyết định trưởng nhóm
+16/10). ViMD small giữ một người mỗi miền trong mỗi tập. MLAAD nối câu nguồn
+và giọng tham chiếu; mẫu thiếu reference chỉ nhóm theo câu nguồn, không gom
+vixTTS. Mục tiêu nhóm train/fit/LTT/test 60/10/10/20; phân tầng TTS theo nhóm,
+nhóm lớn ưu tiên train nên tỷ lệ mẫu có thể lệch lớn. Không hứa test TTS chưa thấy.
+Mọi loại tấn công chính thiếu 60 LTT được dồn nguyên component từ train;
+nhóm nhỏ ưu tiên, hòa chọn bằng seed 42, không lấy test/calib_fit. Sau đó fit
+thiếu 100 mẫu/lớp được dồn từ train theo cùng quy tắc, không lấy test/LTT.
+Giữ nguyên người ViMD để không phá cân bằng miền; component liên kết chứa
+ViMD cũng không được dồn. Chỉ báo thiếu sau khi đã thử các nhóm train hợp lệ.
+Tỷ lệ calib thực tế theo mẫu/người ghi trong SUMMARY, không chỉ tỷ lệ nhóm:
+ViMD 50% số người; VSASV ban đầu 25% người, có thể tăng sau dồn quota fit/LTT.
+
+**Rủi ro cho VOICE-01/03:** vixTTS thiếu reference có thể dùng chung giọng mặc
+định, nên nhóm theo câu nguồn có thể để cùng giọng tổng hợp qua cả bốn tập.
+Test MLAAD chỉ có vixTTS; bốn TTS còn lại đều ở train. Không coi đây là test
+hệ TTS chưa thấy hay bằng chứng độc lập người nói đã xác minh.
+Quota là số đếm báo cáo, không phải chứng nhận chất lượng/độc lập. Thiếu quota
+không làm mã thoát lỗi và không đánh dấu đạt task; đọc SUMMARY trước khi dùng.
+
+Khi có đối chiếu danh tính **đã xác minh**, cung cấp CSV local qua
+`--identity-links <file.csv>` với cột `source,kind,identity,canonical_id`.
+`kind` là `subject_id` hoặc `reference_group`; các dòng chung `canonical_id`
+liên kết cùng người/nhóm nguồn. `identity` phải khớp nguyên giá trị metadata.
+Toàn component theo cùng tập; có VIVOS/ViSpoofDB thì bắt buộc test, còn lại theo
+đa số mẫu của assignment ban đầu. Liên kết thật ưu tiên tỷ lệ/cân bằng miền.
+SOURCE chưa có crosswalk MLAAD tới bộ Việt; không tự suy người từ tên đường dẫn.
+`--audit-hashes` lọc size rồi SHA-256, ghi số file/byte đã hash và số mẫu trùng
+ViSpoofDB; phát hiện audio trùng byte ở tập khác test sẽ dừng để bổ sung crosswalk.
+Hash bằng 0 không chứng minh khác người: có thể đổi định dạng/cắt audio.
+
+Mã thoát `0`: đã xuất split và cảnh báo quota; `1`: metadata/file/nhóm không hợp lệ.
+DATA-03 vẫn `doing`, phần ảnh và các quota còn thiếu được ghi trong bàn giao.

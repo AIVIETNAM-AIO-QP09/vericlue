@@ -92,6 +92,31 @@ xuyên bộ. DATA-01 vẫn review cho đến nghiệm thu đủ danh mục.
 - RTFS-10k chia theo video gốc (cặp thật–giả nằm cùng tập).
 - ViMD chia theo người, giữ cân bằng 3 miền.
 
+**Phạm vi làm trước — âm thanh, quyết định trưởng nhóm 16/10:**
+- DATA-03 giữ `doing`; phần ảnh đợi dữ liệu Kaggle, không nghiệm thu toàn task.
+- ViSpoofDB và VIVOS cùng `test`: có bằng chứng VIVOS là nguồn giọng thật.
+- VSASV chia theo 16 ID người. ViMD small: bốn người/miền, mỗi tập một
+  người/miền (rất nhỏ; 25% người mỗi tập). **Giả định** hai bộ thu thập độc lập
+  với nhau và với VIVOS/ViSpoofDB; chưa xác minh khác người xuyên bộ.
+- MLAAD union `original_file` với nhóm giọng tham chiếu theo thư mục reader;
+  thiếu reference chỉ nhóm theo câu nguồn, không gom toàn bộ vixTTS. Không tạo
+  subject ID giả. Phân tầng TTS chỉ trong giới hạn nhóm liên kết; không cam kết
+  giữ riêng một TTS chưa thấy. Reference chưa đối chiếu xuyên bộ phải ghi rõ;
+  có crosswalk xác minh thì nhóm liên kết theo cùng tập (test-only ưu tiên).
+- Seed 42; tỷ lệ mục tiêu VSASV/MLAAD 60/10/10/20 **theo nhóm**, không cắt nhóm
+  lớn để ép tỷ lệ mẫu. Mọi loại tấn công chính thiếu 60 LTT phải thử dồn nguyên
+  nhóm từ train; ưu tiên nhóm nhỏ, hòa chọn seed 42 (MLAAD dùng vixTTS đơn lẻ).
+  Sau đó fit thiếu 100 mẫu/lớp thử dồn nguyên người/nhóm train; giữ cân bằng miền
+  ViMD, không lấy test hoặc LTT. Chỉ báo thiếu khi không còn nhóm train hợp lệ.
+  Không dùng kết quả phát hiện để chọn nhóm/ngưỡng.
+- CSV dùng path tương đối DATA_DIR (`raw/<bộ>/...`); SUMMARY ghi tỷ lệ calib
+  theo mẫu/người sau dồn. vixTTS thiếu reference có rủi ro chung giọng mặc định
+  qua các tập; test MLAAD chỉ có vixTTS, bốn hệ còn lại chỉ trong train.
+- CSV và SUMMARY chỉ ở `DATA_DIR/splits/`, không commit. SUMMARY ghi giả định,
+  rủi ro, nguồn/revision/commit, số nhóm/người/mẫu và từng số thiếu quota.
+- Hash trùng byte bằng 0 là bằng chứng yếu, không phải bằng chứng khác người.
+  Crosswalk đã xác minh ưu tiên hơn giả định độc lập và cân bằng miền.
+
 **Tiêu chí hoàn thành:**
 - [ ] Test tự động: không có `subject_id` xuất hiện ở 2 trong 4 tập.
 - [ ] Mỗi loại tấn công chính có ≥ 60 mẫu trong `calib_ltt` (để chứng nhận α = 5%); thiếu thì dồn thêm người sang `calib_ltt`, vẫn thiếu thì ghi rõ trong SUMMARY.
