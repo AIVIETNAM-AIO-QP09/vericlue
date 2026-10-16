@@ -140,6 +140,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/review/cases/{case_id}/audit/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Verify Audit
+         * @description Kiểm chuỗi băm của ca (rehash payload đã lưu).
+         */
+        get: operations["verify_audit_v1_review_cases__case_id__audit_verify_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/review/cases/{case_id}/decision": {
         parameters: {
             query?: never;
@@ -168,6 +188,26 @@ export interface paths {
         put?: never;
         /** Post Initial */
         post: operations["post_initial_v1_review_cases__case_id__initial_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/review/reason-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Reason Codes
+         * @description Mã lý do hợp lệ cho quyết định cuối (danh sách tạm — M2 chỉnh).
+         */
+        get: operations["list_reason_codes_v1_review_reason_codes_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -263,6 +303,19 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AuditVerification */
+        AuditVerification: {
+            /** Bad Index */
+            bad_index?: number | null;
+            /** Case Id */
+            case_id: string;
+            /** Checked */
+            checked: number;
+            /** Ok */
+            ok: boolean;
+            /** Reason */
+            reason?: string | null;
+        };
         /** Body_create_job_v1_forensic_jobs_post */
         Body_create_job_v1_forensic_jobs_post: {
             /**
@@ -459,6 +512,20 @@ export interface components {
             /** Url */
             url: string;
         };
+        /** ReasonCode */
+        ReasonCode: {
+            /** Code */
+            code: string;
+            /** Label */
+            label: string;
+            /** Note Required */
+            note_required: boolean;
+        };
+        /** ReasonCodeList */
+        ReasonCodeList: {
+            /** Items */
+            items: components["schemas"]["ReasonCode"][];
+        };
         /** ReviewAiOpinion */
         ReviewAiOpinion: {
             /** Case Id */
@@ -489,6 +556,11 @@ export interface components {
             created_at: string;
             /** Final Decision */
             final_decision?: ("accept" | "reject" | "request_retry") | null;
+            /**
+             * History
+             * @default []
+             */
+            history: components["schemas"]["ReviewEvent"][];
             /** Initial Decision */
             initial_decision?: ("accept" | "reject" | "request_retry") | null;
             /** Media */
@@ -532,6 +604,30 @@ export interface components {
              * @enum {string}
              */
             status: "open" | "initial_decided" | "closed";
+        };
+        /** ReviewEvent */
+        ReviewEvent: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "initial" | "final";
+            /** Actor */
+            actor: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "accept" | "reject" | "request_retry";
+            /** Note */
+            note?: string | null;
+            /** Reason Code */
+            reason_code?: string | null;
         };
         /** SegmentSignal */
         SegmentSignal: {
@@ -907,6 +1003,46 @@ export interface operations {
             };
         };
     };
+    verify_audit_v1_review_cases__case_id__audit_verify_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditVerification"];
+                };
+            };
+            /** @description Không có ca này */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     post_decision_v1_review_cases__case_id__decision_post: {
         parameters: {
             query?: never;
@@ -940,7 +1076,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Chưa có quyết định ban đầu */
+            /** @description initial_decision_required, decision_already_recorded hoặc review_conflict (ghi đồng thời, tải lại rồi thử lại) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -949,13 +1085,13 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Validation Error */
+            /** @description invalid_reason_code */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -993,7 +1129,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Đã có quyết định ban đầu */
+            /** @description initial_already_recorded (đã có quyết định ban đầu) hoặc review_conflict (ghi đồng thời, tải lại rồi thử lại) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1009,6 +1145,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_reason_codes_v1_review_reason_codes_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReasonCodeList"];
                 };
             };
         };
