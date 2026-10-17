@@ -41,7 +41,7 @@
 |---|---|---|---|---|---|---|---|---|
 | CAP-01 ★ | Luồng /verify + màn hình đồng ý | M1 | Claude | 1 | S0–S1 | P0 | PLAT-02, PLAT-04 | done |
 | CAP-02 ★ | Camera, oval, cổng chất lượng | M1 | Claude | 1,5 | S1 | P0 | CAP-01 | review |
-| CAP-03 | Trang thử ChromaPulse (spike) | M1 (+M3) | Claude | 1 | S0 | P0 | PLAT-02 | review |
+| CAP-03 | Trang thử ChromaPulse (spike) | M1 (+M3) | Claude | 1 | S0 | P0 | PLAT-02 | done |
 | CAP-04 | ChromaPulse chính thức (chép Amplify) | M1 | | 1,5 | S1 | P0 | CAP-03, PRES-01, PLAT-04 | todo |
 | CAP-05 ★ | CamProbe phía trình duyệt | M1 | | 1 | S1 | P0 | CAP-02 | todo |
 | CAP-06 ★ | Gửi media, xử lý kết quả | M1 | | 1 | S1 | P0 | CAP-04, CAP-05, PLAT-06 | todo |
@@ -52,7 +52,7 @@
 
 | Mã | Task | Vai trò | Người | Ngày công | Sprint | Ưu tiên | Phụ thuộc | Trạng thái |
 |---|---|---|---|---|---|---|---|---|
-| PRES-01 | Spike phân tích độ trễ (cổng quyết định 17/10) | M3 | | 1 | S0 | P0 | CAP-03 | todo |
+| PRES-01 | Spike phân tích độ trễ (cổng quyết định 17/10) | M3 | Lead | 1 | S0 | P0 | CAP-03 | done |
 | PRES-02 | chromapulse.py | M3 | | 2 | S1 | P0 | PRES-01, PLAT-03 | todo |
 | PRES-03 | camprobe.py | M3 | | 0,5 | S1 | P0 | CAP-05, PLAT-03 | todo |
 | PRES-04 | Chạy thử của nhóm, chỉnh ngưỡng (R5) | M1 (+M3) | | 1 | S2 | P0 | PRES-02, PRES-03, CAP-06, REDT-01 | todo |

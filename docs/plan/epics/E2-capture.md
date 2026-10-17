@@ -78,6 +78,8 @@
 - [ ] Ghi rõ trình duyệt nào có `captureTime`.
 - [ ] Bàn giao JSON cho PRES-01.
 
+**Quyết định trưởng nhóm 17/10:** không thu JSON trên thiết bị thật; CAP-03 đóng ở mức "code xong" (trang `/lab/chromapulse` chạy được). Ba tiêu chí thu dữ liệu bỏ, xem PRES-01.
+
 ---
 
 ### CAP-04 · ChromaPulse bản chính thức (chép từ AWS Amplify)
@@ -100,6 +102,8 @@
 - [ ] Nút "Bỏ qua" hoạt động.
 - [ ] Payload `signals` hợp lệ với schema (test).
 - [ ] Đã ghi `third_party/README.md`.
+
+**Quyết định trưởng nhóm 17/10:** ChromaPulse là **tín hiệu phụ** (PRES-01 không có dữ liệu thiết bị). CAP-04 hạ ưu tiên: làm CAP-05, CAP-06 trước; CAP-04 chỉ làm nếu dư thời gian, giữ nguyên trải nghiệm nháy màu hiện có.
 
 ---
 

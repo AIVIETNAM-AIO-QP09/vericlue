@@ -75,6 +75,12 @@ Thêm **chống học vẹt**: cắt khoảng lặng hai đầu (Silero VAD), ch
 
 **Lưu ý:** trọng số gốc giấy phép CC BY-NC-SA, chỉ dùng phi thương mại.
 
+**Cập nhật trưởng nhóm 17/10:**
+- **Không dùng VIVOS để huấn luyện.** DATA-03 xếp VIVOS **chỉ ở test** vì là nguồn giọng thật của ViSpoofDB (huấn luyện trên VIVOS thì test ViSpoofDB gặp lại đúng người). Giọng thật để huấn luyện: **VSASV (train)** + ViMD (train).
+- Test MLAAD-vi hiện chỉ có hệ TTS vixTTS (4 hệ còn lại dính một nhóm ở train) — đúng tinh thần "giữ riêng 1 hệ TTS", ghi rõ trong R3.
+- **AntiDeepfake (~300 triệu tham số) không vừa RTX 4050 6 GB khi tinh chỉnh cả mô hình:** chạy thử nhỏ trên máy, chạy thật trên **Kaggle**. Cùng luật cloud như FACE-04.
+- Dữ liệu small rất nhỏ (ViMD 3 người/tập): trước khi chốt R3 cuối, cân nhắc tải bản lớn hơn của ViMD, VSASV nếu ổ đĩa cho phép.
+
 ---
 
 ### VOICE-04 · Câu thử thách + nhận dạng + so khớp hai lớp
@@ -123,6 +129,8 @@ bằng kết quả. Lỗi xử lý tính riêng và không được xem là đ�
 **Tiêu chí hoàn thành:**
 - [ ] Test: audio ghép từ 2 đoạn → có cờ cắt ghép.
 - [ ] Test: video lip-sync giả (DATA-04) có độ tin cậy SyncNet thấp hơn video thật (ghi số).
+
+**Ghi chú 17/10:** LAV-DF đang bị bỏ qua ở DATA-01 (chỉ có tar 25,6 GB). Hoặc tải bản đầy đủ khi tới task này (kiểm chỗ trống ổ đĩa), hoặc chỉ dùng video lip-sync tự tạo (DATA-04).
 
 ---
 

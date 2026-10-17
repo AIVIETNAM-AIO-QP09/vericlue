@@ -1,6 +1,6 @@
 # STATUS — Tình trạng dự án
 
-> **Cập nhật:** 16/10/2026 · **Sprint:** S0 (15/10 → 17/10) · **Mốc kế tiếp:** M0 — 17/10 · **Hạn nộp:** trước 06/11 (còn 20 ngày)
+> **Cập nhật:** 17/10/2026 · **Sprint:** S0 → S1 (18/10) · **Mốc kế tiếp:** tích hợp 21/10, demo M1 25/10 · **Hạn nộp:** trước 06/11 (còn 19 ngày)
 > **Chỉ trưởng nhóm sửa file này** (tránh xung đột git). Người khác ghi vào file bàn giao, trưởng nhóm gom lại.
 > Số liệu task luôn mới nhất: `uv run python scripts/plan_check.py --board`.
 
@@ -10,35 +10,33 @@
 |---|---|---|
 | Proposal | ✅ Chốt bản 3 | `docs/proposal/proposal.md` |
 | Kiến trúc | ✅ Cập nhật theo code | `docs/architecture/architecture.md` (§5 DB, §6 luồng phiên) |
-| Kế hoạch | ✅ 56 task | **13 done · 3 review · 1 doing** (`plan_check.py`, 0 lỗi) |
+| Kế hoạch | ✅ 56 task | **15 done · 2 review · 1 doing** (`plan_check.py`, 0 lỗi) |
 | Nền tảng (web, API, DB, Docker) | ✅ Khung chạy được | `docker compose up` → web :3000, API :8000, PostgreSQL. AI **giả lập** mặc định. PLAT-01…05, PLAT-08 |
-| Luồng người dân `/verify` | 🟡 Khung xong, chờ thử máy thật | CAP-01 (luồng, đồng ý), CAP-02 (camera, oval, cổng chất lượng — chờ đo ≥ 15 fps trên Android), CAP-03 (trang thử ChromaPulse — chờ thu JSON 3 máy) |
+| Luồng người dân `/verify` | 🟡 Khung xong, **demo được với AI giả lập** | CAP-01 (luồng, đồng ý), CAP-02 (camera, oval, cổng chất lượng — chờ đo ≥ 15 fps trên Android), CAP-03 (trang thử ChromaPulse, đóng). **ChromaPulse là tín hiệu phụ** (17/10). `/review`, `/forensic` mới là trang trống (REV-02, FOR-02) |
 | Bộ quyết định | ✅ Chính sách đầy đủ, ngưỡng **tạm** | ROUT-01 (hiệu chỉnh), ROUT-02 (TrustRouter, `ml/configs/thresholds.yaml` `provisional: true`) |
 | Bàn duyệt | 🟡 API xong | REV-01 (nhật ký chuỗi băm, UNIQUE ở DB, mã lý do tạm). Giao diện REV-02 chưa làm |
 | Giọng nói | 🟡 Kiểm câu đọc xong | VOICE-04 (PhoWhisper offline, so khớp 2 lớp; thử nhỏ trên ViMD) |
 | Mô hình | ✅ Tải đủ 8 mô hình + CLIP (8,1 GB, SHA-256) | DATA-02. SBI để FACE-03; PerTh chờ FOR-03 xác minh quyền |
-| Dữ liệu | 🟡 8/13 bộ | Đủ **toàn bộ âm thanh** (MLAAD-vi, VSASV, ViMD, VIVOS, ViSpoofDB) + ViCocktail, WildDeepfake, vn_celeb_faces. **Thiếu 3 bộ Kaggle** (Zalo 2022, FAS-VN, RTFS-10k) — cần chạy với token. CelebA-Spoof, LAV-DF bỏ qua có chủ đích. Kho chung `D:\Projects\vericlue-store\` (ngoài repo) |
-| Chia tập theo người | 🟡 Âm thanh xong (PR #20 chờ sửa quota) | DATA-03; phần ảnh chờ dữ liệu Kaggle |
+| Dữ liệu | ✅ 11/13 bộ (21,9 GB) | Đủ âm thanh + ảnh: Zalo 2022, FAS-VN, RTFS-10k, WildDeepfake, ViCocktail, vn_celeb_faces, MLAAD-vi, VSASV, ViMD, VIVOS, ViSpoofDB. CelebA-Spoof, LAV-DF bỏ qua có chủ đích. Còn **lượt nghiệm thu chạy cả danh mục** (`download_data.py --subset small`, không `--only`) trước khi DATA-01 → done. Kho chung `D:\Projects\vericlue-store\` (ngoài repo) |
+| Chia tập theo người | 🟡 Âm thanh xong (PR #20) | Phần ảnh: Codex `vericlue-data` đang làm (Zalo gộp theo embedding ArcFace; FAS-VN, RTFS-10k, WildDeepfake chỉ test) |
 | Kết quả R1–R7 | ⬜ Chưa có | Cần mô hình thật chạy trên dữ liệu đã chia (FACE-01/02, VOICE-01) |
 
 ## Đang làm
 
 | Mã | Người | Ghi chú |
 |---|---|---|
-| DATA-03 | M3 + M4 · Codex (`vericlue-data`) | `doing` — PR #20 (âm thanh): sửa dồn quota calib_ltt từ train, đường dẫn tương đối |
-| ROUT-02 (dọn) | M5 · Codex (`vericlue-codex`) | Việc dọn nhỏ sau ROUT-02 (bỏ property ngưỡng cũ, cờ cắt ghép ưu tiên cao) |
-| CAP-02, CAP-03 | M1 · Claude (`vericlue-claude`) | `review` — code xong, **chờ người thử máy thật** |
-| DATA-01 | M3 + M4 · Codex | `review` — chờ chạy tải 3 bộ Kaggle có token |
+| DATA-03 (ảnh) | M3 + M4 · Codex (`vericlue-data`) | Kế hoạch đã duyệt 17/10; chờ PR |
+| DATA-01 | M3 + M4 · Codex | `review` — chờ lượt nghiệm thu chạy cả danh mục |
+| CAP-02 | M1 · Claude | `review` — chờ đo ≥ 15 fps trên Android (chỉ là thử app, không thu dữ liệu) |
 
-**Từ 18/10 (S1):** các phiên AI không nhận task mới; giao việc cho thành viên theo vai trò (xem bàn giao LEAD 16/10).
+Ba phiên AI (`vericlue-claude`, `vericlue-codex`, `vericlue-data`) **không nhận task mới** sau DATA-03 ảnh; giao việc cho thành viên từ 18/10 (bàn giao LEAD 17/10).
 
 ## Bị chặn
 
 | Mã | Lý do | Cần ai giải quyết |
 |---|---|---|
-| PRES-01 | Chưa có JSON ChromaPulse từ 3 máy thật (Android, iPhone, laptop + OBS) — **cổng quyết định 17/10** | M1 + M3 (người cầm máy) |
-| DATA-03 (ảnh), FACE-01, FACE-02 | Thiếu 3 bộ Kaggle | Người có token Kaggle chạy `download_data.py` |
-| CAP-02 done | Chưa đo ≥ 15 fps trên Android tầm trung | M1 |
+| FACE-01, FACE-02 (chạy đánh giá) | Chờ DATA-03 phần ảnh | Codex `vericlue-data` |
+| Giao việc S1 | Chưa có tên M1–M5 (Q4) | Họp nhóm |
 
 ## Câu hỏi mở
 
@@ -82,6 +80,9 @@
 | 14/10 | Gộp PR #4 (PLAT-02). `npm audit`: 5 lỗi mức cao chỉ nằm trong công cụ lint (`eslint-config-next`); bản chạy thật báo 0. Không chạy `audit fix --force` | PR #4 |
 | 14/10 | EVAL-01: BPCER@APCER 5% chính lấy ngưỡng từ `calib_fit` rồi khóa, kèm dòng "mô tả" theo đường cong; cột `status` bắt buộc, không âm thầm bỏ mẫu lỗi | Bàn giao LEAD, bàn giao EVAL-01 |
 | 14/10 | Phiên điều phối riêng (`/lead`); luật subagent: mỗi task một phiên chính, chỉ phiên chính commit, không hai bên sửa cùng file, duyệt chéo Claude ↔ Codex | `docs/ai/lead-playbook.md`, `docs/ai/working-with-ai.md` |
+| 17/10 | **Không thu dữ liệu thiết bị/người thật** (quá tải): ChromaPulse **hạ xuống tín hiệu phụ** (PRES-01 đóng, CAP-03 đóng ở mức code); không dùng mặt/giọng thành viên (DATA-04 chỉ dùng người nổi tiếng công khai); PRES-04 (R5) bỏ hoặc thay bằng dữ liệu tổng hợp | Bàn giao LEAD 17/10, thẻ PRES-01/04, CAP-03/04, DATA-04 |
+| 17/10 | DATA-03 ảnh: FAS-VN, RTFS-10k, WildDeepfake **chỉ test**; Zalo gộp video theo embedding ArcFace (ngưỡng lỏng, thà gộp nhầm còn hơn bỏ sót); GenD tinh chỉnh trên DATA-04 + ViCocktail; PAD chỉ trên Zalo | Thẻ FACE-04 |
+| 17/10 | Tinh chỉnh **hai bước**: chạy thử nhỏ trên máy (RTX 4050 6 GB), chạy thật trên Kaggle; cùng script, ghi commit; VOICE-03 dùng VSASV thay VIVOS | Thẻ FACE-04, VOICE-03 |
 | 16/10 | ROUT-02: thứ tự cổng theo thẻ (chất lượng trước mặt); ngưỡng giọng `voice.spoof_threshold` riêng, không dùng chung B; cờ cắt ghép vắng giữ `absent` | PR #21 |
 | 16/10 | REV-01: chuỗi băm bảo đảm ở tầng DB (`UNIQUE(case_id, prev_hash)`, migration 0002); xung đột ghi → 409 | PR #19 |
 | 16/10 | DATA-03 âm thanh: bộ có bằng chứng chung nguồn người buộc cùng tập (ViSpoofDB + VIVOS → test); bộ thu thập độc lập (VSASV, ViMD) chia theo người trong bộ, ghi là giả định; thiếu quota thì dồn nhóm từ train | PR #20 |
