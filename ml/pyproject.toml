@@ -14,7 +14,10 @@ dependencies = [
 [project.optional-dependencies]
 # Thư viện nặng chỉ cài khi làm task mô hình thật (FACE-*, VOICE-*, PRES-*).
 # Thêm phiên bản cụ thể ở các task đó.
-face = []
+face = [
+  "onnxruntime>=1.20,<2",
+  "opencv-python-headless>=4.10,<5",
+]
 voice = [
   "torch>=2.6,<3",
   "transformers>=4.57.1,<5",

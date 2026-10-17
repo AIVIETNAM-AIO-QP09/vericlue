@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from functools import cached_property, lru_cache
+from typing import Literal
 
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -16,7 +17,7 @@ class Settings(BaseSettings):
 
     app_name: str = "VeriClue API"
     api_cors_origins: str = "http://localhost:3000"
-    use_mock_models: bool = True
+    use_mock_models: bool | Literal["mixed"] = True  # mixed: module có mô hình thật dùng thật
     device: str = "cpu"
     models_dir: str = "./models"
     media_dir: str = "./tmp/media"

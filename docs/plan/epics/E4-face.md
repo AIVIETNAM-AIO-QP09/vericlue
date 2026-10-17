@@ -17,11 +17,11 @@
 2. Đầu S1: sinh `R1-baseline.md` khi đã có DATA-03 và EVAL-01.
 
 **Đầu ra:**
-- `ml/src/vericlue_ml/face/pad.py`: MiniFASNet qua `uniface` → `ModuleResult`. Không có mặt → `status=not_applicable`.
+- `ml/src/vericlue_ml/face/pad.py`: MiniFASNet → `ModuleResult`. Không có mặt → `status=not_applicable`. (Đã làm: chạy `onnxruntime` trực tiếp, tiền xử lý chép từ `uniface` MIT, bộ tìm mặt SCRFD `det_10g`.)
 - Chạy trên Zalo 2022 (phần calib_fit/test) và Face_anti_spoofing → `docs/status/results/R1-baseline.md`: APCER, BPCER, EER, số mẫu.
 
 **Tiêu chí hoàn thành:**
-- [ ] Test với ảnh mẫu tổng hợp.
+- [x] Test với ảnh mẫu tổng hợp. (bước 1 — bọc mô hình)
 - [ ] Kết quả gốc có số mẫu và commit.
 - [ ] So sánh FP32 với INT8 nếu dùng bản lượng tử hóa (bài học từ verilens: INT8 có thể làm hỏng khả năng phân biệt).
 

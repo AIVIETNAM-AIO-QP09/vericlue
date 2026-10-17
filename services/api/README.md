@@ -37,6 +37,8 @@ uv run python scripts/gen_openapi.py        # sinh lại packages/contracts/open
 
 Chạy mock (`USE_MOCK_MODELS=true`, mặc định) chọn kịch bản bằng header **`X-Mock-Scenario`** khi tạo phiên hoặc giám định: `genuine`, `print`, `replay`, `virtual_cam`, `faceswap`, `voice_clone`, `low_quality`, `error`. Khi tắt mock, header bị bỏ qua. App mock có sẵn 2 ca duyệt mẫu.
 
+`USE_MOCK_MODELS=mixed` (FACE-01): module có mô hình thật (hiện `face_pad`) chạy thật và bỏ qua `X-Mock-Scenario`, module còn lại vẫn mock. `/healthz` giữ `mock_models` kiểu bool. Cần `uv sync --all-packages --extra face` và trọng số trong `MODELS_DIR`; module preload lỗi nằm ở `failed_modules` và không bao giờ cho `pass`. Hướng dẫn thử: `ml/src/vericlue_ml/face/README.md`.
+
 ## Token, lượt, thử thách (ADR-0011)
 
 - Token theo phiên, gửi `Authorization: Bearer`; thiếu hoặc sai → 401 (phiên không tồn tại cũng 401).
@@ -57,7 +59,7 @@ Chạy mock (`USE_MOCK_MODELS=true`, mặc định) chọn kịch bản bằng h
 - `verify_chain()` băm lại payload ĐÃ LƯU và báo sự kiện sai đầu tiên (sửa nội dung, sửa `prev_hash`, xóa/đảo/cắt đoạn giữa). **Không bắt được** việc cắt cụt phần đuôi nếu không neo hash cuối ở nơi khác. `GET …/audit/verify` chạy hàm này cho một ca.
 - **Bảo đảm chuỗi không rẽ nhánh nằm ở tầng DB:** migration `0002` thêm `UNIQUE(case_id, prev_hash)` trên `review_events` (sự kiện đầu dùng hash genesis nên cũng bị ràng buộc). `SELECT … FOR UPDATE` chỉ giúp tuần tự hóa trên PostgreSQL; SQLite bỏ qua khóa hàng nên chỉ dựa vào UNIQUE. Hai ghi đồng thời vào cùng một ca: bên thua vi phạm UNIQUE, giao dịch rollback và API trả **409 `review_conflict`** (tải lại rồi thử lại), không 500 và không để chuỗi gãy. Lần `POST …/initial` thứ hai trên ca đã có quyết định ban đầu vẫn 409 `initial_already_recorded`.
 - Nâng cấp lên `0002` giữ nguyên chuỗi hợp lệ cũ; chuỗi đã rẽ nhánh (không hợp lệ) làm `upgrade` lỗi. Hạ về `0001` chỉ bỏ index, không mất sự kiện.
-- Ca mẫu (`seed_demo`) chỉ có khi `USE_MOCK_MODELS=true`.
+- Ca mẫu (`seed_demo`) chỉ có khi `USE_MOCK_MODELS=true` hoặc `mixed`.
 
 ## Phần tạm (các task sau thay thế)
 

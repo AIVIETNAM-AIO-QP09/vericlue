@@ -1,5 +1,8 @@
 """Danh bạ bộ phát hiện: trả mock hoặc mô hình thật tùy `USE_MOCK_MODELS`.
 
+`USE_MOCK_MODELS` có ba giá trị: `true` (mọi module mock), `false` (mọi module thật; module chưa có
+mô hình thật thì lỗi), `mixed` (module có trong `_REAL_FACTORIES` dùng thật, còn lại dùng mock).
+
 Khi một task mô hình thật xong (ví dụ FACE-02), đăng ký vào `_REAL_FACTORIES`
 và cập nhật `ml/configs/models.yaml`.
 """
@@ -36,20 +39,45 @@ def _voice_challenge() -> Detector:
     return VoiceChallengeDetector()
 
 
+@lru_cache(maxsize=1)
+def _face_pad() -> Detector:
+    from vericlue_ml.face.pad import FacePadDetector
+
+    return FacePadDetector()
+
+
 _REAL_FACTORIES: dict[Module, Callable[[], Detector]] = {
     Module.VOICE_CHALLENGE: _voice_challenge,
+    Module.FACE_PAD: _face_pad,
 }
+
+TRUE_VALUES = frozenset({"1", "true", "yes", "on"})
+MIXED = "mixed"
+
+
+def mock_mode() -> bool | str:
+    """Đọc `USE_MOCK_MODELS`: True, False hoặc "mixed" (mặc định true)."""
+    value = os.getenv("USE_MOCK_MODELS", "true").strip().lower()
+    return MIXED if value == MIXED else value in TRUE_VALUES
 
 
 def use_mock_models() -> bool:
-    """Đọc `USE_MOCK_MODELS` (mặc định true — chạy được ngay khi chưa có mô hình)."""
-    return os.getenv("USE_MOCK_MODELS", "true").strip().lower() in {"1", "true", "yes", "on"}
+    """Đọc `USE_MOCK_MODELS` (mặc định true). Chế độ `mixed` KHÔNG phải mock toàn phần."""
+    return mock_mode() is True
 
 
-def get_detector(name: str | Module, *, mock: bool | None = None) -> Detector:
-    """Trả bộ phát hiện cho `name`. `mock=None` thì theo biến môi trường."""
+def get_detector(name: str | Module, *, mock: bool | str | None = None) -> Detector:
+    """Trả bộ phát hiện cho `name`. `mock=None` thì theo biến môi trường.
+
+    `mock` nhận True, False hoặc "mixed" (module có mô hình thật thì dùng thật, còn lại mock).
+    """
     module = Module(name)
-    if mock if mock is not None else use_mock_models():
+    mode = mock_mode() if mock is None else mock
+    if isinstance(mode, str):
+        mode = MIXED if mode.strip().lower() == MIXED else mode.strip().lower() in TRUE_VALUES
+    if mode == MIXED:
+        mode = module not in _REAL_FACTORIES
+    if mode:
         return MOCK_DETECTORS[module]
     factory = _REAL_FACTORIES.get(module)
     if factory is None:
