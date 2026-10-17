@@ -36,8 +36,16 @@ def _voice_challenge() -> Detector:
     return VoiceChallengeDetector()
 
 
+@lru_cache(maxsize=1)
+def _voice_spoof() -> Detector:
+    from vericlue_ml.voice.antispoof import AntiDeepfakeDetector
+
+    return AntiDeepfakeDetector()
+
+
 _REAL_FACTORIES: dict[Module, Callable[[], Detector]] = {
     Module.VOICE_CHALLENGE: _voice_challenge,
+    Module.VOICE_SPOOF: _voice_spoof,
 }
 
 

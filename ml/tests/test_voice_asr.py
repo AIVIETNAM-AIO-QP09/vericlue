@@ -252,9 +252,14 @@ def test_decoder_resamples_stereo_and_rejects_invalid_audio(monkeypatch):
 
 
 def test_registry_reuses_real_detector_without_loading_weights():
-    from vericlue_ml.registry import get_detector
+    from vericlue_ml.registry import _voice_challenge, get_detector
 
-    a = get_detector("voice_challenge", mock=False)
-    assert get_detector("voice_challenge", mock=False) is a
-    assert a.asr._model is None
-    assert get_detector("voice_challenge", mock=True).version.startswith("mock@")
+    # Earlier API lifespan tests may have preloaded this process-wide factory.
+    _voice_challenge.cache_clear()
+    try:
+        a = get_detector("voice_challenge", mock=False)
+        assert get_detector("voice_challenge", mock=False) is a
+        assert a.asr._model is None
+        assert get_detector("voice_challenge", mock=True).version.startswith("mock@")
+    finally:
+        _voice_challenge.cache_clear()
