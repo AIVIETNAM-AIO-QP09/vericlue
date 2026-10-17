@@ -96,6 +96,13 @@
 - [ ] Chọn mô hình **chỉ dựa trên `calib_fit`**, không nhìn `calib_ltt` hay tập test.
 - [ ] `ml/configs/models.yaml` trỏ tới mô hình đã chọn.
 
+**Cập nhật trưởng nhóm 17/10 (thay một phần các bước trên):**
+- **GenD:** tinh chỉnh trên **deepfake người Việt tự tạo (DATA-04, phần train)** + video thật **ViCocktail** (phần train). **RTFS-10k và WildDeepfake chỉ làm test** (DATA-03: gộp theo người cho mặt thì RTFS dính thành một khối, không chia sạch được). R2 "sau" đo trên RTFS test + phần test của DATA-04.
+- **PAD:** tinh chỉnh **chỉ trên Zalo 2022 (train)**. **FAS-VN chỉ làm test** (trùng byte giữa train/test gốc, không có mã người). CelebA-Spoof đang bị bỏ qua — không bắt buộc.
+- **DINOv2 chưa có** trong `models/manifest.yaml`: bổ sung (ghim revision, SHA-256, kiểm giấy phép) trước khi làm PAD mới; nếu không kịp thì giữ MiniFASNet.
+- **Hai bước:** viết script trong repo, **chạy thử nhỏ trên máy** (RTX 4050 6 GB đủ cho PAD và chạy thử GenD), rồi chạy thật trên **Kaggle** (dự phòng: Colab, thuê GPU). Cùng một script, chỉ khác tham số.
+- **Luật khi chạy cloud:** notebook kéo repo đúng commit và ghi commit; dữ liệu tải lên để **Private**; token để trong Secrets; chọn checkpoint chỉ trên `calib_fit`; trọng số mang về `MODELS_DIR/finetuned/<tên>/<ngày>/` kèm SHA-256 và `card.md`, không commit.
+
 ---
 
 ### FACE-05 · Tối ưu tốc độ

@@ -151,6 +151,8 @@ xuyên bộ. DATA-01 vẫn review cho đến nghiệm thu đủ danh mục.
 
 **Lưu ý:** công cụ tấn công chỉ cài trên máy red-team, không đưa vào repo.
 
+**Quyết định trưởng nhóm 17/10:** **không dùng mặt/giọng của thành viên nhóm**, không thu dữ liệu người thật. Chỉ dùng ảnh người nổi tiếng công khai (`vn_celeb_faces`) và video `ViCocktail`. Dữ liệu tạo ra **kế thừa tập** của nguồn theo nhóm DATA-03 đã chuẩn bị (union video ViCocktail ∪ người vn_celeb). Chỉ dùng nội bộ, xóa sau dự án.
+
 ---
 
 ### DATA-05 · Biến thể nén kiểu mạng xã hội

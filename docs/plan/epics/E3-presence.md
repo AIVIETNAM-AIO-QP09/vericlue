@@ -31,6 +31,12 @@
 
 **Lưu ý:** nếu trình duyệt không có `captureTime`, dùng `now` của rVFC trừ đi độ trễ ước lượng, và ghi rõ là giới hạn.
 
+**Quyết định trưởng nhóm 17/10 — đóng thẻ, không thu dữ liệu thiết bị:**
+- Nhóm quyết định **không thu dữ liệu ChromaPulse trên điện thoại thật** (quá tải). Không có số liệu nên không đạt điều kiện "giữ làm cổng chính".
+- Theo đúng luật của thẻ: **ChromaPulse hạ xuống tín hiệu phụ**. Code và trang nháy màu vẫn giữ, vẫn chạy trong luồng và trong demo; quyết định chính dựa vào PAD, GenD, AntiDeepfake và bước đọc câu.
+- **Không tuyên bố** trong báo cáo rằng ChromaPulse phát hiện được tấn công (luật 9). Ghi "đã xây dựng, chưa kiểm chứng trên thiết bị thật".
+- Nếu sau này có người tự nguyện thu dữ liệu thì mở lại thẻ.
+
 ---
 
 ### PRES-02 · Mô-đun chromapulse.py
@@ -114,3 +120,5 @@
 - [ ] Bảng R5 ghi rõ đây là **kết quả chạy thử**, không phải tuyên bố thống kê.
 - [ ] Ngưỡng được đội đồng ý trong buổi họp.
 - [ ] Video phát lại trên `data/selftest/` bị xóa sau khi xong.
+
+**Quyết định trưởng nhóm 17/10:** không tổ chức chạy thử với thành viên nhóm (không thu dữ liệu người thật). R5 bỏ, hoặc thay bằng đánh giá trên dữ liệu tổng hợp (DATA-04) nếu kịp — ghi rõ là dữ liệu tổng hợp.
