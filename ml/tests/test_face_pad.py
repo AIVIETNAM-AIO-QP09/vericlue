@@ -76,16 +76,18 @@ def test_one_face_ok(image_path):
     r = run(detector([box(100)], FakeClassifier(0.8)), image_path)
     assert r.status == Status.OK and r.is_usable
     assert r.module == Module.FACE_PAD.value
-    assert r.prob_attack == pytest.approx(0.2)
+    assert r.score == pytest.approx(0.2)
+    assert r.prob_attack is None  # xác suất sau hiệu chỉnh do TrustRouter tính
     assert 0.0 <= r.score <= 1.0
     assert isinstance(r.model_version, str) and r.model_version
     assert r.latency_ms >= 0
     valid(r)
 
 
-def test_prob_attack_is_one_minus_p_real(image_path):
+def test_score_is_one_minus_p_real(image_path):
     r = run(detector([box(100)], FakeClassifier(0.05)), image_path)
-    assert r.prob_attack == pytest.approx(0.95)
+    assert r.score == pytest.approx(0.95)
+    assert r.prob_attack is None
 
 
 def test_no_face_not_applicable(image_path):
@@ -279,7 +281,9 @@ def test_classifier_p_real_uses_label_one_and_nchw_float32():
 @pytest.mark.parametrize("kind", ["noise", "flat"])
 def test_real_weights_never_error_on_faceless_image(tmp_path, kind):
     pytest.importorskip("onnxruntime")
-    models = Path(os.environ.get("MODELS_DIR") or r"D:\Projects\vericlue-store\models")
+    if not os.environ.get("MODELS_DIR"):
+        pytest.skip("đặt MODELS_DIR để chạy test với trọng số thật")
+    models = Path(os.environ["MODELS_DIR"])
     needed = (models / "minifasnet" / "minifasnet_v2.onnx", models / "scrfd-10g" / "det_10g.onnx")
     if not all(p.is_file() for p in needed):
         pytest.skip("thiếu trọng số minifasnet / scrfd-10g")
@@ -292,3 +296,19 @@ def test_real_weights_never_error_on_faceless_image(tmp_path, kind):
     result = FacePadDetector(models).predict(DetectorInput(images=[path]))
     assert result.status in {Status.OK, Status.NOT_APPLICABLE}
     valid(result)
+
+
+def test_preload_with_other_models_dir_requires_restart(tmp_path):
+    class F:
+        def find(self, image):
+            return []
+
+    class C:
+        def p_real(self, image, box):
+            return 0.5
+
+    det = FacePadDetector(finder=F(), classifier=C())
+    det._loaded_root = (tmp_path / "a").resolve()
+    det.preload(models_dir=tmp_path / "a")  # cùng thư mục: không sao
+    with pytest.raises(pad.PadError, match="restart"):
+        det.preload(models_dir=tmp_path / "b")

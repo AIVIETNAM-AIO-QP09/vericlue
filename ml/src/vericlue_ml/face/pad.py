@@ -1,11 +1,12 @@
 """FACE-01 — PAD (chống ảnh in / màn hình phát lại) bằng MiniFASNet V2 chạy qua onnxruntime.
 
 Luồng: ảnh → SCRFD `det_10g` tìm mặt → cắt vùng quanh mặt (hệ số 2,7) → MiniFASNet → softmax →
-`prob_attack = 1 - p_real`. Không có mặt → `not_applicable`; hai mặt cỡ tương đương → `degraded`
+`score = 1 - p_real` (điểm thô; `prob_attack` để trống chờ hiệu chỉnh). Không có mặt → `not_applicable`; hai mặt cỡ tương đương → `degraded`
 (không bao giờ được coi là đạt); thiếu trọng số, sai SHA-256 hay lỗi bất kỳ → `error`.
 
 Trọng số đọc từ `MODELS_DIR/<id trong models/manifest.yaml>/<file>` và kiểm SHA-256 theo manifest.
-Mã KHÔNG gọi mạng. `prob_attack` ở đây CHƯA hiệu chỉnh (calibration thuộc FACE-04 / ROUT-*).
+Mã KHÔNG gọi mạng. `prob_attack` là xác suất SAU hiệu chỉnh (architecture §3) nên ở đây luôn None;
+TrustRouter tự hiệu chỉnh từ `score` bằng calibrator của đúng `model_version` (ROUT-01).
 
 Nguồn tiền xử lý và giải mã (chép lại, giữ giấy phép — xem `third_party/README.md`):
 - uniface 4.0.0 (MIT, Copyright 2025-2026 Yakhyokhuja Valikhujaev, https://github.com/yakhyo/uniface):
@@ -288,16 +289,24 @@ class FacePadDetector:
         self._finder, self._classifier = finder, classifier
         self.version = "minifasnet-v2+scrfd-10g" if finder is None else "minifasnet-v2+injected"
         self._lock = threading.Lock()
+        self._loaded_root: Path | None = None
 
     def preload(self, *, models_dir: Path | str | None = None, device: str | None = None) -> None:
         with self._lock:
-            if self._finder is not None and self._classifier is not None:
-                return
             root = _models_root(models_dir if models_dir is not None else self._models_dir)
+            if self._finder is not None and self._classifier is not None:
+                if (
+                    models_dir is not None
+                    and self._loaded_root is not None
+                    and root.resolve() != self._loaded_root
+                ):
+                    raise PadError("PAD đã nạp với MODELS_DIR khác; cần restart.")
+                return
             pad_path, pad_rev = _verified_weights(root, PAD_MODEL_ID, PAD_FILE)
             det_path, det_rev = _verified_weights(root, DETECTOR_MODEL_ID, DETECTOR_FILE)
             self._classifier = MiniFasNetClassifier(_session(pad_path, device))
             self._finder = ScrfdFaceFinder(_session(det_path, device))
+            self._loaded_root = root.resolve()
             self.version = f"minifasnet-v2@{pad_rev[:8]}+scrfd-10g@{det_rev[:8]}"
 
     def predict(self, inp: DetectorInput) -> ModuleResult:
@@ -337,7 +346,6 @@ class FacePadDetector:
             return result(
                 Status.OK,
                 score=1.0 - p_real,
-                prob_attack=min(1.0, max(0.0, 1.0 - p_real)),
                 quality={
                     "faces": float(len(faces)),
                     "face_area_ratio": largest.area / float(height * width),

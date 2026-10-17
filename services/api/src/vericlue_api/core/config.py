@@ -58,6 +58,12 @@ class Settings(BaseSettings):
     forensic_ttl_days: int | None = Field(default=None, gt=0)
     media_cleanup_interval_seconds: float = Field(default=300, gt=0)
 
+    @field_validator("use_mock_models", mode="before")
+    @classmethod
+    def _normalize_mock_mode(cls, value):
+        """`MIXED`/` mixed ` cũng chạy, giống registry; giá trị lạ vẫn bị pydantic từ chối."""
+        return value.strip().lower() if isinstance(value, str) else value
+
     @field_validator("forensic_ttl_days", mode="before")
     @classmethod
     def blank_disables_forensic_expiration(cls, value):

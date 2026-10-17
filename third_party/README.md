@@ -22,9 +22,9 @@ Giữ nguyên thông báo Apache-2.0 khi phân phối. Sau này gộp mô hình 
 
 ## FACE-01
 
-| Nguồn | Giấy phép | Chép vào đâu | Đã sửa gì |
-|---|---|---|---|
-| [uniface](https://github.com/yakhyo/uniface) 4.0.0 — `spoofing/minifasnet.py` (tiền xử lý cắt theo `scale`, softmax), `detection/scrfd.py` và `common.py` (letterbox, giải mã anchor, NMS) | MIT, Copyright 2025-2026 Yakhyokhuja Valikhujaev | `ml/src/vericlue_ml/face/pad.py` (viết lại gọn; docstring giữ nguồn và giấy phép) | Chạy `onnxruntime` trực tiếp từ `MODELS_DIR`, kiểm SHA-256, không tải mạng; không phụ thuộc `uniface`. Điểm p_real đã đối chiếu với `uniface` gốc trên 4 khung hình, khớp tới 6 chữ số |
+| Nguồn | Giấy phép | Chép vào đâu | Đã sửa gì | Task |
+|---|---|---|---|---|
+| [uniface](https://github.com/yakhyo/uniface) 4.0.0 — `spoofing/minifasnet.py` (tiền xử lý cắt theo `scale`, softmax), `detection/scrfd.py` và `common.py` (letterbox, giải mã anchor, NMS) | MIT, Copyright 2025-2026 Yakhyokhuja Valikhujaev | `ml/src/vericlue_ml/face/pad.py` (viết lại gọn; docstring giữ nguồn và giấy phép) | Chạy `onnxruntime` trực tiếp từ `MODELS_DIR`, kiểm SHA-256, không tải mạng; không phụ thuộc `uniface`. Điểm p_real đã đối chiếu với `uniface` gốc trên 4 khung hình, khớp tới 6 chữ số. Văn bản giấy phép: `third_party/licenses/uniface.txt` | FACE-01 |
 
 Trọng số (không commit, tải bằng `scripts/download_models.py`, theo `models/manifest.yaml`):
 

@@ -2,7 +2,7 @@
 
 ## PAD: `pad.py` (FACE-01, bước 1 — bọc mô hình)
 
-`FacePadDetector` (module `face_pad`): ảnh → SCRFD `det_10g` tìm mặt → MiniFASNet V2 → `prob_attack = 1 − p_real`.
+`FacePadDetector` (module `face_pad`): ảnh → SCRFD `det_10g` tìm mặt → MiniFASNet V2 → `score = 1 − p_real`; `prob_attack` để trống (xác suất sau hiệu chỉnh do TrustRouter tính từ `score`).
 Chạy bằng `onnxruntime` trực tiếp, KHÔNG thêm `uniface` vào dependency. Cài: `uv sync --all-packages --extra face`.
 
 ### Thẻ mô hình (chưa tinh chỉnh)
@@ -13,7 +13,7 @@ Chạy bằng `onnxruntime` trực tiếp, KHÔNG thêm `uniface` vào dependenc
 | PAD | MiniFASNet V2 (`minifasnet_v2.onnx`), nguồn `yakhyo/uniface-weights`, giấy phép trọng số Apache-2.0 theo `models/manifest.yaml`, SHA-256 `b32929ad…463907` |
 | Bộ tìm mặt | SCRFD `det_10g.onnx` (cùng repo), **giấy phép nghiên cứu phi thương mại** (xem Q8 trong STATUS); GenD cũng dùng nó |
 | Mã chép | tiền xử lý và giải mã từ `uniface` 4.0.0 (MIT) — ghi ở `third_party/README.md` |
-| Hiệu chỉnh | CHƯA. `prob_attack` là xác suất thô của softmax; hiệu chỉnh ở FACE-04 / ROUT-* |
+| Hiệu chỉnh | CHƯA. `score` là điểm thô (1 − p_real của softmax); `prob_attack` luôn trống; calibrator `face_pad` thuộc ROUT-01 / FACE-04 |
 | Dữ liệu huấn luyện | không tinh chỉnh ở bước này |
 | Kết quả R1 | CHƯA có (chờ DATA-03 ảnh + EVAL-01) |
 
@@ -38,6 +38,8 @@ Mã **không gọi mạng**: thiếu file hoặc sai SHA-256 là `error`.
 - Mặc định dùng CUDA nếu `onnxruntime-gpu` có sẵn (cài `onnxruntime-gpu` thay cho `onnxruntime`), ngược lại CPU. `DEVICE=cpu` ép CPU.
 
 ### Thử nhanh qua Swagger (chế độ `mixed`)
+
+> `mixed` là chế độ **demo/phát triển**, không phải chế độ an toàn: module mock vẫn trả kết quả giả. Không dùng để đánh giá hay báo cáo số liệu.
 
 ```bash
 uv sync --all-packages --extra face

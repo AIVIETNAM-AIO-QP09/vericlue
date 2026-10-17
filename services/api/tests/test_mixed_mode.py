@@ -101,3 +101,44 @@ def test_failed_face_pad_never_yields_pass(mixed_client):
     assert res.status_code == 200
     # face_pad lỗi (không có trọng số) thì không bao giờ được 'pass'
     assert res.json() == {"status": "review"}  # hành vi quan sát được: lỗi → bàn duyệt
+
+
+def test_face_pad_ok_without_calibrator_still_goes_to_review(monkeypatch, tmp_path):
+    """face_pad chạy ok (p_real cao) nhưng chưa có calibrator → router không cho pass → review."""
+    cv2 = pytest.importorskip("cv2")
+    import numpy as np
+
+    from vericlue_ml import registry
+    from vericlue_ml.common.result import Module
+    from vericlue_ml.face.pad import FaceBox, FacePadDetector
+
+    seen = []
+
+    class Finder:
+        def find(self, image):
+            seen.append(image.shape)
+            return [FaceBox(10, 10, 90, 90, 0.99)]
+
+    class Classifier:
+        def p_real(self, image, box):
+            return 0.99
+
+    detector = FacePadDetector(finder=Finder(), classifier=Classifier())
+    monkeypatch.setitem(registry._REAL_FACTORIES, Module.FACE_PAD, lambda: detector)
+    ok, png = cv2.imencode(".png", np.full((120, 120, 3), 127, np.uint8))
+    assert ok
+    with make_client(monkeypatch, tmp_path, "mixed") as client:
+        body, auth = start_session(client, "genuine")
+        base = f"/v1/sessions/{body['session_id']}"
+        files = {"image": ("face.png", png.tobytes(), "image/png")}
+        assert client.post(f"{base}/media", headers=auth, files=files).status_code == 200
+        assert client.post(f"{base}/signals", headers=auth, json=SIGNALS).status_code == 200
+        res = client.post(f"{base}/finalize", headers=auth)
+    assert seen, "face_pad giả phải được gọi"
+    assert res.status_code == 200
+    assert res.json() == {"status": "review"}
+
+
+def test_settings_normalizes_mixed_case():
+    assert Settings(use_mock_models=" MIXED ").use_mock_models == "mixed"
+    assert Settings(use_mock_models="TRUE").use_mock_models is True
