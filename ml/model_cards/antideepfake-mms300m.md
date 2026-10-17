@@ -82,8 +82,23 @@ backend ánh xạ trên những window này; không chứng minh EER hay calibra
 - Môi trường nghiệm thu hiện cài Torch CPU. Code hỗ trợ CUDA fp16, từng window, batch 1;
   chưa có phép đo VRAM/latency trên RTX 4050 6 GB trong smokeCPU này. Cần Torch CUDA
   phù hợp và đặt DEVICE=cuda để chạy GPU, không tự rơi về CPU nếu CUDA lỗi.
+  Thử tải wheel CUDA trong môi trường tách riêng bị gián đoạn nhiều lần; đã dừng
+  và giữ phần tải hoàn tất để tiếp tục sau. Không coi hỗ trợ code là GPU đã nghiệm thu.
 - Decoder giới hạn120 s mỗi predict để chặn input quá lớn; FOR-01 chia đoạn dài.
 - CPU chậm, file dài/queue có thể vượt budget API 4 s; timeout do orchestrator xử lý,
   không dùng kết quả muộn để pass. API Settings preload và mixedintegration do PRsau.
 - Thiếu/corrupt model, thiếu dependency, lỗi/OOM hoặc outputNaN → error, không mockfallback.
 - Im lặng/<1s → not_applicable. Không sinh R3, không fit/chọn trên calib_ltt/test.
+
+## Latency CPU của smoke (không phải SLA)
+
+Sau preload, mỗi file chạy một lần; gồm decode/VAD/window inference, không gồm nạp mô hình:
+
+| File | Window | Latency ms |
+|---|---:|---:|
+| correct.wav | 1 | 3141.531 |
+| wrong.wav | 1 | 2121.565 |
+| 00000.wav | 1 | 2012.300 |
+| 00001.wav | 6 | 19747.897 |
+
+Máy/môi trường/commit như smoke ở trên; file dài trên CPU vượt budget API. Đây là phép đo từng mẫu, không phải percentile hay benchmark đại diện.

@@ -11,7 +11,8 @@
 """Offline MMS-300M AntiDeepfake; research/noncommercial checkpoint only.
 
 Sources: AntiDeepfake@0dea622bde8f064c8ee5a557f2598643123fc6b6
-models/W2V.py#L69-L98 (temporal average pooling + original Linear head).
+models/W2V.py#L69-L98 (temporal average pooling + original Linear head):
+https://github.com/nii-yamagishilab/AntiDeepfake/blob/0dea622bde8f064c8ee5a557f2598643123fc6b6/models/W2V.py#L69-L98
 HF README@7928e119e09f616b2ce698892e00ca22dbaa40bf#L75-L185:
 mono/16k/layer_norm; class 0=fake, 1=real (final inference print).
 https://huggingface.co/nii-yamagishilab/mms-300m-anti-deepfake/blob/7928e119e09f616b2ce698892e00ca22dbaa40bf/README.md
