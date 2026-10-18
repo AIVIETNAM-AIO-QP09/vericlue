@@ -12,6 +12,9 @@ export type StepAck = Schemas["StepAck"];
 export type FinalizeResponse = Schemas["FinalizeResponse"];
 export type VoiceResponse = Schemas["VoiceResponse"];
 export type ErrorResponse = Schemas["ErrorResponse"];
+export type ReviewCase = Schemas["ReviewCase"];
+export type ReviewCaseList = Schemas["ReviewCaseList"];
+export type ReviewAiOpinion = Schemas["ReviewAiOpinion"];
 
 export class ApiError extends Error {
   constructor(
@@ -111,6 +114,32 @@ export function createApiClient(options: ApiClientOptions = {}) {
       return request<VoiceResponse>("POST", `/v1/sessions/${encodeURIComponent(sessionId)}/voice`, {
         token,
         form,
+        signal,
+      });
+    },
+    // --- Bàn duyệt (chỉ trang thử nội bộ /lab/session dùng; người dân không bao giờ gọi) ---
+    listReviewCases(signal?: AbortSignal) {
+      return request<ReviewCaseList>("GET", "/v1/review/cases", { signal });
+    },
+    getReviewCase(caseId: string, signal?: AbortSignal) {
+      return request<ReviewCase>("GET", `/v1/review/cases/${encodeURIComponent(caseId)}`, {
+        signal,
+      });
+    },
+    recordInitialDecision(
+      caseId: string,
+      decision: "accept" | "reject" | "request_retry",
+      note: string,
+      signal?: AbortSignal,
+    ) {
+      return request<Schemas["DecisionResponse"]>(
+        "POST",
+        `/v1/review/cases/${encodeURIComponent(caseId)}/initial`,
+        { json: { decision, note }, signal },
+      );
+    },
+    getAiOpinion(caseId: string, signal?: AbortSignal) {
+      return request<ReviewAiOpinion>("GET", `/v1/review/cases/${encodeURIComponent(caseId)}/ai`, {
         signal,
       });
     },
