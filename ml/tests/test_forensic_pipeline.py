@@ -17,8 +17,16 @@ from vericlue_ml.common.result import (
     ModuleResult,
     Status,
 )
-from vericlue_ml.forensic.media import AudioUnavailable, MediaError, MediaInfo, _write_wav
+from vericlue_ml.forensic.media import (
+    MAX_DECODE_SECONDS,
+    AudioUnavailable,
+    MediaError,
+    MediaInfo,
+    _write_wav,
+)
 from vericlue_ml.forensic.pipeline import (
+    FORENSIC_MODE,
+    FRAMES_PER_SEGMENT,
     MAX_DURATION_SECONDS,
     MIN_COVERAGE_FRACTION,
     ForensicPipeline,
@@ -53,8 +61,10 @@ class FakeSource:
         audio_error: str | None = None,
         full_audio_exc: Exception | None = None,
         path: Path | None = None,
+        n_frames: int = 2,
     ) -> None:
         self.info = info
+        self.n_frames = n_frames
         self.frames_ok = frames_ok
         self.audio_error = audio_error
         self.full_audio_exc = full_audio_exc
@@ -71,7 +81,7 @@ class FakeSource:
             return []
         outdir.mkdir(parents=True, exist_ok=True)
         paths = []
-        for i in range(2):
+        for i in range(self.n_frames):
             p = outdir / f"f{i}.png"
             p.write_bytes(b"x")
             paths.append(p)
@@ -776,3 +786,107 @@ def test_workdir_do_nguoi_goi_cung_cap_khong_bi_xoa(tmp_path):
     build(low_detectors(), workdir=work).run(source)
     assert work.exists()
     assert all(work in o.parents for o in source.outdirs)
+
+
+# --- quy tắc mới: chỉ `error` chặn; degraded/not_applicable chỉ tính vào độ phủ ----------------------
+
+
+def _degraded(module: Module) -> ModuleResult:
+    return make_result(module, status=Status.DEGRADED, error_code=ErrorCode.E_LOW_QUALITY)
+
+
+def _err(module: Module) -> ModuleResult:
+    return make_result(module, status=Status.ERROR, error_code=ErrorCode.E_INTERNAL)
+
+
+def test_3_ok_3_degraded_dung_50_phan_tram_la_authentic():
+    d = _degraded(FACE)
+    analysis = build(low_detectors(**{FACE: [0.1, 0.1, 0.1, d, d, d]})).run(
+        FakeSource(video_info())
+    )
+    assert [s.status for s in sigs(analysis, FACE)] == ["ok"] * 3 + ["degraded"] * 3
+    assert analysis.verdict == "authentic"
+
+
+def test_3_ok_xen_ke_degraded_va_not_applicable_van_authentic():
+    d, na = _degraded(FACE), _na(FACE)
+    analysis = build(low_detectors(**{FACE: [0.1, d, 0.1, na, 0.1, d]})).run(
+        FakeSource(video_info())
+    )
+    assert analysis.verdict == "authentic"
+    assert analysis.suspect_intervals == []
+
+
+def test_2_ok_con_lai_degraded_la_inconclusive_vi_phu_thap_khong_vi_loi():
+    d = _degraded(FACE)
+    analysis = build(low_detectors(**{FACE: [0.1, 0.1, d, d, d, d]})).run(FakeSource(video_info()))
+    assert analysis.verdict == "inconclusive"
+    assert "chỉ 2/6" in analysis.verdict_reason
+    assert "bị lỗi" not in analysis.verdict_reason
+    assert "lỗi hoặc không dùng được" not in analysis.verdict_reason
+
+
+def test_chi_mot_doan_error_van_chan_du_do_phu_du():
+    scores = [0.1, 0.1, 0.1, 0.1, 0.1, _err(FACE)]  # 5/6 ok
+    analysis = build(low_detectors(**{FACE: scores})).run(FakeSource(video_info()))
+    assert analysis.verdict == "inconclusive"
+    assert "1/6 đoạn bị lỗi" in analysis.verdict_reason
+    assert "chỉ " not in analysis.verdict_reason  # không phải vì phủ thấp
+
+
+def test_error_cua_voice_bat_buoc_cung_chan():
+    scores = [0.1, _err(VOICE), 0.1, 0.1, 0.1, 0.1]
+    analysis = build(low_detectors(**{VOICE: scores})).run(FakeSource(video_info()))
+    assert analysis.verdict == "inconclusive"
+    assert "voice_spoof: 1/6 đoạn bị lỗi" in analysis.verdict_reason
+
+
+def test_degraded_khong_chan_khi_phu_du_nhung_van_suspect_neu_vuot_nguong():
+    d = _degraded(FACE)
+    analysis = build(low_detectors(**{FACE: [0.1, 0.95, 0.1, d, d, d]})).run(
+        FakeSource(video_info())
+    )
+    assert analysis.verdict == "suspect"
+
+
+def test_unavailable_toan_bo_do_khong_giai_ma_duoc_tieng_la_inconclusive():
+    source = FakeSource(video_info(has_audio=None), audio_error="Không giải mã được tiếng.")
+    analysis = build(low_detectors()).run(source)
+    assert all(s.status == "unavailable" for s in sigs(analysis, VOICE))
+    assert analysis.verdict == "inconclusive"
+    assert "Không giải mã được tiếng." in analysis.verdict_reason
+
+
+# --- số khung và chế độ giám định --------------------------------------------------------------------
+
+
+def test_frames_per_segment_mac_dinh_la_8_va_pipeline_goi_8_khung_moi_doan():
+    assert FRAMES_PER_SEGMENT == 8
+    source = FakeSource(video_info(), n_frames=8)
+    build(low_detectors()).run(source)  # không truyền frames_per_segment
+    assert len(source.frame_calls) == N_SEGMENTS
+    assert [c[2] for c in source.frame_calls] == [8] * N_SEGMENTS
+
+
+def test_face_nhan_metadata_mode_forensic_va_dung_so_anh_nguon_tra_ve():
+    assert FORENSIC_MODE == "forensic"
+    detectors = low_detectors()
+    source = FakeSource(video_info(), n_frames=5)
+    build(detectors).run(source)
+    calls = detectors[FACE].calls
+    assert len(calls) == N_SEGMENTS
+    for call in calls:
+        assert call.metadata == {"mode": "forensic"}
+        assert len(call.images) == 5 <= FRAMES_PER_SEGMENT
+
+
+def test_voice_khong_bi_gan_mode_forensic():
+    detectors = low_detectors()
+    build(detectors).run(FakeSource(video_info()))
+    assert detectors[VOICE].calls
+    assert all(c.metadata == {} for c in detectors[VOICE].calls)
+    assert all(c.audio is not None and not c.images for c in detectors[VOICE].calls)
+
+
+def test_tran_do_dai_pipeline_bang_tran_giai_ma_media():
+    assert MAX_DURATION_SECONDS == MAX_DECODE_SECONDS == 600

@@ -13,6 +13,7 @@ import pytest
 
 from vericlue_ml.forensic import media
 from vericlue_ml.forensic.media import (
+    MAX_DECODE_SECONDS,
     TARGET_SAMPLE_RATE,
     AudioUnavailable,
     FileMediaSource,
@@ -421,6 +422,10 @@ def test_ffmpeg_goi_voi_protocol_whitelist_file_pipe_va_khong_qua_shell(fake_too
     assert _arg_after(command, "-ar") == "16000" and _arg_after(command, "-ac") == "1"
     assert not kwargs.get("shell")
     assert kwargs.get("timeout")
+    assert MAX_DECODE_SECONDS == 600
+    assert _arg_after(command, "-t") == str(MAX_DECODE_SECONDS)
+    assert command.index("-t") < command.index("-f")  # giới hạn trước định dạng đầu ra
+    assert _arg_after(command, "-f") == "s16le"
 
 
 def test_ffprobe_goi_voi_protocol_whitelist_file_pipe(fake_tools, tmp_path):

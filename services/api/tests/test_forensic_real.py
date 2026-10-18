@@ -19,7 +19,7 @@ from test_mixed_mode import make_client
 
 from vericlue_api.db.models import ForensicJobRow, ForensicSegmentRow
 from vericlue_api.services import forensic_runner
-from vericlue_api.services.forensic_service import ForensicStore
+from vericlue_api.services.forensic_service import LIMITATIONS_VI, ForensicStore
 from vericlue_ml.common.result import ErrorCode, Module, ModuleResult, Status
 from vericlue_ml.forensic.media import MediaError, MediaInfo
 from vericlue_ml.forensic.pipeline import ForensicPipeline, Thresholds
@@ -625,3 +625,78 @@ def test_do_phu_duoi_50_phan_tram_thi_inconclusive(monkeypatch, tmp_path):
     assert job["status"] == "done"
     assert job["verdict"] == "inconclusive"
     assert "2/7" in job["verdict_reason"]
+    assert "chỉ" in job["verdict_reason"] and "đoạn phân tích được" in job["verdict_reason"]
+    assert "bị lỗi" not in job["verdict_reason"]
+
+
+LONG_VIDEO_NOTE = "Ngưỡng eKYC áp cho từng đoạn nên video dài dễ báo nghi ngờ nhầm."
+
+
+def test_bao_cao_that_neu_gioi_han_nguong_ekyc_cho_tung_doan(real_client):
+    assert LONG_VIDEO_NOTE in LIMITATIONS_VI
+    job_id, _ = _run(real_client)
+    html = real_client.get(f"/v1/forensic/jobs/{job_id}/report").text
+    assert LONG_VIDEO_NOTE in html
+    assert html.index("Giới hạn") < html.index(LONG_VIDEO_NOTE)
+
+
+class _Scripted(FakeDetector):
+    """Trạng thái từng lần gọi theo `script(i)`; chỉ lần `Status.OK` mới có xác suất."""
+
+    def __init__(self, module: Module, script) -> None:
+        super().__init__(module, lambda i: 0.05)
+        self._script = script
+
+    def predict(self, inp):
+        status = self._script(self.calls)
+        if status == Status.OK:
+            return super().predict(inp)
+        self.calls += 1
+        code = {
+            Status.NOT_APPLICABLE: ErrorCode.E_NO_FACE,
+            Status.DEGRADED: ErrorCode.E_LOW_QUALITY,
+            Status.ERROR: ErrorCode.E_INTERNAL,
+        }[status]
+        return ModuleResult(
+            module=self.module,
+            model_version=self.version,
+            status=status,
+            error_code=code,
+            latency_ms=1.0,
+        )
+
+
+def _scripted_job(monkeypatch, tmp_path, script) -> dict:
+    face = _Scripted(Module.FACE_DEEPFAKE, script)
+    monkeypatch.setattr(forensic_runner, "FileMediaSource", FakeSource)
+    monkeypatch.setattr(
+        forensic_runner,
+        "build_pipeline",
+        lambda root: _pipeline({Module.FACE_DEEPFAKE: face, Module.VOICE_SPOOF: _voice()}),
+    )
+    with make_client(monkeypatch, tmp_path, "false") as client:
+        _, job = _run(client)
+    assert job["status"] == "done"
+    return job
+
+
+def test_degraded_va_khong_ap_dung_nhung_phu_tu_50_phan_tram_thi_authentic(monkeypatch, tmp_path):
+    """7 đoạn: 2 degraded + 1 not_applicable + 4 ok (57%) và dưới ngưỡng → authentic."""
+    plan = [Status.DEGRADED, Status.DEGRADED, Status.NOT_APPLICABLE] + [Status.OK] * 4
+    job = _scripted_job(monkeypatch, tmp_path, lambda i: plan[i])
+    assert job["verdict"] == "authentic"
+    assert job["suspect_intervals"] == []
+    statuses = [
+        next(s for s in seg["signals"] if s["module"] == "face_deepfake")["status"]
+        for seg in job["segments"]
+    ]
+    assert statuses.count("degraded") == 2 and statuses.count("not_applicable") == 1
+
+
+def test_mot_doan_error_o_buoc_bat_buoc_thi_inconclusive_bi_loi(monkeypatch, tmp_path):
+    plan = [Status.OK] * 7
+    plan[3] = Status.ERROR
+    job = _scripted_job(monkeypatch, tmp_path, lambda i: plan[i])
+    assert job["verdict"] == "inconclusive"
+    assert "face_deepfake" in job["verdict_reason"]
+    assert "bị lỗi" in job["verdict_reason"]

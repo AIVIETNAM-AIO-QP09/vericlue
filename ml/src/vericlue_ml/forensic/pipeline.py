@@ -5,12 +5,14 @@ orchestrator không đủ cho phân tích video), nhưng vẫn:
 - đưa điểm thô qua calibrator của chính `model_version` (identity tạm theo ADR-0012; calibrator `forensic`
   riêng chưa có, chờ DATA-05) — thiếu calibrator thì đoạn đó là `error`, không dùng điểm thô;
 - dùng ngưỡng face.b/face.a và voice.spoof_threshold như eKYC (không sửa thresholds.yaml);
-- `error`/`degraded`/`unavailable` ở bước BẮT BUỘC không bao giờ cho ra `authentic`.
+- bước BẮT BUỘC thiếu mô hình (`unavailable`), có đoạn `error`, hoặc phân tích được quá ít đoạn không
+  bao giờ cho ra `authentic`.
 
 Kết luận (một chiều, ADR-0008): có bằng chứng giả (đoạn vượt ngưỡng hoặc thủy vân AI) → `suspect`;
-thiếu bước bắt buộc hoặc điểm nằm giữa hai ngưỡng → `inconclusive`; chỉ khi mọi bước bắt buộc đã chạy
-trên ít nhất một đoạn, không lỗi và dưới ngưỡng → `authentic` ("không phát hiện dấu hiệu", không phải
-chứng nhận thật).
+bước bắt buộc thiếu mô hình / có đoạn `error` / chỉ phân tích được dưới MIN_COVERAGE_FRACTION số đoạn,
+hoặc điểm nằm giữa hai ngưỡng → `inconclusive`; ngược lại → `authentic` ("không phát hiện dấu hiệu",
+không phải chứng nhận thật). Đoạn `degraded`/`not_applicable` (không mặt, im lặng, đầu vào kém) KHÔNG
+chặn cả video: chúng chỉ tính vào tỉ lệ phủ (quyết định trưởng nhóm khi duyệt PR #33).
 """
 
 from __future__ import annotations
@@ -24,7 +26,13 @@ from typing import Any
 
 from vericlue_ml.common.detector import Detector, DetectorInput
 from vericlue_ml.common.result import Module, ModuleResult, Status
-from vericlue_ml.forensic.media import AudioUnavailable, MediaError, MediaInfo, MediaSource
+from vericlue_ml.forensic.media import (
+    MAX_DECODE_SECONDS,
+    AudioUnavailable,
+    MediaError,
+    MediaInfo,
+    MediaSource,
+)
 from vericlue_ml.forensic.provenance import provenance_summary
 from vericlue_ml.forensic.segment import (
     INTERVAL_MARGIN_SECONDS,
@@ -32,16 +40,20 @@ from vericlue_ml.forensic.segment import (
     plan_segments,
 )
 
-# Số khung hình đưa cho face_deepfake trên mỗi đoạn 3 giây. Hằng số tạm (ADR-0012 mục 3): ít khung để
-# video 60 giây xong trong thời gian chấp nhận được trên CPU; tăng khi có GPU.
-FRAMES_PER_SEGMENT = 4
+# Số khung hình đưa cho face_deepfake trên mỗi đoạn 3 giây: 8 như eKYC (quyết định trưởng nhóm), KHÔNG dùng
+# 32 khung của chế độ giám định (39 đoạn × 32 khung quá chậm). Số khung do PIPELINE quyết bằng số ảnh truyền
+# vào; `metadata["mode"]="forensic"` chỉ để GenD biết đây là giám định (với `images` nó lấy tối đa số ảnh có).
+# Hằng số tạm (ADR-0012 mục 3).
+FRAMES_PER_SEGMENT = 8
 
 # Hằng số tạm (ADR-0012 mục 3), chưa đo trên dữ liệu thật.
 # Bước bắt buộc phải phân tích được ít nhất tỉ lệ này số đoạn mới được phép kết luận `authentic`: kẻ làm giả
 # có thể né bộ dò mặt ở đúng phần bị sửa, nên "có 1 đoạn ok" không đủ.
 MIN_COVERAGE_FRACTION = 0.5
 # Trần thời lượng (giây): file 50 MB có thể chứa hàng giờ âm thanh; phân tích CPU theo đoạn quá lâu.
-MAX_DURATION_SECONDS = 600.0
+MAX_DURATION_SECONDS = float(MAX_DECODE_SECONDS)
+# Giá trị DetectorInput.metadata["mode"] mà face_deepfake nhận ra là giám định.
+FORENSIC_MODE = "forensic"
 
 SEGMENT_MODULES = (Module.FACE_DEEPFAKE, Module.VOICE_SPOOF, Module.LIPSYNC)
 
@@ -243,7 +255,9 @@ class ForensicPipeline:
                         SignalOutcome(module.value, "error", reason="Không đọc được khung hình")
                     )
                     continue
-                signal = self._call(module, DetectorInput(images=frames))
+                signal = self._call(
+                    module, DetectorInput(images=frames, metadata={"mode": FORENSIC_MODE})
+                )
                 shutil.rmtree(seg_dir / "frames", ignore_errors=True)
             elif module == Module.VOICE_SPOOF:
                 try:
@@ -362,16 +376,16 @@ class ForensicPipeline:
             if not signals:
                 continue
             ok = [s for s in signals if s.status == "ok"]
-            bad = [s for s in signals if s.status in {"error", "degraded", "unavailable"}]
+            # Chỉ `error` (lỗi thật của bộ dò/calibrator) chặn cả video. `degraded`/`not_applicable`/
+            # `unavailable` của một đoạn chỉ làm giảm tỉ lệ phủ (MIN_COVERAGE_FRACTION).
+            errors = [s for s in signals if s.status == "error"]
             if not ok:
                 why = next(
                     (s.reason for s in signals if s.reason), "không có đoạn nào phân tích được"
                 )
                 problems.append(f"{module.value}: {why}")
-            elif bad:
-                problems.append(
-                    f"{module.value}: {len(bad)}/{len(signals)} đoạn lỗi hoặc không dùng được"
-                )
+            elif errors:
+                problems.append(f"{module.value}: {len(errors)}/{len(signals)} đoạn bị lỗi")
             elif len(ok) / len(signals) < MIN_COVERAGE_FRACTION:
                 problems.append(
                     f"{module.value}: chỉ {len(ok)}/{len(signals)} đoạn phân tích được "

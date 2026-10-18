@@ -49,6 +49,7 @@ LIMITATIONS_VI = (
     "Không phát hiện dấu hiệu không có nghĩa là thật; mô hình có thể bỏ sót kỹ thuật làm giả mới.",
     "Quét nguồn gốc là bằng chứng một chiều: thủy vân/C2PA có thì cho biết công cụ, không có thì không kết luận.",
     "Video đã nén nhiều lần có thể làm sai lệch điểm; ngưỡng là giá trị tạm chờ ROUT-03.",
+    "Ngưỡng eKYC áp cho từng đoạn nên video dài dễ báo nghi ngờ nhầm.",
 )
 
 

@@ -337,20 +337,78 @@ def test_backend_nem_loi_khong_nem_ra_ngoai(wav):
     assert r.score is None and r.prob_attack is None
     notes = " ".join(str(e.value) for e in _ev(r, EV_NOTE))
     assert "lỗi" in notes and "RuntimeError" in notes
+    assert "Quét chưa đầy đủ" in notes
     assert _value(r, EV_CONCLUSION) == CONCLUSION_NONE
     _assert_contract(r)
 
 
-def test_backend_loi_nhung_c2pa_chay_thi_ok(wav, tmp_path):
+def test_backend_loi_nhung_c2pa_chay_van_la_degraded(wav, tmp_path):
+    """AudioSeal lỗi khi quét thì quét CHƯA ĐẦY ĐỦ: degraded dù C2PA đọc ok và không có thủy vân."""
     r = _run(
         wav,
         audioseal=FakeAudioSeal(error=ValueError("x")),
         c2pa=_c2pa({"status": "ok", "present": False}),
         source=tmp_path / "f.wav",
     )
-    assert r.status == Status.OK
+    assert r.status == Status.DEGRADED
     assert r.score is None
-    assert any("ValueError" in str(e.value) for e in _ev(r, EV_NOTE))
+    assert _value(r, EV_CONCLUSION) == CONCLUSION_NONE
+    notes = " ".join(str(e.value) for e in _ev(r, EV_NOTE))
+    assert "ValueError" in notes
+    assert "Quét chưa đầy đủ" in notes
+
+
+def test_audioseal_loi_nhung_c2pa_phat_hien_ai_van_detected_va_degraded(wav, tmp_path):
+    c2pa = _c2pa(
+        {"status": "ok", "present": True, "valid": True, "ai_generated": True, "signer": "X"}
+    )
+    r = _run(
+        wav,
+        audioseal=FakeAudioSeal(error=RuntimeError("hỏng")),
+        c2pa=c2pa,
+        source=tmp_path / "f.wav",
+    )
+    assert r.status == Status.DEGRADED
+    assert _value(r, EV_CONCLUSION) == CONCLUSION_AI.format(tool="X")
+    summary = provenance_summary(r)
+    assert summary["watermark_detected"] is True
+    assert summary["status"] == "degraded"
+
+
+def test_audioseal_chay_ok_va_c2pa_ok_la_ok(wav, tmp_path):
+    r = _run(wav, c2pa=_c2pa({"status": "ok", "present": False}), source=tmp_path / "f.wav")
+    assert r.status == Status.OK
+    assert "Quét chưa đầy đủ" not in " ".join(str(e.value) for e in _ev(r, EV_NOTE))
+
+
+def test_khong_co_audio_c2pa_ok_khong_thuy_van_van_ok(tmp_path):
+    """Không có âm thanh để quét không phải lỗi: C2PA đã chạy thì vẫn OK."""
+    r = _run(
+        None,
+        c2pa=_c2pa({"status": "ok", "present": False}),
+        source=tmp_path / "f.mp4",
+        audio=False,
+    )
+    assert r.status == Status.OK
+    assert _value(r, EV_CONCLUSION) == CONCLUSION_NONE
+    assert "Quét chưa đầy đủ" not in " ".join(str(e.value) for e in _ev(r, EV_NOTE))
+
+
+def test_khong_co_audio_va_khong_source_file_la_degraded():
+    r = _run(None, audio=False)
+    assert r.status == Status.DEGRADED
+    assert _value(r, EV_CONCLUSION) == CONCLUSION_NONE
+
+
+def test_khong_nap_duoc_trong_so_c2pa_ok_khong_thuy_van_la_degraded(wav, tmp_path):
+    """Có âm thanh nhưng AudioSeal không có (chưa nạp): degraded dù C2PA ok."""
+    det = ProvenanceDetector(c2pa_reader=_c2pa({"status": "ok", "present": False}))
+    det._audioseal_error = prov.ProvenanceError("không nạp được trọng số")
+    r = det.predict(DetectorInput(audio=wav, metadata={"source_file": str(tmp_path / "f.wav")}))
+    assert r.status == Status.DEGRADED
+    assert _value(r, EV_CONCLUSION) == CONCLUSION_NONE
+    assert "Quét chưa đầy đủ" in " ".join(str(e.value) for e in _ev(r, EV_NOTE))
+    assert provenance_summary(r)["status"] == "degraded"
 
 
 def test_audio_khong_doc_duoc_khong_nem(tmp_path):
@@ -673,6 +731,7 @@ def test_thieu_trong_so_ghi_chu_khong_nem(monkeypatch, tmp_path, wav):
     assert r.status == Status.DEGRADED
     notes = " ".join(str(e.value) for e in _ev(r, EV_NOTE))
     assert "Thiếu trọng số" in notes
+    assert "Quét chưa đầy đủ" in notes
     assert _value(r, EV_CONCLUSION) == CONCLUSION_NONE
     assert r.prob_attack is None
     _assert_contract(r)

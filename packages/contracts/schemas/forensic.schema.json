@@ -30,7 +30,7 @@
             "additionalProperties": false,
             "properties": {
               "module": { "type": "string" },
-              "applicable": { "type": "boolean", "description": "false = cờ 'không áp dụng' (ví dụ im lặng, không có mặt)" },
+              "applicable": { "type": "boolean", "description": "true = tín hiệu dùng được cho đoạn này (status ok). false = không dùng được: không áp dụng (im lặng, không thấy mặt), đầu vào kém, lỗi hoặc chưa có mô hình thật; xem status và reason" },
               "prob_attack": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
               "status": { "oneOf": [{ "$ref": "#/$defs/SignalStatus" }, { "type": "null" }], "description": "Thêm sau v1: phân biệt không áp dụng với lỗi/chưa có mô hình" },
               "reason": { "type": ["string", "null"], "description": "Lý do ngắn (tiếng Việt) khi status khác ok" }

@@ -1,16 +1,18 @@
 """FOR-01 — đọc metadata và cắt khung/âm thanh theo đoạn cho giám định.
 
-Chọn công cụ (chạy được trên Windows, không cần cài ffmpeg riêng):
-- **ffprobe không có trên PATH** của máy dev Windows, nên KHÔNG dùng.
-- **Hình + metadata video:** `cv2.VideoCapture` (opencv-python-headless, đã nằm trong extra `face`):
-  fps, số khung, độ phân giải, mã FourCC; tìm khung theo chỉ số.
-- **Âm thanh trong file âm thanh** (wav/flac/ogg/mp3): `soundfile` (extra `voice`).
-- **Âm thanh trong video** (mp4/webm/mov) và metadata cấp container, theo thứ tự thử: PyAV (`av`) nếu
-  môi trường đã cài, rồi `ffmpeg`/`ffprobe` trên PATH (hoặc biến FFMPEG_BINARY/FFPROBE_BINARY) gọi
-  bằng subprocess. **Cả hai đều tùy chọn và KHÔNG khai báo làm dependency**: wheel PyAV đóng gói FFmpeg
-  mà giấy phép (LGPL hay GPL) chưa xác nhận, nên không kéo vào dự án (AGENTS.md luật 6); ffmpeg do
-  người vận hành tự cài, không phân phối kèm. Không có công cụ nào thì không giải mã được tiếng của
-  video: `has_audio` là None và bước giọng nói được báo `unavailable` với lý do rõ ràng. Không tự đoán.
+Công cụ, theo thứ tự thử (chạy được trên Windows; ffprobe/ffmpeg KHÔNG có sẵn trên PATH máy dev nên chỉ là
+phương án tùy chọn):
+- **Hình + metadata video:** `cv2.VideoCapture` (opencv-python-headless, extra `face`): fps, số khung,
+  độ phân giải, mã FourCC; đọc khung theo chỉ số.
+- **Âm thanh trong file âm thanh:** WAV PCM bằng thư viện chuẩn `wave` (không cần cài gì); WAV/FLAC/OGG/MP3
+  bằng `soundfile` (extra `voice`) khi có.
+- **Âm thanh trong video** (mp4/webm/mov) và metadata cấp container: PyAV (`av`) nếu môi trường đã cài,
+  rồi `ffmpeg`/`ffprobe` trên PATH (hoặc FFMPEG_BINARY/FFPROBE_BINARY) gọi bằng subprocess (tham số dạng
+  danh sách, `-protocol_whitelist file,pipe`, giới hạn `-t` MAX_DECODE_SECONDS). **Cả hai đều tùy chọn và
+  KHÔNG khai báo làm dependency**: wheel PyAV đóng gói FFmpeg mà giấy phép (LGPL hay GPL) chưa xác nhận
+  (AGENTS.md luật 6); ffmpeg do người vận hành tự cài, không phân phối kèm. Không có công cụ nào thì
+  không giải mã được tiếng của video: `has_audio` là None và bước giọng nói được báo `unavailable`
+  với lý do rõ ràng. Không tự đoán.
 
 SHA-256 do bên gọi tính trên byte gốc TRƯỚC khi gọi các hàm ở đây; các hàm này không ghi vào file nguồn.
 Mọi import nặng nằm trong hàm để gói vẫn import được khi thiếu extra (test thuần không cần cv2).
@@ -194,6 +196,8 @@ def _decode_with_av(path: Path) -> np.ndarray | None:
 
 
 FFMPEG_TIMEOUT_SECONDS = 120
+# Chỉ giải mã tối đa ngần này giây tiếng (bằng trần thời lượng của giám định, pipeline.MAX_DURATION_SECONDS).
+MAX_DECODE_SECONDS = 600
 
 
 def _tool(env_name: str, default: str) -> str | None:
@@ -224,6 +228,8 @@ def _decode_with_ffmpeg(path: Path) -> np.ndarray | None:
         "1",
         "-ar",
         str(TARGET_SAMPLE_RATE),
+        "-t",
+        str(MAX_DECODE_SECONDS),
         "-f",
         "s16le",
         "-",

@@ -403,6 +403,7 @@ class ProvenanceDetector:
         quality: dict[str, float | str | bool | None] = {}
         score: float | None = None
         ran_any = False
+        audio_failed = False  # có âm thanh nhưng AudioSeal không chạy được → quét chưa đầy đủ
         detected = False
         tool: str | None = None
 
@@ -420,6 +421,7 @@ class ProvenanceDetector:
                     else "AudioSeal chưa sẵn sàng."
                 )
                 evidence.append(self._text(EV_NOTE, f"AudioSeal không chạy: {reason}", "Ghi chú"))
+                audio_failed = True
             else:
                 try:
                     samples = _load_audio16k(inp.audio)
@@ -451,6 +453,7 @@ class ProvenanceDetector:
                                 )
                             )
                 except Exception as exc:  # noqa: BLE001
+                    audio_failed = True
                     evidence.append(
                         self._text(
                             EV_NOTE,
@@ -480,6 +483,14 @@ class ProvenanceDetector:
 
         # 3) Perth: chưa hỗ trợ
         evidence.append(self._text(EV_PERTH, PERTH_NOTE, "Perth"))
+        if audio_failed and not detected:
+            evidence.append(
+                self._text(
+                    EV_NOTE,
+                    "Quét chưa đầy đủ: AudioSeal không chạy được, kết quả chỉ phản ánh phần đã quét.",
+                    "Ghi chú",
+                )
+            )
 
         conclusion = CONCLUSION_DETECTED.format(tool=tool) if detected else CONCLUSION_NONE
         evidence.append(self._text(EV_CONCLUSION, conclusion, "Kết luận nguồn gốc"))
@@ -488,8 +499,9 @@ class ProvenanceDetector:
         return ModuleResult(
             module=Module.PROVENANCE,
             model_version=self.version,
-            # Không quét được gì (thiếu mô hình và thư viện) → degraded: không bao giờ hiểu là "thật".
-            status=Status.OK if ran_any else Status.DEGRADED,
+            # Không quét được gì, hoặc AudioSeal không chạy được trên âm thanh có sẵn → degraded: không để
+            # `ok` + "Không có tín hiệu nguồn gốc" (không bao giờ hiểu là "thật").
+            status=Status.OK if ran_any and not audio_failed else Status.DEGRADED,
             score=score,
             prob_attack=None,
             quality=quality,
