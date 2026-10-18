@@ -34,6 +34,7 @@
 | DATA-03 | Chia tập theo người | M3 + M4 | Codex | 1 | S1 | P0 | DATA-01 | doing |
 | DATA-04 | Tạo deepfake người Việt | M2 | | 1,5 | S1 | P0 | DATA-01, REDT-01 | todo |
 | DATA-05 | Biến thể nén 3 mức | M4 | | 0,5 | S1 | P0 | DATA-01 | todo |
+| DATA-06 | Tự sinh giọng AI tiếng Việt + tải ViMD bản lớn | M4 | | 0,5 | S1 | P0 | DATA-01 | todo |
 
 ## E2 — Web thu nhận · `epics/E2-capture.md`
 
@@ -73,7 +74,7 @@
 |---|---|---|---|---|---|---|---|---|
 | VOICE-01 | AntiDeepfake + kết quả gốc (R3) | M4 | | 1 | S0–S1 | P0 | PLAT-03, DATA-02, DATA-03, EVAL-01 | todo |
 | VOICE-02 | Tăng cường dữ liệu, chống học vẹt | M4 | | 1 | S1 | P0 | PLAT-03, DATA-01 | todo |
-| VOICE-03 | Tinh chỉnh AntiDeepfake cho tiếng Việt | M4 | | 2 | S1–S2 | P0 | VOICE-01, VOICE-02, DATA-03, DATA-05 | todo |
+| VOICE-03 | Tinh chỉnh AntiDeepfake cho tiếng Việt | M4 | | 2 | S1–S2 | P0 | VOICE-01, VOICE-02, DATA-03, DATA-05, DATA-06 | todo |
 | VOICE-04 | Câu thử thách, nhận dạng, so khớp 2 lớp (chặn lặp token) | M4 | Codex | 1,5 | S1–S2 | P0 | PLAT-03 | done |
 | VOICE-05 | Căn chỉnh câu, cắt ghép, SyncNet (thiết bị riêng, nạp lười) | M4 | Codex | 1,5 | S2 | P0 | VOICE-04, DATA-02 | doing |
 | VOICE-06 | Gộp bước giọng nói vào luồng | M4 | | 0,5 | S2 | P0 | VOICE-03, VOICE-04, VOICE-05, ROUT-02 | todo |
@@ -111,6 +112,19 @@
 | DEMO-02 ★ | Video demo + dự phòng | M1 (+cả nhóm) | | 0,5 | S3 | P0 | DEMO-01 | todo |
 | DEMO-03 ★ | Báo cáo nộp vòng 2 | M2 (+cả nhóm) | | 1 | S3 | P0 | ROUT-05, EVAL-02, FACE-04, VOICE-03, PRES-04 | todo |
 | DEMO-04 ★ | Kiểm tra cuối, đóng gói nộp | M5 | | 0,5 | DP | P0 | DEMO-02, DEMO-03 | todo |
+
+## E9 — App Android, ba luồng eKYC, riêng tư · `epics/E9-app-flows.md`
+
+| Mã | Task | Vai trò | Người | Ngày công | Sprint | Ưu tiên | Phụ thuộc | Trạng thái |
+|---|---|---|---|---|---|---|---|---|
+| FLOW-01 | Tham số purpose + luật theo luồng | M5 | | 1 | S1 | P0 | ROUT-02, PLAT-08 | todo |
+| FLOW-02 | OTP mô phỏng | M2 | | 0,5 | S1 | P0 | PLAT-05 | todo |
+| FLOW-03 | Chụp CCCD, QR, chân dung, kiểm đã đăng ký | M1 | | 1,5 | S1 | P0 | PLAT-05, FACE-01 | todo |
+| FLOW-04 | Thử thách quay đầu ngẫu nhiên | M1 (+M3) | | 1 | S1 | P0 | CAP-06 | todo |
+| FLOW-05 | So mặt 1:1 (AdaFace) + mẫu khuôn mặt | M3 | | 1 | S1 | P0 | FLOW-03, FACE-01 | todo |
+| SEC-01 | Khóa theo phiên, che dữ liệu, nhật ký truy cập | M2 | | 1,5 | S1 | P0 | REV-01, PLAT-05 | todo |
+| SEC-02 ★ | Khóa thiết bị, ký media, nonce một lần | M2 (+M1) | | 1 | S2 | P0 | APP-01, PLAT-06 | todo |
+| APP-01 ★ | App Android cho luồng người dân | M1 | | 2 | S1–S2 | P0 | CAP-06 | todo |
 
 ## Tổng hợp tải (chạy `plan_check.py` để có số mới nhất)
 

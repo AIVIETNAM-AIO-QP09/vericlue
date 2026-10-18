@@ -169,3 +169,22 @@ xuyên bộ. DATA-01 vẫn review cho đến nghiệm thu đủ danh mục.
 **Tiêu chí hoàn thành:**
 - [ ] Chạy trên toàn bộ tập test của RTFS-10k, WildDeepfake, deepfake VN, MLAAD-vi, ViSpoofDB.
 - [ ] Ghi thông số ffmpeg vào manifest.
+
+---
+
+### DATA-06 · Tự sinh giọng AI tiếng Việt và tải ViMD bản lớn
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M4 | 0,5 | S1 | P0 | DATA-01 |
+
+**Mục tiêu:** đủ dữ liệu cho VOICE-03 mà **không thu âm tay** (ADR-0015, quyết định 17/10).
+
+**Đầu ra:**
+- `scripts/generate_vi_tts.py`: dùng TTS tiếng Việt mở (mms-tts-vie và 1–2 hệ khác; kiểm giấy phép trước khi dùng) để đọc ngân hàng câu đề bài và câu trong ViMD. Ghi manifest gồm hệ TTS, giọng, câu, seed.
+- Chia tập theo hệ TTS và theo câu nguồn. Giữ riêng ít nhất một hệ TTS chỉ để test.
+- Tải bản lớn hơn của ViMD (kiểm dung lượng trống trên ổ).
+
+**Tiêu chí hoàn thành:**
+- [ ] Không rò rỉ: cùng câu nguồn hoặc cùng người không nằm ở hai tập.
+- [ ] Không commit âm thanh. Số mẫu chạy ra từ script.
