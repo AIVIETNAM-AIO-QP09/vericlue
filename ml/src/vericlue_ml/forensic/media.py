@@ -27,7 +27,7 @@ import os
 import shutil
 import subprocess
 import wave
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
@@ -47,9 +47,11 @@ class MediaError(Exception):
 class AudioUnavailable(Exception):
     """Không có tiếng hoặc không giải mã được; `reason` là câu tiếng Việt cho người dùng."""
 
-    def __init__(self, reason: str) -> None:
+    def __init__(self, reason: str, *, no_audio: bool = False) -> None:
         super().__init__(reason)
         self.reason = reason
+        # True = đã giải mã được mà file KHÔNG có luồng tiếng (khác với "không giải mã được").
+        self.no_audio = no_audio
 
 
 @dataclass(frozen=True)
@@ -440,13 +442,14 @@ class FileMediaSource:
         self.info = probe_media(self.path)
         self._audio: np.ndarray | None = None
         self._audio_error: str | None = None
+        self._no_audio = False
 
     # --- âm thanh -----------------------------------------------------------
     def _load_audio(self) -> np.ndarray:
         if self._audio is not None:
             return self._audio
         if self._audio_error is not None:
-            raise AudioUnavailable(self._audio_error)
+            raise AudioUnavailable(self._audio_error, no_audio=self._no_audio)
         samples = _decode_audio_file(self.path)
         if samples is None:
             samples = _decode_with_av(self.path)
@@ -457,10 +460,12 @@ class FileMediaSource:
                 "Không giải mã được âm thanh của file này. Video (mp4, webm...) cần PyAV (`av`) hoặc "
                 "ffmpeg trên PATH; chưa có nên bước giọng nói không chạy."
             )
-            raise AudioUnavailable(self._audio_error)
+            raise AudioUnavailable(self._audio_error, no_audio=self._no_audio)
         if samples.size == 0:
             self._audio_error = "File không có luồng âm thanh."
-            raise AudioUnavailable(self._audio_error)
+            self._no_audio = True
+            self.info = replace(self.info, has_audio=False)  # biết chắc: giọng nói không bắt buộc
+            raise AudioUnavailable(self._audio_error, no_audio=True)
         self._audio = samples
         return samples
 

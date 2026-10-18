@@ -230,7 +230,8 @@ class ForensicPipeline:
                 shutil.rmtree(work, ignore_errors=True)
 
         notify("finalize", len(spans), len(spans))
-        return self._conclude(info, spans, segments, provenance)
+        # source.info lấy lại: giải mã có thể đã biết chắc file không có tiếng (has_audio=False).
+        return self._conclude(source.info, spans, segments, provenance)
 
     def _run_segment(
         self,
@@ -263,9 +264,9 @@ class ForensicPipeline:
                 try:
                     wav = source.audio_wav(t0, t1, seg_dir / "audio.wav")
                 except AudioUnavailable as exc:
-                    outcome.signals.append(
-                        SignalOutcome(module.value, "unavailable", reason=exc.reason)
-                    )
+                    # Biết chắc không có tiếng → không áp dụng (không phải thiếu bước); còn lại là chưa chạy được.
+                    status = "not_applicable" if exc.no_audio else "unavailable"
+                    outcome.signals.append(SignalOutcome(module.value, status, reason=exc.reason))
                     continue
                 signal = self._call(module, DetectorInput(audio=wav))
                 wav.unlink(missing_ok=True)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -62,8 +63,10 @@ class FakeSource:
         full_audio_exc: Exception | None = None,
         path: Path | None = None,
         n_frames: int = 2,
+        no_audio: bool = False,
     ) -> None:
         self.info = info
+        self.no_audio = no_audio
         self.n_frames = n_frames
         self.frames_ok = frames_ok
         self.audio_error = audio_error
@@ -87,17 +90,23 @@ class FakeSource:
             paths.append(p)
         return paths
 
-    def audio_wav(self, t0: float, t1: float, out: Path) -> Path:
-        self.audio_calls.append((t0, t1))
+    def _raise_if_unavailable(self) -> None:
+        if self.no_audio:
+            # như FileMediaSource: giải mã được mà rỗng -> biết chắc không có tiếng
+            self.info = dataclasses.replace(self.info, has_audio=False)
+            raise AudioUnavailable("File không có luồng âm thanh.", no_audio=True)
         if self.audio_error is not None:
             raise AudioUnavailable(self.audio_error)
+
+    def audio_wav(self, t0: float, t1: float, out: Path) -> Path:
+        self.audio_calls.append((t0, t1))
+        self._raise_if_unavailable()
         return _write_wav(out, _silence())
 
     def full_audio_wav(self, out: Path) -> Path:
         if self.full_audio_exc is not None:
             raise self.full_audio_exc
-        if self.audio_error is not None:
-            raise AudioUnavailable(self.audio_error)
+        self._raise_if_unavailable()
         return _write_wav(out, _silence())
 
 
@@ -890,3 +899,68 @@ def test_voice_khong_bi_gan_mode_forensic():
 
 def test_tran_do_dai_pipeline_bang_tran_giai_ma_media():
     assert MAX_DURATION_SECONDS == MAX_DECODE_SECONDS == 600
+
+
+# --- video không có luồng tiếng (AudioUnavailable.no_audio) -------------------------------------------
+
+
+def test_video_khong_co_luong_tieng_thi_voice_not_applicable_va_authentic():
+    detectors = low_detectors()
+    source = FakeSource(video_info(has_audio=None), no_audio=True)
+    pipeline = build(detectors)
+    analysis = pipeline.run(source)
+    voice = sigs(analysis, VOICE)
+    assert len(voice) == N_SEGMENTS
+    assert all(s.status == "not_applicable" and not s.applicable for s in voice)
+    assert detectors[VOICE].calls == []
+    assert source.info.has_audio is False
+    assert VOICE not in pipeline.required_modules(source.info)
+    assert "voice_spoof" not in [m["module"] for m in analysis.unavailable_modules]
+    assert analysis.media.has_audio is False
+    assert analysis.verdict == "authentic"
+    assert "voice_spoof" not in analysis.verdict_reason
+
+
+def test_video_khong_tieng_van_bi_suspect_neu_face_vuot_nguong():
+    detectors = low_detectors(**{FACE: [0.1, 0.1, 0.9, 0.1, 0.1, 0.1]})
+    analysis = build(detectors).run(FakeSource(video_info(has_audio=None), no_audio=True))
+    assert analysis.verdict == "suspect"
+    assert analysis.suspect_intervals[0]["modules"] == ["face_deepfake"]
+
+
+def test_video_khong_tieng_nhung_thieu_face_van_inconclusive():
+    detectors = {VOICE: FakeDetector(VOICE, 0.1)}
+    analysis = build(detectors, {FACE: "chưa có"}).run(
+        FakeSource(video_info(has_audio=None), no_audio=True)
+    )
+    assert analysis.verdict == "inconclusive"
+    assert "face_deepfake" in analysis.verdict_reason
+    entry = next(m for m in analysis.unavailable_modules if m["module"] == "face_deepfake")
+    assert entry["required"] is True
+
+
+def test_provenance_khong_tieng_van_chay_bang_c2pa_ghi_chu():
+    detectors = low_detectors()
+    detectors[PROV] = FakeDetector(PROV, [prov_result()])
+    analysis = build(detectors).run(FakeSource(video_info(has_audio=None), no_audio=True))
+    assert detectors[PROV].calls[0].audio is None
+    assert "File không có luồng âm thanh." in analysis.provenance["notes"]
+    assert analysis.verdict == "authentic"
+
+
+def test_audio_unavailable_thuong_khong_phai_no_audio_van_unavailable_va_inconclusive():
+    """Hành vi cũ: thiếu công cụ giải mã thì chưa biết có tiếng hay không -> bước bắt buộc thiếu."""
+    reason = "Thiếu PyAV/ffmpeg để giải mã tiếng."
+    source = FakeSource(video_info(has_audio=None), audio_error=reason)
+    pipeline = build(low_detectors())
+    analysis = pipeline.run(source)
+    assert all(s.status == "unavailable" and s.reason == reason for s in sigs(analysis, VOICE))
+    assert source.info.has_audio is None
+    assert VOICE in pipeline.required_modules(source.info)
+    assert analysis.verdict == "inconclusive"
+    assert "voice_spoof" in analysis.verdict_reason
+
+
+def test_audio_unavailable_mac_dinh_no_audio_la_false():
+    assert AudioUnavailable("x").no_audio is False
+    assert AudioUnavailable("x", no_audio=True).no_audio is True

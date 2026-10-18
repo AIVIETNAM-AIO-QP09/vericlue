@@ -524,3 +524,82 @@ def test_ffmpeg_binary_tro_vao_file_khong_ton_tai_thi_bo_qua(tmp_path, monkeypat
     monkeypatch.setenv("FFMPEG_BINARY", str(tmp_path / "khong_co.exe"))
     monkeypatch.setattr(media.shutil, "which", lambda name: None)
     assert _decode_with_ffmpeg(tmp_path / "clip.mp4") is None
+
+
+# --- video không có luồng tiếng: no_audio và has_audio ---------------------------------------------------
+
+
+def _empty_ffmpeg(monkeypatch):
+    monkeypatch.setattr(media, "_decode_with_ffmpeg", lambda p: np.zeros(0, dtype="float32"))
+
+
+def test_ffmpeg_tra_mang_rong_lan_dau_audio_unavailable_no_audio(tmp_path, monkeypatch):
+    source = _source_for_junk_video(tmp_path, monkeypatch)  # _decode_with_av -> None
+    _empty_ffmpeg(monkeypatch)
+    assert source.info.has_audio is None
+    with pytest.raises(AudioUnavailable) as exc:
+        source.audio_wav(0, 3, tmp_path / "a.wav")
+    assert exc.value.no_audio is True
+    assert "không có luồng âm thanh" in exc.value.reason
+    assert source.info.has_audio is False
+    assert source.info.kind == "video" and source.info.duration_s == 5.0  # trường khác giữ nguyên
+
+
+def test_ffmpeg_tra_mang_rong_lan_hai_van_giu_no_audio_true(tmp_path, monkeypatch):
+    source = _source_for_junk_video(tmp_path, monkeypatch)
+    _empty_ffmpeg(monkeypatch)
+    with pytest.raises(AudioUnavailable):
+        source.audio_wav(0, 3, tmp_path / "a.wav")
+    with pytest.raises(AudioUnavailable) as again:
+        source.audio_wav(0, 3, tmp_path / "b.wav")
+    assert again.value.no_audio is True
+    assert source.info.has_audio is False
+
+
+def test_full_audio_wav_cung_bao_no_audio_va_cap_nhat_has_audio(tmp_path, monkeypatch):
+    source = _source_for_junk_video(tmp_path, monkeypatch)
+    _empty_ffmpeg(monkeypatch)
+    with pytest.raises(AudioUnavailable) as exc:
+        source.full_audio_wav(tmp_path / "full.wav")
+    assert exc.value.no_audio is True
+    assert source.info.has_audio is False
+    assert not (tmp_path / "full.wav").exists()
+
+
+def test_full_audio_wav_roi_audio_wav_van_giu_no_audio_true(tmp_path, monkeypatch):
+    source = _source_for_junk_video(tmp_path, monkeypatch)
+    _empty_ffmpeg(monkeypatch)
+    with pytest.raises(AudioUnavailable):
+        source.full_audio_wav(tmp_path / "full.wav")
+    with pytest.raises(AudioUnavailable) as again:
+        source.audio_wav(0, 1, tmp_path / "x.wav")
+    assert again.value.no_audio is True
+
+
+def test_khong_giai_ma_duoc_vi_thieu_cong_cu_thi_no_audio_false_va_has_audio_none(
+    tmp_path, monkeypatch
+):
+    source = _source_for_junk_video(tmp_path, monkeypatch)
+    monkeypatch.setattr(media, "_decode_with_ffmpeg", lambda p: None)
+    for attempt in range(2):
+        with pytest.raises(AudioUnavailable) as exc:
+            source.audio_wav(0, 3, tmp_path / f"a{attempt}.wav")
+        assert exc.value.no_audio is False
+        assert source.info.has_audio is None
+
+
+def test_mp4_cv2_khong_tieng_khi_khong_co_av_ffmpeg_thi_no_audio_false_has_audio_none(
+    tmp_path, monkeypatch
+):
+    pytest.importorskip("cv2")
+    clip = _make_video(tmp_path / "clip.mp4")
+    monkeypatch.delenv("FFMPEG_BINARY", raising=False)
+    monkeypatch.delenv("FFPROBE_BINARY", raising=False)
+    monkeypatch.setattr(media.shutil, "which", lambda name: None)
+    monkeypatch.setitem(sys.modules, "av", None)  # import av -> ImportError
+    source = FileMediaSource(clip)
+    assert source.info.kind == "video" and source.info.has_audio is None
+    with pytest.raises(AudioUnavailable) as exc:
+        source.audio_wav(0, 3, tmp_path / "a.wav")
+    assert exc.value.no_audio is False
+    assert source.info.has_audio is None

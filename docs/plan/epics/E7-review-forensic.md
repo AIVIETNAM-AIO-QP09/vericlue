@@ -81,7 +81,7 @@
 - [x] Test gộp khoảng. *(`ml/tests/test_forensic_segment.py`.)*
 - [ ] **Hiệu chỉnh riêng cho chế độ giám định:** dùng tập calib có cả bản nén (DATA-05), vì video giám định thường đã bị nén. Lưu calibrator riêng tên `forensic`.
 
-> **Lõi MVP (nhánh `feat/FOR-01-forensic-real-mvp`, ADR-0012):** `ml/src/vericlue_ml/forensic/{segment,media,pipeline}.py` và `services/api/.../forensic_runner.py` chạy nền, chia đoạn 3 s chồng 50%, gọi detector thật từng đoạn, gộp khoảng ±1 s, `GET /jobs/{id}` trả tiến độ. Dùng calibrator identity hiện có (chưa có calibrator `forensic`) và ngưỡng `thresholds.yaml` như eKYC. `face_deepfake` (FACE-02) và `lipsync` (VOICE-05) chưa có trên `main`: hiện `unavailable`, kết luận `inconclusive`, không giả lập. Hồ sơ `mvp` vẫn bật được vì giám định gọi detector trực tiếp (không qua orchestrator). Chưa đổi trạng thái FOR-01.
+> **Lõi MVP (nhánh `feat/FOR-01-forensic-real-mvp`, ADR-0012):** `ml/src/vericlue_ml/forensic/{segment,media,pipeline}.py` và `services/api/.../forensic_runner.py` chạy nền, chia đoạn 3 s chồng 50%, gọi detector thật từng đoạn, gộp khoảng ±1 s, `GET /jobs/{id}` trả tiến độ. Dùng calibrator identity hiện có (chưa có calibrator `forensic`) và ngưỡng `thresholds.yaml` như eKYC. `face_deepfake` (FACE-02) đã có trên `main` và chạy thật theo đoạn; `lipsync` (VOICE-05) vẫn `unavailable` ở giám định (cần câu đề bài), không giả lập; bước bắt buộc thiếu mô hình thì kết luận `inconclusive`. Hồ sơ `mvp` vẫn bật được vì giám định gọi detector trực tiếp (không qua orchestrator). Chưa đổi trạng thái FOR-01.
 
 ---
 
