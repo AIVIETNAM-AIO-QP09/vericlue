@@ -152,11 +152,46 @@ def test_small_valid_dataset_warns_quota_and_reports_group_counts(tmp_path: Path
     )
     report = audit(tmp_path, ("wilddeepfake",))
     assert not report["errors"]
-    assert len(report["warnings"]) == 3
+    assert len(report["warnings"]) == 5
     fit = next(row for row in report["summary"] if row["split"] == "calib_fit")
     assert fit["samples"] == 2
     assert fit["video_groups"] == 1
     assert fit["counts"] == [{"label": "0", "attack_type": "bonafide", "samples": 2}]
+
+
+def test_wild_scarce_bonafide_ltt_warns_without_using_test_donors(tmp_path: Path) -> None:
+    write_splits(
+        tmp_path,
+        "wilddeepfake",
+        {
+            "calib_fit": [
+                {"label": label, "attack_type": attack, "source_group": f"fit-{label}-{index}"}
+                for label, attack in (("0", "bonafide"), ("1", "deepfake"))
+                for index in range(100)
+            ],
+            "calib_ltt": [{"source_group": f"ltt-real-{index}"} for index in range(2)]
+            + [
+                {"label": "1", "attack_type": "deepfake", "source_group": f"ltt-fake-{index}"}
+                for index in range(60)
+            ],
+            "test": [{"source_group": f"test-real-{index}"} for index in range(100)],
+        },
+    )
+    report = audit(tmp_path, ("wilddeepfake",))
+    assert not report["errors"]
+    assert len(report["warnings"]) == 1
+    quota = next(
+        q
+        for q in report["quotas"]
+        if q["split"] == "calib_ltt" and q["field"] == "label" and q["value"] == "0"
+    )
+    assert quota["samples"] == 2
+    assert quota["deficit"] == 58
+    assert quota["train_donor_samples"] == 0
+    assert any(
+        q["split"] == "calib_ltt" and q["field"] == "attack_type" and q["deficit"] == 0
+        for q in report["quotas"]
+    )
 
 
 def test_quota_is_error_when_train_has_enough_valid_donors(tmp_path: Path) -> None:

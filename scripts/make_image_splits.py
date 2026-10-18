@@ -16,7 +16,6 @@ import tarfile
 import time
 import zipfile
 from collections import Counter, defaultdict
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
 
@@ -151,6 +150,7 @@ class FaceEncoder:
             ]
         manifest = yaml.safe_load((ROOT / "models/manifest.yaml").read_text(encoding="utf-8"))
         self.models = {}
+        self.decode_failures: dict[str, str] = {}
         options = ort.SessionOptions()
         options.intra_op_num_threads = 4
         options.inter_op_num_threads = 1
@@ -272,17 +272,24 @@ class FaceEncoder:
                 cap = cv2.VideoCapture(str(path), cv2.CAP_FFMPEG, [cv2.CAP_PROP_N_THREADS, 1])
                 try:
                     count = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+                    if not cap.isOpened() or not math.isfinite(count) or count < 1:
+                        self.decode_failures[str(path)] = "video_open_or_frame_count_failed"
+                        return
                     for fraction in (0.15, 0.5, 0.85):
                         cap.set(cv2.CAP_PROP_POS_FRAMES, int(max(0, count - 1) * fraction))
                         ok, frame = cap.read()
-                        if ok:
-                            yield frame
+                        if not ok or frame is None:
+                            self.decode_failures[str(path)] = f"video_frame_failed:{fraction}"
+                            return
+                        yield frame
                 finally:
                     cap.release()
             else:
                 frame = cv2.imread(str(path))
                 if frame is not None:
                     yield frame
+                else:
+                    self.decode_failures[str(path)] = "image_read_failed"
 
         embeddings = []
         for frame in frames():
@@ -296,7 +303,9 @@ class FaceEncoder:
                 if not np.isfinite(norm) or norm <= 0:
                     raise ValueError("ArcFace trả vector không hợp lệ")
                 embeddings.append(embedding / norm)
-        return embeddings
+        # Discard even successfully encoded frames when any selected frame failed.
+        # Returning no vectors lets Zalo force the whole video to test.
+        return [] if str(path) in self.decode_failures else embeddings
 
     def close(self) -> None:
         self.detector = self.recognizer = None
@@ -359,16 +368,13 @@ def zalo_splits(data_dir: Path, models_dir: Path, seed: int) -> tuple[SplitMap, 
     try:
         embeddings = []
         started = time.perf_counter()
-        with ThreadPoolExecutor(max_workers=1) as pool:
-            for i, value in enumerate(
-                pool.map(encoder.encode, [data_dir / r["path"] for r in rows])
-            ):
-                embeddings.append(value)
-                if (i + 1) % 100 == 0:
-                    print(
-                        f"ArcFace {i + 1}/{len(rows)}; {time.perf_counter() - started:.1f}s",
-                        flush=True,
-                    )
+        for i, row in enumerate(rows):
+            embeddings.append(encoder.encode(data_dir / row["path"]))
+            if (i + 1) % 100 == 0:
+                print(
+                    f"ArcFace {i + 1}/{len(rows)}; {time.perf_counter() - started:.1f}s",
+                    flush=True,
+                )
         attempts = []
         for threshold in (0.30, 0.35, 0.40, 0.45, 0.50, 0.55, 0.60):
             groups = face_components(rows, embeddings, threshold)
@@ -401,6 +407,10 @@ def zalo_splits(data_dir: Path, models_dir: Path, seed: int) -> tuple[SplitMap, 
             "zalo_component_sizes": sorted((n for n in sizes if n), reverse=True),
             "component_histogram": dict(sorted(Counter(n for n in sizes if n).items())),
             "no_face": dict(Counter(r["source"] for r in rows if r["path"] in missing)),
+            "decode_failures": {
+                Path(path).relative_to(data_dir).as_posix(): reason
+                for path, reason in getattr(encoder, "decode_failures", {}).items()
+            },
             "zalo_forced_test": len(result["zalo2022"]["test"]) - len(partition["test"]),
             "quarantine": quarantine,
         }
@@ -479,6 +489,29 @@ def wild_splits(data_dir: Path, seed: int) -> tuple[SplitMap, dict]:
                     continue
                 selected.append(group)
                 count += group_samples
+            if (
+                split == "calib_ltt"
+                and available_samples >= minimum + 100
+                and available_samples - count < 100
+            ):
+                # Keep the usual seeded choice whenever feasible. Only recover a
+                # scarce class when a different whole-group subset meets both quotas.
+                budget = available_samples - 100
+                partial: dict[int, list[list[Row]]] = {0: []}
+                replacement = None
+                for group in candidates:
+                    group_samples = sum(r["label"] == label for r in group)
+                    for subtotal, picked in list(partial.items()):
+                        total = subtotal + group_samples
+                        if total > budget:
+                            continue
+                        if total >= minimum:
+                            replacement = picked + [group]
+                            break
+                        partial.setdefault(total, picked + [group])
+                    if replacement is not None:
+                        selected = replacement
+                        break
             for group in selected:
                 remaining.remove(group)
                 part[split].extend(group)

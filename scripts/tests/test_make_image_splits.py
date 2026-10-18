@@ -103,6 +103,64 @@ def test_scrfd_decodes_landmarks_and_suppresses_duplicate_anchor():
     np.testing.assert_allclose(actual[0], (encoder.centers[8][42] + offsets * 8) * 2)
 
 
+def test_video_decode_failure_discards_partial_embeddings_and_releases_capture(monkeypatch):
+    cv2 = pytest.importorskip("cv2")
+    frame = np.zeros((112, 112, 3), dtype=np.uint8)
+
+    class Capture:
+        reads = 0
+        released = False
+
+        def isOpened(self):
+            return True
+
+        def get(self, _property):
+            return 100
+
+        def set(self, _property, _value):
+            return True
+
+        def read(self):
+            self.reads += 1
+            return (True, frame) if self.reads == 1 else (False, None)
+
+        def release(self):
+            self.released = True
+
+    class Detector:
+        calls = 0
+
+        def landmarks(self, _frame):
+            self.calls += 1
+            return [np.zeros((5, 2), dtype=np.float32)]
+
+    class Recognizer:
+        calls = 0
+
+        def run(self, _outputs, inputs):
+            self.calls += 1
+            assert inputs["input"].shape == (1, 3, 112, 112)
+            return [np.array([[3, 4]], dtype=np.float32)]
+
+    capture = Capture()
+    detector = Detector()
+    recognizer = Recognizer()
+    monkeypatch.setattr(cv2, "VideoCapture", lambda *_: capture)
+    encoder = object.__new__(image.FaceEncoder)
+    encoder.landmarks = detector.landmarks
+    encoder.aligned = lambda source, _landmarks: source
+    encoder.recognizer = recognizer
+    encoder.rec_input = "input"
+    encoder.decode_failures = {}
+    path = Path("partially-decoded.mp4")
+
+    assert encoder.encode(path) == []
+    assert detector.calls == recognizer.calls == 1
+    assert capture.reads == 2
+    assert capture.released is True
+    assert encoder.decode_failures[str(path)] == "video_frame_failed:0.5"
+
+
 def wild_fixture(root, frames_per_archive=1):
     folder = root / "raw/wilddeepfake"
     folder.mkdir(parents=True)
@@ -207,6 +265,53 @@ def test_zalo_forced_test_no_face_cross_fas_and_quotas(tmp_path, monkeypatch):
     assert report["no_face"] == {"zalo2022": 1}
     again, _ = image.zalo_splits(tmp_path, tmp_path, 42)
     assert again == splits
+
+
+def test_zalo_naturally_oversized_component_survives_tightening(tmp_path, monkeypatch):
+    folder = tmp_path / "raw/zalo2022"
+    folder.mkdir(parents=True)
+    records = []
+    for index in range(12):
+        name = f"{index}.mp4"
+        (folder / name).touch()
+        records.append(dict(path=name, source_video_id=str(index), liveness_score=str(index % 2)))
+    (folder / "selected_manifest.json").write_text(json.dumps(records), encoding="utf-8")
+    monkeypatch.setattr(image, "load_fas", lambda _: ([], []))
+
+    class Encoder:
+        models = {"mock": "test-only"}
+
+        def __init__(self, _):
+            pass
+
+        def encode(self, _path):
+            return [np.array([1, 0], dtype=np.float32)]
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(image, "FaceEncoder", Encoder)
+    splits, report = image.zalo_splits(tmp_path, tmp_path, 42)
+    validate_splits(splits, tmp_path)
+    assert report["selected_cosine"] == 0.60
+    assert report["oversized_after_tightening"] is True
+    assert [attempt["cosine"] for attempt in report["attempts"]] == [
+        0.30,
+        0.35,
+        0.40,
+        0.45,
+        0.50,
+        0.55,
+        0.60,
+    ]
+    assert all(attempt["largest_zalo"] == 12 for attempt in report["attempts"])
+    assert report["zalo_component_sizes"] == [12]
+    part = splits["zalo2022"]
+    assert sum(bool(rows) for rows in part.values()) == 1
+    rows = [row for members in part.values() for row in members]
+    assert len(rows) == len({row["path"] for row in rows}) == 12
+    assert len({row["group_id"] for row in rows}) == 1
+    assert all(not row["subject_id"] for row in rows)
 
 
 def test_rtfs_original_and_generators_share_video_and_donor(tmp_path):

@@ -55,6 +55,45 @@ def test_wild_preserves_scarce_bonafide_groups_for_both_calibration_parts(monkey
             assert counts[label] >= minimum, f"{split} label={label}: {counts[label]}/{minimum}"
 
 
+def test_wild_chooses_feasible_ltt_group_before_consuming_fit_reserve(monkeypatch) -> None:
+    data_dir = Path("unused-data")
+    rows = []
+    # Seed 42 visits the 100-frame bonafide group before the 60-frame group.
+    # Both quotas are feasible only when LTT takes the latter intact.
+    groups = [("0/00", "0", 60), ("0/01", "0", 100)]
+    groups += [(f"1/{index:03}", "1", 2) for index in range(100)]
+    for origin, label, count in groups:
+        for frame in range(count):
+            rows.append(
+                image.row_for(
+                    data_dir,
+                    "wilddeepfake",
+                    data_dir / f"raw/wilddeepfake/{origin}/{frame}.png",
+                    label,
+                    "bonafide" if label == "0" else "deepfake",
+                    source_group=origin,
+                )
+            )
+    monkeypatch.setattr(image, "archive_rows", lambda *_: deepcopy(rows))
+
+    splits, _ = image.wild_splits(data_dir, 42)
+    repeated, _ = image.wild_splits(data_dir, 42)
+    assert splits == repeated
+    validate_splits(splits, data_dir, check_files=False)
+    part = splits["wilddeepfake"]
+    assert not part["train"]
+    assert any(row["label"] == "1" for row in part["test"])
+    assert sum(map(len, part.values())) == 360
+    memberships = {}
+    for split, members in part.items():
+        for row in members:
+            assert memberships.setdefault(row["source_group"], split) == split
+    for split, minimum in (("calib_fit", 100), ("calib_ltt", 60)):
+        counts = Counter(row["label"] for row in part[split])
+        for label in ("0", "1"):
+            assert counts[label] >= minimum, f"{split} label={label}: {counts[label]}/{minimum}"
+
+
 def write_archive_index(data_dir: Path, source: str, source_split: str) -> None:
     folder = data_dir / "raw" / source
     folder.mkdir(parents=True)

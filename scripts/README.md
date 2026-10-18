@@ -229,6 +229,8 @@ ArcFace chỉ dùng nghiên cứu phi thương mại.
   mặt buộc test. Các nhóm còn lại chia 60/10/10/20 theo nhóm, rồi dồn nguyên nhóm
   train cho LTT ≥60/attack và fit ≥100/lớp. `subject_id` luôn trống; nhóm tự động
   có thể bỏ sót cùng người, không coi là danh tính đã xác minh.
+  Video lỗi mở/đếm khung hoặc lỗi ở bất kỳ khung lấy mẫu nào bị bỏ toàn bộ
+  embedding của video và buộc test; SUMMARY ghi path/lý do lỗi decode.
 - **FAS-VN:** lấy nhãn thư mục live/not_live, không suy từ chữ trong filename.
   Lọc ứng viên trùng bằng CRC/size rồi xác nhận SHA-256; mọi bản trùng byte
   mang nhãn đối lập bị cách ly khỏi CSV. Báo danh sách/path/hash/lý do trong
@@ -240,6 +242,8 @@ ArcFace chỉ dùng nghiên cứu phi thương mại.
   video khác vẫn là rủi ro. Quota khung không tương đương video/người độc lập.
   Khi LTT đã đạt tối thiểu, không dồn thêm nhóm chỉ để đạt tỷ lệ nếu làm fit
   còn dưới 100 mẫu/lớp.
+  Nếu lựa chọn ban đầu vẫn làm fit thiếu dù cả hai quota khả thi, tìm tổ hợp
+  nguyên nhóm khác cho LTT để giữ đủ 100 mẫu fit; không đổi cách chọn đã đủ quota.
 - **RTFS-10k:** test-only, union video YouTube gốc ∪ ảnh donor xuyên generator.
 - **DATA-04:** giữ nguyên mọi clip cùng video gốc ViCocktail và mọi ảnh cùng
   nhãn người vn_celeb; ArcFace union thêm liên kết xuyên hai bộ (0,30).

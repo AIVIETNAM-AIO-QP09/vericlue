@@ -148,6 +148,8 @@ def audit(data_dir: Path, datasets: tuple[str, ...] = DATASETS) -> dict:
             }
         )
         requirements = [("calib_fit", "label", label, 100) for label in ("0", "1")]
+        if dataset == "wilddeepfake":
+            requirements.extend(("calib_ltt", "label", label, 60) for label in ("0", "1"))
         requirements.extend(("calib_ltt", "attack_type", attack, 60) for attack in attacks)
         for split, field, value, minimum in requirements:
             count = sum(row[field] == value for row in partitions[split])
