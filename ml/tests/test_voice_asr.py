@@ -21,9 +21,11 @@ class FakeASR:
 
     def __init__(self, result="xin chào", error=None):
         self.result, self.error, self.calls = result, error, []
+        self.syllable_counts = []
 
-    def transcribe(self, audio_path):
+    def transcribe(self, audio_path, *, expected_syllable_count=None):
         self.calls.append(audio_path)
+        self.syllable_counts.append(expected_syllable_count)
         if self.error:
             raise self.error
         return self.result
@@ -33,7 +35,10 @@ def test_asr_interface_cannot_receive_challenge():
     assert list(inspect.signature(asr.PhoWhisperASR.transcribe).parameters) == [
         "self",
         "audio_path",
+        "expected_syllable_count",
     ]
+    count = inspect.signature(asr.PhoWhisperASR.transcribe).parameters["expected_syllable_count"]
+    assert count.kind == inspect.Parameter.KEYWORD_ONLY
     with pytest.raises(TypeError):
         asr.PhoWhisperASR().transcribe(Path("x.wav"), prompt="expected")
 
@@ -92,6 +97,7 @@ def test_expected_text_stays_in_matcher(monkeypatch):
         DetectorInput(audio=Path("x.wav"), metadata={"prompt": "xin chào"})
     )
     assert backend.calls == [Path("x.wav")]
+    assert backend.syllable_counts == [2]
     assert result.status == "ok" and result.gate == "pass"
     assert result.prob_attack is None
 
@@ -138,6 +144,9 @@ def test_generation_has_no_expected_prompt_and_model_loads_once(monkeypatch):
     monkeypatch.setitem(sys.modules, "torch", SimpleNamespace(inference_mode=nullcontext))
     assert backend.transcribe(Path("a.wav")) == "xin chào"
     assert backend.transcribe(Path("b.wav")) == "xin chào"
+    observers = [call.pop("stopping_criteria")[0] for call in calls]
+    assert observers[0] is not observers[1]
+    assert all(observer.budget == asr.DEFAULT_MAX_NEW_TOKENS for observer in observers)
     assert (
         calls
         == [
@@ -148,6 +157,8 @@ def test_generation_has_no_expected_prompt_and_model_loads_once(monkeypatch):
                 task="transcribe",
                 condition_on_prev_tokens=False,
                 return_timestamps=True,
+                max_new_tokens=asr.DEFAULT_MAX_NEW_TOKENS,
+                no_repeat_ngram_size=asr.NO_REPEAT_NGRAM_SIZE,
             )
         ]
         * 2

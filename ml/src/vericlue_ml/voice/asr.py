@@ -13,12 +13,55 @@ import math
 import os
 import threading
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import yaml
 from scipy.signal import resample_poly
 
 from vericlue_ml.common.device import resolve_torch_device
+
+# Decode guards, not matching thresholds. Leave room for Vietnamese BPE and timestamps.
+TOKENS_PER_SYLLABLE = 8
+GENERATION_TOKEN_PADDING = 16
+DEFAULT_MAX_NEW_TOKENS = 128
+MAX_NEW_TOKENS = 256  # Below the pinned Whisper-small decoder's 448-position context.
+NO_REPEAT_NGRAM_SIZE = 8
+
+
+def generation_token_budget(expected_syllable_count: int | None = None) -> int:
+    """Bound decoding using only a syllable count, never the expected text."""
+    if expected_syllable_count is None:
+        return DEFAULT_MAX_NEW_TOKENS
+    if (
+        isinstance(expected_syllable_count, bool)
+        or not isinstance(expected_syllable_count, int)
+        or expected_syllable_count <= 0
+    ):
+        raise ValueError("Expected syllable count must be a positive integer")
+    return min(
+        MAX_NEW_TOKENS, expected_syllable_count * TOKENS_PER_SYLLABLE + GENERATION_TOKEN_PADDING
+    )
+
+
+class _TokenBudgetObserver:
+    """Observe raw decoder steps; Whisper strips EOS from timestamped output."""
+
+    def __init__(self, budget: int) -> None:
+        self.budget = budget
+        self.exhausted = False
+        self._prefix_length: int | None = None
+        self._previous_length: int | None = None
+
+    def __call__(self, input_ids: Any, scores: Any, **kwargs: Any) -> bool:
+        length = input_ids.shape[-1]
+        # Each chunk/fallback starts again at its decoder prefix plus one new token.
+        if self._previous_length is None or length <= self._previous_length:
+            self._prefix_length = length - 1
+        self._previous_length = length
+        if length - self._prefix_length >= self.budget:
+            self.exhausted = True
+        return False  # Keep Transformers' own EOS/max_new_tokens stopping unchanged.
 
 
 class ASRError(RuntimeError):
@@ -94,7 +137,7 @@ class PhoWhisperASR:
         self._model_subdir = config.get("model_subdir", "phowhisper")
         self.model_dir = root / self._model_subdir
         revision = config.get("revision", "a86b604c346caf7148c37512eafe783a16420adb")
-        self.version = f"phowhisper-small@{revision}+voice04-v1"
+        self.version = f"phowhisper-small@{revision}+voice04-v2"
         self.vad_mode = config.get("vad_mode", 1)
         self.cpu_threads = int(config.get("cpu_threads", 4))
         if not 1 <= self.cpu_threads <= 64:
@@ -147,8 +190,9 @@ class PhoWhisperASR:
                 self.model_dir = target
             self._load()
 
-    def transcribe(self, audio_path: Path) -> str:
-        """Transcribe local audio only; no expected-text argument."""
+    def transcribe(self, audio_path: Path, *, expected_syllable_count: int | None = None) -> str:
+        """Transcribe local audio; only a numeric count may constrain generation."""
+        budget = generation_token_budget(expected_syllable_count)
         audio = trim_silence(load_audio(audio_path), mode=self.vad_mode)
         with self._lock:
             self._load()
@@ -164,6 +208,7 @@ class PhoWhisperASR:
                 )
                 if self.device != "cpu":
                     inputs = {key: value.to(self.device) for key, value in inputs.items()}
+                observer = _TokenBudgetObserver(budget)
                 with torch.inference_mode():
                     output = self._model.generate(
                         **inputs,
@@ -171,6 +216,13 @@ class PhoWhisperASR:
                         task="transcribe",
                         condition_on_prev_tokens=False,
                         return_timestamps=True,
+                        max_new_tokens=budget,
+                        no_repeat_ngram_size=NO_REPEAT_NGRAM_SIZE,
+                        stopping_criteria=[observer],
+                    )
+                if observer.exhausted:
+                    raise ASRError(
+                        "ASR generation reached its token budget; transcript is incomplete"
                     )
                 if self.device != "cpu":
                     output = output.cpu()

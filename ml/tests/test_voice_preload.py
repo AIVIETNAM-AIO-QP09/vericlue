@@ -62,7 +62,7 @@ def test_asr_reads_external_models_config_without_source_checkout(tmp_path, monk
     monkeypatch.setenv("MODELS_DIR", str(weights))
     provider = asr_module.PhoWhisperASR()
     assert provider.model_dir == weights / "custom-phowhisper"
-    assert provider.version == f"phowhisper-small@{revision}+voice04-v1"
+    assert provider.version == f"phowhisper-small@{revision}+voice04-v2"
     assert provider.vad_mode == 2 and provider.cpu_threads == 2
     assert provider._model is None and provider._processor is None
 
