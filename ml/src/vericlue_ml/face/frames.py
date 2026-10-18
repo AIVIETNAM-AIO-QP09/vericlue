@@ -85,10 +85,7 @@ def sample_video(path: Path, count: int) -> tuple[int, Frames]:
     pending = set(wanted)
 
     def generate() -> Frames:
-        try:
-            capture = open_capture()
-        except PadError:
-            return
+        capture = open_capture()  # lỗi mở video → PadError(E_DECODE), không phải "không có mặt"
         try:
             for index in range(wanted[-1] + 1):
                 if not capture.grab():

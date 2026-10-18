@@ -65,6 +65,13 @@ EKYC_FRAMES = 8
 FORENSIC_FRAMES = 32
 FORENSIC_MODE = "forensic"  # `DetectorInput.metadata["mode"]`; không có thì coi là eKYC
 
+# Hậu tố của model_version: cách gộp điểm khung → video. Đổi cách gộp (mean/top25/max) thì ĐỔI hậu tố này,
+# vì calibrator được khóa theo model_version. Số khung (8 hay 32) KHÔNG nằm trong version, mà ở evidence.
+AGGREGATION_TAG = "agg-maxmeantop25-v1"
+# Số luồng CPU của torch khi GenD chạy CPU: đủ nhanh mà không chiếm hết lõi của face_pad/quality/voice.
+# `torch.set_num_threads` là cài đặt toàn tiến trình (voice cũng đặt 4 qua `cpu_threads`).
+GEND_CPU_THREADS = 4
+
 ALIGN_SCALE = 1.3  # tỷ lệ ngữ cảnh quanh mặt của GenD
 INPUT_SIZE = 224
 CLIP_MEAN = (0.48145466, 0.4578275, 0.40821073)
@@ -152,8 +159,19 @@ class GendClassifier:
         return out
 
 
-def _load_classifier(root: Path, device: str | None) -> tuple[GendClassifier, str]:
-    """Kiểm SHA-256 rồi dựng GenD từ trọng số cục bộ. Trả (bộ phân loại, revision GenD)."""
+def _limit_cpu_threads(target: str) -> None:
+    """Chạy CPU thì giới hạn luồng torch (GPU thì không đụng)."""
+    if target != "cpu":
+        return
+    import os
+
+    import torch
+
+    torch.set_num_threads(max(1, min(GEND_CPU_THREADS, os.cpu_count() or 1)))
+
+
+def _load_classifier(root: Path, device: str | None) -> tuple[GendClassifier, str, str]:
+    """Kiểm SHA-256 rồi dựng GenD từ trọng số cục bộ. Trả (bộ phân loại, revision GenD, revision CLIP)."""
     from safetensors.torch import load_file
     from transformers import CLIPVisionConfig, CLIPVisionModel
 
@@ -173,18 +191,29 @@ def _load_classifier(root: Path, device: str | None) -> tuple[GendClassifier, st
     head_weight, head_bias = tensors.get("model.linear.weight"), tensors.get("model.linear.bias")
     if head_weight is None or head_bias is None or tuple(head_weight.shape) != (2, 1024):
         raise GendError("Checkpoint GenD thiếu đầu tuyến tính 1024→2.")
-    vision = CLIPVisionModel(config)
+    import torch
+
+    # Dựng trên thiết bị `meta` (không cấp phát/khởi tạo ngẫu nhiên 300M tham số) rồi gán thẳng tensor đã
+    # nạp (assign=True): đỉnh RAM chỉ còn ~1 bản trọng số thay vì 2, và nạp nhanh hơn.
+    with torch.device("meta"):
+        vision = CLIPVisionModel(config)
     try:
-        # assign=True: dùng thẳng tensor đã nạp (không sao chép), tránh giữ hai bản trọng số trong RAM.
         vision.load_state_dict(vision_state, strict=True, assign=True)
     except RuntimeError as exc:
         raise GendError("Checkpoint GenD không khớp kiến trúc CLIP ViT-L/14.") from exc
     del tensors, vision_state
+    # Buffer không lưu trong checkpoint (position_ids) vẫn ở `meta`: dựng lại đúng như CLIPVisionEmbeddings.
+    embeddings = vision.vision_model.embeddings
+    embeddings.position_ids = torch.arange(embeddings.num_positions).expand((1, -1))
+    if any(t.is_meta for t in (*vision.parameters(), *vision.buffers())):
+        raise GendError("Còn tensor chưa được nạp trọng số sau khi dựng GenD.")
     target = resolve_torch_device(device, component="gend")
     vision = vision.to(target).eval()
+    _limit_cpu_threads(target)
     return (
         GendClassifier(vision, head_weight.to(target), head_bias.to(target), target),
-        f"{gend_rev}+clip@{clip_rev}",
+        gend_rev,
+        clip_rev,
     )
 
 
@@ -219,7 +248,11 @@ class FaceDeepfakeDetector:
         self._models_dir = models_dir
         self._finder, self._classifier = finder, classifier
         self._num_frames = num_frames
-        self.version = "gend-clip-l14+scrfd-10g" if finder is None else "gend-clip-l14+injected"
+        self.version = (
+            f"gend-clip-l14+scrfd-10g+{AGGREGATION_TAG}"
+            if finder is None
+            else f"gend-clip-l14+injected+{AGGREGATION_TAG}"
+        )
         self._lock = threading.Lock()
         self._loaded_root: Path | None = None
 
@@ -235,11 +268,14 @@ class FaceDeepfakeDetector:
                     raise GendError("GenD đã nạp với MODELS_DIR khác; cần restart.")
                 return
             session, det_rev = shared_scrfd_session(root, device)
-            classifier, gend_rev = _load_classifier(root, device)
+            classifier, gend_rev, clip_rev = _load_classifier(root, device)
             self._finder = ScrfdFaceFinder(session, scale=SCRFD_SCALE, swap_rb=True)
             self._classifier = classifier
             self._loaded_root = root.resolve()
-            self.version = f"gend-clip-l14@{gend_rev[:8]}+scrfd-10g@{det_rev[:8]}"
+            self.version = (
+                f"gend-clip-l14@{gend_rev[:8]}+clip@{clip_rev[:8]}"
+                f"+scrfd-10g@{det_rev[:8]}+{AGGREGATION_TAG}"
+            )
 
     def _largest_face(self, frame: np.ndarray) -> FaceBox | None:
         faces = [

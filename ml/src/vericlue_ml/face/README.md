@@ -46,7 +46,8 @@ Mã **không gọi mạng**: thiếu file hoặc sai SHA-256 là `error`.
 | Số khung | `EKYC_FRAMES = 8`; giám định 32 (`metadata["mode"] = "forensic"`, `FORENSIC_FRAMES`) |
 | Đọc video | tuần tự bằng `cv2` (`frames.py`), đếm khung thật bằng `grab()` — không tin số khung trong webm |
 | Trọng số | `MODELS_DIR/gend-clip-l14/{config.json,model.safetensors}`, `MODELS_DIR/clip-vit-large-patch14/{config.json,preprocessor_config.json}`, `MODELS_DIR/scrfd-10g/det_10g.onnx`; kiểm SHA-256 theo manifest; không gọi mạng |
-| Phụ thuộc | `uv sync --all-packages --extra face` (torch, transformers, safetensors, pillow). `uv.lock` dùng torch bản CPU |
+| Phụ thuộc | Extra `gend` (torch, transformers, safetensors, pillow) — KHÔNG nằm trong `face` để CI không kéo torch. Máy chạy GenD: `uv sync --all-packages --extra face --extra gend` (torch CPU từ PyPI) hoặc `--extra cuda` (GPU, xem dưới). Thiếu torch thì `face_deepfake` ra `error`, không bao giờ là đạt |
+| Phiên bản mô hình | `gend-clip-l14@<rev>+clip@<rev>+scrfd-10g@<rev>+agg-maxmeantop25-v1` — hậu tố `agg-…` là cách gộp điểm khung; đổi cách gộp thì đổi hậu tố (calibrator khóa theo version). Số khung (8/32) nằm ở evidence |
 | Hiệu chỉnh | CHƯA. `score` là điểm thô; calibrator `face_deepfake` thuộc ROUT-01 |
 
 | Tình huống | `status` | `error_code` |
@@ -54,13 +55,23 @@ Mã **không gọi mạng**: thiếu file hoặc sai SHA-256 là `error`.
 | Đủ khung có mặt | `ok` | — |
 | Không có mặt ở mọi khung | `not_applicable` | `E_NO_FACE` |
 | Ít khung có mặt hơn `min(MIN_VALID_FRAMES = 3, số khung đã lấy)` | `degraded` | `E_LOW_QUALITY` |
-| Không có video lẫn ảnh, video/ảnh hỏng | `error` | `E_DECODE` |
+| Không có video lẫn ảnh, video/ảnh hỏng hoặc không mở được | `error` | `E_DECODE` |
 | Thiếu trọng số, lỗi nạp, lỗi bất kỳ | `error` | `E_INTERNAL` |
 | Sai SHA-256 trọng số | `error` | `E_INTEGRITY` |
 
 Evidence: `frame_scores` (timeseries `{frame, p_fake}`), `mean`, `top25_mean`; `quality.frames_sampled/frames_used`.
 
-**Tốc độ (đo 18/10/2026, CPU i7-13620H 10 luồng, máy đang chạy tiến trình khác nên số dao động):** GenD ≈ 1,1–2,8 s mỗi khung; 8 khung ≈ 12–31 s cả đường (đọc video 1080p HEVC 3–7 s, SCRFD ≈ 1,3 s); 3 khung ≈ 6,5 s. Nạp mô hình ≈ 17 s khi file đã nằm trong cache đĩa (lần đầu nguội ≈ 135 s). Vượt xa ngân sách detector 4 s (`detector_timeout_seconds`) → trên CPU, `face_deepfake` ra `E_TIMEOUT` và phiên vào `review`. Cần GPU (torch CUDA — chưa đổi `uv.lock`) hoặc giảm số khung; xem bàn giao FACE-02.
+**Tốc độ và thiết bị:** `DEVICE=cpu|cuda|auto` (Settings) được truyền tới mọi detector; yêu cầu GPU mà không có thì tự lùi CPU và ghi log `device_fallback`. Chạy CPU, torch dùng tối đa `GEND_CPU_THREADS = 4` luồng. Trên CPU GenD vượt ngân sách detector 4 s (`detector_timeout_seconds`) nên MVP demo chạy GPU. Muốn đo trên máy mình: `ml/scripts/bench_mvp_latency.py` (thử tay, không phải R6); số đo thử ngày 18/10 ghi trong bàn giao FACE-02.
+
+### Chạy bằng GPU (máy demo Windows, RTX)
+
+```powershell
+uv sync --all-packages --extra cuda            # torch/torchaudio cu130 + onnxruntime-gpu; thay face/gend/voice
+$env:DEVICE = "cuda"                            # hoặc DEVICE=cuda trong .env
+uv run --no-sync uvicorn vericlue_api.main:app --app-dir services/api/src
+```
+
+Cần driver NVIDIA hỗ trợ CUDA 13 (kiểm `nvidia-smi`). Mặc định và CI vẫn là CPU; `uv lock --check` không đổi. `uv run` thường sẽ đồng bộ lại về extra mặc định và gỡ bản GPU — dùng `--no-sync` (hoặc `UV_PROJECT_ENVIRONMENT=.venv-gpu` để giữ một venv riêng cho GPU).
 
 ## Chất lượng ảnh phía server: `quality.py` (MVP, ADR-0012)
 

@@ -37,8 +37,9 @@
 | `false` | mọi module dùng mô hình thật; module chưa có mô hình thật thì `NotImplementedError` |
 | `mixed` | module có trong `_REAL_FACTORIES` (registry) dùng thật, còn lại mock |
 
-Hiện có thật: `face_pad`, `voice_challenge` và `voice_spoof`; mixed cần
-`uv sync --all-packages --extra face --extra voice`.
+Hiện có thật: `face_pad`, `face_deepfake` (GenD), `quality`, `camprobe`, `voice_challenge` và
+`voice_spoof`; mixed cần `uv sync --all-packages --extra face --extra gend --extra voice` (CPU) hoặc
+`--extra cuda` (GPU, thay cho cả ba; xem `src/vericlue_ml/face/README.md`).
 `/healthz` luôn trả `mock_models` kiểu bool (`true` khi còn module mock, kể cả `mixed`).
 Thử nhanh qua Swagger: xem `src/vericlue_ml/face/README.md`.
 
@@ -236,7 +237,7 @@ Ngưỡng trong `thresholds.yaml` không đổi. Thiếu/lỗi/degraded hoặc t
 `router_profile`; hash cấu hình ngưỡng vẫn là hash YAML.
 
 Chạy thật: đặt `ROUTER_PROFILE=mvp`, `USE_MOCK_MODELS=false`, `MODELS_DIR` tới kho
-chung và cài các extra face/voice. Cần đủ wrapper thật và calibrator để có thể pass;
+chung và cài các extra face/gend/voice (hoặc `cuda` cho máy GPU). Cần đủ wrapper thật và calibrator để có thể pass;
 module chưa sẵn sàng sẽ hiện trong health degraded. `USE_MOCK_MODELS=true` vẫn
 chạy được với MVP để test. Calibrator bắt buộc MVP: PAD, deepfake, voice_spoof;
 full còn yêu cầu lipsync. Mock `mock@` vẫn được miễn calibrator.

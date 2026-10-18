@@ -6,6 +6,9 @@ conflicts = [[
     { package = "vericlue-ml", extra = "face" },
 ], [
     { package = "vericlue-ml", extra = "cuda" },
+    { package = "vericlue-ml", extra = "gend" },
+], [
+    { package = "vericlue-ml", extra = "cuda" },
     { package = "vericlue-ml", extra = "voice" },
 ]]
 
@@ -493,7 +496,7 @@ source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "filelock" },
     { name = "fsspec" },
-    { name = "hf-xet", marker = "platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'arm64' or platform_machine == 'x86_64' or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-face') or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-voice')" },
+    { name = "hf-xet", marker = "platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'arm64' or platform_machine == 'x86_64' or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-face') or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-gend') or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-voice')" },
     { name = "packaging" },
     { name = "pyyaml" },
     { name = "requests" },
@@ -1100,7 +1103,7 @@ version = "3.3.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "typing-extensions" },
-    { name = "tzdata", marker = "sys_platform == 'win32' or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-face') or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-voice')" },
+    { name = "tzdata", marker = "sys_platform == 'win32' or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-face') or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-gend') or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-voice')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/76/26/3ea4ca5eaea1c0debcdf7ee7c1613fbe721dc27a03c461c0817ffd8a0601/psycopg-3.3.6.tar.gz", hash = "sha256:c081f2250df751a943036e42db6df4571c66cd0aabe8291a7a506512b12007d2", size = 168171, upload-time = "2026-09-18T13:22:55.152Z" }
 wheels = [
@@ -1109,7 +1112,7 @@ wheels = [
 
 [package.optional-dependencies]
 binary = [
-    { name = "psycopg-binary", marker = "implementation_name != 'pypy' or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-face') or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-voice')" },
+    { name = "psycopg-binary", marker = "implementation_name != 'pypy' or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-face') or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-gend') or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-voice')" },
 ]
 
 [[package]]
@@ -1246,7 +1249,7 @@ name = "pytest"
 version = "9.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-face') or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-voice')" },
+    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-face') or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-gend') or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-voice')" },
     { name = "iniconfig" },
     { name = "packaging" },
     { name = "pluggy" },
@@ -1674,7 +1677,7 @@ version = "2.14.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cuda-bindings", marker = "sys_platform == 'linux'" },
-    { name = "cuda-toolkit", extra = ["cublas", "cudart", "cufft", "cufile", "cupti", "curand", "cusolver", "cusparse", "nvjitlink", "nvrtc", "nvtx"], marker = "(sys_platform == 'linux' and extra != 'extra-11-vericlue-ml-cuda') or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-face') or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-voice')" },
+    { name = "cuda-toolkit", extra = ["cublas", "cudart", "cufft", "cufile", "cupti", "curand", "cusolver", "cusparse", "nvjitlink", "nvrtc", "nvtx"], marker = "(sys_platform == 'linux' and extra != 'extra-11-vericlue-ml-cuda') or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-face') or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-gend') or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-voice')" },
     { name = "filelock" },
     { name = "fsspec" },
     { name = "jinja2" },
@@ -1701,7 +1704,7 @@ version = "2.14.1+cu130"
 source = { registry = "https://download.pytorch.org/whl/cu130" }
 dependencies = [
     { name = "cuda-bindings", marker = "sys_platform == 'linux'" },
-    { name = "cuda-toolkit", extra = ["cublas", "cudart", "cufft", "cufile", "cupti", "curand", "cusolver", "cusparse", "nvjitlink", "nvrtc", "nvtx"], marker = "(sys_platform == 'linux' and extra == 'extra-11-vericlue-ml-cuda') or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-face') or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-voice')" },
+    { name = "cuda-toolkit", extra = ["cublas", "cudart", "cufft", "cufile", "cupti", "curand", "cusolver", "cusparse", "nvjitlink", "nvrtc", "nvtx"], marker = "(sys_platform == 'linux' and extra == 'extra-11-vericlue-ml-cuda') or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-face') or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-gend') or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-voice')" },
     { name = "filelock" },
     { name = "fsspec" },
     { name = "jinja2" },
@@ -1747,7 +1750,7 @@ name = "tqdm"
 version = "4.70.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-face') or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-voice')" },
+    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-face') or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-gend') or (extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-voice')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/0d/ea/b2a5bd54b28a324dae8211928b2d730b6547500342c7e6c6dea08bd0a485/tqdm-4.70.1.tar.gz", hash = "sha256:cefd0eca11b2a37a3aee776544d4f4ae913f02688135b5556b8788dfa474afc4", size = 171846, upload-time = "2026-09-11T07:25:16.601Z" }
 wheels = [
@@ -1850,7 +1853,7 @@ standard = [
     { name = "httptools" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
-    { name = "uvloop", marker = "(platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32') or (platform_python_implementation == 'PyPy' and extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-face') or (platform_python_implementation == 'PyPy' and extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-voice') or (sys_platform == 'cygwin' and extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-face') or (sys_platform == 'cygwin' and extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-voice') or (sys_platform == 'win32' and extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-face') or (sys_platform == 'win32' and extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-voice')" },
+    { name = "uvloop", marker = "(platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32') or (platform_python_implementation == 'PyPy' and extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-face') or (platform_python_implementation == 'PyPy' and extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-gend') or (platform_python_implementation == 'PyPy' and extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-voice') or (sys_platform == 'cygwin' and extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-face') or (sys_platform == 'cygwin' and extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-gend') or (sys_platform == 'cygwin' and extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-voice') or (sys_platform == 'win32' and extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-face') or (sys_platform == 'win32' and extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-gend') or (sys_platform == 'win32' and extra == 'extra-11-vericlue-ml-cuda' and extra == 'extra-11-vericlue-ml-voice')" },
     { name = "watchfiles" },
     { name = "websockets" },
 ]
@@ -1928,6 +1931,8 @@ eval = [
 face = [
     { name = "onnxruntime" },
     { name = "opencv-python-headless" },
+]
+gend = [
     { name = "pillow" },
     { name = "safetensors" },
     { name = "torch", version = "2.14.1", source = { registry = "https://pypi.org/simple" } },
@@ -1955,30 +1960,30 @@ requires-dist = [
     { name = "opencv-python-headless", marker = "extra == 'cuda'", specifier = ">=4.10,<5" },
     { name = "opencv-python-headless", marker = "extra == 'face'", specifier = ">=4.10,<5" },
     { name = "pillow", marker = "extra == 'cuda'", specifier = ">=10,<13" },
-    { name = "pillow", marker = "extra == 'face'", specifier = ">=10,<13" },
+    { name = "pillow", marker = "extra == 'gend'", specifier = ">=10,<13" },
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "rapidfuzz", marker = "extra == 'cuda'", specifier = ">=3,<4" },
     { name = "rapidfuzz", marker = "extra == 'voice'", specifier = ">=3,<4" },
     { name = "safetensors", marker = "extra == 'cuda'", specifier = ">=0.5,<1" },
-    { name = "safetensors", marker = "extra == 'face'", specifier = ">=0.5,<1" },
+    { name = "safetensors", marker = "extra == 'gend'", specifier = ">=0.5,<1" },
     { name = "safetensors", marker = "extra == 'voice'", specifier = ">=0.5,<1" },
     { name = "scikit-learn", specifier = ">=1.5,<2" },
     { name = "scipy", specifier = ">=1.11,<2" },
     { name = "soundfile", marker = "extra == 'cuda'", specifier = ">=0.13,<1" },
     { name = "soundfile", marker = "extra == 'voice'", specifier = ">=0.13,<1" },
     { name = "torch", marker = "extra == 'cuda'", specifier = ">=2.6,<3", index = "https://download.pytorch.org/whl/cu130", conflict = { package = "vericlue-ml", extra = "cuda" } },
-    { name = "torch", marker = "extra == 'face'", specifier = ">=2.6,<3" },
+    { name = "torch", marker = "extra == 'gend'", specifier = ">=2.6,<3" },
     { name = "torch", marker = "extra == 'voice'", specifier = ">=2.6,<3" },
     { name = "torchaudio", marker = "extra == 'cuda'", specifier = ">=2.6,<3", index = "https://download.pytorch.org/whl/cu130", conflict = { package = "vericlue-ml", extra = "cuda" } },
     { name = "torchaudio", marker = "extra == 'voice'", specifier = ">=2.6,<3" },
     { name = "transformers", marker = "extra == 'cuda'", specifier = ">=4.57.1,<5" },
-    { name = "transformers", marker = "extra == 'face'", specifier = ">=4.57.1,<5" },
+    { name = "transformers", marker = "extra == 'gend'", specifier = ">=4.57.1,<5" },
     { name = "transformers", marker = "extra == 'voice'", specifier = ">=4.57.1,<5" },
     { name = "webrtcvad-wheels", marker = "extra == 'cuda'", specifier = ">=2.0.14,<3" },
     { name = "webrtcvad-wheels", marker = "extra == 'voice'", specifier = ">=2.0.14,<3" },
 ]
-provides-extras = ["face", "voice", "eval", "cuda"]
+provides-extras = ["face", "gend", "voice", "eval", "cuda"]
 
 [[package]]
 name = "vericlue-workspace"
@@ -1999,6 +2004,7 @@ dev = [
     { name = "httpx" },
     { name = "jsonschema" },
     { name = "nbstripout" },
+    { name = "pillow" },
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -2022,6 +2028,7 @@ dev = [
     { name = "httpx", specifier = ">=0.27" },
     { name = "jsonschema", specifier = ">=4.22" },
     { name = "nbstripout", specifier = ">=0.7" },
+    { name = "pillow", specifier = ">=10,<13" },
     { name = "pre-commit", specifier = ">=3.7" },
     { name = "pytest", specifier = ">=8.0" },
     { name = "pytest-cov", specifier = ">=5.0" },

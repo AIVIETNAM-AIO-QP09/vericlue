@@ -84,10 +84,10 @@ def _names(requirements):
     return {re.split(r"[\[<>=!~ ]", r, maxsplit=1)[0] for r in requirements}
 
 
-def test_cuda_extra_is_face_plus_voice_with_gpu_onnxruntime():
+def test_cuda_extra_is_face_gend_voice_with_gpu_onnxruntime():
     extras = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))["project"][
         "optional-dependencies"
     ]
-    cpu = _names(extras["face"]) | _names(extras["voice"])
+    cpu = _names(extras["face"]) | _names(extras["gend"]) | _names(extras["voice"])
     gpu = _names(extras["cuda"])
     assert gpu == (cpu - {"onnxruntime"}) | {"onnxruntime-gpu"}

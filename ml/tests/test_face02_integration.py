@@ -245,3 +245,83 @@ def test_router_does_not_pass_uncalibrated_real_face_deepfake_score(monkeypatch)
     assert result.status == Status.OK
     assert result.prob_attack is None
     assert TrustRouter().finalize(router_results(result)).status == "review"
+
+
+# ── model_version, luồng CPU, mở video lỗi ───────────────────────────────────────────────
+def test_model_version_names_all_revisions_and_the_aggregation(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        gend, "shared_scrfd_session", lambda root, device=None: (FakeScrfdSession(), "bfcc7d48ea84")
+    )
+    monkeypatch.setattr(
+        gend,
+        "_load_classifier",
+        lambda root, device: (ConstClassifier(), "891ce014a030", "32bd64288804"),
+    )
+    detector = FaceDeepfakeDetector(models_dir=tmp_path)
+    detector.preload(device="cpu")
+    assert detector.version == (
+        "gend-clip-l14@891ce014+clip@32bd6428+scrfd-10g@bfcc7d48+agg-maxmeantop25-v1"
+    )
+
+
+def test_injected_version_still_carries_the_aggregation_tag():
+    version = FaceDeepfakeDetector(finder=FixedFinder(), classifier=ConstClassifier()).version
+    assert version.endswith("+" + gend.AGGREGATION_TAG)
+
+
+def test_unopenable_video_is_a_decode_error_not_no_face(tmp_path):
+    result = FaceDeepfakeDetector(finder=FixedFinder(), classifier=ConstClassifier()).predict(
+        DetectorInput(video=tmp_path / "missing.webm")
+    )
+    assert result.status == Status.ERROR
+    assert result.error_code == ErrorCode.E_DECODE
+
+
+def test_video_that_cannot_be_reopened_for_sampling_is_a_decode_error(monkeypatch, tmp_path):
+    """Lượt đếm khung mở được nhưng lượt đọc lại thì không → E_DECODE (không phải E_NO_FACE)."""
+    cv2 = pytest.importorskip("cv2")
+    path = tmp_path / "clip.avi"
+    writer = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*"MJPG"), 10, (64, 64))
+    if not writer.isOpened():
+        pytest.skip("không ghi được video thử")
+    for _ in range(12):
+        writer.write(np.full((64, 64, 3), 100, np.uint8))
+    writer.release()
+
+    real = cv2.VideoCapture
+    opened = []
+
+    def flaky(*args):
+        opened.append(1)
+        if len(opened) == 1:
+            return real(*args)
+
+        class Closed:
+            def isOpened(self):
+                return False
+
+            def release(self):
+                pass
+
+        return Closed()
+
+    monkeypatch.setattr(cv2, "VideoCapture", flaky)
+    result = FaceDeepfakeDetector(finder=FixedFinder(), classifier=ConstClassifier()).predict(
+        DetectorInput(video=path)
+    )
+    assert result.status == Status.ERROR
+    assert result.error_code == ErrorCode.E_DECODE
+
+
+def test_cpu_limits_torch_threads_and_gpu_does_not(monkeypatch):
+    torch = pytest.importorskip("torch")
+    seen = []
+    monkeypatch.setattr(torch, "set_num_threads", lambda n: seen.append(n))
+    monkeypatch.setattr("os.cpu_count", lambda: 16)
+    gend._limit_cpu_threads("cuda")
+    assert seen == []
+    gend._limit_cpu_threads("cpu")
+    assert seen == [gend.GEND_CPU_THREADS]
+    monkeypatch.setattr("os.cpu_count", lambda: 2)
+    gend._limit_cpu_threads("cpu")
+    assert seen[-1] == 2
