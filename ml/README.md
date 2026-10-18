@@ -222,3 +222,79 @@ Môi trường Fairseq tham chiếu riêng dùng Torch/TorchAudio 2.2.2/2.2.2 (C
 Chế độ mixed hiện dùng face_pad, voice_challenge và voice_spoof thật:
 `uv sync --all-packages --extra face --extra voice`. Thiếu model/dependency vẫn
 error/degraded, không tự đổi mock; voice_spoof còn cần calibrator đúng phiên bản.
+
+
+## Hồ sơ MVP (ROUT-01, ADR-0012)
+
+`ROUTER_PROFILE=full` mặc định giữ nguyên chính sách và tập module hiện có.
+`ROUTER_PROFILE=mvp` chỉ chạy/preload `quality`, `face_pad`, `face_deepfake`,
+`camprobe`, `voice_challenge`, `voice_spoof`; không chạy ChromaPulse, lipsync hay
+provenance. Presence chỉ dùng CamProbe; mặt lấy max xác suất PAD/deepfake;
+giọng phải qua câu thử thách và chống giọng tổng hợp, giữ cổng cắt ghép nếu có.
+Ngưỡng trong `thresholds.yaml` không đổi. Thiếu/lỗi/degraded hoặc thiếu calibrator
+đúng phiên bản ở bước bắt buộc → review. Metadata quyết định MVP ghi
+`router_profile`; hash cấu hình ngưỡng vẫn là hash YAML.
+
+Chạy thật: đặt `ROUTER_PROFILE=mvp`, `USE_MOCK_MODELS=false`, `MODELS_DIR` tới kho
+chung và cài các extra face/voice. Cần đủ wrapper thật và calibrator để có thể pass;
+module chưa sẵn sàng sẽ hiện trong health degraded. `USE_MOCK_MODELS=true` vẫn
+chạy được với MVP để test. Calibrator bắt buộc MVP: PAD, deepfake, voice_spoof;
+full còn yêu cầu lipsync. Mock `mock@` vẫn được miễn calibrator.
+
+### Identity cho MVP — không cần dữ liệu
+
+Theo ADR-0012 mục 2 cập nhật 18/10, PAD dùng artifact `method=identity`:
+`prob_attack = clip(score, 1e-4, 1-1e-4)`. Voice_spoof cũng dùng identity theo duyệt PR #28; Platt cũ được thay vì
+làm ngưỡng giọng lỏng hơn trên tập fit nhỏ. GenD dùng identity ngay khi wrapper được merge và chốt model_version; không cần
+chia tập hoặc fit thêm để xem luồng chạy. Hôm nay không chạy công việc dữ liệu.
+
+```powershell
+uv run --no-sync python scripts/create_identity_calibrator.py --module face_pad --model-version "minifasnet-v2@bfcc7d48+scrfd-10g@bfcc7d48"
+# Khi FACE-02 chốt version runtime sau preload (không dùng tên generic trong constructor):
+uv run --no-sync python scripts/create_identity_calibrator.py --module face_deepfake --model-version "<model_version chính xác của wrapper GenD>"
+```
+
+Version PAD lấy từ `pad.py` và hai revision trong `models/manifest.yaml`, không
+cần nạp mô hình hoặc ảnh. CLI chỉ đọc mã/config/JSON calibrator, không mở dữ liệu,
+không chạy detector. Commit implementation trước khi sinh để JSON ghi commit
+thực thi. Lưu bằng `CalibrationStore.path`; dấu `+` trong version được encode `%2B`.
+CLI mặc định từ chối thay artifact đã fit (Platt/isotonic) bằng identity. Voice
+đã được thay một lần theo quyết định trưởng nhóm; scripts/fit_calibrators.py giữ
+lại để hiệu chỉnh học ở giai đoạn sau. Trên Windows, chạy `git config core.longpaths true`
+tại gốc repo trước checkout/fetch vì tên calibrator có thể vượt MAX_PATH.
+
+`IdentityCalibrator` là artifact riêng, được `CalibrationStore` nhận như calibrator
+thường: `provisional=true`, ghi chú **MVP — không dùng cho báo cáo**, `n_pos=n_neg=0`,
+`dataset=not_fitted`, `split=none`, `metrics_scope=not_evaluated`. Không có số đo
+before/after hoặc CV giả; đọc `prior_attack` sẽ báo lỗi vì chưa có tiền nghiệm.
+`Calibrator` Platt/isotonic giữ schema và kiểm định cũ. Router vẫn cần đúng
+module/version; thiếu artifact, lỗi/degraded/not_applicable hoặc score không hữu
+hạn vẫn không được pass. Ngưỡng tạm giữ nguyên; identity chỉ giúp cắm mô hình để
+xem luồng, không phải xác suất đã được kiểm chứng hay kết quả R.
+
+### Hiệu chỉnh học từ dữ liệu — công việc thay thế sau MVP
+
+Phần dưới mô tả công cụ đã có; không chạy trong cập nhật MVP hôm nay.
+Fit calibrator bằng detector thật qua registry:
+
+```powershell
+uv run python scripts/fit_calibrators.py --module voice_spoof --data-dir D:\Projects\vericlue-store\data --models-dir D:\Projects\vericlue-store\models
+uv run python scripts/fit_calibrators.py --module face_pad --datasets zalo2022 --data-dir D:\Projects\vericlue-store\data --models-dir D:\Projects\vericlue-store\models
+uv run python scripts/fit_calibrators.py --module face_deepfake --datasets wilddeepfake --data-dir D:\Projects\vericlue-store\data --models-dir D:\Projects\vericlue-store\models
+```
+
+Chỉ đọc `splits/<dataset>/calib_fit.csv`. Tên dataset đổi bằng `--datasets`.
+Voice mặc định VSASV, ViMD, MLAAD-vi: dương chỉ TTS/VC, replay bị loại trước inference.
+CV dùng connected `group_id` đã chia, fallback `dataset:subject_id`; thiếu nhóm thì
+dừng. PAD video lấy khung giữa, tương tự ảnh người dùng chụp; GenD video dùng wrapper
+gốc. Mẫu không có score với not_applicable/E_LOW_QUALITY được thống kê loại theo
+dataset/lớp/lý do trong provenance. Mẫu được fit phải ok, đúng module/version và có
+score hữu hạn; error/degraded hoặc not_applicable khác dừng toàn lượt. Dưới 100 mẫu
+mỗi lớp chỉ Platt theo hàm fit hiện có. Runtime vẫn review khi thiếu bằng chứng.
+
+Commit implementation trước khi chạy (script từ chối working tree bẩn). Artifact
+JSON ghi `provisional: true`, commit thực thi, n_pos/n_neg, hash manifest, cách lấy
+ảnh và số mẫu loại trong dataset provenance; version lấy trực tiếp detector.
+JSON được commit vào `ml/configs/calibrators/`. Chỉ số trong artifact là OOF trên
+calib_fit, không phải kết quả R hay bảo đảm LTT. Hiệu chỉnh đã học sẽ thay identity
+ở giai đoạn đánh giá sau; không chặn MVP. Thiếu calibrator ở bước được chạy thì review.

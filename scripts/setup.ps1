@@ -18,6 +18,9 @@ if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     Write-Host "Chưa có Docker (cần từ task PLAT-05). Bỏ qua bước này." -ForegroundColor Yellow
 }
 
+# Calibrator filenames include model revisions and may exceed Windows MAX_PATH.
+git config core.longpaths true
+
 Step "Cài Python 3.12 và thư viện (uv)"
 uv -q python install 3.12
 uv sync --all-packages

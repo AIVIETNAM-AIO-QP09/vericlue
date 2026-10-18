@@ -27,9 +27,7 @@ from vericlue_api.schemas.session import (
 from vericlue_api.services.challenge import generate_challenge
 from vericlue_api.services.detection import run_detectors
 from vericlue_api.services.provisional_decision import (
-    FINALIZE_MODULES,
     MAX_VOICE_REREADS,
-    VOICE_STEP_MODULES,
     Outcome,
 )
 from vericlue_api.services.review_store import ReviewStore
@@ -60,7 +58,11 @@ class SessionFlow:
         runner: Callable = run_detectors,
         router: TrustRouter | None = None,
     ) -> None:
-        self.router = router if router is not None else TrustRouter(settings.router_config)
+        self.router = (
+            router
+            if router is not None
+            else TrustRouter(settings.router_config, profile=settings.router_profile)
+        )
         self.settings = settings
         self._run = runner
         self.sessions = sessions
@@ -112,7 +114,7 @@ class SessionFlow:
         session_valid = self._valid_time(session, color_challenge=True)
         results = (
             self._run(
-                FINALIZE_MODULES,
+                self.router.profile.finalize_modules,
                 session_id=session.session_id,
                 scenario=session.scenario,
                 images=session.images,
@@ -166,7 +168,7 @@ class SessionFlow:
         session_valid = self._valid_time(session)
         results = (
             self._run(
-                VOICE_STEP_MODULES,
+                self.router.profile.voice_step_modules,
                 session_id=session.session_id,
                 scenario=session.scenario,
                 images=session.images,
