@@ -142,6 +142,19 @@ def test_no_video_does_not_trigger_lazy_model_loading(lazy_pipeline):
     assert all(not values for values in calls.values())
 
 
+@pytest.mark.parametrize("change", [{"device": "cuda"}, {"models_dir": Path("other-root")}])
+def test_lazy_configuration_is_frozen_before_loading(lazy_pipeline, change):
+    make_detector, calls, _, _ = lazy_pipeline
+    detector = make_detector()
+    root = detector._root
+    detector.configure(device="cpu")
+    with pytest.raises(syncnet.SyncNetError, match="restart"):
+        detector.configure(**change)
+    assert detector._root == root and detector._requested_device == "cpu"
+    assert not detector._loaded
+    assert all(not values for values in calls.values())
+
+
 @pytest.mark.parametrize("stage", ["resolve", "aligner", "scrfd", "backend"])
 def test_failed_lazy_load_is_sticky_and_repeated_predict_cannot_pass(lazy_pipeline, stage):
     make_detector, calls, failure, _ = lazy_pipeline

@@ -429,6 +429,7 @@ class SyncNetDetector:
         self.version = f"stable-syncnet@{sync}+ctc-aligner@{ctc}+scrfd-10g@{scrfd}+voice05-v2"
         self._lock = threading.RLock()
         self._loaded = False
+        self._configured = False
         self._load_failed = False
         self._device = "cpu"
         self._requested_device = requested_device(device)
@@ -438,11 +439,12 @@ class SyncNetDetector:
         with self._lock:
             root = _models_root(models_dir) if models_dir is not None else self._root
             wanted = requested_device(device)
-            if (self._loaded or self._load_failed) and (
+            if self._configured and (
                 root.resolve() != self._root.resolve() or wanted != self._requested_device
             ):
                 raise SyncNetError("Loaded detector needs restart for new configuration")
             self._root, self._requested_device = root, wanted
+            self._configured = True
 
     def preload(self, *, models_dir: Path | None = None, device: str = "cpu") -> None:
         """Verify and load local checkpoints once, including the forced aligner/SCRFD."""

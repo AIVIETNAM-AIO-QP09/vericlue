@@ -268,4 +268,5 @@ quality, PAD, GenD, PhoWhisper và AntiDeepfake. Ví dụ GPU 6 GB:
 Lipsync chỉ cấu hình lúc khởi động, nạp trọng số offline ở lần đầu có video,
 audio và câu đề bài; không giữ model CTC/SyncNet trên GPU lúc preload. Lần đầu
 có thể timeout trong ngân sách 4 s; kết quả vẫn là lỗi rõ ràng, MVP chỉ tham khảo,
-full vẫn không coi lỗi là đạt. Nạp lỗi thì cần khởi động lại để thử lại.
+full vẫn không coi lỗi là đạt. Đường dẫn/thiết bị cố định từ lần cấu hình đầu;
+đổi cấu hình hoặc thử lại sau lỗi nạp cần khởi động lại tiến trình.
