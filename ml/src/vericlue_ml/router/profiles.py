@@ -43,5 +43,5 @@ def get_profile(name: RouterProfileName = "full") -> RouterProfile:
             name, (Module.CHROMAPULSE, Module.CAMPROBE), (Module.VOICE_SPOOF, Module.LIPSYNC)
         )
     if name == "mvp":
-        return RouterProfile(name, (Module.CAMPROBE,), (Module.VOICE_SPOOF,))
+        return RouterProfile(name, (Module.CAMPROBE,), (Module.VOICE_SPOOF, Module.LIPSYNC))
     raise ValueError(f"Unknown router profile: {name}")

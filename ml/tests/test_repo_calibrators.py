@@ -65,6 +65,13 @@ def test_mvp_voice_gate_uses_tracked_identity_at_current_threshold(score, expect
                 prob_attack=None,
                 latency_ms=1,
             ),
+            Module.LIPSYNC: ModuleResult(
+                module=Module.LIPSYNC,
+                model_version="mock@lipsync",
+                status="ok",
+                prob_attack=0.01,
+                latency_ms=1,
+            ),
         }
     )
     assert decision.status == expected

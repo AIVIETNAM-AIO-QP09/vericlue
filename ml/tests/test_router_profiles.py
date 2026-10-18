@@ -14,7 +14,7 @@ FACE = (Module.FACE_PAD, Module.FACE_DEEPFAKE)
 FULL_FINALIZE = (Module.QUALITY, *FACE, Module.CHROMAPULSE, Module.CAMPROBE)
 MVP_FINALIZE = (Module.QUALITY, *FACE, Module.CAMPROBE)
 FULL_VOICE = (Module.VOICE_CHALLENGE, Module.VOICE_SPOOF, Module.LIPSYNC)
-MVP_VOICE = (Module.VOICE_CHALLENGE, Module.VOICE_SPOOF)
+MVP_VOICE = (Module.VOICE_CHALLENGE, Module.VOICE_SPOOF, Module.LIPSYNC)
 STAGES = [
     ("full", "finalize", FULL_FINALIZE),
     ("full", "voice", FULL_VOICE),
@@ -50,17 +50,19 @@ def test_default_profile_retains_full_module_requirements():
 def test_mvp_profile_omits_auxiliary_modules_and_calibrators():
     router = TrustRouter(profile="mvp")
     assert router.profile.presence_modules == (Module.CAMPROBE,)
-    assert router.profile.voice_modules == (Module.VOICE_SPOOF,)
+    assert router.profile.voice_modules == (Module.VOICE_SPOOF, Module.LIPSYNC)
     assert router.profile.finalize_modules == MVP_FINALIZE
     assert router.profile.voice_step_modules == MVP_VOICE
-    assert set(router.profile.calibration_modules) == {*FACE, Module.VOICE_SPOOF}
+    assert set(router.profile.calibration_modules) == {*FACE, Module.VOICE_SPOOF, Module.LIPSYNC}
 
 
 @pytest.mark.parametrize(
     "profile,stage,modules,module",
     [(profile, stage, modules, module) for profile, stage, modules in STAGES for module in modules],
 )
-@pytest.mark.parametrize("failure", ["missing", Status.ERROR, Status.DEGRADED])
+@pytest.mark.parametrize(
+    "failure", ["missing", Status.ERROR, Status.DEGRADED, Status.NOT_APPLICABLE]
+)
 def test_every_required_module_failure_reviews_at_reached_gate(
     profile, stage, modules, module, failure
 ):
@@ -95,11 +97,10 @@ def test_missing_real_calibrator_cannot_use_existing_probability(profile, stage,
     assert values[module].prob_attack == 0.0
 
 
-@pytest.mark.parametrize("stage,modules", [("finalize", MVP_FINALIZE), ("voice", MVP_VOICE)])
-def test_full_still_requires_chromapulse_and_lipsync(stage, modules):
-    values = mock_results(modules)
-    assert getattr(TrustRouter(profile="mvp"), stage)(values).status == "pass"
-    assert getattr(TrustRouter(profile="full"), stage)(values).status == "review"
+def test_full_still_requires_chromapulse_while_mvp_omits_it():
+    values = mock_results(MVP_FINALIZE)
+    assert TrustRouter(profile="mvp").finalize(values).status == "pass"
+    assert TrustRouter(profile="full").finalize(values).status == "review"
 
 
 def test_mvp_challenge_remains_a_gate_and_allows_one_reread():
@@ -117,12 +118,13 @@ def test_mvp_challenge_remains_a_gate_and_allows_one_reread():
     assert router.voice(values).status == "pass"
 
 
-@pytest.mark.parametrize("where", ["context", "evidence"])
+@pytest.mark.parametrize("where", ["context", "challenge", "lipsync"])
 @pytest.mark.parametrize("flag", [1, "bad", float("nan"), True])
 def test_mvp_preserves_splice_checks(where, flag):
     values = mock_results(MVP_VOICE)
-    if where == "evidence":
-        values[Module.VOICE_CHALLENGE] = values[Module.VOICE_CHALLENGE].model_copy(
+    if where != "context":
+        module = Module.LIPSYNC if where == "lipsync" else Module.VOICE_CHALLENGE
+        values[module] = values[module].model_copy(
             update={"evidence": [Evidence(type="scalar", name="splice_flags", value=flag)]}
         )
         decision = TrustRouter(profile="mvp").voice(values)

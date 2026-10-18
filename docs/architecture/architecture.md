@@ -179,16 +179,16 @@ Latency thực từng detector được lưu trong ModuleResult và log không t
 
 ### Hồ sơ MVP (ADR-0012, ROUT-01)
 
-`ROUTER_PROFILE=full` mặc định giữ luồng trên. `mvp` chọn sáu module quality,
-face_pad, face_deepfake, camprobe, voice_challenge, voice_spoof ngay từ preload
+`ROUTER_PROFILE=full` mặc định giữ luồng trên. `mvp` đợt 2 chọn bảy module quality,
+face_pad, face_deepfake, camprobe, voice_challenge, voice_spoof, lipsync ngay từ preload
 và mọi lần chạy orchestrator (cả lời gọi bàn duyệt/giám định). Router chỉ bắt buộc
-CamProbe cho presence, chỉ voice_spoof cho xác suất giọng; câu thử thách và cờ cắt
-ghép vẫn áp dụng. Calibrator MVP bắt buộc PAD/deepfake/spoof đúng model_version;
+CamProbe cho presence, voice_spoof và lipsync cho giọng; câu thử thách và cờ cắt
+ghép vẫn áp dụng. Calibrator MVP bắt buộc PAD/deepfake/spoof/lipsync đúng model_version;
 không đổi ngưỡng, hợp đồng, thứ tự cổng hay xử lý lỗi. Metadata thresholds của
 quyết định MVP thêm router_profile; full giữ nguyên metadata. Script fit thật chỉ
 đọc calib_fit; PAD video lấy khung giữa và voice loại replay, JSON tạm được commit.
 
-ADR-0012 mục 2 cập nhật 18/10: MVP dùng artifact identity cho PAD, GenD và voice_spoof, cắt
+ADR-0012 mục 2 cập nhật 18/10: MVP dùng artifact identity cho PAD, GenD, voice_spoof và lipsync (đợt 2 §5), cắt
 điểm thô theo epsilon theo quyết định duyệt PR #28. Identity ghi provisional và
 “MVP — không dùng cho báo cáo”, không tạo số mẫu hoặc metrics học giả. Store nạp
 artifact theo method/version; router không có fallback ngầm. Sinh identity chỉ

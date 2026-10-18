@@ -23,6 +23,7 @@ from vericlue_ml.registry import get_detector
 from vericlue_ml.router.policy import TrustRouter
 from vericlue_ml.voice.antispoof import AntiDeepfakeDetector
 from vericlue_ml.voice.challenge import VoiceChallengeDetector
+from vericlue_ml.voice.syncnet import SyncNetDetector
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +88,7 @@ class Orchestrator:
                                 FacePadDetector,
                                 FaceDeepfakeDetector,
                                 QualityDetector,
+                                SyncNetDetector,
                             ),
                         ):
                             preload(

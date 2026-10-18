@@ -1,5 +1,7 @@
 """ROUT-01 profile isolation through settings, startup and the citizen API."""
 
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
@@ -18,7 +20,10 @@ MVP_MODULES = {
     Module.CAMPROBE,
     Module.VOICE_CHALLENGE,
     Module.VOICE_SPOOF,
+    Module.LIPSYNC,
 }
+
+VOICE_MODULES = {Module.VOICE_CHALLENGE, Module.VOICE_SPOOF, Module.LIPSYNC}
 
 
 def test_settings_default_profile_preserves_full(monkeypatch):
@@ -80,6 +85,33 @@ def test_only_profile_modules_are_constructed_preloaded_and_run(profile):
         engine.close()
 
 
+def test_lipsync_preload_receives_configured_model_root_and_device(monkeypatch):
+    preloads = []
+
+    class ConfiguredSyncNet(MockDetector):
+        def __init__(self):
+            super().__init__(Module.LIPSYNC)
+
+        def preload(self, *, models_dir=None, device="cpu"):
+            preloads.append((models_dir, device))
+
+    monkeypatch.setattr(orchestration, "SyncNetDetector", ConfiguredSyncNet)
+    settings = Settings(router_profile="mvp", models_dir="configured-models", device="cpu")
+    engine = Orchestrator(
+        settings,
+        detector_factory=lambda module: (
+            ConfiguredSyncNet() if module == Module.LIPSYNC else MockDetector(module)
+        ),
+    )
+    try:
+        engine.start()
+        engine.start()
+        assert preloads == [(Path(settings.models_dir), settings.device)]
+        assert not engine.failed_modules
+    finally:
+        engine.close()
+
+
 def test_mvp_mock_citizen_flow_runs_face_then_voice_without_disabled_modules(monkeypatch):
     monkeypatch.setenv("ROUTER_PROFILE", "mvp")
     predicted = []
@@ -104,7 +136,7 @@ def test_mvp_mock_citizen_flow_runs_face_then_voice_without_disabled_modules(mon
         response = client.post(f"/v1/sessions/{sid}/finalize", headers=headers)
         assert response.status_code == 200
         assert response.json()["status"] == "voice_challenge"
-        assert set(predicted) == MVP_MODULES - {Module.VOICE_CHALLENGE, Module.VOICE_SPOOF}
+        assert set(predicted) == MVP_MODULES - VOICE_MODULES
         predicted.clear()
         response = client.post(
             f"/v1/sessions/{sid}/voice",
@@ -113,13 +145,13 @@ def test_mvp_mock_citizen_flow_runs_face_then_voice_without_disabled_modules(mon
         )
         assert response.status_code == 200
         assert response.json() == {"status": "pass"}
-        assert set(predicted) == {Module.VOICE_CHALLENGE, Module.VOICE_SPOOF}
+        assert set(predicted) == VOICE_MODULES
         with client.app.state.vericlue.transaction() as state:
             assert set(state.sessions.get(sid).results) == MVP_MODULES
 
 
 @pytest.mark.parametrize("module", sorted(MVP_MODULES, key=str))
-@pytest.mark.parametrize("status", [Status.ERROR, Status.DEGRADED])
+@pytest.mark.parametrize("status", [Status.ERROR, Status.DEGRADED, Status.NOT_APPLICABLE])
 def test_mvp_required_module_failure_always_reviews(monkeypatch, module, status):
     monkeypatch.setenv("ROUTER_PROFILE", "mvp")
 
@@ -134,10 +166,7 @@ def test_mvp_required_module_failure_always_reviews(monkeypatch, module, status)
                     latency_ms=0,
                 )
             result = super().predict(inp)
-            if (
-                module in {Module.VOICE_CHALLENGE, Module.VOICE_SPOOF}
-                and self.name == Module.FACE_DEEPFAKE
-            ):
+            if module in VOICE_MODULES and self.name == Module.FACE_DEEPFAKE:
                 return result.model_copy(update={"score": 0.45, "prob_attack": 0.45})
             return result
 
@@ -150,7 +179,7 @@ def test_mvp_required_module_failure_always_reviews(monkeypatch, module, status)
         sid = created["session_id"]
         headers = {"Authorization": "Bearer " + created["token"]}
         response = client.post(f"/v1/sessions/{sid}/finalize", headers=headers)
-        if module in {Module.VOICE_CHALLENGE, Module.VOICE_SPOOF}:
+        if module in VOICE_MODULES:
             assert response.json()["status"] == "voice_challenge"
             response = client.post(
                 f"/v1/sessions/{sid}/voice",

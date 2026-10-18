@@ -228,8 +228,8 @@ class IdentityCalibrator(_Record):
 
     @model_validator(mode="after")
     def validate_identity(self) -> IdentityCalibrator:
-        if self.module not in {Module.FACE_PAD, Module.FACE_DEEPFAKE, Module.VOICE_SPOOF}:
-            raise ValueError("Identity is limited to the three ADR-0012 score modules")
+        if self.module not in REQUIRED_MODULES:
+            raise ValueError("Identity is limited to the ADR-0012 score modules")
         if self.parameters != Parameters():
             raise ValueError("Identity cannot contain fitted parameters")
         return self

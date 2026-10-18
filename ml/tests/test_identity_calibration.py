@@ -79,6 +79,21 @@ def test_identity_records_no_invented_samples_metrics_or_prior() -> None:
 
 
 @pytest.mark.parametrize(
+    "module",
+    [
+        Module.QUALITY,
+        Module.CHROMAPULSE,
+        Module.CAMPROBE,
+        Module.VOICE_CHALLENGE,
+        Module.PROVENANCE,
+    ],
+)
+def test_identity_remains_limited_to_attack_score_modules(module: Module) -> None:
+    with pytest.raises(ValidationError, match="ADR-0012 score modules"):
+        identity(module)
+
+
+@pytest.mark.parametrize(
     ("field", "value"),
     [
         ("provisional", False),
@@ -100,7 +115,9 @@ def test_identity_rejects_misleading_metadata_or_learned_parameters(field, value
         cal.IdentityCalibrator.model_validate(payload)
 
 
-@pytest.mark.parametrize("module", [Module.FACE_PAD, Module.FACE_DEEPFAKE, Module.VOICE_SPOOF])
+@pytest.mark.parametrize(
+    "module", [Module.FACE_PAD, Module.FACE_DEEPFAKE, Module.VOICE_SPOOF, Module.LIPSYNC]
+)
 def test_identity_store_roundtrip_and_apply_uses_exact_version(
     tmp_path: Path, module: Module
 ) -> None:

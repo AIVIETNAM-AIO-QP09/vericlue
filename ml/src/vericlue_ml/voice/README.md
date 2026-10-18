@@ -89,3 +89,69 @@ VOICE-05/06 ghép căn chỉnh, phát hiện giọng giả và khớp môi; VOIC
 `uv run --all-packages --extra voice pytest` chạy test mock/oracle, không dùng weights. Test
 `slow` chỉ chạy khi đặt cả MODELS_DIR/DATA_DIR và đủ model/audio/dependency local;
 CI thiếu chúng thì skip. Trọng số, TTS, raw audio, JSON chi tiết không commit.
+
+## VOICE-05 — căn câu và SyncNet (MVP đợt 2)
+
+Registry đã có `SyncNetDetector` cho `lipsync`; cài cả extra `face` và `voice`.
+Chỉ nạp file có sẵn trong `MODELS_DIR/ctc-aligner`, `syncnet`, `scrfd-10g`, kiểm
+SHA-256 trước khi đọc checkpoint. Không gọi mạng hoặc remote code. Model/processor
+CTC dùng local safetensors; SyncNet dùng `weights_only=True`, strict state dict.
+Preload một lần; CPU mặc định, `DEVICE=cuda` hoặc `cuda:N` chỉ khi Torch có CUDA.
+
+`ForcedAligner.align(audio_path, prompt)` căn **câu phía server**, không nhận câu
+ASR. Dùng CTC blank 0, wildcard `<star>`, bước 20 ms; chuẩn hóa tiếng Việt bằng
+NFC/chữ thường/chuyển số như VOICE-04 rồi bỏ dấu/đ→d để khớp vocab Latin. Đây là
+nhánh tiếng Việt, không thay thế romanizer đa ngôn ngữ. Không cắt VAD hoặc nối
+thời gian. Cờ tạm: khoảng trống nội bộ >1 s, âm tiết <60 ms hoặc >1,2 s, wildcard
+nội bộ >1 s. Evidence `splice_flags` là số nguyên, `splice_positions` chứa vị trí;
+router đưa sang review ưu tiên cao khi số cờ dương. Cờ là gợi ý kiểm tra, không
+chứng minh âm thanh đã bị sửa.
+
+SyncNet stable LatentSync dùng 16 khung/25 fps, RGB 256² chuẩn hóa [-1,1], chỉ
+nửa dưới; âm thanh mono 16 kHz, preemphasis 0,97, mel Slaney 80×52, FFT800/hop200.
+Dùng lại hộp mặt SCRFD của PAD để cắt mặt, **khác bước affine theo landmark của
+upstream**; chưa tuyên bố tương đương hay độ chính xác. Mọi cửa sổ hình/tiếng và
+31 vị trí dò ±600 ms đều nằm trong đúng đoạn câu đã căn; tối đa 4 mốc cách đều,
+không chọn mốc theo điểm. Đo trên đồng hồ gốc, không nối các đoạn có khoảng nghỉ.
+Đoạn quá ngắn để dò đầy đủ → degraded; không có video/mặt → not_applicable;
+thiếu prompt/audio, checksum sai hoặc inference lỗi → error. Các trạng thái này
+không được coi là đạt. Video bước giọng nói phải là video tải lên **lần đọc hiện
+tại**, không lấy lại clip khuôn mặt ở bước trước.
+
+Evidence gồm `av_offset_ms` (dương = tiếng trễ), `sync_confidence` (cosine tại
+mốc gốc) và `best_offset_confidence`. Hằng số tạm theo ADR-0012 §5:
+`score = clip(max(1 - confidence_at_zero, abs(offset_ms)/500), 0, 1)`;
+điểm tăng là đáng nghi hơn, `prob_attack=None`. Không dùng cosine sau sửa lệch để
+cho qua. Identity lipsync được lưu đúng version và luôn ghi **MVP — không dùng
+cho báo cáo**. Đây không phải xác suất được kiểm chứng hay kết quả R.
+
+```powershell
+uv sync --all-packages --extra face --extra voice
+$env:MODELS_DIR = 'D:\Projects\vericlue-store\models'
+$env:ROUTER_PROFILE = 'mvp'
+$env:USE_MOCK_MODELS = 'mixed'
+# Không đọc media để lấy version; chỉ constructor/config:
+$version = uv run --no-sync python -c "from vericlue_ml.voice.syncnet import SyncNetDetector; print(SyncNetDetector().version)"
+uv run --no-sync python scripts/create_identity_calibrator.py --module lipsync --model-version $version
+```
+
+Code kiến trúc Apache-2.0, trọng số SyncNet OpenRAIL++, trọng số aligner CC-BY-NC
+4.0; giấy phép code và weights là riêng. Nguồn ghim/văn bản giấy phép ở
+`third_party/README.md`. Thử tay dùng clip local chỉ kiểm luồng, không fit/chia
+tập/chọn ngưỡng, không phân phối lại video hoặc transcript.
+Thử tay một bản ghi local có audio/video đồng hồ chung (prompt là câu thực sự
+được đọc, lưu trong file UTF-8 local). Script tạo hai WAV biến thể trong thư mục
+output, giữ nguyên bản gốc; không đọc danh mục hoặc tập split. Chạy BLAS một luồng
+để tránh thiếu RAM trên máy đang mở nhiều phiên AI:
+
+```powershell
+$env:OPENBLAS_NUM_THREADS = '1'
+$env:OMP_NUM_THREADS = '1'
+$env:MKL_NUM_THREADS = '1'
+uv run --no-sync python scripts/smoke_voice_lipsync.py --video tmp/voice05-smoke/original.mp4 --audio tmp/voice05-smoke/original.wav --prompt-file tmp/voice05-smoke/prompt.txt --models-dir $env:MODELS_DIR --output-dir tmp/voice05-smoke/run --device cpu
+```
+
+Smoke nạp CTC rồi giải phóng trước khi nạp SyncNet để giảm RAM; `smoke.json` ghi
+thời gian từng pha, không phải độ trễ API đầu–cuối. Không in hoặc lưu transcript
+vào báo cáo; không commit media/JSON smoke. Nếu không có Torch CUDA thì chỉ báo
+CPU, không suy ra số GPU. Ghi nguồn clip, lệnh, commit và kết quả thực trong bàn giao.

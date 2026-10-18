@@ -74,6 +74,13 @@ def _camprobe() -> Detector:
     return CamProbeDetector()
 
 
+@lru_cache(maxsize=1)
+def _lipsync() -> Detector:
+    from vericlue_ml.voice.syncnet import SyncNetDetector
+
+    return SyncNetDetector()
+
+
 _REAL_FACTORIES: dict[Module, Callable[[], Detector]] = {
     Module.VOICE_CHALLENGE: _voice_challenge,
     Module.VOICE_SPOOF: _voice_spoof,
@@ -81,6 +88,7 @@ _REAL_FACTORIES: dict[Module, Callable[[], Detector]] = {
     Module.CAMPROBE: _camprobe,
     Module.FACE_DEEPFAKE: _face_deepfake,
     Module.QUALITY: _quality,
+    Module.LIPSYNC: _lipsync,
 }
 
 
