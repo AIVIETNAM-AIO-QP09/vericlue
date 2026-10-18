@@ -24,6 +24,6 @@ def healthz(request: Request, settings: Settings = Depends(get_settings)) -> Hea
     return Health(
         status="degraded" if failed else "ok",
         version=__version__,
-        mock_models=settings.use_mock_models,
+        mock_models=bool(settings.use_mock_models),  # mixed vẫn có module mock → true
         failed_modules=failed,
     )

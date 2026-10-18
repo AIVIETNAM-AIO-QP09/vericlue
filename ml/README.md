@@ -9,7 +9,7 @@
 |---|---|---|
 | `src/vericlue_ml/common/` | `ModuleResult`, hiệu chỉnh xác suất, đọc video/âm thanh | E0 |
 | `src/vericlue_ml/mock/` | Mô-đun giả lập cho mọi bộ phát hiện | E0 |
-| `src/vericlue_ml/face/` | PAD (MiniFASNet), GenD, SBI, gộp điểm theo khung | E4 |
+| `src/vericlue_ml/face/` | PAD (MiniFASNet, FACE-01 bước 1 — xem `face/README.md`), GenD, SBI, gộp điểm theo khung | E4 |
 | `src/vericlue_ml/presence/` | Phân tích ChromaPulse (độ trễ, mức khớp), chấm điểm CamProbe | E3 |
 | `src/vericlue_ml/voice/` | AntiDeepfake, PhoWhisper, căn chỉnh câu, kiểm tra câu đọc, SyncNet | E5 |
 | `src/vericlue_ml/router/` | Hợp nhất, cổng ngoài phạm vi, Learn-then-Test (MAPIE), chính sách | E6 |
@@ -28,6 +28,18 @@
 5. Notebook chỉ để thử; code dùng thật phải chuyển vào `src/` và có test.
 6. Kết quả đánh giá ghi kèm: commit, phiên bản mô hình, bộ dữ liệu, số mẫu.
 
+
+## Mock hay mô hình thật (`USE_MOCK_MODELS`)
+
+| Giá trị | Hành vi |
+|---|---|
+| `true` (mặc định) | mọi module dùng mock |
+| `false` | mọi module dùng mô hình thật; module chưa có mô hình thật thì `NotImplementedError` |
+| `mixed` | module có trong `_REAL_FACTORIES` (registry) dùng thật, còn lại mock |
+
+Hiện có thật: `face_pad` (FACE-01, cần `uv sync --all-packages --extra face`) và `voice_challenge`.
+`/healthz` luôn trả `mock_models` kiểu bool (`true` khi còn module mock, kể cả `mixed`).
+Thử nhanh qua Swagger: xem `src/vericlue_ml/face/README.md`.
 
 ## Hiệu chỉnh xác suất (ROUT-01)
 

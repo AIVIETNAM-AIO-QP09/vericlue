@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from functools import cached_property, lru_cache
+from typing import Literal
 
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -16,7 +17,7 @@ class Settings(BaseSettings):
 
     app_name: str = "VeriClue API"
     api_cors_origins: str = "http://localhost:3000"
-    use_mock_models: bool = True
+    use_mock_models: bool | Literal["mixed"] = True  # mixed: module có mô hình thật dùng thật
     device: str = "cpu"
     models_dir: str = "./models"
     media_dir: str = "./tmp/media"
@@ -56,6 +57,12 @@ class Settings(BaseSettings):
     media_ttl_incomplete_hours: int = Field(default=24, gt=0)
     forensic_ttl_days: int | None = Field(default=None, gt=0)
     media_cleanup_interval_seconds: float = Field(default=300, gt=0)
+
+    @field_validator("use_mock_models", mode="before")
+    @classmethod
+    def _normalize_mock_mode(cls, value):
+        """`MIXED`/` mixed ` cũng chạy, giống registry; giá trị lạ vẫn bị pydantic từ chối."""
+        return value.strip().lower() if isinstance(value, str) else value
 
     @field_validator("forensic_ttl_days", mode="before")
     @classmethod
