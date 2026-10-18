@@ -261,4 +261,4 @@ JSON ghi `provisional: true`, commit thực thi, n_pos/n_neg, hash manifest, cá
 ảnh và số mẫu loại trong dataset provenance; version lấy trực tiếp detector.
 JSON được commit vào `ml/configs/calibrators/`. Chỉ số trong artifact là OOF trên
 calib_fit, không phải kết quả R hay bảo đảm LTT. Face calibrator chỉ chạy khi splits
-và wrapper tương ứng sẵn sàng. Chưa đủ ba artifact thì MVP thật vẫn review.
+và wrapper tương ứng sẵn sàng. Thiếu calibrator ở bước được chạy thì review.

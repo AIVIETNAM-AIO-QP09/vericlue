@@ -11,6 +11,7 @@ from types import ModuleType
 import pytest
 
 from vericlue_ml.common.calibration import CalibrationStore
+from vericlue_ml.common.detector import DetectorInput
 from vericlue_ml.common.result import Module, ModuleResult
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -230,3 +231,146 @@ def test_runner_requires_committed_code_before_inference(
             output_dir=tmp_path / "artifacts",
             datasets=["fixture"],
         )
+
+
+def fake_cv2(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    length: int,
+    readable: bool = True,
+    writable: bool = True,
+) -> list[tuple]:
+    """Record video operations without importing OpenCV or allocating image arrays."""
+    events = []
+    frame = object()
+    cv2 = ModuleType("cv2")
+    cv2.CAP_PROP_FRAME_COUNT = 7
+    cv2.CAP_PROP_POS_FRAMES = 1
+
+    class Capture:
+        def __init__(self, path: str) -> None:
+            events.append(("open", path))
+
+        def get(self, prop: int) -> int:
+            assert prop == cv2.CAP_PROP_FRAME_COUNT
+            return length
+
+        def set(self, prop: int, index: int) -> None:
+            assert prop == cv2.CAP_PROP_POS_FRAMES
+            events.append(("seek", index))
+
+        def read(self) -> tuple[bool, object]:
+            events.append(("read",))
+            return readable, frame
+
+        def release(self) -> None:
+            events.append(("release",))
+
+    def imwrite(path: str, image: object) -> bool:
+        assert image is frame
+        events.append(("write", path))
+        return writable
+
+    cv2.VideoCapture = Capture
+    cv2.imwrite = imwrite
+    monkeypatch.setitem(sys.modules, "cv2", cv2)
+    return events
+
+
+@pytest.mark.parametrize("length", [10, 11])
+def test_middle_frame_seeks_middle_writes_and_releases(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, length: int
+) -> None:
+    events = fake_cv2(monkeypatch, length=length)
+    video, target = tmp_path / "input.mp4", tmp_path / "middle.png"
+    implementation().middle_frame(video, target)
+    assert events == [
+        ("open", str(video)),
+        ("seek", length // 2),
+        ("read",),
+        ("write", str(target)),
+        ("release",),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("length", "readable", "writable"), [(0, True, True), (10, False, True), (10, True, False)]
+)
+def test_middle_frame_fails_closed_and_releases_capture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    length: int,
+    readable: bool,
+    writable: bool,
+) -> None:
+    events = fake_cv2(monkeypatch, length=length, readable=readable, writable=writable)
+    with pytest.raises(ValueError, match="Cannot"):
+        implementation().middle_frame(tmp_path / "input.mp4", tmp_path / "middle.png")
+    assert events[-1] == ("release",)
+    if length < 1:
+        assert not any(event[0] in {"seek", "read", "write"} for event in events)
+    elif not readable:
+        assert not any(event[0] == "write" for event in events)
+
+
+def test_face_pad_runner_calibrates_middle_frame_images_from_videos(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner = implementation()
+    rows = [
+        row(f"{kind}_{group}", label, attack, f"identity-{group}")
+        for group in range(6)
+        for kind, label, attack in [("real", 0, "bonafide"), ("fake", 1, "print")]
+    ]
+    for entry in rows:
+        entry["path"] = str(Path(entry["path"]).with_suffix(".mp4"))
+    manifest(tmp_path, "zalo2022", rows)
+    converted = []
+
+    def extract(video: Path, target: Path) -> None:
+        converted.append(video)
+        target.write_text(video.stem, encoding="utf-8")
+
+    class FakePad(FakeVoice):
+        name = "face_pad"
+        version = "actual-pad@456+recipe-v1"
+
+        def predict(self, inp: DetectorInput) -> ModuleResult:
+            assert inp.video is None and inp.audio is None
+            assert len(inp.images) == 1
+            image = inp.images[0]
+            assert image.suffix == ".png"
+            self.paths.append(image)
+            return ModuleResult(
+                module=self.name,
+                model_version=self.version,
+                status="ok",
+                score=0.9 if image.read_text(encoding="utf-8").startswith("fake") else 0.1,
+                prob_attack=None,
+                latency_ms=1,
+            )
+
+    detector = FakePad()
+
+    def real_pad(module: Module, *, mock: bool) -> FakePad:
+        assert module == Module.FACE_PAD and mock is False
+        return detector
+
+    monkeypatch.setattr(runner, "middle_frame", extract)
+    monkeypatch.setattr(runner, "get_detector", real_pad)
+    output = tmp_path / "artifacts"
+    runner.run(
+        module=Module.FACE_PAD,
+        data_dir=tmp_path,
+        models_dir=tmp_path / "models",
+        output_dir=output,
+        datasets=["zalo2022"],
+        n_splits=3,
+    )
+    assert converted == [(tmp_path / entry["path"]).resolve() for entry in rows]
+    assert len(detector.paths) == len(rows)
+    assert len(detector.preloads) == 1
+    artifact = CalibrationStore(output).load(Module.FACE_PAD, detector.version)
+    assert artifact.n_pos == artifact.n_neg == 6
+    assert artifact.provisional is True
+    assert "middle frame" in artifact.dataset
