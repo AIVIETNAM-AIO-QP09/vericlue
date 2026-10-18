@@ -140,6 +140,7 @@ hồ sơ MVP chạy tham khảo (ADR-0012 §6), identity v2 tạm; cờ cắt gh
 chỉ kiểm luồng trên một clip có sẵn, không fit/chia tập hoặc làm kết quả R. Task
 vẫn `doing`: chưa nghiệm thu tiêu chí DATA-04/độ chính xác ở trên. Xem
 [bàn giao VOICE-05](../../status/handoffs/2026-10-18-1247-voice-05-m4-codex.md).
+**Vá demo 18/10:** `LIPSYNC_DEVICE=cpu` tách SyncNet/CTC/SCRFD lipsync khỏi `DEVICE`; nạp lười lần dùng đầu, không chiếm GPU khi khởi động. VOICE-05 vẫn `doing`.
 **Ghi chú 17/10:** LAV-DF đang bị bỏ qua ở DATA-01 (chỉ có tar 25,6 GB). Hoặc tải bản đầy đủ khi tới task này (kiểm chỗ trống ổ đĩa), hoặc chỉ dùng video lip-sync tự tạo (DATA-04).
 
 ---

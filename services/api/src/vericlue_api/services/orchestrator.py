@@ -79,7 +79,13 @@ class Orchestrator:
                         detector = copy(detector)
                         detector.match_config = self.settings.router_config.voice
                     preload = getattr(detector, "preload", None)
-                    if preload is not None:
+                    if isinstance(detector, SyncNetDetector):
+                        # Advisory lipsync must not occupy the main models' GPU at startup.
+                        detector.configure(
+                            models_dir=Path(self.settings.models_dir),
+                            device=self.settings.lipsync_device,
+                        )
+                    elif preload is not None:
                         if isinstance(
                             detector,
                             (
@@ -88,7 +94,6 @@ class Orchestrator:
                                 FacePadDetector,
                                 FaceDeepfakeDetector,
                                 QualityDetector,
-                                SyncNetDetector,
                             ),
                         ):
                             preload(

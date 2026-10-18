@@ -85,18 +85,20 @@ def test_only_profile_modules_are_constructed_preloaded_and_run(profile):
         engine.close()
 
 
-def test_lipsync_preload_receives_configured_model_root_and_device(monkeypatch):
+def test_lipsync_lazy_configuration_receives_configured_model_root_and_device(monkeypatch):
     preloads = []
 
     class ConfiguredSyncNet(MockDetector):
         def __init__(self):
             super().__init__(Module.LIPSYNC)
 
-        def preload(self, *, models_dir=None, device="cpu"):
+        def configure(self, *, models_dir=None, device="cpu"):
             preloads.append((models_dir, device))
 
     monkeypatch.setattr(orchestration, "SyncNetDetector", ConfiguredSyncNet)
-    settings = Settings(router_profile="mvp", models_dir="configured-models", device="cpu")
+    settings = Settings(
+        router_profile="mvp", models_dir="configured-models", device="cuda", lipsync_device="cpu"
+    )
     engine = Orchestrator(
         settings,
         detector_factory=lambda module: (
@@ -106,7 +108,7 @@ def test_lipsync_preload_receives_configured_model_root_and_device(monkeypatch):
     try:
         engine.start()
         engine.start()
-        assert preloads == [(Path(settings.models_dir), settings.device)]
+        assert preloads == [(Path(settings.models_dir), settings.lipsync_device)]
         assert not engine.failed_modules
     finally:
         engine.close()

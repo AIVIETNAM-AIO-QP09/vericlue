@@ -415,6 +415,7 @@ class SyncNetDetector:
         aligner: ForcedAligner | Any = None,
         finder: FaceFinder | None = None,
         backend: StableBackend | Any = None,
+        device: str = "cpu",
     ) -> None:
         from vericlue_ml.voice.align import ForcedAligner
 
@@ -428,25 +429,41 @@ class SyncNetDetector:
         self.version = f"stable-syncnet@{sync}+ctc-aligner@{ctc}+scrfd-10g@{scrfd}+voice05-v2"
         self._lock = threading.RLock()
         self._loaded = False
+        self._load_failed = False
         self._device = "cpu"
-        self._requested_device = "cpu"
+        self._requested_device = requested_device(device)
+
+    def configure(self, *, models_dir: Path | None = None, device: str = "cpu") -> None:
+        """Set lazy-load configuration without allocating model RAM or GPU memory."""
+        with self._lock:
+            root = _models_root(models_dir) if models_dir is not None else self._root
+            wanted = requested_device(device)
+            if (self._loaded or self._load_failed) and (
+                root.resolve() != self._root.resolve() or wanted != self._requested_device
+            ):
+                raise SyncNetError("Loaded detector needs restart for new configuration")
+            self._root, self._requested_device = root, wanted
 
     def preload(self, *, models_dir: Path | None = None, device: str = "cpu") -> None:
         """Verify and load local checkpoints once, including the forced aligner/SCRFD."""
         with self._lock:
-            root = _models_root(models_dir) if models_dir is not None else self._root
-            wanted = requested_device(device)
+            self.configure(models_dir=models_dir, device=device)
             if self._loaded:
-                if root.resolve() != self._root.resolve() or wanted != self._requested_device:
-                    raise SyncNetError("Loaded detector needs restart for new configuration")
                 return
-            device = resolve_torch_device(wanted, component="lipsync")
-            self._root, self._device, self._requested_device = root, device, wanted
-            self._aligner.preload(models_dir=root, device=device)
-            if self._finder is None:
-                session, _ = shared_scrfd_session(root, wanted)
-                self._finder = ScrfdFaceFinder(session)
-            self._backend.preload(models_dir=root, device=device)
+            if self._load_failed:
+                raise SyncNetError("Lipsync load previously failed; restart required")
+            root, wanted = self._root, self._requested_device
+            try:
+                device = resolve_torch_device(wanted, component="lipsync")
+                self._device = device
+                self._aligner.preload(models_dir=root, device=device)
+                if self._finder is None:
+                    session, _ = shared_scrfd_session(root, wanted)
+                    self._finder = ScrfdFaceFinder(session)
+                self._backend.preload(models_dir=root, device=device)
+            except Exception:
+                self._load_failed = True
+                raise
             self._loaded = True
 
     def predict(self, inp: DetectorInput) -> ModuleResult:
