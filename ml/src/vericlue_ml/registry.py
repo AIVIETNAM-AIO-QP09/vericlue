@@ -81,6 +81,13 @@ def _lipsync() -> Detector:
     return SyncNetDetector(device=os.getenv("LIPSYNC_DEVICE", "cpu"))
 
 
+@lru_cache(maxsize=1)
+def _provenance() -> Detector:
+    from vericlue_ml.forensic.provenance import ProvenanceDetector
+
+    return ProvenanceDetector()
+
+
 _REAL_FACTORIES: dict[Module, Callable[[], Detector]] = {
     Module.VOICE_CHALLENGE: _voice_challenge,
     Module.VOICE_SPOOF: _voice_spoof,
@@ -89,6 +96,7 @@ _REAL_FACTORIES: dict[Module, Callable[[], Detector]] = {
     Module.FACE_DEEPFAKE: _face_deepfake,
     Module.QUALITY: _quality,
     Module.LIPSYNC: _lipsync,
+    Module.PROVENANCE: _provenance,
 }
 
 

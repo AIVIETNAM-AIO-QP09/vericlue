@@ -43,6 +43,8 @@ class AppState:
             self.db,
             self.settings.media_dir,
             runner=runner,
+            # true → bản mock; false/mixed → phân tích thật
+            mock=self.settings.use_mock_models is True,
         )
         self.flow = SessionFlow(
             self.settings,
@@ -92,6 +94,8 @@ class ApplicationState:
                     from vericlue_api.db.models import SessionRow
 
                     state.db.execute(select(SessionRow.session_id).limit(1))
+                if self.settings.use_mock_models is not True:
+                    state.forensic.fail_interrupted()  # job giám định dở dang của lần chạy trước
             self._initialized = True
 
 

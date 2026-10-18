@@ -35,11 +35,12 @@ data = [
 [tool.uv]
 package = false
 default-groups = ["dev"]
-# `cuda` thay thế `face`/`gend`/`voice` (torch CPU và onnxruntime vs onnxruntime-gpu không sống chung).
+# `cuda` thay thế `face`/`gend`/`voice`/`forensic` (torch CPU và onnxruntime vs onnxruntime-gpu không sống chung).
 conflicts = [
   [{ package = "vericlue-ml", extra = "cuda" }, { package = "vericlue-ml", extra = "face" }],
   [{ package = "vericlue-ml", extra = "cuda" }, { package = "vericlue-ml", extra = "gend" }],
   [{ package = "vericlue-ml", extra = "cuda" }, { package = "vericlue-ml", extra = "voice" }],
+  [{ package = "vericlue-ml", extra = "cuda" }, { package = "vericlue-ml", extra = "forensic" }],
 ]
 
 [tool.uv.workspace]

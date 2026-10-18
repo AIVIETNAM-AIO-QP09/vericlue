@@ -69,7 +69,7 @@ Chạy mock (`USE_MOCK_MODELS=true`, mặc định) chọn kịch bản bằng h
 | Lưu trữ | **PLAT-05**: PostgreSQL, migration Alembic, transaction theo request | Đã có persistence; nghiệp vụ tiếp tục ở các task tương ứng |
 | Chạy detector | **PLAT-08**: executor chung, preload lifespan, deadline/timeout và latency thực | Đã có; detector thật được bổ sung bởi các task mô hình |
 | Luật quyết định | **ROUT-02**: ML TrustRouter, snapshot `ml/configs/thresholds.yaml`, provisional max-fusion | **ROUT-03**: ngưỡng LTT trên calib_ltt; logistic học trên calib_fit khi có dữ liệu thật |
-| Giám định, chữ ký | segment và chữ ký `MOCK-<sha256>` | **FOR-01 / FOR-04**, khóa Ed25519 ở PLAT-06 |
+| Giám định, chữ ký | **FOR-01 lõi (MVP):** `USE_MOCK_MODELS` khác `true` → tác vụ nền chia đoạn 3 s chồng 50%, chạy detector THẬT từng đoạn (`face_deepfake`, `voice_spoof`; `lipsync` chưa hỗ trợ), quét nguồn gốc cả file (AudioSeal, C2PA), `GET /jobs/{id}` trả tiến độ; module chưa có mô hình thật là `unavailable` và kết luận ra `inconclusive`. Chữ ký vẫn `MOCK-<sha256>`; `USE_MOCK_MODELS=true` giữ bản mock cũ | **FOR-01** hiệu chỉnh riêng (calibrator `forensic`, DATA-05), **FOR-04** khóa Ed25519 ở PLAT-06 |
 | Bàn duyệt | **REV-01**: DB, nhật ký băm nối chuỗi, `verify_chain`, mã lý do cố định; URL media vẫn là chỗ giữ chỗ | **REV-02** (giao diện, phục vụ media) |
 | Giới hạn upload | `MAX_UPLOAD_MB` chỉ kiểm **sau khi** Starlette đã nhận multipart (và trước khi xác thực token vẫn nhận được body) | **PLAT-06** / reverse proxy: giới hạn cứng ở lớp trước ứng dụng |
 | Xác thực nhân viên | `/v1/review/*` và `/v1/forensic/*` chưa có xác thực; nhật ký ghi `actor` cố định `staff-unverified` | **PLAT-06** / REV-02 |

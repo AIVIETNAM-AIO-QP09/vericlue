@@ -13,7 +13,7 @@
 | `src/vericlue_ml/presence/` | Phân tích ChromaPulse (độ trễ, mức khớp), chấm điểm CamProbe | E3 |
 | `src/vericlue_ml/voice/` | AntiDeepfake, PhoWhisper, căn chỉnh câu, kiểm tra câu đọc, SyncNet | E5 |
 | `src/vericlue_ml/router/` | Hợp nhất, cổng ngoài phạm vi, Learn-then-Test (MAPIE), chính sách | E6 |
-| `src/vericlue_ml/forensic/` | Chia đoạn, quét nguồn gốc (thủy vân, C2PA), báo cáo | E7 |
+| `src/vericlue_ml/forensic/` | Chia đoạn (`segment.py`), đọc media (`media.py`), chạy theo đoạn và kết luận (`pipeline.py`), quét nguồn gốc AudioSeal/C2PA (`provenance.py`); báo cáo ở `services/api` | E7 |
 | `src/vericlue_ml/eval/` | Script sinh kết quả R1–R6 | E8 |
 | `configs/models.yaml` | Mô hình nào, phiên bản nào, đường dẫn trọng số | |
 | `configs/thresholds.yaml` | **Ngưỡng đã khóa** — chỉ sửa qua PR có kết quả đánh giá kèm theo | |

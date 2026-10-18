@@ -9,7 +9,7 @@ modules:
   voice_spoof: antideepfake-mms300m # VOICE-01 wrapper only; R3 pending
   voice_challenge: phowhisper # VOICE-04; CTC alignment belongs to VOICE-05
   lipsync: syncnet        # VOICE-05: LatentSync stable_syncnet + CTC forced aligner
-  provenance: mock        # FOR-03 → audioseal-detector, perth
+  provenance: audioseal-detector # FOR-03: AudioSeal + C2PA (extra forensic/c2pa); Perth chưa hỗ trợ
 
 # VOICE-04: VAD has no checkpoint; matching constants live in voice/challenge.py.
 voice:

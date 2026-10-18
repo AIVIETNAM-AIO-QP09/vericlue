@@ -1,4 +1,13 @@
-"""Giám định (mock): TẠM — FOR-01/FOR-04 thay bằng phân đoạn thật và chữ ký Ed25519 (PLAT-06)."""
+"""Giám định: lưu job, tiến độ và báo cáo.
+
+- `USE_MOCK_MODELS=true`: giữ bản mock cũ (test và demo); chạy đồng bộ, kết quả giả lập.
+- Còn lại (`false`, `mixed`): job vào hàng `queued`, tác vụ nền (`forensic_runner.py`) chia đoạn 3 giây
+  chồng lấn 50% và chạy bộ phát hiện THẬT; `GET /jobs/{id}` trả tiến độ. Module chưa có mô hình thật
+  hiện là `unavailable`, không bao giờ được giả lập; thiếu bước bắt buộc → `inconclusive`.
+
+Chữ ký báo cáo vẫn là MOCK (Ed25519 là việc PLAT-06/FOR-04). SHA-256 tính trên byte gốc trước mọi bước
+đọc/chuyển mã (AGENTS.md, ADR-0008).
+"""
 
 from __future__ import annotations
 
@@ -6,6 +15,7 @@ import hashlib
 import secrets
 from collections.abc import Callable
 from html import escape
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
@@ -17,9 +27,30 @@ from vericlue_api.services.storage import save_generated, save_upload
 from vericlue_ml.common.result import Module, ModuleResult, Status
 
 FORENSIC_MODULES = (Module.FACE_DEEPFAKE, Module.VOICE_SPOOF, Module.LIPSYNC, Module.PROVENANCE)
-SEGMENT_SECONDS = 5.0
-SEGMENTS = 2
+SEGMENT_SECONDS = 5.0  # chỉ cho bản mock
+SEGMENTS = 2  # chỉ cho bản mock
 MOCK_SIGNATURE_PREFIX = "MOCK-"  # TẠM — chữ ký thật là Ed25519
+
+_STATUS_LABELS_VI = {
+    "not_applicable": "không áp dụng",
+    "unavailable": "chưa chạy",
+    "error": "lỗi",
+    "degraded": "đầu vào kém",
+}
+_VERDICT_LABELS_VI = {
+    "authentic": "không phát hiện dấu hiệu làm giả (không phải chứng nhận là thật)",
+    "suspect": "có dấu hiệu nghi làm giả",
+    "inconclusive": "chưa thể kết luận",
+}
+LIMITATIONS_VI = (
+    "Công cụ hỗ trợ, không thay thế giám định tư pháp.",
+    "Điểm xác suất tạm thời: bộ hiệu chỉnh là identity (ADR-0012), chưa có calibrator riêng cho giám định "
+    "và chưa có tỷ số khả năng/thang lời ENFSI (FOR-04).",
+    "Không phát hiện dấu hiệu không có nghĩa là thật; mô hình có thể bỏ sót kỹ thuật làm giả mới.",
+    "Quét nguồn gốc là bằng chứng một chiều: thủy vân/C2PA có thì cho biết công cụ, không có thì không kết luận.",
+    "Video đã nén nhiều lần có thể làm sai lệch điểm; ngưỡng là giá trị tạm chờ ROUT-03.",
+    "Ngưỡng eKYC áp cho từng đoạn nên video dài dễ báo nghi ngờ nhầm.",
+)
 
 
 def _signal(r: ModuleResult) -> SegmentSignal:
@@ -37,12 +68,47 @@ class ForensicStore:
         media_dir: str,
         *,
         runner: Callable = run_detectors,
+        mock: bool = True,
     ) -> None:
         self._b, self._a = b, a
         self._run = runner
+        self.mock = mock
         self.db, self.media_dir = db, media_dir
 
+    # --- tạo job ------------------------------------------------------------
     def create(self, data: bytes, filename: str | None, scenario: str) -> ForensicJob:
+        if not self.mock:
+            return self._create_queued(data, filename)
+        return self._create_mock(data, filename, scenario)
+
+    def _create_queued(self, data: bytes, filename: str | None) -> ForensicJob:
+        """Tiếp nhận: hash TRÊN BYTE GỐC, lưu file nguyên vẹn, xếp hàng. Chưa đọc/giải mã gì cả."""
+        job = ForensicJob(
+            job_id=f"job_{secrets.token_hex(6)}",
+            status="queued",
+            file_sha256=hashlib.sha256(data).hexdigest(),
+            verdict=None,
+            segments=[],
+        )
+        path = save_upload(self.media_dir, "forensic/" + job.job_id, "source", filename, data)
+        self.db.add(
+            ForensicJobRow(
+                job_id=job.job_id,
+                file_sha256=job.file_sha256,
+                status=job.status,
+                verdict=None,
+                source_path=str(path),
+                payload={
+                    "mode": "real",
+                    "job": job.model_dump(mode="json"),
+                    "filename": filename or "",
+                },
+            )
+        )
+        self.db.flush()
+        return job
+
+    def _create_mock(self, data: bytes, filename: str | None, scenario: str) -> ForensicJob:
         results = self._run(FORENSIC_MODULES, session_id=None, scenario=scenario)
         segments = [
             ForensicSegment(
@@ -101,6 +167,124 @@ class ForensicStore:
             )
         return job
 
+    # --- vòng đời job thật (tác vụ nền gọi) ------------------------------------
+    def _row(self, job_id: str) -> ForensicJobRow | None:
+        return self.db.get(ForensicJobRow, job_id)
+
+    def source_path(self, job_id: str) -> str | None:
+        row = self._row(job_id)
+        return row.source_path if row else None
+
+    def _update_job(self, row: ForensicJobRow, **fields: Any) -> ForensicJob:
+        data = dict(row.payload["job"])
+        data.update(fields)
+        job = ForensicJob.model_validate(data)
+        row.status = job.status
+        row.verdict = job.verdict
+        # gán lại cả dict để SQLAlchemy ghi nhận thay đổi JSON
+        row.payload = {**row.payload, "job": job.model_dump(mode="json")}
+        self.db.flush()
+        return job
+
+    def mark_running(self, job_id: str) -> None:
+        row = self._row(job_id)
+        if row is not None and row.status == "queued":
+            self._update_job(
+                row,
+                status="running",
+                progress={"stage": "probe", "segments_done": 0, "segments_total": 0},
+            )
+
+    def set_progress(self, job_id: str, stage: str, done: int, total: int) -> None:
+        row = self._row(job_id)
+        if row is not None and row.status == "running":
+            self._update_job(
+                row, progress={"stage": stage, "segments_done": done, "segments_total": total}
+            )
+
+    def complete(self, job_id: str, analysis: Any, media: dict[str, Any]) -> ForensicJob | None:
+        """Ghi kết quả của `ForensicPipeline.run` (ForensicAnalysis)."""
+        row = self._row(job_id)
+        if row is None:
+            return None
+        segments = [
+            {
+                "t_start": seg.t_start,
+                "t_end": seg.t_end,
+                "signals": [
+                    {
+                        "module": s.module,
+                        "applicable": s.applicable,
+                        "prob_attack": s.prob_attack,
+                        "status": s.status,
+                        "reason": s.reason,
+                    }
+                    for s in seg.signals
+                ],
+            }
+            for seg in analysis.segments
+        ]
+        total = len(segments)
+        job = self._update_job(
+            row,
+            status="done",
+            verdict=analysis.verdict,
+            verdict_reason=analysis.verdict_reason,
+            segments=segments,
+            media=media,
+            suspect_intervals=analysis.suspect_intervals,
+            unavailable_modules=analysis.unavailable_modules,
+            provenance=analysis.provenance,
+            progress={"stage": "finalize", "segments_done": total, "segments_total": total},
+            error=None,
+        )
+        row.payload = {**row.payload, "model_versions": analysis.model_versions}
+        for segment in job.segments:
+            self.db.add(
+                ForensicSegmentRow(
+                    job_id=job_id,
+                    t_start=segment.t_start,
+                    t_end=segment.t_end,
+                    signals=[s.model_dump(mode="json") for s in segment.signals],
+                )
+            )
+        self.db.flush()
+        return job
+
+    def fail_interrupted(self) -> int:
+        """Khởi động lại: job thật còn `queued`/`running` đã mất tác vụ nền → `failed` (không treo mãi)."""
+        rows = self.db.scalars(
+            select(ForensicJobRow).where(ForensicJobRow.status.in_(("queued", "running")))
+        ).all()
+        count = 0
+        for row in rows:
+            if row.payload.get("mode") != "real":
+                continue
+            self._update_job(
+                row,
+                status="failed",
+                verdict=None,
+                error={
+                    "error_code": "interrupted",
+                    "message": "Máy chủ khởi động lại khi job đang chạy; hãy gửi lại file.",
+                },
+            )
+            count += 1
+        return count
+
+    def fail(self, job_id: str, error_code: str, message: str) -> None:
+        row = self._row(job_id)
+        if row is None:
+            return
+        # Thất bại KHÔNG phải "authentic": verdict để trống.
+        self._update_job(
+            row,
+            status="failed",
+            verdict=None,
+            error={"error_code": error_code, "message": message},
+        )
+
+    # --- đọc ------------------------------------------------------------------
     def get(self, job_id: str) -> ForensicJob | None:
         record = self.db.scalar(
             select(ForensicJobRow).where(ForensicJobRow.job_id == job_id).with_for_update()
@@ -113,6 +297,23 @@ class ForensicStore:
         if job is None:
             return None
         record = self.db.get(ForensicJobRow, job_id)
+        if record.payload.get("mode") == "real":
+            html = self._report_real(job, record.payload)
+        else:
+            html = self._report_mock(job, record)
+        digest = hashlib.sha256(html.encode("utf-8")).hexdigest()
+        row = self.db.get(ForensicJobRow, job_id)
+        row.signature = f"{MOCK_SIGNATURE_PREFIX}{digest}"
+        row.media_deleted_at = None
+        row.report_path = str(
+            save_generated(
+                self.media_dir, "forensic/" + job_id, "report.html", html.encode("utf-8")
+            )
+        )
+        return html, digest, row.signature
+
+    @staticmethod
+    def _report_mock(job: ForensicJob, record: ForensicJobRow) -> str:
         disabled_labels = {
             module: evidence["label_vi"]
             for module, result in record.payload.get("module_results", {}).items()
@@ -136,22 +337,81 @@ class ForensicStore:
             + "</tr>"
             for s in job.segments
         )
-        html = (
+        return (
             '<!doctype html><html lang="vi"><meta charset="utf-8"><title>Báo cáo giám định</title>'
             f"<h1>Báo cáo giám định (bản mock)</h1><p>Mã: {escape(job.job_id)}</p>"
             f"<p>SHA-256 file: {job.file_sha256}</p><p>Kết luận: {job.verdict}</p>"
             f"<table>{rows}</table></html>"
         )
-        digest = hashlib.sha256(html.encode("utf-8")).hexdigest()
-        row = self.db.get(ForensicJobRow, job_id)
-        row.signature = f"{MOCK_SIGNATURE_PREFIX}{digest}"
-        row.media_deleted_at = None
-        row.report_path = str(
-            save_generated(
-                self.media_dir, "forensic/" + job_id, "report.html", html.encode("utf-8")
-            )
+
+    @staticmethod
+    def _report_real(job: ForensicJob, payload: dict[str, Any]) -> str:
+        """Khung báo cáo giữ nguyên nhãn MOCK cho chữ ký; phần dữ liệu là kết quả thật."""
+        e = escape
+
+        def cell(sig: SegmentSignal) -> str:
+            if sig.status == "ok" and sig.prob_attack is not None:
+                return f"{e(sig.module)}: {sig.prob_attack:.2f}"
+            label = _STATUS_LABELS_VI.get(sig.status or "", "—")
+            reason = f" ({e(sig.reason)})" if sig.reason else ""
+            return f"{e(sig.module)}: {label}{reason}"
+
+        rows = "".join(
+            f"<tr><td>{s.t_start:g}–{s.t_end:g} s</td>"
+            + "".join(f"<td>{cell(sig)}</td>" for sig in s.signals)
+            + "</tr>"
+            for s in job.segments
         )
-        return html, digest, row.signature
+        intervals = "".join(
+            f"<li>{i.t_start:g}–{i.t_end:g} s ({e(', '.join(i.modules))}"
+            + (
+                f"; xác suất cao nhất {i.max_prob_attack:.2f}"
+                if i.max_prob_attack is not None
+                else ""
+            )
+            + ")</li>"
+            for i in job.suspect_intervals
+        )
+        media = job.media.model_dump(exclude_none=True) if job.media else {}
+        media_rows = "".join(f"<li>{e(str(k))}: {e(str(v))}</li>" for k, v in media.items())
+        unavailable = "".join(
+            f"<li>{e(u.module)}{' (bắt buộc)' if u.required else ''}: {e(u.reason)}</li>"
+            for u in job.unavailable_modules
+        )
+        versions = "".join(
+            f"<li>{e(m)}: {e(v)}</li>" for m, v in payload.get("model_versions", {}).items()
+        )
+        prov = job.provenance
+        prov_html = ""
+        if prov is not None:
+            intervals_wm = "".join(
+                f"<li>{w.t_start:g}–{w.t_end:g} s</li>" for w in prov.watermark_intervals
+            )
+            c2pa = prov.c2pa.model_dump(exclude_none=True) if prov.c2pa else {}
+            prov_html = (
+                f"<h2>Quét nguồn gốc</h2><p>{e(prov.conclusion)}</p>"
+                + (f"<ul>{intervals_wm}</ul>" if intervals_wm else "")
+                + (f"<p>C2PA: {e(str(c2pa))}</p>" if c2pa else "")
+                + "".join(f"<p><em>{e(n)}</em></p>" for n in prov.notes)
+            )
+        return (
+            '<!doctype html><html lang="vi"><meta charset="utf-8"><title>Báo cáo giám định</title>'
+            "<h1>Báo cáo giám định</h1>"
+            "<p><strong>Chữ ký: MOCK</strong> — chưa ký Ed25519 thật (PLAT-06/FOR-04).</p>"
+            f"<p>Mã: {e(job.job_id)}</p><p>Tên file: {e(str(payload.get('filename', '')))}</p>"
+            f"<p>SHA-256 file (byte gốc): {job.file_sha256}</p>"
+            f"<h2>Thông số file</h2><ul>{media_rows}</ul>"
+            f"<h2>Kết luận</h2><p>Kết luận: {job.verdict}</p>"
+            f"<p>{e(_VERDICT_LABELS_VI.get(job.verdict or '', ''))}. {e(job.verdict_reason or '')}</p>"
+            f"<h2>Khoảng nghi giả (±1 giây)</h2>{'<ul>' + intervals + '</ul>' if intervals else '<p>Không có.</p>'}"
+            f"<h2>Kết quả theo đoạn</h2><table>{rows}</table>"
+            f"{prov_html}"
+            f"<h2>Bước không chạy</h2>{'<ul>' + unavailable + '</ul>' if unavailable else '<p>Không có.</p>'}"
+            f"<h2>Phiên bản mô hình</h2><ul>{versions}</ul>"
+            "<h2>Giới hạn</h2><ul>"
+            + "".join(f"<li>{e(item)}</li>" for item in LIMITATIONS_VI)
+            + "</ul></html>"
+        )
 
     @staticmethod
     def verify(report_sha256: str, signature: str) -> bool:
