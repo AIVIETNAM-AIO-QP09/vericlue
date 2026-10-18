@@ -19,7 +19,7 @@ from vericlue_ml.mock import MOCK_DETECTORS
 
 # Module → task sẽ làm mô hình thật (để thông báo lỗi chỉ đúng chỗ).
 REAL_TASK: dict[Module, str] = {
-    Module.QUALITY: "CAP-02 / PRES-02",
+    Module.QUALITY: "FACE-02 (MVP, ADR-0012)",
     Module.FACE_PAD: "FACE-01",
     Module.FACE_DEEPFAKE: "FACE-02",
     Module.CHROMAPULSE: "PRES-02",
@@ -54,6 +54,20 @@ def _face_pad() -> Detector:
 
 
 @lru_cache(maxsize=1)
+def _face_deepfake() -> Detector:
+    from vericlue_ml.face.gend import FaceDeepfakeDetector
+
+    return FaceDeepfakeDetector()
+
+
+@lru_cache(maxsize=1)
+def _quality() -> Detector:
+    from vericlue_ml.face.quality import QualityDetector
+
+    return QualityDetector()
+
+
+@lru_cache(maxsize=1)
 def _camprobe() -> Detector:
     from vericlue_ml.presence.camprobe import CamProbeDetector
 
@@ -65,6 +79,8 @@ _REAL_FACTORIES: dict[Module, Callable[[], Detector]] = {
     Module.VOICE_SPOOF: _voice_spoof,
     Module.FACE_PAD: _face_pad,
     Module.CAMPROBE: _camprobe,
+    Module.FACE_DEEPFAKE: _face_deepfake,
+    Module.QUALITY: _quality,
 }
 
 

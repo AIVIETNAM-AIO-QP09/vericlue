@@ -82,5 +82,5 @@ def test_registry_returns_mock_and_satisfies_protocol(monkeypatch):
 
 def test_registry_real_model_not_ready_points_to_task(monkeypatch):
     monkeypatch.setenv("USE_MOCK_MODELS", "false")
-    with pytest.raises(NotImplementedError, match="FACE-02"):
-        get_detector(Module.FACE_DEEPFAKE)
+    with pytest.raises(NotImplementedError, match="PRES-02"):
+        get_detector(Module.CHROMAPULSE)

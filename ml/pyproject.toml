@@ -18,6 +18,14 @@ face = [
   "onnxruntime>=1.20,<2",
   "opencv-python-headless>=4.10,<5",
 ]
+# FACE-02 (GenD): CLIP ViT-L/14 qua transformers. Nặng (kéo torch), nên KHÔNG nằm trong `face`; CI chỉ cài
+# `face`. Máy chạy GenD thật cần `--extra face --extra gend` (CPU) hoặc `--extra cuda` (GPU).
+gend = [
+  "torch>=2.6,<3",
+  "safetensors>=0.5,<1",
+  "transformers>=4.57.1,<5",
+  "pillow>=10,<13",
+]
 voice = [
   "torch>=2.6,<3",
   "torchaudio>=2.6,<3",
@@ -29,6 +37,27 @@ voice = [
   "rapidfuzz>=3,<4",
 ]
 eval = ["matplotlib>=3.9,<4"]
+# Bản GPU (RTX, CUDA 13), chỉ cho máy demo Windows: THAY cho `face` + `gend` + `voice` (cùng gói, nhưng
+# torch/torchaudio lấy từ index PyTorch cu130 và onnxruntime-gpu thay onnxruntime). Xung đột với ba extra
+# kia (khai báo ở pyproject gốc), nên cài một trong hai: `uv sync --all-packages --extra cuda`.
+# Mặc định và CI không dùng. Giữ danh sách khớp `face` ∪ `gend` ∪ `voice` (test: ml/tests/test_device.py).
+cuda = [
+  "onnxruntime-gpu[cuda,cudnn]>=1.20,<2",
+  "opencv-python-headless>=4.10,<5",
+  "torch>=2.6,<3",
+  "torchaudio>=2.6,<3",
+  "safetensors>=0.5,<1",
+  "transformers>=4.57.1,<5",
+  "pillow>=10,<13",
+  "soundfile>=0.13,<1",
+  "webrtcvad-wheels>=2.0.14,<3",
+  "jiwer>=4,<5",
+  "rapidfuzz>=3,<4",
+]
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu130", extra = "cuda" }]
+torchaudio = [{ index = "pytorch-cu130", extra = "cuda" }]
 
 [build-system]
 requires = ["hatchling>=1.24"]

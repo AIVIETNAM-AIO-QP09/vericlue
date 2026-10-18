@@ -40,6 +40,7 @@ import numpy as np
 import yaml
 
 from vericlue_ml.common.detector import DetectorInput
+from vericlue_ml.common.device import resolve_torch_device
 from vericlue_ml.common.result import ErrorCode, Evidence, ModuleResult, Status
 from vericlue_ml.voice.asr import DecodeError, SpeechNotFound, speech_bounds
 
@@ -179,9 +180,11 @@ class TorchAntiDeepfakeBackend:
         self._lock = threading.RLock()
         self._failure: Exception | None = None
 
-    def preload(self, *, models_dir: Path | None = None) -> None:
+    def preload(self, *, models_dir: Path | None = None, device: str | None = None) -> None:
         """No network/from_pretrained/remote code; checksum and strict load are mandatory."""
         with self._lock:
+            if device is not None and self.model is None:
+                self.device = device
             if self._failure is not None:
                 raise ModelLoadError(
                     "Backend preload previously failed; restart required"
@@ -214,10 +217,14 @@ class TorchAntiDeepfakeBackend:
         from safetensors.torch import load_file
         from transformers import Wav2Vec2Config, Wav2Vec2Model
 
-        if self.device != "cpu" and not re.fullmatch(r"cuda(?::\d+)?", self.device):
-            raise ModelLoadError("Supported devices: cpu, cuda or cuda:N")
-        if self.device.startswith("cuda") and not torch.cuda.is_available():
-            raise ModelLoadError("CUDA requested but unavailable")
+        if (
+            self.device != "auto"
+            and self.device != "cpu"
+            and not re.fullmatch(r"cuda(?::\d+)?", self.device)
+        ):
+            raise ModelLoadError("Supported devices: cpu, cuda, cuda:N or auto")
+        # Không có GPU thì lùi về CPU và ghi log (không làm hỏng phiên).
+        self.device = resolve_torch_device(self.device, component="antideepfake")
         threads = int(self.config.get("cpu_threads", 4))
         if not 1 <= threads <= 64:
             raise ModelLoadError("Invalid cpu_threads")
@@ -246,7 +253,9 @@ class TorchAntiDeepfakeBackend:
         )
         model.load_state_dict(mapped, strict=True)
         del state, mapped
-        self.dtype = torch.float16 if self.device.startswith("cuda") else torch.float32
+        # float32 cả trên GPU: fp16 làm logits không hữu hạn (đã gặp trên RTX 4050) và lệch số học so với
+        # calibrator voice_spoof được fit bằng CPU float32.
+        self.dtype = torch.float32
         self.model = model.to(device=self.device, dtype=self.dtype).eval()
 
     def logits(self, audio: np.ndarray) -> np.ndarray:
@@ -357,7 +366,7 @@ class AntiDeepfakeDetector:
         self._failure: Exception | None = None
         self._lock = threading.RLock()
 
-    def preload(self, *, models_dir: Path | None = None) -> None:
+    def preload(self, *, models_dir: Path | None = None, device: str | None = None) -> None:
         """Load once; failure remains sticky until a new detector/process is constructed."""
         with self._lock:
             if self._failure is not None:
@@ -368,10 +377,12 @@ class AntiDeepfakeDetector:
                 try:
                     prepare = getattr(self._backend, "preload", None)
                     if prepare is not None:
-                        if models_dir is None:
-                            prepare()
-                        else:
-                            prepare(models_dir=models_dir)
+                        options = {}
+                        if models_dir is not None:
+                            options["models_dir"] = models_dir
+                        if device is not None:
+                            options["device"] = device
+                        prepare(**options)
                     self._preloaded = True
                 except Exception as exc:
                     self._failure = exc

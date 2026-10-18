@@ -37,6 +37,46 @@ Mã **không gọi mạng**: thiếu file hoặc sai SHA-256 là `error`.
 - Đọc từ `MODELS_DIR/minifasnet/minifasnet_v2.onnx` và `MODELS_DIR/scrfd-10g/det_10g.onnx`, kiểm SHA-256 theo `models/manifest.yaml`. Tải bằng `scripts/download_models.py`.
 - Mặc định dùng CUDA nếu `onnxruntime-gpu` có sẵn (cài `onnxruntime-gpu` thay cho `onnxruntime`), ngược lại CPU. `DEVICE=cpu` ép CPU.
 
+## GenD: `gend.py` (FACE-02, bước 1 — bọc mô hình)
+
+`FaceDeepfakeDetector` (module `face_deepfake`): video (hoặc `images` nếu không có video) → N khung đều nhau → SCRFD `det_10g` → mặt lớn nhất → căn 5 điểm (tỷ lệ 1,3) → 224 px, mean/std CLIP → GenD (CLIP ViT-L/14 + đầu tuyến tính) → softmax → `p_fake` mỗi khung. `score = max(mean, top25_mean)`; `prob_attack` để trống chờ hiệu chỉnh (ROUT-01).
+
+| Mục | Giá trị |
+|---|---|
+| Số khung | `EKYC_FRAMES = 8`; giám định 32 (`metadata["mode"] = "forensic"`, `FORENSIC_FRAMES`) |
+| Đọc video | tuần tự bằng `cv2` (`frames.py`), đếm khung thật bằng `grab()` — không tin số khung trong webm |
+| Trọng số | `MODELS_DIR/gend-clip-l14/{config.json,model.safetensors}`, `MODELS_DIR/clip-vit-large-patch14/{config.json,preprocessor_config.json}`, `MODELS_DIR/scrfd-10g/det_10g.onnx`; kiểm SHA-256 theo manifest; không gọi mạng |
+| Phụ thuộc | Extra `gend` (torch, transformers, safetensors, pillow) — KHÔNG nằm trong `face` để CI không kéo torch. Máy chạy GenD: `uv sync --all-packages --extra face --extra gend` (torch CPU từ PyPI) hoặc `--extra cuda` (GPU, xem dưới). Thiếu torch thì `face_deepfake` ra `error`, không bao giờ là đạt |
+| Phiên bản mô hình | `gend-clip-l14@<rev>+clip@<rev>+scrfd-10g@<rev>+agg-maxmeantop25-v1` — hậu tố `agg-…` là cách gộp điểm khung; đổi cách gộp thì đổi hậu tố (calibrator khóa theo version). Số khung (8/32) nằm ở evidence |
+| Hiệu chỉnh | CHƯA. `score` là điểm thô; calibrator `face_deepfake` thuộc ROUT-01 |
+
+| Tình huống | `status` | `error_code` |
+|---|---|---|
+| Đủ khung có mặt | `ok` | — |
+| Không có mặt ở mọi khung | `not_applicable` | `E_NO_FACE` |
+| Ít khung có mặt hơn `min(MIN_VALID_FRAMES = 3, số khung đã lấy)` | `degraded` | `E_LOW_QUALITY` |
+| Không có video lẫn ảnh, video/ảnh hỏng hoặc không mở được | `error` | `E_DECODE` |
+| Thiếu trọng số, lỗi nạp, lỗi bất kỳ | `error` | `E_INTERNAL` |
+| Sai SHA-256 trọng số | `error` | `E_INTEGRITY` |
+
+Evidence: `frame_scores` (timeseries `{frame, p_fake}`), `mean`, `top25_mean`; `quality.frames_sampled/frames_used`.
+
+**Tốc độ và thiết bị:** `DEVICE=cpu|cuda|auto` (Settings) được truyền tới mọi detector; yêu cầu GPU mà không có thì tự lùi CPU và ghi log `device_fallback`. Chạy CPU, torch dùng tối đa `GEND_CPU_THREADS = 4` luồng. Trên CPU GenD vượt ngân sách detector 4 s (`detector_timeout_seconds`) nên MVP demo chạy GPU. Muốn đo trên máy mình: `ml/scripts/bench_mvp_latency.py` (thử tay, không phải R6); số đo thử ngày 18/10 ghi trong bàn giao FACE-02.
+
+### Chạy bằng GPU (máy demo Windows, RTX)
+
+```powershell
+uv sync --all-packages --extra cuda            # torch/torchaudio cu130 + onnxruntime-gpu; thay face/gend/voice
+$env:DEVICE = "cuda"                            # hoặc DEVICE=cuda trong .env
+uv run --no-sync uvicorn vericlue_api.main:app --app-dir services/api/src
+```
+
+Cần driver NVIDIA hỗ trợ CUDA 13 (kiểm `nvidia-smi`). Mặc định và CI vẫn là CPU; `uv lock --check` không đổi. `uv run` thường sẽ đồng bộ lại về extra mặc định và gỡ bản GPU — dùng `--no-sync` (hoặc `UV_PROJECT_ENVIRONMENT=.venv-gpu` để giữ một venv riêng cho GPU).
+
+## Chất lượng ảnh phía server: `quality.py` (MVP, ADR-0012)
+
+`QualityDetector` (module `quality`): ảnh đầu tiên của phiên (không có ảnh thì khung giữa video) → SCRFD (dùng chung phiên onnxruntime với `face_pad`/`face_deepfake`) → mặt lớn nhất → cỡ mặt, độ nét (phương sai Laplacian), độ sáng, yaw thô, lệch tâm. `gate = pass | fail`; `fail` kèm `error_code` và evidence `retry_hint` (mã hợp đồng: `MOVE_CLOSER`, `MOVE_BACK`, `MORE_LIGHT`, `HOLD_STILL`, `FACE_CENTER`). Không có mặt → `gate=fail` `E_NO_FACE` (chụp lại, hết lượt thì router đưa sang review); lỗi hạ tầng → `error`. Ngưỡng là hằng số TẠM trong file (`MIN_FACE_PX`, `MIN_ILLUM`, `MIN_SHARPNESS`, `MAX_YAW_DEG`, …), chờ ROUT-03; không nằm trong `thresholds.yaml`. Quá sáng/chói nắng chưa có mã `retry_hint` trong hợp đồng nên chưa chặn (chỉ ghi `illum`).
+
 ### Thử nhanh qua Swagger (chế độ `mixed`)
 
 > `mixed` là chế độ **demo/phát triển**, không phải chế độ an toàn: module mock vẫn trả kết quả giả. Không dùng để đánh giá hay báo cáo số liệu.

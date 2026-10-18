@@ -31,6 +31,7 @@ import numpy as np
 import yaml
 
 from vericlue_ml.common.detector import DetectorInput
+from vericlue_ml.common.device import check_onnx_session, onnx_providers, requested_device
 from vericlue_ml.common.result import (
     ErrorCode,
     Evidence,
@@ -74,6 +75,8 @@ class FaceBox:
     x2: float
     y2: float
     confidence: float
+    # 5 mốc (mắt trái, mắt phải, mũi, khóe miệng trái, khóe miệng phải) theo SCRFD; None nếu không có.
+    landmarks: tuple[tuple[float, float], ...] | None = None
 
     @property
     def area(self) -> float:
@@ -121,13 +124,8 @@ def _verified_weights(root: Path, model_id: str, filename: str) -> tuple[Path, s
 
 
 def _providers(device: str | None = None) -> list[str]:
-    """CPU luôn chạy được; có CUDA thì ưu tiên, trừ khi `DEVICE=cpu`."""
-    import onnxruntime as ort
-
-    if (device or os.environ.get("DEVICE") or "auto").strip().lower() == "cpu":
-        return ["CPUExecutionProvider"]
-    available = ort.get_available_providers()
-    return [p for p in ("CUDAExecutionProvider",) if p in available] + ["CPUExecutionProvider"]
+    """CPU luôn chạy được; `DEVICE=cuda|auto` thì ưu tiên CUDA nếu có, không có thì lùi CPU (có log)."""
+    return onnx_providers(device, component="onnx")
 
 
 def _session(path: Path, device: str | None = None):
@@ -135,7 +133,26 @@ def _session(path: Path, device: str | None = None):
 
     options = ort.SessionOptions()
     options.log_severity_level = 3
-    return ort.InferenceSession(str(path), sess_options=options, providers=_providers(device))
+    session = ort.InferenceSession(str(path), sess_options=options, providers=_providers(device))
+    check_onnx_session(session, device, component=path.name)
+    return session
+
+
+_SCRFD_SESSIONS: dict[tuple[Path, str], tuple[Any, str]] = {}
+_SCRFD_LOCK = threading.Lock()
+
+
+def shared_scrfd_session(root: Path, device: str | None = None) -> tuple[Any, str]:
+    """Phiên onnxruntime của SCRFD dùng chung cho face_pad, face_deepfake và quality (nạp một lần).
+
+    Trả (session, revision). Thiếu file hoặc sai SHA-256 thì ném PadError — không tải.
+    """
+    key = (root.resolve(), requested_device(device))
+    with _SCRFD_LOCK:
+        if key not in _SCRFD_SESSIONS:
+            path, revision = _verified_weights(root, DETECTOR_MODEL_ID, DETECTOR_FILE)
+            _SCRFD_SESSIONS[key] = (_session(path, device), revision)
+        return _SCRFD_SESSIONS[key]
 
 
 # ── SCRFD (tìm mặt) ──────────────────────────────────────────────────────────────────────
@@ -173,7 +190,12 @@ def _nms(dets: np.ndarray, threshold: float) -> list[int]:
 
 
 class ScrfdFaceFinder:
-    def __init__(self, session) -> None:
+    """SCRFD det_10g. Mặc định giữ đúng tiền xử lý của FACE-01 (uniface); GenD (FACE-02) dùng
+    `scale=128, swap_rb=True` như `src/retinaface.py` của repo GenD."""
+
+    def __init__(self, session, *, scale: float = 127.5, swap_rb: bool = False) -> None:
+        self._scale = scale
+        self._swap_rb = swap_rb
         self._session = session
         self._input = session.get_inputs()[0].name
         self._outputs = [o.name for o in session.get_outputs()]
@@ -193,9 +215,12 @@ class ScrfdFaceFinder:
 
     def find(self, image: np.ndarray) -> list[FaceBox]:
         canvas, factor = _letterbox(image, DET_INPUT_SIZE)
-        tensor = ((canvas.astype(np.float32) - 127.5) / 127.5).transpose(2, 0, 1)[None]
+        if self._swap_rb:
+            canvas = np.ascontiguousarray(canvas[:, :, ::-1])
+        tensor = ((canvas.astype(np.float32) - 127.5) / self._scale).transpose(2, 0, 1)[None]
         outputs = self._session.run(self._outputs, {self._input: tensor})
         boxes: list[np.ndarray] = []
+        points: list[np.ndarray] = []
         scores: list[np.ndarray] = []
         for index, stride in enumerate(_STRIDES):
             score = outputs[index]
@@ -213,15 +238,27 @@ class ScrfdFaceFinder:
                 ],
                 axis=-1,
             )
+            offsets = outputs[2 * len(_STRIDES) + index] * stride
+            marks = np.stack(
+                [centers[:, i % 2] + offsets[:, i] for i in range(10)], axis=-1
+            ).reshape(-1, 5, 2)
             boxes.append(decoded[keep])
+            points.append(marks[keep])
             scores.append(score[keep])
         if not boxes:
             return []
         all_scores = np.vstack(scores)
         order = all_scores.ravel().argsort()[::-1]
         dets = np.hstack((np.vstack(boxes) / factor, all_scores)).astype(np.float32)[order]
-        kept = dets[_nms(dets, DET_NMS)]
-        return [FaceBox(*(float(v) for v in row)) for row in kept]
+        landmarks = (np.vstack(points) / factor)[order]
+        keep = _nms(dets, DET_NMS)
+        return [
+            FaceBox(
+                *(float(v) for v in dets[i]),
+                landmarks=tuple((float(x), float(y)) for x, y in landmarks[i]),
+            )
+            for i in keep
+        ]
 
 
 # ── MiniFASNet (PAD) ─────────────────────────────────────────────────────────────────────
@@ -303,9 +340,9 @@ class FacePadDetector:
                     raise PadError("PAD đã nạp với MODELS_DIR khác; cần restart.")
                 return
             pad_path, pad_rev = _verified_weights(root, PAD_MODEL_ID, PAD_FILE)
-            det_path, det_rev = _verified_weights(root, DETECTOR_MODEL_ID, DETECTOR_FILE)
+            det_session, det_rev = shared_scrfd_session(root, device)
             self._classifier = MiniFasNetClassifier(_session(pad_path, device))
-            self._finder = ScrfdFaceFinder(_session(det_path, device))
+            self._finder = ScrfdFaceFinder(det_session)
             self._loaded_root = root.resolve()
             self.version = f"minifasnet-v2@{pad_rev[:8]}+scrfd-10g@{det_rev[:8]}"
 
