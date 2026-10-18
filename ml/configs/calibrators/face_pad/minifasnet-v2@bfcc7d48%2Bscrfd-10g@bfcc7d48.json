@@ -1,0 +1,21 @@
+{
+  "module": "face_pad",
+  "model_version": "minifasnet-v2@bfcc7d48+scrfd-10g@bfcc7d48",
+  "method": "identity",
+  "provisional": true,
+  "note": "MVP — không dùng cho báo cáo",
+  "parameters": {
+    "slope": null,
+    "intercept": null,
+    "x": [],
+    "y": []
+  },
+  "epsilon": 0.0001,
+  "n_pos": 0,
+  "n_neg": 0,
+  "dataset": "not_fitted",
+  "split": "none",
+  "metrics_scope": "not_evaluated",
+  "date": "2026-10-18T04:25:22.993492Z",
+  "commit": "42a03d38564aac4eccc9d8d3ab4fcf431320229d"
+}

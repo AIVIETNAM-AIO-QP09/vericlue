@@ -82,7 +82,11 @@ class ForensicStore:
                 status=job.status,
                 verdict=job.verdict,
                 source_path=str(path),
-                payload={"job": job.model_dump(mode="json"), "filename": filename or ""},
+                payload={
+                    "job": job.model_dump(mode="json"),
+                    "filename": filename or "",
+                    "module_results": {str(m): r.to_contract() for m, r in results.items()},
+                },
             )
         )
         self.db.flush()
@@ -108,6 +112,15 @@ class ForensicStore:
         job = self.get(job_id)
         if job is None:
             return None
+        record = self.db.get(ForensicJobRow, job_id)
+        disabled_labels = {
+            module: evidence["label_vi"]
+            for module, result in record.payload.get("module_results", {}).items()
+            for evidence in result.get("evidence", [])
+            if evidence.get("name") == "orchestration_reason"
+            and evidence.get("value") == "disabled_by_profile"
+            and isinstance(evidence.get("label_vi"), str)
+        }
         rows = "".join(
             f"<tr><td>{s.t_start:g}–{s.t_end:g} s</td>"
             + "".join(
@@ -115,7 +128,7 @@ class ForensicStore:
                 + (
                     f"{sig.prob_attack:.2f}"
                     if sig.applicable and sig.prob_attack is not None
-                    else "—"
+                    else escape(disabled_labels.get(sig.module, "—"))
                 )
                 + "</td>"
                 for sig in s.signals

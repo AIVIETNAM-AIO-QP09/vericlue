@@ -11,6 +11,7 @@ from vericlue_ml.common.calibration import CalibrationError, CalibrationStore
 from vericlue_ml.common.result import ErrorCode, Gate, Module, ModuleResult, Status
 from vericlue_ml.router.config import RouterConfig, load_config
 from vericlue_ml.router.fusion import FusionError, max_probability
+from vericlue_ml.router.profiles import RouterProfileName, get_profile
 
 ResultMap = dict[Module, ModuleResult]
 Action = Literal["pass", "retry", "review", "voice_challenge"]
@@ -38,8 +39,13 @@ class Decision:
 
 class TrustRouter:
     def __init__(
-        self, config: RouterConfig | None = None, *, calibrators: CalibrationStore | None = None
+        self,
+        config: RouterConfig | None = None,
+        *,
+        calibrators: CalibrationStore | None = None,
+        profile: RouterProfileName = "full",
     ) -> None:
+        self.profile = get_profile(profile)
         self.config = config if config is not None else load_config()
         self.calibrators = calibrators if calibrators is not None else CalibrationStore()
 
@@ -58,7 +64,9 @@ class TrustRouter:
             priority,
             reason,
             self.config.config_version,
-            self.config.snapshot(),
+            {**self.config.snapshot(), "router_profile": "mvp"}
+            if self.profile.name == "mvp"
+            else self.config.snapshot(),
             dict(results),
         )
 
@@ -120,9 +128,9 @@ class TrustRouter:
                 "MORE_LIGHT",
             )
             return self._retry(results, retries_used, max_retries, hint, "quality not passed")
-        if not self._usable(results, PRESENCE_MODULES):
+        if not self._usable(results, self.profile.presence_modules):
             return self._decision("review", results, reason="presence missing/error/degraded")
-        gates = [results[m].gate for m in PRESENCE_MODULES]
+        gates = [results[m].gate for m in self.profile.presence_modules]
         if Gate.FAIL in gates:
             return self._decision("review", results, reason="presence failed", priority="high")
         if any(g not in (Gate.PASS, Gate.FAIL, Gate.UNCLEAR) for g in gates):
@@ -175,7 +183,7 @@ class TrustRouter:
             return self._decision("review", results, reason="positive splice flag", priority="high")
         if invalid_flag:
             return self._decision("review", results, reason="invalid splice flag")
-        if not self._usable(results, VOICE_STEP_MODULES):
+        if not self._usable(results, self.profile.voice_step_modules):
             return self._decision("review", results, reason="voice missing/error/degraded")
         challenge = results[Module.VOICE_CHALLENGE]
         if challenge.gate == Gate.FAIL:
@@ -183,9 +191,9 @@ class TrustRouter:
             return self._decision(action, results, reason="phrase mismatch")
         if challenge.gate != Gate.PASS:
             return self._decision("review", results, reason="phrase unclear")
-        calibrated = self._calibrate(results, VOICE_MODULES)
+        calibrated = self._calibrate(results, self.profile.voice_modules)
         try:
-            probability = max_probability(calibrated, VOICE_MODULES)
+            probability = max_probability(calibrated, self.profile.voice_modules)
         except FusionError:
             return self._decision(
                 "review", calibrated, reason="voice missing/error/degraded/probability"
