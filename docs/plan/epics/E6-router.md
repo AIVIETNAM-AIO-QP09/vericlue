@@ -29,7 +29,8 @@
 - [x] Script fit chạy detector thật từ registry, chỉ đọc calib_fit, loại replay khỏi voice; lưu version thật, provisional, số mẫu, commit và hash manifest.
 - [x] Commit calibrator voice_spoof thật (Platt, 23 dương/109 âm; 80 replay + 7 no-score loại có thống kê) và ghi lệnh/commit/kết quả trong bàn giao.
 - [x] Hỗ trợ identity minh bạch theo ADR-0012 mục 2 sửa ngày 18/10: cắt score, provisional + ghi chú không dùng báo cáo; không bịa mẫu/metrics, giữ Platt voice.
-- [ ] Commit identity PAD đúng runtime version; chuẩn bị CLI sinh GenD khi wrapper chốt version. Không chạy công việc dữ liệu trong cập nhật này.
+- [x] Commit identity PAD đúng runtime version minifasnet-v2@bfcc7d48+scrfd-10g@bfcc7d48; có CLI sinh GenD khi wrapper chốt version. Không chạy công việc dữ liệu trong cập nhật này.
+- [ ] Thêm JSON identity GenD khi FACE-02 commit/xác nhận runtime version (không phải phụ thuộc dữ liệu).
 
 ---
 ### ROUT-02 · Bộ chính sách quyết định
