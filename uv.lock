@@ -1830,6 +1830,10 @@ eval = [
 face = [
     { name = "onnxruntime" },
     { name = "opencv-python-headless" },
+    { name = "pillow" },
+    { name = "safetensors" },
+    { name = "torch" },
+    { name = "transformers" },
 ]
 voice = [
     { name = "jiwer" },
@@ -1849,15 +1853,19 @@ requires-dist = [
     { name = "numpy", specifier = ">=1.26" },
     { name = "onnxruntime", marker = "extra == 'face'", specifier = ">=1.20,<2" },
     { name = "opencv-python-headless", marker = "extra == 'face'", specifier = ">=4.10,<5" },
+    { name = "pillow", marker = "extra == 'face'", specifier = ">=10,<13" },
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "rapidfuzz", marker = "extra == 'voice'", specifier = ">=3,<4" },
+    { name = "safetensors", marker = "extra == 'face'", specifier = ">=0.5,<1" },
     { name = "safetensors", marker = "extra == 'voice'", specifier = ">=0.5,<1" },
     { name = "scikit-learn", specifier = ">=1.5,<2" },
     { name = "scipy", specifier = ">=1.11,<2" },
     { name = "soundfile", marker = "extra == 'voice'", specifier = ">=0.13,<1" },
+    { name = "torch", marker = "extra == 'face'", specifier = ">=2.6,<3" },
     { name = "torch", marker = "extra == 'voice'", specifier = ">=2.6,<3" },
     { name = "torchaudio", marker = "extra == 'voice'", specifier = ">=2.6,<3" },
+    { name = "transformers", marker = "extra == 'face'", specifier = ">=4.57.1,<5" },
     { name = "transformers", marker = "extra == 'voice'", specifier = ">=4.57.1,<5" },
     { name = "webrtcvad-wheels", marker = "extra == 'voice'", specifier = ">=2.0.14,<3" },
 ]

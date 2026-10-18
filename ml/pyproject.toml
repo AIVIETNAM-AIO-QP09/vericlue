@@ -17,6 +17,11 @@ dependencies = [
 face = [
   "onnxruntime>=1.20,<2",
   "opencv-python-headless>=4.10,<5",
+  # FACE-02 (GenD): CLIP ViT-L/14 qua transformers; cùng ràng buộc với extra `voice`.
+  "torch>=2.6,<3",
+  "safetensors>=0.5,<1",
+  "transformers>=4.57.1,<5",
+  "pillow>=10,<13",
 ]
 voice = [
   "torch>=2.6,<3",

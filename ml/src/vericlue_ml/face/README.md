@@ -37,6 +37,35 @@ Mã **không gọi mạng**: thiếu file hoặc sai SHA-256 là `error`.
 - Đọc từ `MODELS_DIR/minifasnet/minifasnet_v2.onnx` và `MODELS_DIR/scrfd-10g/det_10g.onnx`, kiểm SHA-256 theo `models/manifest.yaml`. Tải bằng `scripts/download_models.py`.
 - Mặc định dùng CUDA nếu `onnxruntime-gpu` có sẵn (cài `onnxruntime-gpu` thay cho `onnxruntime`), ngược lại CPU. `DEVICE=cpu` ép CPU.
 
+## GenD: `gend.py` (FACE-02, bước 1 — bọc mô hình)
+
+`FaceDeepfakeDetector` (module `face_deepfake`): video (hoặc `images` nếu không có video) → N khung đều nhau → SCRFD `det_10g` → mặt lớn nhất → căn 5 điểm (tỷ lệ 1,3) → 224 px, mean/std CLIP → GenD (CLIP ViT-L/14 + đầu tuyến tính) → softmax → `p_fake` mỗi khung. `score = max(mean, top25_mean)`; `prob_attack` để trống chờ hiệu chỉnh (ROUT-01).
+
+| Mục | Giá trị |
+|---|---|
+| Số khung | `EKYC_FRAMES = 8`; giám định 32 (`metadata["mode"] = "forensic"`, `FORENSIC_FRAMES`) |
+| Đọc video | tuần tự bằng `cv2` (`frames.py`), đếm khung thật bằng `grab()` — không tin số khung trong webm |
+| Trọng số | `MODELS_DIR/gend-clip-l14/{config.json,model.safetensors}`, `MODELS_DIR/clip-vit-large-patch14/{config.json,preprocessor_config.json}`, `MODELS_DIR/scrfd-10g/det_10g.onnx`; kiểm SHA-256 theo manifest; không gọi mạng |
+| Phụ thuộc | `uv sync --all-packages --extra face` (torch, transformers, safetensors, pillow). `uv.lock` dùng torch bản CPU |
+| Hiệu chỉnh | CHƯA. `score` là điểm thô; calibrator `face_deepfake` thuộc ROUT-01 |
+
+| Tình huống | `status` | `error_code` |
+|---|---|---|
+| Đủ khung có mặt | `ok` | — |
+| Không có mặt ở mọi khung | `not_applicable` | `E_NO_FACE` |
+| Ít khung có mặt hơn `min(MIN_VALID_FRAMES = 3, số khung đã lấy)` | `degraded` | `E_LOW_QUALITY` |
+| Không có video lẫn ảnh, video/ảnh hỏng | `error` | `E_DECODE` |
+| Thiếu trọng số, lỗi nạp, lỗi bất kỳ | `error` | `E_INTERNAL` |
+| Sai SHA-256 trọng số | `error` | `E_INTEGRITY` |
+
+Evidence: `frame_scores` (timeseries `{frame, p_fake}`), `mean`, `top25_mean`; `quality.frames_sampled/frames_used`.
+
+**Tốc độ (đo ngày 18/10/2026, CPU, máy đang chạy tiến trình khác):** 8 khung ≈ 18–21 s (GenD ≈ 11 s, SCRFD ≈ 1,8 s, đọc video 1080p HEVC ≈ 3,9 s); nạp mô hình lần đầu ≈ 135 s. Vượt xa ngân sách detector 4 s (`detector_timeout_seconds`) → trên CPU, `face_deepfake` ra `E_TIMEOUT` và phiên vào `review`. Cần GPU (torch CUDA — chưa đổi `uv.lock`) hoặc giảm số khung; xem bàn giao FACE-02.
+
+## Chất lượng ảnh phía server: `quality.py` (MVP, ADR-0012)
+
+`QualityDetector` (module `quality`): ảnh đầu tiên của phiên (không có ảnh thì khung giữa video) → SCRFD (dùng chung phiên onnxruntime với `face_pad`/`face_deepfake`) → mặt lớn nhất → cỡ mặt, độ nét (phương sai Laplacian), độ sáng, yaw thô, lệch tâm. `gate = pass | fail`; `fail` kèm `error_code` và evidence `retry_hint` (mã hợp đồng: `MOVE_CLOSER`, `MOVE_BACK`, `MORE_LIGHT`, `HOLD_STILL`, `FACE_CENTER`). Không có mặt → `gate=fail` `E_NO_FACE` (chụp lại, hết lượt thì router đưa sang review); lỗi hạ tầng → `error`. Ngưỡng là hằng số TẠM trong file (`MIN_FACE_PX`, `MIN_ILLUM`, `MIN_SHARPNESS`, `MAX_YAW_DEG`, …), chờ ROUT-03; không nằm trong `thresholds.yaml`. Quá sáng/chói nắng chưa có mã `retry_hint` trong hợp đồng nên chưa chặn (chỉ ghi `illum`).
+
 ### Thử nhanh qua Swagger (chế độ `mixed`)
 
 > `mixed` là chế độ **demo/phát triển**, không phải chế độ an toàn: module mock vẫn trả kết quả giả. Không dùng để đánh giá hay báo cáo số liệu.

@@ -3,7 +3,9 @@
 import pytest
 
 from vericlue_ml.common import Module
+from vericlue_ml.face.gend import FaceDeepfakeDetector
 from vericlue_ml.face.pad import FacePadDetector
+from vericlue_ml.face.quality import QualityDetector
 from vericlue_ml.mock import MOCK_DETECTORS
 from vericlue_ml.registry import get_detector, mock_mode, use_mock_models
 from vericlue_ml.voice.challenge import VoiceChallengeDetector
@@ -49,7 +51,9 @@ def test_mixed_picks_real_where_registered(monkeypatch):
     monkeypatch.setenv("USE_MOCK_MODELS", "mixed")
     assert isinstance(get_detector(Module.FACE_PAD), FacePadDetector)
     assert isinstance(get_detector(Module.VOICE_CHALLENGE), VoiceChallengeDetector)
-    assert get_detector(Module.FACE_DEEPFAKE) is MOCK_DETECTORS[Module.FACE_DEEPFAKE]
+    assert isinstance(get_detector(Module.FACE_DEEPFAKE), FaceDeepfakeDetector)
+    assert isinstance(get_detector(Module.QUALITY), QualityDetector)
+    assert get_detector(Module.CHROMAPULSE) is MOCK_DETECTORS[Module.CHROMAPULSE]
 
 
 def test_mixed_never_raises_for_any_module(monkeypatch):

@@ -16,7 +16,9 @@ from typing import Any
 from vericlue_api.core.config import Settings
 from vericlue_ml.common.detector import Detector, DetectorInput
 from vericlue_ml.common.result import ErrorCode, Evidence, Module, ModuleResult, Status
+from vericlue_ml.face.gend import FaceDeepfakeDetector
 from vericlue_ml.face.pad import FacePadDetector
+from vericlue_ml.face.quality import QualityDetector
 from vericlue_ml.registry import get_detector
 from vericlue_ml.router.policy import TrustRouter
 from vericlue_ml.voice.antispoof import AntiDeepfakeDetector
@@ -79,7 +81,9 @@ class Orchestrator:
                     if preload is not None:
                         if isinstance(detector, (VoiceChallengeDetector, AntiDeepfakeDetector)):
                             preload(models_dir=Path(self.settings.models_dir))
-                        elif isinstance(detector, FacePadDetector):
+                        elif isinstance(
+                            detector, (FacePadDetector, FaceDeepfakeDetector, QualityDetector)
+                        ):
                             preload(
                                 models_dir=Path(self.settings.models_dir),
                                 device=self.settings.device,

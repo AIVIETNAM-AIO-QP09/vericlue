@@ -26,6 +26,14 @@ Giữ nguyên thông báo Apache-2.0 khi phân phối. Sau này gộp mô hình 
 |---|---|---|---|---|
 | [uniface](https://github.com/yakhyo/uniface) 4.0.0 — `spoofing/minifasnet.py` (tiền xử lý cắt theo `scale`, softmax), `detection/scrfd.py` và `common.py` (letterbox, giải mã anchor, NMS) | MIT, Copyright 2025-2026 Yakhyokhuja Valikhujaev | `ml/src/vericlue_ml/face/pad.py` (viết lại gọn; docstring giữ nguồn và giấy phép) | Chạy `onnxruntime` trực tiếp từ `MODELS_DIR`, kiểm SHA-256, không tải mạng; không phụ thuộc `uniface`. Điểm p_real đã đối chiếu với `uniface` gốc trên 4 khung hình, khớp tới 6 chữ số. Văn bản giấy phép: `third_party/licenses/uniface.txt` | FACE-01 |
 
+## FACE-02
+
+| Nguồn | Giấy phép | Chép vào đâu | Đã sửa gì | Task |
+|---|---|---|---|---|
+| [yermandy/GenD](https://github.com/yermandy/GenD) commit `387a42266dd385fbe8f7626c5d3aa03eea3bfaab` — `detector.py::align_face` (mốc đích, `estimateAffinePartial2D` LMEDS, `target_size=None`), `src/retinaface.py` (SCRFD: chia 128, đảo BGR→RGB), `src/hf/modeling_gend.py` (`pooler_output` → L2-normalize → Linear(1024, 2)), `app/run.py` (softmax, nhãn 1 = giả) | MIT, Copyright (c) 2025 Andy (`third_party/licenses/GenD-MIT.txt`) | `ml/src/vericlue_ml/face/gend.py` (viết lại gọn; docstring giữ nguồn) và `ScrfdFaceFinder` trong `face/pad.py` (thêm giải mã 5 mốc, tham số `scale`/`swap_rb`) | Nạp CLIP từ `config.json` cục bộ + trọng số GenD (không dùng `GenD.from_pretrained`, không tải mạng, không chạy mã từ xa); không phụ thuộc `peft`/`timm`. Đối chiếu với mã gốc: SCRFD lệch hộp/mốc 0,0; logit GenD lệch tối đa 0,006 trên 16 khung (xem bàn giao FACE-02) | FACE-02 |
+
+Trọng số GenD `yermandy/GenD_CLIP_L_14` (MIT) và `openai/clip-vit-large-patch14` (MIT theo openai/CLIP, xem ghi chú trong `models/manifest.yaml`); `det_10g.onnx` vẫn là giấy phép nghiên cứu phi thương mại.
+
 Trọng số (không commit, tải bằng `scripts/download_models.py`, theo `models/manifest.yaml`):
 
 | Trọng số | Giấy phép | Ghi chú |
