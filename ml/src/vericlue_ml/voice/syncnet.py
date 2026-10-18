@@ -62,6 +62,8 @@ MAX_OFFSET_FRAMES = 15  # +/-600 ms at 25 fps, without leaving the aligned span.
 MAX_SYNC_WINDOWS = 4  # Bounded CPU work; evenly spaced anchors, not chosen by score.
 CPU_THREADS = 4
 MAX_VIDEO_SECONDS = 120.0
+MAX_DECODE_FRAMES = 36000
+MAX_RESAMPLE_ERROR_SECONDS = 1 / SYNCNET_FPS
 # ADR-0012 section 5: temporary named conversion, never an evaluated probability.
 PROVISIONAL_FULL_ATTACK_OFFSET_MS = 500.0
 PROVISIONAL_CONFIDENCE_MIN = 0.0
@@ -191,34 +193,74 @@ def _face_crop(image: np.ndarray, finder: FaceFinder) -> np.ndarray:
 
 
 def _read_windows(video: Path, starts: list[int], finder: FaceFinder) -> list[list[np.ndarray]]:
+    """Resample real presentation timestamps, including browser variable-frame-rate clips."""
     import cv2
 
     capture = cv2.VideoCapture(str(video))
     try:
-        fps = capture.get(cv2.CAP_PROP_FPS)
-        count = capture.get(cv2.CAP_PROP_FRAME_COUNT)
-        if not capture.isOpened() or not math.isfinite(fps) or fps <= 0 or count <= 0:
+        if not capture.isOpened():
             raise SyncNetError("Undecodable video", ErrorCode.E_DECODE)
-        if count / fps > MAX_VIDEO_SECONDS:
-            raise SyncNetError("Video is too long", ErrorCode.E_DECODE)
-        windows = []
-        cached = {}
-        for start in starts:
-            crops = []
-            for position in range(start, start + SYNCNET_FRAMES):
-                timestamp = position / SYNCNET_FPS
-                frame_index = round(timestamp * fps)
-                if frame_index >= count:
-                    raise SyncNetError("Video ends before aligned speech", ErrorCode.E_DECODE)
-                if frame_index not in cached:
-                    capture.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
-                    ok, image = capture.read()
-                    if not ok:
-                        raise SyncNetError("Missing aligned frame", ErrorCode.E_DECODE)
-                    cached[frame_index] = _face_crop(image, finder)
-                crops.append(cached[frame_index])
-            windows.append(crops)
-        return windows
+        targets = sorted(
+            {position for start in starts for position in range(start, start + SYNCNET_FRAMES)}
+        )
+        if not targets or targets[0] < 0 or targets[-1] / SYNCNET_FPS > MAX_VIDEO_SECONDS:
+            raise SyncNetError("Invalid video bounds", ErrorCode.E_DECODE)
+        selected, cropped = {}, {}
+        cursor = 0
+        previous = None
+
+        def remember(position: int, candidate: tuple[float, np.ndarray, int]) -> None:
+            timestamp, image, index = candidate
+            if abs(timestamp - position / SYNCNET_FPS) > MAX_RESAMPLE_ERROR_SECONDS + 1e-6:
+                raise SyncNetError(
+                    "Video timestamp gap is too large", ErrorCode.E_LOW_QUALITY, "degraded"
+                )
+            if index not in cropped:
+                cropped[index] = _face_crop(image, finder)
+            selected[position] = cropped[index]
+
+        for index in range(MAX_DECODE_FRAMES):
+            ok, image = capture.read()
+            if not ok:
+                # A final frame may be nearest to a target immediately before EOF.
+                while previous is not None and cursor < len(targets):
+                    remember(targets[cursor], previous)
+                    cursor += 1
+                if cursor < len(targets):
+                    raise SyncNetError("Missing aligned video", ErrorCode.E_DECODE)
+                break
+            timestamp = capture.get(cv2.CAP_PROP_POS_MSEC) / 1000
+            if (
+                not math.isfinite(timestamp)
+                or timestamp < 0
+                or (previous is not None and timestamp <= previous[0])
+            ):
+                raise SyncNetError(
+                    "Missing or non-monotonic presentation timestamps",
+                    ErrorCode.E_LOW_QUALITY,
+                    "degraded",
+                )
+            if timestamp > MAX_VIDEO_SECONDS:
+                raise SyncNetError("Video timestamp exceeds limit", ErrorCode.E_DECODE)
+            current = (timestamp, image, index)
+            while cursor < len(targets) and targets[cursor] / SYNCNET_FPS <= timestamp:
+                target_s = targets[cursor] / SYNCNET_FPS
+                candidate = current
+                if previous is not None and abs(target_s - previous[0]) <= abs(
+                    timestamp - target_s
+                ):
+                    candidate = previous
+                remember(targets[cursor], candidate)
+                cursor += 1
+            if cursor == len(targets):
+                break
+            previous = current
+        else:
+            raise SyncNetError("Too many video frames", ErrorCode.E_DECODE)
+        return [
+            [selected[position] for position in range(start, start + SYNCNET_FRAMES)]
+            for start in starts
+        ]
     finally:
         capture.release()
 
