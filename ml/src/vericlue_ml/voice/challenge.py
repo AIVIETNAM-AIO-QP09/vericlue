@@ -193,7 +193,9 @@ class VoiceChallengeDetector:
                 raise ValueError("Thiếu câu đề bài phía server.")
             if inp.audio is None:
                 raise DecodeError("Thiếu audio.")
-            transcript = self.asr.transcribe(inp.audio)
+            transcript = self.asr.transcribe(
+                inp.audio, expected_syllable_count=len(normalize_text(prompt).split())
+            )
             match = compare_transcripts(prompt, transcript, config=self.match_config)
             return ModuleResult(
                 **base,

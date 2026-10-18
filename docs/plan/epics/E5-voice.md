@@ -114,6 +114,8 @@ chọn (19 câu, đã đối chiếu đủ qua 130 shard metadata). Kết quả 
 [VOICE-04.md](../../status/results/VOICE-04.md). Giữ ngưỡng theo thẻ, không chỉnh
 bằng kết quả. Lỗi xử lý tính riêng và không được xem là đạt.
 
+**Vá 18/10:** giới hạn số token PhoWhisper theo số âm tiết đề bài, chống lặp 8 token, lỗi nếu chạm trần; không truyền nội dung đề bài vào ASR, không đổi ngưỡng. Wrapper voice04-v2; task đã nghiệm thu vẫn giữ done.
+
 ---
 
 ### VOICE-05 · Căn chỉnh câu, phát hiện cắt ghép, khớp môi

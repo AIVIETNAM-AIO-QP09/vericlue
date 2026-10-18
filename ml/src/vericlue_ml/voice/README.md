@@ -179,3 +179,34 @@ Hậu tố pipeline `voice05-v2` ghi nhận thay đổi tiền xử lý và các
 identity lipsync được sinh lại theo version này, không dùng artifact v1. Các cửa
 sổ mel duy nhất được gộp theo lô, tối đa4 trên CPU/8 trên GPU, vẫn giữ thứ tự
 mốc và offset. Giới hạn lô là hằng số có tên, không thay ngưỡng hoặc fit dữ liệu.
+
+## Chặn PhoWhisper lặp token (18/10, VOICE-04)
+
+ASR chỉ nhận thêm `expected_syllable_count` dạng số nguyên, không nhận nội dung
+câu đề bài. Detector đếm âm tiết sau chuẩn hóa. Ngân sách mỗi đoạn giải mã là
+`min(MAX_NEW_TOKENS=256, count * TOKENS_PER_SYLLABLE=8 + GENERATION_TOKEN_PADDING=16)`;
+ngân hàng 8–12 âm tiết có 80–112 token. Gọi ASR không có số âm tiết dùng mặc định
+128 token. Đây là giới hạn giải mã, không đổi ngưỡng so khớp hay chuẩn hóa/VAD.
+
+`no_repeat_ngram_size=8` chặn lặp nguyên chuỗi tám token; không phạt mọi token
+đã xuất hiện như repetition_penalty. Các tham số language/task/timestamps và
+condition_on_prev_tokens giữ nguyên. Nếu sinh chạm trần ở bất kỳ chunk/fallback
+nào, trả lỗi ASR thay vì xét đạt bằng transcript bị cắt; Whisper có thể bỏ EOS ở
+đầu ra timestamp nên theo dõi bước decoder thô. Lỗi không bao giờ cho qua cổng
+voice_challenge. Version wrapper tăng `voice04-v2`; không thay checkpoint hoặc
+thresholds.yaml. Tối đa 120 s audio vẫn chia đoạn theo Whisper, không bỏ phần sau.
+
+Replay hồi quy bốn TTS đã có (đúng/sai/gần đúng), không sinh audio hay quét dữ liệu:
+
+```powershell
+$env:MODELS_DIR='D:\Projects\vericlue-store\models'
+$env:VOICE04_TTS_MANIFEST='D:\Projects\vericlue-store\data\eval\VOICE04\tts-mms\manifest.json'
+$env:RUN_VOICE04_TTS_REGRESSION='1'
+$env:HF_HUB_OFFLINE='1'; $env:TRANSFORMERS_OFFLINE='1'
+.venv/Scripts/python.exe -m pytest ml/tests/test_voice_asr_local.py -k existing_local_tts
+```
+
+Test chạy cùng model CPU lần lượt với kwargs cũ và guard mới, yêu cầu transcript
+khớp tuyệt đối ở cả bốn fixture. Mặc định bỏ qua vì cần model/audio ngoài repo.
+Đây là test hồi quy luồng, không phải kết quả R hay phép đo tốc độ trên bộ audio
+bị lặp ở demo.
