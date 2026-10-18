@@ -195,3 +195,18 @@ nào, trả lỗi ASR thay vì xét đạt bằng transcript bị cắt; Whisper
 đầu ra timestamp nên theo dõi bước decoder thô. Lỗi không bao giờ cho qua cổng
 voice_challenge. Version wrapper tăng `voice04-v2`; không thay checkpoint hoặc
 thresholds.yaml. Tối đa 120 s audio vẫn chia đoạn theo Whisper, không bỏ phần sau.
+
+Replay hồi quy bốn TTS đã có (đúng/sai/gần đúng), không sinh audio hay quét dữ liệu:
+
+```powershell
+$env:MODELS_DIR='D:\Projects\vericlue-store\models'
+$env:VOICE04_TTS_MANIFEST='D:\Projects\vericlue-store\data\eval\VOICE04\tts-mms\manifest.json'
+$env:RUN_VOICE04_TTS_REGRESSION='1'
+$env:HF_HUB_OFFLINE='1'; $env:TRANSFORMERS_OFFLINE='1'
+.venv/Scripts/python.exe -m pytest ml/tests/test_voice_asr_local.py -k existing_local_tts
+```
+
+Test chạy cùng model CPU lần lượt với kwargs cũ và guard mới, yêu cầu transcript
+khớp tuyệt đối ở cả bốn fixture. Mặc định bỏ qua vì cần model/audio ngoài repo.
+Đây là test hồi quy luồng, không phải kết quả R hay phép đo tốc độ trên bộ audio
+bị lặp ở demo.
