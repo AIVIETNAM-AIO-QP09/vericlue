@@ -15,3 +15,4 @@ Mỗi ADR ghi lại **một** quyết định quan trọng: bối cảnh, quyế
 | [0009](0009-ha-tang-toi-gian-va-giay-phep.md) | Hạ tầng tối giản; chính sách giấy phép | Chấp nhận |
 | [0010](0010-tach-tap-calib-va-luu-calibrator.md) | Tách `calib_fit` / `calib_ltt`; lưu calibrator trong `ml/configs/` | Chấp nhận (bổ sung 0006) |
 | [0011](0011-token-phien-va-thu-thach.md) | Token theo phiên, mỗi bước nhận một lần; thử thách 120 giây; nhịp nháy màu an toàn | Chấp nhận |
+| [0012](0012-mvp-chay-that.md) | Hồ sơ MVP `ROUTER_PROFILE=mvp`: chạy toàn đồ thật, bỏ ChromaPulse/khớp môi, calibrator tạm trên `calib_fit` | Chấp nhận (18/10) |
