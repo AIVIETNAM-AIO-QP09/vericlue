@@ -145,19 +145,78 @@
 
 ---
 
-### APP-01 ★ · App Android cho luồng người dân
+### APP-01 ★ · App Kotlin: khung, API qua HTTPS, điều hướng 3 luồng
 
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
 |---|---|---|---|---|
-| M1 | 2 | S1–S2 | P0 | CAP-06 |
+| M1 | 1,5 | S1 | P0 | PLAT-04 |
 
-**Mục tiêu:** bản demo nộp cuộc thi là app Android (ADR-0014).
+**Mục tiêu:** dựng bộ khung app Android native cho bản demo (ADR-0014).
 
 **Đầu ra:**
-- APK cho Android 10 trở lên, gọi API VeriClue qua **HTTPS** tới máy demo.
-- Cách làm (bọc web bằng Capacitor hoặc viết Kotlin native) **chốt trước khi bắt đầu** (ADR-0014 mục 2).
-- Có ba luồng của ADR-0013.
+- `apps/android/` dùng Kotlin, Jetpack Compose, minSdk 29 (Android 10).
+- Khung lấy từ eKYC-system (MIT): giữ dòng giấy phép, ghi `third_party/README.md`.
+- API client sinh từ `openapi.json`.
+- Kết nối HTTPS tới máy demo; có hướng dẫn thiết lập chứng chỉ.
+- Điều hướng: đăng ký, đăng nhập lại, khôi phục (ADR-0013).
+- Chỉ hiện `pass`, `retry`, `review`, `voice_challenge` và thông báo "thử lại sau" khi bị chặn.
 
 **Tiêu chí hoàn thành:**
-- [ ] Đi hết luồng đăng ký trên điện thoại thật với mô hình thật (`ROUTER_PROFILE=mvp`).
-- [ ] Người dân không thấy điểm số (AGENTS §6 luật 3).
+- [ ] Build được APK bằng Gradle trên máy Windows; README có các bước cài Android Studio/SDK.
+- [ ] Tạo phiên và nhận kết quả từ API thật trên điện thoại thật.
+- [ ] CI không bắt buộc build Android ở bước này; ghi rõ trong PR.
+
+---
+
+### APP-02 ★ · App: chụp mặt, quay 3 giây, quay đầu ngẫu nhiên
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M1 | 2 | S1–S2 | P0 | APP-01 |
+
+**Mục tiêu:** làm giai đoạn B của ADR-0013 trên app.
+
+**Đầu ra:**
+- CameraX dùng camera trước, căn khung và gợi ý chất lượng bằng ML Kit hoặc MediaPipe.
+- Chụp ảnh và quay 3 giây trung tính; tải lên dần.
+- Quay đầu theo thứ tự server ra (phần server ở FLOW-04), có mũi tên hướng dẫn.
+- Kiểm camera ảo bản native: phát hiện root hoặc hook ở mức cơ bản; gửi tín hiệu lên server.
+- Camera không tắt cho tới bước đọc câu.
+
+**Tiêu chí hoàn thành:**
+- [ ] Đi hết giai đoạn B trên điện thoại thật; server chấm bằng mô hình thật.
+
+---
+
+### APP-03 · App: ghi âm đọc câu (WAV 16 kHz)
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M1 | 1 | S2 | P0 | APP-01 |
+
+**Mục tiêu:** làm giai đoạn C của ADR-0013 và bước leo thang L3.
+
+**Đầu ra:**
+- AudioRecord PCM 16-bit, mono, 16 kHz, ghi ra WAV. Tối đa khoảng 8 giây.
+- Quay video kèm track âm thanh trong cùng một bản ghi (MediaRecorder) để khớp môi có chung đồng hồ (ADR-0012 mục 6).
+
+**Tiêu chí hoàn thành:**
+- [ ] Server đọc được WAV, chấm PhoWhisper và AntiDeepfake trên điện thoại thật.
+
+---
+
+### APP-04 · App: OTP, chụp CCCD, xác nhận thông tin
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M2 (+M1) | 1,5 | S1–S2 | P0 | APP-01 |
+
+**Mục tiêu:** làm giai đoạn A của ADR-0013. Phần server nằm ở FLOW-02 và FLOW-03.
+
+**Đầu ra:**
+- Màn hình số điện thoại và OTP, có khung "SMS mô phỏng".
+- Chụp CCCD hai mặt bằng camera sau, khung 4 góc. Đọc thử QR trên máy chỉ để báo người dùng chụp lại khi không đọc được.
+- Màn hình xác nhận thông tin.
+
+**Tiêu chí hoàn thành:**
+- [ ] Đi hết giai đoạn A trên điện thoại thật.
