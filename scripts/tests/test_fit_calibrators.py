@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import importlib
+import json
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -12,7 +13,7 @@ import pytest
 
 from vericlue_ml.common.calibration import CalibrationStore
 from vericlue_ml.common.detector import DetectorInput
-from vericlue_ml.common.result import Module, ModuleResult
+from vericlue_ml.common.result import ErrorCode, Module, ModuleResult
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -206,6 +207,108 @@ def test_runner_rejects_result_model_version_change(
             datasets=["fixture"],
         )
     assert not list(output.rglob("*.json"))
+
+
+@pytest.mark.parametrize(
+    ("status", "reason", "score", "version"),
+    [
+        ("error", ErrorCode.E_LOW_QUALITY, None, FakeVoice.version),
+        ("degraded", ErrorCode.E_LOW_QUALITY, None, FakeVoice.version),
+        ("not_applicable", None, None, FakeVoice.version),
+        ("not_applicable", ErrorCode.E_LOW_QUALITY, 0.2, FakeVoice.version),
+        ("not_applicable", ErrorCode.E_LOW_QUALITY, None, "unexpected-version"),
+    ],
+)
+def test_quality_exclusion_does_not_hide_other_unusable_results(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    status: str,
+    reason: ErrorCode | None,
+    score: float | None,
+    version: str,
+) -> None:
+    runner = implementation()
+    fitting_data(tmp_path)
+    detector = FakeVoice()
+
+    def predict(inp: DetectorInput) -> ModuleResult:
+        return ModuleResult(
+            module=Module.VOICE_SPOOF,
+            model_version=version,
+            status=status,
+            error_code=reason,
+            score=score,
+            latency_ms=1,
+        )
+
+    monkeypatch.setattr(detector, "predict", predict)
+    monkeypatch.setattr(runner, "get_detector", lambda *args, **kwargs: detector)
+    output = tmp_path / "artifacts"
+    with pytest.raises(ValueError):
+        runner.run(
+            module=Module.VOICE_SPOOF,
+            data_dir=tmp_path,
+            models_dir=tmp_path / "models",
+            output_dir=output,
+            datasets=["fixture"],
+        )
+    assert not list(output.rglob("*.json"))
+
+
+def test_no_score_low_quality_exclusion_preserves_actual_fit_counts_and_provenance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner = implementation()
+    rows = [
+        row(f"{kind}_{group}", label, attack, f"identity-{group}")
+        for group in range(6)
+        for kind, label, attack in [("real", 0, "bonafide"), ("fake", 1, "tts")]
+    ]
+    rows.extend(
+        [
+            row("low_quality_real", 0, "bonafide", "short-real-person"),
+            row("low_quality_fake", 1, "tts", "short-fake-source"),
+        ]
+    )
+    manifest(tmp_path, "fixture", rows)
+
+    class QualityAwareVoice(FakeVoice):
+        def predict(self, inp: DetectorInput) -> ModuleResult:
+            if not inp.audio.stem.startswith("low_quality_"):
+                return super().predict(inp)
+            self.paths.append(inp.audio)
+            return ModuleResult(
+                module=self.name,
+                model_version=self.version,
+                status="not_applicable",
+                error_code=ErrorCode.E_LOW_QUALITY,
+                score=None,
+                latency_ms=1,
+            )
+
+    detector = QualityAwareVoice()
+    monkeypatch.setattr(runner, "get_detector", lambda *args, **kwargs: detector)
+    output = tmp_path / "artifacts"
+    summary = runner.run(
+        module=Module.VOICE_SPOOF,
+        data_dir=tmp_path,
+        models_dir=tmp_path / "models",
+        output_dir=output,
+        datasets=["fixture"],
+        n_splits=3,
+    )
+    assert len(detector.paths) == 14
+    artifact = CalibrationStore(output).load(Module.VOICE_SPOOF, detector.version)
+    assert artifact.n_pos == artifact.n_neg == 6
+    assert summary["n_pos"] == summary["n_neg"] == 6
+    assert summary["selection"]["n_pos"] == summary["selection"]["n_neg"] == 7
+    provenance = json.loads(artifact.dataset)
+    assert provenance["selection"] == summary["selection"]
+    assert provenance["excluded_quality"] == {
+        "fixture:label=0:E_LOW_QUALITY": 1,
+        "fixture:label=1:E_LOW_QUALITY": 1,
+    }
+    assert summary["excluded_quality"] == provenance["excluded_quality"]
 
 
 def test_runner_requires_committed_code_before_inference(

@@ -253,8 +253,10 @@ Chỉ đọc `splits/<dataset>/calib_fit.csv`. Tên dataset đổi bằng `--dat
 Voice mặc định VSASV, ViMD, MLAAD-vi: dương chỉ TTS/VC, replay bị loại trước inference.
 CV dùng connected `group_id` đã chia, fallback `dataset:subject_id`; thiếu nhóm thì
 dừng. PAD video lấy khung giữa, tương tự ảnh người dùng chụp; GenD video dùng wrapper
-gốc. Mọi inference phải ok, đúng module/version và có score hữu hạn; lỗi dừng toàn
-lượt, không âm thầm bỏ mẫu. Dưới 100 mẫu mỗi lớp chỉ Platt theo hàm fit hiện có.
+gốc. Mẫu không có score với not_applicable/E_LOW_QUALITY được thống kê loại theo
+dataset/lớp/lý do trong provenance. Mẫu được fit phải ok, đúng module/version và có
+score hữu hạn; error/degraded hoặc not_applicable khác dừng toàn lượt. Dưới 100 mẫu
+mỗi lớp chỉ Platt theo hàm fit hiện có. Runtime vẫn review khi thiếu bằng chứng.
 
 Commit implementation trước khi chạy (script từ chối working tree bẩn). Artifact
 JSON ghi `provisional: true`, commit thực thi, n_pos/n_neg, hash manifest, cách lấy

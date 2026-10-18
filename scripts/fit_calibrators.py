@@ -16,7 +16,7 @@ from pathlib import Path
 
 from vericlue_ml.common.calibration import CalibFit, CalibrationStore, fit
 from vericlue_ml.common.detector import DetectorInput
-from vericlue_ml.common.result import Module, Status
+from vericlue_ml.common.result import ErrorCode, Module, Status
 from vericlue_ml.registry import get_detector
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -106,7 +106,7 @@ def run(
     device: str = "cpu",
     n_splits: int = 5,
 ) -> dict:
-    """Stop on any unusable inference; never silently fit a selected subset."""
+    """Report no-score quality exclusions; stop on unavailable/broken detector evidence."""
     module = Module(module)
     if module not in DEFAULT_DATASETS:
         raise ValueError("Unsupported calibration module")
@@ -128,6 +128,8 @@ def run(
     detector.preload(models_dir=models_dir.resolve())
     version = detector.version
     scores = []
+    used_samples = []
+    excluded_quality = Counter()
     with tempfile.TemporaryDirectory(prefix="vericlue-calib-") as directory:
         for index, sample in enumerate(samples):
             if module == Module.VOICE_SPOOF:
@@ -141,16 +143,28 @@ def run(
             else:
                 inp = DetectorInput(images=[sample.path])
             result = detector.predict(inp)
+            if result.module != module or result.model_version != version:
+                raise ValueError("Detector result module/model_version changed")
             if (
-                result.module != module
-                or result.model_version != version
-                or result.status != Status.OK
+                result.status == Status.NOT_APPLICABLE
+                and result.error_code == ErrorCode.E_LOW_QUALITY
+                and result.score is None
+            ):
+                # The unchanged wrapper cannot score short/silent or faceless media.
+                # Calibrate conditional on usable input, never manufacture a score.
+                key = f"{sample.dataset}:label={sample.label}:{result.error_code}"
+                excluded_quality[key] += 1
+                print(f"{module.value}: {index + 1}/{len(samples)} excluded {key}", flush=True)
+                continue
+            if (
+                result.status != Status.OK
                 or result.score is None
                 or not math.isfinite(result.score)
             ):
                 raise ValueError(
                     f"Unusable inference {index + 1}/{len(samples)}: {result.status}/{result.error_code}"
                 )
+            used_samples.append(sample)
             scores.append(float(result.score))
             print(f"{module.value}: {index + 1}/{len(samples)}", flush=True)
     provenance = {
@@ -163,13 +177,14 @@ def run(
         },
         "input": "middle frame for PAD videos; original media otherwise",
         "selection": counts,
+        "excluded_quality": dict(excluded_quality),
         "grouping": "existing connected group_id, dataset:subject_id fallback",
     }
     artifact = fit(
         CalibFit(
             scores=scores,
-            labels=[s.label for s in samples],
-            subject_ids=[s.group_id for s in samples],
+            labels=[s.label for s in used_samples],
+            subject_ids=[s.group_id for s in used_samples],
             dataset=json.dumps(provenance, sort_keys=True),
         ),
         module=module,
@@ -188,6 +203,7 @@ def run(
         "commit": commit,
         "provisional": True,
         "selection": counts,
+        "excluded_quality": dict(excluded_quality),
     }
     print(json.dumps(summary, ensure_ascii=False, indent=2), flush=True)
     return summary
