@@ -566,7 +566,7 @@ def test_orchestrator_passes_settings_models_dir_to_real_voice_preload(tmp_path,
     class FakeASR:
         version = "synthetic@configured-root"
 
-        def preload(self, *, models_dir=None):
+        def preload(self, *, models_dir=None, device=None):
             captured.append(models_dir)
 
     detector = VoiceChallengeDetector(asr=FakeASR())
@@ -808,7 +808,7 @@ def test_orchestrator_injects_settings_models_dir_into_real_voice_spoof_preload(
     captured = []
 
     class Backend:
-        def preload(self, *, models_dir=None):
+        def preload(self, *, models_dir=None, device=None):
             captured.append(models_dir)
 
         def __call__(self, _waveform):

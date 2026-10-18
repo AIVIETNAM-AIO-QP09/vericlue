@@ -79,10 +79,15 @@ class Orchestrator:
                         detector.match_config = self.settings.router_config.voice
                     preload = getattr(detector, "preload", None)
                     if preload is not None:
-                        if isinstance(detector, (VoiceChallengeDetector, AntiDeepfakeDetector)):
-                            preload(models_dir=Path(self.settings.models_dir))
-                        elif isinstance(
-                            detector, (FacePadDetector, FaceDeepfakeDetector, QualityDetector)
+                        if isinstance(
+                            detector,
+                            (
+                                VoiceChallengeDetector,
+                                AntiDeepfakeDetector,
+                                FacePadDetector,
+                                FaceDeepfakeDetector,
+                                QualityDetector,
+                            ),
                         ):
                             preload(
                                 models_dir=Path(self.settings.models_dir),

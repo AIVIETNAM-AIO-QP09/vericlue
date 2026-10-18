@@ -32,6 +32,7 @@ from typing import Any, Protocol
 import numpy as np
 
 from vericlue_ml.common.detector import DetectorInput
+from vericlue_ml.common.device import resolve_torch_device
 from vericlue_ml.common.result import (
     ErrorCode,
     Evidence,
@@ -151,17 +152,6 @@ class GendClassifier:
         return out
 
 
-def _resolve_device(device: str | None) -> str:
-    import os
-
-    import torch
-
-    wanted = (device or os.environ.get("DEVICE") or "auto").strip().lower()
-    if wanted == "cpu" or not torch.cuda.is_available():
-        return "cpu"
-    return "cuda"
-
-
 def _load_classifier(root: Path, device: str | None) -> tuple[GendClassifier, str]:
     """Kiểm SHA-256 rồi dựng GenD từ trọng số cục bộ. Trả (bộ phân loại, revision GenD)."""
     from safetensors.torch import load_file
@@ -190,7 +180,7 @@ def _load_classifier(root: Path, device: str | None) -> tuple[GendClassifier, st
     except RuntimeError as exc:
         raise GendError("Checkpoint GenD không khớp kiến trúc CLIP ViT-L/14.") from exc
     del tensors, vision_state
-    target = _resolve_device(device)
+    target = resolve_torch_device(device, component="gend")
     vision = vision.to(target).eval()
     return (
         GendClassifier(vision, head_weight.to(target), head_bias.to(target), target),

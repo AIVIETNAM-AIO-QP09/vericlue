@@ -31,6 +31,7 @@ import numpy as np
 import yaml
 
 from vericlue_ml.common.detector import DetectorInput
+from vericlue_ml.common.device import check_onnx_session, onnx_providers, requested_device
 from vericlue_ml.common.result import (
     ErrorCode,
     Evidence,
@@ -123,13 +124,8 @@ def _verified_weights(root: Path, model_id: str, filename: str) -> tuple[Path, s
 
 
 def _providers(device: str | None = None) -> list[str]:
-    """CPU luôn chạy được; có CUDA thì ưu tiên, trừ khi `DEVICE=cpu`."""
-    import onnxruntime as ort
-
-    if (device or os.environ.get("DEVICE") or "auto").strip().lower() == "cpu":
-        return ["CPUExecutionProvider"]
-    available = ort.get_available_providers()
-    return [p for p in ("CUDAExecutionProvider",) if p in available] + ["CPUExecutionProvider"]
+    """CPU luôn chạy được; `DEVICE=cuda|auto` thì ưu tiên CUDA nếu có, không có thì lùi CPU (có log)."""
+    return onnx_providers(device, component="onnx")
 
 
 def _session(path: Path, device: str | None = None):
@@ -137,7 +133,9 @@ def _session(path: Path, device: str | None = None):
 
     options = ort.SessionOptions()
     options.log_severity_level = 3
-    return ort.InferenceSession(str(path), sess_options=options, providers=_providers(device))
+    session = ort.InferenceSession(str(path), sess_options=options, providers=_providers(device))
+    check_onnx_session(session, device, component=path.name)
+    return session
 
 
 _SCRFD_SESSIONS: dict[tuple[Path, str], tuple[Any, str]] = {}
@@ -149,7 +147,7 @@ def shared_scrfd_session(root: Path, device: str | None = None) -> tuple[Any, st
 
     Trả (session, revision). Thiếu file hoặc sai SHA-256 thì ném PadError — không tải.
     """
-    key = (root.resolve(), (device or os.environ.get("DEVICE") or "auto").strip().lower())
+    key = (root.resolve(), requested_device(device))
     with _SCRFD_LOCK:
         if key not in _SCRFD_SESSIONS:
             path, revision = _verified_weights(root, DETECTOR_MODEL_ID, DETECTOR_FILE)

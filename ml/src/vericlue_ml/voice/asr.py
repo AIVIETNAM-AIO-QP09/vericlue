@@ -18,6 +18,8 @@ import numpy as np
 import yaml
 from scipy.signal import resample_poly
 
+from vericlue_ml.common.device import resolve_torch_device
+
 
 class ASRError(RuntimeError):
     """Unavailable model or inference; never an accepted result."""
@@ -82,7 +84,7 @@ def trim_silence(audio: np.ndarray, *, mode: int = 1) -> np.ndarray:
 class PhoWhisperASR:
     """Offline transcription without a prompt or hotword."""
 
-    def __init__(self, models_dir: Path | None = None) -> None:
+    def __init__(self, models_dir: Path | None = None, device: str | None = None) -> None:
         repo = Path(__file__).resolve().parents[4]
         config_path = Path(os.environ.get("ML_MODELS_CONFIG") or repo / "ml/configs/models.yaml")
         config = yaml.safe_load(config_path.read_text(encoding="utf-8")).get("voice", {})
@@ -97,6 +99,7 @@ class PhoWhisperASR:
         self.cpu_threads = int(config.get("cpu_threads", 4))
         if not 1 <= self.cpu_threads <= 64:
             raise ValueError("cpu_threads must be between 1 and 64.")
+        self.device = device or os.environ.get("DEVICE") or config.get("device", "cpu")
         self._model = self._processor = None
         self._lock = threading.Lock()
 
@@ -111,6 +114,8 @@ class PhoWhisperASR:
         from transformers import WhisperForConditionalGeneration, WhisperProcessor
 
         torch.set_num_threads(self.cpu_threads)
+        # Không có GPU thì lùi về CPU và ghi log. Giữ float32 (đúng số học đã đo trên CPU).
+        self.device = resolve_torch_device(self.device, component="phowhisper")
         try:
             self._processor = WhisperProcessor.from_pretrained(
                 str(self.model_dir), local_files_only=True, trust_remote_code=False
@@ -124,15 +129,17 @@ class PhoWhisperASR:
                     weights_only=True,
                     dtype=torch.float32,
                 )
-                .to("cpu")
+                .to(self.device)
                 .eval()
             )
         except (OSError, ValueError, RuntimeError) as exc:
             raise ASRError("Không nạp được PhoWhisper local.") from exc
 
-    def preload(self, *, models_dir: Path | None = None) -> None:
+    def preload(self, *, models_dir: Path | None = None, device: str | None = None) -> None:
         """Load local weights once before the API accepts inference requests."""
         with self._lock:
+            if device is not None and self._model is None:
+                self.device = device
             if models_dir is not None:
                 target = models_dir.resolve() / self._model_subdir
                 if self._model is not None and target != self.model_dir:
@@ -155,6 +162,8 @@ class PhoWhisperASR:
                     return_attention_mask=True,
                     truncation=False,
                 )
+                if self.device != "cpu":
+                    inputs = {key: value.to(self.device) for key, value in inputs.items()}
                 with torch.inference_mode():
                     output = self._model.generate(
                         **inputs,
@@ -163,6 +172,8 @@ class PhoWhisperASR:
                         condition_on_prev_tokens=False,
                         return_timestamps=True,
                     )
+                if self.device != "cpu":
+                    output = output.cpu()
                 return self._processor.batch_decode(output, skip_special_tokens=True)[0].strip()
             except (OSError, ValueError, RuntimeError) as exc:
                 raise ASRError("Nhận dạng audio thất bại.") from exc

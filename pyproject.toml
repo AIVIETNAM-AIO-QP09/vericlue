@@ -33,9 +33,21 @@ data = [
 [tool.uv]
 package = false
 default-groups = ["dev"]
+# `cuda` thay thế `face`/`voice` (torch CPU và onnxruntime vs onnxruntime-gpu không sống chung).
+conflicts = [
+  [{ package = "vericlue-ml", extra = "cuda" }, { package = "vericlue-ml", extra = "face" }],
+  [{ package = "vericlue-ml", extra = "cuda" }, { package = "vericlue-ml", extra = "voice" }],
+]
 
 [tool.uv.workspace]
 members = ["services/api", "ml"]
+
+# GPU (extra `cuda` của ml): torch/torchaudio từ index PyTorch CUDA 13; chỉ dùng khi chọn extra đó.
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
 
 # ── Ruff: định dạng + lint ─────────────────────────────────────
 [tool.ruff]

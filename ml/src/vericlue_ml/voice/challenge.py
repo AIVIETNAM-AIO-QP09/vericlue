@@ -169,12 +169,14 @@ class VoiceChallengeDetector:
         self.version = self.asr.version
         self.match_config: VoiceConfig | None = None
 
-    def preload(self, *, models_dir: Path | None = None) -> None:
+    def preload(self, *, models_dir: Path | None = None, device: str | None = None) -> None:
         """Prepare the ASR model without transcribing or supplying a prompt."""
-        if models_dir is None:
-            self.asr.preload()
-        else:
-            self.asr.preload(models_dir=models_dir)
+        options = {}
+        if models_dir is not None:
+            options["models_dir"] = models_dir
+        if device is not None:
+            options["device"] = device
+        self.asr.preload(**options)
 
     def predict(self, inp: DetectorInput) -> ModuleResult:
         """Return a content gate; infrastructure/decode failures never pass."""

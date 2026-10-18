@@ -36,7 +36,7 @@ def test_cached_voice_wrapper_is_cloned_before_binding_each_application_config(t
     class FakeASR:
         version = "synthetic@shared-asr"
 
-        def preload(self, *, models_dir=None):
+        def preload(self, *, models_dir=None, device=None):
             pass
 
     shared_asr = FakeASR()
