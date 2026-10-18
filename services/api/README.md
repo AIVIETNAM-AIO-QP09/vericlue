@@ -251,7 +251,7 @@ còn bắt buộc lipsync. Mock `mock@` vẫn được miễn calibrator. Theo A
 lipsync trong MVP chỉ tham khảo: vẫn chạy và lưu kết quả cho người duyệt, nhưng
 thiếu/lỗi/not_applicable/timeout hoặc điểm cao không quyết định phiên. Bước giọng
 quyết bằng voice_challenge + voice_spoof. Đọc sai câu được đọc lại trước khi xét
-cờ cắt ghép; khi câu khớp mà có cờ thì review ưu tiên cao. Full vẫn bắt buộc lipsync.
+cờ cắt ghép; khi câu khớp mà có cờ thì review ưu tiên cao. Full vẫn bắt buộc lipsync. Bước giọng cần trình duyệt có MediaRecorder WebM.
 
 Nếu consumer yêu cầu module bị tắt bởi profile (ví dụ provenance khi giám
 định bằng MVP), orchestrator vẫn trả ModuleResult status=error/E_INTERNAL với

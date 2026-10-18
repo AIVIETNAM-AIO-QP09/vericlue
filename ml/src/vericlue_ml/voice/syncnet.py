@@ -34,8 +34,8 @@ from vericlue_ml.face.pad import (
     ScrfdFaceFinder,
     _manifest_entry,
     _models_root,
-    _session,
     _verified_weights,
+    shared_scrfd_session,
 )
 from vericlue_ml.voice.asr import DecodeError, load_audio
 
@@ -449,8 +449,8 @@ class SyncNetDetector:
             self._root, self._device = root, device
             self._aligner.preload(models_dir=root, device=device)
             if self._finder is None:
-                weights, _ = _verified_weights(root, DETECTOR_MODEL_ID, DETECTOR_FILE)
-                self._finder = ScrfdFaceFinder(_session(weights, device))
+                session, _ = shared_scrfd_session(root, device)
+                self._finder = ScrfdFaceFinder(session)
             self._backend.preload(models_dir=root, device=device)
             self._loaded = True
 

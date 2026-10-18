@@ -104,7 +104,7 @@ print(reliability_markdown(artifact.after_reliability))
 calibrated_result = store.apply(module_result)
 ```
 
-Bắt buộc calibrator cho **face_pad, face_deepfake, voice_spoof, lipsync**. Miễn
+Hồ sơ full bắt buộc calibrator **face_pad, face_deepfake, voice_spoof, lipsync**; MVP chỉ bắt buộc ba module đầu. Miễn
 **quality, chromapulse, camprobe, voice_challenge, provenance**, và mọi phiên bản
 bắt đầu bằng `mock@` (fixture kịch bản PLAT-03). `store.apply` giữ score và các
 trường hợp đồng, chỉ thay prob_attack trên bản sao. Kết quả không `ok` của module
@@ -245,7 +245,7 @@ còn bắt buộc lipsync. Mock `mock@` vẫn được miễn calibrator. Theo A
 lipsync trong MVP chỉ tham khảo: vẫn chạy và lưu kết quả cho người duyệt, nhưng
 thiếu/lỗi/not_applicable/timeout hoặc điểm cao không quyết định phiên. Bước giọng
 quyết bằng voice_challenge + voice_spoof. Đọc sai câu được đọc lại trước khi xét
-cờ cắt ghép; khi câu khớp mà có cờ thì review ưu tiên cao. Full vẫn bắt buộc lipsync.
+cờ cắt ghép; khi câu khớp mà có cờ thì review ưu tiên cao. Full vẫn bắt buộc lipsync. Bước giọng cần trình duyệt có MediaRecorder WebM.
 
 ### Identity cho MVP — không cần dữ liệu
 
