@@ -159,9 +159,12 @@ Worker chỉ nhận bản sao DetectorInput, không cầm ORM/store. Luồng ngh
 khóa hàng tới commit, lưu module_results và quyết định. /voice offload inference
 khỏi event loop; prompt lấy từ session server. recognized_text/expected_text,
 WER, similarity và evidence chỉ nội bộ; response công dân chỉ dùng schema hiện có.
-VOICE-04 đã được registry nối vào nhánh voice; không mở rộng VOICE-05/06 trong task
-này. Voice spoof/lipsync chưa có mô hình thật thì error, không dùng gate đọc câu
-để thay bằng chứng chống giả giọng.
+Registry hiện nối voice_challenge, voice_spoof và lipsync thật. VOICE-05 dùng
+video của đúng lần đọc hiện tại; thiếu video không lấy lại clip mặt cũ. Thiếu
+model hoặc bằng chứng bắt buộc thì review, không dùng gate đọc câu thay bằng
+chứng chống giả giọng. CPU SyncNet có thể vượt deadline detector 4 giây hiện có;
+đường API khi đó review/timeout. Thử wrapper trực tiếp ghi thời gian từng pha;
+chưa nghiệm thu độ trễ đầu–cuối hoặc GPU.
 
 Log detector_result chứa module/model_version/status/error_code/latency_ms đo bằng
 perf_counter, không log media/transcript/prompt/score. Timing của mock (vốn cố
@@ -232,9 +235,10 @@ Report mặc định `tmp/rout02-compose-smoke.json` (gitignored); xong chạy `
 
 `ROUTER_PROFILE=full` mặc định giữ nguyên chính sách và tập module hiện có.
 `ROUTER_PROFILE=mvp` chỉ chạy/preload `quality`, `face_pad`, `face_deepfake`,
-`camprobe`, `voice_challenge`, `voice_spoof`; không chạy ChromaPulse, lipsync hay
-provenance. Presence chỉ dùng CamProbe; mặt lấy max xác suất PAD/deepfake;
-giọng phải qua câu thử thách và chống giọng tổng hợp, giữ cổng cắt ghép nếu có.
+`camprobe`, `voice_challenge`, `voice_spoof`, `lipsync`; không chạy ChromaPulse hay
+provenance. Đợt 2 theo ADR-0012 §5 đưa SyncNet trở lại bước giọng nói. Presence chỉ
+dùng CamProbe; mặt lấy max xác suất PAD/deepfake; giọng phải qua câu thử thách,
+chống giọng tổng hợp và cổng cắt ghép. Khớp môi chỉ tham khảo ở MVP (ADR-0012 §6).
 Ngưỡng trong `thresholds.yaml` không đổi. Thiếu/lỗi/degraded hoặc thiếu calibrator
 đúng phiên bản ở bước bắt buộc → review. Metadata quyết định MVP ghi
 `router_profile`; hash cấu hình ngưỡng vẫn là hash YAML.
@@ -242,10 +246,14 @@ Ngưỡng trong `thresholds.yaml` không đổi. Thiếu/lỗi/degraded hoặc t
 Chạy thật: đặt `ROUTER_PROFILE=mvp`, `USE_MOCK_MODELS=false`, `MODELS_DIR` tới kho
 chung và cài các extra face/voice. Cần đủ wrapper thật và calibrator để có thể pass;
 module chưa sẵn sàng sẽ hiện trong health degraded. `USE_MOCK_MODELS=true` vẫn
-chạy được với MVP để test. Calibrator bắt buộc MVP: PAD, deepfake, voice_spoof;
-full còn yêu cầu lipsync. Mock `mock@` vẫn được miễn calibrator.
+chạy được với MVP để test. MVP cần calibrator PAD, deepfake và voice_spoof; full
+còn bắt buộc lipsync. Mock `mock@` vẫn được miễn calibrator. Theo ADR-0012 §6,
+lipsync trong MVP chỉ tham khảo: vẫn chạy và lưu kết quả cho người duyệt, nhưng
+thiếu/lỗi/not_applicable/timeout hoặc điểm cao không quyết định phiên. Bước giọng
+quyết bằng voice_challenge + voice_spoof. Đọc sai câu được đọc lại trước khi xét
+cờ cắt ghép; khi câu khớp mà có cờ thì review ưu tiên cao. Full vẫn bắt buộc lipsync. Bước giọng cần trình duyệt có MediaRecorder WebM.
 
-Nếu consumer yêu cầu module bị tắt bởi profile (ví dụ lipsync/provenance khi giám
+Nếu consumer yêu cầu module bị tắt bởi profile (ví dụ provenance khi giám
 định bằng MVP), orchestrator vẫn trả ModuleResult status=error/E_INTERNAL với
 orchestration_reason=disabled_by_profile và nhãn "Bước này đang tắt ở chế độ MVP".
 Không chạy/preload module đó; không âm thầm bỏ kết quả. Giám định ra inconclusive,

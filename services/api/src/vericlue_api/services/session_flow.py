@@ -12,6 +12,7 @@ from __future__ import annotations
 import random
 from collections.abc import Callable
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import get_args
 
 from vericlue_api.core.config import Settings
@@ -163,7 +164,7 @@ class SessionFlow:
         return FinalizeResponse(status=outcome.status)
 
     # --- voice -----------------------------------------------------------
-    def voice(self, session: Session) -> VoiceResponse:
+    def voice(self, session: Session, *, voice_video: Path | None = None) -> VoiceResponse:
         self.ensure_voice_allowed(session)
         session_valid = self._valid_time(session)
         results = (
@@ -172,7 +173,7 @@ class SessionFlow:
                 session_id=session.session_id,
                 scenario=session.scenario,
                 images=session.images,
-                video=session.video,
+                video=voice_video,
                 audio=session.audio,
                 extra_metadata={"prompt": session.voice_prompt},
             )

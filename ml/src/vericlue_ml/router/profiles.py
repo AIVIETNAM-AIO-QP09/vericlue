@@ -14,6 +14,7 @@ class RouterProfile:
     name: RouterProfileName
     presence_modules: tuple[Module, ...]
     voice_modules: tuple[Module, ...]
+    advisory_voice_modules: tuple[Module, ...] = ()
 
     @property
     def finalize_modules(self) -> tuple[Module, ...]:
@@ -21,6 +22,10 @@ class RouterProfile:
 
     @property
     def voice_step_modules(self) -> tuple[Module, ...]:
+        return (*self.required_voice_step_modules, *self.advisory_voice_modules)
+
+    @property
+    def required_voice_step_modules(self) -> tuple[Module, ...]:
         return (Module.VOICE_CHALLENGE, *self.voice_modules)
 
     @property
@@ -43,5 +48,5 @@ def get_profile(name: RouterProfileName = "full") -> RouterProfile:
             name, (Module.CHROMAPULSE, Module.CAMPROBE), (Module.VOICE_SPOOF, Module.LIPSYNC)
         )
     if name == "mvp":
-        return RouterProfile(name, (Module.CAMPROBE,), (Module.VOICE_SPOOF,))
+        return RouterProfile(name, (Module.CAMPROBE,), (Module.VOICE_SPOOF,), (Module.LIPSYNC,))
     raise ValueError(f"Unknown router profile: {name}")

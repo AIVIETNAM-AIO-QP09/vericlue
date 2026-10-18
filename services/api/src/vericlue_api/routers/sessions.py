@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Header, UploadFile
@@ -136,12 +137,13 @@ async def voice(
         audio.filename,
         await read_limited(audio, state.settings.max_upload_mb),
     )
+    voice_video: Path | None = None
     if video is not None:
-        save_upload(
+        voice_video = save_upload(
             media_dir,
             session.session_id,
             "voice_video",
             video.filename,
             await read_limited(video, state.settings.max_upload_mb),
         )
-    return await run_in_threadpool(state.flow.voice, session)
+    return await run_in_threadpool(state.flow.voice, session, voice_video=voice_video)

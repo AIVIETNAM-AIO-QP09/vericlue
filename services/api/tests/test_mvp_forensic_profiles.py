@@ -15,7 +15,7 @@ from vericlue_ml.common.result import Module
 
 DISABLED_LABEL = "Bước này đang tắt ở chế độ MVP"
 FORENSIC_MODULES = {"face_deepfake", "voice_spoof", "lipsync", "provenance"}
-DISABLED_FORENSIC = {"lipsync", "provenance"}
+DISABLED_FORENSIC = {"provenance"}
 
 
 @pytest.mark.parametrize("profile,verdict", [("full", "authentic"), ("mvp", "inconclusive")])
@@ -39,6 +39,7 @@ def test_forensic_genuine_does_not_authenticate_when_mvp_steps_are_disabled(
         for segment in job["segments"]:
             signals = {signal["module"]: signal for signal in segment["signals"]}
             assert set(signals) == FORENSIC_MODULES
+            assert signals["lipsync"]["applicable"] is True
             for module in DISABLED_FORENSIC:
                 assert signals[module]["applicable"] is (profile == "full")
                 if profile == "mvp":

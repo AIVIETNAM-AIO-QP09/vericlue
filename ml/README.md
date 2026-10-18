@@ -104,7 +104,7 @@ print(reliability_markdown(artifact.after_reliability))
 calibrated_result = store.apply(module_result)
 ```
 
-Bắt buộc calibrator cho **face_pad, face_deepfake, voice_spoof, lipsync**. Miễn
+Hồ sơ full bắt buộc calibrator **face_pad, face_deepfake, voice_spoof, lipsync**; MVP chỉ bắt buộc ba module đầu. Miễn
 **quality, chromapulse, camprobe, voice_challenge, provenance**, và mọi phiên bản
 bắt đầu bằng `mock@` (fixture kịch bản PLAT-03). `store.apply` giữ score và các
 trường hợp đồng, chỉ thay prob_attack trên bản sao. Kết quả không `ok` của module
@@ -220,7 +220,7 @@ phải chọn đúng cặp trong bảng (ví dụ 2.6.0/2.6.0), không ghép tù
 backend CPU/CUDA theo hướng dẫn PyTorch; CUDA chưa được nghiệm thu ở PR này.
 Môi trường Fairseq tham chiếu riêng dùng Torch/TorchAudio 2.2.2/2.2.2 (CPU).
 
-Chế độ mixed hiện dùng face_pad, voice_challenge và voice_spoof thật:
+Chế độ mixed hiện dùng face_pad, voice_challenge, voice_spoof và lipsync thật:
 `uv sync --all-packages --extra face --extra voice`. Thiếu model/dependency vẫn
 error/degraded, không tự đổi mock; voice_spoof còn cần calibrator đúng phiên bản.
 
@@ -229,9 +229,10 @@ error/degraded, không tự đổi mock; voice_spoof còn cần calibrator đún
 
 `ROUTER_PROFILE=full` mặc định giữ nguyên chính sách và tập module hiện có.
 `ROUTER_PROFILE=mvp` chỉ chạy/preload `quality`, `face_pad`, `face_deepfake`,
-`camprobe`, `voice_challenge`, `voice_spoof`; không chạy ChromaPulse, lipsync hay
-provenance. Presence chỉ dùng CamProbe; mặt lấy max xác suất PAD/deepfake;
-giọng phải qua câu thử thách và chống giọng tổng hợp, giữ cổng cắt ghép nếu có.
+`camprobe`, `voice_challenge`, `voice_spoof`, `lipsync`; không chạy ChromaPulse hay
+provenance. Đợt 2 theo ADR-0012 §5 đưa SyncNet trở lại bước giọng nói. Presence chỉ
+dùng CamProbe; mặt lấy max xác suất PAD/deepfake; giọng phải qua câu thử thách,
+chống giọng tổng hợp và cổng cắt ghép. Khớp môi chỉ tham khảo ở MVP (ADR-0012 §6).
 Ngưỡng trong `thresholds.yaml` không đổi. Thiếu/lỗi/degraded hoặc thiếu calibrator
 đúng phiên bản ở bước bắt buộc → review. Metadata quyết định MVP ghi
 `router_profile`; hash cấu hình ngưỡng vẫn là hash YAML.
@@ -239,8 +240,12 @@ Ngưỡng trong `thresholds.yaml` không đổi. Thiếu/lỗi/degraded hoặc t
 Chạy thật: đặt `ROUTER_PROFILE=mvp`, `USE_MOCK_MODELS=false`, `MODELS_DIR` tới kho
 chung và cài các extra face/gend/voice (hoặc `cuda` cho máy GPU). Cần đủ wrapper thật và calibrator để có thể pass;
 module chưa sẵn sàng sẽ hiện trong health degraded. `USE_MOCK_MODELS=true` vẫn
-chạy được với MVP để test. Calibrator bắt buộc MVP: PAD, deepfake, voice_spoof;
-full còn yêu cầu lipsync. Mock `mock@` vẫn được miễn calibrator.
+chạy được với MVP để test. MVP cần calibrator PAD, deepfake và voice_spoof; full
+còn bắt buộc lipsync. Mock `mock@` vẫn được miễn calibrator. Theo ADR-0012 §6,
+lipsync trong MVP chỉ tham khảo: vẫn chạy và lưu kết quả cho người duyệt, nhưng
+thiếu/lỗi/not_applicable/timeout hoặc điểm cao không quyết định phiên. Bước giọng
+quyết bằng voice_challenge + voice_spoof. Đọc sai câu được đọc lại trước khi xét
+cờ cắt ghép; khi câu khớp mà có cờ thì review ưu tiên cao. Full vẫn bắt buộc lipsync. Bước giọng cần trình duyệt có MediaRecorder WebM.
 
 ### Identity cho MVP — không cần dữ liệu
 

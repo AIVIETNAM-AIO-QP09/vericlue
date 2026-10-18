@@ -1,0 +1,21 @@
+{
+  "module": "face_deepfake",
+  "model_version": "gend-clip-l14@891ce014+clip@32bd6428+scrfd-10g@bfcc7d48+agg-maxmeantop25-v1",
+  "method": "identity",
+  "provisional": true,
+  "note": "MVP — không dùng cho báo cáo",
+  "parameters": {
+    "slope": null,
+    "intercept": null,
+    "x": [],
+    "y": []
+  },
+  "epsilon": 0.0001,
+  "n_pos": 0,
+  "n_neg": 0,
+  "dataset": "not_fitted",
+  "split": "none",
+  "metrics_scope": "not_evaluated",
+  "date": "2026-10-18T07:05:39.854746Z",
+  "commit": "d3a8841f3cf9a1861d57443c6b9b6842f0a38590"
+}

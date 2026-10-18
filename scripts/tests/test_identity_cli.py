@@ -31,7 +31,9 @@ def generator(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
     return implementation
 
 
-@pytest.mark.parametrize("module", [Module.FACE_PAD, Module.FACE_DEEPFAKE, Module.VOICE_SPOOF])
+@pytest.mark.parametrize(
+    "module", [Module.FACE_PAD, Module.FACE_DEEPFAKE, Module.VOICE_SPOOF, Module.LIPSYNC]
+)
 def test_generator_preserves_exact_version_and_marks_untrained_artifact(
     tmp_path: Path, generator: ModuleType, module: Module
 ) -> None:

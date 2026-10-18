@@ -9,6 +9,7 @@ from vericlue_ml.face.quality import QualityDetector
 from vericlue_ml.mock import MOCK_DETECTORS
 from vericlue_ml.registry import get_detector, mock_mode, use_mock_models
 from vericlue_ml.voice.challenge import VoiceChallengeDetector
+from vericlue_ml.voice.syncnet import SyncNetDetector
 
 
 @pytest.mark.parametrize(
@@ -54,6 +55,7 @@ def test_mixed_picks_real_where_registered(monkeypatch):
     assert isinstance(get_detector(Module.FACE_DEEPFAKE), FaceDeepfakeDetector)
     assert isinstance(get_detector(Module.QUALITY), QualityDetector)
     assert get_detector(Module.CHROMAPULSE) is MOCK_DETECTORS[Module.CHROMAPULSE]
+    assert isinstance(get_detector(Module.LIPSYNC), SyncNetDetector)
 
 
 def test_mixed_never_raises_for_any_module(monkeypatch):
@@ -66,7 +68,7 @@ def test_mixed_passed_directly(monkeypatch):
     monkeypatch.setenv("USE_MOCK_MODELS", "true")
     assert isinstance(get_detector("face_pad", mock="mixed"), FacePadDetector)
     assert isinstance(get_detector("face_pad", mock=" MIXED "), FacePadDetector)
-    assert get_detector("lipsync", mock="mixed") is MOCK_DETECTORS[Module.LIPSYNC]
+    assert isinstance(get_detector("lipsync", mock="mixed"), SyncNetDetector)
 
 
 def test_true_makes_everything_mock(monkeypatch):
@@ -79,10 +81,13 @@ def test_true_makes_everything_mock(monkeypatch):
 def test_false_real_or_not_implemented(monkeypatch):
     monkeypatch.setenv("USE_MOCK_MODELS", "false")
     assert isinstance(get_detector(Module.FACE_PAD), FacePadDetector)
-    with pytest.raises(NotImplementedError, match="VOICE-05"):
-        get_detector(Module.LIPSYNC)
+    lipsync = get_detector(Module.LIPSYNC)
+    assert isinstance(lipsync, SyncNetDetector)
+    assert get_detector(Module.LIPSYNC, mock=False) is lipsync
+    with pytest.raises(NotImplementedError, match="PRES-02"):
+        get_detector(Module.CHROMAPULSE)
     with pytest.raises(NotImplementedError):
-        get_detector(Module.LIPSYNC, mock=False)
+        get_detector(Module.CHROMAPULSE, mock=False)
 
 
 def test_explicit_mock_overrides_env(monkeypatch):

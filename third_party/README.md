@@ -77,3 +77,26 @@ phi thương mại, khác giấy phép code. Không commit hay sửa file trong 
 Fairseq chỉ là dependency môi trường Linux tham chiếu riêng cho parity; không nằm
 trong pyproject.toml/uv.lock/runtime sản phẩm. Chưa chạy parity thì không được gọi
 wrapper là đã tương đương số học với upstream hay sinh R3-baseline.
+
+## VOICE-05 — Stable SyncNet
+
+| Nguồn ghim | Giấy phép code | Dùng ở đâu / thay đổi |
+|---|---|---|
+| [LatentSync](https://github.com/bytedance/LatentSync/tree/a229c3948406bc2cf6eaf4873e662e70c6a04746), `latentsync/models/stable_syncnet.py`, lớp `Attention` trong `latentsync/models/attention.py`, `configs/syncnet/syncnet_16_pixel_attn.yaml` | Apache-2.0, Copyright 2024 Bytedance | `ml/src/vericlue_ml/voice/_syncnet_model.py`: giữ kiến trúc pixel-space 16 khung và tên khóa checkpoint; bỏ nhánh training, gộp attention, thay einops bằng tensor reshape, thêm encoder riêng để lưu embedding tạm. |
+| [Diffusers v0.32.2](https://github.com/huggingface/diffusers/tree/560fb5f4d65b8593c13e4be50a59b1fd9c2d9992), `src/diffusers/models/attention.py` (`FeedForward`), `activations.py` (`GEGLU`) | Apache-2.0, Copyright 2024 HuggingFace | `_syncnet_model.py`: giữ nhánh GEGLU mặc định và tên `net.0.proj` / `net.2`; chỉ dùng Torch, không kéo dependency Diffusers hoặc mô hình sinh ảnh. |
+
+Giữ thông báo gốc và ghi thay đổi ở đầu file. Nguyên văn giấy phép code tại
+`licenses/latentsync-Apache-2.0.txt` và `licenses/diffusers-Apache-2.0.txt`.
+Checkpoint `ByteDance/LatentSync-1.6` revision
+`c42c7e6c8e9c213626389fa7d9a3c444b8536353`, file `stable_syncnet.pt`, dùng
+**OpenRAIL++**, khác Apache-2.0 của code; tham chiếu `models/manifest.yaml`.
+Không commit weights. Không chép evaluator SyncNet cổ điển hay mã Wav2Lip.
+
+Căn chỉnh `voice/align.py` dùng triển khai Viterbi NumPy tự viết, không chép code
+ctc-forced-aligner. Tham khảo recipe API tại
+[ctc-forced-aligner@64293cc6](https://github.com/MahmoudAshraf97/ctc-forced-aligner/tree/64293cc6d711e57666c4a8b098e9fd93b381fd88)
+(`alignment_utils.py`, `text_utils.py`; LICENSE upstream BSD-2-Clause, metadata cũ
+có thể khác). Nhánh tiếng Việt dùng chuẩn hóa/bỏ dấu có sẵn, không chép uroman.
+Weights `MahmoudAshraf/mms-300m-1130-forced-aligner` revision
+`49402e9577b1158620820667c218cd494cc44486` dùng **CC-BY-NC-4.0**, chỉ nghiên cứu.
+Wrapper đọc Transformers dependency Apache-2.0, không gọi mã remote hoặc mạng.

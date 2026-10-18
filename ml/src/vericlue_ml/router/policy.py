@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from vericlue_ml.common.calibration import CalibrationError, CalibrationStore
-from vericlue_ml.common.result import ErrorCode, Gate, Module, ModuleResult, Status
+from vericlue_ml.common.result import ErrorCode, Evidence, Gate, Module, ModuleResult, Status
 from vericlue_ml.router.config import RouterConfig, load_config
 from vericlue_ml.router.fusion import FusionError, max_probability
 from vericlue_ml.router.profiles import RouterProfileName, get_profile
@@ -58,6 +58,22 @@ class TrustRouter:
         retry_hint: str | None = None,
         priority: Priority = "normal",
     ) -> Decision:
+        decision_results = dict(results)
+        for module in self.profile.advisory_voice_modules:
+            result = decision_results.get(module)
+            if result is not None and not any(
+                evidence.name == "decision_role" and evidence.value == "advisory"
+                for evidence in result.evidence
+            ):
+                role = Evidence(
+                    type="text",
+                    name="decision_role",
+                    value="advisory",
+                    label_vi="Khớp môi chỉ tham khảo ở chế độ MVP",
+                )
+                decision_results[module] = result.model_copy(
+                    update={"evidence": [*result.evidence, role]}
+                )
         return Decision(
             status,
             retry_hint,
@@ -67,7 +83,7 @@ class TrustRouter:
             {**self.config.snapshot(), "router_profile": "mvp"}
             if self.profile.name == "mvp"
             else self.config.snapshot(),
-            dict(results),
+            decision_results,
         )
 
     def _retry(
@@ -165,6 +181,16 @@ class TrustRouter:
         """Match the phrase and independently gate spoof/lipsync; WER never enters fusion."""
         if not session_valid:
             return self._decision("review", results, reason="invalid session", priority="high")
+        if not self._usable(results, (Module.VOICE_CHALLENGE,)):
+            return self._decision(
+                "review", results, reason="voice challenge missing/error/degraded"
+            )
+        challenge = results[Module.VOICE_CHALLENGE]
+        if challenge.gate == Gate.FAIL:
+            action = "voice_challenge" if rereads_used < MAX_VOICE_REREADS else "review"
+            return self._decision(action, results, reason="phrase mismatch")
+        if challenge.gate != Gate.PASS:
+            return self._decision("review", results, reason="phrase unclear")
         flags = [e.value for r in results.values() for e in r.evidence if e.name == "splice_flags"]
         if splice_flags is not None:
             flags.append(splice_flags)
@@ -183,14 +209,8 @@ class TrustRouter:
             return self._decision("review", results, reason="positive splice flag", priority="high")
         if invalid_flag:
             return self._decision("review", results, reason="invalid splice flag")
-        if not self._usable(results, self.profile.voice_step_modules):
+        if not self._usable(results, self.profile.required_voice_step_modules):
             return self._decision("review", results, reason="voice missing/error/degraded")
-        challenge = results[Module.VOICE_CHALLENGE]
-        if challenge.gate == Gate.FAIL:
-            action = "voice_challenge" if rereads_used < MAX_VOICE_REREADS else "review"
-            return self._decision(action, results, reason="phrase mismatch")
-        if challenge.gate != Gate.PASS:
-            return self._decision("review", results, reason="phrase unclear")
         calibrated = self._calibrate(results, self.profile.voice_modules)
         try:
             probability = max_probability(calibrated, self.profile.voice_modules)

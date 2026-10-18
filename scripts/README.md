@@ -10,6 +10,7 @@
 | `download_data.py` | Tải bộ dữ liệu công khai theo `docs/data/data-plan.md` | DATA-01 |
 | `make_splits.py` | Chia train / calibration / test **theo người** | DATA-03 |
 | `synth_vn_deepfakes.py` | Tạo deepfake mặt và giọng người Việt từ nguồn công khai | DATA-04 |
+| `smoke_voice_lipsync.py` | Thử tay một clip local: căn câu, nối audio, SyncNet và tiếng trễ 500 ms; không đánh giá dữ liệu | VOICE-05 |
 | `compress_variants.py` | Tạo 3 mức nén kiểu mạng xã hội bằng ffmpeg | DATA-05 |
 | `gen_keys.py` | Sinh khóa ký token và khóa Ed25519 ký báo cáo | PLAT-06 |
 

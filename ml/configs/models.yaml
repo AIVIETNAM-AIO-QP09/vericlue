@@ -8,7 +8,7 @@ modules:
   camprobe: camprobe-rules  # PRES-03: bộ luật, không trọng số
   voice_spoof: antideepfake-mms300m # VOICE-01 wrapper only; R3 pending
   voice_challenge: phowhisper # VOICE-04; CTC alignment belongs to VOICE-05
-  lipsync: mock           # VOICE-05 → syncnet
+  lipsync: syncnet        # VOICE-05: LatentSync stable_syncnet + CTC forced aligner
   provenance: mock        # FOR-03 → audioseal-detector, perth
 
 # VOICE-04: VAD has no checkpoint; matching constants live in voice/challenge.py.

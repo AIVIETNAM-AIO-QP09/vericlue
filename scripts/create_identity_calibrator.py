@@ -27,7 +27,7 @@ def main() -> None:
     """Require the runtime version, not the generic pre-preload constructor name."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--module", required=True, choices=["face_pad", "face_deepfake", "voice_spoof"]
+        "--module", required=True, choices=["face_pad", "face_deepfake", "voice_spoof", "lipsync"]
     )
     parser.add_argument("--model-version", required=True)
     parser.add_argument("--output-dir", type=Path, default=ROOT / "ml/configs/calibrators")

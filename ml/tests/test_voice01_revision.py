@@ -127,9 +127,9 @@ def test_detector_preload_forwards_explicit_models_root_without_inference(tmp_pa
 
 def test_mixed_registry_contains_both_real_face_pad_and_voice_spoof():
     from vericlue_ml.face.pad import FacePadDetector
-    from vericlue_ml.mock.detectors import MockDetector
     from vericlue_ml.registry import get_detector
+    from vericlue_ml.voice.syncnet import SyncNetDetector
 
     assert isinstance(get_detector(Module.FACE_PAD, mock="mixed"), FacePadDetector)
     assert isinstance(get_detector(Module.VOICE_SPOOF, mock="mixed"), anti.AntiDeepfakeDetector)
-    assert isinstance(get_detector(Module.LIPSYNC, mock="mixed"), MockDetector)
+    assert isinstance(get_detector(Module.LIPSYNC, mock="mixed"), SyncNetDetector)
