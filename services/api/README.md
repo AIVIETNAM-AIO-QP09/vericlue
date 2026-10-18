@@ -226,3 +226,21 @@ Kiểm bảy kịch bản trên Compose đang chạy (mock):
 Script đọc DATABASE_URL từ env/.env để đối chiếu decisions/hash và không in URL/credential;
 `ROUTER_SMOKE_DATABASE_PORT` chỉ đổi port DB phía host khi dùng Compose project riêng.
 Report mặc định `tmp/rout02-compose-smoke.json` (gitignored); xong chạy `docker compose down`.
+
+
+## Hồ sơ MVP (ROUT-01, ADR-0012)
+
+`ROUTER_PROFILE=full` mặc định giữ nguyên chính sách và tập module hiện có.
+`ROUTER_PROFILE=mvp` chỉ chạy/preload `quality`, `face_pad`, `face_deepfake`,
+`camprobe`, `voice_challenge`, `voice_spoof`; không chạy ChromaPulse, lipsync hay
+provenance. Presence chỉ dùng CamProbe; mặt lấy max xác suất PAD/deepfake;
+giọng phải qua câu thử thách và chống giọng tổng hợp, giữ cổng cắt ghép nếu có.
+Ngưỡng trong `thresholds.yaml` không đổi. Thiếu/lỗi/degraded hoặc thiếu calibrator
+đúng phiên bản ở bước bắt buộc → review. Metadata quyết định MVP ghi
+`router_profile`; hash cấu hình ngưỡng vẫn là hash YAML.
+
+Chạy thật: đặt `ROUTER_PROFILE=mvp`, `USE_MOCK_MODELS=false`, `MODELS_DIR` tới kho
+chung và cài các extra face/voice. Cần đủ wrapper thật và calibrator để có thể pass;
+module chưa sẵn sàng sẽ hiện trong health degraded. `USE_MOCK_MODELS=true` vẫn
+chạy được với MVP để test. Calibrator bắt buộc MVP: PAD, deepfake, voice_spoof;
+full còn yêu cầu lipsync. Mock `mock@` vẫn được miễn calibrator.

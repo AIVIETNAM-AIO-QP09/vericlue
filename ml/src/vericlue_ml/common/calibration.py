@@ -155,6 +155,7 @@ class Calibrator(_Record):
 
     module: Module
     model_version: str = Field(min_length=1)
+    provisional: bool = False
     method: Literal["platt", "isotonic"]
     parameters: Parameters
     epsilon: Literal[0.0001] = EPSILON

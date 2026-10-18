@@ -23,8 +23,14 @@
 - [x] Test với dữ liệu tổng hợp: ECE giảm sau hiệu chỉnh.
 - [x] Detector nào chưa có calibrator thì báo lỗi rõ ràng (không âm thầm dùng điểm thô). Mock `mock@` và module chỉ trả gate/nguồn gốc được miễn theo phạm vi đã chốt.
 
----
+**Bổ sung MVP được duyệt theo ADR-0012 (18/10):**
+- [x] Hồ sơ full mặc định giữ nguyên; MVP chỉ CamProbe, PAD/deepfake, quality, challenge/spoof; orchestrator chỉ preload/chạy module trong hồ sơ.
+- [x] Test full/MVP, mock MVP, module thiếu/error/degraded và calibrator thiếu đều không cho pass ở bước bắt buộc.
+- [x] Script fit chạy detector thật từ registry, chỉ đọc calib_fit, loại replay khỏi voice; lưu version thật, provisional, số mẫu, commit và hash manifest.
+- [ ] Commit calibrator voice_spoof thật và ghi lệnh/kết quả trong bàn giao.
+- [ ] Fit PAD trên khung giữa Zalo khi splits sẵn sàng; fit GenD khi wrapper + WildDeepfake calib_fit sẵn sàng.
 
+---
 ### ROUT-02 · Bộ chính sách quyết định
 
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |

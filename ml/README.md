@@ -222,3 +222,43 @@ Môi trường Fairseq tham chiếu riêng dùng Torch/TorchAudio 2.2.2/2.2.2 (C
 Chế độ mixed hiện dùng face_pad, voice_challenge và voice_spoof thật:
 `uv sync --all-packages --extra face --extra voice`. Thiếu model/dependency vẫn
 error/degraded, không tự đổi mock; voice_spoof còn cần calibrator đúng phiên bản.
+
+
+## Hồ sơ MVP (ROUT-01, ADR-0012)
+
+`ROUTER_PROFILE=full` mặc định giữ nguyên chính sách và tập module hiện có.
+`ROUTER_PROFILE=mvp` chỉ chạy/preload `quality`, `face_pad`, `face_deepfake`,
+`camprobe`, `voice_challenge`, `voice_spoof`; không chạy ChromaPulse, lipsync hay
+provenance. Presence chỉ dùng CamProbe; mặt lấy max xác suất PAD/deepfake;
+giọng phải qua câu thử thách và chống giọng tổng hợp, giữ cổng cắt ghép nếu có.
+Ngưỡng trong `thresholds.yaml` không đổi. Thiếu/lỗi/degraded hoặc thiếu calibrator
+đúng phiên bản ở bước bắt buộc → review. Metadata quyết định MVP ghi
+`router_profile`; hash cấu hình ngưỡng vẫn là hash YAML.
+
+Chạy thật: đặt `ROUTER_PROFILE=mvp`, `USE_MOCK_MODELS=false`, `MODELS_DIR` tới kho
+chung và cài các extra face/voice. Cần đủ wrapper thật và calibrator để có thể pass;
+module chưa sẵn sàng sẽ hiện trong health degraded. `USE_MOCK_MODELS=true` vẫn
+chạy được với MVP để test. Calibrator bắt buộc MVP: PAD, deepfake, voice_spoof;
+full còn yêu cầu lipsync. Mock `mock@` vẫn được miễn calibrator.
+
+Fit calibrator bằng detector thật qua registry:
+
+```powershell
+uv run python scripts/fit_calibrators.py --module voice_spoof --data-dir D:\Projects\vericlue-store\data --models-dir D:\Projects\vericlue-store\models
+uv run python scripts/fit_calibrators.py --module face_pad --datasets zalo2022 --data-dir D:\Projects\vericlue-store\data --models-dir D:\Projects\vericlue-store\models
+uv run python scripts/fit_calibrators.py --module face_deepfake --datasets wilddeepfake --data-dir D:\Projects\vericlue-store\data --models-dir D:\Projects\vericlue-store\models
+```
+
+Chỉ đọc `splits/<dataset>/calib_fit.csv`. Tên dataset đổi bằng `--datasets`.
+Voice mặc định VSASV, ViMD, MLAAD-vi: dương chỉ TTS/VC, replay bị loại trước inference.
+CV dùng connected `group_id` đã chia, fallback `dataset:subject_id`; thiếu nhóm thì
+dừng. PAD video lấy khung giữa, tương tự ảnh người dùng chụp; GenD video dùng wrapper
+gốc. Mọi inference phải ok, đúng module/version và có score hữu hạn; lỗi dừng toàn
+lượt, không âm thầm bỏ mẫu. Dưới 100 mẫu mỗi lớp chỉ Platt theo hàm fit hiện có.
+
+Commit implementation trước khi chạy (script từ chối working tree bẩn). Artifact
+JSON ghi `provisional: true`, commit thực thi, n_pos/n_neg, hash manifest, cách lấy
+ảnh và số mẫu loại trong dataset provenance; version lấy trực tiếp detector.
+JSON được commit vào `ml/configs/calibrators/`. Chỉ số trong artifact là OOF trên
+calib_fit, không phải kết quả R hay bảo đảm LTT. Face calibrator chỉ chạy khi splits
+và wrapper tương ứng sẵn sàng. Chưa đủ ba artifact thì MVP thật vẫn review.

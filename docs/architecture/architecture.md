@@ -175,3 +175,15 @@ Latency thực từng detector được lưu trong ModuleResult và log không t
 | Node.js | ≥ 20 (npm) |
 | PostgreSQL | 16 (Docker) |
 | Chạy demo | Docker Compose trên một máy có GPU, không phụ thuộc mạng |
+
+
+### Hồ sơ MVP (ADR-0012, ROUT-01)
+
+`ROUTER_PROFILE=full` mặc định giữ luồng trên. `mvp` chọn sáu module quality,
+face_pad, face_deepfake, camprobe, voice_challenge, voice_spoof ngay từ preload
+và mọi lần chạy orchestrator (cả lời gọi bàn duyệt/giám định). Router chỉ bắt buộc
+CamProbe cho presence, chỉ voice_spoof cho xác suất giọng; câu thử thách và cờ cắt
+ghép vẫn áp dụng. Calibrator MVP bắt buộc PAD/deepfake/spoof đúng model_version;
+không đổi ngưỡng, hợp đồng, thứ tự cổng hay xử lý lỗi. Metadata thresholds của
+quyết định MVP thêm router_profile; full giữ nguyên metadata. Script fit thật chỉ
+đọc calib_fit; PAD video lấy khung giữa và voice loại replay, JSON tạm được commit.

@@ -41,7 +41,7 @@ class Orchestrator:
         self, settings: Settings, *, detector_factory: Callable[[Module], Detector] | None = None
     ) -> None:
         self.settings = settings
-        self.router = TrustRouter(settings.router_config)
+        self.router = TrustRouter(settings.router_config, profile=settings.router_profile)
         self._factory = detector_factory or (
             lambda module: get_detector(module, mock=settings.use_mock_models)
         )
@@ -66,7 +66,7 @@ class Orchestrator:
                 raise RuntimeError("Orchestrator is closed")
             if self._started:
                 return
-            for module in Module:
+            for module in self.router.profile.modules:
                 try:
                     detector = self._factory(module)
                     if Module(detector.name) != module:
@@ -222,6 +222,8 @@ class Orchestrator:
         with self._lifecycle:
             for value in dict.fromkeys(modules):
                 module = Module(value)
+                if module not in self.router.profile.modules:
+                    continue
                 if not self._started or self._closed or module in self._failed:
                     out[module] = self._error(
                         module, ErrorCode.E_INTERNAL, (perf_counter() - started) * 1000
