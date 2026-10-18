@@ -18,8 +18,8 @@
 - Tạo phiên nhận `purpose`, `nonce` và ảnh tham chiếu (tùy chọn). Đây là PR gắn `[contract]`.
 - Luật quyết định:
   - `onboarding` và `recovery`: luôn đọc câu; điểm mặt ≥ A thì dừng và chuyển xét duyệt.
-  - `reauth`: không có thử thách mặc định; điểm lưng chừng thì leo thang sang đọc câu; nghi rõ thì trả `deny` cho bên tích hợp. Người dân chỉ thấy "thử lại sau hoặc liên hệ ngân hàng".
-- Câu đọc ở `reauth` có số tiền viết bằng chữ.
+  - `reauth`: không có thử thách mặc định; điểm lưng chừng thì leo thang sang đọc câu ngẫu nhiên; nghi rõ thì trả `deny`; khóa thiết bị không hợp lệ thì trả `recovery_required`. Người dùng chỉ thấy "Xác thực không thành công, vui lòng thử lại sau".
+- VeriClue là eKYC dùng chung: không có logic riêng của ngành (giao dịch, số tiền, hạn mức) — ADR-0013 §Phạm vi.
 
 **Tiêu chí hoàn thành:**
 - [ ] Test cho từng `purpose`. Không có đường nào ra `pass` khi module bắt buộc lỗi.
@@ -159,7 +159,7 @@
 - API client sinh từ `openapi.json`.
 - Kết nối HTTPS tới máy demo; có hướng dẫn thiết lập chứng chỉ.
 - Điều hướng: đăng ký, đăng nhập lại, khôi phục (ADR-0013).
-- Chỉ hiện `pass`, `retry`, `review`, `voice_challenge` và thông báo "thử lại sau" khi bị chặn.
+- Chỉ hiện `pass`, `retry`, `review`, `voice_challenge` và thông báo "Xác thực không thành công, vui lòng thử lại sau" khi `deny`.
 
 **Tiêu chí hoàn thành:**
 - [ ] Build được APK bằng Gradle trên máy Windows; README có các bước cài Android Studio/SDK.

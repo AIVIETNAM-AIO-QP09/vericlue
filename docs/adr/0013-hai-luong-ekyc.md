@@ -8,7 +8,7 @@
 ## Bối cảnh
 MVP (ADR-0012) chỉ có một luồng: chấm mặt, khi lưng chừng thì cho đọc câu. Thực tế có ba tình huống với rủi ro và yêu cầu trải nghiệm khác nhau:
 - mở tài khoản (đăng ký);
-- xác thực khi đăng nhập hoặc giao dịch;
+- xác thực lại khi bên tích hợp yêu cầu (đăng nhập trên thiết bị mới, thao tác nhạy cảm);
 - khôi phục tài khoản hoặc đổi thiết bị.
 
 VeriClue không đọc chip CCCD:
@@ -63,32 +63,36 @@ Thêm **tải lên dần**: phần nào chụp xong thì gửi ngay để server
 
 **Luồng đăng ký không tự từ chối.** Ngoại lệ duy nhất là vượt giới hạn số lần thử.
 
-## 4. Luồng đăng nhập lại (`purpose=reauth`)
-- **L0.** Thiết bị ký mã phiên bằng khóa thiết bị (người dùng không thấy).
-  - Khóa không hợp lệ hoặc thiết bị lạ → chuyển sang luồng khôi phục.
-- **Khi có hành động rủi ro** (chuyển trên 10 triệu, đổi hạn mức, thêm người nhận):
-  - **L1.** Hiện nội dung giao dịch.
-  - **L2.** Chụp ảnh thẳng, quay 3 giây, chạy CamProbe. Server chấm PAD, GenD và **so mặt với mẫu đã lưu**.
-    - Rõ ràng là thật → **Đạt**.
-    - Lưng chừng → sang L3.
-    - Nghi rõ → **Chặn**.
-  - **L3.** Leo thang: **đọc câu xác nhận giao dịch** (có số tiền viết bằng chữ, không có tên riêng).
-- **Chặn** nghĩa là:
-  - không thực hiện giao dịch;
-  - báo người dùng "thử lại sau hoặc liên hệ ngân hàng";
-  - cảnh báo qua số điện thoại đã đăng ký;
-  - nếu lặp lại thì khóa tạm sinh trắc.
-- **Không chuyển nhân viên duyệt**, vì giao dịch không chờ được.
+## 4. Luồng xác thực lại (`purpose=reauth`)
+VeriClue là **dịch vụ eKYC dùng chung**, không gắn với ngành cụ thể (trưởng nhóm quyết 18/10). **Bên tích hợp** quyết định:
+- khi nào cần xác thực lại (đăng nhập thiết bị mới, thao tác nhạy cảm…);
+- làm gì với kết quả (chặn, cảnh báo, giới hạn).
+
+Các bước:
+- **L0.** Thiết bị ký mã phiên bằng khóa thiết bị (người dùng không thấy). Nếu khóa không hợp lệ hoặc thiết bị lạ → trả `recovery_required`.
+- **L1.** Chụp ảnh thẳng, quay 3 giây, kiểm CamProbe. Server chấm PAD, GenD và **so mặt với mẫu đã lưu**:
+  - rõ ràng là thật → `pass`;
+  - lưng chừng → sang L2;
+  - nghi rõ → `deny`.
+- **L2.** Leo thang: **đọc câu ngẫu nhiên**, giống luồng đăng ký.
+  - ổn → `pass`;
+  - nghi → `deny`.
+
+**Kết quả trả cho bên tích hợp:**
+- gồm `pass`, `deny` hoặc `recovery_required`;
+- có chữ ký, gắn `nonce`, hạn ngắn.
+
+**Người dùng chỉ thấy** "Xác thực thành công" hoặc "Xác thực không thành công, vui lòng thử lại sau". Không bao giờ thấy lý do an ninh.
+
+`reauth` **không chuyển nhân viên duyệt**, vì bên tích hợp thường cần câu trả lời ngay. Muốn đưa ca `deny` sang người duyệt hay không là quyết định của bên tích hợp.
 
 ## 5. Luồng khôi phục / đổi thiết bị (`purpose=recovery`)
 1. OTP tới **số điện thoại đã đăng ký**.
-2. Toàn bộ giai đoạn B, **so mặt với mẫu đã lưu**.
+2. Làm đầy đủ giai đoạn B, **so mặt với mẫu đã lưu**.
 3. Đọc câu.
-4. Nếu đạt:
-   - cấp khóa thiết bị mới;
-   - báo thiết bị cũ và gửi SMS;
-   - áp **hạn mức thấp trong 24 giờ đầu**.
-5. Nếu nghi → xét duyệt.
+4. Kết quả:
+   - đạt → cấp khóa thiết bị mới và trả kết quả có chữ ký cho bên tích hợp (để họ báo thiết bị cũ, áp chính sách riêng như hạn mức);
+   - nghi → xét duyệt.
 
 ## 6. Thử thách quay đầu (dùng cho `onboarding` và `recovery`)
 - **Mục đích:**
@@ -118,11 +122,14 @@ Các biện pháp làm khi có thời gian hoặc khi có app:
 
 Ý tưởng 1, 2, 3, 4 học từ repo `AIVIETNAM-AIO-QP09/eKYC-system` (MIT). **Chỉ học ý tưởng, không chép code.** Không học theo cách repo đó để điện thoại tự quyết "thật/giả" (kết quả `approval`).
 
-## Cần xác nhận (đang dùng mặc định theo đề xuất)
-- Đăng nhập lại: nghi thì **chặn và cảnh báo**, không chuyển duyệt.
-- Câu đọc khi giao dịch có số tiền.
-- Hạn mức thấp 24 giờ sau khôi phục: **chỉ ghi trong báo cáo** như khuyến nghị cho ngân hàng, không làm trong demo.
+## Phạm vi (trưởng nhóm chốt 18/10)
+- VeriClue chỉ làm eKYC, **không cụ thể hóa cho ngành nào**.
+- Các chính sách sau thuộc về bên tích hợp, không thuộc VeriClue:
+  - chặn giao dịch, gửi cảnh báo;
+  - hạn mức sau khi đổi thiết bị;
+  - câu đọc có nội dung giao dịch;
+  - ngưỡng tiền cần xác thực lại.
 
 ## Hệ quả
-- **Hợp đồng API:** thêm `purpose`, `nonce`, ảnh tham chiếu, OTP, CCCD, bước quay đầu, kết quả "deny" cho bên tích hợp. PR gắn `[contract]`.
+- **Hợp đồng API:** thêm `purpose`, `nonce`, ảnh tham chiếu, OTP, CCCD, bước quay đầu, và kết quả `deny` / `recovery_required` cho bên tích hợp. PR gắn `[contract]`.
 - **Task mới ở epic E9:** FLOW-01 đến FLOW-05, SEC-01, SEC-02, APP-01.
