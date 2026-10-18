@@ -40,7 +40,7 @@ from vericlue_ml.common.result import (
     ModuleResult,
     Status,
 )
-from vericlue_ml.face.frames import read_images, read_video_frames
+from vericlue_ml.face.frames import Frames, sample_images, sample_video
 from vericlue_ml.face.pad import (
     FaceBox,
     FaceFinder,
@@ -58,7 +58,8 @@ GEND_CONFIG = "config.json"
 CLIP_CONFIG = "config.json"
 CLIP_PREPROCESSOR = "preprocessor_config.json"
 
-# Số khung lấy mẫu (ADR-0012 / FACE-02): eKYC cần nhanh, giám định cần kỹ.
+# Số khung lấy mẫu: giám định 32 theo task card FACE-02; eKYC 8 là lựa chọn của wrapper vì tốc độ
+# (ngân sách detector 4 s), xem bàn giao FACE-02.
 EKYC_FRAMES = 8
 FORENSIC_FRAMES = 32
 FORENSIC_MODE = "forensic"  # `DetectorInput.metadata["mode"]`; không có thì coi là eKYC
@@ -184,7 +185,8 @@ def _load_classifier(root: Path, device: str | None) -> tuple[GendClassifier, st
         raise GendError("Checkpoint GenD thiếu đầu tuyến tính 1024→2.")
     vision = CLIPVisionModel(config)
     try:
-        vision.load_state_dict(vision_state, strict=True)
+        # assign=True: dùng thẳng tensor đã nạp (không sao chép), tránh giữ hai bản trọng số trong RAM.
+        vision.load_state_dict(vision_state, strict=True, assign=True)
     except RuntimeError as exc:
         raise GendError("Checkpoint GenD không khớp kiến trúc CLIP ViT-L/14.") from exc
     del tensors, vision_state
@@ -259,7 +261,9 @@ class FaceDeepfakeDetector:
         ]
         return max(faces, key=lambda f: f.area) if faces else None
 
-    def _score_frames(self, sampled: list[tuple[int, np.ndarray]]) -> _FrameScores:
+    def _score_frames(self, sampled: Frames, requested: int) -> _FrameScores:
+        """Duyệt từng khung (không giữ khung gốc), chỉ giữ crop đã chuẩn hóa. `requested` là số khung
+        đã yêu cầu: khung giải mã hỏng hay không có mặt đều tính là thiếu."""
         indices: list[int] = []
         crops: list[np.ndarray] = []
         for index, frame in sampled:
@@ -272,11 +276,11 @@ class FaceDeepfakeDetector:
                 continue
             indices.append(index)
         if not crops:
-            return _FrameScores([], [], len(sampled))
+            return _FrameScores([], [], requested)
         p_fake = self._classifier.p_fake(np.stack(crops))
         if len(p_fake) != len(crops) or not all(math.isfinite(v) for v in p_fake):
             raise GendError("Mô hình trả điểm không hợp lệ.")
-        return _FrameScores(indices, p_fake, len(sampled))
+        return _FrameScores(indices, p_fake, requested)
 
     def predict(self, inp: DetectorInput) -> ModuleResult:
         started = time.perf_counter()
@@ -296,13 +300,13 @@ class FaceDeepfakeDetector:
             )
             if inp.video is not None:
                 self.preload()
-                sampled = read_video_frames(Path(inp.video), count)
+                requested, sampled = sample_video(Path(inp.video), count)
             elif inp.images:
                 self.preload()
-                sampled = read_images(list(inp.images), count)
+                requested, sampled = sample_images(list(inp.images), count)
             else:
                 raise GendError("Thiếu video hoặc ảnh mặt.", ErrorCode.E_DECODE)
-            scores = self._score_frames(sampled)
+            scores = self._score_frames(sampled, requested)
             counts = {
                 "frames_sampled": float(scores.sampled),
                 "frames_used": float(len(scores.p_fake)),

@@ -33,7 +33,7 @@ from vericlue_ml.common.result import (
     ModuleResult,
     Status,
 )
-from vericlue_ml.face.frames import read_video_frames
+from vericlue_ml.face.frames import middle_video_frame
 from vericlue_ml.face.pad import (
     SECOND_FACE_AREA_RATIO,
     FaceBox,
@@ -152,7 +152,7 @@ class QualityDetector:
     ) -> None:
         self._models_dir = models_dir
         self._finder = finder
-        self.version = f"{QUALITY_VERSION_BASE}" if finder is None else "quality-injected"
+        self.version = QUALITY_VERSION_BASE if finder is None else "quality-injected"
         self._lock = threading.Lock()
         self._loaded_root: Path | None = None
 
@@ -177,8 +177,7 @@ class QualityDetector:
         if inp.images:
             return _decode(Path(inp.images[0]))
         if inp.video is not None:
-            frames = read_video_frames(Path(inp.video), 3)
-            return frames[len(frames) // 2][1]
+            return middle_video_frame(Path(inp.video))
         raise QualityError("Thiếu ảnh mặt.", ErrorCode.E_DECODE)
 
     def predict(self, inp: DetectorInput) -> ModuleResult:

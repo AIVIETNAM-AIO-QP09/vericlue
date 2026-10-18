@@ -60,7 +60,7 @@ Mã **không gọi mạng**: thiếu file hoặc sai SHA-256 là `error`.
 
 Evidence: `frame_scores` (timeseries `{frame, p_fake}`), `mean`, `top25_mean`; `quality.frames_sampled/frames_used`.
 
-**Tốc độ (đo ngày 18/10/2026, CPU, máy đang chạy tiến trình khác):** 8 khung ≈ 18–21 s (GenD ≈ 11 s, SCRFD ≈ 1,8 s, đọc video 1080p HEVC ≈ 3,9 s); nạp mô hình lần đầu ≈ 135 s. Vượt xa ngân sách detector 4 s (`detector_timeout_seconds`) → trên CPU, `face_deepfake` ra `E_TIMEOUT` và phiên vào `review`. Cần GPU (torch CUDA — chưa đổi `uv.lock`) hoặc giảm số khung; xem bàn giao FACE-02.
+**Tốc độ (đo 18/10/2026, CPU i7-13620H 10 luồng, máy đang chạy tiến trình khác nên số dao động):** GenD ≈ 1,1–2,8 s mỗi khung; 8 khung ≈ 12–31 s cả đường (đọc video 1080p HEVC 3–7 s, SCRFD ≈ 1,3 s); 3 khung ≈ 6,5 s. Nạp mô hình ≈ 17 s khi file đã nằm trong cache đĩa (lần đầu nguội ≈ 135 s). Vượt xa ngân sách detector 4 s (`detector_timeout_seconds`) → trên CPU, `face_deepfake` ra `E_TIMEOUT` và phiên vào `review`. Cần GPU (torch CUDA — chưa đổi `uv.lock`) hoặc giảm số khung; xem bàn giao FACE-02.
 
 ## Chất lượng ảnh phía server: `quality.py` (MVP, ADR-0012)
 
