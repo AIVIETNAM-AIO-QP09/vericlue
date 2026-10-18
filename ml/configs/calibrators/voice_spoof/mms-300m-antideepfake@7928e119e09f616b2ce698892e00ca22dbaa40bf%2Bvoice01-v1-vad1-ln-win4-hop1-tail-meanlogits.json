@@ -1,0 +1,179 @@
+{
+  "module": "voice_spoof",
+  "model_version": "mms-300m-antideepfake@7928e119e09f616b2ce698892e00ca22dbaa40bf+voice01-v1-vad1-ln-win4-hop1-tail-meanlogits",
+  "provisional": true,
+  "method": "platt",
+  "parameters": {
+    "slope": 102.10049632616249,
+    "intercept": -89.24944684187685,
+    "x": [],
+    "y": []
+  },
+  "epsilon": 0.0001,
+  "n_pos": 23,
+  "n_neg": 109,
+  "before": {
+    "log_loss": 0.01274671673529157,
+    "ece": 0.007158845050364486,
+    "brier": 0.00462605110051269
+  },
+  "after": {
+    "log_loss": 0.0611730149785661,
+    "ece": 0.00763776228473348,
+    "brier": 0.007570989792675717
+  },
+  "before_reliability": [
+    {
+      "lower": 0.0,
+      "upper": 0.1,
+      "count": 108,
+      "mean_probability": 0.0011519210602418816,
+      "attack_rate": 0.0
+    },
+    {
+      "lower": 0.1,
+      "upper": 0.2,
+      "count": 0,
+      "mean_probability": null,
+      "attack_rate": null
+    },
+    {
+      "lower": 0.2,
+      "upper": 0.3,
+      "count": 0,
+      "mean_probability": null,
+      "attack_rate": null
+    },
+    {
+      "lower": 0.3,
+      "upper": 0.4,
+      "count": 0,
+      "mean_probability": null,
+      "attack_rate": null
+    },
+    {
+      "lower": 0.4,
+      "upper": 0.5,
+      "count": 0,
+      "mean_probability": null,
+      "attack_rate": null
+    },
+    {
+      "lower": 0.5,
+      "upper": 0.6,
+      "count": 0,
+      "mean_probability": null,
+      "attack_rate": null
+    },
+    {
+      "lower": 0.6,
+      "upper": 0.7,
+      "count": 0,
+      "mean_probability": null,
+      "attack_rate": null
+    },
+    {
+      "lower": 0.7,
+      "upper": 0.8,
+      "count": 1,
+      "mean_probability": 0.7808461396676585,
+      "attack_rate": 0.0
+    },
+    {
+      "lower": 0.8,
+      "upper": 0.9,
+      "count": 0,
+      "mean_probability": null,
+      "attack_rate": null
+    },
+    {
+      "lower": 0.9,
+      "upper": 1.0,
+      "count": 23,
+      "mean_probability": 0.9982733072837248,
+      "attack_rate": 1.0
+    }
+  ],
+  "after_reliability": [
+    {
+      "lower": 0.0,
+      "upper": 0.1,
+      "count": 108,
+      "mean_probability": 0.0001,
+      "attack_rate": 0.0
+    },
+    {
+      "lower": 0.1,
+      "upper": 0.2,
+      "count": 0,
+      "mean_probability": null,
+      "attack_rate": null
+    },
+    {
+      "lower": 0.2,
+      "upper": 0.3,
+      "count": 0,
+      "mean_probability": null,
+      "attack_rate": null
+    },
+    {
+      "lower": 0.3,
+      "upper": 0.4,
+      "count": 0,
+      "mean_probability": null,
+      "attack_rate": null
+    },
+    {
+      "lower": 0.4,
+      "upper": 0.5,
+      "count": 0,
+      "mean_probability": null,
+      "attack_rate": null
+    },
+    {
+      "lower": 0.5,
+      "upper": 0.6,
+      "count": 0,
+      "mean_probability": null,
+      "attack_rate": null
+    },
+    {
+      "lower": 0.6,
+      "upper": 0.7,
+      "count": 0,
+      "mean_probability": null,
+      "attack_rate": null
+    },
+    {
+      "lower": 0.7,
+      "upper": 0.8,
+      "count": 0,
+      "mean_probability": null,
+      "attack_rate": null
+    },
+    {
+      "lower": 0.8,
+      "upper": 0.9,
+      "count": 0,
+      "mean_probability": null,
+      "attack_rate": null
+    },
+    {
+      "lower": 0.9,
+      "upper": 1.0,
+      "count": 24,
+      "mean_probability": 0.9998910258993675,
+      "attack_rate": 0.9583333333333334
+    }
+  ],
+  "date": "2026-10-18T04:09:06.314898Z",
+  "commit": "da3076b81a97a6a7e54d88236c9455ca44050939",
+  "dataset": "{\"datasets\": [\"vsasv\", \"vimd\", \"mlaad_vi\"], \"excluded_quality\": {\"vsasv:label=0:E_LOW_QUALITY\": 7}, \"grouping\": \"existing connected group_id, dataset:subject_id fallback\", \"input\": \"middle frame for PAD videos; original media otherwise\", \"manifests\": {\"mlaad_vi\": \"478934d3fef56f82427915a988a7d2bc359f82efa024785599489a69c812f304\", \"vimd\": \"01910f8c4afa6fdc7dd689ff1eed5c68d216a80f48ccfcf55a2e14cdfb4f588c\", \"vsasv\": \"d12da5cf3e2ed83ee3688e69276c2edcea19f9f55a0c3d025b8b29d707a79357\"}, \"selection\": {\"excluded_replay\": 80, \"n_neg\": 116, \"n_pos\": 23}}",
+  "split": "calib_fit",
+  "cv_folds": 5,
+  "cv_log_loss": {
+    "platt": 0.0611730149785661
+  },
+  "metrics_scope": "group_oof",
+  "baseline": "clipped_raw_score"
+}

@@ -27,7 +27,7 @@
 - [x] Hồ sơ full mặc định giữ nguyên; MVP chỉ CamProbe, PAD/deepfake, quality, challenge/spoof; orchestrator chỉ preload/chạy module trong hồ sơ.
 - [x] Test full/MVP, mock MVP, module thiếu/error/degraded và calibrator thiếu đều không cho pass ở bước bắt buộc.
 - [x] Script fit chạy detector thật từ registry, chỉ đọc calib_fit, loại replay khỏi voice; lưu version thật, provisional, số mẫu, commit và hash manifest.
-- [ ] Commit calibrator voice_spoof thật và ghi lệnh/kết quả trong bàn giao.
+- [x] Commit calibrator voice_spoof thật (Platt, 23 dương/109 âm; 80 replay + 7 no-score loại có thống kê) và ghi lệnh/commit/kết quả trong bàn giao.
 - [ ] Fit PAD trên khung giữa Zalo khi splits sẵn sàng; fit GenD khi wrapper + WildDeepfake calib_fit sẵn sàng.
 
 ---
