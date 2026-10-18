@@ -67,10 +67,18 @@ def _quality() -> Detector:
     return QualityDetector()
 
 
+@lru_cache(maxsize=1)
+def _camprobe() -> Detector:
+    from vericlue_ml.presence.camprobe import CamProbeDetector
+
+    return CamProbeDetector()
+
+
 _REAL_FACTORIES: dict[Module, Callable[[], Detector]] = {
     Module.VOICE_CHALLENGE: _voice_challenge,
     Module.VOICE_SPOOF: _voice_spoof,
     Module.FACE_PAD: _face_pad,
+    Module.CAMPROBE: _camprobe,
     Module.FACE_DEEPFAKE: _face_deepfake,
     Module.QUALITY: _quality,
 }

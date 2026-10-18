@@ -21,7 +21,7 @@ export type RunnerDeps = {
   monoMs: () => number;
 };
 
-/** Dữ liệu gửi lên ở bước uploading. TẠM — CAP-06 thay bằng ảnh/video chụp thật tại `capture_at_ms`. */
+/** Dữ liệu gửi lên ở bước uploading: ảnh JPEG thật, tín hiệu (có camprobe) và video webm nếu ghi được. */
 export type UploadPayload = {
   image: Blob;
   signals: Signals;
@@ -119,7 +119,7 @@ export async function uploadAndFinalize(
   }
 }
 
-/** Gửi câu đọc. TẠM — CAP-07 thay bằng ghi âm thật. */
+/** Gửi câu đọc: WAV 16 kHz ghi thật (voiceRecorder.ts) và video nếu có. */
 export async function sendVoiceAnswer(
   deps: RunnerDeps,
   session: SessionInfo,

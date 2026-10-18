@@ -5,7 +5,7 @@ modules:
   face_pad: minifasnet    # FACE-01 bước 1: MiniFASNet V2 + SCRFD det_10g (chưa tinh chỉnh)
   face_deepfake: gend-clip-l14 # FACE-02: wrapper GenD (chưa tinh chỉnh; + sbi-ffc23 ở FACE-03)
   chromapulse: mock       # PRES-02
-  camprobe: mock          # PRES-03
+  camprobe: camprobe-rules  # PRES-03: bộ luật, không trọng số
   voice_spoof: antideepfake-mms300m # VOICE-01 wrapper only; R3 pending
   voice_challenge: phowhisper # VOICE-04; CTC alignment belongs to VOICE-05
   lipsync: mock           # VOICE-05 → syncnet
