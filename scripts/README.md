@@ -255,6 +255,16 @@ file trùng, path/label/source, test-only/no-train và quota. Mã thoát 1 nếu
 lỗi; quota bất khả thi chỉ cảnh báo kèm số nhóm train còn lại. Lưu ý: số đếm
 đủ không chứng minh điều kiện độc lập của Learn-then-Test.
 
+GPU tùy chọn: `DATA_SPLIT_DEVICE=cuda` yêu cầu ONNX Runtime GPU thực sự khởi
+tạo CUDA, lỗi thì dừng; mặc định `cpu`. Dùng **môi trường riêng**, không cài
+đồng thời bản CPU và GPU của ONNX Runtime vào cùng môi trường. Theo
+[hướng dẫn ONNX Runtime](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html),
+cài `onnxruntime-gpu[cuda,cudnn]` và gọi `preload_dlls`; script đã gọi preload khi
+chọn CUDA. Bản thực chạy DATA-03 dùng ORT 1.31.0, UniFace 4.0.0, OpenCV 5.0.0,
+NumPy ghi trong SUMMARY. CUDA tắt TF32, dùng deterministic compute; không hứa
+bit-identical giữa CPU/GPU hoặc giữa các phiên bản thư viện. CSV/seed cùng môi
+trường phải giữ ổn định. CPU dùng một worker, bốn luồng ONNX, OpenCV một luồng.
+
 ### Zalo 2022 whole ZIP và phục hồi HTTP 416 (17/10)
 
 Zalo `small = full`: tải **một ZIP toàn dataset**, ghim Kaggle version, không tải

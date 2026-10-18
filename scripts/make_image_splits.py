@@ -125,6 +125,25 @@ class FaceEncoder:
         from uniface.recognition import ArcFace
 
         cv2.setNumThreads(1)
+        device = os.environ.get("DATA_SPLIT_DEVICE", "cpu")
+        if device not in {"cpu", "cuda"}:
+            raise ValueError("DATA_SPLIT_DEVICE phải là cpu hoặc cuda")
+        providers = ["CPUExecutionProvider"]
+        if device == "cuda":
+            if "CUDAExecutionProvider" not in ort.get_available_providers():
+                raise ValueError("Môi trường hiện tại không có ONNX CUDA provider")
+            ort.preload_dlls(directory="")
+            providers = [
+                (
+                    "CUDAExecutionProvider",
+                    {
+                        "gpu_mem_limit": 512 * 1024 * 1024,
+                        "cudnn_conv_algo_search": "HEURISTIC",
+                        "use_tf32": 0,
+                    },
+                ),
+                "CPUExecutionProvider",
+            ]
         manifest = yaml.safe_load((ROOT / "models/manifest.yaml").read_text(encoding="utf-8"))
         self.models = {}
         self.cache = tempfile.TemporaryDirectory(prefix="data03-models-")
@@ -143,8 +162,8 @@ class FaceEncoder:
         previous = os.environ.get("UNIFACE_CACHE_DIR")
         os.environ["UNIFACE_CACHE_DIR"] = self.cache.name
         try:
-            self.detector = SCRFD(providers=["CPUExecutionProvider"])
-            self.recognizer = ArcFace(providers=["CPUExecutionProvider"])
+            self.detector = SCRFD(providers=providers)
+            self.recognizer = ArcFace(providers=providers)
         finally:
             if previous is None:
                 os.environ.pop("UNIFACE_CACHE_DIR", None)
@@ -154,16 +173,31 @@ class FaceEncoder:
         options = ort.SessionOptions()
         options.intra_op_num_threads = 4
         options.inter_op_num_threads = 1
+        options.use_deterministic_compute = True
         self.detector.session = ort.InferenceSession(
             str(Path(self.cache.name) / "scrfd_10g.onnx"),
             options,
-            providers=["CPUExecutionProvider"],
+            providers=providers,
         )
         self.recognizer.session = ort.InferenceSession(
             str(Path(self.cache.name) / "arcface_mnet.onnx"),
             options,
-            providers=["CPUExecutionProvider"],
+            providers=providers,
         )
+        if (
+            device == "cuda"
+            and "CUDAExecutionProvider" not in self.detector.session.get_providers()
+        ):
+            raise ValueError("Không khởi tạo được CUDA; dừng thay vì âm thầm chạy CPU")
+        self.models["runtime"] = {
+            "device": device,
+            "onnxruntime": ort.__version__,
+            "opencv": cv2.__version__,
+            "uniface": "4.0.0",
+        }
+        import numpy as np
+
+        self.models["runtime"]["numpy"] = np.__version__
 
     def encode(self, path: Path) -> list:
         """Ba khung/video; mọi mặt được thấy liên kết về cùng nhóm video."""

@@ -120,6 +120,20 @@ xuyên bộ. DATA-01 vẫn review cho đến nghiệm thu đủ danh mục.
 - Hash trùng byte bằng 0 là bằng chứng yếu, không phải bằng chứng khác người.
   Crosswalk đã xác minh ưu tiên hơn giả định độc lập và cân bằng miền.
 
+**Phần ảnh — quyết định 17/10 và thay đổi ADR-0012 ngày 18/10:**
+- Zalo union ArcFace ngưỡng lỏng, không rà tay; báo phân bố component và siết
+  khi component chứa >30% video Zalo. Không lưu embedding, subject_id trống;
+  liên kết Zalo↔FAS và Zalo không tìm được mặt buộc test.
+- FAS-VN test-only; cách ly mọi bản trùng byte có nhãn đối lập (pin hiện tại:
+  16 file). RTFS-10k test-only, giữ nhóm video gốc ∪ donor xuyên generator.
+- **WildDeepfake không còn test-only**: theo `video_groups.jsonl`, chia nguyên
+  video xuyên archive thành calib_fit / calib_ltt / test, không train. Dành calib
+  trước khi chốt phần còn lại thành test; quota ADR-0010, báo số video và khung.
+- ViCocktail ∪ nhãn người vn_celeb thành nhóm nguồn cho DATA-04; chỉ ghép donor
+  và video trong cùng split, dữ liệu tạo ra kế thừa tập của cả hai nguồn.
+- ArcFace được pin revision/SHA-256 trong manifest, chỉ nghiên cứu phi thương mại.
+  Nhóm tự động/video là nhóm rủi ro, không chứng minh khác người giữa các nhóm.
+
 **Tiêu chí hoàn thành:**
 - [ ] Test tự động: không có `subject_id` xuất hiện ở 2 trong 4 tập.
 - [ ] Mỗi loại tấn công chính có ≥ 60 mẫu trong `calib_ltt` (để chứng nhận α = 5%); thiếu thì dồn thêm người sang `calib_ltt`, vẫn thiếu thì ghi rõ trong SUMMARY.
