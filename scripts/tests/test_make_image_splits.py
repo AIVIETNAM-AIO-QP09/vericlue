@@ -49,6 +49,60 @@ def test_cosine_union_transitive_and_cross_source(tmp_path):
     assert all(r["subject_id"] == "" for r in rows)
 
 
+def test_alignment_fits_all_five_points_with_rotation_scale_translation():
+    cv2 = pytest.importorskip("cv2")
+    target = np.array(
+        [
+            [38.2946, 51.6963],
+            [73.5318, 51.5014],
+            [56.0252, 71.7366],
+            [41.5493, 92.3655],
+            [70.7299, 92.2041],
+        ],
+        dtype=np.float32,
+    )
+    transform = np.array([[0.5, -0.25, 3], [0.25, 0.5, -4]], dtype=np.float32)
+    inverse = cv2.invertAffineTransform(transform)
+    landmarks = target @ inverse[:, :2].T + inverse[:, 2]
+    frame = np.arange(160 * 180 * 3, dtype=np.uint8).reshape(160, 180, 3)
+    actual = image.FaceEncoder.aligned(frame, landmarks)
+    expected = cv2.warpAffine(frame, transform, (112, 112), borderValue=0.0)
+    assert np.max(np.abs(actual.astype(int) - expected.astype(int))) <= 1
+
+
+def test_scrfd_decodes_landmarks_and_suppresses_duplicate_anchor():
+    pytest.importorskip("cv2")
+    encoder = object.__new__(image.FaceEncoder)
+    encoder.centers = {}
+    outputs = [None] * 9
+    for i, stride in enumerate((8, 16, 32)):
+        y, x = np.mgrid[: 640 // stride, : 640 // stride]
+        encoder.centers[stride] = np.repeat(
+            np.column_stack((x.ravel(), y.ravel())) * stride, 2, axis=0
+        )
+        count = len(encoder.centers[stride])
+        outputs[i] = np.zeros((count, 1), dtype=np.float32)
+        outputs[i + 3] = np.ones((count, 4), dtype=np.float32)
+        outputs[i + 6] = np.zeros((count, 10), dtype=np.float32)
+    outputs[0][42:44] = [[0.9], [0.8]]
+    offsets = np.array([[-1, -1], [1, -1], [0, 0], [-0.5, 1], [0.5, 1]], dtype=np.float32)
+    outputs[6][42:44] = offsets.ravel()
+
+    class Detector:
+        def run(self, _outputs, inputs):
+            tensor = inputs["input"]
+            assert tensor.shape == (1, 3, 640, 640)
+            assert tensor.dtype == np.float32
+            return outputs
+
+    encoder.detector = Detector()
+    encoder.det_input = "input"
+    # Original 1280 square => scale factor 0.5 back to source coordinates.
+    actual = encoder.landmarks(np.zeros((1280, 1280, 3), dtype=np.uint8))
+    assert len(actual) == 1
+    np.testing.assert_allclose(actual[0], (encoder.centers[8][42] + offsets * 8) * 2)
+
+
 def wild_fixture(root, frames_per_archive=1):
     folder = root / "raw/wilddeepfake"
     folder.mkdir(parents=True)

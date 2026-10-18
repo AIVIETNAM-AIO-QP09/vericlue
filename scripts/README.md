@@ -215,8 +215,9 @@ uv run python scripts/audit_image_splits.py --data-dir $env:DATA_DIR
 `--models-dir` ưu tiên hơn MODELS_DIR. `zalo2022` và `fas_vn` phải xử lý cùng
 nhau để giữ mọi liên kết xuyên bộ ở test; `vicocktail` và `vn_celeb_faces` cũng
 chạy cùng nhau. Không tải mạng trong bước chia tập. Cần weights ArcFace/SCRFD
-đúng SHA-256 manifest. UniFace 4.0.0 là dependency MIT, không chép code vào repo;
-trọng số ArcFace chỉ dùng nghiên cứu phi thương mại.
+đúng SHA-256 manifest. Loader dùng ONNX trực tiếp, tiền xử lý tham chiếu UniFace
+4.0.0 (MIT, ghi nhận tại third_party/); không import UniFace/SciPy. Trọng số
+ArcFace chỉ dùng nghiên cứu phi thương mại.
 
 - **Zalo:** nhãn gốc `liveness_score=1` là thật (`label=0`), `0` là giả (`label=1`).
   Lấy 3 khung ở 15/50/85% mỗi video, SCRFD tìm mọi mặt, ArcFace căn chỉnh và
@@ -260,7 +261,7 @@ tạo CUDA, lỗi thì dừng; mặc định `cpu`. Dùng **môi trường riên
 đồng thời bản CPU và GPU của ONNX Runtime vào cùng môi trường. Theo
 [hướng dẫn ONNX Runtime](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html),
 cài `onnxruntime-gpu[cuda,cudnn]` và gọi `preload_dlls`; script đã gọi preload khi
-chọn CUDA. Bản thực chạy DATA-03 dùng ORT 1.31.0, UniFace 4.0.0, OpenCV 5.0.0,
+chọn CUDA. Bản thực chạy DATA-03 dùng ORT 1.31.0, OpenCV 5.0.0,
 NumPy ghi trong SUMMARY. CUDA tắt TF32, dùng deterministic compute; không hứa
 bit-identical giữa CPU/GPU hoặc giữa các phiên bản thư viện. CSV/seed cùng môi
 trường phải giữ ổn định. CPU dùng một worker, bốn luồng ONNX, OpenCV một luồng.

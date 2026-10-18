@@ -1,3 +1,5 @@
+# Copyright 2025-2026 Yakhyokhuja Valikhujaev (UniFace preprocessing/decoding).
+# MIT License; see third_party/licenses/uniface.txt and third_party/README.md.
 """DATA-03 ảnh: nhóm rủi ro ArcFace và nhóm video; chỉ xử lý local."""
 
 from __future__ import annotations
@@ -11,7 +13,6 @@ import random
 import shutil
 import subprocess
 import tarfile
-import tempfile
 import time
 import zipfile
 from collections import Counter, defaultdict
@@ -114,15 +115,15 @@ def load_fas(data_dir: Path) -> tuple[list[Row], list[dict]]:
     return rows, quarantine
 
 
+# Rewritten for direct ONNX inference with bounded memory, without UniFace imports.
 class FaceEncoder:
-    """UniFace 4.0.0 qua API công khai; cache weights tạm, embedding chỉ trong RAM."""
+    """SCRFD + ArcFace ONNX local; embedding chỉ tồn tại trong RAM."""
 
     def __init__(self, models_dir: Path):
         import cv2
+        import numpy as np
         import onnxruntime as ort
         import yaml
-        from uniface.detection import SCRFD
-        from uniface.recognition import ArcFace
 
         cv2.setNumThreads(1)
         device = os.environ.get("DATA_SPLIT_DEVICE", "cpu")
@@ -146,10 +147,14 @@ class FaceEncoder:
             ]
         manifest = yaml.safe_load((ROOT / "models/manifest.yaml").read_text(encoding="utf-8"))
         self.models = {}
-        self.cache = tempfile.TemporaryDirectory(prefix="data03-models-")
-        for model_id, filename, cache_name in (
-            ("scrfd-10g", "det_10g.onnx", "scrfd_10g.onnx"),
-            ("arcface-mnet", "arcface_mnet.onnx", "arcface_mnet.onnx"),
+        options = ort.SessionOptions()
+        options.intra_op_num_threads = 4
+        options.inter_op_num_threads = 1
+        options.use_deterministic_compute = True
+        sessions = []
+        for model_id, filename in (
+            ("scrfd-10g", "det_10g.onnx"),
+            ("arcface-mnet", "arcface_mnet.onnx"),
         ):
             entry = next(m for m in manifest["models"] if m["id"] == model_id)
             file = next(f for f in entry["files"] if f["path"] == filename)
@@ -158,76 +163,139 @@ class FaceEncoder:
             if digest != file["sha256"]:
                 raise ValueError(f"SHA-256 sai: {path}")
             self.models[model_id] = {"revision": entry["source"]["revision"], "sha256": digest}
-            shutil.copyfile(path, Path(self.cache.name) / cache_name)
-        previous = os.environ.get("UNIFACE_CACHE_DIR")
-        os.environ["UNIFACE_CACHE_DIR"] = self.cache.name
-        try:
-            self.detector = SCRFD(providers=providers)
-            self.recognizer = ArcFace(providers=providers)
-        finally:
-            if previous is None:
-                os.environ.pop("UNIFACE_CACHE_DIR", None)
-            else:
-                os.environ["UNIFACE_CACHE_DIR"] = previous
-        # Bound CPU threads so other MVP sessions can run concurrently.
-        options = ort.SessionOptions()
-        options.intra_op_num_threads = 4
-        options.inter_op_num_threads = 1
-        options.use_deterministic_compute = True
-        self.detector.session = ort.InferenceSession(
-            str(Path(self.cache.name) / "scrfd_10g.onnx"),
-            options,
-            providers=providers,
-        )
-        self.recognizer.session = ort.InferenceSession(
-            str(Path(self.cache.name) / "arcface_mnet.onnx"),
-            options,
-            providers=providers,
-        )
-        if (
-            device == "cuda"
-            and "CUDAExecutionProvider" not in self.detector.session.get_providers()
-        ):
-            raise ValueError("Không khởi tạo được CUDA; dừng thay vì âm thầm chạy CPU")
+            session = ort.InferenceSession(str(path), options, providers=providers)
+            if device == "cuda" and "CUDAExecutionProvider" not in session.get_providers():
+                raise ValueError("Không khởi tạo được CUDA; không âm thầm fallback CPU")
+            sessions.append(session)
+        self.detector, self.recognizer = sessions
+        self.det_input = self.detector.get_inputs()[0].name
+        self.rec_input = self.recognizer.get_inputs()[0].name
+        if len(self.detector.get_outputs()) != 9:
+            raise ValueError("SCRFD phải có 9 đầu ra, gồm 5 landmarks")
+        self.centers = {}
+        for stride in (8, 16, 32):
+            y, x = np.mgrid[: 640 // stride, : 640 // stride]
+            centers = (np.stack((x, y), axis=-1).astype(np.float32) * stride).reshape(-1, 2)
+            self.centers[stride] = np.repeat(centers, 2, axis=0)
         self.models["runtime"] = {
             "device": device,
             "onnxruntime": ort.__version__,
             "opencv": cv2.__version__,
-            "uniface": "4.0.0",
+            "numpy": np.__version__,
+            "loader": "direct-onnx-v1",
         }
+
+    def landmarks(self, image):
+        """SCRFD letterbox 640, confidence 0,5 và NMS 0,4; giữ mọi mặt."""
+        import cv2
         import numpy as np
 
-        self.models["runtime"]["numpy"] = np.__version__
+        height, width = image.shape[:2]
+        new_h, new_w = (
+            (640, int(640 * width / height)) if height > width else (int(640 * height / width), 640)
+        )
+        factor = new_h / height
+        canvas = np.zeros((640, 640, 3), dtype=np.uint8)
+        canvas[:new_h, :new_w] = cv2.resize(image, (new_w, new_h))
+        tensor = ((canvas.astype(np.float32) - 127.5) / 127.5).transpose(2, 0, 1)[None]
+        outputs = self.detector.run(None, {self.det_input: tensor})
+        boxes, scores, points = [], [], []
+        for i, stride in enumerate((8, 16, 32)):
+            score = outputs[i].ravel()
+            keep = np.flatnonzero(score >= 0.5)
+            centers = self.centers[stride]
+            distance = outputs[i + 3] * stride
+            box = np.column_stack(
+                (
+                    centers[:, 0] - distance[:, 0],
+                    centers[:, 1] - distance[:, 1],
+                    centers[:, 0] + distance[:, 2],
+                    centers[:, 1] + distance[:, 3],
+                )
+            )
+            point = outputs[i + 6].reshape(-1, 5, 2) * stride + centers[:, None, :]
+            boxes.extend(box[keep] / factor)
+            scores.extend(score[keep])
+            points.extend(point[keep] / factor)
+        if not scores:
+            return []
+        boxes = np.asarray(boxes)
+        order = np.argsort(scores)[::-1]
+        keep = []
+        while len(order):
+            i = int(order[0])
+            keep.append(i)
+            rest = order[1:]
+            lo = np.maximum(boxes[i, :2], boxes[rest, :2])
+            hi = np.minimum(boxes[i, 2:], boxes[rest, 2:])
+            intersection = np.prod(np.maximum(0, hi - lo + 1), axis=1)
+            area = np.prod(boxes[:, 2:] - boxes[:, :2] + 1, axis=1)
+            overlap = intersection / (area[i] + area[rest] - intersection)
+            order = rest[overlap <= 0.4]
+        return [points[i] for i in keep]
+
+    @staticmethod
+    def aligned(image, landmarks):
+        """Similarity least-squares toàn bộ 5 mốc, chuẩn ArcFace 112×112."""
+        import cv2
+        import numpy as np
+
+        target = np.array(
+            [
+                [38.2946, 51.6963],
+                [73.5318, 51.5014],
+                [56.0252, 71.7366],
+                [41.5493, 92.3655],
+                [70.7299, 92.2041],
+            ],
+            dtype=np.float32,
+        )
+        x, y = np.asarray(landmarks, dtype=np.float64).T
+        design = np.zeros((10, 4), dtype=np.float64)
+        design[0::2] = np.column_stack((x, -y, np.ones(5), np.zeros(5)))
+        design[1::2] = np.column_stack((y, x, np.zeros(5), np.ones(5)))
+        a, b, tx, ty = np.linalg.lstsq(design, target.ravel(), rcond=None)[0]
+        transform = np.array([[a, -b, tx], [b, a, ty]], dtype=np.float32)
+        return cv2.warpAffine(image, transform, (112, 112), borderValue=0.0)
 
     def encode(self, path: Path) -> list:
         """Ba khung/video; mọi mặt được thấy liên kết về cùng nhóm video."""
         import cv2
+        import numpy as np
 
-        images = []
-        if path.suffix.lower() in {".mp4", ".video", ".webm"}:
-            cap = cv2.VideoCapture(str(path))
-            try:
-                count = cap.get(cv2.CAP_PROP_FRAME_COUNT)
-                for fraction in (0.15, 0.5, 0.85):
-                    cap.set(cv2.CAP_PROP_POS_FRAMES, int(max(0, count - 1) * fraction))
-                    ok, frame = cap.read()
-                    if ok:
-                        images.append(frame)
-            finally:
-                cap.release()
-        else:
-            frame = cv2.imread(str(path))
-            if frame is not None:
-                images.append(frame)
+        def frames():
+            if path.suffix.lower() in {".mp4", ".video", ".webm"}:
+                cap = cv2.VideoCapture(str(path))
+                try:
+                    count = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+                    for fraction in (0.15, 0.5, 0.85):
+                        cap.set(cv2.CAP_PROP_POS_FRAMES, int(max(0, count - 1) * fraction))
+                        ok, frame = cap.read()
+                        if ok:
+                            yield frame
+                finally:
+                    cap.release()
+            else:
+                frame = cv2.imread(str(path))
+                if frame is not None:
+                    yield frame
+
         embeddings = []
-        for image in images:
-            for face in self.detector.detect(image):
-                embedding = self.recognizer.get_normalized_embedding(image, face.landmarks)
-                embeddings.append(embedding)
+        for frame in frames():
+            for points in self.landmarks(frame):
+                aligned = self.aligned(frame, points)
+                tensor = cv2.dnn.blobFromImage(
+                    aligned, 1 / 127.5, (112, 112), (127.5,) * 3, swapRB=True
+                )
+                embedding = self.recognizer.run(None, {self.rec_input: tensor})[0].ravel()
+                norm = np.linalg.norm(embedding)
+                if not np.isfinite(norm) or norm <= 0:
+                    raise ValueError("ArcFace trả vector không hợp lệ")
+                embeddings.append(embedding / norm)
         return embeddings
 
     def close(self) -> None:
-        self.cache.cleanup()
+        self.detector = self.recognizer = None
 
 
 def face_components(rows: list[Row], embeddings: list[list], threshold: float) -> list[list[Row]]:
@@ -560,10 +628,15 @@ def write_images(data_dir: Path, splits: SplitMap, seed: int, report: dict) -> P
         "Zalo↔FAS liên kết và Zalo không thấy mặt buộc test. FAS/RTFS test-only. Wild chỉ fit/LTT/test theo video; không chứng minh độc lập người giữa video.",
         "Quota khung không tương đương số người/video độc lập; không tự chứng nhận LTT. Không dùng điểm PAD/GenD để chia.",
         "",
-        "| Bộ | Tập | Mẫu | Thật | Giả | Nhóm |",
-        "|---|---|---:|---:|---:|---:|",
     ]
     for source, part in splits.items():
+        lines += [
+            f"## {source}",
+            "",
+            "| Bộ | Tập | Mẫu | Thật | Giả | Nhóm |",
+            "|---|---|---:|---:|---:|---:|",
+        ]
+        details = []
         folder = output / source
         folder.mkdir(parents=True, exist_ok=True)
         for split in SPLITS:
@@ -579,7 +652,8 @@ def write_images(data_dir: Path, splits: SplitMap, seed: int, report: dict) -> P
                 f"| {source} | {split} | {len(rows)} | {counts['0']} | {counts['1']} | {len({r['group_id'] for r in rows})} |"
             )
             attacks = dict(Counter(r["attack_type"] for r in rows))
-            lines.append(f"<!-- {source}/{split}: attacks={attacks} -->")
+            details.append(f"- {source}/{split}: attack_type={attacks}")
+        lines += ["", *details, ""]
         for split, field, targets, minimum in (
             ("calib_fit", "label", ("0", "1"), 100),
             (
@@ -629,6 +703,9 @@ def write_images(data_dir: Path, splits: SplitMap, seed: int, report: dict) -> P
         main_summary.read_text(encoding="utf-8")
         if main_summary.exists()
         else "# DATA-03 — thống kê chia tập\n"
+    )
+    content = content.replace(
+        "DATA-03 còn doing: chưa có phần ảnh;", "Phần ảnh có báo cáo riêng bên dưới;"
     )
     link = f"- Ảnh {key}: [{summary.name}]({summary.name})"
     if link not in content:

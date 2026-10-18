@@ -536,7 +536,7 @@ def write_splits(
         "Dồn quota mọi loại tấn công chính từ train sang calib_ltt ≥60, rồi từ train sang calib_fit ≥100/lớp; ưu tiên nhóm nhỏ, tie seed cấu hình, không tách nhóm/người, không đổi ViMD.",
         "ViMD mục tiêu một người/miền/tập (25% người mỗi tập), rất nhỏ; crosswalk đã xác minh có thể ưu tiên hơn cân bằng miền. Đã dùng 19 câu báo cáo VOICE-04, không chỉnh ngưỡng.",
         "ViSpoofDB loại corpus.txt; giữ WAV và MP3. Dữ liệu test không dùng chọn mô hình/ngưỡng.",
-        "DATA-03 còn doing: chưa có phần ảnh; quota còn thiếu sau khi dồn phải ghi rõ, không tự chứng nhận LTT.",
+        "Phần ảnh có báo cáo riêng bên dưới; quota còn thiếu sau khi dồn phải ghi rõ, không tự chứng nhận LTT.",
         "",
         "## Kiểm hash",
         "",

@@ -22,6 +22,14 @@ Giữ nguyên thông báo Apache-2.0 khi phân phối. Sau này gộp mô hình 
 
 ## FACE-01
 
+DATA-03 `scripts/make_image_splits.py` tham chiếu/viết lại tiền xử lý và giải mã
+SCRFD, chuẩn RGB/127,5 và 5 mốc ArcFace từ UniFace 4.0.0 (MIT, Copyright
+2025-2026 Yakhyokhuja Valikhujaev), nguồn ghim
+[`fb5a1983ecce94c651c519f82dc049fc5325564a`](https://github.com/yakhyo/uniface/tree/fb5a1983ecce94c651c519f82dc049fc5325564a).
+Loader chạy ONNX trực tiếp, không import UniFace/SciPy; similarity transform
+giải least-squares 5 điểm bằng NumPy. Giữ thông báo ở đầu file; giấy phép nguyên
+văn tại `licenses/uniface.txt`. ArcFace/SCRFD weights chỉ nghiên cứu phi thương mại.
+
 | Nguồn | Giấy phép | Chép vào đâu | Đã sửa gì | Task |
 |---|---|---|---|---|
 | [uniface](https://github.com/yakhyo/uniface) 4.0.0 — `spoofing/minifasnet.py` (tiền xử lý cắt theo `scale`, softmax), `detection/scrfd.py` và `common.py` (letterbox, giải mã anchor, NMS) | MIT, Copyright 2025-2026 Yakhyokhuja Valikhujaev | `ml/src/vericlue_ml/face/pad.py` (viết lại gọn; docstring giữ nguồn và giấy phép) | Chạy `onnxruntime` trực tiếp từ `MODELS_DIR`, kiểm SHA-256, không tải mạng; không phụ thuộc `uniface`. Điểm p_real đã đối chiếu với `uniface` gốc trên 4 khung hình, khớp tới 6 chữ số. Văn bản giấy phép: `third_party/licenses/uniface.txt` | FACE-01 |
