@@ -7,9 +7,9 @@ nên tên trường được ghi ở đây và ở camprobe.ts (đề xuất si�
 Luật (thẻ PRES-03, ADR-0007):
 1. `api_tamper_flags` khác rỗng → fail.
 2. Với mỗi lần thăm dò `applyConstraints` đã thành công: phản hồi < MIN_APPLY_CONSTRAINTS_MS mà
-   `getSettings()` không đổi, hoặc kích thước khung thật ĐO ĐƯỢC mà không đổi → fail. Thăm dò thất bại
-   (thiết bị không hỗ trợ độ phân giải đó, ok=false) hoặc không đo được khung (null) bị bỏ qua, KHÔNG
-   phải bằng chứng can thiệp. Giới hạn đã biết: camera ảo từ chối mọi `exact` không bị bắt ở luật này.
+   `getSettings()` không đổi → fail; `getSettings()` báo ĐÃ đổi mà kích thước khung thật ĐO ĐƯỢC không
+   đổi → fail. Thăm dò thất bại (thiết bị không hỗ trợ độ phân giải đó, ok=false), khung chưa đổi mà
+   `getSettings()` cũng không đổi, hoặc không đo được khung (null) bị bỏ qua, KHÔNG phải bằng chứng. Giới hạn đã biết: camera ảo từ chối mọi `exact` không bị bắt ở luật này.
 3. `duplicate_frame_ratio` > MAX_DUPLICATE_FRAME_RATIO → fail.
 4. Tên thiết bị chứa "virtual", "obs", "dummy", "manycam" → chỉ là bằng chứng phụ, KHÔNG fail một mình
    (tên rất dễ giả).
@@ -92,9 +92,11 @@ def _probe_failures(probe: dict[str, Any]) -> list[str]:
     settings_changed = probe.get("settings_changed") is True
     if apply_ms is not None and apply_ms < MIN_APPLY_CONSTRAINTS_MS and not settings_changed:
         failures.append("fast_apply_constraints")
-    # Chỉ khi ĐO ĐƯỢC mà khung không đổi (False). Thiếu hoặc null = không đo được khung (ví dụ
-    # <video> ẩn không nhận khung trên iOS): không phải bằng chứng, tránh fail oan người thật.
-    if probe.get("frame_size_changed") is False:
+    # Chỉ fail khi getSettings() báo ĐÃ đổi (settings_changed) mà khung thật ĐO ĐƯỢC không đổi sau thời
+    # gian chờ (frame_size_changed=False): dấu hiệu giả thông số. Khung chưa đổi mà getSettings() cũng không
+    # đổi, hoặc không đo được khung (null/thiếu, ví dụ <video> ẩn trên iOS) KHÔNG phải bằng chứng: tránh
+    # fail oan người thật. Trường frame_wait_ms (thời gian đã chờ) chỉ để người duyệt tham khảo.
+    if settings_changed and probe.get("frame_size_changed") is False:
         failures.append("frame_size_unchanged")
     return failures
 

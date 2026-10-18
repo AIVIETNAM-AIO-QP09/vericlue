@@ -75,6 +75,8 @@ export const vi = {
       start: "Bắt đầu",
       stop: "Dừng",
       running: "Giữ yên khuôn mặt...",
+      holdTitle: "Giữ yên",
+      hold: "Nhìn thẳng vào camera và giữ yên khuôn mặt khoảng 3 giây.",
     },
     uploading: "Đang gửi, vui lòng chờ...",
     result: {

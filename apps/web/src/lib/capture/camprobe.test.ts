@@ -393,7 +393,9 @@ describe("probeConstraints", () => {
       expect(probe.settings_after).toEqual({ width: 1280, height: 720 });
       // Khung vẫn là 1280x720 sau thời gian chờ tối đa.
       expect(probe.frame_size_after).toEqual({ width: 1280, height: 720 });
-      expect(probe.frame_size_changed).toBe(false);
+      // settings không đổi và khung không đổi: không kết luận được.
+      expect(probe.frame_size_changed).toBeNull();
+      expect(probe.frame_wait_ms).toBeGreaterThanOrEqual(FRAME_SIZE_SETTLE_MS);
     }
   });
 
@@ -439,6 +441,71 @@ describe("probeConstraints", () => {
     expect(probes[0].frame_size_changed).toBe(false);
   });
 
+  it("frame_size_changed=false CHỈ khi khung đo được không khớp VÀ settings_changed=true", async () => {
+    const video = { videoWidth: 1280, videoHeight: 720 };
+    const { track } = makeTrack({ width: 1280, height: 720 }, video, { reflectFrame: false });
+    const probes = await run(track, video);
+    for (const probe of probes) {
+      expect(probe.settings_changed).toBe(true);
+      expect(probe.frame_size_after).toEqual({ width: 1280, height: 720 });
+      expect(probe.frame_size_changed).toBe(false);
+    }
+  });
+
+  it("khung khớp → frame_size_changed=true dù settings_changed=false", async () => {
+    const video = { videoWidth: 1280, videoHeight: 720 };
+    const { track } = makeTrack({ width: 1280, height: 720 }, video, { reflectSettings: false });
+    const probes = await run(track, video);
+    expect(probes[0].settings_changed).toBe(false);
+    expect(probes[0].frame_size_changed).toBe(true);
+  });
+
+  it("khung chưa đổi và settings không đổi → null", async () => {
+    const video = { videoWidth: 1280, videoHeight: 720 };
+    const { track } = makeTrack({ width: 1280, height: 720 }, video, {
+      reflectSettings: false,
+      reflectFrame: false,
+    });
+    const probes = await run(track, video);
+    for (const probe of probes) {
+      expect(probe.settings_changed).toBe(false);
+      expect(probe.frame_size_changed).toBeNull();
+    }
+  });
+
+  it("không đo được khung (videoWidth=0) nhưng settings đổi → null", async () => {
+    const video = { videoWidth: 0, videoHeight: 0 };
+    const { track } = makeTrack({ width: 1280, height: 720 }, video, { reflectFrame: false });
+    const probes = await run(track, video);
+    expect(probes[0].settings_changed).toBe(true);
+    expect(probes[0].frame_size_after).toBeNull();
+    expect(probes[0].frame_size_changed).toBeNull();
+  });
+
+  it("frame_wait_ms: null khi applyConstraints bị từ chối", async () => {
+    const video = { videoWidth: 1280, videoHeight: 720 };
+    const { track } = makeTrack({ width: 1280, height: 720 }, video, { reject: true });
+    const probes = await run(track, video);
+    for (const probe of probes) expect(probe.frame_wait_ms).toBeNull();
+  });
+
+  it("frame_wait_ms: 0 khi khung đổi ngay", async () => {
+    const video = { videoWidth: 1280, videoHeight: 720 };
+    const { track } = makeTrack({ width: 1280, height: 720 }, video);
+    const probes = await run(track, video);
+    for (const probe of probes) expect(probe.frame_wait_ms).toBe(0);
+  });
+
+  it("frame_wait_ms: chạm hạn FRAME_SIZE_SETTLE_MS khi khung không bao giờ đổi", async () => {
+    const video = { videoWidth: 1280, videoHeight: 720 };
+    const { track } = makeTrack({ width: 1280, height: 720 }, video, { reflectFrame: false });
+    const probes = await run(track, video);
+    for (const probe of probes) {
+      expect(probe.frame_wait_ms).toBeGreaterThanOrEqual(FRAME_SIZE_SETTLE_MS);
+      expect(probe.frame_wait_ms).toBeLessThanOrEqual(FRAME_SIZE_SETTLE_MS + 100);
+    }
+  });
+
   it("khung đổi kích thước muộn (sau 200 ms) vẫn được đo là đã đổi", async () => {
     const video = { videoWidth: 1280, videoHeight: 720 };
     const { track } = makeTrack({ width: 1280, height: 720 }, video, { reflectFrame: false });
@@ -455,6 +522,8 @@ describe("probeConstraints", () => {
     })();
     expect(probes[0].frame_size_after).toEqual({ width: 640, height: 480 });
     expect(probes[0].frame_size_changed).toBe(true);
+    expect(probes[0].frame_wait_ms).toBeGreaterThanOrEqual(200);
+    expect(probes[0].frame_wait_ms).toBeLessThanOrEqual(300);
   });
 });
 

@@ -32,7 +32,12 @@ import {
   retryMessage,
   unsupportedReason,
 } from "@/lib/capture/messages";
-import { type VideoClip, captureJpeg, startVideoClip } from "@/lib/capture/media";
+import { VIDEO_CLIP_MS, type VideoClip, startVideoClip } from "@/lib/capture/media";
+import {
+  type NeutralCapture,
+  captureNeutralMedia,
+  captureThenFlash,
+} from "@/lib/capture/mediaPhase";
 import { sendVoiceAnswer, startSession, uploadAndFinalize } from "@/lib/capture/runner";
 import { resolveScenario } from "@/lib/capture/scenario";
 import { VOICE_MAX_MS, VoiceRecorder } from "@/lib/capture/voiceRecorder";
@@ -72,10 +77,10 @@ export function VerifyFlow() {
   const lifeAbortRef = useRef<AbortController | null>(null); // hủy mọi lời gọi API khi rời trang
   const flashAbortRef = useRef<AbortController | null>(null); // nút Dừng lúc nháy màu
   const signalsRef = useRef<Signals | null>(null);
-  // Ảnh và video thật chụp lúc bấm "Bắt đầu" ở bước nháy màu (màn hình chưa đổi màu nên ảnh không bị ám màu).
-  const imageRef = useRef<Blob | null>(null);
-  const clipRef = useRef<VideoClip | null>(null);
-  // CamProbe chạy nền ngay khi có luồng camera; kết quả (hoặc null nếu lỗi) được ghép vào signals.
+  // Ảnh + clip 3 giây quay TRƯỚC khi nháy màu, lúc màn hình còn trung tính (mặt không bị ám màu).
+  const captureRef = useRef<NeutralCapture | null>(null);
+  // CamProbe chạy SAU khi đã chụp ảnh + quay clip (thăm dò applyConstraints có thể hạ độ phân giải nguồn);
+  // kết quả (hoặc null nếu lỗi/quá hạn) được ghép vào signals.
   const camProbeRef = useRef<Promise<CamProbe | null> | null>(null);
   const recorderRef = useRef<VoiceRecorder | null>(null);
   const voiceClipRef = useRef<VideoClip | null>(null);
@@ -86,6 +91,7 @@ export function VerifyFlow() {
   const runCounterRef = useRef(0);
   const previousStepRef = useRef<FlowState["step"] | null>(null);
   const [flashing, setFlashing] = useState(false);
+  const [holding, setHolding] = useState(false); // đang giữ yên để chụp ảnh + quay clip (chưa nháy màu)
   const [recording, setRecording] = useState(false);
   const [voiceProblem, setVoiceProblem] = useState<VoiceProblem>(null);
 
@@ -136,7 +142,6 @@ export function VerifyFlow() {
     // Rời trang hoặc đưa vào bộ nhớ đệm: tắt camera và hủy lời gọi ngay (cleanup có thể không kịp chạy).
     const onPageHide = () => {
       flashAbortRef.current?.abort();
-      clipRef.current?.stop();
       resetVoice();
       stopStream();
     };
@@ -159,7 +164,6 @@ export function VerifyFlow() {
       aliveRef.current = false;
       lifeAbortRef.current?.abort();
       flashAbortRef.current?.abort();
-      clipRef.current?.stop();
       resetVoice();
       stopStream();
     };
@@ -184,12 +188,21 @@ export function VerifyFlow() {
     }
     if (streamRef.current && streamRef.current !== stream) stopTracks(streamRef.current);
     streamRef.current = stream;
-    // CamProbe (CAP-05) chạy nền trên bản sao track; lỗi thì để null (thiếu tín hiệu → máy chủ ra "review").
+    // Luồng mới: CamProbe cũ không còn đúng. Chỉ bắt đầu lại sau khi chụp ảnh (startCamProbe).
     camProbeAbortRef.current?.abort();
+    camProbeAbortRef.current = null;
+    camProbeRef.current = null;
+    return true;
+  }, []);
+
+  // CamProbe (CAP-05) chạy trên bản sao track, SAU khi đã chụp ảnh + quay clip. Lỗi/quá hạn thì null
+  // (thiếu tín hiệu → máy chủ ra "review", không bao giờ "pass").
+  const startCamProbe = useCallback(() => {
+    const stream = streamRef.current;
+    if (!stream || camProbeRef.current) return;
     const probeAbort = new AbortController();
     camProbeAbortRef.current = probeAbort;
     camProbeRef.current = collectCamProbe(stream, { signal: probeAbort.signal }).catch(() => null);
-    return true;
   }, []);
 
   // Mỗi trạng thái (một đối tượng riêng cho mỗi lần vào bước) chỉ khởi chạy việc bất đồng bộ một lần,
@@ -294,15 +307,17 @@ export function VerifyFlow() {
     if (state.step !== "uploading") return;
     if (!startOnce(state)) return; // gửi MỘT lần: gửi hai lần có thể bị 409 ở lần finalize thứ hai
     const signals = signalsRef.current;
-    const image = imageRef.current;
+    const captured = captureRef.current;
     const session = state.session;
     const run =
-      signals && image
-        ? (async () => {
+      signals && captured
+        ? uploadAndFinalize(
+            deps,
+            session,
             // Video là trường tùy chọn: không ghi được thì vẫn gửi ảnh.
-            const video = (await clipRef.current?.done) ?? undefined;
-            return uploadAndFinalize(deps, session, { image, signals, video }, apiSignal());
-          })()
+            { image: captured.image, signals, video: captured.clip ?? undefined },
+            apiSignal(),
+          )
         : Promise.resolve({ type: "FAILED", kind: "unexpected", run: session.run } as const);
     void run.then((event) => {
       if (aliveRef.current) send(event);
@@ -353,48 +368,50 @@ export function VerifyFlow() {
       return;
     }
     const config = configForChallenge(session.challenge);
-    // Còn đủ thời gian để nháy xong và gửi? Không đủ thì tạo phiên mới NGAY, không nháy rồi mới bỏ.
-    if (!hasTimeToFlash(session, deps.monoMs(), buildTimeline(steps, config).totalMs)) {
+    // Còn đủ thời gian để giữ yên (clip), nháy xong và gửi? Không đủ thì tạo phiên mới NGAY.
+    const flashMs = buildTimeline(steps, config).totalMs;
+    if (!hasTimeToFlash(session, deps.monoMs(), VIDEO_CLIP_MS + flashMs)) {
       expire(session.run);
       return;
     }
     if (flashStartedRef.current) return; // bấm Bắt đầu hai lần: chỉ chạy một lần
     flashStartedRef.current = true;
-    // Chụp ảnh thật NGAY khi bấm (màn hình chưa phủ màu nên mặt không bị ám màu) và ghi ~3 giây video.
+    const abort = new AbortController();
+    flashAbortRef.current = abort;
+    captureRef.current = null;
+    setHolding(true);
+    // Thứ tự (quyết định trưởng nhóm): ảnh → clip 3 giây → MỚI nháy màu. Quay clip lúc màn hình đổi màu
+    // làm mặt bị ám màu và bộ phát hiện deepfake khuôn mặt (ưu tiên đọc video) chấm sai.
     // ChromaPulse là tín hiệu phụ ở hồ sơ mvp (ADR-0012), nên `capture_at_ms` của máy chủ chưa dùng.
-    try {
-      imageRef.current = await captureJpeg(video);
-    } catch {
-      flashStartedRef.current = false;
-      if (aliveRef.current) send({ type: "FAILED", kind: "unexpected", run: session.run });
-      return;
-    }
-    // Rời trang hoặc bắt đầu lại trong lúc chụp: không nháy màu nữa.
-    if (!aliveRef.current || stateRef.current.step !== "flash_challenge") {
-      flashStartedRef.current = false;
-      return;
-    }
-    clipRef.current?.stop();
-    clipRef.current = streamRef.current ? startVideoClip(streamRef.current) : null;
-    flashAbortRef.current = new AbortController();
-    setFlashing(true);
-    let trial: Awaited<ReturnType<typeof runTrial>>;
-    try {
-      trial = await runTrial({
-        video,
-        sampler: NO_SAMPLER,
-        steps,
-        config,
-        signal: flashAbortRef.current.signal,
-        onColor: (rgb) => {
-          if (colorLayerRef.current)
-            colorLayerRef.current.style.backgroundColor = `rgb(${rgb.join(",")})`;
+    const runPhases = () =>
+      captureThenFlash({
+        capture: () =>
+          captureNeutralMedia({ video, stream: streamRef.current, signal: abort.signal }),
+        flash: (captured) => {
+          captureRef.current = captured;
+          startCamProbe(); // sau khi chụp xong: không làm hạ độ phân giải ảnh
+          setHolding(false);
+          setFlashing(true);
+          return runTrial({
+            video,
+            sampler: NO_SAMPLER,
+            steps,
+            config,
+            signal: abort.signal,
+            onColor: (rgb) => {
+              if (colorLayerRef.current)
+                colorLayerRef.current.style.backgroundColor = `rgb(${rgb.join(",")})`;
+            },
+          });
         },
       });
+    let outcome: Awaited<ReturnType<typeof runPhases>>;
+    try {
+      outcome = await runPhases();
     } catch {
       flashStartedRef.current = false;
-      clipRef.current?.stop();
       if (aliveRef.current) {
+        setHolding(false);
         setFlashing(false); // không để màn hình nháy kẹt
         send({ type: "FAILED", kind: "unexpected", run: session.run });
       }
@@ -402,13 +419,16 @@ export function VerifyFlow() {
     }
     flashStartedRef.current = false;
     if (!aliveRef.current) return;
+    setHolding(false);
     setFlashing(false);
-    if (trial.aborted) {
-      clipRef.current?.stop();
-      send({ type: trial.hiddenDuringTrial ? "FLASH_INTERRUPTED" : "FLASH_STOPPED" });
+    // Bị hủy lúc giữ yên (chưa nháy) hoặc lúc nháy.
+    if (outcome === null || outcome.flash.aborted) {
+      const hidden = outcome?.flash.hiddenDuringTrial ?? document.visibilityState !== "visible";
+      send({ type: hidden ? "FLASH_INTERRUPTED" : "FLASH_STOPPED" });
       return;
     }
-    // CamProbe đã chạy nền từ lúc có camera; thường xong trước khi nháy màu kết thúc.
+    const { captured, flash: trial } = outcome;
+    // CamProbe bắt đầu ngay sau khi chụp xong nên thường đã xong trước khi nháy màu kết thúc; có hạn 8 giây.
     const camprobe = await camProbeRef.current;
     if (!aliveRef.current) return;
     // TẠM — CAP-04 thay bằng tín hiệu đầy đủ (frame_times, region_means).
@@ -416,9 +436,17 @@ export function VerifyFlow() {
       color_events: trial.colorEvents,
       frame_times: [],
       ...(camprobe ? { camprobe } : {}),
+      // Kích thước ảnh thật đã gửi (ảnh bị hạ độ phân giải sẽ thấy ở đây); schema: client_quality là object tự do.
+      client_quality: {
+        image_width: captured.imageSize.width,
+        image_height: captured.imageSize.height,
+        source_width: captured.sourceSize.width,
+        source_height: captured.sourceSize.height,
+        video_recorded: captured.clip !== null,
+      },
     };
     send({ type: "FLASH_DONE" });
-  }, [state, deps, expire, send]);
+  }, [state, deps, expire, send, startCamProbe]);
 
   const continueRetry = useCallback(() => {
     if (state.step !== "retry") return;
@@ -595,7 +623,27 @@ export function VerifyFlow() {
       )}
       {state.step === "creating_session" && <p role="status">{t.creating}</p>}
 
-      {state.step === "flash_challenge" && !flashing && (
+      {state.step === "flash_challenge" && holding && (
+        <section
+          className="flex flex-col gap-3 rounded border p-4"
+          role="status"
+          aria-live="polite"
+        >
+          <h2 className="text-lg font-semibold" tabIndex={-1} data-step-heading>
+            {t.flash.holdTitle}
+          </h2>
+          <p className="text-lg">{t.flash.hold}</p>
+          <button
+            type="button"
+            onClick={() => flashAbortRef.current?.abort()}
+            className="rounded border px-4 py-2"
+          >
+            {t.flash.stop}
+          </button>
+        </section>
+      )}
+
+      {state.step === "flash_challenge" && !flashing && !holding && (
         <section className="flex flex-col gap-3 rounded border p-4">
           <h2 className="text-lg font-semibold" tabIndex={-1} data-step-heading>
             {t.flash.title}

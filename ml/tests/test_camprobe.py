@@ -163,11 +163,31 @@ def test_apply_nhanh_nhung_settings_doi_thi_khong_fail_luat_apply():
     assert_pass(r)
 
 
-def test_ca_hai_luat_probe_cung_hong_thi_co_hai_bang_chung():
-    r = run(real_camprobe(constraint_probes=[probe(1.0, settings=False, size=False)]))
+def test_hai_probe_hong_hai_luat_khac_nhau_thi_co_hai_bang_chung():
+    # Hai luật loại trừ nhau trên một probe (cần settings_changed False / True), nên dùng hai probe.
+    fast = probe(1.0, settings=False, size=False)
+    spoofed = probe(100.0, settings=True, size=False)
+    r = run(real_camprobe(constraint_probes=[fast, spoofed]))
     assert_fail(r)
     assert len(names(r, "constraint_probe")) == 2
     assert r.quality["failed_rules"] == 2.0
+
+
+def test_khung_chua_doi_nhung_getsettings_cung_khong_doi_thi_khong_fail():
+    # Hết thời gian chờ mà khung chưa đổi, getSettings() cũng không báo đổi: không kết luận, không fail oan.
+    p = probe(100.0, settings=False, size=False)
+    p["frame_wait_ms"] = 1200
+    r = run(real_camprobe(constraint_probes=[p]))
+    assert_pass(r)
+    assert not names(r, "constraint_probe")
+
+
+def test_getsettings_bao_doi_nhung_khung_that_khong_doi_thi_fail():
+    p = probe(100.0, settings=True, size=False)
+    p["frame_wait_ms"] = 1200
+    r = run(real_camprobe(constraint_probes=[p]))
+    assert_fail(r)
+    assert names(r, "constraint_probe")[0].value.startswith("frame_size_unchanged")
 
 
 def test_mot_probe_hong_trong_nhieu_probe_van_fail():

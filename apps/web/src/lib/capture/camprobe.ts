@@ -22,9 +22,13 @@ export type ConstraintProbe = {
   frame_size_after: { width: number; height: number } | null;
   /**
    * Kích thước khung thật có đổi theo yêu cầu không (so không phân biệt xoay dọc/ngang).
-   * null = không đo được khung (ví dụ <video> ẩn không nhận khung): KHÔNG phải bằng chứng.
+   * true = đã đổi. false = getSettings() báo ĐÃ đổi mà khung thật không đổi sau FRAME_SIZE_SETTLE_MS
+   * (dấu hiệu giả thông số). null = không kết luận được (không đo được khung, hoặc khung chưa đổi
+   * nhưng getSettings() cũng không đổi): KHÔNG phải bằng chứng.
    */
   frame_size_changed: boolean | null;
+  /** Thời gian đã chờ khung đổi kích thước (ms); null nếu không chờ (applyConstraints bị từ chối). */
+  frame_wait_ms: number | null;
 };
 
 export type CamProbe = {
@@ -176,17 +180,18 @@ function sleep(ms: number): Promise<void> {
 async function measureFrameSize(
   video: HTMLVideoElement,
   want: { width: number; height: number },
-): Promise<{ width: number; height: number } | null> {
-  const deadline = performance.now() + FRAME_SIZE_SETTLE_MS;
+): Promise<{ size: { width: number; height: number } | null; waitedMs: number }> {
+  const startedAt = performance.now();
+  const deadline = startedAt + FRAME_SIZE_SETTLE_MS;
   let last: { width: number; height: number } | null = null;
   while (performance.now() < deadline) {
     if (video.videoWidth > 0 && video.videoHeight > 0) {
       last = { width: video.videoWidth, height: video.videoHeight };
-      if (sameSize(last, want)) return last;
+      if (sameSize(last, want)) break;
     }
     await sleep(50);
   }
-  return last;
+  return { size: last, waitedMs: Math.round(performance.now() - startedAt) };
 }
 
 /** Thăm dò `applyConstraints` bằng `exact`: thiết bị thật phải đổi cả getSettings() lẫn khung hình. */
@@ -211,7 +216,9 @@ export async function probeConstraints(
     const applyMs = performance.now() - startedAt;
     const after = dimensionsOf(track.getSettings());
     const settingsChanged = sameSize(after, requested);
-    const frame = ok ? await measureFrameSize(video, requested) : null;
+    const measured = ok ? await measureFrameSize(video, requested) : null;
+    const frame = measured?.size ?? null;
+    const frameMatched = frame !== null && sameSize(frame, requested);
     probes.push({
       kind: "resolution",
       requested: { width: requested.width, height: requested.height },
@@ -221,8 +228,10 @@ export async function probeConstraints(
       settings_after: after,
       settings_changed: settingsChanged,
       frame_size_after: frame,
-      // Không đo được khung → null (không phải bằng chứng can thiệp).
-      frame_size_changed: frame === null ? null : sameSize(frame, requested),
+      // Chỉ false khi getSettings() báo đã đổi mà khung thật không đổi; còn lại không kết luận (null).
+      frame_size_changed:
+        frame === null ? null : frameMatched ? true : settingsChanged ? false : null,
+      frame_wait_ms: measured?.waitedMs ?? null,
     });
   }
   return probes;
