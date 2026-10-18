@@ -53,8 +53,8 @@ def load_audio(path: Path, *, max_seconds: float = 120) -> np.ndarray:
     return np.asarray(audio, dtype=np.float32)
 
 
-def trim_silence(audio: np.ndarray, *, mode: int = 1) -> np.ndarray:
-    """WebRTC PCM16 20 ms; trim outer silence, preserve internal gaps."""
+def speech_bounds(audio: np.ndarray, *, mode: int = 1) -> tuple[int, int]:
+    """WebRTC PCM16 20 ms; return padded outer speech bounds, preserving internal gaps."""
     import webrtcvad
 
     vad = webrtcvad.Vad(mode)
@@ -70,7 +70,13 @@ def trim_silence(audio: np.ndarray, *, mode: int = 1) -> np.ndarray:
     if not spoken:
         raise SpeechNotFound("Không tìm thấy tiếng nói.")
     padding = 3200
-    return audio[max(0, spoken[0] - padding) : min(len(audio), spoken[-1] + frame + padding)]
+    return max(0, spoken[0] - padding), min(len(audio), spoken[-1] + frame + padding)
+
+
+def trim_silence(audio: np.ndarray, *, mode: int = 1) -> np.ndarray:
+    """Trim using explicit speech indices; preserve the original view-based API."""
+    start, end = speech_bounds(audio, mode=mode)
+    return audio[start:end]
 
 
 class PhoWhisperASR:

@@ -34,7 +34,12 @@ class FakeBackend:
 def decoded(monkeypatch):
     def configure(waveform, trim=None):
         monkeypatch.setattr(anti, "load_audio", lambda _path: np.array(waveform, copy=True))
-        monkeypatch.setattr(anti, "trim_silence", trim or (lambda values, **_kwargs: values))
+
+        def bounds(values, **kwargs):
+            trimmed = trim(values, **kwargs) if trim is not None else values
+            return 0, len(trimmed)
+
+        monkeypatch.setattr(anti, "speech_bounds", bounds)
 
     return configure
 

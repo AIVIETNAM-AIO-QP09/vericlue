@@ -86,7 +86,7 @@ backend ánh xạ trên những window này; không chứng minh EER hay calibra
   và giữ phần tải hoàn tất để tiếp tục sau. Không coi hỗ trợ code là GPU đã nghiệm thu.
 - Decoder giới hạn120 s mỗi predict để chặn input quá lớn; FOR-01 chia đoạn dài.
 - CPU chậm, file dài/queue có thể vượt budget API 4 s; timeout do orchestrator xử lý,
-  không dùng kết quả muộn để pass. API Settings preload và mixedintegration do PRsau.
+  không dùng kết quả muộn để pass. API đã truyền Settings.models_dir vào preload; mixed cần cả extra face và voice.
 - Thiếu/corrupt model, thiếu dependency, lỗi/OOM hoặc outputNaN → error, không mockfallback.
 - Im lặng/<1s → not_applicable. Không sinh R3, không fit/chọn trên calib_ltt/test.
 

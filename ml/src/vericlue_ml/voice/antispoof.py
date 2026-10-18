@@ -41,7 +41,7 @@ import yaml
 
 from vericlue_ml.common.detector import DetectorInput
 from vericlue_ml.common.result import ErrorCode, Evidence, ModuleResult, Status
-from vericlue_ml.voice.asr import DecodeError, SpeechNotFound, trim_silence
+from vericlue_ml.voice.asr import DecodeError, SpeechNotFound, speech_bounds
 
 logger = logging.getLogger(__name__)
 SAMPLE_RATE = 16000
@@ -82,7 +82,9 @@ def _configuration() -> dict:
 
 
 def _root(models_dir: Path | None) -> Path:
-    return Path(models_dir or os.getenv("MODELS_DIR") or "models").expanduser().resolve()
+    repo = Path(__file__).resolve().parents[4]
+    root = Path(models_dir or os.getenv("MODELS_DIR") or "models").expanduser()
+    return (root if root.is_absolute() else repo / root).resolve()
 
 
 def _mapped_key(key: str, targets: dict[str, tuple]) -> str | None:
@@ -177,13 +179,21 @@ class TorchAntiDeepfakeBackend:
         self._lock = threading.RLock()
         self._failure: Exception | None = None
 
-    def preload(self) -> None:
+    def preload(self, *, models_dir: Path | None = None) -> None:
         """No network/from_pretrained/remote code; checksum and strict load are mandatory."""
         with self._lock:
             if self._failure is not None:
                 raise ModelLoadError(
                     "Backend preload previously failed; restart required"
                 ) from self._failure
+            if models_dir is not None:
+                target = _root(models_dir)
+                if self.model is not None and target != self.models_dir:
+                    raise ModelLoadError(
+                        "Backend already loaded with another MODELS_DIR; restart required"
+                    )
+                self.models_dir = target
+                self.model_dir = target / self.config.get("model_subdir", "antideepfake-mms300m")
             if self.model is not None:
                 return
             try:
@@ -283,15 +293,11 @@ def _prepare_audio(path: Path) -> tuple[np.ndarray, float, float]:
     original = load_audio(path)
     if len(original) < SAMPLE_RATE:
         raise SpeechNotFound("Audio shorter than one second")
-    audio = trim_silence(original)
+    start, end = speech_bounds(original)
+    audio = original[start:end]
     if len(audio) < SAMPLE_RATE:
         raise SpeechNotFound("Speech after outer-silence trim is shorter than one second")
-    offset = (
-        (audio.ctypes.data - original.ctypes.data) / original.itemsize / SAMPLE_RATE
-        if np.shares_memory(audio, original)
-        else 0.0
-    )
-    return audio, len(original) / SAMPLE_RATE, offset
+    return audio, len(original) / SAMPLE_RATE, start / SAMPLE_RATE
 
 
 def preprocess_audio(path: Path) -> tuple[np.ndarray, float]:
@@ -351,18 +357,21 @@ class AntiDeepfakeDetector:
         self._failure: Exception | None = None
         self._lock = threading.RLock()
 
-    def preload(self) -> None:
+    def preload(self, *, models_dir: Path | None = None) -> None:
         """Load once; failure remains sticky until a new detector/process is constructed."""
         with self._lock:
             if self._failure is not None:
                 raise ModelLoadError(
                     "Detector preload previously failed; restart required"
                 ) from self._failure
-            if not self._preloaded:
+            if not self._preloaded or models_dir is not None:
                 try:
                     prepare = getattr(self._backend, "preload", None)
                     if prepare is not None:
-                        prepare()
+                        if models_dir is None:
+                            prepare()
+                        else:
+                            prepare(models_dir=models_dir)
                     self._preloaded = True
                 except Exception as exc:
                     self._failure = exc
