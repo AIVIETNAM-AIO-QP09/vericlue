@@ -617,6 +617,10 @@ def write_splits(
         "Đếm theo hệ TTS là kiểm bổ sung, không tự coi mọi TTS là một loại tấn công độc lập.",
         "Số mẫu đạt không tự bảo đảm chứng nhận LTT hay độc lập người xuyên bộ.",
     ]
+    lines += [
+        "",
+        *(f"- Ảnh: [{path.name}]({path.name})" for path in sorted(output.glob("SUMMARY-*.md"))),
+    ]
     summary = output / "SUMMARY.md"
     summary.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return summary
@@ -629,6 +633,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-dir", type=Path)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--only", nargs="+", help="Chọn bộ ảnh; mặc định giữ luồng âm thanh đã có")
+    parser.add_argument("--models-dir", type=Path, help="Kho ArcFace/SCRFD local cho DATA-03 ảnh")
     parser.add_argument(
         "--identity-links",
         type=Path,
@@ -652,6 +658,18 @@ def main(argv: list[str] | None = None) -> int:
     folder = folder.resolve()
     start = time.perf_counter()
     try:
+        if args.only:
+            from make_image_splits import IMAGE_DATASETS, run_images
+
+            if set(args.only) - set(IMAGE_DATASETS):
+                raise ValueError(f"--only ảnh hỗ trợ: {IMAGE_DATASETS}")
+            if args.identity_links or args.audit_hashes:
+                raise ValueError("--identity-links/--audit-hashes chỉ áp dụng luồng âm thanh")
+            models = args.models_dir or Path(os.environ.get("MODELS_DIR", "./models"))
+            if not models.is_absolute():
+                models = ROOT / models
+            run_images(folder, models.resolve(), args.only, args.seed)
+            return 0
         print("Đọc manifest và chia nhóm local...", flush=True)
         splits = build_splits(folder, args.seed, args.identity_links)
         print(f"Chia nhóm: {time.perf_counter() - start:.3f}s; audit hash local...", flush=True)

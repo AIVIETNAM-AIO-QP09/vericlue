@@ -143,7 +143,7 @@ manifest và biên nhận. `stored_bytes` ở đầu báo cáo cộng thêm cach
 dùng chung, không phải chỉ media. Dòng “Số byte lưu” trong SOURCE gồm media,
 metadata/archive và manifest, loại SOURCE.md, biên nhận `.verified.json` và file part.
 
-## Chia tập âm thanh local (DATA-03, phần ảnh chưa làm)
+## Chia tập âm thanh local (DATA-03)
 
 ```powershell
 uv sync --all-packages --group data
@@ -196,7 +196,64 @@ ViSpoofDB; phát hiện audio trùng byte ở tập khác test sẽ dừng để
 Hash bằng 0 không chứng minh khác người: có thể đổi định dạng/cắt audio.
 
 Mã thoát `0`: đã xuất split và cảnh báo quota; `1`: metadata/file/nhóm không hợp lệ.
-DATA-03 vẫn `doing`, phần ảnh và các quota còn thiếu được ghi trong bàn giao.
+Các quota còn thiếu được ghi trong bàn giao và SUMMARY; xem luồng ảnh bên dưới.
+
+## Chia tập ảnh local (DATA-03)
+
+```powershell
+uv sync --all-packages --group data --group data-image
+$env:DATA_DIR = 'D:\Projects\vericlue-store\data'
+$env:MODELS_DIR = 'D:\Projects\vericlue-store\models'
+uv run python scripts/download_models.py --only arcface-mnet
+uv run --group data --group data-image python scripts/make_splits.py --only zalo2022
+uv run --group data --group data-image python scripts/make_splits.py --only wilddeepfake
+uv run --group data --group data-image python scripts/make_splits.py --only rtfs10k vicocktail vn_celeb_faces
+uv run python scripts/audit_image_splits.py --data-dir $env:DATA_DIR
+```
+
+`--only` chọn bộ ảnh; không truyền vẫn chạy năm bộ âm thanh như trước.
+`--models-dir` ưu tiên hơn MODELS_DIR. `zalo2022` và `fas_vn` phải xử lý cùng
+nhau để giữ mọi liên kết xuyên bộ ở test; `vicocktail` và `vn_celeb_faces` cũng
+chạy cùng nhau. Không tải mạng trong bước chia tập. Cần weights ArcFace/SCRFD
+đúng SHA-256 manifest. UniFace 4.0.0 là dependency MIT, không chép code vào repo;
+trọng số ArcFace chỉ dùng nghiên cứu phi thương mại.
+
+- **Zalo:** nhãn gốc `liveness_score=1` là thật (`label=0`), `0` là giả (`label=1`).
+  Lấy 3 khung ở 15/50/85% mỗi video, SCRFD tìm mọi mặt, ArcFace căn chỉnh và
+  chuẩn hóa embedding. Union mọi cặp cosine ≥0,30; nếu component lớn nhất chứa
+  >30% video Zalo thì thử 0,35/0,40/0,45/0,50 theo thứ tự và báo mọi lần thử.
+  Vẫn >30% thì dừng. Chỉ xem phân bố component, không xem điểm PAD/GenD hoặc
+  kết quả test để chọn ngưỡng. Component liên kết FAS hoặc video không tìm được
+  mặt buộc test. Các nhóm còn lại chia 60/10/10/20 theo nhóm, rồi dồn nguyên nhóm
+  train cho LTT ≥60/attack và fit ≥100/lớp. `subject_id` luôn trống; nhóm tự động
+  có thể bỏ sót cùng người, không coi là danh tính đã xác minh.
+- **FAS-VN:** lấy nhãn thư mục live/not_live, không suy từ chữ trong filename.
+  Lọc ứng viên trùng bằng CRC/size rồi xác nhận SHA-256; mọi bản trùng byte
+  mang nhãn đối lập bị cách ly khỏi CSV. Báo danh sách/path/hash/lý do trong
+  SUMMARY. Phần hợp lệ chỉ test. ZIP gốc được giữ nguyên.
+- **WildDeepfake (ADR-0012):** dùng `video_groups.jsonl`, union `video_origin_id`
+  xuyên archive. Không train. Dành nguyên nhóm cho LTT ≥60/lớp rồi fit ≥100/lớp,
+  mục tiêu khoảng 10% nhóm mỗi phần; phần chưa gán mới được chốt thành test.
+  Có thể vượt quota do không bẻ nhóm. Subject chưa có để trống; cùng người ở
+  video khác vẫn là rủi ro. Quota khung không tương đương video/người độc lập.
+- **RTFS-10k:** test-only, union video YouTube gốc ∪ ảnh donor xuyên generator.
+- **DATA-04:** giữ nguyên mọi clip cùng video gốc ViCocktail và mọi ảnh cùng
+  nhãn người vn_celeb; ArcFace union thêm liên kết xuyên hai bộ (0,30).
+  Lấy ảnh/clip đầu, giữa, cuối theo path trong mỗi nhóm; mỗi clip lấy 3 khung.
+  Đây là nhóm rủi ro có lấy mẫu, không chứng minh khác người. DATA-04 chỉ ghép
+  mặt/video trong **cùng tập** và kế thừa tập của cả hai nguồn; không ghép xuyên tập.
+
+Các media trong archive/Parquet được giải nén dưới `raw/<bộ>/extracted/`,
+CSV tham chiếu file thật tương đối DATA_DIR, không dùng đường dẫn `zip::member`.
+Cần thêm dung lượng cho media giải nén bên cạnh archive. Không lưu embedding,
+không sửa/xóa nguồn gốc. Chạy lại giữ file giải nén có cùng size và xuất CSV
+theo seed 42. Summary ảnh riêng `SUMMARY-<bộ>.md` liên kết từ `SUMMARY.md`, giữ
+phần âm thanh. Không commit CSV, thống kê local hoặc media.
+
+Audit là script độc lập đọc lại CSV: rò người/nhóm, nhóm toàn cục xuyên bộ,
+file trùng, path/label/source, test-only/no-train và quota. Mã thoát 1 nếu có
+lỗi; quota bất khả thi chỉ cảnh báo kèm số nhóm train còn lại. Lưu ý: số đếm
+đủ không chứng minh điều kiện độc lập của Learn-then-Test.
 
 ### Zalo 2022 whole ZIP và phục hồi HTTP 416 (17/10)
 
