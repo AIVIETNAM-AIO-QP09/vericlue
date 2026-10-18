@@ -66,6 +66,8 @@ MAX_ABS_MEL = 4.0
 MAX_OFFSET_FRAMES = 15  # +/-600 ms at 25 fps, without leaving the aligned span.
 MAX_SYNC_WINDOWS = 4  # Bounded CPU work; evenly spaced anchors, not chosen by score.
 CPU_THREADS = 4
+CPU_AUDIO_BATCH_SIZE = 4
+GPU_AUDIO_BATCH_SIZE = 8
 MAX_VIDEO_SECONDS = 120.0
 MAX_DECODE_FRAMES = 36000
 MAX_RESAMPLE_ERROR_SECONDS = 1 / SYNCNET_FPS
@@ -173,6 +175,44 @@ def _window_starts(alignment: Alignment) -> list[int]:
     return starts
 
 
+def _audio_offset_embeddings(
+    backend: Any, mel: np.ndarray, starts: list[int]
+) -> dict[int, np.ndarray]:
+    """Validate every candidate first, then encode each unique mel column once."""
+    windows, offset_columns = {}, {}
+    for offset in range(-MAX_OFFSET_FRAMES, MAX_OFFSET_FRAMES + 1):
+        columns = []
+        for start in starts:
+            column = int((start + offset) * (AUDIO_SAMPLE_RATE / MEL_HOP_SAMPLES) / SYNCNET_FPS)
+            values = mel[:, column : column + MEL_WINDOW_COLUMNS]
+            if column < 0 or values.shape != (MEL_BANDS, MEL_WINDOW_COLUMNS):
+                raise SyncNetError(
+                    "Audio ends before aligned window", ErrorCode.E_LOW_QUALITY, "degraded"
+                )
+            columns.append(column)
+            windows.setdefault(column, values)
+        offset_columns[offset] = columns
+    if not windows:
+        raise ValueError("Missing audio windows")
+    batch = getattr(backend, "embed_audio_batch", None)
+    encoded = np.asarray(
+        batch(np.stack(list(windows.values())))
+        if callable(batch)
+        else np.stack([backend.embed_audio(values) for values in windows.values()]),
+        dtype=np.float64,
+    )
+    if encoded.ndim != 2 or encoded.shape[0] != len(windows) or not encoded.shape[1]:
+        raise ValueError("Invalid batched audio embedding shape")
+    norms = np.linalg.norm(encoded, axis=1)
+    if not np.isfinite(encoded).all() or not np.isfinite(norms).all() or np.any(norms <= 0):
+        raise ValueError("Invalid batched audio embeddings")
+    indices = {column: index for index, column in enumerate(windows)}
+    return {
+        offset: encoded[[indices[column] for column in columns]]
+        for offset, columns in offset_columns.items()
+    }
+
+
 def _face_crop(image: np.ndarray, finder: FaceFinder) -> np.ndarray:
     import cv2
 
@@ -268,7 +308,7 @@ def _read_windows(video: Path, starts: list[int], finder: FaceFinder) -> list[li
 
 
 class StableBackend:
-    """Local strict state-dict loading and single-window inference for bounded RAM."""
+    """Local strict loading with bounded audio minibatches and single video windows."""
 
     def __init__(self) -> None:
         self.model = None
@@ -326,13 +366,45 @@ class StableBackend:
             return normalize(embedding, dim=1)[0].cpu().numpy()
 
     def embed_audio(self, mel: np.ndarray) -> np.ndarray:
+        """Encode one mel window through the same bounded batch path."""
+        return self.embed_audio_batch(np.asarray(mel)[None])[0]
+
+    def embed_audio_batch(self, mels: np.ndarray) -> np.ndarray:
+        """Encode ordered mel candidates in small minibatches to bound activation RAM."""
+        values = np.asarray(mels, dtype=np.float32)
+        if (
+            values.ndim != 3
+            or not values.shape[0]
+            or values.shape[1:] != (MEL_BANDS, MEL_WINDOW_COLUMNS)
+            or not np.isfinite(values).all()
+        ):
+            raise ValueError("Expected finite nonempty [N, 80, 52] mel windows")
+        if self.model is None:
+            raise SyncNetError("Audio backend has not been preloaded")
         import torch
         from torch.nn.functional import normalize
 
-        tensor = torch.from_numpy(np.ascontiguousarray(mel))[None, None].to(self.device)
+        batch_size = (
+            GPU_AUDIO_BATCH_SIZE if self.device.startswith("cuda") else CPU_AUDIO_BATCH_SIZE
+        )
+        outputs = []
         with torch.inference_mode():
-            embedding = self.model.audio_encoder(tensor).flatten(1)
-            return normalize(embedding, dim=1)[0].cpu().numpy()
+            for start in range(0, len(values), batch_size):
+                chunk = values[start : start + batch_size]
+                tensor = torch.from_numpy(np.ascontiguousarray(chunk))[:, None].to(self.device)
+                embedding = self.model.audio_encoder(tensor).flatten(1)
+                output = normalize(embedding, dim=1).cpu().numpy()
+                if output.ndim != 2 or output.shape[0] != len(chunk) or not output.shape[1]:
+                    raise ValueError("Invalid audio encoder output shape")
+                norms = np.linalg.norm(output, axis=1)
+                if (
+                    not np.isfinite(output).all()
+                    or not np.isfinite(norms).all()
+                    or np.any(norms <= 0)
+                ):
+                    raise ValueError("Invalid audio encoder output")
+                outputs.append(output)
+        return np.concatenate(outputs, axis=0)
 
 
 class SyncNetDetector:
@@ -357,7 +429,7 @@ class SyncNetDetector:
         sync = _manifest_entry(SYNCNET_MODEL_ID, SYNCNET_FILE)["revision"][:8]
         ctc = _manifest_entry("ctc-aligner", "model.safetensors")["revision"][:8]
         scrfd = _manifest_entry(DETECTOR_MODEL_ID, DETECTOR_FILE)["revision"][:8]
-        self.version = f"stable-syncnet@{sync}+ctc-aligner@{ctc}+scrfd-10g@{scrfd}+voice05-v1"
+        self.version = f"stable-syncnet@{sync}+ctc-aligner@{ctc}+scrfd-10g@{scrfd}+voice05-v2"
         self._lock = threading.RLock()
         self._loaded = False
         self._device = "cpu"
@@ -430,24 +502,7 @@ class SyncNetDetector:
                 crops = _read_windows(inp.video, starts, self._finder)
                 mel = _mel_spectrogram(load_audio(inp.audio))
                 visual = np.stack([self._backend.embed_video(window) for window in crops])
-                audio_embeddings, cached = {}, {}
-                for offset in range(-MAX_OFFSET_FRAMES, MAX_OFFSET_FRAMES + 1):
-                    embeddings = []
-                    for start in starts:
-                        column = int(
-                            (start + offset) * (AUDIO_SAMPLE_RATE / MEL_HOP_SAMPLES) / SYNCNET_FPS
-                        )
-                        values = mel[:, column : column + MEL_WINDOW_COLUMNS]
-                        if column < 0 or values.shape != (MEL_BANDS, MEL_WINDOW_COLUMNS):
-                            raise SyncNetError(
-                                "Audio ends before aligned window",
-                                ErrorCode.E_LOW_QUALITY,
-                                "degraded",
-                            )
-                        if column not in cached:
-                            cached[column] = self._backend.embed_audio(values)
-                        embeddings.append(cached[column])
-                    audio_embeddings[offset] = np.stack(embeddings)
+                audio_embeddings = _audio_offset_embeddings(self._backend, mel, starts)
                 result = measure_sync(visual, audio_embeddings)
             evidence += [
                 Evidence(

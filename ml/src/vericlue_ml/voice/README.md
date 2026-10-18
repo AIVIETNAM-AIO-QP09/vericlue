@@ -116,8 +116,8 @@ không chọn mốc theo điểm. Đo trên timestamp từng khung, kể cả We
 gần nhất khi resample25fps, thiếu timestamp/không tăng hoặc cách quá40ms → degraded.
 Không nối các đoạn có khoảng nghỉ; giới hạn đọc120s/36.000frame.
 Đoạn quá ngắn để dò đầy đủ → degraded; không có video/mặt → not_applicable;
-thiếu prompt/audio, checksum sai hoặc inference lỗi → error. Các trạng thái này
-không được coi là đạt. Video bước giọng nói phải là video tải lên **lần đọc hiện
+thiếu prompt/audio, checksum sai hoặc inference lỗi → error. Kết quả được lưu nguyên trạng; full dùng các trạng thái này để review, MVP chỉ
+tham khảo và không coi lipsync là điều kiện quyết định (ADR-0012 §6). Video bước giọng nói phải là video tải lên **lần đọc hiện
 tại**, không lấy lại clip khuôn mặt ở bước trước.
 
 Evidence gồm `av_offset_ms` (dương = tiếng trễ), `sync_confidence` (cosine tại
@@ -157,3 +157,24 @@ Smoke nạp CTC rồi giải phóng trước khi nạp SyncNet để giảm RAM;
 thời gian từng pha, không phải độ trễ API đầu–cuối. Không in hoặc lưu transcript
 vào báo cáo; không commit media/JSON smoke. Nếu không có Torch CUDA thì chỉ báo
 CPU, không suy ra số GPU. Ghi nguồn clip, lệnh, commit và kết quả thực trong bàn giao.
+
+### Quyết định sau review — ADR-0012 §6
+
+MVP vẫn preload/chạy lipsync nhưng chỉ dùng voice_challenge + voice_spoof để
+quyết định. Kết quả lipsync giữ status/score/evidence gốc và nhãn chỉ tham khảo
+cho người duyệt; lỗi, không có mặt/video, timeout, điểm cao hoặc thiếu calibrator
+lipsync không tự chuyển phiên sang review. Cờ `splice_flags` vẫn có tác dụng sau
+khi câu đọc khớp; đọc sai câu được cấp lần đọc lại trước khi xét cờ. Full giữ
+lipsync là bước bắt buộc và vẫn review khi thiếu/lỗi/không áp dụng.
+
+**Bước giọng cần trình duyệt có MediaRecorder WebM.** Hiện web ghi video và WAV
+bằng hai bộ ghi khác nhau; độ lệch bắt đầu không biết trước nên chưa thể diễn giải
+độ lệch SyncNet là dấu hiệu giả. Việc tiếp theo là ghi video kèm track audio trong
+cùng một MediaRecorder (hoặc truyền độ lệch bắt đầu theo hợp đồng được duyệt),
+thử trên câu thật và nghiệm thu GPU trong ngân sách trước khi dùng lipsync quyết định.
+Câu ngắn dưới khoảng1,9s cũng chưa đủ cửa sổ dò lệch đầy đủ; CPU vượt trần4s sẽ timeout.
+
+Hậu tố pipeline `voice05-v2` ghi nhận thay đổi tiền xử lý và cách tính sau review;
+identity lipsync được sinh lại theo version này, không dùng artifact v1. Các cửa
+sổ mel duy nhất được gộp theo lô, tối đa4 trên CPU/8 trên GPU, vẫn giữ thứ tự
+mốc và offset. Giới hạn lô là hằng số có tên, không thay ngưỡng hoặc fit dữ liệu.

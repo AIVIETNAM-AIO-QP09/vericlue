@@ -136,7 +136,7 @@ bằng kết quả. Lỗi xử lý tính riêng và không được xem là đ�
 - [ ] Test: video lip-sync giả (DATA-04) có độ tin cậy SyncNet thấp hơn video thật (ghi số).
 
 **MVP đợt 2, 18/10:** đã cắm lõi CTC + stable SyncNet offline, lipsync trở lại
-hồ sơ MVP với identity tạm; cờ cắt ghép đi qua evidence của lipsync. Lượt thử tay
+hồ sơ MVP chạy tham khảo (ADR-0012 §6), identity v2 tạm; cờ cắt ghép đi qua evidence của lipsync. Lượt thử tay
 chỉ kiểm luồng trên một clip có sẵn, không fit/chia tập hoặc làm kết quả R. Task
 vẫn `doing`: chưa nghiệm thu tiêu chí DATA-04/độ chính xác ở trên. Xem
 [bàn giao VOICE-05](../../status/handoffs/2026-10-18-1247-voice-05-m4-codex.md).

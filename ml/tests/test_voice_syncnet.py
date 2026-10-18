@@ -165,7 +165,8 @@ def test_no_video_is_not_applicable_without_preload_decode_or_inference(pipeline
         for module in (Module.VOICE_CHALLENGE, Module.VOICE_SPOOF)
     }
     values[Module.LIPSYNC] = result
-    assert TrustRouter(profile="mvp").voice(values).status == "review"
+    assert TrustRouter(profile="mvp").voice(values).status == "pass"
+    assert TrustRouter(profile="full").voice(values).status == "review"
 
 
 @pytest.mark.parametrize("missing", ["audio", "prompt"])

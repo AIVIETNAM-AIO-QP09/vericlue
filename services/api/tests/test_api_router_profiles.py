@@ -150,7 +150,7 @@ def test_mvp_mock_citizen_flow_runs_face_then_voice_without_disabled_modules(mon
             assert set(state.sessions.get(sid).results) == MVP_MODULES
 
 
-@pytest.mark.parametrize("module", sorted(MVP_MODULES, key=str))
+@pytest.mark.parametrize("module", sorted(MVP_MODULES - {Module.LIPSYNC}, key=str))
 @pytest.mark.parametrize("status", [Status.ERROR, Status.DEGRADED, Status.NOT_APPLICABLE])
 def test_mvp_required_module_failure_always_reviews(monkeypatch, module, status):
     monkeypatch.setenv("ROUTER_PROFILE", "mvp")

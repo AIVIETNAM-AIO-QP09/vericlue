@@ -182,8 +182,11 @@ Latency thực từng detector được lưu trong ModuleResult và log không t
 `ROUTER_PROFILE=full` mặc định giữ luồng trên. `mvp` đợt 2 chọn bảy module quality,
 face_pad, face_deepfake, camprobe, voice_challenge, voice_spoof, lipsync ngay từ preload
 và mọi lần chạy orchestrator (cả lời gọi bàn duyệt/giám định). Router chỉ bắt buộc
-CamProbe cho presence, voice_spoof và lipsync cho giọng; câu thử thách và cờ cắt
-ghép vẫn áp dụng. Calibrator MVP bắt buộc PAD/deepfake/spoof/lipsync đúng model_version;
+CamProbe cho presence, voice_spoof cho quyết định giọng; lipsync chạy tham khảo
+ở MVP (ADR-0012 §6). Câu thử thách và cờ cắt
+ghép vẫn áp dụng, kiểm câu trước cờ. Calibrator MVP bắt buộc PAD/deepfake/spoof
+đúng model_version; full còn bắt buộc lipsync. Kết quả lipsync MVP vẫn lưu và hiện
+cho người duyệt, không tham gia quyết định dù thiếu/lỗi/timeout;
 không đổi ngưỡng, hợp đồng, thứ tự cổng hay xử lý lỗi. Metadata thresholds của
 quyết định MVP thêm router_profile; full giữ nguyên metadata. Script fit thật chỉ
 đọc calib_fit; PAD video lấy khung giữa và voice loại replay, JSON tạm được commit.

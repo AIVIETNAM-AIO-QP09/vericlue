@@ -84,7 +84,7 @@ def test_voice_uses_current_uploaded_clip_or_none_and_preserves_face_clip(
         files["video"] = ("voice.mp4", b"current speaking clip", "video/mp4")
     response = client.post(f"/v1/sessions/{sid}/voice", headers=headers, files=files)
     assert response.status_code == 200
-    assert response.json() == {"status": "pass" if with_voice_video else "review"}
+    assert response.json() == {"status": "pass"}
     assert len(captured) == 1
     assert captured[0]["prompt"] == prompt
     assert captured[0]["bytes"] == (b"current speaking clip" if with_voice_video else None)
@@ -115,7 +115,7 @@ def test_voice_retry_omitting_video_does_not_reuse_previous_attempt_clip(voice_c
         files={"audio": ("voice.wav", b"correct phrase", "audio/wav")},
     )
     assert second.status_code == 200
-    assert second.json() == {"status": "review"}
+    assert second.json() == {"status": "pass"}
     assert len(captured) == 2
     assert captured[1]["video"] is captured[1]["bytes"] is None
     assert captured[1]["prompt"] == first.json()["voice_prompt"]

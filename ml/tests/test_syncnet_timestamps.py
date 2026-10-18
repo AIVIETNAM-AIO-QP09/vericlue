@@ -122,7 +122,8 @@ def test_invalid_or_nonmonotonic_pts_degrades_result_and_reviews(fake_capture, b
         for module in (Module.VOICE_CHALLENGE, Module.VOICE_SPOOF)
     }
     results[Module.LIPSYNC] = result
-    assert TrustRouter(profile="mvp").voice(results).status == "review"
+    assert TrustRouter(profile="mvp").voice(results).status == "pass"
+    assert TrustRouter(profile="full").voice(results).status == "review"
 
 
 def test_frame_gap_larger_than_forty_ms_is_degraded(fake_capture):
