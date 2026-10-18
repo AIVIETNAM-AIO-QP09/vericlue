@@ -1,0 +1,21 @@
+{
+  "module": "lipsync",
+  "model_version": "stable-syncnet@c42c7e6c+ctc-aligner@49402e95+scrfd-10g@bfcc7d48+voice05-v1",
+  "method": "identity",
+  "provisional": true,
+  "note": "MVP — không dùng cho báo cáo",
+  "parameters": {
+    "slope": null,
+    "intercept": null,
+    "x": [],
+    "y": []
+  },
+  "epsilon": 0.0001,
+  "n_pos": 0,
+  "n_neg": 0,
+  "dataset": "not_fitted",
+  "split": "none",
+  "metrics_scope": "not_evaluated",
+  "date": "2026-10-18T05:50:28.868450Z",
+  "commit": "1ac792324ba21f0b30ea06635e3d9b0eb224d139"
+}

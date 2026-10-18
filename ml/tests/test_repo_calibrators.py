@@ -76,3 +76,15 @@ def test_mvp_voice_gate_uses_tracked_identity_at_current_threshold(score, expect
     )
     assert decision.status == expected
     assert decision.results[Module.VOICE_SPOOF].prob_attack == score
+
+
+def test_tracked_lipsync_identity_matches_runtime_detector_version() -> None:
+    from vericlue_ml.voice.syncnet import SyncNetDetector
+
+    detector = SyncNetDetector()
+    artifact = CalibrationStore().load("lipsync", detector.version)
+    assert isinstance(artifact, IdentityCalibrator)
+    assert artifact.method == "identity"
+    assert artifact.provisional is True
+    assert artifact.n_pos == artifact.n_neg == 0
+    assert artifact.note == "MVP — không dùng cho báo cáo"

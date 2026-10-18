@@ -132,9 +132,14 @@ bằng kết quả. Lỗi xử lý tính riêng và không được xem là đ�
 - **SyncNet** (`stable_syncnet` của LatentSync) chạy **trên đúng đoạn đã căn chỉnh**, sau khi đã dò mặt: độ lệch hình–tiếng và độ tin cậy.
 
 **Tiêu chí hoàn thành:**
-- [ ] Test: audio ghép từ 2 đoạn → có cờ cắt ghép.
+- [x] Test: audio ghép từ 2 đoạn → có cờ cắt ghép.
 - [ ] Test: video lip-sync giả (DATA-04) có độ tin cậy SyncNet thấp hơn video thật (ghi số).
 
+**MVP đợt 2, 18/10:** đã cắm lõi CTC + stable SyncNet offline, lipsync trở lại
+hồ sơ MVP với identity tạm; cờ cắt ghép đi qua evidence của lipsync. Lượt thử tay
+chỉ kiểm luồng trên một clip có sẵn, không fit/chia tập hoặc làm kết quả R. Task
+vẫn `doing`: chưa nghiệm thu tiêu chí DATA-04/độ chính xác ở trên. Xem
+[bàn giao VOICE-05](../../status/handoffs/2026-10-18-1247-voice-05-m4-codex.md).
 **Ghi chú 17/10:** LAV-DF đang bị bỏ qua ở DATA-01 (chỉ có tar 25,6 GB). Hoặc tải bản đầy đủ khi tới task này (kiểm chỗ trống ổ đĩa), hoặc chỉ dùng video lip-sync tự tạo (DATA-04).
 
 ---
