@@ -36,7 +36,8 @@ voice = [
   "jiwer>=4,<5",
   "rapidfuzz>=3,<4",
 ]
-# FOR-03: quét thủy vân AudioSeal (MIT). Cần thêm extra voice (torch, soundfile) để chạy.
+# FOR-03: quét thủy vân AudioSeal (MIT). Kéo torch từ index mặc định (CPU), nên XUNG ĐỘT với `cuda`
+# (máy GPU dùng `--extra cuda`, đã gồm audioseal). Cần thêm extra voice (soundfile, torchaudio) để chạy.
 forensic = ["audioseal>=0.2.0,<0.3"]
 # FOR-03: đọc manifest C2PA (MIT OR Apache-2.0). Wheel Windows ~88 MB nên tách riêng; thiếu thì C2PA ghi "chưa cài".
 c2pa = ["c2pa-python>=0.38,<0.39"]
@@ -44,7 +45,7 @@ eval = ["matplotlib>=3.9,<4"]
 # Bản GPU (RTX, CUDA 13), chỉ cho máy demo Windows: THAY cho `face` + `gend` + `voice` (cùng gói, nhưng
 # torch/torchaudio lấy từ index PyTorch cu130 và onnxruntime-gpu thay onnxruntime). Xung đột với ba extra
 # kia (khai báo ở pyproject gốc), nên cài một trong hai: `uv sync --all-packages --extra cuda`.
-# Mặc định và CI không dùng. Giữ danh sách khớp `face` ∪ `gend` ∪ `voice` (test: ml/tests/test_device.py).
+# Mặc định và CI không dùng. Giữ danh sách khớp `face` ∪ `gend` ∪ `voice` ∪ `forensic` (test: ml/tests/test_device.py).
 cuda = [
   "onnxruntime-gpu[cuda,cudnn]>=1.20,<2",
   "opencv-python-headless>=4.10,<5",
@@ -57,6 +58,7 @@ cuda = [
   "webrtcvad-wheels>=2.0.14,<3",
   "jiwer>=4,<5",
   "rapidfuzz>=3,<4",
+  "audioseal>=0.2.0,<0.3",
 ]
 
 [tool.uv.sources]
