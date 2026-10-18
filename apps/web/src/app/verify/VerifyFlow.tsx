@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "r
 import { vi } from "@/i18n/vi";
 import { createApiClient, type Signals } from "@/lib/api/client";
 import { challengeToSteps, configForChallenge, flashProblems } from "@/lib/capture/challenge";
+import { type CamProbe, collectCamProbe } from "@/lib/capture/camprobe";
 import { chromaPulseConfig } from "@/lib/capture/chromapulse/config";
 import { openFrontCamera } from "@/lib/capture/chromapulse/device";
 import type { FrameSampler } from "@/lib/capture/chromapulse/sampler";
@@ -31,26 +32,25 @@ import {
   retryMessage,
   unsupportedReason,
 } from "@/lib/capture/messages";
+import { type VideoClip, captureJpeg, startVideoClip } from "@/lib/capture/media";
 import { sendVoiceAnswer, startSession, uploadAndFinalize } from "@/lib/capture/runner";
 import { resolveScenario } from "@/lib/capture/scenario";
+import { VOICE_MAX_MS, VoiceRecorder } from "@/lib/capture/voiceRecorder";
 
 import { CameraView } from "./CameraView";
 import { useQualityGate } from "./useQualityGate";
 
 const t = vi.verify;
-const IS_DEV = process.env.NODE_ENV !== "production";
 
 // TẠM — CAP-04 thay bằng bộ lấy mẫu thật (MediaPipe, 5 vùng da); hiện chưa đo gì.
 const NO_SAMPLER: FrameSampler = { sample: () => null };
 
-// TẠM — CAP-06 thay bằng ảnh chụp thật tại `capture_at_ms` do máy chủ chọn.
-const PLACEHOLDER_IMAGE = new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xd9])], {
-  type: "image/jpeg",
-});
-// TẠM — CAP-07 thay bằng ghi âm thật khi đọc câu (chỉ dùng ở môi trường phát triển).
-const PLACEHOLDER_AUDIO = new Blob([new Uint8Array([0x52, 0x49, 0x46, 0x46])], {
-  type: "audio/wav",
-});
+/** Đoạn ghi âm ngắn hơn mức này (ms) thì bắt ghi lại, không gửi. */
+const VOICE_MIN_MS = 1000;
+const WAV_HEADER_BYTES = 44;
+const WAV_BYTES_PER_MS = 32; // 16 kHz × 2 byte
+
+type VoiceProblem = "tooShort" | "micDenied" | "micUnavailable" | null;
 
 type CameraResult = { ok: true; stream: MediaStream } | { ok: false; problem: CameraProblem };
 
@@ -72,12 +72,22 @@ export function VerifyFlow() {
   const lifeAbortRef = useRef<AbortController | null>(null); // hủy mọi lời gọi API khi rời trang
   const flashAbortRef = useRef<AbortController | null>(null); // nút Dừng lúc nháy màu
   const signalsRef = useRef<Signals | null>(null);
+  // Ảnh và video thật chụp lúc bấm "Bắt đầu" ở bước nháy màu (màn hình chưa đổi màu nên ảnh không bị ám màu).
+  const imageRef = useRef<Blob | null>(null);
+  const clipRef = useRef<VideoClip | null>(null);
+  // CamProbe chạy nền ngay khi có luồng camera; kết quả (hoặc null nếu lỗi) được ghép vào signals.
+  const camProbeRef = useRef<Promise<CamProbe | null> | null>(null);
+  const recorderRef = useRef<VoiceRecorder | null>(null);
+  const voiceClipRef = useRef<VideoClip | null>(null);
+  const voiceFinishingRef = useRef(false);
   const scenarioRef = useRef<string | undefined>(undefined);
   const aliveRef = useRef(true);
   const flashStartedRef = useRef(false);
   const runCounterRef = useRef(0);
   const previousStepRef = useRef<FlowState["step"] | null>(null);
   const [flashing, setFlashing] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [voiceProblem, setVoiceProblem] = useState<VoiceProblem>(null);
 
   // Đồng hồ đơn điệu: hết hạn không phụ thuộc giờ máy (có thể lệch cả chục phút).
   const deps = useMemo(() => ({ client, monoMs: () => performance.now() }), [client]);
@@ -89,9 +99,26 @@ export function VerifyFlow() {
   }, []);
   const apiSignal = useCallback(() => lifeAbortRef.current?.signal, []);
 
+  const camProbeAbortRef = useRef<AbortController | null>(null);
+  const voiceEpochRef = useRef(0); // tăng mỗi lần dọn: kết quả bất đồng bộ của lần ghi cũ bị bỏ qua
+
   const stopStream = useCallback(() => {
+    camProbeAbortRef.current?.abort(); // tắt cả bản sao track của CamProbe, tránh đèn camera sáng thừa
+    camProbeAbortRef.current = null;
     stopTracks(streamRef.current);
     streamRef.current = null;
+  }, []);
+
+  // Dọn MỌI trạng thái ghi âm. Dùng chung cho Bắt đầu lại (mọi nút), rời trang và bfcache.
+  const resetVoice = useCallback(() => {
+    voiceEpochRef.current += 1;
+    recorderRef.current?.cancel();
+    recorderRef.current = null;
+    voiceClipRef.current?.stop();
+    voiceClipRef.current = null;
+    voiceFinishingRef.current = false;
+    setRecording(false);
+    setVoiceProblem(null);
   }, []);
 
   // Gửi MỌI sự kiện qua đây: cập nhật stateRef ngay bằng chính reducer thuần (kết quả giống hệt) rồi mới giao
@@ -109,6 +136,8 @@ export function VerifyFlow() {
     // Rời trang hoặc đưa vào bộ nhớ đệm: tắt camera và hủy lời gọi ngay (cleanup có thể không kịp chạy).
     const onPageHide = () => {
       flashAbortRef.current?.abort();
+      clipRef.current?.stop();
+      resetVoice();
       stopStream();
     };
     // Trang được khôi phục từ bộ nhớ đệm (bfcache): camera và mô hình đã bị đóng ở pagehide, luồng đang dở
@@ -118,6 +147,7 @@ export function VerifyFlow() {
       const step = stateRef.current.step;
       if (step === "consent" || step === "result" || step === "error") return;
       if (step === "device_unsupported") return;
+      resetVoice();
       stopStream();
       send({ type: "FAILED", kind: "interrupted" });
     };
@@ -129,9 +159,11 @@ export function VerifyFlow() {
       aliveRef.current = false;
       lifeAbortRef.current?.abort();
       flashAbortRef.current?.abort();
+      clipRef.current?.stop();
+      resetVoice();
       stopStream();
     };
-  }, [stopStream, send]);
+  }, [stopStream, resetVoice, send]);
 
   // Mở camera và TRẢ luồng cục bộ (không gán vào ref): bên gọi quyết định có nhận luồng hay không.
   const openCamera = useCallback(async (): Promise<CameraResult> => {
@@ -152,6 +184,11 @@ export function VerifyFlow() {
     }
     if (streamRef.current && streamRef.current !== stream) stopTracks(streamRef.current);
     streamRef.current = stream;
+    // CamProbe (CAP-05) chạy nền trên bản sao track; lỗi thì để null (thiếu tín hiệu → máy chủ ra "review").
+    camProbeAbortRef.current?.abort();
+    const probeAbort = new AbortController();
+    camProbeAbortRef.current = probeAbort;
+    camProbeRef.current = collectCamProbe(stream, { signal: probeAbort.signal }).catch(() => null);
     return true;
   }, []);
 
@@ -257,9 +294,16 @@ export function VerifyFlow() {
     if (state.step !== "uploading") return;
     if (!startOnce(state)) return; // gửi MỘT lần: gửi hai lần có thể bị 409 ở lần finalize thứ hai
     const signals = signalsRef.current;
-    const run = signals
-      ? uploadAndFinalize(deps, state.session, { image: PLACEHOLDER_IMAGE, signals }, apiSignal())
-      : Promise.resolve({ type: "FAILED", kind: "unexpected", run: state.session.run } as const);
+    const image = imageRef.current;
+    const session = state.session;
+    const run =
+      signals && image
+        ? (async () => {
+            // Video là trường tùy chọn: không ghi được thì vẫn gửi ảnh.
+            const video = (await clipRef.current?.done) ?? undefined;
+            return uploadAndFinalize(deps, session, { image, signals, video }, apiSignal());
+          })()
+        : Promise.resolve({ type: "FAILED", kind: "unexpected", run: session.run } as const);
     void run.then((event) => {
       if (aliveRef.current) send(event);
     });
@@ -316,6 +360,22 @@ export function VerifyFlow() {
     }
     if (flashStartedRef.current) return; // bấm Bắt đầu hai lần: chỉ chạy một lần
     flashStartedRef.current = true;
+    // Chụp ảnh thật NGAY khi bấm (màn hình chưa phủ màu nên mặt không bị ám màu) và ghi ~3 giây video.
+    // ChromaPulse là tín hiệu phụ ở hồ sơ mvp (ADR-0012), nên `capture_at_ms` của máy chủ chưa dùng.
+    try {
+      imageRef.current = await captureJpeg(video);
+    } catch {
+      flashStartedRef.current = false;
+      if (aliveRef.current) send({ type: "FAILED", kind: "unexpected", run: session.run });
+      return;
+    }
+    // Rời trang hoặc bắt đầu lại trong lúc chụp: không nháy màu nữa.
+    if (!aliveRef.current || stateRef.current.step !== "flash_challenge") {
+      flashStartedRef.current = false;
+      return;
+    }
+    clipRef.current?.stop();
+    clipRef.current = streamRef.current ? startVideoClip(streamRef.current) : null;
     flashAbortRef.current = new AbortController();
     setFlashing(true);
     let trial: Awaited<ReturnType<typeof runTrial>>;
@@ -333,6 +393,7 @@ export function VerifyFlow() {
       });
     } catch {
       flashStartedRef.current = false;
+      clipRef.current?.stop();
       if (aliveRef.current) {
         setFlashing(false); // không để màn hình nháy kẹt
         send({ type: "FAILED", kind: "unexpected", run: session.run });
@@ -343,11 +404,19 @@ export function VerifyFlow() {
     if (!aliveRef.current) return;
     setFlashing(false);
     if (trial.aborted) {
+      clipRef.current?.stop();
       send({ type: trial.hiddenDuringTrial ? "FLASH_INTERRUPTED" : "FLASH_STOPPED" });
       return;
     }
+    // CamProbe đã chạy nền từ lúc có camera; thường xong trước khi nháy màu kết thúc.
+    const camprobe = await camProbeRef.current;
+    if (!aliveRef.current) return;
     // TẠM — CAP-04 thay bằng tín hiệu đầy đủ (frame_times, region_means).
-    signalsRef.current = { color_events: trial.colorEvents, frame_times: [] };
+    signalsRef.current = {
+      color_events: trial.colorEvents,
+      frame_times: [],
+      ...(camprobe ? { camprobe } : {}),
+    };
     send({ type: "FLASH_DONE" });
   }, [state, deps, expire, send]);
 
@@ -357,18 +426,74 @@ export function VerifyFlow() {
     else send({ type: "RETRY_CONTINUE" });
   }, [state, deps, expire, send]);
 
-  const sendDevVoice = useCallback(async () => {
-    if (state.step !== "voice_challenge") return;
+  // Dừng ghi (nút Dừng hoặc hết ~8 giây) rồi gửi WAV 16 kHz (+ video nếu có). Chỉ chạy một lần mỗi lần ghi.
+  const finishVoice = useCallback(async () => {
+    const current = stateRef.current;
+    const recorder = recorderRef.current;
+    if (current.step !== "voice_challenge" || !recorder || voiceFinishingRef.current) return;
+    voiceFinishingRef.current = true;
+    const epoch = voiceEpochRef.current;
+    // Bắt đầu lại hoặc rời trang trong lúc chờ: bỏ kết quả, không gửi cho phiên cũ.
+    const stale = () => !aliveRef.current || voiceEpochRef.current !== epoch;
+    const clip = voiceClipRef.current;
+    clip?.stop();
+    const audio = await recorder.stop();
+    if (stale()) return;
+    recorderRef.current = null;
+    voiceClipRef.current = null;
+    setRecording(false);
+    const durationMs = (audio.size - WAV_HEADER_BYTES) / WAV_BYTES_PER_MS;
+    if (durationMs < VOICE_MIN_MS) {
+      voiceFinishingRef.current = false;
+      setVoiceProblem("tooShort");
+      return;
+    }
+    const video = (await clip?.done) ?? undefined;
+    if (stale()) return;
     send({ type: "VOICE_SENDING" });
-    const event = await sendVoiceAnswer(
-      deps,
-      state.session,
-      PLACEHOLDER_AUDIO,
-      undefined,
-      apiSignal(),
-    );
-    if (aliveRef.current) send(event);
-  }, [state, deps, apiSignal, send]);
+    const event = await sendVoiceAnswer(deps, current.session, audio, video, apiSignal());
+    if (stale()) return;
+    voiceFinishingRef.current = false;
+    send(event);
+  }, [deps, apiSignal, send]);
+
+  // Bấm "Bắt đầu ghi âm": VoiceRecorder PHẢI được tạo đồng bộ trong thao tác bấm (iOS), trước mọi await.
+  const startVoice = useCallback(async () => {
+    if (stateRef.current.step !== "voice_challenge" || recorderRef.current) return;
+    setVoiceProblem(null);
+    const epoch = voiceEpochRef.current;
+    let recorder: VoiceRecorder;
+    try {
+      recorder = new VoiceRecorder({ onAutoStop: () => void finishVoice() });
+    } catch {
+      setVoiceProblem("micUnavailable");
+      return;
+    }
+    recorderRef.current = recorder;
+    try {
+      await recorder.start();
+    } catch (e) {
+      if (!aliveRef.current || voiceEpochRef.current !== epoch) return; // đã dọn trong lúc chờ
+      recorderRef.current = null;
+      const denied = e instanceof DOMException && e.name === "NotAllowedError";
+      setVoiceProblem(denied ? "micDenied" : "micUnavailable");
+      return;
+    }
+    if (!aliveRef.current || voiceEpochRef.current !== epoch) {
+      recorder.cancel();
+      return;
+    }
+    voiceFinishingRef.current = false;
+    voiceClipRef.current = streamRef.current
+      ? startVideoClip(streamRef.current, { durationMs: VOICE_MAX_MS })
+      : null;
+    setRecording(true);
+  }, [finishVoice]);
+
+  const restart = useCallback(() => {
+    resetVoice();
+    send({ type: "RESTART" });
+  }, [resetVoice, send]);
 
   // --- Giao diện -------------------------------------------------------------------------------
 
@@ -461,7 +586,7 @@ export function VerifyFlow() {
           <p>{t.deviceUnsupported.body}</p>
           <button
             type="button"
-            onClick={() => send({ type: "RESTART" })}
+            onClick={restart}
             className="rounded bg-blue-600 px-4 py-2 text-white"
           >
             {t.deviceUnsupported.restart}
@@ -551,22 +676,33 @@ export function VerifyFlow() {
               {t.voice.attemptsLeft}: {state.rereadsLeft}
             </p>
           )}
-          <p>{t.voice.pending}</p>
-          {IS_DEV && (
+          <p>{t.voice.instruction}</p>
+          {voiceProblem !== null && (
+            <p role="alert" className="font-medium">
+              {t.voice[voiceProblem]}
+            </p>
+          )}
+          {recording && <p>{t.voice.recording}</p>}
+          {state.sending ? (
+            <p>{t.voice.sending}</p>
+          ) : recording ? (
             <button
               type="button"
-              disabled={state.sending}
-              onClick={sendDevVoice}
-              className="rounded border px-4 py-2 disabled:opacity-40"
+              onClick={() => void finishVoice()}
+              className="rounded bg-red-700 px-4 py-2 text-white"
             >
-              {state.sending ? t.voice.sending : t.voice.devSend}
+              {t.voice.stop}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void startVoice()}
+              className="rounded bg-green-600 px-4 py-2 text-white"
+            >
+              {t.voice.start}
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => send({ type: "RESTART" })}
-            className="rounded border px-4 py-2"
-          >
+          <button type="button" onClick={restart} className="rounded border px-4 py-2">
             {t.errors.restart}
           </button>
         </section>
@@ -598,7 +734,7 @@ export function VerifyFlow() {
           <p>{errorMessage(state.kind)}</p>
           <button
             type="button"
-            onClick={() => send({ type: "RESTART" })}
+            onClick={restart}
             className="rounded bg-blue-600 px-4 py-2 text-white"
           >
             {t.errors.restart}

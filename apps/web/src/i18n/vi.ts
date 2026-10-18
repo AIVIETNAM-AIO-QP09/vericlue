@@ -101,8 +101,15 @@ export const vi = {
     voice: {
       title: "Đọc to câu sau",
       promptLabel: "Câu cần đọc",
-      pending: "Bước đọc câu sẽ có trong bản sau.",
-      devSend: "Gửi âm thanh thử nghiệm (chỉ khi phát triển)",
+      instruction:
+        "Bấm “Bắt đầu ghi âm”, đọc to và rõ câu trên, rồi bấm “Dừng và gửi”. Ghi tối đa 8 giây.",
+      start: "Bắt đầu ghi âm",
+      stop: "Dừng và gửi",
+      recording: "Đang ghi âm... hãy đọc câu trên.",
+      tooShort: "Đoạn ghi âm quá ngắn. Hãy bấm ghi âm lại và đọc đủ câu.",
+      micDenied:
+        "Chưa được cấp quyền dùng micro. Hãy cho phép micro trong cài đặt trình duyệt rồi thử lại.",
+      micUnavailable: "Không ghi âm được. Hãy kiểm tra micro rồi thử lại.",
       sending: "Đang gửi...",
       attemptsLeft: "Số lần đọc lại còn lại",
     },
@@ -182,6 +189,32 @@ export const vi = {
       fileName: "Tên file",
       aborted: "Đã dừng giữa chừng, nên thử lại.",
       previewError: "Lỗi khi nhận diện khuôn mặt",
+    },
+    // Xem kết quả từng module của một phiên (chỉ khi chạy `npm run dev`).
+    session: {
+      title: "Kết quả từng module (chỉ để thử)",
+      description:
+        "Trang nội bộ cho người thử: xem mô hình chấm gì ở một phiên. Chỉ có khi chạy ở chế độ phát triển, người dân không bao giờ thấy trang này.",
+      idLabel: "Mã phiên hoặc mã ca",
+      load: "Xem",
+      loading: "Đang tải...",
+      missingId: "Chưa có mã. Mở trang với đường dẫn /lab/session?id=<mã phiên>.",
+      notFound:
+        "Không có ca duyệt cho mã này. Chỉ phiên có kết quả “review” mới tạo ca; phiên “pass” không có dữ liệu để xem ở đây.",
+      needInitial:
+        "Bàn duyệt chỉ cho xem ý kiến AI sau khi ghi quyết định ban đầu. Bấm nút dưới để ghi quyết định thử (ghi chú “dev-test”).",
+      recordInitial: "Ghi quyết định ban đầu “dev-test”",
+      suggestion: "Gợi ý của hệ thống",
+      module: "Module",
+      status: "Trạng thái",
+      gate: "Cổng",
+      score: "Điểm thô",
+      probAttack: "Xác suất tấn công (đã hiệu chỉnh)",
+      version: "Phiên bản mô hình",
+      latency: "Thời gian (ms)",
+      evidence: "Bằng chứng",
+      none: "—",
+      error: "Không tải được. Kiểm tra API đang chạy rồi thử lại.",
     },
   },
 } as const;

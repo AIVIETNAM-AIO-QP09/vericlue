@@ -24,7 +24,7 @@
 - [x] Không có màn hình nào hiển thị điểm số hay chữ "giả mạo" (test quét toàn bộ chuỗi `vi.verify` trong `messages.test.ts`).
 - [x] Test Vitest cho máy trạng thái (`flow.test.ts`, `runner.test.ts`).
 
-> **Chỗ giữ chỗ trong CAP-01 (mỗi chỗ có chú thích "TẠM — CAP-0x thay" trong code):** `quality_check` luôn cho qua (CAP-02); `flash_challenge` chỉ phát màu theo thử thách, chưa có bộ lấy mẫu và `frame_times` (CAP-04); `uploading` gửi ảnh giữ chỗ (CAP-06); bước đọc câu chỉ hiện câu cần đọc, có nút gửi âm thanh giả ở môi trường dev (CAP-07). *(Đã cập nhật ở CAP-02: `quality_check` không còn, `framing` có cổng chất lượng thật.)*
+> **Chỗ giữ chỗ trong CAP-01 (mỗi chỗ có chú thích "TẠM — CAP-0x thay" trong code):** `quality_check` luôn cho qua (CAP-02); `flash_challenge` chỉ phát màu theo thử thách, chưa có bộ lấy mẫu và `frame_times` (CAP-04); `uploading` gửi ảnh giữ chỗ (CAP-06); bước đọc câu chỉ hiện câu cần đọc, có nút gửi âm thanh giả ở môi trường dev (CAP-07). *(Đã cập nhật ở CAP-02: `quality_check` không còn, `framing` có cổng chất lượng thật. Đã cập nhật ở nhánh `feat/CAP-06-real-media-mvp` (lõi MVP, ADR-0012): ảnh JPEG, video webm 3 giây, giọng WAV 16 kHz và CamProbe là dữ liệu thật; chỉ còn nháy màu chưa lấy mẫu (CAP-04).)*
 
 ---
 
