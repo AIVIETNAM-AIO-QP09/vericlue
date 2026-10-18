@@ -6,7 +6,7 @@ modules:
   face_deepfake: mock     # FACE-02 → gend-clip-l14 (+ sbi-ffc23 ở FACE-03)
   chromapulse: mock       # PRES-02
   camprobe: mock          # PRES-03
-  voice_spoof: mock       # VOICE-01 → antideepfake-mms300m
+  voice_spoof: antideepfake-mms300m # VOICE-01 wrapper only; R3 pending
   voice_challenge: phowhisper # VOICE-04; CTC alignment belongs to VOICE-05
   lipsync: mock           # VOICE-05 → syncnet
   provenance: mock        # FOR-03 → audioseal-detector, perth
@@ -17,3 +17,13 @@ voice:
   revision: a86b604c346caf7148c37512eafe783a16420adb
   vad_mode: 1
   cpu_threads: 4
+
+# VOICE-01: original bytes remain untouched; only in-memory key conversion.
+antispoof:
+  model_subdir: antideepfake-mms300m
+  device: cpu
+  cpu_threads: 4
+  revision: 7928e119e09f616b2ce698892e00ca22dbaa40bf
+  sha256:
+    config.json: be5a16e7bf332832f0a5583357ed37dd67cc4a39abd24832cf6a74a8217b046c
+    model.safetensors: 9bd5d9785bf72f91dfca8508651354946c4b307921cb358505e1b94035102224

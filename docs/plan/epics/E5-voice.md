@@ -16,6 +16,11 @@
 1. S0: viết phần bọc mô hình.
 2. Đầu S1: sinh `R3-baseline.md` khi đã có DATA-03 và EVAL-01.
 
+**Phạm vi PR wrapper (quyết định trưởng nhóm 17/10):** chỉ bước 1; giữ VOICE-01 chưa done.
+Runtime Transformers ánh xạ checkpoint Fairseq trong RAM, kiểm SHA và không thiếu khóa.
+Fairseq chỉ ở môi trường Linux riêng để kiểm parity logits ≤ 1e-4; parity là điều kiện
+bắt buộc trước R3-baseline. Bốn file smoke TTS/thật chỉ kiểm chiều điểm, không phải R3.
+
 **Đầu ra:**
 - `ml/src/vericlue_ml/voice/antispoof.py`: nạp `mms-300m-anti-deepfake`, đầu vào 16 kHz mono, cửa sổ 4 giây (file dài thì trượt cửa sổ, bước 1 giây).
 - `docs/status/results/R3-baseline.md`:
@@ -25,7 +30,7 @@
 
 **Tiêu chí hoàn thành:**
 - [ ] Bảng có số mẫu theo miền và theo công cụ tạo giọng.
-- [ ] Im lặng hoặc quá ngắn (< 1 giây) → `status=not_applicable`.
+- [x] Im lặng hoặc quá ngắn (< 1 giây) → `status=not_applicable`.
 
 ---
 

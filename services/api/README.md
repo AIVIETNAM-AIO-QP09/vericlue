@@ -37,7 +37,7 @@ uv run python scripts/gen_openapi.py        # sinh lại packages/contracts/open
 
 Chạy mock (`USE_MOCK_MODELS=true`, mặc định) chọn kịch bản bằng header **`X-Mock-Scenario`** khi tạo phiên hoặc giám định: `genuine`, `print`, `replay`, `virtual_cam`, `faceswap`, `voice_clone`, `low_quality`, `error`. Khi tắt mock, header bị bỏ qua. App mock có sẵn 2 ca duyệt mẫu.
 
-`USE_MOCK_MODELS=mixed` (FACE-01): module có mô hình thật (hiện `face_pad`) chạy thật và bỏ qua `X-Mock-Scenario`, module còn lại vẫn mock. `/healthz` giữ `mock_models` kiểu bool. Cần `uv sync --all-packages --extra face` và trọng số trong `MODELS_DIR`; module preload lỗi nằm ở `failed_modules` và không bao giờ cho `pass`. Hướng dẫn thử: `ml/src/vericlue_ml/face/README.md`.
+`USE_MOCK_MODELS=mixed` (FACE-01): module có mô hình thật (hiện `face_pad`, `voice_challenge`, `voice_spoof`) chạy thật và bỏ qua `X-Mock-Scenario`, module còn lại vẫn mock. `/healthz` giữ `mock_models` kiểu bool. Cần `uv sync --all-packages --extra face --extra voice` và trọng số trong `MODELS_DIR`; module preload lỗi nằm ở `failed_modules` và không bao giờ cho `pass`. Hướng dẫn thử: `ml/src/vericlue_ml/face/README.md`.
 
 ## Token, lượt, thử thách (ADR-0011)
 
@@ -169,7 +169,7 @@ perf_counter, không log media/transcript/prompt/score. Timing của mock (vốn
 services/detection.py giữ cho unit/harness cũ; tất cả consumer của API dùng runner
 được inject từ instance chung, kể cả seed mock và giám định mock.
 
-PhoWhisper public preload nhận MODELS_DIR từ Settings (.env), không phụ thuộc việc
+PhoWhisper và AntiDeepfake public preload nhận MODELS_DIR từ Settings (.env), không phụ thuộc việc
 .env đã được export thành os.environ. Khi cài wheel, đặt ML_MODELS_CONFIG tới
 models.yaml; Dockerfile đã đặt /app/ml/configs/models.yaml. Không có model/data
 trong image, không download lúc inference. Dependency/model thật thiếu sẽ hiện

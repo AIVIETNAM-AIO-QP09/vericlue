@@ -37,7 +37,8 @@
 | `false` | mọi module dùng mô hình thật; module chưa có mô hình thật thì `NotImplementedError` |
 | `mixed` | module có trong `_REAL_FACTORIES` (registry) dùng thật, còn lại mock |
 
-Hiện có thật: `face_pad` (FACE-01, cần `uv sync --all-packages --extra face`) và `voice_challenge`.
+Hiện có thật: `face_pad`, `voice_challenge` và `voice_spoof`; mixed cần
+`uv sync --all-packages --extra face --extra voice`.
 `/healthz` luôn trả `mock_models` kiểu bool (`true` khi còn module mock, kể cả `mixed`).
 Thử nhanh qua Swagger: xem `src/vericlue_ml/face/README.md`.
 
@@ -180,3 +181,44 @@ không được tự bịa hoặc điền số 0; tích hợp khi module tương
 Thiếu calibrator đúng module/version → bản kết quả error, prob_attack=None → review.
 Mock `mock@` được miễn theo ROUT-01. Router chỉ đọc counters, không tăng lượt thử;
 SessionFlow của API giữ counters/challenge/prompt/khóa hàng và persist snapshot quyết định.
+
+
+## VOICE-01 — AntiDeepfake wrapper (R3 chưa làm)
+
+`voice.antispoof.AntiDeepfakeDetector` nạp MMS-300M local từ
+`MODELS_DIR/antideepfake-mms300m`; config qua ML_MODELS_CONFIG/models.yaml.
+Factory thật voice_spoof được cache, không nạp weights/importTorch khi importregistry.
+`preload()` kiểm SHAconfig vàsafetensors rồi ánh xạ Fairseq→HF trong RAM, zero missing
+và strictshape; chỉ cho dư các thành phần pretraining đã liệt kê. Không gọi mạng,
+không sửa weights, không randomhead/môhình/mockfallback. API truyền Settings.models_dir
+vào preload trước khi nhận request; native dùng MODELS_DIR/DEVICE hoặc truyền
+models_dir/device trực tiếp. MODELS_DIR tương đối (kể cả mặc định models) được
+giải theo gốc repo, không theo CWD. Đổi thư mục sau khi model đã nạp cần restart. Giấy phép weights CC-BY-NC-SA-4.0 chỉ nghiên cứu.
+
+Cài optionalvoice: `uv sync --all-packages --extra voice`. Torch CPU là mặc định;
+GPU cần bản TorchCUDA phù hợp thiết bị, DEVICE=cuda sẽ dùng fp16/batch1 từngwindow.
+CPUfloat32 được hỗ trợ; không tự đổiGPU/CPU khi nạp lỗi. Decoder mono16k, WebRTC VAD
+trimngoài, window4s/hop1s/tail, meanlogits→softmaxfake0. Im lặng hoặc <1s trước/sau
+trim là not_applicable; lỗi decode/model là error. `score` là rawscore;
+`prob_attack=None` để CalibrationStore/TrustRouter xử lý theo version.
+
+Evidence window_scores chứa logits/rawscore/start_s/end_s theo file gốc. Không có
+score/transcript đưa sang citizen response. Xem [model card](model_cards/antideepfake-mms300m.md).
+Parity CPU đã đạt với Fairseq0.12.2:4file/9window, max abs logits2.956390380859375e-05≤1e-4;
+chi tiết môi trường/nguồn trong model card. Phải kiểm lại khi đổi backend/mapping.
+Unit test dùng fakebackend/numpytensors, không GPU/checkpoint/network; smoke local
+4file chỉ kiểm chiều, không phải R3 và không dùng chọn ngưỡng/mô hình.
+
+
+### Cặp phiên bản Torch / TorchAudio
+
+Môi trường CPU kiểm wrapper dùng `torch==2.14.1` + `torchaudio==2.11.0`.
+Theo [bảng tương thích chính thức](https://docs.pytorch.org/audio/master/installation.html#compatibility-matrix),
+TorchAudio 2.11 dùng stable ABI, hỗ trợ Torch từ 2.11 trở lên. Với các bản cũ,
+phải chọn đúng cặp trong bảng (ví dụ 2.6.0/2.6.0), không ghép tùy ý. Cài cùng
+backend CPU/CUDA theo hướng dẫn PyTorch; CUDA chưa được nghiệm thu ở PR này.
+Môi trường Fairseq tham chiếu riêng dùng Torch/TorchAudio 2.2.2/2.2.2 (CPU).
+
+Chế độ mixed hiện dùng face_pad, voice_challenge và voice_spoof thật:
+`uv sync --all-packages --extra face --extra voice`. Thiếu model/dependency vẫn
+error/degraded, không tự đổi mock; voice_spoof còn cần calibrator đúng phiên bản.

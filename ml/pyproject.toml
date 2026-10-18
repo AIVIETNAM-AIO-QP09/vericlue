@@ -20,6 +20,8 @@ face = [
 ]
 voice = [
   "torch>=2.6,<3",
+  "torchaudio>=2.6,<3",
+  "safetensors>=0.5,<1",
   "transformers>=4.57.1,<5",
   "soundfile>=0.13,<1",
   "webrtcvad-wheels>=2.0.14,<3",

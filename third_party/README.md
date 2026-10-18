@@ -52,3 +52,20 @@ eSpeak GPL §2 cho phép chạy công cụ; không suy ra output có giấy phé
 domain. Script chuẩn bị ghi phiên bản, SHA-256 và nguồn ở SOURCE.md cạnh fixture.
 
 TTS thử nghiệm còn dùng [facebook/mms-tts-vie](https://huggingface.co/facebook/mms-tts-vie/blob/b58928d033932a49aa8e3d6cf11625b25fe928d2/README.md), weights **CC BY-NC 4.0**, chỉ nghiên cứu phi thương mại. Model ngoài repo trong MODELS_DIR; không chép code, không gọi ở inference sản phẩm. Script chuẩn bị ghim revision/SHA, không gán giấy phép Transformers cho weights.
+
+
+## VOICE-01 — AntiDeepfake wrapper
+
+| Nguồn ghim | Giấy phép code | Dùng ở đâu / thay đổi |
+|---|---|---|
+| [Transformers converter](https://github.com/huggingface/transformers/blob/09f9f566de83eef1f13ee83b5a1bbeebde5c80c1/src/transformers/models/wav2vec2/convert_wav2vec2_original_pytorch_checkpoint_to_pytorch.py) (v4.39.3, bảng MAPPING) | Apache-2.0, Copyright2021 HuggingFace | `ml/src/vericlue_ml/voice/antispoof.py`: ánh xạ lại Fairseq keys cho local checkpoint; thêm kiểm shape/coverage/allowlist, hỗ trợ weight_norm parametrizations. Không chép/import Fairseq runtime. |
+| [AntiDeepfake W2V.py](https://github.com/nii-yamagishilab/AntiDeepfake/blob/0dea622bde8f064c8ee5a557f2598643123fc6b6/models/W2V.py#L69-L98) | BSD-3-Clause, Copyright2025 Yamagishi Lab/NII | `antispoof.py`: giữ temporal average-pooling và Linear head1024→2; backbone dùng Transformers với trọng số ánh xạ trong RAM. |
+
+Giữ thông báo ở đầu file; nguyên văn license tại
+`licenses/transformers-Apache-2.0.txt` và `licenses/antideepfake-BSD-3-Clause.txt`.
+Trọng số `nii-yamagishilab/mms-300m-anti-deepfake` revision
+`7928e119e09f616b2ce698892e00ca22dbaa40bf` là **CC-BY-NC-SA-4.0**, chỉ nghiên cứu
+phi thương mại, khác giấy phép code. Không commit hay sửa file trong MODELS_DIR.
+Fairseq chỉ là dependency môi trường Linux tham chiếu riêng cho parity; không nằm
+trong pyproject.toml/uv.lock/runtime sản phẩm. Chưa chạy parity thì không được gọi
+wrapper là đã tương đương số học với upstream hay sinh R3-baseline.

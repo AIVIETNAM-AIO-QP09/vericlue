@@ -40,6 +40,13 @@ def _voice_challenge() -> Detector:
 
 
 @lru_cache(maxsize=1)
+def _voice_spoof() -> Detector:
+    from vericlue_ml.voice.antispoof import AntiDeepfakeDetector
+
+    return AntiDeepfakeDetector()
+
+
+@lru_cache(maxsize=1)
 def _face_pad() -> Detector:
     from vericlue_ml.face.pad import FacePadDetector
 
@@ -48,8 +55,10 @@ def _face_pad() -> Detector:
 
 _REAL_FACTORIES: dict[Module, Callable[[], Detector]] = {
     Module.VOICE_CHALLENGE: _voice_challenge,
+    Module.VOICE_SPOOF: _voice_spoof,
     Module.FACE_PAD: _face_pad,
 }
+
 
 TRUE_VALUES = frozenset({"1", "true", "yes", "on"})
 MIXED = "mixed"

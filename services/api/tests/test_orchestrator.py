@@ -798,3 +798,34 @@ def test_queue_overflow_is_busy_and_expired_waiters_are_pruned_without_inference
     finally:
         release.set()
         orchestrator.close()
+
+
+def test_orchestrator_injects_settings_models_dir_into_real_voice_spoof_preload(
+    tmp_path, monkeypatch
+):
+    from vericlue_ml.voice.antispoof import AntiDeepfakeDetector
+
+    captured = []
+
+    class Backend:
+        def preload(self, *, models_dir=None):
+            captured.append(models_dir)
+
+        def __call__(self, _waveform):
+            raise AssertionError("startup must not infer anti-spoof audio")
+
+    detector = AntiDeepfakeDetector(backend=Backend())
+    configured = tmp_path / "settings-anti-models"
+    monkeypatch.setenv("MODELS_DIR", str(tmp_path / "wrong-process-env"))
+    orchestrator = Orchestrator(
+        Settings(models_dir=str(configured)),
+        detector_factory=lambda module: (
+            detector if Module(module) == Module.VOICE_SPOOF else FakeDetector(module)
+        ),
+    )
+    try:
+        orchestrator.start()
+        assert captured == [configured]
+        assert not orchestrator.failed_modules
+    finally:
+        orchestrator.close()
