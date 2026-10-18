@@ -37,7 +37,8 @@
 | `false` | mọi module dùng mô hình thật; module chưa có mô hình thật thì `NotImplementedError` |
 | `mixed` | module có trong `_REAL_FACTORIES` (registry) dùng thật, còn lại mock |
 
-Hiện có thật: `face_pad` (FACE-01, cần `uv sync --all-packages --extra face`) và `voice_challenge`.
+Hiện có thật: `face_pad`, `voice_challenge` và `voice_spoof`; mixed cần
+`uv sync --all-packages --extra face --extra voice`.
 `/healthz` luôn trả `mock_models` kiểu bool (`true` khi còn module mock, kể cả `mixed`).
 Thử nhanh qua Swagger: xem `src/vericlue_ml/face/README.md`.
 

@@ -36,19 +36,20 @@ Checkpoint thật:424 mapped,0 missing,0 unexpected; chỉ7tensor pretraining b�
 (quantizer.vars/weight_proj.weight/bias, project_q.weight/bias, final_proj.weight/bias).
 Không cho phép bỏ qua backbone/head hay ghi đè khóa ánh xạ trùng.
 
+Số liệu cập nhật 18/10/2026 từ commit sạch `d85ee7bedd115cc7b6a866b14e7bd48da972fcda`.
 Smoke được chạy bằng ml/scripts/smoke_antideepfake.py trên4 file đã chọn trước,
 Windows11/MSI, CPU float32, Python 3.12.14, sourcecommit
-4aa0da47b1c867629fae787f15a3b400bc4b635c-dirty. Không chọn lại mẫu/ngưỡng bằng kết quả.
+d85ee7bedd115cc7b6a866b14e7bd48da972fcda. Không chọn lại mẫu/ngưỡng bằng kết quả.
 | File công khai | Nhãn nguồn | Raw fake score |
 |---|---|---:|
-| correct.wav | MMS-TTS | 0.998591652 |
-| wrong.wav | MMS-TTS | 0.971673030 |
+| correct.wav | MMS-TTS | 0.998591712 |
+| wrong.wav | MMS-TTS | 0.971672590 |
 | 00000.wav | VSASV bona fide | 0.000402755 |
 | 00001.wav | VSASV bona fide | 0.000500161 |
 
 Cả4 status=ok, min(TTS)>max(real). Đây chỉ là kiểm chiều và loader, không có EER,
 độ chính xác đại diện, ngưỡng ra quyết định hay bảo đảm thống kê. Report cục bộ
-tmp/voice01-smoke-cpu.json lưu modelversion/commit/hash/audioevidence và mọi kết quả.
+tmp/voice01-revision-smoke-cpu.json lưu modelversion/commit/hash/audioevidence và mọi kết quả.
 
 ## Parity thực chạy — PASS
 
@@ -59,7 +60,7 @@ Wrapper Windows11/Python 3.12.14/Torch 2.14.1/Transformers 4.57.6/NumPy 2.5.4;
 reference Docker Linux WSL2/Python 3.10.22/Fairseq 0.12.2/Torch 2.2.2+cpu/
 torchaudio 2.2.2+cpu/NumPy 1.23.5/safetensors 0.5.3. Reference gọi trực tiếp W2V.py
 upstream sạch, commit0dea622bde8f064c8ee5a557f2598643123fc6b6, strict load: 0 missing / 0 unexpected.
-Wrapper commit4aa0da47b1c867629fae787f15a3b400bc4b635c-dirty; checkpoint giữ nguyên SHA.
+Wrapper commitd85ee7bedd115cc7b6a866b14e7bd48da972fcda; checkpoint giữ nguyên SHA.
 Image tham chiếu `vericlue-antideepfake-reference:py310-pinned`, ID
 `sha256:e3aa000d0c2e2f920bb0bc3bf986cfb3f5e21060fe1e57ef5278feb7105f376d`.
 Container chỉ mount checkpoint/script read-only, dữ liệu cửa sổ tạm ngoài Git;
@@ -72,7 +73,7 @@ chạy --rm/--network none, không Fairseq trong runtime Windows hay uv.lock.
 | 00000.wav | 1 | 9.53674316406e-07 |
 | 00001.wav | 6 | 2.55107879639e-05 |
 
-Báo cáo do code sinh: tmp/voice01-parity.json (ignored), chứa từng cặp logits,
+Báo cáo do code sinh: tmp/voice01-revision-parity.json (ignored), chứa từng cặp logits,
 SHA audio/window/checkpoint, môi trường, nguồn và thời điểm. Phép kiểm chứng minh
 backend ánh xạ trên những window này; không chứng minh EER hay calibration/R3.
 
@@ -96,9 +97,9 @@ Sau preload, mỗi file chạy một lần; gồm decode/VAD/window inference, k
 
 | File | Window | Latency ms |
 |---|---:|---:|
-| correct.wav | 1 | 3141.531 |
-| wrong.wav | 1 | 2121.565 |
-| 00000.wav | 1 | 2012.300 |
-| 00001.wav | 6 | 19747.897 |
+| correct.wav | 1 | 1938.995 |
+| wrong.wav | 1 | 716.936 |
+| 00000.wav | 1 | 522.392 |
+| 00001.wav | 6 | 5140.463 |
 
 Máy/môi trường/commit như smoke ở trên; file dài trên CPU vượt budget API. Đây là phép đo từng mẫu, không phải percentile hay benchmark đại diện.
