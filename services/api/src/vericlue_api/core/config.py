@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     use_mock_models: bool | Literal["mixed"] = True  # mixed: module có mô hình thật dùng thật
     router_profile: Literal["full", "mvp"] = "full"
     device: str = "cpu"
+    lipsync_device: Literal["cpu", "cuda", "auto"] = "cpu"
     models_dir: str = "./models"
     media_dir: str = "./tmp/media"
     data_dir: str = "./data"

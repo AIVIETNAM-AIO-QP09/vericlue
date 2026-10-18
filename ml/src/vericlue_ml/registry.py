@@ -78,7 +78,7 @@ def _camprobe() -> Detector:
 def _lipsync() -> Detector:
     from vericlue_ml.voice.syncnet import SyncNetDetector
 
-    return SyncNetDetector()
+    return SyncNetDetector(device=os.getenv("LIPSYNC_DEVICE", "cpu"))
 
 
 _REAL_FACTORIES: dict[Module, Callable[[], Detector]] = {

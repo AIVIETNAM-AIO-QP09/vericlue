@@ -304,3 +304,13 @@ JSON ghi `provisional: true`, commit thực thi, n_pos/n_neg, hash manifest, cá
 JSON được commit vào `ml/configs/calibrators/`. Chỉ số trong artifact là OOF trên
 calib_fit, không phải kết quả R hay bảo đảm LTT. Hiệu chỉnh đã học sẽ thay identity
 ở giai đoạn đánh giá sau; không chặn MVP. Thiếu calibrator ở bước được chạy thì review.
+
+`LIPSYNC_DEVICE=cpu` (mặc định; `cpu | cuda | auto`) chọn riêng thiết bị cho
+SyncNet, CTC aligner và SCRFD của nhánh lipsync. `DEVICE` vẫn chọn thiết bị của
+quality, PAD, GenD, PhoWhisper và AntiDeepfake. Ví dụ GPU 6 GB:
+`ROUTER_PROFILE=mvp USE_MOCK_MODELS=false DEVICE=cuda LIPSYNC_DEVICE=cpu`.
+Lipsync chỉ cấu hình lúc khởi động, nạp trọng số offline ở lần đầu có video,
+audio và câu đề bài; không giữ model CTC/SyncNet trên GPU lúc preload. Lần đầu
+có thể timeout trong ngân sách 4 s; kết quả vẫn là lỗi rõ ràng, MVP chỉ tham khảo,
+full vẫn không coi lỗi là đạt. Đường dẫn/thiết bị cố định từ lần cấu hình đầu;
+đổi cấu hình hoặc thử lại sau lỗi nạp cần khởi động lại tiến trình.

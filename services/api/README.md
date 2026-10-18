@@ -260,3 +260,13 @@ Không chạy/preload module đó; không âm thầm bỏ kết quả. Giám đ�
 bàn duyệt giữ được evidence, báo cáo hiển thị nhãn. Luồng người dân yêu cầu đúng
 nhóm module của profile nên không đổi. /healthz giữ schema cũ: thêm router_profile
 sẽ cần sửa packages/contracts/openapi.json và snapshot test, ngoài phạm vi đã duyệt.
+
+`LIPSYNC_DEVICE=cpu` (mặc định; `cpu | cuda | auto`) chọn riêng thiết bị cho
+SyncNet, CTC aligner và SCRFD của nhánh lipsync. `DEVICE` vẫn chọn thiết bị của
+quality, PAD, GenD, PhoWhisper và AntiDeepfake. Ví dụ GPU 6 GB:
+`ROUTER_PROFILE=mvp USE_MOCK_MODELS=false DEVICE=cuda LIPSYNC_DEVICE=cpu`.
+Lipsync chỉ cấu hình lúc khởi động, nạp trọng số offline ở lần đầu có video,
+audio và câu đề bài; không giữ model CTC/SyncNet trên GPU lúc preload. Lần đầu
+có thể timeout trong ngân sách 4 s; kết quả vẫn là lỗi rõ ràng, MVP chỉ tham khảo,
+full vẫn không coi lỗi là đạt. Đường dẫn/thiết bị cố định từ lần cấu hình đầu;
+đổi cấu hình hoặc thử lại sau lỗi nạp cần khởi động lại tiến trình.
