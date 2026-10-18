@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     app_name: str = "VeriClue API"
     api_cors_origins: str = "http://localhost:3000"
     use_mock_models: bool | Literal["mixed"] = True  # mixed: module có mô hình thật dùng thật
+    router_profile: Literal["full", "mvp"] = "full"
     device: str = "cpu"
     models_dir: str = "./models"
     media_dir: str = "./tmp/media"

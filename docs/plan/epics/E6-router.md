@@ -23,8 +23,18 @@
 - [x] Test với dữ liệu tổng hợp: ECE giảm sau hiệu chỉnh.
 - [x] Detector nào chưa có calibrator thì báo lỗi rõ ràng (không âm thầm dùng điểm thô). Mock `mock@` và module chỉ trả gate/nguồn gốc được miễn theo phạm vi đã chốt.
 
----
+**Bổ sung MVP được duyệt theo ADR-0012 (18/10):**
+- [x] Hồ sơ full mặc định giữ nguyên; MVP chỉ CamProbe, PAD/deepfake, quality, challenge/spoof; orchestrator chỉ preload/chạy module trong hồ sơ.
+- [x] Test full/MVP, mock MVP, module thiếu/error/degraded và calibrator thiếu đều không cho pass ở bước bắt buộc.
+- [x] Script fit chạy detector thật từ registry, chỉ đọc calib_fit, loại replay khỏi voice; lưu version thật, provisional, số mẫu, commit và hash manifest.
+- [x] Voice MVP dùng identity theo duyệt PR #28; Platt cũ được thay vì cổng lỏng hơn (0,15 tương đương score thô khoảng 0,857), giữ script fit cho bước sau và ghi lý do trong bàn giao.
+- [x] Hỗ trợ identity minh bạch theo ADR-0012 mục 2 sửa ngày 18/10: cắt score, provisional + ghi chú không dùng báo cáo; không bịa mẫu/metrics, voice cũng dùng identity.
+- [x] Commit identity PAD đúng runtime version minifasnet-v2@bfcc7d48+scrfd-10g@bfcc7d48; có CLI sinh GenD khi wrapper chốt version. Không chạy công việc dữ liệu trong cập nhật này.
+- [x] Module bị tắt trả error + disabled_by_profile/nhãn tiếng Việt; forensic MVP inconclusive, bàn duyệt giữ evidence; có regression test.
+- [x] Có regression nạp JSON trong repo theo version detector; hướng dẫn Windows longpaths. /healthz không đổi vì snapshot contracts.
+- [ ] Thêm JSON identity GenD sau FACE-02 merge với runtime version thật (không phụ thuộc dữ liệu).
 
+---
 ### ROUT-02 · Bộ chính sách quyết định
 
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |

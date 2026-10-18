@@ -1,0 +1,21 @@
+{
+  "module": "voice_spoof",
+  "model_version": "mms-300m-antideepfake@7928e119e09f616b2ce698892e00ca22dbaa40bf+voice01-v1-vad1-ln-win4-hop1-tail-meanlogits",
+  "method": "identity",
+  "provisional": true,
+  "note": "MVP — không dùng cho báo cáo",
+  "parameters": {
+    "slope": null,
+    "intercept": null,
+    "x": [],
+    "y": []
+  },
+  "epsilon": 0.0001,
+  "n_pos": 0,
+  "n_neg": 0,
+  "dataset": "not_fitted",
+  "split": "none",
+  "metrics_scope": "not_evaluated",
+  "date": "2026-10-18T04:46:57.051472Z",
+  "commit": "805ebc4b1f90cbac9b03959dd30aea47181cca59"
+}
