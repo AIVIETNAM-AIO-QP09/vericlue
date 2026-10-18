@@ -60,9 +60,13 @@ def lipsync_state(engine) -> dict:
     aligner = getattr(detector, "_aligner", None)
     backend = getattr(detector, "_backend", None)
     ctc = getattr(aligner, "_backend", None)
-    with engine._lifecycle:
-        running = sorted(str(module) for module in engine._running)
-        queued = len(engine._queues[Module.LIPSYNC])
+    running, queued = ["startup_or_busy"], None
+    if engine._lifecycle.acquire(blocking=False):
+        try:
+            running = sorted(str(module) for module in engine._running)
+            queued = len(engine._queues[Module.LIPSYNC])
+        finally:
+            engine._lifecycle.release()
     return {
         "requested_device": getattr(detector, "_requested_device", None),
         "detector_device": getattr(detector, "_device", None),
@@ -73,7 +77,7 @@ def lipsync_state(engine) -> dict:
         "aligner_loaded": getattr(ctc, "model", None) is not None,
         "running_modules": running,
         "lipsync_queued": queued,
-        "worker_pending": str(Module.LIPSYNC) in running or queued > 0,
+        "worker_pending": queued is None or str(Module.LIPSYNC) in running or queued > 0,
     }
 
 
