@@ -244,3 +244,11 @@ chung và cài các extra face/voice. Cần đủ wrapper thật và calibrator 
 module chưa sẵn sàng sẽ hiện trong health degraded. `USE_MOCK_MODELS=true` vẫn
 chạy được với MVP để test. Calibrator bắt buộc MVP: PAD, deepfake, voice_spoof;
 full còn yêu cầu lipsync. Mock `mock@` vẫn được miễn calibrator.
+
+Nếu consumer yêu cầu module bị tắt bởi profile (ví dụ lipsync/provenance khi giám
+định bằng MVP), orchestrator vẫn trả ModuleResult status=error/E_INTERNAL với
+orchestration_reason=disabled_by_profile và nhãn "Bước này đang tắt ở chế độ MVP".
+Không chạy/preload module đó; không âm thầm bỏ kết quả. Giám định ra inconclusive,
+bàn duyệt giữ được evidence, báo cáo hiển thị nhãn. Luồng người dân yêu cầu đúng
+nhóm module của profile nên không đổi. /healthz giữ schema cũ: thêm router_profile
+sẽ cần sửa packages/contracts/openapi.json và snapshot test, ngoài phạm vi đã duyệt.

@@ -62,8 +62,19 @@ def test_only_profile_modules_are_constructed_preloaded_and_run(profile):
         assert set(preloaded) == expected
         assert len(preloaded) == len(expected)
         results = engine.run(Module, session_id="profile-test", scenario="genuine")
-        assert set(results) == expected
+        assert set(results) == set(Module)
         assert set(predicted) == expected
+        for module in set(Module) - expected:
+            disabled = results[module]
+            assert disabled.status == Status.ERROR
+            assert disabled.error_code == ErrorCode.E_INTERNAL
+            assert disabled.prob_attack is None
+            assert any(
+                evidence.name == "orchestration_reason"
+                and evidence.value == "disabled_by_profile"
+                and evidence.label_vi == "Bước này đang tắt ở chế độ MVP"
+                for evidence in disabled.evidence
+            )
         assert not engine.failed_modules
     finally:
         engine.close()

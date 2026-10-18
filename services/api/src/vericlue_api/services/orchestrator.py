@@ -127,7 +127,16 @@ class Orchestrator:
             status=Status.ERROR,
             error_code=code,
             latency_ms=max(0.0, latency_ms),
-            evidence=[Evidence(type="text", name="orchestration_reason", value=reason)]
+            evidence=[
+                Evidence(
+                    type="text",
+                    name="orchestration_reason",
+                    value=reason,
+                    label_vi="Bước này đang tắt ở chế độ MVP"
+                    if reason == "disabled_by_profile"
+                    else None,
+                )
+            ]
             if reason
             else [],
         )
@@ -223,6 +232,12 @@ class Orchestrator:
             for value in dict.fromkeys(modules):
                 module = Module(value)
                 if module not in self.router.profile.modules:
+                    out[module] = self._error(
+                        module,
+                        ErrorCode.E_INTERNAL,
+                        (perf_counter() - started) * 1000,
+                        reason="disabled_by_profile",
+                    )
                     continue
                 if not self._started or self._closed or module in self._failed:
                     out[module] = self._error(

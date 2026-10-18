@@ -244,8 +244,8 @@ full còn yêu cầu lipsync. Mock `mock@` vẫn được miễn calibrator.
 ### Identity cho MVP — không cần dữ liệu
 
 Theo ADR-0012 mục 2 cập nhật 18/10, PAD dùng artifact `method=identity`:
-`prob_attack = clip(score, 1e-4, 1-1e-4)`. Giữ calibrator Platt thật đã fit cho
-voice_spoof. GenD dùng identity ngay khi wrapper chốt model_version; không cần
+`prob_attack = clip(score, 1e-4, 1-1e-4)`. Voice_spoof cũng dùng identity theo duyệt PR #28; Platt cũ được thay vì
+làm ngưỡng giọng lỏng hơn trên tập fit nhỏ. GenD dùng identity ngay khi wrapper được merge và chốt model_version; không cần
 chia tập hoặc fit thêm để xem luồng chạy. Hôm nay không chạy công việc dữ liệu.
 
 ```powershell
@@ -258,7 +258,10 @@ Version PAD lấy từ `pad.py` và hai revision trong `models/manifest.yaml`, k
 cần nạp mô hình hoặc ảnh. CLI chỉ đọc mã/config/JSON calibrator, không mở dữ liệu,
 không chạy detector. Commit implementation trước khi sinh để JSON ghi commit
 thực thi. Lưu bằng `CalibrationStore.path`; dấu `+` trong version được encode `%2B`.
-CLI từ chối thay artifact đã fit (Platt/isotonic) bằng identity.
+CLI mặc định từ chối thay artifact đã fit (Platt/isotonic) bằng identity. Voice
+đã được thay một lần theo quyết định trưởng nhóm; scripts/fit_calibrators.py giữ
+lại để hiệu chỉnh học ở giai đoạn sau. Trên Windows, chạy `git config core.longpaths true`
+tại gốc repo trước checkout/fetch vì tên calibrator có thể vượt MAX_PATH.
 
 `IdentityCalibrator` là artifact riêng, được `CalibrationStore` nhận như calibrator
 thường: `provisional=true`, ghi chú **MVP — không dùng cho báo cáo**, `n_pos=n_neg=0`,

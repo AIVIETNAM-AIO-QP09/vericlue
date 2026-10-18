@@ -10,7 +10,7 @@ from types import ModuleType
 
 import pytest
 
-from vericlue_ml.common.calibration import CalibrationError, CalibrationStore
+from vericlue_ml.common.calibration import CalibFit, CalibrationError, CalibrationStore, fit
 from vericlue_ml.common.result import Module
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -66,32 +66,33 @@ def test_generator_preserves_exact_version_and_marks_untrained_artifact(
         _ = artifact.prior_attack
 
 
-def test_generator_preserves_existing_tracked_voice_platt(
+def test_generator_preserves_existing_learned_voice_platt(
     tmp_path: Path, generator: ModuleType
 ) -> None:
-    tracked = ROOT / "ml" / "configs" / "calibrators" / "voice_spoof"
-    sources = [
-        path
-        for path in tracked.glob("*.json")
-        if json.loads(path.read_text(encoding="utf-8"))["method"] == "platt"
-    ]
-    assert sources, "Expected a tracked voice Platt calibrator configuration"
-    original = sources[0].read_bytes()
-    payload = json.loads(original)
-    assert payload["method"] == "platt"
-    version = payload["model_version"]
+    version = "voice@synthetic-fixture-v1"
+    learned = fit(
+        CalibFit(
+            scores=[0.1, 0.9] * 6,
+            labels=[0, 1] * 6,
+            subject_ids=[f"synthetic-person-{i // 2}" for i in range(12)],
+            dataset="synthetic",
+        ),
+        module=Module.VOICE_SPOOF,
+        model_version=version,
+        commit=COMMIT,
+    )
+    assert learned.method == "platt"
     output = tmp_path / "artifacts"
     store = CalibrationStore(output)
-    destination = store.path(Module.VOICE_SPOOF, version)
-    destination.parent.mkdir(parents=True)
-    destination.write_bytes(original)
+    destination = store.save(learned)
+    original = destination.read_bytes()
     with pytest.raises(CalibrationError, match="Refusing to replace"):
         generator.run(Module.VOICE_SPOOF, version, output)
     assert destination.read_bytes() == original
     artifact = CalibrationStore(output).load(Module.VOICE_SPOOF, version)
     assert artifact.method == "platt"
-    assert artifact.n_pos == payload["n_pos"]
-    assert artifact.n_neg == payload["n_neg"]
+    assert artifact.n_pos == learned.n_pos
+    assert artifact.n_neg == learned.n_neg
 
 
 def test_generator_can_regenerate_valid_identity(tmp_path: Path, generator: ModuleType) -> None:
