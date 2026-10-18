@@ -28,7 +28,8 @@
 - [x] Test full/MVP, mock MVP, module thiếu/error/degraded và calibrator thiếu đều không cho pass ở bước bắt buộc.
 - [x] Script fit chạy detector thật từ registry, chỉ đọc calib_fit, loại replay khỏi voice; lưu version thật, provisional, số mẫu, commit và hash manifest.
 - [x] Commit calibrator voice_spoof thật (Platt, 23 dương/109 âm; 80 replay + 7 no-score loại có thống kê) và ghi lệnh/commit/kết quả trong bàn giao.
-- [ ] Fit PAD trên khung giữa Zalo khi splits sẵn sàng; fit GenD khi wrapper + WildDeepfake calib_fit sẵn sàng.
+- [x] Hỗ trợ identity minh bạch theo ADR-0012 mục 2 sửa ngày 18/10: cắt score, provisional + ghi chú không dùng báo cáo; không bịa mẫu/metrics, giữ Platt voice.
+- [ ] Commit identity PAD đúng runtime version; chuẩn bị CLI sinh GenD khi wrapper chốt version. Không chạy công việc dữ liệu trong cập nhật này.
 
 ---
 ### ROUT-02 · Bộ chính sách quyết định

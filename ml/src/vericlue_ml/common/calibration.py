@@ -10,12 +10,12 @@ import os
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 from urllib.parse import quote
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 from sklearn.isotonic import IsotonicRegression
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
@@ -208,6 +208,55 @@ class Calibrator(_Record):
         return _predict(self.method, self.parameters, _vector(scores, "scores"), self.epsilon)
 
 
+class IdentityCalibrator(_Record):
+    """Explicit untrained MVP artifact; no fitted statistics or report prior."""
+
+    module: Module
+    model_version: str = Field(min_length=1)
+    method: Literal["identity"] = "identity"
+    provisional: Literal[True] = True
+    note: Literal["MVP — không dùng cho báo cáo"] = "MVP — không dùng cho báo cáo"
+    parameters: Parameters = Field(default_factory=Parameters)
+    epsilon: Literal[0.0001] = EPSILON
+    n_pos: Literal[0] = 0
+    n_neg: Literal[0] = 0
+    dataset: Literal["not_fitted"] = "not_fitted"
+    split: Literal["none"] = "none"
+    metrics_scope: Literal["not_evaluated"] = "not_evaluated"
+    date: datetime
+    commit: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_identity(self) -> IdentityCalibrator:
+        if self.module not in {Module.FACE_PAD, Module.FACE_DEEPFAKE, Module.VOICE_SPOOF}:
+            raise ValueError("Identity is limited to the three ADR-0012 score modules")
+        if self.parameters != Parameters():
+            raise ValueError("Identity cannot contain fitted parameters")
+        return self
+
+    @property
+    def prior_attack(self) -> float:
+        """No empirical prior exists for an artifact that has never been fitted."""
+        raise CalibrationError("Identity MVP has no fitted prior; not for reports")
+
+    def predict(self, scores: ArrayLike) -> FloatArray:
+        """Keep finite raw scores and clip to the ordinary artifact epsilon."""
+        return np.clip(_vector(scores, "scores"), self.epsilon, 1 - self.epsilon)
+
+
+def identity(*, module: str | Module, model_version: str, commit: str) -> IdentityCalibrator:
+    """Create the explicitly labelled, data-free MVP calibrator from ADR-0012."""
+    if not model_version.strip() or not commit.strip():
+        raise CalibrationError("Model version and source commit are required")
+    return IdentityCalibrator(
+        module=Module(module), model_version=model_version, commit=commit, date=datetime.now(UTC)
+    )
+
+
+CalibrationArtifact = Calibrator | IdentityCalibrator
+_ARTIFACT_ADAPTER = TypeAdapter(Annotated[CalibrationArtifact, Field(discriminator="method")])
+
+
 def _fit_parameters(method: str, x: FloatArray, y: FloatArray) -> Parameters:
     if method == "isotonic":
         model = IsotonicRegression(increasing=True, out_of_bounds="clip").fit(x, y)
@@ -349,7 +398,7 @@ class CalibrationStore:
                 )
             )
         )
-        self._cache: dict[tuple[Module, str], Calibrator] = {}
+        self._cache: dict[tuple[Module, str], CalibrationArtifact] = {}
 
     def path(self, module: str | Module, model_version: str) -> Path:
         """Đường dẫn portable: percent-encode ký tự không hợp lệ, không cho traversal."""
@@ -357,22 +406,22 @@ class CalibrationStore:
             raise CalibrationError("model_version không hợp lệ.")
         return self.root / Module(module).value / f"{quote(model_version, safe='@-_.')}.json"
 
-    def save(self, calibrator: Calibrator) -> Path:
+    def save(self, calibrator: CalibrationArtifact) -> Path:
         """Lưu JSON đã kiểm tra, rồi cập nhật cache của store này."""
-        calibrator = Calibrator.model_validate_json(calibrator.model_dump_json())
+        calibrator = _ARTIFACT_ADAPTER.validate_json(calibrator.model_dump_json())
         path = self.path(calibrator.module, calibrator.model_version)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(calibrator.model_dump_json(indent=2) + "\n", encoding="utf-8")
         self._cache[(calibrator.module, calibrator.model_version)] = calibrator
         return path
 
-    def load(self, module: str | Module, model_version: str) -> Calibrator:
+    def load(self, module: str | Module, model_version: str) -> CalibrationArtifact:
         """Thiếu/hỏng/sai phiên bản => CalibrationError, tuyệt đối không fallback."""
         key = (Module(module), model_version)
         if key not in self._cache:
             path = self.path(*key)
             try:
-                artifact = Calibrator.model_validate_json(path.read_text(encoding="utf-8"))
+                artifact = _ARTIFACT_ADAPTER.validate_json(path.read_text(encoding="utf-8"))
             except (OSError, ValueError) as exc:
                 raise CalibrationError(
                     f"Không nạp được calibrator {key[0].value}/{model_version}: {path}"

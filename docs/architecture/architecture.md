@@ -187,3 +187,10 @@ ghép vẫn áp dụng. Calibrator MVP bắt buộc PAD/deepfake/spoof đúng mo
 không đổi ngưỡng, hợp đồng, thứ tự cổng hay xử lý lỗi. Metadata thresholds của
 quyết định MVP thêm router_profile; full giữ nguyên metadata. Script fit thật chỉ
 đọc calib_fit; PAD video lấy khung giữa và voice loại replay, JSON tạm được commit.
+
+ADR-0012 mục 2 cập nhật 18/10: MVP dùng artifact identity cho PAD và GenD, cắt
+điểm thô theo epsilon; giữ Platt voice đã fit. Identity ghi provisional và
+“MVP — không dùng cho báo cáo”, không tạo số mẫu hoặc metrics học giả. Store nạp
+artifact theo method/version; router không có fallback ngầm. Sinh identity chỉ
+cần mã/config/version wrapper, không cần dữ liệu. Công cụ fit ở trên để dùng ở
+giai đoạn thay thế sau MVP, không phải điều kiện chạy demo hôm nay.

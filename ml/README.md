@@ -241,6 +241,37 @@ module chưa sẵn sàng sẽ hiện trong health degraded. `USE_MOCK_MODELS=tru
 chạy được với MVP để test. Calibrator bắt buộc MVP: PAD, deepfake, voice_spoof;
 full còn yêu cầu lipsync. Mock `mock@` vẫn được miễn calibrator.
 
+### Identity cho MVP — không cần dữ liệu
+
+Theo ADR-0012 mục 2 cập nhật 18/10, PAD dùng artifact `method=identity`:
+`prob_attack = clip(score, 1e-4, 1-1e-4)`. Giữ calibrator Platt thật đã fit cho
+voice_spoof. GenD dùng identity ngay khi wrapper chốt model_version; không cần
+chia tập hoặc fit thêm để xem luồng chạy. Hôm nay không chạy công việc dữ liệu.
+
+```powershell
+uv run --no-sync python scripts/create_identity_calibrator.py --module face_pad --model-version "minifasnet-v2@bfcc7d48+scrfd-10g@bfcc7d48"
+# Khi FACE-02 chốt version runtime sau preload (không dùng tên generic trong constructor):
+uv run --no-sync python scripts/create_identity_calibrator.py --module face_deepfake --model-version "<model_version chính xác của wrapper GenD>"
+```
+
+Version PAD lấy từ `pad.py` và hai revision trong `models/manifest.yaml`, không
+cần nạp mô hình hoặc ảnh. CLI chỉ đọc mã/config/JSON calibrator, không mở dữ liệu,
+không chạy detector. Commit implementation trước khi sinh để JSON ghi commit
+thực thi. Lưu bằng `CalibrationStore.path`; dấu `+` trong version được encode `%2B`.
+CLI từ chối thay artifact đã fit (Platt/isotonic) bằng identity.
+
+`IdentityCalibrator` là artifact riêng, được `CalibrationStore` nhận như calibrator
+thường: `provisional=true`, ghi chú **MVP — không dùng cho báo cáo**, `n_pos=n_neg=0`,
+`dataset=not_fitted`, `split=none`, `metrics_scope=not_evaluated`. Không có số đo
+before/after hoặc CV giả; đọc `prior_attack` sẽ báo lỗi vì chưa có tiền nghiệm.
+`Calibrator` Platt/isotonic giữ schema và kiểm định cũ. Router vẫn cần đúng
+module/version; thiếu artifact, lỗi/degraded/not_applicable hoặc score không hữu
+hạn vẫn không được pass. Ngưỡng tạm giữ nguyên; identity chỉ giúp cắm mô hình để
+xem luồng, không phải xác suất đã được kiểm chứng hay kết quả R.
+
+### Hiệu chỉnh học từ dữ liệu — công việc thay thế sau MVP
+
+Phần dưới mô tả công cụ đã có; không chạy trong cập nhật MVP hôm nay.
 Fit calibrator bằng detector thật qua registry:
 
 ```powershell
@@ -262,5 +293,5 @@ Commit implementation trước khi chạy (script từ chối working tree bẩn
 JSON ghi `provisional: true`, commit thực thi, n_pos/n_neg, hash manifest, cách lấy
 ảnh và số mẫu loại trong dataset provenance; version lấy trực tiếp detector.
 JSON được commit vào `ml/configs/calibrators/`. Chỉ số trong artifact là OOF trên
-calib_fit, không phải kết quả R hay bảo đảm LTT. Face calibrator chỉ chạy khi splits
-và wrapper tương ứng sẵn sàng. Thiếu calibrator ở bước được chạy thì review.
+calib_fit, không phải kết quả R hay bảo đảm LTT. Hiệu chỉnh đã học sẽ thay identity
+ở giai đoạn đánh giá sau; không chặn MVP. Thiếu calibrator ở bước được chạy thì review.
