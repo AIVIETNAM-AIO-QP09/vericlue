@@ -32,6 +32,12 @@ Người dùng yêu cầu: **trong ngày 18/10 phải có một MVP chạy hoàn
 3. **Không đổi ngưỡng.** Ngưỡng của `quality` và `camprobe` (chưa có trong `thresholds.yaml`) đặt thành hằng số có tên trong file mô-đun, giống `SECOND_FACE_AREA_RATIO` ở `pad.py`, chờ ROUT-03. `thresholds.yaml` giữ nguyên các giá trị tạm (`provisional: true`). Ngưỡng chính thức vẫn do ROUT-03 chọn trên `calib_ltt`.
 4. **Không có kết quả R nào được lấy từ MVP.** Số liệu thử tay chỉ ghi vào bàn giao.
 
+5. **Đợt 2 (18/10, người dùng yêu cầu cắm đủ mọi mô hình có sẵn):**
+   - Khi `lipsync` thật (VOICE-05: SyncNet và CTC aligner) đã đăng ký, hồ sơ `mvp` đưa `lipsync` trở lại bước giọng nói và dùng calibrator identity như ba module trên.
+   - Cờ cắt ghép từ aligner đi vào `splice_flags`, router hiện đã xử lý trường này.
+   - Cách quy đổi độ tin cậy SyncNet ra `score` trong [0, 1] (tăng = nghi giả) là hằng số có tên, tạm thời, ghi trong file mô-đun.
+   - Nếu bước giọng nói không có video, `lipsync` trả `not_applicable`. Router xử lý trường hợp này giống thiếu module bắt buộc (`review`), trừ khi trưởng nhóm quyết khác sau khi thử.
+
 ## Phương án đã cân nhắc
 - **Giữ hồ sơ `full`, chờ đủ PRES-02 và VOICE-05:** không kịp trong ngày, và người dùng không thử được.
 - **Đặt GenD ở dạng "chỉ tham khảo" (không dùng để quyết định):** hệ thống chống deepfake mà bỏ qua bộ phát hiện deepfake thì sai logic. Không chọn.
