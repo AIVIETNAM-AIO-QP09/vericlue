@@ -111,7 +111,7 @@ SyncNet stable LatentSync dùng 16 khung/25 fps, RGB 256² chuẩn hóa [-1,1], 
 nửa dưới; âm thanh mono 16 kHz, preemphasis 0,97, mel Slaney 80×52, FFT800/hop200.
 Dùng lại hộp mặt SCRFD của PAD để cắt mặt, **khác bước affine theo landmark của
 upstream**; chưa tuyên bố tương đương hay độ chính xác. Mọi cửa sổ hình/tiếng và
-31 vị trí dò ±600 ms đều nằm trong đúng đoạn câu đã căn; tối đa 4 mốc cách đều,
+31 vị trí dò ±600 ms (gồm support FFT/preemphasis) đều nằm trong đoạn câu đã căn; tối đa 4 mốc cách đều,
 không chọn mốc theo điểm. Đo trên timestamp từng khung, kể cả WebM/VFR; chọn frame
 gần nhất khi resample25fps, thiếu timestamp/không tăng hoặc cách quá40ms → degraded.
 Không nối các đoạn có khoảng nghỉ; giới hạn đọc120s/36.000frame.

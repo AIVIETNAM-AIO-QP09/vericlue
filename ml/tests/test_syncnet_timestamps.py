@@ -183,3 +183,57 @@ def test_timestamp_past_maximum_duration_errors_and_releases(fake_capture):
         syncnet._read_windows(Path("unopened.webm"), [0], object())
     assert caught.value.code == ErrorCode.E_DECODE
     assert capture.released is True
+
+
+def assert_full_audio_support_within(starts, segment_start, segment_end):
+    """Check waveform samples used by every centered FFT, including preemphasis."""
+    for start in starts:
+        for offset in range(-syncnet.MAX_OFFSET_FRAMES, syncnet.MAX_OFFSET_FRAMES + 1):
+            column = int(
+                (start + offset)
+                * (syncnet.AUDIO_SAMPLE_RATE / syncnet.MEL_HOP_SAMPLES)
+                / syncnet.SYNCNET_FPS
+            )
+            first_sample = column * syncnet.MEL_HOP_SAMPLES - syncnet.MEL_FFT_SIZE // 2 - 1
+            final_sample = (
+                column + syncnet.MEL_WINDOW_COLUMNS - 1
+            ) * syncnet.MEL_HOP_SAMPLES + syncnet.MEL_FFT_SIZE // 2
+            assert first_sample / syncnet.AUDIO_SAMPLE_RATE >= segment_start - 1e-12
+            assert final_sample / syncnet.AUDIO_SAMPLE_RATE <= segment_end + 1e-12
+
+
+@pytest.mark.parametrize(
+    "segment_start,segment_end",
+    [(0.0275, 4.073), (0.001, 2.401), (1.234567, 6.777777), (0.0, 4.0)],
+)
+def test_centered_fft_and_preemphasis_stay_inside_fractional_alignment_edges(
+    segment_start, segment_end
+):
+    alignment = SimpleNamespace(
+        aligned_segments=[SimpleNamespace(start_s=segment_start, end_s=segment_end)]
+    )
+    starts = syncnet._window_starts(alignment)
+    assert starts
+    assert_full_audio_support_within(starts, segment_start, segment_end)
+
+
+def test_window_at_exact_fft_guard_boundary_preserves_full_waveform_support():
+    alignment = SimpleNamespace(aligned_segments=[SimpleNamespace(start_s=0.1624375, end_s=2.0625)])
+    starts = syncnet._window_starts(alignment)
+    assert starts == [20]
+    assert_full_audio_support_within(starts, 0.1624375, 2.0625)
+
+
+@pytest.mark.parametrize("which_edge", ["start", "end"])
+def test_window_missing_one_sample_of_guard_is_degraded(which_edge):
+    segment_start, segment_end = 0.1624375, 2.0625
+    if which_edge == "start":
+        segment_start += 1 / syncnet.AUDIO_SAMPLE_RATE
+    else:
+        segment_end -= 1 / syncnet.AUDIO_SAMPLE_RATE
+    alignment = SimpleNamespace(
+        aligned_segments=[SimpleNamespace(start_s=segment_start, end_s=segment_end)]
+    )
+    with pytest.raises(syncnet.SyncNetError) as caught:
+        syncnet._window_starts(alignment)
+    assert caught.value.status == "degraded"

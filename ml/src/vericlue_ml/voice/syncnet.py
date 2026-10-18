@@ -52,6 +52,11 @@ MEL_BANDS = 80
 MEL_FFT_SIZE = 800
 MEL_HOP_SAMPLES = 200
 MEL_WINDOW_COLUMNS = 52
+# STFT is centered; include rounding and the preemphasis filter's previous sample.
+MEL_LEFT_CONTEXT_SECONDS = (MEL_FFT_SIZE / 2 + MEL_HOP_SAMPLES + 1) / AUDIO_SAMPLE_RATE
+MEL_RIGHT_SUPPORT_SECONDS = (
+    (MEL_WINDOW_COLUMNS - 1) * MEL_HOP_SAMPLES + MEL_FFT_SIZE / 2
+) / AUDIO_SAMPLE_RATE
 MEL_FMIN_HZ = 55.0
 MEL_FMAX_HZ = 7600.0
 PREEMPHASIS = 0.97
@@ -153,14 +158,11 @@ def _window_starts(alignment: Alignment) -> list[int]:
     starts = []
     for segment in alignment.aligned_segments:
         first = (
-            math.ceil((segment.start_s + MEL_HOP_SAMPLES / AUDIO_SAMPLE_RATE) * SYNCNET_FPS)
+            math.ceil((segment.start_s + MEL_LEFT_CONTEXT_SECONDS) * SYNCNET_FPS)
             + MAX_OFFSET_FRAMES
         )
         last = (
-            math.floor(
-                (segment.end_s - MEL_WINDOW_COLUMNS * MEL_HOP_SAMPLES / AUDIO_SAMPLE_RATE)
-                * SYNCNET_FPS
-            )
+            math.floor((segment.end_s - MEL_RIGHT_SUPPORT_SECONDS) * SYNCNET_FPS)
             - MAX_OFFSET_FRAMES
         )
         starts.extend(range(first, last + 1, SYNCNET_FRAMES))
