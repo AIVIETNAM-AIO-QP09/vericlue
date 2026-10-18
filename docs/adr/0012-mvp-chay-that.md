@@ -37,6 +37,19 @@ Người dùng yêu cầu: **trong ngày 18/10 phải có một MVP chạy hoàn
    - Cờ cắt ghép từ aligner đi vào `splice_flags`, router hiện đã xử lý trường này.
    - Cách quy đổi độ tin cậy SyncNet ra `score` trong [0, 1] (tăng = nghi giả) là hằng số có tên, tạm thời, ghi trong file mô-đun.
    - Nếu bước giọng nói không có video, `lipsync` trả `not_applicable`. Router xử lý trường hợp này giống thiếu module bắt buộc (`review`), trừ khi trưởng nhóm quyết khác sau khi thử.
+6. **Sửa mục 5 (18/10, sau khi duyệt PR #32): `lipsync` chạy ở chế độ "tham khảo"** cho tới khi đủ ba điều kiện bên dưới.
+   - `lipsync` vẫn chạy trong hồ sơ `mvp`. Kết quả được lưu và hiện cho người duyệt. **Router chưa dùng nó để quyết định.** Bước giọng nói quyết bằng `voice_challenge` và `voice_spoof`.
+   - Lý do: đo trong thực tế sẽ sai một cách có hệ thống, nên người thật gần như luôn bị đẩy sang `review`:
+     - web ghi hình và tiếng bằng hai bộ ghi khác nhau, lệch đồng hồ không biết trước;
+     - câu đề bài ngắn (khoảng 1,6–2,5 giây) không đủ cửa sổ cho SyncNet;
+     - chạy CPU vượt trần 4 giây.
+
+     Lỗi do cách đo, không phải do người dùng.
+   - **Điều kiện để đưa `lipsync` trở lại phần quyết định:**
+     - web ghi video kèm track âm thanh trong cùng một MediaRecorder, hoặc gửi độ lệch thời điểm bắt đầu;
+     - có số đo trên câu thật cho thấy người thật đạt;
+     - chạy trên GPU trong ngân sách thời gian.
+   - Cờ cắt ghép (`splice_flags`) **vẫn được dùng để quyết định.** Router xét "đọc sai câu" **trước** cờ cắt ghép: đọc sai thì cho đọc lại, không bị đẩy sang `review` ưu tiên cao vì cờ sinh ra do căn câu đề bài vào một câu đọc sai.
 
 ## Phương án đã cân nhắc
 - **Giữ hồ sơ `full`, chờ đủ PRES-02 và VOICE-05:** không kịp trong ngày, và người dùng không thử được.
