@@ -6,6 +6,7 @@ import argparse
 import csv
 import json
 import os
+import sys
 from collections import Counter, defaultdict
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
@@ -179,6 +180,9 @@ def audit(data_dir: Path, datasets: tuple[str, ...] = DATASETS) -> dict:
 
 def main() -> int:
     """Audit CSV hiện có; exit 1 nếu có lỗi, quota bất khả thi chỉ cảnh báo."""
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-dir", type=Path, default=Path(os.environ.get("DATA_DIR", "data")))
     parser.add_argument("--only", nargs="+", choices=DATASETS)

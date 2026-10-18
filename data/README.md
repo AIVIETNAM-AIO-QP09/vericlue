@@ -7,7 +7,7 @@ data/
 ├── raw/          bộ dữ liệu gốc tải về (zalo2022/, rtfs10k/, mlaad_vi/, vimd/, ...)
 ├── interim/      đã cắt mặt, chuẩn hóa âm thanh, đã nén lại
 ├── synth/        dữ liệu tự tạo từ nguồn công khai (deepfake người Việt, giọng giả)
-├── splits/       danh sách train / calibration / test (file .csv nhỏ, ĐƯỢC phép commit qua ml/configs nếu cần)
+├── splits/       train / calib_fit / calib_ltt / test (CSV + SUMMARY, KHÔNG commit)
 └── selftest/     video chạy thử ChromaPulse của thành viên nhóm (xóa sau dự án)
 ```
 
@@ -43,3 +43,12 @@ archive/member cho mỗi clip/frame. Chọn shard/archive theo ngoại lệ trư
 15/10; DATA-03 phải nối video và người xuyên shard. Wild báo video xuất hiện
 trong nhiều archive đã tải. FAS-VN lưu nguyên ZIP (small = full).
 Giọng thật ViSpoofDB lấy từ VIVOS; DATA-03 phải chia theo người xuyên hai bộ.
+
+DATA-03 ảnh: xem lệnh `make_splits.py --only ...` và audit CSV trong
+`scripts/README.md`. CSV chứa path tương đối DATA_DIR, label 0=thật/1=giả;
+đọc bằng `Path(DATA_DIR) / row["path"]`. Giữ `group_id` để kiểm không rò nhóm;
+ID người chưa biết để trống. Không đưa CSV/SUMMARY/manifest dữ liệu vào
+`ml/configs/` hoặc commit; chỉ calibrator theo ADR-0010 được commit ở đó.
+FAS-VN/RTFS test-only; WildDeepfake theo ADR-0012 chia nguyên nhóm video thành
+fit/LTT/test, không train. Media trong archive được giải nén dưới
+`raw/<bộ>/extracted/`, không xóa nguồn và không lưu embedding ArcFace lâu dài.

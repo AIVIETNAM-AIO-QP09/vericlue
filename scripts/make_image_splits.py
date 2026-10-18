@@ -18,6 +18,10 @@ import zipfile
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path, PurePosixPath
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import numpy as np
 
 from make_splits import (
     FIELDS,
@@ -119,7 +123,7 @@ def load_fas(data_dir: Path) -> tuple[list[Row], list[dict]]:
 class FaceEncoder:
     """SCRFD + ArcFace ONNX local; embedding chỉ tồn tại trong RAM."""
 
-    def __init__(self, models_dir: Path):
+    def __init__(self, models_dir: Path) -> None:
         import cv2
         import numpy as np
         import onnxruntime as ort
@@ -185,7 +189,7 @@ class FaceEncoder:
             "loader": "direct-onnx-v1",
         }
 
-    def landmarks(self, image):
+    def landmarks(self, image: np.ndarray) -> list[np.ndarray]:
         """SCRFD letterbox 640, confidence 0,5 và NMS 0,4; giữ mọi mặt."""
         import cv2
         import numpy as np
@@ -235,7 +239,7 @@ class FaceEncoder:
         return [points[i] for i in keep]
 
     @staticmethod
-    def aligned(image, landmarks):
+    def aligned(image: np.ndarray, landmarks: np.ndarray) -> np.ndarray:
         """Similarity least-squares toàn bộ 5 mốc, chuẩn ArcFace 112×112."""
         import cv2
         import numpy as np
@@ -258,14 +262,14 @@ class FaceEncoder:
         transform = np.array([[a, -b, tx], [b, a, ty]], dtype=np.float32)
         return cv2.warpAffine(image, transform, (112, 112), borderValue=0.0)
 
-    def encode(self, path: Path) -> list:
+    def encode(self, path: Path) -> list[np.ndarray]:
         """Ba khung/video; mọi mặt được thấy liên kết về cùng nhóm video."""
         import cv2
         import numpy as np
 
         def frames():
             if path.suffix.lower() in {".mp4", ".video", ".webm"}:
-                cap = cv2.VideoCapture(str(path))
+                cap = cv2.VideoCapture(str(path), cv2.CAP_FFMPEG, [cv2.CAP_PROP_N_THREADS, 1])
                 try:
                     count = cap.get(cv2.CAP_PROP_FRAME_COUNT)
                     for fraction in (0.15, 0.5, 0.85):
@@ -366,15 +370,16 @@ def zalo_splits(data_dir: Path, models_dir: Path, seed: int) -> tuple[SplitMap, 
                         flush=True,
                     )
         attempts = []
-        for threshold in (0.30, 0.35, 0.40, 0.45, 0.50):
+        for threshold in (0.30, 0.35, 0.40, 0.45, 0.50, 0.55, 0.60):
             groups = face_components(rows, embeddings, threshold)
             sizes = [sum(r["source"] == "zalo2022" for r in group) for group in groups]
             largest = max(sizes, default=0)
             attempts.append({"cosine": threshold, "largest_zalo": largest})
+            print(
+                f"Cosine {threshold:.2f}: component Zalo lớn nhất {largest}/{len(zalo)}", flush=True
+            )
             if largest <= 0.30 * len(zalo):
                 break
-        else:
-            raise ValueError(f"Component Zalo >30% sau siết: {attempts}")
         result = {source: {split: [] for split in SPLITS} for source in ("zalo2022", "fas_vn")}
         missing = {rows[i]["path"] for i, value in enumerate(embeddings) if not value}
         independent = []
@@ -392,6 +397,7 @@ def zalo_splits(data_dir: Path, models_dir: Path, seed: int) -> tuple[SplitMap, 
             "arcface": encoder.models,
             "attempts": attempts,
             "selected_cosine": threshold,
+            "oversized_after_tightening": largest > 0.30 * len(zalo),
             "zalo_component_sizes": sorted((n for n in sizes if n), reverse=True),
             "component_histogram": dict(sorted(Counter(n for n in sizes if n).items())),
             "no_face": dict(Counter(r["source"] for r in rows if r["path"] in missing)),
@@ -429,6 +435,8 @@ def archive_rows(data_dir: Path, source: str) -> list[Row]:
                     with archive.extractfile(info) as stream, target.open("wb") as output:
                         shutil.copyfileobj(stream, output)
                 split = item["source_split"]
+                if source == "wilddeepfake" and not split.startswith(("real_", "fake_")):
+                    raise ValueError(f"WildDeepfake: source_split không hợp lệ: {split}")
                 label = "1" if split.startswith("fake") else "0"
                 origin = str(item.get("video_origin_id") or "")
                 if not origin:
@@ -458,11 +466,19 @@ def wild_splits(data_dir: Path, seed: int) -> tuple[SplitMap, dict]:
             candidates = [g for g in remaining if any(r["label"] == label for r in g)]
             target_groups = max(1, math.ceil(len(groups) * 0.1 / 2))
             selected, count = [], 0
+            available_samples = sum(r["label"] == label for g in candidates for r in g)
             for group in candidates:
                 if count >= minimum and len(selected) >= target_groups:
                     break
+                group_samples = sum(r["label"] == label for r in group)
+                if (
+                    split == "calib_ltt"
+                    and count >= minimum
+                    and available_samples - count - group_samples < 100
+                ):
+                    continue
                 selected.append(group)
-                count += sum(r["label"] == label for r in group)
+                count += group_samples
             for group in selected:
                 remaining.remove(group)
                 part[split].extend(group)

@@ -222,8 +222,9 @@ ArcFace chỉ dùng nghiên cứu phi thương mại.
 - **Zalo:** nhãn gốc `liveness_score=1` là thật (`label=0`), `0` là giả (`label=1`).
   Lấy 3 khung ở 15/50/85% mỗi video, SCRFD tìm mọi mặt, ArcFace căn chỉnh và
   chuẩn hóa embedding. Union mọi cặp cosine ≥0,30; nếu component lớn nhất chứa
-  >30% video Zalo thì thử 0,35/0,40/0,45/0,50 theo thứ tự và báo mọi lần thử.
-  Vẫn >30% thì dừng. Chỉ xem phân bố component, không xem điểm PAD/GenD hoặc
+  >30% video Zalo thì thử 0,35/0,40/0,45/0,50/0,55/0,60 theo thứ tự và báo mọi
+  lần thử. Nếu vẫn lớn thì giữ nguyên component, báo `oversized_after_tightening`;
+  không tách nhóm để ép tỷ lệ. Chỉ xem phân bố component, không xem điểm PAD/GenD hoặc
   kết quả test để chọn ngưỡng. Component liên kết FAS hoặc video không tìm được
   mặt buộc test. Các nhóm còn lại chia 60/10/10/20 theo nhóm, rồi dồn nguyên nhóm
   train cho LTT ≥60/attack và fit ≥100/lớp. `subject_id` luôn trống; nhóm tự động
@@ -237,6 +238,8 @@ ArcFace chỉ dùng nghiên cứu phi thương mại.
   mục tiêu khoảng 10% nhóm mỗi phần; phần chưa gán mới được chốt thành test.
   Có thể vượt quota do không bẻ nhóm. Subject chưa có để trống; cùng người ở
   video khác vẫn là rủi ro. Quota khung không tương đương video/người độc lập.
+  Khi LTT đã đạt tối thiểu, không dồn thêm nhóm chỉ để đạt tỷ lệ nếu làm fit
+  còn dưới 100 mẫu/lớp.
 - **RTFS-10k:** test-only, union video YouTube gốc ∪ ảnh donor xuyên generator.
 - **DATA-04:** giữ nguyên mọi clip cùng video gốc ViCocktail và mọi ảnh cùng
   nhãn người vn_celeb; ArcFace union thêm liên kết xuyên hai bộ (0,30).

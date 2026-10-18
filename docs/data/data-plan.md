@@ -46,6 +46,14 @@
 
 ### 2.3 Ảnh khuôn mặt người Việt (nguồn để tự tạo deepfake)
 
+**Chính sách chia ảnh (17–18/10, DATA-03 / ADR-0012):** FAS-VN và RTFS-10k
+chỉ test. WildDeepfake chia theo nhóm video từ `video_groups.jsonl` thành
+`calib_fit` / `calib_ltt` / `test`, không train; không dùng phần test còn lại để
+chọn mô hình/ngưỡng. Zalo union ArcFace, liên kết FAS buộc test. ViCocktail ∪
+người vn_celeb chuẩn bị nhóm nguồn cho DATA-04; đầu ra tổng hợp kế thừa split
+của cả hai nguồn. Chi tiết và giới hạn ở thẻ DATA-03, `scripts/README.md` và
+`DATA_DIR/splits/SUMMARY-*.md`; không coi nhóm tự động là danh tính đã xác minh.
+
 | Bộ dữ liệu | Nội dung | Cách lấy | Giấy phép | Đường dẫn | Kiểm tra |
 |---|---|---|---|---|---|
 | **Vietnamese Celebrity Faces** | 8.557 ảnh, khoảng 224 người nổi tiếng | Kaggle / HF, tải ngay | HF ghi Apache-2.0 | kaggle.com/datasets/duongtran1909/vietnamese-celebrity-faces | Có |

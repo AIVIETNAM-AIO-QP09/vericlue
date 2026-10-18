@@ -20,7 +20,7 @@ Không chép vào `src/`, nhưng vẫn ghi nhận để giữ đúng giấy phé
 
 Giữ nguyên thông báo Apache-2.0 khi phân phối. Sau này gộp mô hình vào `models/manifest.yaml` (DATA-02).
 
-## FACE-01
+## DATA-03
 
 DATA-03 `scripts/make_image_splits.py` tham chiếu/viết lại tiền xử lý và giải mã
 SCRFD, chuẩn RGB/127,5 và 5 mốc ArcFace từ UniFace 4.0.0 (MIT, Copyright
@@ -29,6 +29,8 @@ SCRFD, chuẩn RGB/127,5 và 5 mốc ArcFace từ UniFace 4.0.0 (MIT, Copyright
 Loader chạy ONNX trực tiếp, không import UniFace/SciPy; similarity transform
 giải least-squares 5 điểm bằng NumPy. Giữ thông báo ở đầu file; giấy phép nguyên
 văn tại `licenses/uniface.txt`. ArcFace/SCRFD weights chỉ nghiên cứu phi thương mại.
+
+## FACE-01
 
 | Nguồn | Giấy phép | Chép vào đâu | Đã sửa gì | Task |
 |---|---|---|---|---|
