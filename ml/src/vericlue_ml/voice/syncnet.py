@@ -24,6 +24,7 @@ import numpy as np
 from scipy.signal import lfilter
 
 from vericlue_ml.common.detector import DetectorInput
+from vericlue_ml.common.device import requested_device, resolve_torch_device
 from vericlue_ml.common.result import ErrorCode, Evidence, Module, ModuleResult
 from vericlue_ml.face.pad import (
     DETECTOR_FILE,
@@ -314,10 +315,12 @@ class StableBackend:
         self.model = None
         self.device = "cpu"
         self.root = None
+        self._requested_device = "cpu"
 
     def preload(self, *, models_dir: Path, device: str = "cpu") -> None:
+        wanted = requested_device(device)
         if self.model is not None:
-            if self.root != models_dir.resolve() or self.device != device:
+            if self.root != models_dir.resolve() or self._requested_device != wanted:
                 raise SyncNetError("Loaded backend needs restart for a different root/device")
             return
         weights, _ = _verified_weights(models_dir, SYNCNET_MODEL_ID, SYNCNET_FILE)
@@ -325,15 +328,8 @@ class StableBackend:
 
         from vericlue_ml.voice._syncnet_model import StableSyncNet
 
-        if device == "auto":
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-        if device != "cpu" and not (
-            device == "cuda" or (device.startswith("cuda:") and device[5:].isdigit())
-        ):
-            raise SyncNetError("Supported devices: cpu, cuda, cuda:N, auto")
-        if device.startswith("cuda") and not torch.cuda.is_available():
-            raise SyncNetError("CUDA requested but unavailable")
-        self.device = device
+        self.device = resolve_torch_device(wanted, component="stable_syncnet")
+        self._requested_device = wanted
         torch.set_num_threads(CPU_THREADS)
         checkpoint = torch.load(weights, map_location="cpu", weights_only=True, mmap=True)
         with torch.device("meta"):
@@ -433,23 +429,22 @@ class SyncNetDetector:
         self._lock = threading.RLock()
         self._loaded = False
         self._device = "cpu"
+        self._requested_device = "cpu"
 
     def preload(self, *, models_dir: Path | None = None, device: str = "cpu") -> None:
         """Verify and load local checkpoints once, including the forced aligner/SCRFD."""
         with self._lock:
             root = _models_root(models_dir) if models_dir is not None else self._root
-            if device == "auto":
-                import torch
-
-                device = "cuda" if torch.cuda.is_available() else "cpu"
+            wanted = requested_device(device)
             if self._loaded:
-                if root.resolve() != self._root.resolve() or device != self._device:
+                if root.resolve() != self._root.resolve() or wanted != self._requested_device:
                     raise SyncNetError("Loaded detector needs restart for new configuration")
                 return
-            self._root, self._device = root, device
+            device = resolve_torch_device(wanted, component="lipsync")
+            self._root, self._device, self._requested_device = root, device, wanted
             self._aligner.preload(models_dir=root, device=device)
             if self._finder is None:
-                session, _ = shared_scrfd_session(root, device)
+                session, _ = shared_scrfd_session(root, wanted)
                 self._finder = ScrfdFaceFinder(session)
             self._backend.preload(models_dir=root, device=device)
             self._loaded = True
@@ -467,7 +462,7 @@ class SyncNetDetector:
             if not isinstance(prompt, str) or not prompt.strip():
                 raise SyncNetError("Missing server prompt")
             with self._lock:
-                self.preload(models_dir=self._root, device=self._device)
+                self.preload(models_dir=self._root, device=self._requested_device)
                 alignment = self._aligner.align(inp.audio, prompt)
                 events = [
                     dict(kind=e.kind, start_s=e.start_s, end_s=e.end_s)

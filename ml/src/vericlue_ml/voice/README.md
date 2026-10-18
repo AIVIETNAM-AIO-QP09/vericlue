@@ -96,7 +96,8 @@ Registry đã có `SyncNetDetector` cho `lipsync`; cài cả extra `face` và `v
 Chỉ nạp file có sẵn trong `MODELS_DIR/ctc-aligner`, `syncnet`, `scrfd-10g`, kiểm
 SHA-256 trước khi đọc checkpoint. Không gọi mạng hoặc remote code. Model/processor
 CTC dùng local safetensors; SyncNet dùng `weights_only=True`, strict state dict.
-Preload một lần; CPU mặc định, `DEVICE=cuda` hoặc `cuda:N` chỉ khi Torch có CUDA.
+Preload một lần; CPU mặc định. DEVICE=cuda/cuda:N/auto dùng GPU khi runtime có,
+thiếu GPU thì lùi CPU và ghi log qua common.device, giữ chung khóa cache SCRFD.
 
 `ForcedAligner.align(audio_path, prompt)` căn **câu phía server**, không nhận câu
 ASR. Dùng CTC blank 0, wildcard `<star>`, bước 20 ms; chuẩn hóa tiếng Việt bằng

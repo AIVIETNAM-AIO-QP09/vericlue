@@ -1,6 +1,6 @@
 {
   "module": "lipsync",
-  "model_version": "stable-syncnet@c42c7e6c+ctc-aligner@49402e95+scrfd-10g@bfcc7d48+voice05-v1",
+  "model_version": "stable-syncnet@c42c7e6c+ctc-aligner@49402e95+scrfd-10g@bfcc7d48+voice05-v2",
   "method": "identity",
   "provisional": true,
   "note": "MVP — không dùng cho báo cáo",
@@ -16,6 +16,6 @@
   "dataset": "not_fitted",
   "split": "none",
   "metrics_scope": "not_evaluated",
-  "date": "2026-10-18T05:50:28.868450Z",
-  "commit": "1ac792324ba21f0b30ea06635e3d9b0eb224d139"
+  "date": "2026-10-18T07:05:37.640413Z",
+  "commit": "d3a8841f3cf9a1861d57443c6b9b6842f0a38590"
 }
