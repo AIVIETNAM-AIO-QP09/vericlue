@@ -76,10 +76,12 @@
 - **Gộp đoạn liền kề vượt ngưỡng** thành khoảng nghi giả, **mở rộng ±1 giây**.
 
 **Tiêu chí hoàn thành:**
-- [ ] Video 60 giây xử lý < 2 phút trên GPU.
-- [ ] Test: hash giữ nguyên dù file bị chuyển mã sau đó.
-- [ ] Test gộp khoảng.
+- [ ] Video 60 giây xử lý < 2 phút trên GPU. *(Chưa đo GPU. CPU, chỉ tiếng + provenance, không có GenD: 69 s cho 39 đoạn; xem bàn giao FOR-01.)*
+- [x] Test: hash giữ nguyên dù file bị chuyển mã sau đó. *(`services/api/tests/test_forensic_real.py`: hash trên byte gốc, file lưu nguyên vẹn.)*
+- [x] Test gộp khoảng. *(`ml/tests/test_forensic_segment.py`.)*
 - [ ] **Hiệu chỉnh riêng cho chế độ giám định:** dùng tập calib có cả bản nén (DATA-05), vì video giám định thường đã bị nén. Lưu calibrator riêng tên `forensic`.
+
+> **Lõi MVP (nhánh `feat/FOR-01-forensic-real-mvp`, ADR-0012):** `ml/src/vericlue_ml/forensic/{segment,media,pipeline}.py` và `services/api/.../forensic_runner.py` chạy nền, chia đoạn 3 s chồng 50%, gọi detector thật từng đoạn, gộp khoảng ±1 s, `GET /jobs/{id}` trả tiến độ. Dùng calibrator identity hiện có (chưa có calibrator `forensic`) và ngưỡng `thresholds.yaml` như eKYC. `face_deepfake` (FACE-02) và `lipsync` (VOICE-05) chưa có trên `main`: hiện `unavailable`, kết luận `inconclusive`, không giả lập. Hồ sơ `mvp` vẫn bật được vì giám định gọi detector trực tiếp (không qua orchestrator). Chưa đổi trạng thái FOR-01.
 
 ---
 
@@ -124,8 +126,8 @@
 
 **Tiêu chí hoàn thành:**
 - [ ] Tạo 1 file bằng Chatterbox (máy red-team) → Perth phát hiện.
-- [ ] Tạo 1 file gắn AudioSeal → phát hiện đúng khoảng.
-- [ ] File thật → "Không có tín hiệu nguồn gốc".
+- [x] Tạo 1 file gắn AudioSeal → phát hiện đúng khoảng. *(Thử tay: thủy vân giây 4–8 của giọng VIVOS, phát hiện 4,0–8,0 s; generator tải riêng vì chưa có trong manifest; chưa đo trên âm thanh AI thật hay sau nén.)*
+- [x] File thật → "Không có tín hiệu nguồn gốc". *(Thử tay trên giọng VIVOS, ghi trong bàn giao; không phải số liệu.)*
 
 ---
 

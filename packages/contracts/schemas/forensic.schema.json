@@ -31,10 +31,115 @@
             "properties": {
               "module": { "type": "string" },
               "applicable": { "type": "boolean", "description": "false = cờ 'không áp dụng' (ví dụ im lặng, không có mặt)" },
-              "prob_attack": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+              "prob_attack": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "status": { "oneOf": [{ "$ref": "#/$defs/SignalStatus" }, { "type": "null" }], "description": "Thêm sau v1: phân biệt không áp dụng với lỗi/chưa có mô hình" },
+              "reason": { "type": ["string", "null"], "description": "Lý do ngắn (tiếng Việt) khi status khác ok" }
             }
           }
         }
+      }
+    },
+    "SignalStatus": {
+      "type": "string",
+      "enum": ["ok", "not_applicable", "degraded", "error", "unavailable"],
+      "description": "unavailable = module chưa có mô hình thật hoặc bị tắt (không chạy, không giả lập)"
+    },
+    "ForensicProgress": {
+      "type": "object",
+      "required": ["segments_done", "segments_total"],
+      "additionalProperties": false,
+      "properties": {
+        "stage": { "type": ["string", "null"], "description": "probe | segments | provenance | finalize" },
+        "segments_done": { "type": "integer", "minimum": 0 },
+        "segments_total": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "ForensicError": {
+      "type": "object",
+      "required": ["error_code", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "error_code": { "type": "string" },
+        "message": { "type": "string" }
+      }
+    },
+    "ForensicMedia": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Thông số đọc từ file bằng công cụ có sẵn (không chuyển mã). Hash đã tính trên byte gốc trước bước này.",
+      "properties": {
+        "kind": { "type": ["string", "null"], "enum": ["video", "audio", null] },
+        "size_bytes": { "type": ["integer", "null"], "minimum": 0 },
+        "duration_s": { "type": ["number", "null"], "minimum": 0 },
+        "container": { "type": ["string", "null"] },
+        "video_codec": { "type": ["string", "null"] },
+        "width": { "type": ["integer", "null"] },
+        "height": { "type": ["integer", "null"] },
+        "fps": { "type": ["number", "null"] },
+        "bitrate_kbps": { "type": ["number", "null"], "description": "Ước lượng = kích thước / thời lượng" },
+        "has_audio": { "type": ["boolean", "null"], "description": "null = chưa biết (thiếu công cụ giải mã tiếng của video)" },
+        "audio_codec": { "type": ["string", "null"] },
+        "audio_sample_rate": { "type": ["integer", "null"] }
+      }
+    },
+    "SuspectInterval": {
+      "type": "object",
+      "required": ["t_start", "t_end"],
+      "additionalProperties": false,
+      "description": "Khoảng nghi giả: các đoạn liền kề vượt ngưỡng đã gộp và mở rộng ±1 giây",
+      "properties": {
+        "t_start": { "type": "number", "minimum": 0 },
+        "t_end": { "type": "number", "minimum": 0 },
+        "modules": { "type": "array", "items": { "type": "string" } },
+        "max_prob_attack": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+      }
+    },
+    "UnavailableModule": {
+      "type": "object",
+      "required": ["module", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "module": { "type": "string" },
+        "reason": { "type": "string" },
+        "required": { "type": ["boolean", "null"], "description": "true = thiếu module này thì kết luận không thể là authentic" }
+      }
+    },
+    "ForensicProvenance": {
+      "type": "object",
+      "required": ["status", "conclusion"],
+      "additionalProperties": false,
+      "description": "Quét nguồn gốc MỘT CHIỀU (ADR-0008): có tín hiệu → do AI tạo; không có → KHÔNG có nghĩa là thật",
+      "properties": {
+        "status": { "$ref": "#/$defs/SignalStatus" },
+        "conclusion": { "type": "string" },
+        "watermark_detected": { "type": ["boolean", "null"] },
+        "tool": { "type": ["string", "null"] },
+        "watermark_intervals": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["t_start", "t_end"],
+            "additionalProperties": false,
+            "properties": {
+              "t_start": { "type": "number", "minimum": 0 },
+              "t_end": { "type": "number", "minimum": 0 },
+              "prob": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+            }
+          }
+        },
+        "c2pa": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "properties": {
+            "status": { "oneOf": [{ "$ref": "#/$defs/SignalStatus" }, { "type": "null" }] },
+            "present": { "type": ["boolean", "null"] },
+            "valid": { "type": ["boolean", "null"] },
+            "signer": { "type": ["string", "null"] },
+            "ai_generated": { "type": ["boolean", "null"] },
+            "note": { "type": ["string", "null"] }
+          }
+        },
+        "notes": { "type": "array", "items": { "type": "string" } }
       }
     },
     "ForensicJob": {
@@ -46,7 +151,14 @@
         "status": { "$ref": "#/$defs/JobStatus" },
         "file_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "Hash tính trên byte gốc của file tải lên" },
         "verdict": { "oneOf": [{ "$ref": "#/$defs/Verdict" }, { "type": "null" }] },
-        "segments": { "type": "array", "items": { "$ref": "#/$defs/ForensicSegment" } }
+        "segments": { "type": "array", "items": { "$ref": "#/$defs/ForensicSegment" } },
+        "progress": { "oneOf": [{ "$ref": "#/$defs/ForensicProgress" }, { "type": "null" }] },
+        "error": { "oneOf": [{ "$ref": "#/$defs/ForensicError" }, { "type": "null" }] },
+        "media": { "oneOf": [{ "$ref": "#/$defs/ForensicMedia" }, { "type": "null" }] },
+        "suspect_intervals": { "type": "array", "items": { "$ref": "#/$defs/SuspectInterval" } },
+        "unavailable_modules": { "type": "array", "items": { "$ref": "#/$defs/UnavailableModule" } },
+        "provenance": { "oneOf": [{ "$ref": "#/$defs/ForensicProvenance" }, { "type": "null" }] },
+        "verdict_reason": { "type": ["string", "null"], "description": "Giải thích kết luận bằng tiếng Việt, kể cả khi inconclusive vì thiếu bước" }
       }
     },
     "VerifyRequest": {

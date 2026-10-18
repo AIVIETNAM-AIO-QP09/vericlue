@@ -350,6 +350,21 @@ export interface components {
              */
             video?: string | null;
         };
+        /** C2paInfo */
+        C2paInfo: {
+            /** Ai Generated */
+            ai_generated?: boolean | null;
+            /** Note */
+            note?: string | null;
+            /** Present */
+            present?: boolean | null;
+            /** Signer */
+            signer?: string | null;
+            /** Status */
+            status?: ("ok" | "not_applicable" | "degraded" | "error" | "unavailable") | null;
+            /** Valid */
+            valid?: boolean | null;
+        };
         /** Challenge */
         Challenge: {
             /**
@@ -441,12 +456,23 @@ export interface components {
             /** Voice Prompt */
             voice_prompt?: string | null;
         };
+        /** ForensicError */
+        ForensicError: {
+            /** Error Code */
+            error_code: string;
+            /** Message */
+            message: string;
+        };
         /** ForensicJob */
         ForensicJob: {
+            error?: components["schemas"]["ForensicError"] | null;
             /** File Sha256 */
             file_sha256: string;
             /** Job Id */
             job_id: string;
+            media?: components["schemas"]["ForensicMedia"] | null;
+            progress?: components["schemas"]["ForensicProgress"] | null;
+            provenance?: components["schemas"]["ForensicProvenance"] | null;
             /** Segments */
             segments: components["schemas"]["ForensicSegment"][];
             /**
@@ -454,8 +480,69 @@ export interface components {
              * @enum {string}
              */
             status: "queued" | "running" | "done" | "failed";
+            /** Suspect Intervals */
+            suspect_intervals?: components["schemas"]["SuspectInterval"][];
+            /** Unavailable Modules */
+            unavailable_modules?: components["schemas"]["UnavailableModule"][];
             /** Verdict */
             verdict?: ("authentic" | "suspect" | "inconclusive") | null;
+            /** Verdict Reason */
+            verdict_reason?: string | null;
+        };
+        /** ForensicMedia */
+        ForensicMedia: {
+            /** Audio Codec */
+            audio_codec?: string | null;
+            /** Audio Sample Rate */
+            audio_sample_rate?: number | null;
+            /** Bitrate Kbps */
+            bitrate_kbps?: number | null;
+            /** Container */
+            container?: string | null;
+            /** Duration S */
+            duration_s?: number | null;
+            /** Fps */
+            fps?: number | null;
+            /** Has Audio */
+            has_audio?: boolean | null;
+            /** Height */
+            height?: number | null;
+            /** Kind */
+            kind?: ("video" | "audio") | null;
+            /** Size Bytes */
+            size_bytes?: number | null;
+            /** Video Codec */
+            video_codec?: string | null;
+            /** Width */
+            width?: number | null;
+        };
+        /** ForensicProgress */
+        ForensicProgress: {
+            /** Segments Done */
+            segments_done: number;
+            /** Segments Total */
+            segments_total: number;
+            /** Stage */
+            stage?: string | null;
+        };
+        /** ForensicProvenance */
+        ForensicProvenance: {
+            c2pa?: components["schemas"]["C2paInfo"] | null;
+            /** Conclusion */
+            conclusion: string;
+            /** Notes */
+            notes?: string[];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "not_applicable" | "degraded" | "error" | "unavailable";
+            /** Tool */
+            tool?: string | null;
+            /** Watermark Detected */
+            watermark_detected?: boolean | null;
+            /** Watermark Intervals */
+            watermark_intervals?: components["schemas"]["WatermarkInterval"][];
         };
         /** ForensicSegment */
         ForensicSegment: {
@@ -637,6 +724,10 @@ export interface components {
             module: string;
             /** Prob Attack */
             prob_attack?: number | null;
+            /** Reason */
+            reason?: string | null;
+            /** Status */
+            status?: ("ok" | "not_applicable" | "degraded" | "error" | "unavailable") | null;
         };
         /**
          * Signals
@@ -666,6 +757,26 @@ export interface components {
              * @enum {string}
              */
             step: "media" | "signals";
+        };
+        /** SuspectInterval */
+        SuspectInterval: {
+            /** Max Prob Attack */
+            max_prob_attack?: number | null;
+            /** Modules */
+            modules?: string[];
+            /** T End */
+            t_end: number;
+            /** T Start */
+            t_start: number;
+        };
+        /** UnavailableModule */
+        UnavailableModule: {
+            /** Module */
+            module: string;
+            /** Reason */
+            reason: string;
+            /** Required */
+            required?: boolean | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -703,6 +814,15 @@ export interface components {
             status: "pass" | "review" | "voice_challenge";
             /** Voice Prompt */
             voice_prompt?: string | null;
+        };
+        /** WatermarkInterval */
+        WatermarkInterval: {
+            /** Prob */
+            prob?: number | null;
+            /** T End */
+            t_end: number;
+            /** T Start */
+            t_start: number;
         };
     };
     responses: never;
@@ -765,6 +885,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description forensic_busy: hàng đợi giám định đang đầy */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -831,6 +960,15 @@ export interface operations {
             };
             /** @description Không có job này */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/html": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description job_not_ready: job chưa xong hoặc đã thất bại nên chưa có báo cáo */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

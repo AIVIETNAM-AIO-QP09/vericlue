@@ -36,6 +36,10 @@ voice = [
   "jiwer>=4,<5",
   "rapidfuzz>=3,<4",
 ]
+# FOR-03: quét thủy vân AudioSeal (MIT). Cần thêm extra voice (torch, soundfile) để chạy.
+forensic = ["audioseal>=0.2.0,<0.3"]
+# FOR-03: đọc manifest C2PA (MIT OR Apache-2.0). Wheel Windows ~88 MB nên tách riêng; thiếu thì C2PA ghi "chưa cài".
+c2pa = ["c2pa-python>=0.38,<0.39"]
 eval = ["matplotlib>=3.9,<4"]
 # Bản GPU (RTX, CUDA 13), chỉ cho máy demo Windows: THAY cho `face` + `gend` + `voice` (cùng gói, nhưng
 # torch/torchaudio lấy từ index PyTorch cu130 và onnxruntime-gpu thay onnxruntime). Xung đột với ba extra

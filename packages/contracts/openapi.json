@@ -117,6 +117,85 @@
         "title": "Body_voice_v1_sessions__session_id__voice_post",
         "type": "object"
       },
+      "C2paInfo": {
+        "properties": {
+          "ai_generated": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Generated"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "present": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Present"
+          },
+          "signer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signer"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "ok",
+                  "not_applicable",
+                  "degraded",
+                  "error",
+                  "unavailable"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "valid": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid"
+          }
+        },
+        "title": "C2paInfo",
+        "type": "object"
+      },
       "Challenge": {
         "properties": {
           "baseline_ms": {
@@ -369,8 +448,36 @@
         "title": "FinalizeResponse",
         "type": "object"
       },
+      "ForensicError": {
+        "properties": {
+          "error_code": {
+            "title": "Error Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "error_code",
+          "message"
+        ],
+        "title": "ForensicError",
+        "type": "object"
+      },
       "ForensicJob": {
         "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ForensicError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "file_sha256": {
             "pattern": "^[0-9a-f]{64}$",
             "title": "File Sha256",
@@ -379,6 +486,36 @@
           "job_id": {
             "title": "Job Id",
             "type": "string"
+          },
+          "media": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ForensicMedia"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "progress": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ForensicProgress"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ForensicProvenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "segments": {
             "items": {
@@ -397,6 +534,20 @@
             "title": "Status",
             "type": "string"
           },
+          "suspect_intervals": {
+            "items": {
+              "$ref": "#/components/schemas/SuspectInterval"
+            },
+            "title": "Suspect Intervals",
+            "type": "array"
+          },
+          "unavailable_modules": {
+            "items": {
+              "$ref": "#/components/schemas/UnavailableModule"
+            },
+            "title": "Unavailable Modules",
+            "type": "array"
+          },
           "verdict": {
             "anyOf": [
               {
@@ -412,6 +563,17 @@
               }
             ],
             "title": "Verdict"
+          },
+          "verdict_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verdict Reason"
           }
         },
         "required": [
@@ -421,6 +583,252 @@
           "segments"
         ],
         "title": "ForensicJob",
+        "type": "object"
+      },
+      "ForensicMedia": {
+        "properties": {
+          "audio_codec": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Codec"
+          },
+          "audio_sample_rate": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Sample Rate"
+          },
+          "bitrate_kbps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bitrate Kbps"
+          },
+          "container": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Container"
+          },
+          "duration_s": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration S"
+          },
+          "fps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fps"
+          },
+          "has_audio": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Has Audio"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "video",
+                  "audio"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          },
+          "video_codec": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Video Codec"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          }
+        },
+        "title": "ForensicMedia",
+        "type": "object"
+      },
+      "ForensicProgress": {
+        "properties": {
+          "segments_done": {
+            "minimum": 0.0,
+            "title": "Segments Done",
+            "type": "integer"
+          },
+          "segments_total": {
+            "minimum": 0.0,
+            "title": "Segments Total",
+            "type": "integer"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage"
+          }
+        },
+        "required": [
+          "segments_done",
+          "segments_total"
+        ],
+        "title": "ForensicProgress",
+        "type": "object"
+      },
+      "ForensicProvenance": {
+        "properties": {
+          "c2pa": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/C2paInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "conclusion": {
+            "title": "Conclusion",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "not_applicable",
+              "degraded",
+              "error",
+              "unavailable"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "tool": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool"
+          },
+          "watermark_detected": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Watermark Detected"
+          },
+          "watermark_intervals": {
+            "items": {
+              "$ref": "#/components/schemas/WatermarkInterval"
+            },
+            "title": "Watermark Intervals",
+            "type": "array"
+          }
+        },
+        "required": [
+          "status",
+          "conclusion"
+        ],
+        "title": "ForensicProvenance",
         "type": "object"
       },
       "ForensicSegment": {
@@ -883,6 +1291,35 @@
               }
             ],
             "title": "Prob Attack"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "ok",
+                  "not_applicable",
+                  "degraded",
+                  "error",
+                  "unavailable"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
           }
         },
         "required": [
@@ -940,6 +1377,75 @@
           "step"
         ],
         "title": "StepAck",
+        "type": "object"
+      },
+      "SuspectInterval": {
+        "properties": {
+          "max_prob_attack": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Prob Attack"
+          },
+          "modules": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Modules",
+            "type": "array"
+          },
+          "t_end": {
+            "minimum": 0.0,
+            "title": "T End",
+            "type": "number"
+          },
+          "t_start": {
+            "minimum": 0.0,
+            "title": "T Start",
+            "type": "number"
+          }
+        },
+        "required": [
+          "t_start",
+          "t_end"
+        ],
+        "title": "SuspectInterval",
+        "type": "object"
+      },
+      "UnavailableModule": {
+        "properties": {
+          "module": {
+            "title": "Module",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "required": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required"
+          }
+        },
+        "required": [
+          "module",
+          "reason"
+        ],
+        "title": "UnavailableModule",
         "type": "object"
       },
       "ValidationError": {
@@ -1053,6 +1559,39 @@
         ],
         "title": "VoiceResponse",
         "type": "object"
+      },
+      "WatermarkInterval": {
+        "properties": {
+          "prob": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prob"
+          },
+          "t_end": {
+            "minimum": 0.0,
+            "title": "T End",
+            "type": "number"
+          },
+          "t_start": {
+            "minimum": 0.0,
+            "title": "T Start",
+            "type": "number"
+          }
+        },
+        "required": [
+          "t_start",
+          "t_end"
+        ],
+        "title": "WatermarkInterval",
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -1143,6 +1682,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "forensic_busy: hàng đợi giám định đang đầy"
           }
         },
         "summary": "Create Job",
@@ -1237,6 +1786,16 @@
               }
             },
             "description": "Không có job này"
+          },
+          "409": {
+            "content": {
+              "text/html": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "job_not_ready: job chưa xong hoặc đã thất bại nên chưa có báo cáo"
           },
           "422": {
             "content": {

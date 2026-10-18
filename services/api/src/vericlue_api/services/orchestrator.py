@@ -56,6 +56,11 @@ class Orchestrator:
         self._started = self._closed = False
         self._executor: ThreadPoolExecutor | None = None
 
+    def loaded_detector(self, module: Module) -> Detector | None:
+        """Bộ phát hiện đã preload (dùng lại cho giám định, tránh nạp mô hình hai lần); None nếu chưa có."""
+        with self._lifecycle:
+            return self._detectors.get(module)
+
     @property
     def failed_modules(self) -> list[str]:
         """Only public module names; never expose preload exception details."""
