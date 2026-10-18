@@ -53,6 +53,8 @@
 - [ ] Bảng AUC/EER theo bộ × mức nén, có số mẫu.
 - [ ] Chạy trên CPU được (chậm cũng được); trên GPU < 1 giây cho 32 khung.
 
+**Tiến độ 18/10 (MVP, ADR-0012):** wrapper `gend.py` + `quality.py` thật đã xong và chạy được trên CPU (8 khung ≈ 12–31 s, vượt ngân sách 4 s; chưa đo GPU), parity với code GenD gốc lệch logit ≤ 0,006. Ba tiêu chí trên CHƯA đạt (R2, 50 clip, GPU) — chi tiết ở `docs/status/handoffs/2026-10-18-1205-face-02-m3-claude.md`. Chưa làm: `aggregate.py`, ảnh 3 khung nghi nhất.
+
 ---
 
 ### FACE-03 · SBI + heatmap cho người duyệt
