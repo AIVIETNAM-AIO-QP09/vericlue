@@ -1,6 +1,25 @@
 # DATA-02: pin nguồn; sha256 ghi sau tải/kiểm byte thực. Không commit weights.
 schema_version: 1
 models:
+- id: arcface-mnet
+  purpose: DATA-03 nhóm rủi ro danh tính ảnh; không dùng nhận dạng sản phẩm
+  source:
+    type: hf
+    repo: yakhyo/uniface-weights
+    revision: bfcc7d48ea8412d55de406cecf96b65b3ca720b2
+  license: nghiên cứu phi thương mại
+  license_url: https://github.com/deepinsight/insightface/tree/master/model_zoo
+  license_status: accepted-research
+  owner: M3
+  status: ready
+  files:
+  - path: arcface_mnet.onnx
+    url: https://huggingface.co/yakhyo/uniface-weights/resolve/bfcc7d48ea8412d55de406cecf96b65b3ca720b2/arcface_mnet.onnx?download=true
+    size_bytes: 13616099
+    sha256: 9cc6e4a75f0e2bf0b1aed94578f144d15175f357bdc05e815e5c4a02b319eb4f
+    upstream_sha256: 9cc6e4a75f0e2bf0b1aed94578f144d15175f357bdc05e815e5c4a02b319eb4f
+  note: Chỉ nghiên cứu phi thương mại; embedding chỉ trong RAM khi chia tập, không
+    lưu lâu dài.
 - id: minifasnet
   purpose: PAD (ảnh in, màn hình) — chạy nhanh
   source:
@@ -329,3 +348,32 @@ models:
     size_bytes: 37429684
     sha256: null
     upstream_sha256: null
+- id: dinov2-reg-base
+  purpose: PAD tầng 2 (FACE-04) — DINOv2 có register ViT-B/14, tinh chỉnh vài khối cuối
+  source:
+    type: hf
+    repo: facebook/dinov2-with-registers-base
+    revision: a1d738ccfa7ae170945f210395d99dde8adb1805
+  license: Apache-2.0
+  license_url: https://huggingface.co/facebook/dinov2-with-registers-base/blob/a1d738ccfa7ae170945f210395d99dde8adb1805/README.md
+  license_status: verified
+  owner: M3
+  status: ready
+  note: Thẻ HF ghi license apache-2.0 (kiểm 19/10). Chỉ trọng số nền; bản tinh chỉnh nằm ở
+    MODELS_DIR/finetuned/, không commit. Notebook ml/notebooks/finetune_pad.ipynb tải và kiểm SHA-256.
+  files:
+  - path: config.json
+    url: https://huggingface.co/facebook/dinov2-with-registers-base/resolve/a1d738ccfa7ae170945f210395d99dde8adb1805/config.json?download=true
+    size_bytes: 1002
+    sha256: 6af60aa760138fc90db0ba37b7701730b140b9bf1742514412d03050e72bf7e0
+    upstream_sha256: null
+  - path: preprocessor_config.json
+    url: https://huggingface.co/facebook/dinov2-with-registers-base/resolve/a1d738ccfa7ae170945f210395d99dde8adb1805/preprocessor_config.json?download=true
+    size_bytes: 436
+    sha256: 14e780d86fa1861f8751f868d7f45425b5feb55c38ca26f152ca5097ab30f828
+    upstream_sha256: null
+  - path: model.safetensors
+    url: https://huggingface.co/facebook/dinov2-with-registers-base/resolve/a1d738ccfa7ae170945f210395d99dde8adb1805/model.safetensors?download=true
+    size_bytes: 346358296
+    sha256: 7a6f7b3b9fa4b8732e707476a03cd6cdce210048582f21aafb7991c17d98e362
+    upstream_sha256: 7a6f7b3b9fa4b8732e707476a03cd6cdce210048582f21aafb7991c17d98e362

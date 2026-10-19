@@ -37,6 +37,13 @@ Mã **không gọi mạng**: thiếu file hoặc sai SHA-256 là `error`.
 - Đọc từ `MODELS_DIR/minifasnet/minifasnet_v2.onnx` và `MODELS_DIR/scrfd-10g/det_10g.onnx`, kiểm SHA-256 theo `models/manifest.yaml`. Tải bằng `scripts/download_models.py`.
 - Mặc định dùng CUDA nếu `onnxruntime-gpu` có sẵn (cài `onnxruntime-gpu` thay cho `onnxruntime`), ngược lại CPU. `DEVICE=cpu` ép CPU.
 
+## Tinh chỉnh PAD: `pad_tuning.py` + notebook Kaggle (FACE-04)
+
+- `pad_tuning.py`: hàm thuần cho tinh chỉnh PAD — lọc trùng (SHA-256, dHash), gom người (union-find trên dHash + ArcFace), chia lại theo nhóm, `assert_not_test`, khử lộ đề (cắt mặt bằng đúng `MiniFasNetClassifier._crop` → JPEG lại, không EXIF), kiểm lộ đề bằng mô hình chỉ dùng siêu dữ liệu, chỉ số APCER tại BPCER ≤ 1 %, tăng cường kiểu camera điện thoại, và chạy đồ thị ONNX MiniFASNet bằng PyTorch rồi ghi trọng số ngược vào đúng đồ thị gốc (đầu vào/ra không đổi).
+- Notebook `ml/notebooks/finetune_pad.ipynb` được **sinh** bằng `uv run --no-sync python scripts/build_pad_notebook.py` (nhúng nguyên văn `pad.py`, `eval/metrics.py`, `pad_tuning.py`, manifest). Sửa các file đó thì chạy lại script; `scripts/tests/test_build_pad_notebook.py` báo lỗi nếu notebook lệch.
+- Hướng dẫn chạy cho thành viên: `ml/notebooks/README-pad.md`.
+- Không phải code chạy trong API; không đăng ký trong registry.
+
 ## GenD: `gend.py` (FACE-02, bước 1 — bọc mô hình)
 
 `FaceDeepfakeDetector` (module `face_deepfake`): video (hoặc `images` nếu không có video) → N khung đều nhau → SCRFD `det_10g` → mặt lớn nhất → căn 5 điểm (tỷ lệ 1,3) → 224 px, mean/std CLIP → GenD (CLIP ViT-L/14 + đầu tuyến tính) → softmax → `p_fake` mỗi khung. `score = max(mean, top25_mean)`; `prob_attack` để trống chờ hiệu chỉnh (ROUT-01).
