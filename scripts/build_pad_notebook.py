@@ -829,6 +829,44 @@ STEP4_CODE = r"""with step("4", "Khử lộ đề và kiểm lộ đề"):
     print(f"Thêm cỡ file JPEG sau nén lại (tín hiệu NỘI DUNG: độ nét, kết cấu, moiré): AUC = {size_auc:.3f}"
           + ("" if LEAK_GATE_FILE_SIZE else " — chỉ báo, không chặn (LEAK_GATE_FILE_SIZE = False)"))
     print("Chẩn đoán thêm (không chặn):", {k: round(v, 3) for k, v in LEAK["diagnostic"].items()})
+    # Phân tầng theo nguồn (A = ảnh tại quầy, tên UUID; B = selfie cắt sát, tên đánh số).
+    print("Số ảnh theo nguồn × split (live / not_live):")
+    for src in ("A", "B", "other"):
+        cells = []
+        for s in ("train", "calib_fit", "calib_ltt", "test"):
+            part = [r for r in rows if r["status"] == "kept" and r["split"] == s and r["source"] == src]
+            cells.append(f"{s} {sum(r['label'] == 'live' for r in part)}/{sum(r['label'] == 'not_live' for r in part)}")
+        print(f"  nguồn {src:5s}: " + " | ".join(cells))
+    pooled_size = univariate_auc([float(rows[i]["m80_file_bytes"]) for i in DEV_IDX], y_attack)
+    BY_SOURCE = {"pooled": {"n": len(DEV_IDX), "file_size_auc": pooled_size,
+                            "file_size_model_auc": LEAK["with_file_size"]["model_auc"], "gate_auc": LEAK["model_auc"]}}  # fmt: skip
+    for src in ("A", "B"):
+        pos = [k for k, i in enumerate(DEV_IDX) if rows[i]["source"] == src]
+        ys = [y_attack[k] for k in pos]
+        if min(sum(ys), len(ys) - sum(ys)) < 5:
+            BY_SOURCE[src] = {"n": len(ys), "n_attack": sum(ys), "note": "thiếu một nhãn (< 5 ảnh) — không tính"}
+            continue
+        gs = [groups_dev[k] for k in pos]
+        BY_SOURCE[src] = {
+            "n": len(ys),
+            "n_attack": sum(ys),
+            "file_size_auc": univariate_auc([float(rows[DEV_IDX[k]]["m80_file_bytes"]) for k in pos], ys),
+            "file_size_model_auc": leak_auc([with_size[k] for k in pos], ys, gs, SEED)["model_auc"],
+            "gate_auc": leak_auc([feats[k] for k in pos], ys, gs, SEED)["model_auc"],
+        }
+    print("AUC theo nguồn (cỡ file JPEG = độ nét; cổng = siêu dữ liệu thật):")
+    for src, v in BY_SOURCE.items():
+        if "file_size_auc" in v:
+            print(f"  {src:6s} n={v['n']:5d}: cỡ file {v['file_size_auc']:.3f} (mô hình {v['file_size_model_auc']:.3f}) | cổng {v['gate_auc']:.3f}")
+        else:
+            print(f"  {src:6s} n={v['n']:5d}: {v['note']}")
+    within = [v["file_size_auc"] for k, v in BY_SOURCE.items() if k != "pooled" and "file_size_auc" in v]
+    SOURCE_DRIVEN = bool(within) and max(within) <= 0.55 and pooled_size - max(within) >= 0.10
+    BY_SOURCE["source_driven_file_size"] = SOURCE_DRIVEN
+    LEAK["by_source"] = BY_SOURCE
+    if SOURCE_DRIVEN:
+        print(f"CẢNH BÁO: tín hiệu cỡ file/độ nét do NGUỒN ẢNH gây ra (gộp {pooled_size:.3f}, trong từng nguồn ≤ {max(within):.3f}). "
+              "Mô hình có thể học 'nguồn A hay B' thay vì 'thật hay giả'. Đã ghi vào card.md — báo trưởng nhóm.")
     if LEAK["model_auc"] > LEAK_AUC_MAX:
         raise RuntimeError(
             f"DỪNG: mô hình chỉ nhìn siêu dữ liệu vẫn đoán được nhãn (AUC = {LEAK['model_auc']:.3f} > {LEAK_AUC_MAX}). "
@@ -1335,7 +1373,7 @@ STEP10_CODE = r"""with step("10", "Xuất kết quả"):
         "dataset": {"name": "FAS-VN", "kaggle": "maihongtng/face-anti-spoofing", "license_page": "CC BY 4.0 (đáng ngờ — chỉ nghiên cứu)",
                     "splits_csv_sha256": SPLITS_SHA, "counts": {s: {lab: sum(1 for r in rows if r["split"] == s and r["label"] == lab)
                     for lab in ("live", "not_live")} for s in ("train", "calib_fit", "calib_ltt", "test")}},
-        "cleaning": CLEAN_REPORT, "leak_check": {k: LEAK[k] for k in ("model_auc", "models", "gate_features", "per_feature", "before_per_feature", "diagnostic", "with_file_size")},
+        "cleaning": CLEAN_REPORT, "leak_check": {k: LEAK[k] for k in ("model_auc", "models", "gate_features", "per_feature", "before_per_feature", "diagnostic", "with_file_size", "by_source")},
         "calib_fit": METRICS, "history": {k: v["history"] for k, v in HISTORY.items()},
         "selection": {"rule": "min (APCER@BPCER<=1%, EER, -AUC) trên calib_fit", "winner": WINNER, "beats_baseline": BEATS_BASELINE},
         "aux": AUX_RESULTS, "exported": EXPORTED, "model_sha256": model_sha, "timings_seconds": TIMINGS,
@@ -1385,6 +1423,17 @@ STEP10_CODE = r"""with step("10", "Xuất kết quả"):
         "- FAS-VN gần như **chỉ có tấn công chụp lại màn hình**; **thiếu ảnh in giấy, ảnh in cắt, mặt nạ** → mô hình chưa được dạy các kiểu này (xem Axon ở test phụ).",
         "- Giấy phép FAS-VN đáng ngờ (trang ghi CC BY 4.0 nhưng ảnh có vẻ từ hệ thống eKYC thật): **chỉ dùng nghiên cứu**, không phân phối lại, không đưa mặt người lên báo cáo/demo công khai.",
         "- Ảnh live nguồn A chủ yếu chụp tại quầy, không phải selfie; nguồn ảnh tương quan với nhãn (xem `leak_check.json` → diagnostic).",
+    ]
+    bs = LEAK["by_source"]
+    lines.append(
+        "- AUC cỡ file JPEG (độ nét) gộp / trong nguồn A / trong nguồn B: "
+        + " / ".join(f"{bs[k]['file_size_auc']:.3f}" if "file_size_auc" in bs.get(k, {}) else "—" for k in ("pooled", "A", "B"))
+        + "; AUC cổng siêu dữ liệu: "
+        + " / ".join(f"{bs[k]['gate_auc']:.3f}" if "gate_auc" in bs.get(k, {}) else "—" for k in ("pooled", "A", "B"))
+    )
+    if bs["source_driven_file_size"]:
+        lines.append("- **CẢNH BÁO: tín hiệu cỡ file/độ nét do nguồn ảnh (A/B) gây ra**, trong từng nguồn ≈ 0,5 — mô hình có thể học nguồn thay vì thật/giả.")
+    lines += [
         "- Nhóm người suy từ ArcFace + dHash (không có mã người thật); có thể còn sót người trùng giữa các split.",
         "- SCRFD `det_10g` và ArcFace `arcface-mnet`: giấy phép nghiên cứu phi thương mại.",
         "- Số đo calib_fit KHÔNG phải kết quả test. Kết quả R1 chỉ có sau khi trưởng nhóm chạy split `test` một lần.",
