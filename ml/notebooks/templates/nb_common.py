@@ -303,6 +303,8 @@ def nvidia_lib_env(python: str, base: dict | None = None) -> dict:
 def ensure_ffmpeg(work: Path) -> tuple[str, str]:
     """(ffmpeg, ffprobe). Kaggle/Colab có sẵn; máy thiếu thì tải bản tĩnh (johnvansickle, GPL) vào WORK/bin.
     ffmpeg chỉ chạy như chương trình rời, không nhúng vào sản phẩm."""
+    if os.environ.get("VC_FFMPEG"):
+        return os.environ["VC_FFMPEG"], os.environ.get("VC_FFPROBE", "")
     ffmpeg, ffprobe = shutil.which("ffmpeg"), shutil.which("ffprobe")
     if ffmpeg and ffprobe:
         return ffmpeg, ffprobe

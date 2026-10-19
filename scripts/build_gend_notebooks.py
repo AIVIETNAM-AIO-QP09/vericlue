@@ -1,4 +1,4 @@
-"""Sinh notebook tinh chỉnh GenD cho Kaggle/Colab từ khuôn `ml/notebooks/templates/*.py` (FACE-04).
+"""Sinh notebook hiệu chỉnh GenD cho Kaggle/Colab từ khuôn `ml/notebooks/templates/*.py` (FACE-04).
 
 Repo là private nên notebook KHÔNG clone repo: code cần thiết (tiền xử lý GenD thật trong
 `ml/src/vericlue_ml/face/`, hàm thuần `finetune/`, `models/manifest.yaml`, `nb_common.py`) được NHÚNG
@@ -42,6 +42,7 @@ _PACKAGE = [
     "vericlue_ml/finetune/__init__.py",
     "vericlue_ml/finetune/data04.py",
     "vericlue_ml/finetune/gend_train.py",
+    "vericlue_ml/finetune/gend_calib.py",
 ]
 EMBED: list[tuple[str, str]] = [
     *((f"ml/src/{p}", p) for p in _PACKAGE),
@@ -49,7 +50,7 @@ EMBED: list[tuple[str, str]] = [
     ("ml/notebooks/templates/nb_common.py", "nb_common.py"),
 ]
 NOTEBOOKS = {
-    "finetune_gend": "FACE-04 — Tinh chỉnh GenD (LayerNorm + đầu)",
+    "calibrate_gend": "FACE-04 — Hiệu chỉnh điểm GenD (calibration, không dạy lại)",
 }
 
 
@@ -142,7 +143,7 @@ def build_notebook(name: str, files: dict[str, tuple[str, str]]) -> dict:
             kind, content = "code", embed_cell(files)
         cell = {
             "cell_type": kind,
-            "id": hashlib.sha1(f"{name}-{index}".encode()).hexdigest()[:8],
+            "id": str(index),  # giống nbstripout để hook pre-commit không sửa file
             "metadata": {},
             "source": _source_lines(content),
         }
@@ -175,6 +176,20 @@ def embedded_hashes(notebook: dict) -> dict[str, str]:
     return {}
 
 
+def render(notebook: dict) -> str:
+    """JSON giống hệt đầu ra của nbstripout (khóa sắp xếp, thụt 1) để hook không sửa lại file."""
+    return json.dumps(notebook, ensure_ascii=False, indent=1, sort_keys=True) + "\n"
+
+
+def _without_commit(text: str) -> str:
+    """Bỏ dòng commit/dirty (đổi theo mỗi commit) khi so notebook với khuôn."""
+    return "\n".join(
+        line
+        for line in text.replace("\r\n", "\n").split("\n")
+        if "SOURCE_COMMIT = " not in line and "SOURCE_DIRTY = " not in line
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--check", action="store_true", help="chỉ kiểm, không ghi")
@@ -188,12 +203,15 @@ def main(argv: list[str] | None = None) -> int:
         path = OUT_DIR / f"{name}.ipynb"
         if not (TEMPLATES / f"{name}.py").exists():
             continue
+        text = render(build_notebook(name, files))
         if args.check:
-            if not path.exists() or embedded_hashes(json.loads(path.read_text("utf-8"))) != want:
+            current = path.read_text("utf-8") if path.exists() else ""
+            if embedded_hashes(json.loads(current or "{}")) != want or _without_commit(
+                current
+            ) != _without_commit(text):
                 stale.append(path.name)
             continue
-        notebook = build_notebook(name, files)
-        path.write_text(json.dumps(notebook, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+        path.write_text(text, encoding="utf-8", newline="\n")
         print(f"Đã sinh {path.relative_to(ROOT)} ({path.stat().st_size // 1024} KB)")
     if stale:
         print("Notebook lệch code (chạy lại scripts/build_gend_notebooks.py):", ", ".join(stale))
