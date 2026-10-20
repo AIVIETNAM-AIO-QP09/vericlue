@@ -65,7 +65,7 @@
 | FACE-01 | PAD MiniFASNet + kết quả gốc (R1) | M3 | | 1 | S0–S1 | P0 | PLAT-03, DATA-03, EVAL-01 | todo |
 | FACE-02 | GenD + kết quả gốc (R2) | M3 | | 1,5 | S1 | P0 | PLAT-03, DATA-02, DATA-03, EVAL-01 | doing |
 | FACE-03 | SBI + heatmap | M3 | | 1 | S2 | P0 | FACE-02 | todo |
-| FACE-04 | Tinh chỉnh GenD và PAD trên dữ liệu VN | M3 | | 2 | S2 | P0 | FACE-01, FACE-02, DATA-04, DATA-05 | todo |
+| FACE-04 | Tinh chỉnh GenD và PAD trên dữ liệu VN | M3 | | 2 | S2 | P0 | FACE-01, FACE-02, DATA-04, DATA-05 | doing |
 | FACE-05 | Tối ưu tốc độ | M3 | | 0,5 | S2 | P1 | FACE-04 | todo |
 
 ## E5 — Giọng nói · `epics/E5-voice.md`
