@@ -246,7 +246,9 @@ nên hai người có **cùng một** cách chia tập. Không cần clone repo:
 4. **Kiểm lộ đề**: mô hình chỉ nhìn siêu dữ liệu phải có AUC ≤ 0,6, nếu không notebook **DỪNG**.
 5. Ghi `pad_prep/` (ảnh cắt, file chia tập + SHA-256, báo cáo). Ảnh cắt của `test` bị xóa ngay sau khi chia.
 
-Xong thì: **Save Version** → chia sẻ notebook (Private) cho Người 2 — xem `README-pad.md`.
+Chạy thật bằng **Save Version → Save & Run All (Commit)** (chạy ngầm, lưu Output), kiểm tab Output của phiên bản
+có khoảng 13 file (~3,9 GB), rồi chia sẻ notebook (Private) cho Người 2 — xem `README-pad.md` Phần P.
+**Quick Save KHÔNG lưu file output** (trừ khi bật Advanced Settings → "Always save output" lúc phiên còn chạy).
 
 > Dữ liệu FAS-VN: giấy phép trang Kaggle ghi CC BY 4.0 nhưng ảnh có vẻ lấy từ hệ thống eKYC thật →
 > **chỉ dùng nghiên cứu, không phân phối lại, không đưa mặt người lên báo cáo/demo công khai, KHÔNG bật Public.**
@@ -277,7 +279,10 @@ Không cần clone repo: code hệ thống đã được **nhúng sẵn**.
 PREP_DONE_MD = """## Bước 5 — Lưu dữ liệu đã chuẩn bị
 
 Thư mục `pad_prep` (Kaggle: `/kaggle/working/pad_prep`) là thứ hai notebook dạy cần. Sau khi ô dưới in **XONG**:
-bấm **Save Version** (góc phải trên) → **Quick Save** → đợi lưu xong → chia sẻ notebook cho Người 2 (README Phần P).
+nó chỉ được giữ lại nếu phiên bản được lưu bằng **Save Version → Save & Run All (Commit)** (khuyên dùng cho
+lần chạy thật, chạy ngầm khoảng 100–120 phút). **Quick Save mặc định KHÔNG lưu file output** → notebook dạy
+sẽ báo thiếu dữ liệu chuẩn bị. Sau khi phiên bản chạy xong: mở tab **Output** của phiên bản, phải thấy
+khoảng 13 file (~3,9 GB) trong `pad_prep`, rồi mới chia sẻ cho Người 2 (README Phần P).
 """
 
 PREP_DONE_CODE = r"""with step("5", "Lưu dữ liệu đã chuẩn bị"):
@@ -289,7 +294,9 @@ PREP_DONE_CODE = r"""with step("5", "Lưu dữ liệu đã chuẩn bị"):
     print("SHA-256 splits.csv =", SPLITS_SHA, "— gửi mã này cho trưởng nhóm.")
     if SMOKE:
         print("Đây là bản CHẠY THỬ: notebook dạy chỉ chạy được với SMOKE = True trên dữ liệu này.")
-    print("Bước tiếp: Save Version → Quick Save, rồi chia sẻ notebook (Private) cho Người 2.")
+    print("Bước tiếp: nếu đây là phiên tương tác, bấm Save Version → Save & Run All (Commit) để Kaggle LƯU Output "
+          "(Quick Save mặc định không lưu file). Kiểm tab Output của phiên bản có ~13 file trong pad_prep, "
+          "rồi chia sẻ notebook (Private) cho Người 2.")
     print("Thời gian từng bước (phút):", {k: round(v / 60, 1) for k, v in TIMINGS.items()})
 """
 
@@ -448,8 +455,8 @@ PREP_HASH = __import__("hashlib").sha256(
 # Thời gian ước tính trên Kaggle T4 khi chạy đầy đủ (~11.400 ảnh). Chạy thử (SMOKE) nhanh hơn nhiều.
 ESTIMATES = {
     "1": "3–6 phút (tải ~380 MB trọng số)",
-    "2": "1–2 phút",
-    "3": "khoảng 60–90 phút trên CPU (laptop nhóm đo 63 phút; đọc 8,9 GB ảnh, dò mặt, gom người)",
+    "2": "1–25 phút (Kaggle đọc dataset lần đầu chậm; lần chạy thật đo 23 phút)",
+    "3": "khoảng 80–90 phút trên CPU Kaggle (lần chạy thật đo 81 phút; đọc 8,9 GB ảnh, dò mặt, gom người)",
     "4": "1–2 phút",
     "5": "dưới 1 phút",
     "6a": "10–20 phút",
@@ -486,7 +493,7 @@ print(f"Môi trường: {ENV} | MÔ HÌNH: {MODEL} | SMOKE={SMOKE} | thư mục 
 print("Ước tính thời gian từng bước (Kaggle T4, chạy đầy đủ):")
 for key, est in ESTIMATES.items():
     print(f"  Bước {key:>3}: {est}")
-print("  Tổng: khoảng 1,5–3 giờ. Notebook in thời gian thật sau mỗi bước.")
+print("  Tổng: prep_pad khoảng 100–120 phút (CPU); notebook dạy khoảng 1–2,5 giờ (GPU). Notebook in thời gian thật sau mỗi bước.")
 """
 
 EMBED_HEAD = """## Mã nhúng từ repo (KHÔNG sửa tay)
@@ -662,7 +669,7 @@ STEP1_CODE = r"""with step("1", "Cài thư viện và tải trọng số"):
     MINI_SIZE = int(MINIFAS_SESSION.get_inputs()[0].shape[2])
     print("ONNX Runtime dùng:", SCRFD_SESSION.get_providers()[0], "| MiniFASNet vào", MINI_SIZE, "px")
     if SCRFD_SESSION.get_providers()[0] == "CPUExecutionProvider" and not SMOKE and MODEL != "prep":
-        print("LƯU Ý: dò mặt chạy CPU nên bước 3 có thể mất 60–90 phút. Vẫn chạy được, cứ để chạy.")
+        print("LƯU Ý: dò mặt chạy CPU nên bước 3 có thể mất 80–90 phút. Vẫn chạy được, cứ để chạy.")
 """
 
 STEP2_MD = """## Bước 2 — Kiểm kê dữ liệu FAS-VN

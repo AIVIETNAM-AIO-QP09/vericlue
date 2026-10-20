@@ -52,6 +52,8 @@ Thêm xong, cột phải mục **Input** phải hiện đủ hai bộ trên. Ch�
 1. Ở ô đầu, sửa thành `SMOKE = False`.
 2. Để chạy không bị ngắt khi tắt trình duyệt, bấm **Save Version** (góc phải trên) → chọn **Save & Run All (Commit)** → **Save**.
    - Kaggle sẽ chạy ngầm, tối đa 12 giờ. Bạn có thể đóng trình duyệt.
+   - **Không dùng Quick Save** cho lần chạy thật: Quick Save mặc định **không lưu file output**, phiên bản sẽ có Output = 0 file.
+     (Chỉ khi phiên tương tác còn chạy và đã xong, có thể Quick Save → **Advanced Settings → Always save output**.)
 3. **Thời gian dự kiến** trên GPU T4:
    - Tổng khoảng **1–2 giờ**.
    - Các bước tốn thời gian nhất là dò mặt, cắt mặt rồi mã hóa lại, và chấm điểm, mỗi bước khoảng 20–60 phút.
@@ -59,6 +61,7 @@ Thêm xong, cột phải mục **Input** phải hiện đủ hai bộ trên. Ch�
 
 ### A7. Lấy kết quả
 1. Chạy xong, vào trang notebook → tab **Output** của phiên bản vừa chạy (hoặc mục **Output** ở cột phải nếu chạy trực tiếp).
+   - Tab Output của phiên bản **trống (0 file)** nghĩa là phiên bản được lưu bằng Quick Save: chạy lại bằng **Save & Run All (Commit)**.
 2. Tải file **`gend_calibration_YYYYMMDD_HHMM.zip`** về.
 3. **Gửi zip đó cho trưởng nhóm**, kèm số SHA-256 in ở dòng cuối của notebook.
 4. Không đăng zip lên chỗ công khai. Zip chỉ có số liệu, không có video hay ảnh, nhưng vẫn là tài liệu nội bộ.
