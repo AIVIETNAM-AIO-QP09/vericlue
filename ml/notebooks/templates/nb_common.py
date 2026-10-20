@@ -247,59 +247,6 @@ def fetch_manifest_model(
     return entry
 
 
-def git_clone(url: str, ref: str, dst: Path) -> Path:
-    """Clone đúng commit/tag (idempotent)."""
-    dst = Path(dst)
-    if (dst / ".git").is_dir():
-        head = subprocess.run(
-            ["git", "-C", str(dst), "rev-parse", "HEAD"], capture_output=True, text=True
-        ).stdout.strip()
-        if (
-            head.startswith(ref)
-            or ref
-            in subprocess.run(
-                ["git", "-C", str(dst), "tag", "--points-at", "HEAD"],
-                capture_output=True,
-                text=True,
-            ).stdout.split()
-        ):
-            return dst
-    if dst.exists():
-        shutil.rmtree(dst)
-    run(["git", "clone", "-q", url, str(dst)])
-    run(["git", "-C", str(dst), "checkout", "-q", ref])
-    return dst
-
-
-def venv_python(env_dir: Path) -> str:
-    env_dir = Path(env_dir)
-    for candidate in (env_dir / "bin" / "python", env_dir / "Scripts" / "python.exe"):
-        if candidate.exists():
-            return str(candidate)
-    raise FileNotFoundError(f"Không thấy python trong {env_dir}")
-
-
-def make_venv(env_dir: Path, python_version: str) -> str:
-    env_dir = Path(env_dir)
-    if not (env_dir / "pyvenv.cfg").is_file():
-        run([ensure_uv(), "venv", "-q", "-p", python_version, str(env_dir)])
-    return venv_python(env_dir)
-
-
-def nvidia_lib_env(python: str, base: dict | None = None) -> dict:
-    """Môi trường chạy cho venv: thêm thư viện CUDA/cuDNN của các wheel `nvidia-*` vào LD_LIBRARY_PATH."""
-    env = dict(base or os.environ)
-    site = subprocess.run(
-        [python, "-c", "import site;print(site.getsitepackages()[0])"],
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
-    libs = sorted(glob.glob(os.path.join(site, "nvidia", "*", "lib")))
-    if libs:
-        env["LD_LIBRARY_PATH"] = os.pathsep.join([*libs, env.get("LD_LIBRARY_PATH", "")])
-    return env
-
-
 def ensure_ffmpeg(work: Path) -> tuple[str, str]:
     """(ffmpeg, ffprobe). Kaggle/Colab có sẵn; máy thiếu thì tải bản tĩnh (johnvansickle, GPL) vào WORK/bin.
     ffmpeg chỉ chạy như chương trình rời, không nhúng vào sản phẩm."""

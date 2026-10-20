@@ -44,6 +44,7 @@ Trọng số (không commit, tải bằng `scripts/download_models.py`, theo `mo
 |---|---|---|
 | `minifasnet_v2.onnx` (`yakhyo/uniface-weights`) | Apache-2.0 (verified trong manifest) | PAD |
 | `det_10g.onnx` (SCRFD, cùng repo) | **Nghiên cứu phi thương mại** (`accepted-research`) | Chỉ dùng cho bản thi/nghiên cứu; GenD cũng dùng bộ tìm mặt này. Đưa vào sản phẩm thương mại thì phải thay |
+| `arcface_mnet.onnx` (ArcFace MobileFaceNet, insightface model zoo qua `yakhyo/uniface-weights` @ `bfcc7d48`) | **Nghiên cứu phi thương mại** (insightface model zoo) | Không nằm trong `models/manifest.yaml` của nhánh này. Mục manifest được ghim ở PR DATA-03 (`feat/DATA-03-image-splits`); notebook `calibrate_gend` ghim URL + SHA-256 trong `finetune/gend_calib.py::ARCFACE`. Chỉ dùng để gom người khi chia tập; embedding xóa khi xong. Không dùng nhận dạng trong sản phẩm (FACE-04) |
 
 ## Giấy phép KHÔNG được chép vào sản phẩm
 

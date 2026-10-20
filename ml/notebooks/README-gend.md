@@ -105,7 +105,7 @@ Thêm xong, cột phải mục **Input** phải hiện đủ hai bộ trên. Ch�
 | Hết 12 giờ | Phiên Kaggle hết hạn | **Run all** lại (A8). Lặp lại thì báo trưởng nhóm |
 
 ## Dữ liệu và giấy phép (để biết)
-- **RTFS-10k:** CC BY-SA 4.0, video ghép mặt người nước ngoài. Dùng làm lớp giả.
+- **RTFS-10k:** CC BY-SA 4.0, người nước ngoài. Video gốc dùng làm lớp **thật**, video ghép mặt dùng làm lớp **giả**.
 - **FAS-VN (maihongtng):** CC BY 4.0. Chỉ dùng ảnh `live` (người thật).
 - **VLR** (Zenodo 19705466): mặc định **tắt** (`USE_VLR = False`), **không bật**. Nếu trưởng nhóm bật, VLR chỉ để tham khảo, không dùng để tính.
 - Nhóm **không tự tạo deepfake**. Hiện **không có deepfake người Việt**, nên `card.md` ghi rõ giới hạn này.

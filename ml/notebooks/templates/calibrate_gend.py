@@ -362,8 +362,9 @@ def arcface(frame: np.ndarray, landmarks) -> np.ndarray:
 
 
 FACES_PATH = OUT / "faces.jsonl"
-EMB_DIR = WORK / "emb"
+EMB_DIR = WORK / "emb"  # embedding ArcFace chỉ để chia tập; XÓA ở bước 13
 EMB_DIR.mkdir(parents=True, exist_ok=True)
+EMB_SOURCES = (*gc.VN_SOURCES, "rtfs_real")  # rtfs_real: chỉ để ĐO trùng người giữa các tập
 FACES = {}
 if FACES_PATH.is_file():
     for line in FACES_PATH.read_text(encoding="utf-8").splitlines():
@@ -374,6 +375,12 @@ t1 = time.time()
 with FACES_PATH.open("a", encoding="utf-8") as handle:
     for i, key in enumerate(todo, 1):
         info = SAMPLES[key]
+        if info["split"] == "test" and not RUN_TEST:
+            # RTFS đã biết tập (chia theo metadata): không mở file test.
+            row = dict(sample_id=key, n_frames=0, n_faces=None, boxes=[], width=0, height=0)
+            handle.write(json.dumps(row) + "\n")
+            FACES[key] = row
+            continue
         frames, width, height = probe(Path(info["raw"]), info["still"])
         boxes, embeddings = [], []
         for frame in frames:
@@ -381,7 +388,7 @@ with FACES_PATH.open("a", encoding="utf-8") as handle:
             if face is None:
                 continue
             boxes.append([face.x1, face.y1, face.x2, face.y2])
-            if info["source"] in gc.VN_SOURCES:
+            if info["source"] in EMB_SOURCES:
                 embeddings.append(arcface(frame, face.landmarks))
         if embeddings:
             np.save(EMB_DIR / f"{key}.npy", np.stack(embeddings))
@@ -400,7 +407,8 @@ with FACES_PATH.open("a", encoding="utf-8") as handle:
             print("Dò mặt:", gc.eta_text(i, len(todo), time.time() - t1))
 detect = Counter()
 for key, info in SAMPLES.items():
-    detect[(info["source"], FACES[key]["n_faces"] > 0)] += 1
+    if FACES[key]["n_faces"] is not None:  # None = mẫu test RTFS chưa mở
+        detect[(info["source"], FACES[key]["n_faces"] > 0)] += 1
 print("SCRFD có mặt (nguồn, có mặt): số mẫu →", dict(detect))
 step_done("5_do_mat", started)
 
@@ -434,12 +442,27 @@ CROSS_SIM = (
     else None
 )
 print("Cos ArcFace lớn nhất giữa hai tập:", CROSS_SIM)
+# RTFS chia theo video YouTube + donor, KHÔNG theo người: đo cos ArcFace lớn nhất giữa calib_fit và
+# calib_ltt của RTFS thật (không mở tập test). >= ngưỡng gom = có thể cùng một người ở hai tập.
+_rt = [
+    (np.load(EMB_DIR / f"{k}.npy"), s["split"])
+    for k, s in SAMPLES.items()
+    if s["source"] == "rtfs_real" and (EMB_DIR / f"{k}.npy").is_file()
+]
+RTFS_CROSS_SIM = (
+    d4.cross_split_max_similarity([e for e, _ in _rt], [s for _, s in _rt])
+    if len({s for _, s in _rt}) > 1
+    else None
+)
+print("RTFS thật — cos ArcFace lớn nhất calib_fit↔calib_ltt:", RTFS_CROSS_SIM)
+if RTFS_CROSS_SIM is not None and RTFS_CROSS_SIM >= ARCFACE_THRESHOLD:
+    print("LƯU Ý: có thể cùng một người RTFS ở cả calib_fit và calib_ltt (đã ghi vào card.md).")
 
 SPLIT_FIELDS = ["sample_id", "source", "label", "split", "group_id", "method", "n_faces", "raw"]
 ROWS = []
 for key, info in sorted(SAMPLES.items()):
     if FACES[key]["n_faces"] == 0:
-        continue  # không có mặt: không vào tập nào (đã báo ở bước 5)
+        continue  # không có mặt: không vào tập nào (đã báo ở bước 5); None = test chưa mở
     ROWS.append(
         {
             **{f: info.get(f, "") for f in SPLIT_FIELDS},
@@ -689,6 +712,14 @@ def run_test() -> None:
     out_rows = []
     for row in test_rows:
         face = FACES[row["sample_id"]]
+        if face["n_faces"] is None:  # mẫu test chưa mở ở bước 5 → dò mặt bây giờ
+            info = SAMPLES[row["sample_id"]]
+            frames, width, height = probe(Path(info["raw"]), info["still"])
+            found = [DETECTOR._largest_face(f) for f in frames]
+            boxes = [[b.x1, b.y1, b.x2, b.y2] for b in found if b is not None]
+            if not boxes:
+                continue
+            face = dict(face, n_faces=len(boxes), boxes=boxes, width=width, height=height)
         dst = PROC / "test" / row["source"] / f"{row['sample_id']}.mp4"
         dst.parent.mkdir(parents=True, exist_ok=True)
         if not dst.is_file():
@@ -745,6 +776,7 @@ METRICS = {
     "rtfs_split": RTFS.report,
     "vn_groups": VN_GROUP_REPORT,
     "vn_cross_split_max_cos": CROSS_SIM,
+    "rtfs_real_cross_split_max_cos_fit_vs_ltt": RTFS_CROSS_SIM,
     "fas_counts": fas_counts,
     "scrfd_detect": {f"{k[0]}|{'co_mat' if k[1] else 'khong_mat'}": v for k, v in detect.items()},
     "split_distribution": {f"{a}|{b}": n for (a, b), n in sorted(dist.items())},
@@ -790,6 +822,9 @@ card = f"""# Calibrator GenD (face_deepfake) — FACE-04
 ```
 
 ## Giới hạn
+- RTFS chia theo video YouTube + ảnh donor, KHÔNG theo người. Cos ArcFace lớn nhất giữa RTFS thật
+  ở calib_fit và calib_ltt: {RTFS_CROSS_SIM if RTFS_CROSS_SIM is None else round(RTFS_CROSS_SIM, 4)}
+  (ngưỡng gom {ARCFACE_THRESHOLD}; >= ngưỡng nghĩa là có thể cùng một người ở hai tập; tập test không đo).
 - **Không có deepfake người Việt**: lớp giả chỉ có RTFS-10k (người nước ngoài, bối cảnh YouTube/hội
   nghị video). Calibrator không đo được khả năng bắt deepfake người Việt.
 - FAS-VN là ảnh tĩnh; eKYC thật dùng video. Người Việt thật trong lớp thật chỉ có FAS-VN.
@@ -816,5 +851,8 @@ with zipfile.ZipFile(ZIP, "w", zipfile.ZIP_DEFLATED) as zf:
         if path.is_file():
             zf.write(path, path.relative_to(EXPORT).as_posix())
 step_done("13_xuat_zip", started)
+# Embedding ArcFace (sinh trắc) không lưu lâu dài: xóa cùng faces.jsonl (chạy lại sẽ dò mặt lại).
+shutil.rmtree(EMB_DIR, ignore_errors=True)
+(OUT / "faces.jsonl").unlink(missing_ok=True)
 print(f"\nXONG sau {(time.time() - T0) / 60:.1f} phút. Tải file này gửi trưởng nhóm:\n  {ZIP}")
 print("SHA-256 zip:", nb.sha256_file(ZIP))
