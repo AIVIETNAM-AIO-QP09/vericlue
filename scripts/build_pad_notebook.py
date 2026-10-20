@@ -1,4 +1,4 @@
-"""FACE-04 — sinh `ml/notebooks/finetune_pad_{minifasnet,dinov2}.ipynb` từ code THẬT trong repo.
+"""FACE-04 — sinh `ml/notebooks/{prep_pad,finetune_pad_minifasnet,finetune_pad_dinov2}.ipynb` từ code THẬT trong repo.
 
 Notebook phải chạy trên Kaggle/Colab mà KHÔNG clone repo (repo private), nên script này nhúng
 nguyên văn vào notebook:
@@ -28,11 +28,16 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 NOTEBOOKS = {
+    "prep": ROOT / "ml" / "notebooks" / "prep_pad.ipynb",
     "minifasnet": ROOT / "ml" / "notebooks" / "finetune_pad_minifasnet.ipynb",
     "dinov2": ROOT / "ml" / "notebooks" / "finetune_pad_dinov2.ipynb",
 }
-MODEL_TITLES = {"minifasnet": "Người 1 — MiniFASNet", "dinov2": "Người 2 — DINOv2"}
-MODEL_LINE = 'MODEL = ""  # BẮT BUỘC SỬA: "minifasnet" (Người 1) hoặc "dinov2" (Người 2)\n'
+MODEL_TITLES = {
+    "prep": "Người 1 — CHUẨN BỊ DỮ LIỆU (chạy 1 lần)",
+    "minifasnet": "Người 1 — MiniFASNet",
+    "dinov2": "Người 2 — DINOv2",
+}
+MODEL_LINE = 'MODEL = ""  # CỐ ĐỊNH theo file (sinh tự động)\n'
 PAD_PY = "ml/src/vericlue_ml/face/pad.py"
 METRICS_PY = "ml/src/vericlue_ml/eval/metrics.py"
 TUNING_PY = "ml/src/vericlue_ml/face/pad_tuning.py"
@@ -225,29 +230,107 @@ def manifest_entries() -> dict[str, dict]:
 
 
 # ── nội dung notebook ────────────────────────────────────────────────────────────────────
-INTRO = """# VeriClue — Tinh chỉnh PAD (chống ảnh chụp lại màn hình) trên FAS-VN · FACE-04
+INTRO_PREP = """# VeriClue — Chuẩn bị dữ liệu PAD (FAS-VN) · FACE-04
 
-Notebook này **tự chạy từ đầu đến cuối** bằng nút **Run All** trên Kaggle (GPU T4/P100) hoặc Colab.
-Không cần clone repo: mọi đoạn code cần thiết của hệ thống đã được **nhúng sẵn** (ô "NHÚNG TỪ REPO").
+Notebook này **chạy MỘT lần** (Người 1), bằng nút **Run All** trên Kaggle — **không cần GPU** (Accelerator: None).
+Bước dò mặt và gom người chạy trên CPU, để kết quả giống nhau trên mọi máy.
+Output (thư mục `pad_prep`) được **cả hai** notebook dạy (`finetune_pad_minifasnet.ipynb`, `finetune_pad_dinov2.ipynb`) dùng chung,
+nên hai người có **cùng một** cách chia tập. Không cần clone repo: code hệ thống đã được **nhúng sẵn**.
 
 **Notebook làm gì**
-1. Cài thư viện, tải trọng số từ Hugging Face đúng revision, **kiểm SHA-256**.
-2. Kiểm kê FAS-VN (đếm, nhãn, phát hiện ảnh PNG mang đuôi `.jpg`).
+1. Cài thư viện, tải trọng số (SCRFD, ArcFace, MiniFASNet) đúng revision, **kiểm SHA-256**.
+2. Kiểm kê FAS-VN (đếm, nhãn, phát hiện PNG mang đuôi `.jpg`).
 3. **Làm sạch**: lọc trùng (SHA-256, dHash), bỏ ảnh mang 2 nhãn, dò mặt SCRFD (đệm viền khi trượt),
    gom người bằng ArcFace + union-find, **chia lại theo nhóm người**: train / calib_fit / calib_ltt / test.
-4. **Khử lộ đề**: mọi ảnh đi cùng một đường (cắt mặt như hệ thống → resize → JPEG lại → không EXIF),
-   rồi **kiểm**: mô hình chỉ nhìn siêu dữ liệu phải có AUC ≤ 0,6, nếu không notebook **DỪNG**.
-5. Đo MiniFASNet gốc (trước tinh chỉnh) trên `calib_fit`.
-6. Dạy 2 phương án: (a) MiniFASNet V2 dạy toàn bộ; (b) DINOv2-reg ViT-B/14 dạy vài khối cuối + lớp cuối.
-7. Chọn phương án và checkpoint **chỉ trên `calib_fit`** (APCER tại BPCER ≤ 1 %, EER, AUC).
-8. Đo test phụ (Axon theo loại tấn công, UniData, Zalo 2022) nếu có.
-9. Kiểm cuối: **không bước nào chạm split `test`** (trưởng nhóm tự chạy test một lần sau khi chốt).
-10. Xuất **một file zip** để gửi trưởng nhóm.
+   Đồng thời cắt mặt đúng như `pad.py` (ảnh thô để đo/hiệu chỉnh) và bản nén lại JPEG (để dạy).
+4. **Kiểm lộ đề**: mô hình chỉ nhìn siêu dữ liệu phải có AUC ≤ 0,6, nếu không notebook **DỪNG**.
+5. Ghi `pad_prep/` (ảnh cắt, file chia tập + SHA-256, báo cáo). Ảnh cắt của `test` bị xóa ngay sau khi chia.
 
-**Hướng dẫn từng nút bấm:** xem `ml/notebooks/README-pad.md` (trưởng nhóm gửi kèm).
+Xong thì: **Save Version** → chia sẻ notebook (Private) cho Người 2 — xem `README-pad.md`.
 
 > Dữ liệu FAS-VN: giấy phép trang Kaggle ghi CC BY 4.0 nhưng ảnh có vẻ lấy từ hệ thống eKYC thật →
-> **chỉ dùng nghiên cứu, không phân phối lại, không đưa mặt người lên báo cáo/demo công khai.**
+> **chỉ dùng nghiên cứu, không phân phối lại, không đưa mặt người lên báo cáo/demo công khai, KHÔNG bật Public.**
+"""
+
+INTRO_TRAIN = """# VeriClue — Tinh chỉnh PAD trên FAS-VN · FACE-04
+
+Notebook này **tự chạy từ đầu đến cuối** bằng nút **Run All** trên Kaggle (GPU T4) hoặc Colab.
+Bạn **chỉ sửa `SMOKE`**. Cần **Add Input** output của `prep_pad.ipynb` (Người 1 đã chạy và chia sẻ).
+Không cần clone repo: code hệ thống đã được **nhúng sẵn**.
+
+**Notebook làm gì**
+1. Cài thư viện, tải trọng số đúng revision, **kiểm SHA-256**.
+2. Nạp dữ liệu đã chuẩn bị (`pad_prep`): **không** tự chia lại tập, kiểm SHA-256 file chia tập.
+5. Đo MiniFASNet gốc trên `calib_fit` (chỉ notebook MiniFASNet).
+6. Dạy mô hình của file này: (a) MiniFASNet V2 dạy toàn bộ, hoặc (b) DINOv2-reg ViT-B/14 dạy vài khối cuối + lớp cuối.
+   Dạy trên ảnh cắt đã nén lại + tăng cường; đo trên ảnh cắt **thô đúng `pad.py`**.
+7. Chọn checkpoint và **hiệu chỉnh** (calibrator) **chỉ trên `calib_fit`**.
+8. Đo test phụ (Axon theo loại tấn công, UniData, Zalo 2022) nếu có.
+9. Kiểm cuối: **không bước nào chạm split `test`**.
+10. Xuất **một file zip** gửi trưởng nhóm (trưởng nhóm gộp 2 zip bằng `combine_pad.py`).
+
+**Hướng dẫn từng nút bấm:** `ml/notebooks/README-pad.md`.
+
+> Dữ liệu FAS-VN chỉ dùng nghiên cứu: không phân phối lại, không đưa mặt người lên báo cáo/demo công khai, **KHÔNG bật Public**.
+"""
+
+PREP_DONE_MD = """## Bước 5 — Lưu dữ liệu đã chuẩn bị
+
+Thư mục `pad_prep` (Kaggle: `/kaggle/working/pad_prep`) là thứ hai notebook dạy cần. Sau khi ô dưới in **XONG**:
+bấm **Save Version** (góc phải trên) → **Quick Save** → đợi lưu xong → chia sẻ notebook cho Người 2 (README Phần P).
+"""
+
+PREP_DONE_CODE = r"""with step("5", "Lưu dữ liệu đã chuẩn bị"):
+    size_gb = sum(f.stat().st_size for f in WORK.glob("*") if f.is_file()) / 1e9
+    print(f"XONG chuẩn bị: {WORK} ({size_gb:.1f} GB). Các file:")
+    for f in sorted(WORK.glob("*")):
+        if f.is_file():
+            print(f"  {f.name:24s} {f.stat().st_size / 1e6:9.1f} MB")
+    print("SHA-256 splits.csv =", SPLITS_SHA, "— gửi mã này cho trưởng nhóm.")
+    if SMOKE:
+        print("Đây là bản CHẠY THỬ: notebook dạy chỉ chạy được với SMOKE = True trên dữ liệu này.")
+    print("Bước tiếp: Save Version → Quick Save, rồi chia sẻ notebook (Private) cho Người 2.")
+    print("Thời gian từng bước (phút):", {k: round(v / 60, 1) for k, v in TIMINGS.items()})
+"""
+
+ENV_INFO_MD = """## Thông tin môi trường
+
+Ô dưới in phiên bản Python/thư viện, GPU, đĩa trống, RAM. **Khi báo lỗi, gửi kèm output của ô này.**
+"""
+
+ENV_INFO = r"""# Thông tin môi trường — dán output ô này kèm khi báo lỗi (xem HANDBOOK-pad.md).
+# Chỉ đọc phiên bản qua importlib.metadata, KHÔNG import onnxruntime/onnx ở đây (bước 1 có thể cài lại chúng).
+import importlib.metadata as _md
+import os as _os
+import platform as _platform
+import shutil as _shutil
+import subprocess as _subprocess
+import sys as _sys
+
+print("Python", _sys.version.split()[0], "|", _platform.platform())
+for _pkg in ("numpy", "torch", "onnxruntime-gpu", "onnxruntime", "onnx", "opencv-python", "opencv-python-headless",
+             "transformers", "scikit-learn", "pydantic", "safetensors", "huggingface-hub"):  # fmt: skip
+    try:
+        print(f"  {_pkg:24s} {_md.version(_pkg)}")
+    except _md.PackageNotFoundError:
+        print(f"  {_pkg:24s} (chưa cài)")
+if _shutil.which("nvidia-smi"):
+    _r = _subprocess.run(["nvidia-smi", "--query-gpu=name,memory.used,memory.total,driver_version",
+                          "--format=csv,noheader"], capture_output=True, text=True)  # fmt: skip
+    print("  GPU:", _r.stdout.strip() or _r.stderr.strip())
+else:
+    print("  GPU: không có (Accelerator = None/CPU)")
+for _path in ("/kaggle/working", "/content", "."):
+    if _os.path.isdir(_path):
+        _u = _shutil.disk_usage(_path)
+        print(f"  Đĩa {_path}: trống {_u.free / 1e9:.1f} GB / {_u.total / 1e9:.1f} GB")
+        break
+try:
+    with open("/proc/meminfo") as _f:
+        _mem = {_l.split(":")[0]: int(_l.split()[1]) for _l in _f}
+    print(f"  RAM: trống {_mem['MemAvailable'] / 1e6:.1f} GB / {_mem['MemTotal'] / 1e6:.1f} GB")
+except OSError:
+    print("  RAM: không đọc được /proc/meminfo (Windows/máy nhóm)")
 """
 
 CONFIG_MD = """## Bước 0 — Cấu hình
@@ -277,12 +360,12 @@ from pathlib import Path
 SMOKE = False  # SỬA ĐƯỢC: True = chạy thử nhỏ (vài trăm ảnh, 1 epoch)
 if os.environ.get("PAD_SMOKE") == "1":  # máy nhóm: chạy thử tự động
     SMOKE = True
-SEED = 42  # giữ 42 để trưởng nhóm đối chiếu được file chia tập
+SEED = 42  # CẤM đổi: chia tập và tăng cường dựa vào seed này
 
 IN_KAGGLE = Path("/kaggle/input").is_dir()
 IN_COLAB = "google.colab" in sys.modules
 ENV = "kaggle" if IN_KAGGLE else "colab" if IN_COLAB else "local"
-USE_DRIVE = True  # SỬA ĐƯỢC (Colab): lưu kết quả + checkpoint vào Google Drive để chạy tiếp khi bị ngắt
+USE_DRIVE = True  # Colab: lưu kết quả + checkpoint vào Google Drive để chạy tiếp khi bị ngắt
 
 if ENV == "kaggle":
     INPUT_ROOT = Path("/kaggle/input")
@@ -299,13 +382,14 @@ elif ENV == "colab":
 else:  # máy nhóm (chạy thử): đường dẫn lấy từ biến môi trường
     INPUT_ROOT = Path(os.environ.get("PAD_INPUT_ROOT", "data/raw"))
     OUT_DIR = Path(os.environ.get("PAD_OUT_DIR", "pad_out"))
-WORK = OUT_DIR / "pad_work"  # dữ liệu trung gian + checkpoint (giữ lại để chạy tiếp)
 FASVN_DIR = os.environ.get("PAD_FASVN_DIR")  # để trống: tự tìm thư mục chứa train_photo/test_photo
 LOCAL_MODELS_DIR = os.environ.get("PAD_LOCAL_MODELS_DIR")  # máy nhóm: dùng trọng số sẵn có nếu đúng SHA
 AUX_DIRS = [Path(p) for p in os.environ.get("PAD_AUX_DIRS", "").split(os.pathsep) if p]
 AUX_FROM_HF = os.environ.get("PAD_AUX_FROM_HF", "0" if ENV == "local" else "1") == "1"
 AUX_MAX_FILES = 4 if SMOKE else None  # số file tối đa mỗi bộ test phụ (None = tất cả)
 
+# ── Tham số CHUẨN BỊ DỮ LIỆU: chỉ có tác dụng trong prep_pad.ipynb. CẤM đổi (chỉ trưởng nhóm). ──
+# Notebook dạy đọc lại đúng giá trị đã dùng từ pad_prep/prep_done.json.
 SMOKE_PER_FOLDER = 100  # chạy thử: số ảnh lấy ngẫu nhiên mỗi thư mục (4 thư mục)
 JPEG_QUALITY = 90  # chất lượng JPEG chung khi khử lộ đề
 DET_PAD_RATIO = 0.33  # đệm viền đen mỗi cạnh khi SCRFD trượt (ảnh cắt quá sát)
@@ -314,33 +398,32 @@ DHASH_LINK = 8  # dHash ≤ 8 (mọi nhãn) → gom chung nhóm (cặp ảnh g�
 ARC_THRESHOLD = 0.40  # cosine ArcFace ≥ 0,40 → cùng người (lỏng: thà gộp nhầm còn hơn tách sót)
 MAX_GROUP_SHARE = 0.40  # nhóm lớn nhất > 40 % ảnh → dừng (ngưỡng quá lỏng)
 FRACTIONS = {"train": 0.60, "calib_fit": 0.15, "calib_ltt": 0.10, "test": 0.15}
-MAX_BPCER = 0.01  # chọn mô hình theo APCER tại BPCER ≤ 1 %
+MAX_BPCER = 0.01  # CẤM đổi: chọn checkpoint/mô hình theo APCER tại BPCER ≤ 1 %
 # Cỡ file JPEG SAU khi nén lại phản ánh độ nét/kết cấu của chính điểm ảnh (nội dung), không phải siêu
 # dữ liệu; chạy thử 19/10 cho AUC ~0,66–0,73 dù chuẩn hóa cỡ mặt. Mặc định chỉ BÁO, không chặn (xem bàn giao FACE-04).
 LEAK_GATE_FILE_SIZE = False
 
-MODEL = ""  # BẮT BUỘC SỬA: "minifasnet" (Người 1) hoặc "dinov2" (Người 2)
-MODEL = os.environ.get("PAD_MODEL", MODEL)  # máy nhóm: "both" chỉ dùng để chạy thử
-EXPECTED_SPLITS_SHA = ""  # SỬA ĐƯỢC: dán SHA-256 splits.csv trưởng nhóm gửi (để trống = không kiểm)
-EXPECTED_SPLITS_SHA = os.environ.get("PAD_EXPECTED_SPLITS_SHA", EXPECTED_SPLITS_SHA).strip().lower()
-if MODEL not in ("minifasnet", "dinov2") and not (MODEL == "both" and ENV == "local"):
-    raise RuntimeError(
-        'CHƯA CHỌN MÔ HÌNH. Ở ô này sửa dòng MODEL = "" thành MODEL = "minifasnet" (Người 1) '
-        'hoặc MODEL = "dinov2" (Người 2), rồi bấm Run All lại.'
-    )
-RUN_MINIFAS = MODEL in ("minifasnet", "both")  # phương án (a) + đo MiniFASNet gốc
-RUN_DINO = MODEL in ("dinov2", "both")  # phương án (b)
-EPOCHS_MINIFAS = 1 if SMOKE else 12  # SỬA ĐƯỢC
-EPOCHS_DINO = 1 if SMOKE else 6  # SỬA ĐƯỢC
-BATCH_MINIFAS = 64 if SMOKE else 256  # giảm nếu báo hết bộ nhớ GPU (CUDA out of memory)
-BATCH_DINO = 16 if SMOKE else 48  # giảm xuống 24 hoặc 16 nếu báo hết bộ nhớ GPU
+# ── Vai trò của file (sinh tự động) ──
+MODEL = ""  # CỐ ĐỊNH theo file (sinh tự động)
+if MODEL not in ("prep", "minifasnet", "dinov2"):
+    raise RuntimeError("File notebook hỏng: MODEL phải là prep, minifasnet hoặc dinov2. Xin trưởng nhóm file mới.")
+WORK = OUT_DIR / ("pad_prep" if MODEL == "prep" else "pad_work")
+PREP_DIR_ENV = os.environ.get("PAD_PREP_DIR")  # máy nhóm: thư mục pad_prep có sẵn
+RUN_MINIFAS = MODEL == "minifasnet"  # phương án (a) + đo MiniFASNet gốc
+RUN_DINO = MODEL == "dinov2"  # phương án (b)
+# ── Tham số dạy (chỉ trưởng nhóm đổi) ──
+EPOCHS_MINIFAS = 1 if SMOKE else 12
+EPOCHS_DINO = 1 if SMOKE else 6
 LR_MINIFAS = 2e-4
 LR_DINO_BLOCKS = 2e-5
 LR_DINO_HEAD = 1e-3
 DINO_TRAIN_BLOCKS = 2  # số khối transformer cuối được dạy
 DINO_SIZE = 224
-EXPORT_DINO_ONNX = True  # thử xuất ONNX cho DINOv2 nếu nó thắng (lỗi thì vẫn có safetensors)
-NUM_WORKERS = 0 if os.name == "nt" else 2
+EXPORT_DINO_ONNX = True  # xuất ONNX cho DINOv2 (lỗi thì vẫn có safetensors)
+# ── CHỈ KHI LỖI HẾT BỘ NHỚ (README-pad.md Phần G) ──
+BATCH_MINIFAS = 64 if SMOKE else 256  # CUDA out of memory ở bước 6a → 128
+BATCH_DINO = 16 if SMOKE else 48  # CUDA out of memory ở bước 6b → 24, rồi 16
+NUM_WORKERS = 0 if os.name == "nt" else 2  # hết RAM (notebook tự khởi động lại) → 0
 N_BOOT = 50 if SMOKE else 500  # số lần bootstrap theo nhóm người cho khoảng tin cậy
 
 random.seed(SEED)
@@ -363,7 +446,7 @@ PREP_HASH = __import__("hashlib").sha256(
 ESTIMATES = {
     "1": "3–6 phút (tải ~380 MB trọng số)",
     "2": "1–2 phút",
-    "3": "30–60 phút (đọc 8,9 GB ảnh, dò mặt, gom người)",
+    "3": "45–90 phút trên CPU (ước tính; đọc 8,9 GB ảnh, dò mặt, gom người)",
     "4": "1–2 phút",
     "5": "dưới 1 phút",
     "6a": "10–20 phút",
@@ -386,15 +469,14 @@ def step(key: str, title: str):
     print(f"===== Xong bước {key} sau {TIMINGS[key] / 60:.1f} phút =====", flush=True)
 
 
-# Chạy tiếp sau khi bị ngắt (Kaggle): nếu bạn đã "Add Input" output của lần chạy trước,
-# sao chép pad_work cũ (dữ liệu đã làm sạch + checkpoint) để không phải làm lại từ đầu.
-if ENV == "kaggle" and not (WORK / "prep_done.json").exists():
-    for pattern in ("*/pad_work/prep_done.json", "*/*/pad_work/prep_done.json"):
+# Chạy tiếp sau khi bị ngắt (Kaggle, notebook dạy): nếu đã "Add Input" output của lần chạy trước của
+# CHÍNH notebook này, sao chép checkpoint cũ để chạy tiếp.
+if ENV == "kaggle" and MODEL != "prep" and not (WORK / "ckpt").exists():
+    for pattern in ("*/pad_work/ckpt", "*/*/pad_work/ckpt"):
         found = sorted(INPUT_ROOT.glob(pattern))
         if found:
-            old = found[0].parent
-            print(f"Thấy kết quả lần chạy trước ở {old} → sao chép để chạy tiếp…")
-            shutil.copytree(old, WORK, dirs_exist_ok=True)
+            print(f"Thấy checkpoint lần chạy trước ở {found[0]} → sao chép để chạy tiếp…")
+            shutil.copytree(found[0], WORK / "ckpt", dirs_exist_ok=True)
             break
 
 print(f"Môi trường: {ENV} | MÔ HÌNH: {MODEL} | SMOKE={SMOKE} | thư mục làm việc: {WORK}")
@@ -457,11 +539,13 @@ STEP1_CODE = r"""with step("1", "Cài thư viện và tải trọng số"):
         return r.stdout.strip() if r.returncode == 0 else "ERR"
 
     if ENV != "local":
-        pip("onnx==1.23.2", "safetensors>=0.4")
+        pip("onnx==1.23.2", "safetensors==0.8.0")
         has_cuda = "import onnxruntime as o; print('CUDAExecutionProvider' in o.get_available_providers())"
-        if probe(has_cuda) != "True":
+        if MODEL != "prep" and probe(has_cuda) != "True":  # prep chạy CPU, không cần onnxruntime-gpu
             subprocess.run([sys.executable, "-m", "pip", "uninstall", "-y", "-q", "onnxruntime"])
             pip("onnxruntime-gpu==1.31.0")
+        if MODEL == "prep" and probe("import onnxruntime; print(1)") != "1":
+            pip("onnxruntime==1.31.0")
         if probe("from transformers import Dinov2WithRegistersModel; print(1)") != "1":
             pip("transformers==4.57.6")
         if ENV == "colab":
@@ -497,7 +581,7 @@ STEP1_CODE = r"""with step("1", "Cài thư viện và tải trọng số"):
         "gpu": torch.cuda.get_device_name(0) if DEVICE == "cuda" else "none",
     }
     print(json.dumps(VERSIONS, indent=1))
-    if DEVICE == "cpu":
+    if DEVICE == "cpu" and MODEL != "prep":
         print("CẢNH BÁO: KHÔNG THẤY GPU. Kaggle: Settings → Accelerator → GPU T4 x2 (cần xác minh số điện thoại).")
 
     WEIGHTS = WORK / "weights"
@@ -550,9 +634,13 @@ STEP1_CODE = r"""with step("1", "Cài thư viện và tải trọng số"):
         for name in ("config.json", "preprocessor_config.json", "model.safetensors"):
             DINO_DIR = fetch("dinov2-reg-base", name).parent
 
-    def make_session(path: Path):
+    def make_session(path: Path, cpu_only: bool = False):
         options = ort.SessionOptions()
         options.log_severity_level = 3
+        if cpu_only:  # chuẩn bị dữ liệu: CPU để mọi máy ra cùng kết quả
+            options.intra_op_num_threads = min(4, os.cpu_count() or 4)  # quá nhiều luồng làm CPU chậm hẳn
+            options.inter_op_num_threads = 1
+            return ort.InferenceSession(str(path), options, providers=["CPUExecutionProvider"])
         if "CUDAExecutionProvider" in ort.get_available_providers():
             try:
                 session = ort.InferenceSession(
@@ -564,13 +652,13 @@ STEP1_CODE = r"""with step("1", "Cài thư viện và tải trọng số"):
                 print("  ONNX CUDA lỗi, dùng CPU:", str(exc)[:200])
         return ort.InferenceSession(str(path), options, providers=["CPUExecutionProvider"])
 
-    SCRFD_SESSION = make_session(PATH_SCRFD)
-    ARC_SESSION = make_session(PATH_ARCFACE)
+    SCRFD_SESSION = make_session(PATH_SCRFD, cpu_only=MODEL == "prep")
+    ARC_SESSION = make_session(PATH_ARCFACE, cpu_only=MODEL == "prep")
     MINIFAS_SESSION = make_session(PATH_MINIFAS)
     FINDER = ScrfdFaceFinder(SCRFD_SESSION)  # đúng lớp của pad.py (chuẩn hóa uniface)
     MINI_SIZE = int(MINIFAS_SESSION.get_inputs()[0].shape[2])
     print("ONNX Runtime dùng:", SCRFD_SESSION.get_providers()[0], "| MiniFASNet vào", MINI_SIZE, "px")
-    if SCRFD_SESSION.get_providers()[0] == "CPUExecutionProvider" and not SMOKE:
+    if SCRFD_SESSION.get_providers()[0] == "CPUExecutionProvider" and not SMOKE and MODEL != "prep":
         print("LƯU Ý: dò mặt chạy CPU nên bước 3 có thể mất 60–90 phút. Vẫn chạy được, cứ để chạy.")
 """
 
@@ -682,6 +770,10 @@ STEP3_CODE = r"""with step("3", "Làm sạch, gom người, chia lại tập"):
         N = len(rows)
         CROPS80 = np.lib.format.open_memmap(WORK / "crops80.npy", "w+", np.uint8, (N, MINI_SIZE, MINI_SIZE, 3))
         CROPS224 = np.lib.format.open_memmap(WORK / "crops224.npy", "w+", np.uint8, (N, DINO_SIZE, DINO_SIZE, 3))
+        # Ảnh cắt THÔ = đúng đường suy luận của pad.py (không nén lại) → dùng để đo, chọn, hiệu chỉnh.
+        # Ảnh đã nén lại JPEG (crops*) chỉ dùng để dạy và kiểm lộ đề.
+        RAW80 = np.lib.format.open_memmap(WORK / "raw80.npy", "w+", np.uint8, (N, MINI_SIZE, MINI_SIZE, 3))
+        RAW224 = np.lib.format.open_memmap(WORK / "raw224.npy", "w+", np.uint8, (N, DINO_SIZE, DINO_SIZE, 3))
         EMB = np.full((N, 512), np.nan, dtype=np.float32)  # chỉ trong RAM (điều kiện của arcface-mnet)
         ARC_IN = ARC_SESSION.get_inputs()[0].name
 
@@ -726,9 +818,10 @@ STEP3_CODE = r"""with step("3", "Làm sạch, gom người, chia lại tập"):
                     blob = cv2.dnn.blobFromImage(aligned, 1 / 127.5, (112, 112), (127.5,) * 3, swapRB=True)
                     emb = ARC_SESSION.run(None, {ARC_IN: blob})[0].ravel()
                     EMB[i] = emb / max(float(np.linalg.norm(emb)), 1e-12)
-                    c80, j80 = jpeg_roundtrip(pad_crop(img, box, MINI_SIZE), JPEG_QUALITY)
-                    c224, j224 = jpeg_roundtrip(pad_crop(img, box, DINO_SIZE), JPEG_QUALITY)
-                    CROPS80[i], CROPS224[i] = c80, c224
+                    r80, r224 = pad_crop(img, box, MINI_SIZE), pad_crop(img, box, DINO_SIZE)
+                    c80, j80 = jpeg_roundtrip(r80, JPEG_QUALITY)
+                    c224, j224 = jpeg_roundtrip(r224, JPEG_QUALITY)
+                    CROPS80[i], CROPS224[i], RAW80[i], RAW224[i] = c80, c224, r80, r224
                     for k, v in meta_features(j80).items():
                         r["m80_" + k] = v
                     for k, v in meta_features(j224).items():
@@ -786,11 +879,11 @@ STEP3_CODE = r"""with step("3", "Làm sạch, gom người, chia lại tập"):
         # Xóa ngay ảnh cắt của split test: từ đây không bước nào được đọc chúng.
         test_idx = [i for i in kept if rows[i]["split"] == "test"]
         if test_idx:
-            CROPS80[test_idx] = 0
-            CROPS224[test_idx] = 0
-        CROPS80.flush()
-        CROPS224.flush()
-        del CROPS80, CROPS224
+            for arr in (CROPS80, CROPS224, RAW80, RAW224):
+                arr[test_idx] = 0
+        for arr in (CROPS80, CROPS224, RAW80, RAW224):
+            arr.flush()
+        del CROPS80, CROPS224, RAW80, RAW224, arr
 
         fields = sorted({k for r in rows for k in r}, key=lambda k: (k not in ("rel_path", "label", "split"), k))
         with open(ROWS_CSV, "w", newline="", encoding="utf-8") as handle:
@@ -825,23 +918,17 @@ STEP3_CODE = r"""with step("3", "Làm sạch, gom người, chia lại tập"):
     SPLIT_FILE_SHA = {name: sha256_file(WORK / name) for name in ["splits.csv"] + [f"split_{s}.csv" for s in ("train", "calib_fit", "calib_ltt", "test")]}
     CROPS80 = np.load(WORK / "crops80.npy", mmap_mode="r")
     CROPS224 = np.load(WORK / "crops224.npy", mmap_mode="r")
+    RAW80 = np.load(WORK / "raw80.npy", mmap_mode="r")
+    RAW224 = np.load(WORK / "raw224.npy", mmap_mode="r")
     print("Báo cáo làm sạch:", json.dumps(CLEAN_REPORT, indent=1, ensure_ascii=False))
     print("Phân bố sau khi chia (split × nhãn: số ảnh / số nhóm):")
     for s in ("train", "calib_fit", "calib_ltt", "test"):
         part = [r for r in rows if r["split"] == s]
         live = sum(r["label"] == "live" for r in part)
         print(f"  {s:10s}: {len(part):6d} ảnh (live {live}, not_live {len(part) - live}), {len({r['group_id'] for r in part})} nhóm")
-    print("SHA-256 các file chia tập (2 người phải GIỐNG HỆT nhau):")
+    print("SHA-256 các file chia tập (hai notebook dạy dùng chung đúng các file này):")
     for name, digest in SPLIT_FILE_SHA.items():
         print(f"  {name:22s} {digest}")
-    if EXPECTED_SPLITS_SHA and EXPECTED_SPLITS_SHA != SPLITS_SHA:
-        raise RuntimeError(
-            f"DỪNG: file chia tập KHÁC với bản trưởng nhóm gửi (đang có {SPLITS_SHA[:16]}…, cần {EXPECTED_SPLITS_SHA[:16]}…). "
-            "Kiểm tra: đúng file notebook mới nhất, SMOKE giống nhau, đã Add Input đúng dataset, Accelerator GPU. "
-            "Chụp màn hình này gửi trưởng nhóm, KHÔNG chạy tiếp."
-        )
-    if EXPECTED_SPLITS_SHA:
-        print("ĐẠT: splits.csv khớp SHA-256 trưởng nhóm gửi.")
 """
 
 STEP4_MD = """## Bước 4 — Khử lộ đề và kiểm lộ đề
@@ -935,8 +1022,74 @@ STEP4_CODE = r"""with step("4", "Khử lộ đề và kiểm lộ đề"):
         )
     print(f"ĐẠT: AUC siêu dữ liệu = {LEAK['model_auc']:.3f} ≤ {LEAK_AUC_MAX}")
     (WORK / "leak_check.json").write_text(json.dumps(LEAK, indent=1))
-    if not RESUMED:
-        PREP_MARKER.write_text(json.dumps({"prep_hash": PREP_HASH, "n": N, "splits_sha256": SPLITS_SHA}))
+    PREP_MARKER.write_text(json.dumps({
+        "prep_hash": PREP_HASH, "n": N, "smoke": SMOKE, "splits_sha256": SPLITS_SHA,
+        "split_files_sha256": SPLIT_FILE_SHA, "config": {k: CONFIG[k] for k in PREP_KEYS},
+        "source_commit": SOURCE_COMMIT, "source_files_sha256": SOURCE_FILES, "versions": VERSIONS,
+        "providers": SCRFD_SESSION.get_providers(), "env": ENV,
+    }, indent=1))  # fmt: skip
+"""
+
+LOAD_PREP_MD = """## Bước 2 — Nạp dữ liệu đã chuẩn bị (output của `prep_pad.ipynb`)
+
+Notebook này **không** tự làm sạch hay chia tập: nó dùng đúng output Người 1 đã chạy bằng `prep_pad.ipynb`
+(Kaggle: Add Input → tab Notebooks/Your Work hoặc notebook được chia sẻ). Nhờ vậy hai người dùng **cùng một** cách chia.
+"""
+
+LOAD_PREP_CODE = r"""with step("2", "Nạp dữ liệu đã chuẩn bị"):
+    def find_prep():
+        if PREP_DIR_ENV:
+            return Path(PREP_DIR_ENV)
+        roots = [INPUT_ROOT, OUT_DIR] + ([Path("/content/drive/MyDrive")] if ENV == "colab" else [])
+        for root in roots:
+            for pattern in ("pad_prep/prep_done.json", "*/pad_prep/prep_done.json", "*/*/pad_prep/prep_done.json"):
+                hits = sorted(root.glob(pattern)) if root.is_dir() else []
+                if hits:
+                    return hits[0].parent
+        return None
+
+    PREP_DIR = find_prep()
+    if PREP_DIR is None or not (PREP_DIR / "prep_done.json").is_file():
+        raise RuntimeError(
+            "KHÔNG TÌM THẤY DỮ LIỆU ĐÃ CHUẨN BỊ (thư mục pad_prep). Kaggle: cột phải → + Add Input → tab "
+            "'Notebooks' (hoặc 'Your Work') → tìm notebook prep_pad mà Người 1 đã chia sẻ → Add, rồi Run All lại. "
+            "Colab: thêm lối tắt thư mục vericlue_pad (Người 1 chia sẻ) vào My Drive. Chưa có thì hỏi Người 1 / trưởng nhóm."
+        )
+    PREP = json.loads((PREP_DIR / "prep_done.json").read_text())
+    for rel in (PAD_PY_REL, TUNING_PY_REL):
+        if PREP["source_files_sha256"].get(rel) != SOURCE_FILES[rel]:
+            raise RuntimeError(
+                f"Dữ liệu chuẩn bị được tạo bằng phiên bản code KHÁC ({rel}). Xin trưởng nhóm bộ notebook mới cùng lúc "
+                "và cho Người 1 chạy lại prep_pad.ipynb."
+            )
+    if PREP["smoke"] and not SMOKE:
+        raise RuntimeError(
+            "Dữ liệu chuẩn bị là bản CHẠY THỬ (SMOKE) — không dạy thật trên đó. Đợi Người 1 chạy prep_pad.ipynb với SMOKE = False."
+        )
+    globals().update(PREP["config"])  # dùng đúng tham số chuẩn bị (seed, ngưỡng gom người, JPEG…)
+    INT_COLS = ("ext_mismatch", "decode_ok", "det_padded", "n_faces", "img_w", "img_h")
+    with open(PREP_DIR / "rows.csv", newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    for r in rows:
+        for k, v in list(r.items()):
+            if k in INT_COLS:
+                r[k] = int(v) if v != "" else 0
+            elif k.startswith(("o_", "m80_", "m224_", "box_")):
+                r[k] = float(v) if v != "" else float("nan")
+    N = len(rows)
+    SPLIT_FILE_SHA = {name: sha256_file(PREP_DIR / name) for name in PREP["split_files_sha256"]}
+    if SPLIT_FILE_SHA != PREP["split_files_sha256"]:
+        raise RuntimeError("File chia tập trong pad_prep bị sửa (SHA-256 không khớp prep_done.json). Báo trưởng nhóm.")
+    SPLITS_SHA = SPLIT_FILE_SHA["splits.csv"]
+    CLEAN_REPORT = json.loads((PREP_DIR / "cleaning_report.json").read_text())
+    LEAK = json.loads((PREP_DIR / "leak_check.json").read_text())
+    CROPS80, CROPS224 = (np.load(PREP_DIR / f, mmap_mode="r") for f in ("crops80.npy", "crops224.npy"))
+    RAW80, RAW224 = (np.load(PREP_DIR / f, mmap_mode="r") for f in ("raw80.npy", "raw224.npy"))
+    if CROPS80.shape[1] != MINI_SIZE or CROPS224.shape[1] != DINO_SIZE or len(CROPS80) != N:
+        raise RuntimeError("Ảnh cắt trong pad_prep không đúng cỡ. Báo trưởng nhóm.")
+    print(f"Dùng dữ liệu chuẩn bị ở {PREP_DIR} (commit {PREP['source_commit'][:12]}, {N} ảnh, SMOKE={PREP['smoke']})")
+    print(f"splits.csv SHA-256 = {SPLITS_SHA}  (Người 1 và Người 2 phải giống nhau)")
+    print(f"Kiểm lộ đề lúc chuẩn bị: AUC siêu dữ liệu = {LEAK['model_auc']:.3f} (đạt ≤ {LEAK_AUC_MAX})")
 """
 
 STEP5_MD = """## Bước 5 — Đo MiniFASNet GỐC (trước tinh chỉnh) trên calib_fit
@@ -962,7 +1115,7 @@ STEP5_CODE = r"""with step("5", "Đo MiniFASNet gốc trên calib_fit"):
         name_in, name_out = session.get_inputs()[0].name, session.get_outputs()[0].name
         out = []
         for s in range(0, len(idx), batch):
-            x = np.asarray(CROPS80[idx[s : s + batch]]).astype(np.float32).transpose(0, 3, 1, 2)  # BGR, 0–255
+            x = np.asarray(RAW80[idx[s : s + batch]]).astype(np.float32).transpose(0, 3, 1, 2)  # đúng pad.py: BGR, 0–255
             out.append(_softmax(session.run([name_out], {name_in: x})[0])[:, 1])  # nhãn 1 = thật
         return np.concatenate(out)
 
@@ -1021,7 +1174,9 @@ class CropSet(Dataset):
         assert_not_test((rows[i]["split"] for i in idx), "CropSet")
         USED.update(idx)
         self.kind, self.idx, self.live, self.augment = kind, list(idx), live, augment
-        self.path = WORK / ("crops80.npy" if kind == "minifas" else "crops224.npy")
+        # Dạy: ảnh đã nén lại JPEG (khử lộ đề) + tăng cường. Đo/hiệu chỉnh: ảnh cắt thô đúng pad.py.
+        size = "80" if kind == "minifas" else "224"
+        self.path = PREP_DIR / (f"crops{size}.npy" if augment else f"raw{size}.npy")
         self.arr = None
         self.epoch = 0
 
@@ -1124,7 +1279,7 @@ print(f"train: {n_live} live, {n_attack} not_live → trọng số lớp live {W
 STEP6A_CODE = r"""with step("6a", "Tinh chỉnh MiniFASNet V2 (toàn bộ)"):
     MINI_ONNX = onnx.load(str(PATH_MINIFAS))
     mini_model = build_torch_graph(onnx_to_ir(MINI_ONNX)).to(DEVICE)
-    probe_x = np.asarray(CROPS80[IDX["calib_fit"][:8]]).astype(np.float32).transpose(0, 3, 1, 2)
+    probe_x = np.asarray(RAW80[IDX["calib_fit"][:8]]).astype(np.float32).transpose(0, 3, 1, 2)
     with torch.no_grad():
         diff = np.abs(mini_model.eval()(torch.from_numpy(probe_x).to(DEVICE)).cpu().numpy()
                       - MINIFAS_SESSION.run(None, {MINIFAS_SESSION.get_inputs()[0].name: probe_x})[0]).max()  # fmt: skip
@@ -1405,8 +1560,9 @@ STEP9_CODE = r"""with step("9", "Kiểm cuối: không chạm split test"):
     leaked = USED.intersection(TEST_IDX)
     assert not leaked, f"LỖI NGHIÊM TRỌNG: {len(leaked)} ảnh test đã bị đọc khi dạy/đo!"
     if TEST_IDX:
-        assert int(np.asarray(CROPS80[TEST_IDX]).max()) == 0 and int(np.asarray(CROPS224[TEST_IDX]).max()) == 0
-    print(f"OK: {len(USED)} ảnh đã dùng (train + calib_fit), 0 ảnh thuộc test ({len(TEST_IDX)} ảnh test chưa từng được dùng).")
+        for arr in (CROPS80, CROPS224, RAW80, RAW224):
+            assert int(np.asarray(arr[TEST_IDX]).max()) == 0, "Ảnh cắt của test phải bằng 0"
+    print(f"OK: {len(USED)} ảnh đã dùng (train + calib_fit + calib_ltt; calib_ltt chỉ để xuất điểm), 0 ảnh thuộc test ({len(TEST_IDX)} ảnh test chưa từng được dùng).")
     print("Trưởng nhóm sẽ chạy test MỘT lần trên máy sau khi chốt mô hình.")
 """
 
@@ -1457,7 +1613,7 @@ STEP10_CODE = r"""with step("10", "Xuất kết quả"):
             try:
                 dino_model.float().eval().cpu()
                 emb = dino_model.backbone.embeddings
-                probe = torch.from_numpy(np.stack([to_input(np.asarray(CROPS224[i]), "dino").numpy() for i in IDX["calib_fit"][:8]]))
+                probe = torch.from_numpy(np.stack([to_input(np.asarray(RAW224[i]), "dino").numpy() for i in IDX["calib_fit"][:8]]))
                 with torch.no_grad():
                     ref = torch.softmax(dino_model(probe), dim=1)[:, 1].numpy()
                     n_patch = (DINO_SIZE // dino_model.backbone.config.patch_size) ** 2
@@ -1486,21 +1642,22 @@ STEP10_CODE = r"""with step("10", "Xuất kết quả"):
             writer = csv.DictWriter(handle, fieldnames=keys)
             writer.writeheader()
             writer.writerows(AUX_ROWS)
-    for name in list(SPLIT_FILE_SHA) + ["cleaning_report.json", "leak_check.json"]:
-        shutil.copy2(WORK / name, EXP / name)
+    for name in list(SPLIT_FILE_SHA) + ["cleaning_report.json", "leak_check.json", "prep_done.json"]:
+        shutil.copy2(PREP_DIR / name, EXP / name)
 
     model_sha = {f.name: sha256_file(f) for f in sorted(EXP.iterdir()) if f.suffix in (".onnx", ".safetensors")}
     # Calibrator JSON: model_version gắn SHA-256 file mô hình (đặt vào ml/configs/calibrators/face_pad/).
     from urllib.parse import quote
 
     final_files = {"minifasnet_ft": "minifasnet_v2_ft.onnx", "dinov2_ft": "dinov2_pad_delta.safetensors"}
-    cal_dir = EXP / "calibrators" / "face_pad"
+    cal_dir = EXP / "calibrators"  # module = face_pad ghi trong từng JSON
     cal_dir.mkdir(parents=True, exist_ok=True)
     CALIBRATOR_FILES = {}
     for k, c in CALIBRATORS.items():
         if k in final_files and final_files[k] in model_sha:
             c = c.model_copy(update={"model_version": MODEL_VERSIONS[k].replace("@pending", "@" + model_sha[final_files[k]][:8])})
-        path = cal_dir / f"{quote(c.model_version, safe='@-_.')}.json"
+        suffix = ".fasvn-candidate.json" if k == "baseline" else ".json"  # không trùng file identity trong repo
+        path = cal_dir / f"{quote(c.model_version, safe='@-_.')}{suffix}"
         path.write_text(c.model_dump_json(indent=2) + "\n", encoding="utf-8")
         CALIBRATOR_FILES[k] = {"model_version": c.model_version, "file": path.relative_to(EXP).as_posix(), "method": c.method}
     print("  Calibrator:", {k: v["file"] for k, v in CALIBRATOR_FILES.items()})
@@ -1617,6 +1774,7 @@ def build_cells(commit: str, dirty: bool, model: str) -> list[tuple[str, str]]:
         (
             "# === NGUỒN (sinh bởi scripts/build_pad_notebook.py — KHÔNG sửa tay) ===\n"
             f"{COMMIT_PREFIX}{commit!r}\n"
+            f"PAD_PY_REL, TUNING_PY_REL = {PAD_PY!r}, {TUNING_PY!r}\n"
             f"SOURCE_DIRTY = {dirty!r}  # True = file nguồn có sửa chưa commit lúc sinh notebook\n"
             f"SOURCE_FILES = {json.dumps(sources, indent=1)}\n"
             f"MANIFEST = {json.dumps(manifest_entries(), indent=1, ensure_ascii=False)}\n"
@@ -1648,8 +1806,15 @@ def build_cells(commit: str, dirty: bool, model: str) -> list[tuple[str, str]]:
         + extract(CALIB_PY, CALIB_NAMES)
         + "\n\n\ncalibration_fit = fit  # tránh trùng tên; fit = calibration.fit của hệ thống\n"
     )
-    return [
-        ("markdown", INTRO.replace("· FACE-04\n", f"· FACE-04 · **{MODEL_TITLES[model]}**\n", 1)),
+    head = [
+        (
+            "markdown",
+            (INTRO_PREP if model == "prep" else INTRO_TRAIN).replace(
+                "· FACE-04\n", f"· FACE-04 · **{MODEL_TITLES[model]}**\n", 1
+            ),
+        ),
+        ("markdown", ENV_INFO_MD),
+        ("code", ENV_INFO),
         ("code", header),
         ("markdown", CONFIG_MD),
         (
@@ -1667,12 +1832,21 @@ def build_cells(commit: str, dirty: bool, model: str) -> list[tuple[str, str]]:
         ("code", calib_cell),
         ("markdown", STEP1),
         ("code", STEP1_CODE),
-        ("markdown", STEP2_MD),
-        ("code", STEP2_CODE),
-        ("markdown", STEP3_MD),
-        ("code", STEP3_CODE),
-        ("markdown", STEP4_MD),
-        ("code", STEP4_CODE),
+    ]
+    if model == "prep":
+        return head + [
+            ("markdown", STEP2_MD),
+            ("code", STEP2_CODE),
+            ("markdown", STEP3_MD),
+            ("code", STEP3_CODE),
+            ("markdown", STEP4_MD),
+            ("code", STEP4_CODE),
+            ("markdown", PREP_DONE_MD),
+            ("code", PREP_DONE_CODE),
+        ]
+    return head + [
+        ("markdown", LOAD_PREP_MD),
+        ("code", LOAD_PREP_CODE),
         ("markdown", STEP5_MD),
         ("code", STEP5_CODE),
         ("markdown", STEP6_MD),

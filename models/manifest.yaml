@@ -360,7 +360,7 @@ models:
   owner: M3
   status: ready
   note: Thẻ HF ghi license apache-2.0 (kiểm 19/10). Chỉ trọng số nền; bản tinh chỉnh nằm ở
-    MODELS_DIR/finetuned/, không commit. Notebook ml/notebooks/finetune_pad.ipynb tải và kiểm SHA-256.
+    MODELS_DIR/finetuned/, không commit. Notebook ml/notebooks/finetune_pad_dinov2.ipynb tải và kiểm SHA-256.
   files:
   - path: config.json
     url: https://huggingface.co/facebook/dinov2-with-registers-base/resolve/a1d738ccfa7ae170945f210395d99dde8adb1805/config.json?download=true

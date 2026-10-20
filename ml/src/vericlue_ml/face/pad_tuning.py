@@ -1,4 +1,4 @@
-"""FACE-04 — hàm thuần cho notebook tinh chỉnh PAD (`ml/notebooks/finetune_pad_{minifasnet,dinov2}.ipynb`).
+"""FACE-04 — hàm thuần cho notebook tinh chỉnh PAD (`ml/notebooks/prep_pad.ipynb`, `finetune_pad_{minifasnet,dinov2}.ipynb`).
 
 File này được `scripts/build_pad_notebook.py` NHÚNG NGUYÊN VĂN vào notebook (bỏ các dòng
 `from vericlue_ml…`, vì notebook nhúng luôn `pad.py`/`eval/metrics.py`). Vì vậy:
@@ -435,11 +435,18 @@ def leak_auc(
     seed: int = 42,
     folds: int = 5,
 ) -> dict[str, Any]:
-    """AUC của mô hình CHỈ dùng siêu dữ liệu (GroupKFold theo nhóm người, lấy mô hình tốt hơn
-    trong hồi quy logistic và cây tăng cường). Kèm AUC đơn biến từng đặc trưng."""
+    """AUC của mô hình CHỈ dùng siêu dữ liệu, kiểm định chéo theo nhóm người.
+
+    - Bỏ cột hằng số; không còn cột nào → AUC = 0,5 (không có thông tin).
+    - StratifiedGroupKFold (giữ tỉ lệ nhãn, không tách nhóm người); AUC tính TRÊN TỪNG FOLD rồi lấy
+      trung bình, KHÔNG lật max(AUC, 1 − AUC) — tránh thổi phồng do lệch nhãn giữa các fold.
+    - Lấy mô hình cao hơn giữa hồi quy logistic và cây tăng cường (chặn thận trọng).
+    Kèm AUC đơn biến từng đặc trưng (có lật chiều, chỉ để mô tả).
+    """
     from sklearn.ensemble import HistGradientBoostingClassifier
     from sklearn.linear_model import LogisticRegression
-    from sklearn.model_selection import GroupKFold
+    from sklearn.metrics import roc_auc_score
+    from sklearn.model_selection import StratifiedGroupKFold
     from sklearn.pipeline import make_pipeline
     from sklearn.preprocessing import StandardScaler
 
@@ -448,24 +455,35 @@ def leak_auc(
     y = np.asarray(labels, dtype=int)
     g = np.asarray(groups)
     per_feature = {k: univariate_auc(x[:, i], y) for i, k in enumerate(names)}
-    result: dict[str, Any] = {"n": int(len(y)), "per_feature": per_feature, "models": {}}
-    n_splits = min(folds, len(set(g)))
-    if np.unique(y).size < 2 or n_splits < 2:
+    varying = [i for i in range(len(names)) if np.unique(x[:, i]).size > 1]
+    result: dict[str, Any] = {
+        "n": int(len(y)),
+        "per_feature": per_feature,
+        "models": {},
+        "used_features": [names[i] for i in varying],
+        "cv": "StratifiedGroupKFold, AUC trung bình theo fold",
+    }
+    n_splits = min(folds, len(set(g)), int(np.bincount(y, minlength=2).min()) if y.size else 0)
+    if np.unique(y).size < 2 or n_splits < 2 or not varying:
         result["model_auc"] = 0.5
         return result
+    x = x[:, varying]
     models: dict[str, Callable[[], Any]] = {
         "logistic": lambda: make_pipeline(StandardScaler(), LogisticRegression(max_iter=1000)),
         "hgb": lambda: HistGradientBoostingClassifier(max_iter=100, random_state=seed),
     }
+    splitter = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=seed)
+    splits = list(splitter.split(x, y, g))
     for name, factory in models.items():
-        scores = np.full(len(y), np.nan)
-        for train_idx, test_idx in GroupKFold(n_splits=n_splits).split(x, y, g):
-            if np.unique(y[train_idx]).size < 2:
-                scores[test_idx] = 0.5
+        fold_aucs = []
+        for train_idx, test_idx in splits:
+            if np.unique(y[train_idx]).size < 2 or np.unique(y[test_idx]).size < 2:
                 continue
             model = factory().fit(x[train_idx], y[train_idx])
-            scores[test_idx] = model.predict_proba(x[test_idx])[:, 1]
-        result["models"][name] = univariate_auc(scores, y)
+            fold_aucs.append(
+                float(roc_auc_score(y[test_idx], model.predict_proba(x[test_idx])[:, 1]))
+            )
+        result["models"][name] = float(np.mean(fold_aucs)) if fold_aucs else 0.5
     result["model_auc"] = max(result["models"].values())
     return result
 

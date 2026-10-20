@@ -318,3 +318,15 @@ def test_recommend_combo_or_best_single():
     lose = T.recommend(singles, {"apcer": 0.25, "auc": 0.99})
     assert lose["choice"] == "dino" and "KHÔNG" in lose["reason_vi"]
     assert T.recommend({"mini": singles["mini"]}, None)["choice"] == "mini"
+
+
+def test_leak_auc_constant_features_random_labels_is_half():
+    pytest.importorskip("sklearn")
+    rng = np.random.default_rng(1)
+    y = (rng.random(300) < 0.3).astype(int)
+    groups = [f"g{i // 3}" for i in range(300)]
+    const = [{"width": 80.0, "height": 80.0, "has_exif": 0.0} for _ in y]
+    out = T.leak_auc(const, y, groups)
+    assert out["model_auc"] == 0.5 and out["used_features"] == []
+    noise = [{"width": 80.0, "noise": float(v)} for v in rng.normal(size=300)]
+    assert abs(T.leak_auc(noise, y, groups)["model_auc"] - 0.5) < 0.12
