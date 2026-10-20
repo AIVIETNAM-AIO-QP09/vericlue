@@ -1,5 +1,16 @@
 # Kế hoạch dữ liệu cho bản demo VeriClue (BTL86-16)
 
+> **Cập nhật 20/10 (ADR-0015, mục "Cập nhật 19–20/10"):** sau khi rà soát có bằng chứng, vai trò dữ liệu đã đổi. Bảng dưới đây là **kế hoạch cũ**. Những điểm chính:
+> - Zalo 2022 đeo khẩu trang → chỉ làm test phụ.
+> - FAS-VN được làm sạch, chia lại theo người, và dùng cho cả dạy, hiệu chỉnh lẫn test PAD.
+> - RTFS-10k được chia lại: một phần hiệu chỉnh GenD, một phần test.
+> - ViCocktail chỉ có vùng miệng.
+> - **Mục 3 (tự tạo deepfake người Việt) bị hủy.**
+> - Giọng: thêm Common Voice vi, DNU-ViSpeech, Speech-MASSIVE, FLEURS và giọng nhân bản cùng người.
+> - Mới: VLR (Zenodo 19705466, CC BY 4.0) — chỉ làm mẫu thật tham khảo.
+> - **Cách chia chuẩn của FAS-VN và RTFS** là `splits.csv` do các notebook trong `ml/notebooks/` sinh ra.
+
+
 > Kiểm tra ngày 14/10/2026. Nguyên tắc: **chỉ dùng dữ liệu và mô hình có sẵn, không tổ chức thu dữ liệu.**
 >
 > - **Có** — đã mở trang hoặc API, xác nhận còn tải được.
