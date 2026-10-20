@@ -1,6 +1,6 @@
 # ADR-0003: Làm web trên điện thoại, không làm app native
 
-- **Trạng thái:** đã chấp nhận
+- **Trạng thái:** đã chấp nhận — **thay một phần bởi ADR-0014** (18/10): luồng người dân chuyển sang app Android; bàn duyệt và giám định vẫn là web.
 - **Ngày:** 2026-10-14
 
 ## Quyết định

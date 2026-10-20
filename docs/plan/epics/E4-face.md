@@ -107,6 +107,22 @@
 
 ---
 
+**Cập nhật trưởng nhóm 18/10 (ADR-0015):**
+- **PAD:** thử cả hai cách rồi giữ cách thắng trên `calib_fit`: (a) tinh chỉnh **MiniFASNet**; (b) **DINOv2-reg ViT-B/14** chỉ dạy lớp cuối và vài khối cuối, trên Zalo train và CelebA-Spoof. Thêm DINOv2 vào manifest, ghi rõ giấy phép.
+- **GenD:** mặt thật lấy thêm khung từ **video selfie thật của Zalo 2022** (quay bằng điện thoại, người Việt, đúng miền dữ liệu của app) và vn_celeb.
+- **Mọi lần huấn luyện thật chạy trên Colab hoặc Kaggle**, kể cả PAD. Không thu dữ liệu tay.
+
+---
+
+
+**Cập nhật trưởng nhóm 20/10 (ADR-0015 mục "Cập nhật 19–20/10") — thay các ghi chú dữ liệu ở trên:**
+- **PAD:** dạy, hiệu chỉnh và test đều trên **FAS-VN đã làm sạch và chia lại theo người**. Có 2 notebook Kaggle (MiniFASNet, DINOv2; PR #38). Kết hợp = max của hai xác suất đã hiệu chỉnh, chỉ dùng nếu thắng mô hình đơn.
+- **GenD:** **không tinh chỉnh; chỉ hiệu chỉnh** (PR #39). Lớp thật = FAS-VN live + video gốc RTFS; lớp giả = RTFS. RTFS **không còn chỉ là test** — phần test là phần test trong `splits.csv` của notebook.
+- **`splits.csv` do notebook sinh là cách chia chuẩn** cho mọi phép đo R1/R2 sau này trên FAS-VN và RTFS.
+- Không tự tạo deepfake người thật.
+
+---
+
 ### FACE-05 · Tối ưu tốc độ
 
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
