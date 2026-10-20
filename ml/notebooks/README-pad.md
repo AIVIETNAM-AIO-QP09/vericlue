@@ -8,7 +8,7 @@ Người cần **sửa** notebook (nhóm AI) đọc thêm [`HANDBOOK-pad.md`](HA
 
 | Thứ tự | Ai | File | Máy | Thời gian (chạy thật) |
 |---|---|---|---|---|
-| 1 | **Người 1** | `prep_pad.ipynb` — chuẩn bị dữ liệu, **chạy MỘT lần** | **CPU** (Accelerator: None) | khoảng 45–90 phút (ước tính) |
+| 1 | **Người 1** | `prep_pad.ipynb` — chuẩn bị dữ liệu, **chạy MỘT lần** | **CPU** (Accelerator: None) | khoảng 65–90 phút (laptop nhóm đo 65 phút) |
 | 2 | **Người 1** | `finetune_pad_minifasnet.ipynb` | GPU T4 x2 | khoảng 1–2 giờ |
 | 2 | **Người 2** | `finetune_pad_dinov2.ipynb` | GPU T4 x2 | khoảng 1,5–2,5 giờ |
 
@@ -94,7 +94,7 @@ Nếu Người 2 không thấy notebook ở mục **Shared with you**:
 
 | Notebook | Bước | Ước tính |
 |---|---|---|
-| prep | 1 tải trọng số · 2 kiểm kê · 3 làm sạch/gom người/cắt mặt · 4 kiểm lộ đề · 5 lưu | 3 phút · 1–2 phút · **45–90 phút (CPU, ước tính)** · 1–2 phút · < 1 phút |
+| prep | 1 tải trọng số · 2 kiểm kê · 3 làm sạch/gom người/cắt mặt · 4 kiểm lộ đề · 5 lưu | 3 phút · 1–2 phút · **60–90 phút (CPU; laptop nhóm đo 63 phút)** · 1–2 phút · < 1 phút |
 | dạy | 1 tải trọng số · 2 nạp dữ liệu chuẩn bị · 5 đo gốc · 6a hoặc 6b dạy · 7 hiệu chỉnh · 8 test phụ · 9–10 đóng gói | 3–6 phút · 1 phút · < 1 phút · **10–20 phút (MiniFASNet) / 30–60 phút (DINOv2)** · < 1 phút · 5–15 phút · 2–5 phút |
 
 ### Theo dõi
@@ -109,7 +109,7 @@ Nếu Người 2 không thấy notebook ở mục **Shared with you**:
 - **Notebook dạy** lưu checkpoint sau mỗi epoch vào `pad_work/ckpt`.
   - Phiên vẫn còn, hoặc Persistence = Files only: bấm **Run All** lại, notebook chạy tiếp từ epoch cuối.
   - Phiên đã mất: nếu kịp thì **Save Version → Quick Save** trước. Lần sau **+ Add Input** → tab **Notebooks** → chọn **chính notebook này** (bản đã lưu) → Run All. Notebook tự sao chép checkpoint cũ về và chạy tiếp.
-- **`prep_pad`** mất khoảng 45–90 phút (ước tính). Bị ngắt thì Run All lại từ đầu.
+- **`prep_pad`** mất khoảng 65–90 phút. Bị ngắt thì Run All lại từ đầu.
 
 ## Phần F — Gửi kết quả cho trưởng nhóm
 

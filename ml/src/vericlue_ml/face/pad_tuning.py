@@ -200,6 +200,23 @@ def link_groups(keys: Sequence[str], pairs: Iterable[tuple[int, ...]]) -> list[s
     return group_of
 
 
+def group_size_stats(groups: Sequence[str]) -> dict[str, float]:
+    """Phân bố cỡ nhóm người: số nhóm, lớn nhất, tỉ lệ nhóm lớn nhất, p99 — để phát hiện nối chuỗi."""
+    sizes: dict[str, int] = defaultdict(int)
+    for g in groups:
+        sizes[g] += 1
+    arr = np.array(sorted(sizes.values()), dtype=float)
+    if not arr.size:
+        return {"n_groups": 0, "max": 0, "max_share": 0.0, "p99": 0.0, "median": 0.0}
+    return {
+        "n_groups": int(arr.size),
+        "max": int(arr[-1]),
+        "max_share": float(arr[-1] / arr.sum()),
+        "p99": float(np.percentile(arr, 99)),
+        "median": float(np.median(arr)),
+    }
+
+
 # ── chia tập theo nhóm ────────────────────────────────────────────────────────────────────
 def assign_splits(
     groups: Sequence[str],
