@@ -315,3 +315,42 @@ def read_json(path: Path, default=None):
 
 def disk_free_gb(path: Path) -> float:
     return shutil.disk_usage(path).free / GB
+
+
+def environment_report() -> dict:
+    """Phiên bản Python/thư viện, GPU, RAM, ổ đĩa — in ở ô đầu để gửi kèm khi báo lỗi."""
+    import importlib
+    import platform
+
+    info: dict = {"python": sys.version.split()[0], "os": platform.platform()}
+    for module in ("torch", "transformers", "onnxruntime", "cv2", "sklearn", "pydantic", "numpy"):
+        try:
+            info[module] = getattr(importlib.import_module(module), "__version__", "?")
+        except Exception as exc:  # noqa: BLE001 - chỉ để báo cáo
+            info[module] = f"chưa cài ({type(exc).__name__})"
+    try:
+        import torch
+
+        info["torch_cuda"] = torch.version.cuda
+        info["cuda_available"] = torch.cuda.is_available()
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        import onnxruntime
+
+        info["onnx_providers"] = onnxruntime.get_available_providers()
+    except Exception:  # noqa: BLE001
+        pass
+    info["gpu"] = gpu_info()
+    meminfo = Path("/proc/meminfo")
+    if meminfo.is_file():
+        fields = dict(
+            line.split(":", 1) for line in meminfo.read_text().splitlines() if ":" in line
+        )
+        for key in ("MemTotal", "MemAvailable"):
+            if key in fields:
+                info[f"ram_{key}_gb"] = round(int(fields[key].split()[0]) / 1024**2, 1)
+    for path in ("/kaggle/working", "/content", str(Path.cwd())):
+        if Path(path).is_dir():
+            info[f"disk_free_gb[{path}]"] = round(disk_free_gb(Path(path)), 1)
+    return info

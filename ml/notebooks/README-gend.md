@@ -90,6 +90,8 @@ Thêm xong, cột phải mục **Input** phải hiện đủ hai bộ trên. Ch�
 
 ## Bảng lỗi thường gặp
 
+Cần sửa notebook (dành cho nhóm AI, có trợ lý AI hỗ trợ): xem **`ml/notebooks/HANDBOOK-gend.md`** — bản đồ từng ô, vùng cấm sửa, mẫu câu hỏi cho AI. Khi báo lỗi, luôn dán kết quả ô **"0. Thông tin môi trường"**.
+
 | Thông báo | Nguyên nhân | Cách xử lý |
 |---|---|---|
 | `Internet` bị khóa, hoặc lỗi `ConnectionError` / `Name or service not known` | Chưa bật Internet hoặc chưa xác minh số điện thoại | Làm A1 rồi A3 |

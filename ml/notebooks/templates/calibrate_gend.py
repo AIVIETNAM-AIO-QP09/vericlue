@@ -52,6 +52,15 @@ TEST_CONFIRMATION = ""
 # %% [embed]
 
 # %%
+# ===================== 0. Thông tin môi trường (gửi kèm khi báo lỗi) =====================
+import json as _json
+
+import nb_common as nb
+
+ENV_INFO = nb.environment_report()
+print(_json.dumps(ENV_INFO, ensure_ascii=False, indent=1))
+
+# %%
 # ===================== 1. Môi trường =====================
 import csv
 import json
@@ -770,6 +779,7 @@ METRICS = {
     "seed": SEED,
     "platform": PLATFORM,
     "gpu": GPU,
+    "environment": ENV_INFO,
     "source_commit": SOURCE_COMMIT,
     "source_dirty": SOURCE_DIRTY,
     "model_version": MODEL_VERSION,
