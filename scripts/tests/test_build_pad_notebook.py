@@ -30,10 +30,11 @@ def _strip_volatile(text: str) -> str:
     return "\n".join(keep)
 
 
-def test_committed_notebook_matches_repo_code():
+@pytest.mark.parametrize("model", ["minifasnet", "dinov2"])
+def test_committed_notebook_matches_repo_code(model):
     b = builder()
-    on_disk = json.loads(b.NOTEBOOK.read_text(encoding="utf-8"))
-    fresh = b.build_notebook("TEST", False)
+    on_disk = json.loads(b.NOTEBOOKS[model].read_text(encoding="utf-8"))
+    fresh = b.build_notebook("TEST", False, model)
     assert [_strip_volatile(c) for c in _code_cells(on_disk)] == [
         _strip_volatile(c) for c in _code_cells(fresh)
     ], "Notebook lệch code repo: chạy `uv run python scripts/build_pad_notebook.py`."
@@ -44,10 +45,10 @@ def test_committed_notebook_matches_repo_code():
 def test_embedded_code_is_self_contained():
     pytest.importorskip("sklearn")
     b = builder()
-    cells = _code_cells(b.build_notebook("TEST", False))
+    cells = _code_cells(b.build_notebook("TEST", False, "minifasnet"))
     namespace: dict = {}
     exec(cells[0], namespace)  # nguồn + manifest
-    for cell in cells[2:5]:  # pad.py, metrics.py, pad_tuning.py
+    for cell in cells[2:6]:  # pad.py, metrics.py, pad_tuning.py, calibration.py
         exec(compile(cell, "<notebook>", "exec"), namespace)
     for name in ("ScrfdFaceFinder", "MiniFasNetClassifier", "auc", "eer", "apcer_by_attack",
                  "assign_splits", "assert_not_test", "leak_auc", "pad_crop"):  # fmt: skip
@@ -61,3 +62,14 @@ def test_extract_fails_loudly_when_name_disappears():
     b = builder()
     with pytest.raises(SystemExit):
         b.extract(b.PAD_PY, ("NoSuchThing",))
+
+
+def test_two_notebooks_differ_only_in_model_line():
+    b = builder()
+    mini = _code_cells(b.build_notebook("TEST", False, "minifasnet"))
+    dino = _code_cells(b.build_notebook("TEST", False, "dinov2"))
+    assert 'MODEL = "minifasnet"' in mini[1] and 'MODEL = "dinov2"' in dino[1]
+    assert [c for c in mini if "MODEL = " not in c] == [c for c in dino if "MODEL = " not in c]
+    assert not (b.ROOT / "ml" / "notebooks" / "finetune_pad.ipynb").exists()
+    with pytest.raises(ValueError):
+        b.build_notebook("TEST", False, "both")

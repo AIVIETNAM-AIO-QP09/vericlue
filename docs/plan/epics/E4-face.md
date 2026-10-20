@@ -105,7 +105,7 @@
 - **Hai bước:** viết script trong repo, **chạy thử nhỏ trên máy** (RTX 4050 6 GB đủ cho PAD và chạy thử GenD), rồi chạy thật trên **Kaggle** (dự phòng: Colab, thuê GPU). Cùng một script, chỉ khác tham số.
 - **Luật khi chạy cloud:** notebook kéo repo đúng commit và ghi commit; dữ liệu tải lên để **Private**; token để trong Secrets; chọn checkpoint chỉ trên `calib_fit`; trọng số mang về `MODELS_DIR/finetuned/<tên>/<ngày>/` kèm SHA-256 và `card.md`, không commit.
 
-**Cập nhật 19/10 (PAD, nhánh `feat/FACE-04-pad-kaggle`):** dữ liệu dạy/chọn/test của PAD đổi thành **FAS-VN chia lại theo nhóm người** (lọc trùng, khử lộ đề); Zalo 2022, Axon, UniData chỉ làm test phụ; không dùng CelebA-Spoof. Notebook `ml/notebooks/finetune_pad.ipynb` (sinh bằng `scripts/build_pad_notebook.py`, hướng dẫn `ml/notebooks/README-pad.md`) nhúng code repo thay vì kéo repo (repo private). Thiếu ảnh in giấy/mặt nạ trong dữ liệu dạy — ghi ở `card.md` xuất ra.
+**Cập nhật 19/10 (PAD, nhánh `feat/FACE-04-pad-kaggle`):** dữ liệu dạy/chọn/test của PAD đổi thành **FAS-VN chia lại theo nhóm người** (lọc trùng, khử lộ đề); Zalo 2022, Axon, UniData chỉ làm test phụ; không dùng CelebA-Spoof. Hai notebook `ml/notebooks/finetune_pad_minifasnet.ipynb` / `finetune_pad_dinov2.ipynb` (2 người chạy song song, gộp bằng `ml/notebooks/combine_pad.py`; sinh bằng `scripts/build_pad_notebook.py`, hướng dẫn `ml/notebooks/README-pad.md`) nhúng code repo thay vì kéo repo (repo private). Thiếu ảnh in giấy/mặt nạ trong dữ liệu dạy — ghi ở `card.md` xuất ra.
 
 ---
 

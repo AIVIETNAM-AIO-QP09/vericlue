@@ -40,7 +40,7 @@ Mã **không gọi mạng**: thiếu file hoặc sai SHA-256 là `error`.
 ## Tinh chỉnh PAD: `pad_tuning.py` + notebook Kaggle (FACE-04)
 
 - `pad_tuning.py`: hàm thuần cho tinh chỉnh PAD — lọc trùng (SHA-256, dHash), gom người (union-find trên dHash + ArcFace), chia lại theo nhóm, `assert_not_test`, khử lộ đề (cắt mặt bằng đúng `MiniFasNetClassifier._crop` → JPEG lại, không EXIF), kiểm lộ đề bằng mô hình chỉ dùng siêu dữ liệu, chỉ số APCER tại BPCER ≤ 1 %, tăng cường kiểu camera điện thoại, và chạy đồ thị ONNX MiniFASNet bằng PyTorch rồi ghi trọng số ngược vào đúng đồ thị gốc (đầu vào/ra không đổi).
-- Notebook `ml/notebooks/finetune_pad.ipynb` được **sinh** bằng `uv run --no-sync python scripts/build_pad_notebook.py` (nhúng nguyên văn `pad.py`, `eval/metrics.py`, `pad_tuning.py`, manifest). Sửa các file đó thì chạy lại script; `scripts/tests/test_build_pad_notebook.py` báo lỗi nếu notebook lệch.
+- Hai notebook `ml/notebooks/finetune_pad_minifasnet.ipynb` và `finetune_pad_dinov2.ipynb` (chỉ khác dòng `MODEL`) được **sinh** bằng `uv run --no-sync python scripts/build_pad_notebook.py` (nhúng nguyên văn `pad.py`, `eval/metrics.py`, `pad_tuning.py`, `common/calibration.py`, manifest). Trưởng nhóm gộp 2 zip bằng `ml/notebooks/combine_pad.py`. Sửa các file đó thì chạy lại script; `scripts/tests/test_build_pad_notebook.py` báo lỗi nếu notebook lệch.
 - Hướng dẫn chạy cho thành viên: `ml/notebooks/README-pad.md`.
 - Không phải code chạy trong API; không đăng ký trong registry.
 

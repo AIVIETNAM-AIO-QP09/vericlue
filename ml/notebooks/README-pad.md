@@ -1,7 +1,28 @@
 # Hướng dẫn chạy notebook tinh chỉnh PAD trên Kaggle (và Colab)
 
 Dành cho người **không chuyên**. Làm đúng từng bước, không cần hiểu code.
-Notebook: `finetune_pad.ipynb` (trưởng nhóm gửi cho bạn). Việc của bạn: **chạy notebook và gửi lại 1 file zip**.
+Nhóm có **2 người chạy song song**, mỗi người **một file notebook riêng** (trưởng nhóm gửi đúng file cho bạn).
+Hai file giống hệt nhau, chỉ khác mô hình được dạy. Việc của bạn: **chạy notebook và gửi lại 1 file zip**.
+Trong notebook bạn **chỉ được sửa một chỗ: `SMOKE`** (chạy thử hay chạy thật). Không sửa gì khác.
+
+### Người 1 — MiniFASNet (file `finetune_pad_minifasnet.ipynb`)
+- Dạy MiniFASNet và đo luôn MiniFASNet gốc để so sánh.
+- Chạy thật mất khoảng **1–2 giờ** trên GPU T4. Chạy thử (SMOKE) khoảng 10 phút.
+- Gửi lại: file `pad_export_minifasnet_<ngày-giờ>.zip`.
+
+### Người 2 — DINOv2 (file `finetune_pad_dinov2.ipynb`)
+- Dạy DINOv2 (tải thêm khoảng 350 MB trọng số).
+- Chạy thật mất khoảng **1,5–2,5 giờ** trên GPU T4. Chạy thử (SMOKE) khoảng 15 phút.
+- Gửi lại: file `pad_export_dinov2_<ngày-giờ>.zip`.
+
+**Cả hai người đều làm y hệt các Phần A–G bên dưới.** Hai người phải dùng cùng loại GPU (T4 x2) để chia tập ra giống hệt nhau.
+Notebook in dòng `SHA-256 các file chia tập`. Nếu trưởng nhóm gửi bạn một mã SHA-256, dán mã đó vào dòng
+`EXPECTED_SPLITS_SHA = ""` (giữa hai dấu ngoặc kép). Notebook sẽ tự dừng nếu cách chia tập của bạn khác.
+
+**Gửi lại cho trưởng nhóm:**
+1. File zip.
+2. Ảnh chụp bảng ở cuối Bước 7.
+3. Dòng `splits.csv  <mã SHA-256>` ở cuối Bước 3.
 
 Nếu gặp chuyện gì không có trong hướng dẫn: **chụp màn hình** phần chữ đỏ cuối cùng và gửi trưởng nhóm. Đừng tự sửa code.
 
@@ -21,7 +42,7 @@ Nếu gặp chuyện gì không có trong hướng dẫn: **chụp màn hình** 
 
 1. Ở cột trái trang Kaggle, bấm **Create** (dấu +) → **New Notebook**. Một notebook trống mở ra.
 2. Trên thanh menu của notebook, bấm **File** → **Import Notebook**.
-3. Bấm **Browse Files** → chọn file `finetune_pad.ipynb` trên máy → bấm **Import**.
+3. Bấm **Browse Files** → chọn **đúng file của bạn** (`finetune_pad_minifasnet.ipynb` hoặc `finetune_pad_dinov2.ipynb`) trên máy → bấm **Import**.
    Notebook trống được thay bằng nội dung của nhóm (dòng đầu là "VeriClue — Tinh chỉnh PAD…").
 4. (Tùy chọn) Bấm vào tên notebook ở góc trái trên (dạng "notebookxxxx") để đổi tên, ví dụ `vericlue-pad`.
 
@@ -58,7 +79,7 @@ Nếu không thấy cột phải, bấm biểu tượng **mũi tên |<** hoặc 
 **Chạy thật:**
 1. Sửa lại `SMOKE = True` thành `SMOKE = False`.
 2. Bấm **Run All**.
-3. **Thời gian dự kiến: 1,5–3 giờ** trên GPU T4. Notebook in ước tính ở đầu và thời gian thật sau mỗi bước:
+3. **Thời gian dự kiến:** Người 1 khoảng 1–2 giờ, Người 2 khoảng 1,5–2,5 giờ (GPU T4). Mỗi file chỉ chạy bước 6a **hoặc** 6b. Notebook in ước tính ở đầu và thời gian thật sau mỗi bước:
 
 | Bước | Việc | Ước tính (T4) |
 |---|---|---|
@@ -95,12 +116,19 @@ Notebook **lưu checkpoint** sau mỗi epoch và lưu dữ liệu đã làm sạ
 
 1. Khi cuối notebook hiện **"XONG. File cần gửi trưởng nhóm: /kaggle/working/pad_export_…zip"**:
 2. Ở cột phải, mở mục **Output** (hoặc **Data → Output**), thấy thư mục `/kaggle/working`.
-3. Bấm vào file **`pad_export_<ngày-giờ>.zip`** → bấm **Download** (biểu tượng mũi tên xuống, hoặc dấu ⋮ → Download).
+3. Bấm vào file **`pad_export_minifasnet_<ngày-giờ>.zip`** (Người 1) hoặc **`pad_export_dinov2_<ngày-giờ>.zip`** (Người 2) → bấm **Download** (biểu tượng mũi tên xuống, hoặc dấu ⋮ → Download).
 4. **Gửi file zip cho trưởng nhóm** qua **Google Drive** của nhóm (thư mục mà trưởng nhóm chia sẻ, đặt chế độ **chỉ người trong nhóm xem được**), rồi nhắn link trong nhóm chat.
    - **KHÔNG** đăng file lên chỗ công khai, **KHÔNG** bấm "Make Public" notebook hay output trên Kaggle (dữ liệu có ảnh mặt người thật, chỉ dùng nghiên cứu).
 5. Nhắn kèm: ảnh chụp **bảng "Bảng trước/sau trên calib_fit"** (cuối bước 7) và dòng **"Thời gian từng bước"** (cuối notebook).
 
-Zip gồm: mô hình (`minifasnet_v2_ft.onnx`, `dinov2_pad_delta.safetensors`…), `SHA256SUMS.txt`, `card.md`, `metrics.json`, `splits.csv`, điểm calib_fit. Không chứa ảnh.
+Zip gồm (không chứa ảnh):
+- **mô hình:**
+  - Người 1: `minifasnet_v2_ft.onnx`, thay thẳng được vào hệ thống;
+  - Người 2: `dinov2_pad.onnx` + `dinov2_pad_delta.safetensors` + `dinov2_pad_config.json`;
+- **calibrator:** `calibrators/face_pad/*.json`, fit trên calib_fit;
+- **điểm từng mẫu:** `scores_calib_fit.csv` và `scores_calib_ltt.csv` (mã mẫu, nhóm người, nhãn, điểm thô, xác suất đã hiệu chỉnh), `aux_scores.csv` (test phụ);
+- **chia tập:** `splits.csv` + `split_train/calib_fit/calib_ltt/test.csv`;
+- **báo cáo:** `card.md`, `metrics.json`, `cleaning_report.json`, `leak_check.json`, `SHA256SUMS.txt`.
 
 ## Phần G — Lỗi thường gặp
 
@@ -127,7 +155,7 @@ Colab miễn phí cũng có GPU T4 nhưng hay bị ngắt hơn. Notebook tự t�
 
 1. **Lấy khóa Kaggle API:** vào kaggle.com → ảnh đại diện → **Settings** → mục **API** → bấm **Create New Token**.
    Máy tải về file `kaggle.json`. Mở file bằng Notepad, thấy dạng `{"username":"abc","key":"123…"}` — giữ bí mật, không gửi ai.
-2. Vào **https://colab.research.google.com** → **File → Upload notebook** → chọn `finetune_pad.ipynb`.
+2. Vào **https://colab.research.google.com** → **File → Upload notebook** → chọn đúng file của bạn (`finetune_pad_minifasnet.ipynb` hoặc `finetune_pad_dinov2.ipynb`).
 3. Menu **Runtime → Change runtime type** → **Hardware accelerator: T4 GPU** → **Save**.
 4. Thêm khóa vào **Secrets**: bấm biểu tượng **chìa khóa** ở thanh bên trái → **+ Add new secret** hai lần:
    - Name `KAGGLE_USERNAME`, Value = giá trị `username` trong `kaggle.json`;
@@ -137,7 +165,7 @@ Colab miễn phí cũng có GPU T4 nhưng hay bị ngắt hơn. Notebook tự t�
    (Notebook lưu mọi thứ vào `My Drive/vericlue_pad/` để chạy tiếp khi bị ngắt.)
 6. Notebook tự tải FAS-VN (~8,4 GB, 5–10 phút). Test phụ Zalo trên Colab không tự tải — bỏ qua cũng được.
 7. Bị ngắt: mở lại notebook, **Runtime → Run all** — notebook đọc lại `My Drive/vericlue_pad/pad_work` và chạy tiếp.
-8. Kết quả: file `pad_export_<ngày-giờ>.zip` trong **Google Drive → My Drive → vericlue_pad**. Chia sẻ file đó cho trưởng nhóm (chỉ người trong nhóm).
+8. Kết quả: file `pad_export_<minifasnet|dinov2>_<ngày-giờ>.zip` trong **Google Drive → My Drive → vericlue_pad**. Chia sẻ file đó cho trưởng nhóm (chỉ người trong nhóm).
 
 Lỗi riêng của Colab:
 - `userdata` / `SecretNotFoundError`: chưa thêm 2 secret hoặc chưa bật **Notebook access** (bước 4).
@@ -148,6 +176,12 @@ Lỗi riêng của Colab:
 
 ## Ghi chú cho trưởng nhóm
 
-- Notebook được sinh bằng `uv run --no-sync python scripts/build_pad_notebook.py` (nhúng `pad.py`, `eval/metrics.py`, `face/pad_tuning.py`, manifest). Commit nguồn ghi ở ô đầu notebook và trong `metrics.json`/`card.md`.
+- Hai notebook được sinh từ cùng một mẫu bằng `uv run --no-sync python scripts/build_pad_notebook.py`. Mẫu nhúng `pad.py`, `eval/metrics.py`, `face/pad_tuning.py`, `common/calibration.py` và manifest. Hai file chỉ khác dòng `MODEL`. Commit nguồn ghi ở ô đầu notebook và trong `metrics.json`/`card.md`.
 - Chạy thử trên máy: đặt biến môi trường `PAD_SMOKE=1`, `PAD_FASVN_DIR`, `PAD_OUT_DIR`, `PAD_INPUT_ROOT`, `PAD_LOCAL_MODELS_DIR`, `PAD_AUX_DIRS` rồi `jupyter nbconvert --execute` (xem bàn giao FACE-04).
-- Nhận zip: kiểm `SHA256SUMS.txt`, đối chiếu SHA-256 của `splits.csv` trong `card.md`, rồi đặt mô hình vào `MODELS_DIR/finetuned/pad/<ngày>/`. Split `test` của FAS-VN mới chia **chưa** được dùng — chạy test **một lần** trên máy sau khi chốt.
+- **Gộp 2 zip trên laptop** (CPU, vài giây):
+  `uv run --no-sync python ml/notebooks/combine_pad.py --minifasnet <zip Người 1> --dinov2 <zip Người 2> --out <thư mục>`.
+  - Script kiểm SHA-256 các file chia tập phải trùng, rồi ghép từng mẫu calib_fit.
+  - Script đo MiniFASNet / DINOv2 / GỘP (max xác suất đã hiệu chỉnh), cả theo từng nguồn A/B.
+  - Khuyến nghị "dùng cả hai" hay "dùng một mô hình" được ghi vào `combine_report.md` và `combine_report.json`.
+- Nếu hai zip lệch SHA-256: lấy `splits.csv` SHA-256 của Người 1, gửi Người 2 dán vào `EXPECTED_SPLITS_SHA`, rồi chạy lại.
+- Nhận zip: kiểm `SHA256SUMS.txt`, rồi đặt mô hình và calibrator vào `MODELS_DIR/finetuned/pad/<ngày>/` và `ml/configs/calibrators/face_pad/`. Split `test` của FAS-VN mới chia **chưa** được dùng — chạy test **một lần** trên máy sau khi chốt.

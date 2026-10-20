@@ -1,4 +1,4 @@
-"""FACE-04 — hàm thuần cho notebook tinh chỉnh PAD (`ml/notebooks/finetune_pad.ipynb`).
+"""FACE-04 — hàm thuần cho notebook tinh chỉnh PAD (`ml/notebooks/finetune_pad_{minifasnet,dinov2}.ipynb`).
 
 File này được `scripts/build_pad_notebook.py` NHÚNG NGUYÊN VĂN vào notebook (bỏ các dòng
 `from vericlue_ml…`, vì notebook nhúng luôn `pad.py`/`eval/metrics.py`). Vì vậy:
@@ -538,6 +538,49 @@ def selection_key(metrics: dict[str, Any]) -> tuple[float, float, float]:
         return default if v is None or not np.isfinite(v) else float(v)
 
     return (val("apcer", 1.0), val("eer", 1.0), -val("auc", 0.0))
+
+
+def rank_key(metrics: dict[str, Any]) -> tuple[float, float]:
+    """Khóa so sánh đơn lẻ vs gộp (ADR-0015, trưởng nhóm 20/10): APCER@BPCER≤1 % rồi AUC cao."""
+
+    def val(name: str, default: float) -> float:
+        v = metrics.get(name)
+        return default if v is None or not np.isfinite(v) else float(v)
+
+    return (val("apcer", 1.0), -val("auc", 0.0))
+
+
+def combo_max(*attack_probabilities: Sequence[float]) -> np.ndarray:
+    """Gộp như TrustRouter `fusion.method = max`: xác suất tấn công ĐÃ hiệu chỉnh lớn nhất."""
+    if not attack_probabilities:
+        raise ValueError("Cần ít nhất một vector xác suất.")
+    stacked = np.vstack([np.asarray(p, dtype=float) for p in attack_probabilities])
+    return stacked.max(axis=0)
+
+
+def recommend(singles: dict[str, dict[str, Any]], combo: dict[str, Any] | None) -> dict[str, Any]:
+    """Khuyến nghị: COMBO hơn đơn lẻ tốt nhất (APCER, hòa thì AUC) → "dùng cả hai";
+    ngược lại dùng đơn lẻ tốt nhất. Trả {choice, best_single, reason_vi}."""
+    if not singles:
+        raise ValueError("Cần ít nhất một mô hình đơn lẻ.")
+    best = min(singles, key=lambda k: rank_key(singles[k]))
+    b = singles[best]
+    if combo is not None and rank_key(combo) < rank_key(b):
+        reason = (
+            f"Gộp max thắng: APCER {combo['apcer']:.4f} so với {b['apcer']:.4f} của {best}"
+            if combo["apcer"] != b["apcer"]
+            else f"Gộp max hòa APCER ({combo['apcer']:.4f}) nhưng AUC cao hơn: "
+            f"{combo['auc']:.4f} so với {b['auc']:.4f} của {best}"
+        )
+        return {"choice": "combo", "best_single": best, "reason_vi": reason}
+    if combo is None:
+        reason = f"Không có mô hình thứ hai để gộp; {best} tốt nhất."
+    else:
+        reason = (
+            f"Gộp max KHÔNG hơn {best}: APCER {combo['apcer']:.4f} so với {b['apcer']:.4f}, "
+            f"AUC {combo['auc']:.4f} so với {b['auc']:.4f} — thêm mô hình thứ hai không đáng."
+        )
+    return {"choice": best, "best_single": best, "reason_vi": reason}
 
 
 # ── tăng cường giống camera trước điện thoại rẻ (cùng cho cả 2 lớp) ──────────────────────

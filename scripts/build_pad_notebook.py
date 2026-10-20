@@ -1,4 +1,4 @@
-"""FACE-04 — sinh `ml/notebooks/finetune_pad.ipynb` từ code THẬT trong repo.
+"""FACE-04 — sinh `ml/notebooks/finetune_pad_{minifasnet,dinov2}.ipynb` từ code THẬT trong repo.
 
 Notebook phải chạy trên Kaggle/Colab mà KHÔNG clone repo (repo private), nên script này nhúng
 nguyên văn vào notebook:
@@ -27,10 +27,17 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
-NOTEBOOK = ROOT / "ml" / "notebooks" / "finetune_pad.ipynb"
+NOTEBOOKS = {
+    "minifasnet": ROOT / "ml" / "notebooks" / "finetune_pad_minifasnet.ipynb",
+    "dinov2": ROOT / "ml" / "notebooks" / "finetune_pad_dinov2.ipynb",
+}
+MODEL_TITLES = {"minifasnet": "Người 1 — MiniFASNet", "dinov2": "Người 2 — DINOv2"}
+MODEL_LINE = 'MODEL = ""  # BẮT BUỘC SỬA: "minifasnet" (Người 1) hoặc "dinov2" (Người 2)\n'
 PAD_PY = "ml/src/vericlue_ml/face/pad.py"
 METRICS_PY = "ml/src/vericlue_ml/eval/metrics.py"
 TUNING_PY = "ml/src/vericlue_ml/face/pad_tuning.py"
+CALIB_PY = "ml/src/vericlue_ml/common/calibration.py"
+RESULT_PY = "ml/src/vericlue_ml/common/result.py"
 MANIFEST = "models/manifest.yaml"
 MODEL_IDS = ("minifasnet", "scrfd-10g", "arcface-mnet", "dinov2-reg-base")
 PAD_NAMES = (
@@ -49,6 +56,14 @@ PAD_NAMES = (
     "MiniFasNetClassifier",
 )
 METRIC_NAMES = ("_vectors", "_threshold", "apcer_by_attack", "bpcer", "auc", "eer")
+RESULT_NAMES = ("Module",)
+CALIB_NAMES = (
+    "EPSILON", "MIN_ISOTONIC_CLASS", "MIN_RELATIVE_IMPROVEMENT", "PLATT_C", "PLATT_MAX_ITER",
+    "PLATT_TOL", "FloatArray", "CalibrationError", "_Record", "_vector", "_pairs",
+    "ReliabilityBin", "reliability_table", "ece", "brier_score", "log_loss",
+    "CalibrationMetrics", "_metrics", "CalibFit", "Parameters", "Calibrator", "_fit_parameters",
+    "_predict", "_choose_isotonic", "fit",
+)  # fmt: skip
 COMMIT_PREFIX = "SOURCE_COMMIT = "
 
 # Dữ liệu test phụ tải từ Hugging Face (công khai, không cần đăng nhập), ghim revision.
@@ -166,7 +181,18 @@ def git_commit() -> tuple[str, bool]:
         ).stdout.strip()
         dirty = bool(
             subprocess.run(
-                ["git", "status", "--porcelain", "--", PAD_PY, METRICS_PY, TUNING_PY, MANIFEST],
+                [
+                    "git",
+                    "status",
+                    "--porcelain",
+                    "--",
+                    PAD_PY,
+                    METRICS_PY,
+                    TUNING_PY,
+                    CALIB_PY,
+                    RESULT_PY,
+                    MANIFEST,
+                ],
                 cwd=ROOT,
                 capture_output=True,
                 text=True,
@@ -293,8 +319,17 @@ MAX_BPCER = 0.01  # chọn mô hình theo APCER tại BPCER ≤ 1 %
 # dữ liệu; chạy thử 19/10 cho AUC ~0,66–0,73 dù chuẩn hóa cỡ mặt. Mặc định chỉ BÁO, không chặn (xem bàn giao FACE-04).
 LEAK_GATE_FILE_SIZE = False
 
-RUN_MINIFAS = True  # phương án (a)
-RUN_DINO = True  # phương án (b)
+MODEL = ""  # BẮT BUỘC SỬA: "minifasnet" (Người 1) hoặc "dinov2" (Người 2)
+MODEL = os.environ.get("PAD_MODEL", MODEL)  # máy nhóm: "both" chỉ dùng để chạy thử
+EXPECTED_SPLITS_SHA = ""  # SỬA ĐƯỢC: dán SHA-256 splits.csv trưởng nhóm gửi (để trống = không kiểm)
+EXPECTED_SPLITS_SHA = os.environ.get("PAD_EXPECTED_SPLITS_SHA", EXPECTED_SPLITS_SHA).strip().lower()
+if MODEL not in ("minifasnet", "dinov2") and not (MODEL == "both" and ENV == "local"):
+    raise RuntimeError(
+        'CHƯA CHỌN MÔ HÌNH. Ở ô này sửa dòng MODEL = "" thành MODEL = "minifasnet" (Người 1) '
+        'hoặc MODEL = "dinov2" (Người 2), rồi bấm Run All lại.'
+    )
+RUN_MINIFAS = MODEL in ("minifasnet", "both")  # phương án (a) + đo MiniFASNet gốc
+RUN_DINO = MODEL in ("dinov2", "both")  # phương án (b)
 EPOCHS_MINIFAS = 1 if SMOKE else 12  # SỬA ĐƯỢC
 EPOCHS_DINO = 1 if SMOKE else 6  # SỬA ĐƯỢC
 BATCH_MINIFAS = 64 if SMOKE else 256  # giảm nếu báo hết bộ nhớ GPU (CUDA out of memory)
@@ -362,7 +397,7 @@ if ENV == "kaggle" and not (WORK / "prep_done.json").exists():
             shutil.copytree(old, WORK, dirs_exist_ok=True)
             break
 
-print(f"Môi trường: {ENV} | SMOKE={SMOKE} | thư mục làm việc: {WORK}")
+print(f"Môi trường: {ENV} | MÔ HÌNH: {MODEL} | SMOKE={SMOKE} | thư mục làm việc: {WORK}")
 print("Ước tính thời gian từng bước (Kaggle T4, chạy đầy đủ):")
 for key, est in ESTIMATES.items():
     print(f"  Bước {key:>3}: {est}")
@@ -371,7 +406,7 @@ print("  Tổng: khoảng 1,5–3 giờ. Notebook in thời gian thật sau mỗ
 
 EMBED_HEAD = """## Mã nhúng từ repo (KHÔNG sửa tay)
 
-Ba ô dưới được `scripts/build_pad_notebook.py` chép nguyên văn từ repo. Muốn đổi thì sửa file gốc trong
+Bốn ô dưới được `scripts/build_pad_notebook.py` chép nguyên văn từ repo. Muốn đổi thì sửa file gốc trong
 repo rồi chạy lại script — để mô hình tinh chỉnh luôn dùng **đúng** tiền xử lý của hệ thống.
 """
 
@@ -393,6 +428,17 @@ class PadError(Exception):
 """
 
 METRICS_PREAMBLE = """from sklearn.metrics import roc_auc_score, roc_curve
+"""
+
+CALIB_PREAMBLE = """from datetime import UTC, datetime
+from enum import StrEnum
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+from sklearn.isotonic import IsotonicRegression
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import GroupKFold
+from sklearn.preprocessing import StandardScaler
 """
 
 STEP1 = r"""## Bước 1 — Cài thư viện, tải trọng số đúng revision và kiểm SHA-256
@@ -435,6 +481,8 @@ STEP1_CODE = r"""with step("1", "Cài thư viện và tải trọng số"):
         except Exception as exc:  # noqa: BLE001
             print("preload_dlls:", exc)
     torch.manual_seed(SEED)
+    torch.backends.cuda.matmul.allow_tf32 = False  # số khớp ONNX/CPU khi xuất (T4 không có TF32)
+    torch.backends.cudnn.allow_tf32 = False
     np.random.seed(SEED)
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     VERSIONS = {
@@ -749,12 +797,14 @@ STEP3_CODE = r"""with step("3", "Làm sạch, gom người, chia lại tập"):
             writer = csv.DictWriter(handle, fieldnames=fields)
             writer.writeheader()
             writer.writerows(rows)
-        split_cols = ["rel_path", "sha256", "label", "orig_split", "source", "fmt", "ext_mismatch", "status",
-                      "group_id", "split", "det_padded", "box_x1", "box_y1", "box_x2", "box_y2"]  # fmt: skip
-        with open(SPLITS_CSV, "w", newline="", encoding="utf-8") as handle:
-            writer = csv.DictWriter(handle, fieldnames=split_cols, extrasaction="ignore")
-            writer.writeheader()
-            writer.writerows(sorted(rows, key=lambda r: r["rel_path"]))
+        # Chỉ cột thành viên (không có số thực như toạ độ hộp) → 2 người chạy độc lập phải ra byte giống nhau.
+        split_cols = ["rel_path", "sha256", "label", "orig_split", "source", "status", "group_id", "split"]
+        ordered = sorted(rows, key=lambda r: r["rel_path"])
+        for name, keep in [("splits.csv", None)] + [(f"split_{s}.csv", s) for s in ("train", "calib_fit", "calib_ltt", "test")]:
+            with open(WORK / name, "w", newline="", encoding="utf-8") as handle:
+                writer = csv.DictWriter(handle, fieldnames=split_cols, extrasaction="ignore", lineterminator="\n")
+                writer.writeheader()
+                writer.writerows([r for r in ordered if keep is None or r["split"] == keep])
         CLEAN_REPORT = {
             "n_images": N,
             "n_kept": len(kept),
@@ -772,6 +822,7 @@ STEP3_CODE = r"""with step("3", "Làm sạch, gom người, chia lại tập"):
 
     CLEAN_REPORT = json.loads((WORK / "cleaning_report.json").read_text())
     SPLITS_SHA = sha256_file(SPLITS_CSV)
+    SPLIT_FILE_SHA = {name: sha256_file(WORK / name) for name in ["splits.csv"] + [f"split_{s}.csv" for s in ("train", "calib_fit", "calib_ltt", "test")]}
     CROPS80 = np.load(WORK / "crops80.npy", mmap_mode="r")
     CROPS224 = np.load(WORK / "crops224.npy", mmap_mode="r")
     print("Báo cáo làm sạch:", json.dumps(CLEAN_REPORT, indent=1, ensure_ascii=False))
@@ -780,7 +831,17 @@ STEP3_CODE = r"""with step("3", "Làm sạch, gom người, chia lại tập"):
         part = [r for r in rows if r["split"] == s]
         live = sum(r["label"] == "live" for r in part)
         print(f"  {s:10s}: {len(part):6d} ảnh (live {live}, not_live {len(part) - live}), {len({r['group_id'] for r in part})} nhóm")
-    print(f"splits.csv: {SPLITS_CSV}  SHA-256={SPLITS_SHA}")
+    print("SHA-256 các file chia tập (2 người phải GIỐNG HỆT nhau):")
+    for name, digest in SPLIT_FILE_SHA.items():
+        print(f"  {name:22s} {digest}")
+    if EXPECTED_SPLITS_SHA and EXPECTED_SPLITS_SHA != SPLITS_SHA:
+        raise RuntimeError(
+            f"DỪNG: file chia tập KHÁC với bản trưởng nhóm gửi (đang có {SPLITS_SHA[:16]}…, cần {EXPECTED_SPLITS_SHA[:16]}…). "
+            "Kiểm tra: đúng file notebook mới nhất, SMOKE giống nhau, đã Add Input đúng dataset, Accelerator GPU. "
+            "Chụp màn hình này gửi trưởng nhóm, KHÔNG chạy tiếp."
+        )
+    if EXPECTED_SPLITS_SHA:
+        print("ĐẠT: splits.csv khớp SHA-256 trưởng nhóm gửi.")
 """
 
 STEP4_MD = """## Bước 4 — Khử lộ đề và kiểm lộ đề
@@ -893,7 +954,7 @@ STEP5_CODE = r"""with step("5", "Đo MiniFASNet gốc trên calib_fit"):
         USED.update(idx)
         return idx
 
-    IDX = {"train": take_idx("train"), "calib_fit": take_idx("calib_fit")}
+    IDX = {"train": take_idx("train"), "calib_fit": take_idx("calib_fit"), "calib_ltt": take_idx("calib_ltt")}
     LIVE = {s: np.array([int(rows[i]["label"] == "live") for i in idx]) for s, idx in IDX.items()}
     GROUPS = {s: [rows[i]["group_id"] for i in idx] for s, idx in IDX.items()}
 
@@ -908,8 +969,13 @@ STEP5_CODE = r"""with step("5", "Đo MiniFASNet gốc trên calib_fit"):
     def evaluate(p_live: np.ndarray, n_boot: int = N_BOOT) -> dict:
         return pad_metrics(1 - LIVE["calib_fit"], 1 - p_live, GROUPS["calib_fit"], MAX_BPCER, n_boot, SEED)
 
-    SCORES = {"baseline": onnx_p_live(MINIFAS_SESSION, IDX["calib_fit"])}
-    METRICS = {"baseline": evaluate(SCORES["baseline"])}
+    SCORES: dict = {}  # p_live trên calib_fit (dùng để chọn và hiệu chỉnh)
+    SCORES_LTT: dict = {}  # p_live trên calib_ltt (CHỈ để xuất cho ROUT-03, không nhìn ở đây)
+    METRICS: dict = {}
+    if RUN_MINIFAS:
+        SCORES["baseline"] = onnx_p_live(MINIFAS_SESSION, IDX["calib_fit"])
+        SCORES_LTT["baseline"] = onnx_p_live(MINIFAS_SESSION, IDX["calib_ltt"])
+        METRICS["baseline"] = evaluate(SCORES["baseline"])
     HISTORY: dict[str, list] = {}
 
     def show(name: str, m: dict) -> None:
@@ -918,7 +984,10 @@ STEP5_CODE = r"""with step("5", "Đo MiniFASNet gốc trên calib_fit"):
         print(f"  {name:16s} AUC={m['auc']:.4f} EER={m['eer']:.4f} APCER@BPCER≤{MAX_BPCER:.0%}={m['apcer']:.4f}{ci_txt} "
               f"(ngưỡng {m['threshold_at_bpcer']:.4f}, BPCER {m['bpcer']:.4f}; live {m['n_live']}, tấn công {m['n_attack']})")
 
-    show("MiniFASNet gốc", METRICS["baseline"])
+    if "baseline" in METRICS:
+        show("MiniFASNet gốc", METRICS["baseline"])
+    else:
+        print("  (Chạy DINOv2: MiniFASNet gốc do Người 1 đo.)")
 """
 
 STEP6_MD = """## Bước 6 — Tinh chỉnh hai phương án
@@ -983,7 +1052,7 @@ def predict_p_live(model, kind: str, idx: list[int], batch: int) -> np.ndarray:
     return np.concatenate(out)
 
 
-def fit(name: str, model, groups_params, kind: str, epochs: int, batch: int, loss_fn) -> dict:
+def train_model(name: str, model, groups_params, kind: str, epochs: int, batch: int, loss_fn) -> dict:
     ckdir = WORK / "ckpt" / name
     ckdir.mkdir(parents=True, exist_ok=True)
     last, best = ckdir / "last.pt", ckdir / "best.pt"
@@ -1062,12 +1131,13 @@ STEP6A_CODE = r"""with step("6a", "Tinh chỉnh MiniFASNet V2 (toàn bộ)"):
     print(f"  Đồ thị PyTorch khớp ONNX gốc: lệch tối đa {diff:.2e}")
     assert diff < 1e-2, "Đồ thị PyTorch không khớp MiniFASNet gốc"
     if RUN_MINIFAS:
-        HISTORY["minifasnet_ft"] = fit(
+        HISTORY["minifasnet_ft"] = train_model(
             "minifasnet_ft", mini_model, [{"params": list(mini_model.parameters()), "lr": LR_MINIFAS}],
             "minifas", EPOCHS_MINIFAS, BATCH_MINIFAS,
             lambda logits, y: binary_live_loss(logits, y, (W_LIVE, W_ATTACK)),
         )  # fmt: skip
         SCORES["minifasnet_ft"] = predict_p_live(mini_model, "minifas", IDX["calib_fit"], 512)
+        SCORES_LTT["minifasnet_ft"] = predict_p_live(mini_model, "minifas", IDX["calib_ltt"], 512)
         METRICS["minifasnet_ft"] = evaluate(SCORES["minifasnet_ft"])
         show("MiniFASNet tinh chỉnh", METRICS["minifasnet_ft"])
 """
@@ -1098,7 +1168,7 @@ STEP6B_CODE = r"""with step("6b", "Tinh chỉnh DINOv2-reg ViT-B/14 (vài khối
         n_train = sum(p.numel() for p in dino_model.parameters() if p.requires_grad)
         print(f"  Tham số được dạy: {n_train / 1e6:.1f} triệu / {sum(p.numel() for p in dino_model.parameters()) / 1e6:.1f} triệu")
         class_w = torch.tensor([W_ATTACK, W_LIVE], dtype=torch.float32, device=DEVICE)
-        HISTORY["dinov2_ft"] = fit(
+        HISTORY["dinov2_ft"] = train_model(
             "dinov2_ft", dino_model,
             [{"params": [p for m in tuned for p in m.parameters()], "lr": LR_DINO_BLOCKS},
              {"params": list(dino_model.head.parameters()), "lr": LR_DINO_HEAD}],
@@ -1106,32 +1176,80 @@ STEP6B_CODE = r"""with step("6b", "Tinh chỉnh DINOv2-reg ViT-B/14 (vài khối
             lambda logits, y: F.cross_entropy(logits, y, weight=class_w),
         )  # fmt: skip
         SCORES["dinov2_ft"] = predict_p_live(dino_model, "dino", IDX["calib_fit"], BATCH_DINO * 2)
+        SCORES_LTT["dinov2_ft"] = predict_p_live(dino_model, "dino", IDX["calib_ltt"], BATCH_DINO * 2)
         METRICS["dinov2_ft"] = evaluate(SCORES["dinov2_ft"])
         show("DINOv2 tinh chỉnh", METRICS["dinov2_ft"])
 """
 
-STEP7_MD = """## Bước 7 — Chọn phương án (CHỈ trên calib_fit)
+STEP7_MD = """## Bước 7 — Hiệu chỉnh, gộp hai mô hình và khuyến nghị (CHỈ trên calib_fit)
 
-Thứ tự ưu tiên: APCER tại BPCER ≤ 1 % thấp hơn → EER thấp hơn → AUC cao hơn.
+ADR-0015: **giữ MiniFASNet và THÊM tầng 2 DINOv2** — hai mô hình bổ trợ nhau, không phải chọn một.
+- Mỗi mô hình được **hiệu chỉnh** trên calib_fit bằng đúng `vericlue_ml.common.calibration` của hệ thống
+  (Platt/isotonic, GroupKFold theo nhóm người — ADR-0010), mỗi mô hình một `model_version` riêng.
+- **GỘP** = lấy xác suất tấn công đã hiệu chỉnh LỚN NHẤT của MiniFASNet (bản tốt hơn giữa gốc/tinh chỉnh)
+  và DINOv2 — khớp TrustRouter `fusion.method = max`.
+- Quy tắc: GỘP hơn mô hình đơn lẻ tốt nhất (APCER tại BPCER ≤ 1 % thấp hơn; hòa thì AUC cao hơn)
+  → khuyến nghị **dùng cả hai**; ngược lại dùng mô hình đơn lẻ tốt nhất.
+
 `calib_ltt` và `test` KHÔNG được nhìn ở đây.
 """
 
-STEP7_CODE = r"""with step("7", "Chọn phương án trên calib_fit"):
-    CANDIDATES = [k for k in ("minifasnet_ft", "dinov2_ft") if k in METRICS]
-    WINNER = min(CANDIDATES, key=lambda k: selection_key(METRICS[k])) if CANDIDATES else None
-    names = {"baseline": "MiniFASNet gốc (trước)", "minifasnet_ft": "(a) MiniFASNet tinh chỉnh",
-             "dinov2_ft": "(b) DINOv2-reg tinh chỉnh"}  # fmt: skip
-    print(f"Bảng trước/sau trên calib_fit (live {METRICS['baseline']['n_live']}, tấn công "
-          f"{METRICS['baseline']['n_attack']}, {METRICS['baseline'].get('n_groups', '?')} nhóm người):")
-    print(f"  {'mô hình':28s} {'AUC':>7s} {'EER':>7s} {'APCER@BPCER≤1%':>15s} {'CI95 APCER':>17s}")
+STEP7_CODE = r"""with step("7", "Hiệu chỉnh, gộp và khuyến nghị trên calib_fit"):
+    Y_ATTACK = 1 - LIVE["calib_fit"]
+    DET_TAG = f"scrfd-10g@{MANIFEST['scrfd-10g']['revision'][:8]}"
+    MODEL_VERSIONS = {
+        "baseline": f"minifasnet-v2@{MANIFEST['minifasnet']['revision'][:8]}+{DET_TAG}",  # trùng bản đang chạy
+        "minifasnet_ft": f"minifasnet-v2-ft@pending+{DET_TAG}",  # bước 10 thay 'pending' bằng SHA-256 file ONNX
+        "dinov2_ft": f"dinov2-reg-b14-ft@pending+{DET_TAG}",  # bước 10 thay bằng SHA-256 file trọng số
+    }
+    CALIBRATORS: dict = {}
+    for k in ("baseline", "minifasnet_ft", "dinov2_ft"):
+        if k not in SCORES:
+            continue
+        try:
+            CALIBRATORS[k] = calibration_fit(
+                CalibFit(scores=[float(v) for v in 1 - SCORES[k]], labels=[int(v) for v in Y_ATTACK],
+                         subject_ids=list(GROUPS["calib_fit"]), dataset="fas_vn_regrouped_face04"),
+                module="face_pad", model_version=MODEL_VERSIONS[k], commit=SOURCE_COMMIT,
+            )  # fmt: skip
+            c = CALIBRATORS[k]
+            print(f"  Hiệu chỉnh {k}: {c.method}, log-loss {c.before.log_loss:.4f} → {c.after.log_loss:.4f} (OOF theo nhóm)")
+        except CalibrationError as exc:
+            print(f"  KHÔNG hiệu chỉnh được {k}: {exc} — mô hình này không vào phần gộp.")
+    CAL_P = {k: c.predict(1 - SCORES[k]) for k, c in CALIBRATORS.items()}
+    minis = [k for k in ("baseline", "minifasnet_ft") if k in METRICS]
+    MINI_BEST = min(minis, key=lambda k: rank_key(METRICS[k])) if minis else None
+    if MINI_BEST in CAL_P and "dinov2_ft" in CAL_P:
+        COMBO_P = combo_max(CAL_P[MINI_BEST], CAL_P["dinov2_ft"])
+        SCORES_COMBO_ATTACK = COMBO_P
+        METRICS["combo"] = pad_metrics(Y_ATTACK, COMBO_P, GROUPS["calib_fit"], MAX_BPCER, N_BOOT, SEED)
+    SINGLES = {k: METRICS[k] for k in ("baseline", "minifasnet_ft", "dinov2_ft") if k in METRICS}
+    RECOMMENDATION = recommend(SINGLES, METRICS.get("combo"))
+    RECOMMENDATION["combo_members"] = [MINI_BEST, "dinov2_ft"] if "combo" in METRICS else []
+    RECOMMENDATION["rule"] = "GỘP (max xác suất đã hiệu chỉnh) thắng đơn lẻ tốt nhất theo APCER@BPCER≤1%, hòa thì AUC"
+    WINNER = RECOMMENDATION["choice"]
+    names = {"baseline": "MiniFASNet gốc", "minifasnet_ft": "MiniFASNet tinh chỉnh",
+             "dinov2_ft": "DINOv2-reg tinh chỉnh", "combo": f"GỘP max({MINI_BEST} + DINOv2)"}  # fmt: skip
+    REF = next(iter(METRICS.values()))
+    print(f"Bảng so sánh trên calib_fit (live {REF['n_live']}, tấn công "
+          f"{REF['n_attack']}, {REF.get('n_groups', '?')} nhóm người):")
+    print(f"  {'mô hình':34s} {'AUC':>7s} {'EER':>7s} {'APCER@BPCER≤1%':>15s} {'CI95 APCER':>17s}")
     for k, m in METRICS.items():
         ci = m.get("apcer_ci95") or [float("nan")] * 2
-        mark = "  ← CHỌN" if k == WINNER else ""
-        print(f"  {names[k]:28s} {m['auc']:7.4f} {m['eer']:7.4f} {m['apcer']:15.4f}   [{ci[0]:.3f}–{ci[1]:.3f}]{mark}")
-    BEATS_BASELINE = bool(WINNER) and selection_key(METRICS[WINNER]) < selection_key(METRICS["baseline"])
-    if not BEATS_BASELINE:
-        print("LƯU Ý: phương án tinh chỉnh tốt nhất KHÔNG hơn MiniFASNet gốc trên calib_fit → nên giữ bản gốc.")
+        mark = "  ← KHUYẾN NGHỊ" if k == WINNER else ""
+        print(f"  {names[k]:34s} {m['auc']:7.4f} {m['eer']:7.4f} {m['apcer']:15.4f}   [{ci[0]:.3f}–{ci[1]:.3f}]{mark}")
+    if WINNER == "combo":
+        print(f"\nKHUYẾN NGHỊ: DÙNG CẢ HAI — {names[MINI_BEST]} + DINOv2, gộp bằng max xác suất đã hiệu chỉnh "
+              f"(khớp TrustRouter fusion.method = max). Lý do: {RECOMMENDATION['reason_vi']}.")
+        print("  Việc còn mở: server cần wrapper DINOv2 như một mô-đun mặt thứ hai.")
+    else:
+        print(f"\nKHUYẾN NGHỊ: dùng MỘT mô hình — {names[WINNER]}. Lý do: {RECOMMENDATION['reason_vi']}")
+    print("Ghi chú: GỘP dùng calibrator fit trên chính calib_fit (Platt 2 tham số) → số của GỘP hơi lạc quan.")
+    BEATS_BASELINE = None if "baseline" not in METRICS else (WINNER != "baseline" and rank_key(METRICS[WINNER]) < rank_key(METRICS["baseline"]))
+    if MODEL != "both":
+        print(f"Lần chạy này chỉ có {MODEL}. Gộp MiniFASNet + DINOv2 do trưởng nhóm chạy bằng ml/notebooks/combine_pad.py.")
 """
+
 
 STEP8_MD = """## Bước 8 — Test phụ (nếu có)
 
@@ -1199,7 +1317,9 @@ STEP8_CODE = r"""with step("8", "Đo test phụ"):
         with torch.no_grad(), torch.autocast("cuda", dtype=torch.float16, enabled=(kind == "dino" and DEVICE == "cuda")):
             x = torch.stack([to_input(c, kind) for c in crops]).to(DEVICE)
             return torch.softmax(model(x).float(), dim=1)[:, 1].cpu().numpy()
-    models_live: dict = {"baseline": lambda c80, c224: onnx_p_live_arr(MINIFAS_SESSION, c80)}
+    models_live: dict = {}
+    if "baseline" in METRICS:
+        models_live["baseline"] = lambda c80, c224: onnx_p_live_arr(MINIFAS_SESSION, c80)
     if "minifasnet_ft" in METRICS:
         models_live["minifasnet_ft"] = lambda c80, c224: torch_p_live(mini_model, "minifas", c80)
     if "dinov2_ft" in METRICS:
@@ -1244,6 +1364,14 @@ STEP8_CODE = r"""with step("8", "Đo test phụ"):
             for name, fn in models_live.items():
                 row["attack_score_" + name] = float(1 - fn([c80], [c224])[0])
             AUX_ROWS.append(row)
+    eval_names = list(models_live)
+    if "combo" in METRICS:
+        mb = RECOMMENDATION["combo_members"][0]
+        for r in AUX_ROWS:
+            if r["face"] == "ok":
+                r["attack_score_combo"] = float(combo_max(CALIBRATORS[mb].predict([r["attack_score_" + mb]]),
+                                                          CALIBRATORS["dinov2_ft"].predict([r["attack_score_dinov2_ft"]]))[0])  # fmt: skip
+        eval_names.append("combo")
     AUX_RESULTS: dict = {}
     if not AUX_ROWS:
         print("Không có dữ liệu test phụ (chưa Add Input / Internet tắt) → BỎ QUA, ghi chú trong card.md.")
@@ -1252,7 +1380,7 @@ STEP8_CODE = r"""with step("8", "Đo test phụ"):
         n_noface = sum(1 for r in AUX_ROWS if r["dataset"] == dataset and r["face"] != "ok")
         res = {"n_frames": len(part), "n_files": len({(r["subset"], r["file"]) for r in part}), "n_no_face": n_noface, "models": {}}
         y = np.array([int(r["label"] == "not_live") for r in part])
-        for name in models_live:
+        for name in eval_names:
             if not part:
                 continue
             s = np.array([r["attack_score_" + name] for r in part])
@@ -1292,7 +1420,7 @@ STEP10_CODE = r"""with step("10", "Xuất kết quả"):
     import zipfile
 
     stamp = time.strftime("%Y%m%d-%H%M")
-    EXP = OUT_DIR / f"pad_export_{stamp}{'_smoke' if SMOKE else ''}"
+    EXP = OUT_DIR / f"pad_export_{MODEL}_{stamp}{'_smoke' if SMOKE else ''}"
     EXP.mkdir(parents=True, exist_ok=True)
     EXPORTED: dict = {}
     if "minifasnet_ft" in METRICS:
@@ -1325,7 +1453,7 @@ STEP10_CODE = r"""with step("10", "Xuất kết quả"):
         }
         (EXP / "dinov2_pad_config.json").write_text(json.dumps(dino_cfg, indent=1, ensure_ascii=False))
         EXPORTED["dinov2_ft"] = {"file": "dinov2_pad_delta.safetensors", **dino_cfg}
-        if WINNER == "dinov2_ft" and EXPORT_DINO_ONNX:
+        if EXPORT_DINO_ONNX:
             try:
                 dino_model.float().eval().cpu()
                 emb = dino_model.backbone.embeddings
@@ -1352,30 +1480,55 @@ STEP10_CODE = r"""with step("10", "Xuất kết quả"):
                 EXPORTED["dinov2_ft"]["onnx_error"] = str(exc)[:300]
                 print("  Không xuất được ONNX cho DINOv2 (vẫn có safetensors):", str(exc)[:200])
 
-    with open(EXP / "calib_fit_scores.csv", "w", newline="", encoding="utf-8") as handle:
-        writer = csv.writer(handle)
-        writer.writerow(["rel_path", "group_id", "label"] + [f"attack_score_{k}" for k in SCORES])
-        for n, i in enumerate(IDX["calib_fit"]):
-            writer.writerow([rows[i]["rel_path"], rows[i]["group_id"], rows[i]["label"]] + [f"{1 - SCORES[k][n]:.6f}" for k in SCORES])
     if AUX_ROWS:
         with open(EXP / "aux_scores.csv", "w", newline="", encoding="utf-8") as handle:
             keys = sorted({k for r in AUX_ROWS for k in r})
             writer = csv.DictWriter(handle, fieldnames=keys)
             writer.writeheader()
             writer.writerows(AUX_ROWS)
-    for name in ("splits.csv", "cleaning_report.json", "leak_check.json"):
+    for name in list(SPLIT_FILE_SHA) + ["cleaning_report.json", "leak_check.json"]:
         shutil.copy2(WORK / name, EXP / name)
 
     model_sha = {f.name: sha256_file(f) for f in sorted(EXP.iterdir()) if f.suffix in (".onnx", ".safetensors")}
+    # Calibrator JSON: model_version gắn SHA-256 file mô hình (đặt vào ml/configs/calibrators/face_pad/).
+    from urllib.parse import quote
+
+    final_files = {"minifasnet_ft": "minifasnet_v2_ft.onnx", "dinov2_ft": "dinov2_pad_delta.safetensors"}
+    cal_dir = EXP / "calibrators" / "face_pad"
+    cal_dir.mkdir(parents=True, exist_ok=True)
+    CALIBRATOR_FILES = {}
+    for k, c in CALIBRATORS.items():
+        if k in final_files and final_files[k] in model_sha:
+            c = c.model_copy(update={"model_version": MODEL_VERSIONS[k].replace("@pending", "@" + model_sha[final_files[k]][:8])})
+        path = cal_dir / f"{quote(c.model_version, safe='@-_.')}.json"
+        path.write_text(c.model_dump_json(indent=2) + "\n", encoding="utf-8")
+        CALIBRATOR_FILES[k] = {"model_version": c.model_version, "file": path.relative_to(EXP).as_posix(), "method": c.method}
+    print("  Calibrator:", {k: v["file"] for k, v in CALIBRATOR_FILES.items()})
+    # Điểm từng mẫu trên calib_fit và calib_ltt (KHÔNG có test): điểm thô + xác suất đã hiệu chỉnh.
+    for split_name, score_map in (("calib_fit", SCORES), ("calib_ltt", SCORES_LTT)):
+        with open(EXP / f"scores_{split_name}.csv", "w", newline="", encoding="utf-8") as handle:
+            writer = csv.writer(handle, lineterminator="\n")
+            cols = ["sample_id", "group_id", "label", "source", "split"]
+            for k in score_map:
+                cols += [f"raw_attack_score_{k}"] + ([f"cal_attack_prob_{k}"] if k in CALIBRATORS else [])
+            writer.writerow(cols)
+            cal = {k: CALIBRATORS[k].predict(1 - score_map[k]) for k in score_map if k in CALIBRATORS}
+            for n, i in enumerate(IDX[split_name]):
+                r = rows[i]
+                assert r["split"] == split_name
+                line = [r["rel_path"], r["group_id"], r["label"], r["source"], split_name]
+                for k in score_map:
+                    line += [f"{1 - score_map[k][n]:.6f}"] + ([f"{cal[k][n]:.6f}"] if k in cal else [])
+                writer.writerow(line)
     METRICS_JSON = {
-        "task": "FACE-04", "smoke": SMOKE, "env": ENV, "source_commit": SOURCE_COMMIT, "source_dirty": SOURCE_DIRTY,
+        "task": "FACE-04", "model": MODEL, "smoke": SMOKE, "env": ENV, "source_commit": SOURCE_COMMIT, "source_dirty": SOURCE_DIRTY,
         "source_files_sha256": SOURCE_FILES, "manifest": MANIFEST, "versions": VERSIONS, "config": CONFIG,
         "dataset": {"name": "FAS-VN", "kaggle": "maihongtng/face-anti-spoofing", "license_page": "CC BY 4.0 (đáng ngờ — chỉ nghiên cứu)",
-                    "splits_csv_sha256": SPLITS_SHA, "counts": {s: {lab: sum(1 for r in rows if r["split"] == s and r["label"] == lab)
+                    "splits_csv_sha256": SPLITS_SHA, "split_files_sha256": SPLIT_FILE_SHA, "counts": {s: {lab: sum(1 for r in rows if r["split"] == s and r["label"] == lab)
                     for lab in ("live", "not_live")} for s in ("train", "calib_fit", "calib_ltt", "test")}},
         "cleaning": CLEAN_REPORT, "leak_check": {k: LEAK[k] for k in ("model_auc", "models", "gate_features", "per_feature", "before_per_feature", "diagnostic", "with_file_size", "by_source")},
         "calib_fit": METRICS, "history": {k: v["history"] for k, v in HISTORY.items()},
-        "selection": {"rule": "min (APCER@BPCER<=1%, EER, -AUC) trên calib_fit", "winner": WINNER, "beats_baseline": BEATS_BASELINE},
+        "selection": {"checkpoint_rule": "min (APCER@BPCER<=1%, EER, -AUC) trên calib_fit", **RECOMMENDATION, "beats_baseline": BEATS_BASELINE}, "calibrators": CALIBRATOR_FILES,
         "aux": AUX_RESULTS, "exported": EXPORTED, "model_sha256": model_sha, "timings_seconds": TIMINGS,
     }  # fmt: skip
     (EXP / "metrics.json").write_text(json.dumps(METRICS_JSON, indent=1, ensure_ascii=False, default=str))
@@ -1385,17 +1538,18 @@ STEP10_CODE = r"""with step("10", "Xuất kết quả"):
         return "—" if v is None else f"{v:.4f}"
 
     lines = [
-        f"# Thẻ mô hình — PAD tinh chỉnh trên FAS-VN ({'CHẠY THỬ, KHÔNG DÙNG' if SMOKE else 'chạy đầy đủ'})",
+        f"# Thẻ mô hình — PAD {MODEL} tinh chỉnh trên FAS-VN ({'CHẠY THỬ, KHÔNG DÙNG' if SMOKE else 'chạy đầy đủ'})",
         "",
-        f"- Task: FACE-04. Notebook `ml/notebooks/finetune_pad.ipynb`, commit nguồn `{SOURCE_COMMIT}`" + (" (có sửa chưa commit)" if SOURCE_DIRTY else ""),
+        f"- Task: FACE-04. Notebook `ml/notebooks/finetune_pad_{MODEL}.ipynb`, commit nguồn `{SOURCE_COMMIT}`" + (" (có sửa chưa commit)" if SOURCE_DIRTY else ""),
         f"- Chạy lúc {stamp} trên {ENV} ({VERSIONS['gpu']}); seed {SEED}; torch {VERSIONS['torch']}, onnxruntime {VERSIONS['onnxruntime']}",
-        f"- Phương án thắng trên calib_fit: **{WINNER}**; hơn MiniFASNet gốc: **{'có' if BEATS_BASELINE else 'không'}**",
+        "- **Khuyến nghị:** " + (f"**DÙNG CẢ HAI** ({RECOMMENDATION['combo_members'][0]} + dinov2_ft, gộp max xác suất đã hiệu chỉnh — khớp TrustRouter fusion.method = max; cần wrapper DINOv2 ở server)" if WINNER == "combo" else f"dùng một mô hình **{WINNER}**") + f". Lý do: {RECOMMENDATION['reason_vi']}",
+        "- Calibrator (fit trên calib_fit, ADR-0010): " + ", ".join(f"`{v['file']}` ({v['method']})" for v in CALIBRATOR_FILES.values()),
         "",
         "## Dữ liệu",
         f"- FAS-VN (`maihongtng/face-anti-spoofing`), {CLEAN_REPORT['n_images']} ảnh đọc, giữ {CLEAN_REPORT['n_kept']} sau làm sạch; bỏ: {CLEAN_REPORT['dropped']}",
         f"- Gom người: {CLEAN_REPORT['n_groups']} nhóm (dHash ≤ {DHASH_LINK} hoặc ArcFace cos ≥ {ARC_THRESHOLD}); nhóm lớn nhất {CLEAN_REPORT['largest_group']} ảnh",
         f"- Chia lại theo nhóm (seed {SEED}): " + ", ".join(f"{s} {sum(METRICS_JSON['dataset']['counts'][s].values())}" for s in ("train", "calib_fit", "calib_ltt", "test")),
-        f"- `splits.csv` SHA-256 `{SPLITS_SHA}`. Split `test` CHƯA được dùng.",
+        f"- Lần chạy này: **{MODEL}**. `splits.csv` SHA-256 `{SPLITS_SHA}` (phải trùng với lần chạy mô hình kia). Split `test` CHƯA được dùng.",
         f"- Khử lộ đề: cắt mặt như pad.py → resize → JPEG q{JPEG_QUALITY}, không EXIF. AUC mô hình chỉ siêu dữ liệu = {LEAK['model_auc']:.3f} (ngưỡng ≤ {LEAK_AUC_MAX}); thêm cỡ file JPEG (tín hiệu nội dung) = {LEAK['with_file_size']['model_auc']:.3f}",
         "",
         "## Kết quả trên calib_fit (chọn mô hình chỉ ở đây)",
@@ -1405,7 +1559,7 @@ STEP10_CODE = r"""with step("10", "Xuất kết quả"):
     for k, m in METRICS.items():
         ci = m.get("apcer_ci95")
         lines.append(f"| {k} | {fmt(m, 'auc')} | {fmt(m, 'eer')} | {fmt(m, 'apcer')} | {'—' if not ci else f'{ci[0]:.3f}–{ci[1]:.3f}'} | {fmt(m, 'threshold_at_bpcer')} |")
-    lines += ["", f"Số mẫu calib_fit: live {METRICS['baseline']['n_live']}, tấn công {METRICS['baseline']['n_attack']}, {METRICS['baseline'].get('n_groups', '?')} nhóm người.", ""]
+    lines += ["", f"Số mẫu calib_fit: live {REF['n_live']}, tấn công {REF['n_attack']}, {REF.get('n_groups', '?')} nhóm người.", ""]
     lines += ["## Test phụ (tham khảo, n nhỏ)", ""]
     if AUX_RESULTS:
         for d, res in AUX_RESULTS.items():
@@ -1442,20 +1596,23 @@ STEP10_CODE = r"""with step("10", "Xuất kết quả"):
         lines.insert(2, "> **CHẠY THỬ (SMOKE)**: vài trăm ảnh, 1 epoch — số liệu không có giá trị, chỉ để kiểm notebook chạy được.\n")
     (EXP / "card.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-    sums = [f"{sha256_file(f)}  {f.name}" for f in sorted(EXP.iterdir()) if f.is_file() and f.name != "SHA256SUMS.txt"]
+    sums = [f"{sha256_file(f)}  {f.relative_to(EXP).as_posix()}" for f in sorted(EXP.rglob("*")) if f.is_file() and f.name != "SHA256SUMS.txt"]
     (EXP / "SHA256SUMS.txt").write_text("\n".join(sums) + "\n")
     ZIP = OUT_DIR / f"{EXP.name}.zip"
     with zipfile.ZipFile(ZIP, "w", zipfile.ZIP_DEFLATED) as zf:
-        for f in sorted(EXP.iterdir()):
-            zf.write(f, f"{EXP.name}/{f.name}")
+        for f in sorted(EXP.rglob("*")):
+            if f.is_file():
+                zf.write(f, f"{EXP.name}/{f.relative_to(EXP).as_posix()}")
     print(f"\nXONG. File cần gửi trưởng nhóm: {ZIP} ({ZIP.stat().st_size / 1e6:.1f} MB)")
     print("Kaggle: mở tab Output (cột phải) → bấm vào file .zip → Download. Colab: file nằm trong Google Drive/vericlue_pad.")
     print("Thời gian từng bước (phút):", {k: round(v / 60, 1) for k, v in TIMINGS.items()})
 """
 
 
-def build_cells(commit: str, dirty: bool) -> list[tuple[str, str]]:
-    sources = {rel: _sha(rel) for rel in (PAD_PY, METRICS_PY, TUNING_PY, MANIFEST)}
+def build_cells(commit: str, dirty: bool, model: str) -> list[tuple[str, str]]:
+    sources = {
+        rel: _sha(rel) for rel in (PAD_PY, METRICS_PY, TUNING_PY, CALIB_PY, RESULT_PY, MANIFEST)
+    }
     header = (
         (
             "# === NGUỒN (sinh bởi scripts/build_pad_notebook.py — KHÔNG sửa tay) ===\n"
@@ -1481,15 +1638,33 @@ def build_cells(commit: str, dirty: bool) -> list[tuple[str, str]]:
         banner(METRICS_PY) + METRICS_PREAMBLE + "\n\n" + extract(METRICS_PY, METRIC_NAMES) + "\n"
     )
     tuning_cell = banner(TUNING_PY) + module_body(TUNING_PY) + "\n"
+    calib_cell = (
+        banner(CALIB_PY)
+        + f"# + lớp Module từ {RESULT_PY}\n"
+        + CALIB_PREAMBLE
+        + "\n\n"
+        + extract(RESULT_PY, RESULT_NAMES)
+        + "\n\n\n"
+        + extract(CALIB_PY, CALIB_NAMES)
+        + "\n\n\ncalibration_fit = fit  # tránh trùng tên; fit = calibration.fit của hệ thống\n"
+    )
     return [
-        ("markdown", INTRO),
+        ("markdown", INTRO.replace("· FACE-04\n", f"· FACE-04 · **{MODEL_TITLES[model]}**\n", 1)),
         ("code", header),
         ("markdown", CONFIG_MD),
-        ("code", CONFIG),
+        (
+            "code",
+            CONFIG.replace(
+                MODEL_LINE,
+                f'MODEL = "{model}"  # CỐ ĐỊNH cho file này ({MODEL_TITLES[model]}) — KHÔNG sửa\n',
+                1,
+            ),
+        ),
         ("markdown", EMBED_HEAD),
         ("code", pad_cell),
         ("code", metrics_cell),
         ("code", tuning_cell),
+        ("code", calib_cell),
         ("markdown", STEP1),
         ("code", STEP1_CODE),
         ("markdown", STEP2_MD),
@@ -1515,9 +1690,11 @@ def build_cells(commit: str, dirty: bool) -> list[tuple[str, str]]:
     ]
 
 
-def build_notebook(commit: str, dirty: bool) -> dict:
+def build_notebook(commit: str, dirty: bool, model: str) -> dict:
     cells = []
-    for n, (kind, text) in enumerate(build_cells(commit, dirty)):
+    if model not in NOTEBOOKS:
+        raise ValueError(f"model phải là một trong {sorted(NOTEBOOKS)}")
+    for n, (kind, text) in enumerate(build_cells(commit, dirty, model)):
         lines = text.strip("\n").split("\n")
         source = [line + "\n" for line in lines[:-1]] + [lines[-1]]
         cell = {"cell_type": kind, "id": str(n), "metadata": {}, "source": source}
@@ -1543,7 +1720,7 @@ def render(nb: dict) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--out", type=Path, default=NOTEBOOK)
+    parser.add_argument("--out-dir", type=Path, help="ghi vào thư mục khác (mặc định ml/notebooks)")
     parser.add_argument("--commit", help="ghi commit này thay cho git HEAD")
     args = parser.parse_args()
     if hasattr(sys.stdout, "reconfigure"):
@@ -1551,9 +1728,11 @@ def main() -> None:
     commit, dirty = git_commit()
     if args.commit:
         commit = args.commit
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(render(build_notebook(commit, dirty)), encoding="utf-8", newline="\n")
-    print(f"Đã ghi {args.out} (commit nguồn {commit[:12]}{' + sửa chưa commit' if dirty else ''})")
+    for model, path in NOTEBOOKS.items():
+        out = (args.out_dir / path.name) if args.out_dir else path
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(render(build_notebook(commit, dirty, model)), encoding="utf-8", newline="\n")
+        print(f"Đã ghi {out} (commit nguồn {commit[:12]}{' + sửa chưa commit' if dirty else ''})")
 
 
 if __name__ == "__main__":

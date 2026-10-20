@@ -297,3 +297,24 @@ def test_binary_live_loss_prefers_correct_class():
     bad = torch.tensor([[5.0, -5.0, 0.0], [-5.0, 5.0, -5.0]])
     y = torch.tensor([1, 0])
     assert T.binary_live_loss(good, y) < T.binary_live_loss(bad, y)
+
+
+# ── gộp MiniFASNet + DINOv2 (ADR-0015) ───────────────────────────────────────────────────
+def test_combo_max_matches_router_max_fusion():
+    np.testing.assert_allclose(T.combo_max([0.1, 0.9, 0.4], [0.3, 0.2, 0.4]), [0.3, 0.9, 0.4])
+    with pytest.raises(ValueError):
+        T.combo_max()
+
+
+def test_recommend_combo_or_best_single():
+    singles = {
+        "mini": {"apcer": 0.30, "auc": 0.95},
+        "dino": {"apcer": 0.20, "auc": 0.93},
+    }
+    win = T.recommend(singles, {"apcer": 0.10, "auc": 0.96})
+    assert win["choice"] == "combo" and win["best_single"] == "dino"
+    tie = T.recommend(singles, {"apcer": 0.20, "auc": 0.97})
+    assert tie["choice"] == "combo" and "AUC" in tie["reason_vi"]
+    lose = T.recommend(singles, {"apcer": 0.25, "auc": 0.99})
+    assert lose["choice"] == "dino" and "KHÔNG" in lose["reason_vi"]
+    assert T.recommend({"mini": singles["mini"]}, None)["choice"] == "mini"
