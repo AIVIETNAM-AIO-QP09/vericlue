@@ -330,3 +330,42 @@ def test_leak_auc_constant_features_random_labels_is_half():
     assert out["model_auc"] == 0.5 and out["used_features"] == []
     noise = [{"width": 80.0, "noise": float(v)} for v in rng.normal(size=300)]
     assert abs(T.leak_auc(noise, y, groups)["model_auc"] - 0.5) < 0.12
+
+
+# ── hồi quy: nối chuỗi nhóm người (lỗi prep_pad trên FAS-VN đầy đủ, 20/10) ───────────────
+def _chain_embeddings(n_people: int = 40, per: int = 3, step_cos: float = 0.43, seed: int = 0):
+    rng = np.random.default_rng(seed)
+    d = 256
+    centers = [rng.normal(size=d)]
+    centers[0] /= np.linalg.norm(centers[0])
+    for _ in range(n_people - 1):
+        u = rng.normal(size=d)
+        u -= (u @ centers[-1]) * centers[-1]
+        u /= np.linalg.norm(u)
+        centers.append(step_cos * centers[-1] + np.sqrt(1 - step_cos**2) * u)
+    emb, truth = [], []
+    for k, c in enumerate(centers):
+        for _ in range(per):
+            v = c + 0.005 * rng.normal(size=d)
+            emb.append(v / np.linalg.norm(v))
+            truth.append(k)
+    return np.array(emb, dtype=np.float32), truth
+
+
+def test_loose_arcface_threshold_chains_people_validated_threshold_does_not():
+    emb, truth = _chain_embeddings()
+    keys = [f"img{i}" for i in range(len(emb))]
+    loose = T.group_size_stats(T.link_groups(keys, T.embedding_pairs(emb, 0.40)))
+    assert loose["n_groups"] == 1 and loose["max_share"] == 1.0  # nối chuỗi: tất cả thành 1 nhóm
+    groups = T.link_groups(keys, T.embedding_pairs(emb, 0.45))
+    tight = T.group_size_stats(groups)
+    assert tight["n_groups"] == 40 and tight["max"] == 3
+    # ảnh cùng người (cặp gốc/chụp lại) vẫn chung nhóm
+    for k in range(40):
+        assert len({groups[i] for i, t in enumerate(truth) if t == k}) == 1
+
+
+def test_group_size_stats_empty_and_basic():
+    assert T.group_size_stats([])["n_groups"] == 0
+    s = T.group_size_stats(["a", "a", "b", "c", "c", "c"])
+    assert (s["n_groups"], s["max"]) == (3, 3) and s["max_share"] == 0.5

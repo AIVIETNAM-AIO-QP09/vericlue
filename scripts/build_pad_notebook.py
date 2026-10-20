@@ -394,9 +394,12 @@ SMOKE_PER_FOLDER = 100  # chạy thử: số ảnh lấy ngẫu nhiên mỗi th�
 JPEG_QUALITY = 90  # chất lượng JPEG chung khi khử lộ đề
 DET_PAD_RATIO = 0.33  # đệm viền đen mỗi cạnh khi SCRFD trượt (ảnh cắt quá sát)
 DHASH_DUP = 4  # dHash ≤ 4 và CÙNG nhãn → coi là trùng, giữ 1
-DHASH_LINK = 8  # dHash ≤ 8 (mọi nhãn) → gom chung nhóm (cặp ảnh gốc / chụp lại)
-ARC_THRESHOLD = 0.40  # cosine ArcFace ≥ 0,40 → cùng người (lỏng: thà gộp nhầm còn hơn tách sót)
-MAX_GROUP_SHARE = 0.40  # nhóm lớn nhất > 40 % ảnh → dừng (ngưỡng quá lỏng)
+# Ngưỡng gom người kiểm trên TOÀN BỘ FAS-VN (20/10, bàn giao FACE-04): ArcFace 0,40 + dHash 8 nối chuỗi thành 1 nhóm
+# 4.887/10.878 ảnh; dải cos 0,40–0,45 (5.234 cặp) phần lớn là người khác, dHash 5–8 trên ảnh selfie khác người.
+# 0,45 + dHash 4: 6.919 nhóm, lớn nhất 51 ảnh (0,47 %), 100/100 cặp gốc/chụp lại vẫn chung nhóm.
+DHASH_LINK = 4  # dHash ảnh ≤ 4 (mọi nhãn) → gom chung nhóm (cặp ảnh gốc / chụp lại)
+ARC_THRESHOLD = 0.45  # cosine ArcFace ≥ 0,45 → cùng người (vẫn lỏng, ngay trên ngưỡng bắt đầu nối chuỗi ~0,43)
+MAX_GROUP_SHARE = 0.05  # nhóm lớn nhất > 5 % ảnh → dừng (dấu hiệu nối chuỗi)
 FRACTIONS = {"train": 0.60, "calib_fit": 0.15, "calib_ltt": 0.10, "test": 0.15}
 MAX_BPCER = 0.01  # CẤM đổi: chọn checkpoint/mô hình theo APCER tại BPCER ≤ 1 %
 # Cỡ file JPEG SAU khi nén lại phản ánh độ nét/kết cấu của chính điểm ảnh (nội dung), không phải siêu
@@ -446,7 +449,7 @@ PREP_HASH = __import__("hashlib").sha256(
 ESTIMATES = {
     "1": "3–6 phút (tải ~380 MB trọng số)",
     "2": "1–2 phút",
-    "3": "45–90 phút trên CPU (ước tính; đọc 8,9 GB ảnh, dò mặt, gom người)",
+    "3": "khoảng 60–90 phút trên CPU (laptop nhóm đo 63 phút; đọc 8,9 GB ảnh, dò mặt, gom người)",
     "4": "1–2 phút",
     "5": "dưới 1 phút",
     "6a": "10–20 phút",
@@ -856,16 +859,19 @@ STEP3_CODE = r"""with step("3", "Làm sạch, gom người, chia lại tập"):
         for g in group_local:
             sizes[g] = sizes.get(g, 0) + 1
         largest = max(sizes.values()) if sizes else 0
+        GROUP_STATS = group_size_stats(group_local)
         group_labels: dict[str, set] = {}
         for k, g in enumerate(group_local):
             group_labels.setdefault(g, set()).add(labels[kept[k]])
         both = {g for g, labs in group_labels.items() if len(labs) > 1}
-        print(f"  Giữ {len(kept)}/{N} ảnh; {len(sizes)} nhóm người; nhóm lớn nhất {largest} ảnh")
+        print(f"  Giữ {len(kept)}/{N} ảnh; {len(sizes)} nhóm người; nhóm lớn nhất {largest} ảnh "
+              f"({GROUP_STATS['max_share']:.2%}); p99 cỡ nhóm {GROUP_STATS['p99']:.0f}; trung vị {GROUP_STATS['median']:.0f}")
         print(f"  Cặp dHash ≤ {DHASH_LINK}: {n_dhash_links} (khác nhãn: {n_cross_label_dhash}); cặp ArcFace ≥ {ARC_THRESHOLD}: {len(arc_pairs)}")
         if largest > MAX_GROUP_SHARE * max(len(kept), 1) and len(kept) >= 50:
             raise RuntimeError(
-                f"DỪNG: nhóm người lớn nhất chiếm {largest}/{len(kept)} ảnh (> {MAX_GROUP_SHARE:.0%}), "
-                "không chia được. Tăng ARC_THRESHOLD ở Bước 0 (ví dụ 0.45) rồi Run All lại."
+                f"DỪNG: nhóm người lớn nhất chiếm {largest}/{len(kept)} ảnh (> {MAX_GROUP_SHARE:.0%}) — các ảnh bị nối "
+                "chuỗi qua những cặp giống nhau yếu, không chia theo người được. KHÔNG tự đổi ngưỡng: chụp màn hình "
+                "gửi trưởng nhóm (kèm 2 dòng 'Giữ …' và 'Cặp dHash …' ở trên). Xem HANDBOOK-pad.md mục 4."
             )
         split_of = assign_splits(group_local, [labels[i] for i in kept], FRACTIONS, SEED)
         for i, r in enumerate(rows):
@@ -904,6 +910,7 @@ STEP3_CODE = r"""with step("3", "Làm sạch, gom người, chia lại tập"):
             "dropped": {why: sum(1 for v in drop.values() if v == why) for why in sorted(set(drop.values()))},
             "n_groups": len(sizes),
             "largest_group": largest,
+            "group_size_stats": GROUP_STATS,
             "groups_with_both_labels": len(both),
             "dhash_link_pairs": n_dhash_links,
             "dhash_cross_label_pairs": n_cross_label_dhash,
