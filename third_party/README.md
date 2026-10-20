@@ -34,6 +34,7 @@ Giữ nguyên thông báo Apache-2.0 khi phân phối. Sau này gộp mô hình 
 | Nguồn | Giấy phép | Chép vào đâu | Đã sửa gì | Task |
 |---|---|---|---|---|
 | [yermandy/GenD](https://github.com/yermandy/GenD) commit `387a42266dd385fbe8f7626c5d3aa03eea3bfaab` — `detector.py::align_face` (mốc đích, `estimateAffinePartial2D` LMEDS, `target_size=None`), `src/retinaface.py` (SCRFD: chia 128, đảo BGR→RGB), `src/hf/modeling_gend.py` (`pooler_output` → L2-normalize → Linear(1024, 2)), `app/run.py` (softmax, nhãn 1 = giả) | MIT, Copyright (c) 2025 Andy (`third_party/licenses/GenD-MIT.txt`) | `ml/src/vericlue_ml/face/gend.py` (viết lại gọn; docstring giữ nguồn) và `ScrfdFaceFinder` trong `face/pad.py` (thêm giải mã 5 mốc, tham số `scale`/`swap_rb`) | Nạp CLIP từ `config.json` cục bộ + trọng số GenD (không dùng `GenD.from_pretrained`, không tải mạng, không chạy mã từ xa); không phụ thuộc `peft`/`timm`. Chưa có script đối chiếu số học với mã gốc trong repo (xem bàn giao FACE-02) | FACE-02 |
+| [yermandy/GenD](https://github.com/yermandy/GenD) commit `387a42266dd385fbe8f7626c5d3aa03eea3bfaab` — `src/losses/unifalign.py` (`alignment`, `uniformity`), `src/exp/wacv_rebuttal.py` (tên lớp LayerNorm được mở, trọng số loss) | MIT, Copyright (c) 2025 Andy (`third_party/licenses/GenD-MIT.txt`) | `ml/src/vericlue_ml/finetune/gend_train.py` | Viết lại gọn bằng torch, nạp lười; chưa dùng để dạy (trưởng nhóm 19/10: chỉ hiệu chỉnh, không tinh chỉnh). Notebook `ml/notebooks/calibrate_gend.ipynb` nhúng nguyên văn `face/gend.py` và các file `finetune/` (đã ghi ở trên) | FACE-04 |
 
 Trọng số GenD `yermandy/GenD_CLIP_L_14` (MIT) và `openai/clip-vit-large-patch14` (MIT theo openai/CLIP, xem ghi chú trong `models/manifest.yaml`); `det_10g.onnx` vẫn là giấy phép nghiên cứu phi thương mại.
 
@@ -43,7 +44,7 @@ Trọng số (không commit, tải bằng `scripts/download_models.py`, theo `mo
 |---|---|---|
 | `minifasnet_v2.onnx` (`yakhyo/uniface-weights`) | Apache-2.0 (verified trong manifest) | PAD |
 | `det_10g.onnx` (SCRFD, cùng repo) | **Nghiên cứu phi thương mại** (`accepted-research`) | Chỉ dùng cho bản thi/nghiên cứu; GenD cũng dùng bộ tìm mặt này. Đưa vào sản phẩm thương mại thì phải thay |
-| `arcface_mnet.onnx` (`yakhyo/uniface-weights`, gốc insightface) | **Nghiên cứu phi thương mại** (`accepted-research`) | Chỉ để gom ảnh theo người khi chia tập (DATA-03, FACE-04 `prep_pad.ipynb`); vector chỉ trong RAM, không lưu; không dùng nhận dạng sản phẩm |
+| `arcface_mnet.onnx` (`yakhyo/uniface-weights` @ `bfcc7d48`, gốc insightface model zoo) | **Nghiên cứu phi thương mại** (`accepted-research`) | Chỉ để gom ảnh theo người khi chia tập (DATA-03; FACE-04 `prep_pad.ipynb` và `calibrate_gend.ipynb`, ghim URL + SHA-256 trong `finetune/gend_calib.py::ARCFACE`); vector không lưu lâu dài, xóa khi xong; không dùng nhận dạng trong sản phẩm |
 | `facebook/dinov2-with-registers-base` (`model.safetensors`, revision `a1d738cc`) | Apache-2.0 (thẻ HF, verified trong manifest) | PAD tầng 2 (FACE-04, `finetune_pad_dinov2.ipynb`); bản tinh chỉnh ở `MODELS_DIR/finetuned/`, không commit |
 
 ## Giấy phép KHÔNG được chép vào sản phẩm
