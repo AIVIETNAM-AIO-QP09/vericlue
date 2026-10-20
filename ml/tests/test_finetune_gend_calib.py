@@ -182,3 +182,14 @@ def test_expected_version_and_thresholds_match_config():
     path = Path(__file__).resolve().parents[1] / "configs" / "thresholds.yaml"
     cfg = yaml.safe_load(path.read_text(encoding="utf-8"))
     assert {"B": cfg["face"]["b"], "A": cfg["face"]["a"]} == gc.REPORT_THRESHOLDS
+
+
+def test_fit_sources_exclude_vlr_but_keep_rtfs_real():
+    assert "vlr" not in gc.FIT_SOURCES and "vlr" in gc.REFERENCE_SOURCES
+    assert {"fas_vn", "rtfs_real", "rtfs_fake"} == set(gc.FIT_SOURCES)
+    rows = [{"source": s} for s in ("vlr", "fas_vn", "rtfs_real", "rtfs_fake")]
+    assert [r["source"] for r in gc.subset(rows, source=gc.FIT_SOURCES)] == [
+        "fas_vn",
+        "rtfs_real",
+        "rtfs_fake",
+    ]

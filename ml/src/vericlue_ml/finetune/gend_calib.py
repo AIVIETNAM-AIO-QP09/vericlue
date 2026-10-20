@@ -2,7 +2,7 @@
 
 GenD gốc KHÔNG được dạy lại. Notebook chỉ chấm điểm bằng đúng `face/gend.py` rồi fit calibrator
 (`vericlue_ml.common.calibration.fit`, ADR-0010) trên `calib_fit`:
-- lớp thật: người Việt thật (VLR, FAS-VN live) và video gốc RTFS-10k;
+- lớp thật: người Việt thật FAS-VN live và video gốc RTFS-10k (VLR chỉ tham khảo, không fit);
 - lớp giả: video ghép mặt RTFS-10k (inswapper, uniface). Không tự tạo deepfake.
 
 Ở đây có: chia RTFS theo video YouTube gốc và ảnh donor (cắt cạnh để các tập không chung donor),
@@ -56,6 +56,9 @@ ARCFACE = {
     "sha256": "9cc6e4a75f0e2bf0b1aed94578f144d15175f357bdc05e815e5c4a02b319eb4f",
 }
 VN_SOURCES = ("vlr", "fas_vn")
+# Quyết định trưởng nhóm 20/10: fit calibrator CHỈ bằng FAS-VN live + RTFS (thật, giả). VLR chỉ tham khảo.
+FIT_SOURCES = ("fas_vn", "rtfs_real", "rtfs_fake")
+REFERENCE_SOURCES = ("vlr",)
 
 
 # ── RTFS-10k: chia theo video YouTube gốc + ảnh donor ────────────────────────────────────

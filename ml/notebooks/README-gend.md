@@ -3,7 +3,7 @@
 Notebook: `ml/notebooks/calibrate_gend.ipynb`. Notebook **không dạy lại** mô hình. Nó làm ba việc:
 
 1. Chấm điểm bằng GenD gốc.
-2. Học cách đổi điểm thành xác suất (calibrator), để người Việt thật không bị bắt đọc câu oan.
+2. Học cách đổi điểm thành xác suất (calibrator) từ ảnh người Việt thật (FAS-VN) và video RTFS, để người Việt thật không bị bắt đọc câu oan.
 3. Đóng gói kết quả thành **một file zip** để bạn gửi trưởng nhóm.
 
 Bạn **không cần cài gì trên máy** và **không tải dữ liệu về máy**. Mọi thứ chạy trên Kaggle (hoặc Colab).
@@ -38,7 +38,7 @@ Bạn **không cần cài gì trên máy** và **không tải dữ liệu về m
 | `rtfs-10k` | **RTFS-10k** | `stplusplus` | khoảng 17,7 GB |
 | `face anti spoofing maihongtng` | **Face_anti_spoofing** | `maihongtng` | khoảng 8,9 GB |
 
-Thêm xong, cột phải mục **Input** phải hiện đủ hai bộ trên. Dữ liệu tiếng Việt thứ ba (VLR) notebook **tự đọc từ Zenodo**, bạn không phải thêm.
+Thêm xong, cột phải mục **Input** phải hiện đủ hai bộ trên. Chỉ cần hai bộ này, không phải thêm gì khác.
 
 ### A5. Chạy thử nhỏ (SMOKE) — BẮT BUỘC làm trước
 1. Ô đầu tiên có dòng `SMOKE = True`. Giữ nguyên.
@@ -53,7 +53,7 @@ Thêm xong, cột phải mục **Input** phải hiện đủ hai bộ trên. D�
 2. Để chạy không bị ngắt khi tắt trình duyệt, bấm **Save Version** (góc phải trên) → chọn **Save & Run All (Commit)** → **Save**.
    - Kaggle sẽ chạy ngầm, tối đa 12 giờ. Bạn có thể đóng trình duyệt.
 3. **Thời gian dự kiến** trên GPU T4:
-   - Tổng khoảng **1,5–3 giờ**.
+   - Tổng khoảng **1–2 giờ**.
    - Các bước tốn thời gian nhất là dò mặt, cắt mặt rồi mã hóa lại, và chấm điểm, mỗi bước khoảng 20–60 phút.
    - Mỗi bước in "còn khoảng … phút". Thời gian thật nằm trong file `step_times.json` của zip.
 
@@ -107,5 +107,5 @@ Thêm xong, cột phải mục **Input** phải hiện đủ hai bộ trên. D�
 ## Dữ liệu và giấy phép (để biết)
 - **RTFS-10k:** CC BY-SA 4.0, video ghép mặt người nước ngoài. Dùng làm lớp giả.
 - **FAS-VN (maihongtng):** CC BY 4.0. Chỉ dùng ảnh `live` (người thật).
-- **VLR:** Zenodo 19705466, CC BY 4.0. Video người Việt nói.
+- **VLR** (Zenodo 19705466): mặc định **tắt** (`USE_VLR = False`), **không bật**. Nếu trưởng nhóm bật, VLR chỉ để tham khảo, không dùng để tính.
 - Nhóm **không tự tạo deepfake**. Hiện **không có deepfake người Việt**, nên `card.md` ghi rõ giới hạn này.

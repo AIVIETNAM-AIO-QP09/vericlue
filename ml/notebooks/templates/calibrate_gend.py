@@ -5,9 +5,10 @@
 # Notebook này chấm điểm bằng **GenD gốc** (đúng `face/gend.py`) rồi fit **calibrator** để điểm thô
 # thành xác suất, nhằm giảm chuyện người Việt thật bị đẩy sang bước đọc câu oan.
 #
-# - **Lớp thật:** người Việt thật — VLR (Zenodo 19705466, CC BY 4.0, đọc từ xa) và FAS-VN `live`
-#   (Kaggle `maihongtng/face-anti-spoofing`, CC BY 4.0, ảnh tĩnh → GenD chấm 1 khung); thêm video
-#   gốc RTFS-10k để lớp thật có cả nguồn của lớp giả.
+# - **Lớp thật (dùng để fit):** người Việt thật FAS-VN `live` (Kaggle `maihongtng/face-anti-spoofing`,
+#   CC BY 4.0, ảnh tĩnh → GenD chấm 1 khung) + video gốc RTFS-10k (cùng nguồn với lớp giả).
+# - **VLR** (Zenodo 19705466, video bài giảng đã căn mặt) mặc định TẮT (`USE_VLR = False`). Bật thì
+#   chỉ báo phân bố điểm để THAM KHẢO, KHÔNG dùng để fit hay chọn gì (quyết định trưởng nhóm 20/10).
 # - **Lớp giả:** video ghép mặt RTFS-10k (Kaggle `stplusplus/rtfs-10k`, CC BY-SA 4.0). Nhóm KHÔNG tự
 #   tạo deepfake. Không có deepfake người Việt — giới hạn này được ghi vào `card.md`.
 # - Mọi mẫu đi cùng một đường: cắt khung vuông quanh mặt → 320×320 → H.264 CRF 23, 25 fps.
@@ -23,6 +24,9 @@
 SMOKE = True  # True: chạy thử nhỏ để kiểm. False: chạy thật.
 SEED = 20261019
 DEVICE = "cuda"  # "cuda" hoặc "cpu"
+
+# VLR: chỉ tham khảo, không dùng để fit. Mặc định TẮT cho nhanh (bật thì tải thêm từ Zenodo).
+USE_VLR = False
 
 # Số mẫu khi chạy THẬT (SMOKE = False). None = lấy hết.
 VLR_PARTS = ["part1", "part2", "part3", "part4", "part5", "part6"]  # bỏ part7 theo trưởng nhóm
@@ -268,7 +272,7 @@ for path in gc.sample_rows(fas_files, N_FAS_LIVE, SEED + 2):
 
 # VLR: mục lục ZIP từ xa (chỉ vài MB), chọn clip xen kẽ playlist/video.
 vlr_index: dict[str, tuple[str, d4.ZipMember]] = {}
-for part in VLR_PARTS:
+for part in VLR_PARTS if USE_VLR else []:  # VLR tắt mặc định
     url = d4.VLR_URL.format(record=d4.VLR_RECORD, part=part)
     cache = WORK / "vlr_index" / f"{part}.json"  # mục lục ZIP đã đọc (chạy lại thì khỏi tải)
     if cache.is_file():
@@ -562,9 +566,11 @@ from vericlue_ml.common.calibration import (
 )
 
 started = time.time()
-OK_FIT = [r for r in gc.subset(WORK_ROWS, split="calib_fit") if r["status"] == "ok"]
+OK_CALIB_FIT = [r for r in gc.subset(WORK_ROWS, split="calib_fit") if r["status"] == "ok"]
+OK_FIT = gc.subset(OK_CALIB_FIT, source=gc.FIT_SOURCES)  # VLR KHÔNG vào fit
+OK_REF = gc.subset(OK_CALIB_FIT, source=gc.REFERENCE_SOURCES)  # chỉ tham khảo
 gt.assert_no_test(OK_FIT)
-DATASET = "vlr+fas_vn(live)+rtfs10k(original_videos,inswapper,uniface)"
+DATASET = "fas_vn(live)+rtfs10k(original_videos,inswapper,uniface)"
 CAL = None
 try:
     CAL = fit(
@@ -612,9 +618,7 @@ if CAL is not None:
     }
 exceed = {}
 for name, sources in (
-    ("vlr", ("vlr",)),
     ("fas_vn", ("fas_vn",)),
-    ("nguoi_viet_that", gc.VN_SOURCES),
     ("rtfs_real", ("rtfs_real",)),
     ("rtfs_fake", ("rtfs_fake",)),
 ):
@@ -627,6 +631,15 @@ for name, sources in (
         exceed[name]["sau_hieu_chinh(ngoai_fold)"] = gc.exceed_rates([r["prob_oof"] for r in rows])
         exceed[name]["sau_hieu_chinh(trong_mau)"] = gc.exceed_rates([r["prob"] for r in rows])
 REPORT["exceed_rates_calib_fit"] = exceed
+if OK_REF:  # VLR: tham khảo, không ảnh hưởng fit (calibrator chưa từng thấy các mẫu này)
+    ref_scores = [float(r["score"]) for r in OK_REF]
+    REPORT["tham_khao_vlr"] = {
+        "n": len(OK_REF),
+        "phan_bo_diem_tho": gc.score_summary(OK_REF),
+        "truoc_hieu_chinh(identity)": gc.exceed_rates(np.clip(ref_scores, 1e-4, 1 - 1e-4)),
+    }
+    if CAL is not None:
+        REPORT["tham_khao_vlr"]["sau_hieu_chinh"] = gc.exceed_rates(CAL.predict(ref_scores))
 print(json.dumps(REPORT, ensure_ascii=False, indent=1))
 print(
     "Ý nghĩa: với người Việt thật, tỉ lệ vượt B=0,15 là tỉ lệ bị đẩy sang bước đọc câu (chặn nhầm);"
@@ -757,8 +770,9 @@ card = f"""# Calibrator GenD (face_deepfake) — FACE-04
 ## Dữ liệu (số mẫu có mặt, theo tập)
 {chr(10).join(f"- {a} / {b}: {n}" for (a, b), n in sorted(dist.items()))}
 
-- Thật: VLR (Zenodo 19705466, CC BY 4.0, phần {", ".join(VLR_PARTS)}), FAS-VN live (Kaggle
-  maihongtng/face-anti-spoofing, CC BY 4.0 — ảnh tĩnh, GenD chấm 1 khung), video gốc RTFS-10k.
+- Thật (fit): FAS-VN live (Kaggle maihongtng/face-anti-spoofing, CC BY 4.0 — ảnh tĩnh, GenD chấm
+  1 khung) + video gốc RTFS-10k (cùng nguồn với lớp giả).
+- VLR: {"tham khảo (KHÔNG dùng để fit), phần " + ", ".join(VLR_PARTS) if USE_VLR else "không dùng (USE_VLR = False)"}.
 - Giả: RTFS-10k inswapper + uniface (Kaggle stplusplus/rtfs-10k, CC BY-SA 4.0).
 - Chia: người Việt theo ArcFace (ngưỡng {ARCFACE_THRESHOLD}) ∪ video nguồn; RTFS theo video YouTube gốc,
   ảnh donor gán một tập, bỏ {RTFS.report["fakes_dropped"]} video giả có donor khác tập
@@ -778,7 +792,10 @@ card = f"""# Calibrator GenD (face_deepfake) — FACE-04
 ## Giới hạn
 - **Không có deepfake người Việt**: lớp giả chỉ có RTFS-10k (người nước ngoài, bối cảnh YouTube/hội
   nghị video). Calibrator không đo được khả năng bắt deepfake người Việt.
-- FAS-VN là ảnh tĩnh; eKYC thật dùng video. VLR là video bài giảng đã căn mặt.
+- FAS-VN là ảnh tĩnh; eKYC thật dùng video. Người Việt thật trong lớp thật chỉ có FAS-VN.
+- VLR (video bài giảng đã căn mặt, nén lại) bị GenD chấm cao và lộ đề độ nét so với RTFS nên
+  KHÔNG dùng để fit; nếu bật chỉ báo tham khảo.
+- `scores_calib_*.csv` có thể chứa dòng `source=vlr` (tham khảo): ROUT-03 phải lọc bỏ.
 - Ngưỡng B/A là giá trị tạm của thresholds.yaml; chọn ngưỡng là việc của ROUT-03 trên calib_ltt.
 
 ## Reliability (calib_fit, ngoài-fold)
