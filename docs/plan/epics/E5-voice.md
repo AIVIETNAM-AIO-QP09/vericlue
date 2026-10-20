@@ -62,7 +62,7 @@ Thêm **chống học vẹt**: cắt khoảng lặng hai đầu (Silero VAD), ch
 
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
 |---|---|---|---|---|
-| M4 | 2 | S1–S2 | P0 | VOICE-01, VOICE-02, DATA-03, DATA-05 |
+| M4 | 2 | S1–S2 | P0 | VOICE-01, VOICE-02, DATA-03, DATA-05, DATA-06 |
 
 **Mục tiêu:** giảm EER tiếng Việt; có R3 "sau tinh chỉnh".
 
@@ -85,6 +85,11 @@ Thêm **chống học vẹt**: cắt khoảng lặng hai đầu (Silero VAD), ch
 - Test MLAAD-vi hiện chỉ có hệ TTS vixTTS (4 hệ còn lại dính một nhóm ở train) — đúng tinh thần "giữ riêng 1 hệ TTS", ghi rõ trong R3.
 - **AntiDeepfake (~300 triệu tham số) không vừa RTX 4050 6 GB khi tinh chỉnh cả mô hình:** chạy thử nhỏ trên máy, chạy thật trên **Kaggle**. Cùng luật cloud như FACE-04.
 - Dữ liệu small rất nhỏ (ViMD 3 người/tập): trước khi chốt R3 cuối, cân nhắc tải bản lớn hơn của ViMD, VSASV nếu ổ đĩa cho phép.
+
+**Cập nhật trưởng nhóm 18/10 (ADR-0015):**
+- Giọng AI dùng để huấn luyện gồm thêm **TTS tiếng Việt tự sinh** (DATA-06). Giọng thật lấy thêm từ **ViMD bản lớn**. Không thu âm tay.
+- **Huấn luyện thật chạy trên Colab hoặc Kaggle.** Laptop chỉ dùng để chạy thử nhỏ.
+- Bằng chứng từ MVP 18/10: mô hình chưa tinh chỉnh chấm giọng mms-tts-vie lúc 0,84, lúc 0,38, lúc 0,115 tùy câu. Đây là thử tay, không phải R3.
 
 ---
 

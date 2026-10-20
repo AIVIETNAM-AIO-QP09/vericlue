@@ -105,6 +105,24 @@
 - **Hai bước:** viết script trong repo, **chạy thử nhỏ trên máy** (RTX 4050 6 GB đủ cho PAD và chạy thử GenD), rồi chạy thật trên **Kaggle** (dự phòng: Colab, thuê GPU). Cùng một script, chỉ khác tham số.
 - **Luật khi chạy cloud:** notebook kéo repo đúng commit và ghi commit; dữ liệu tải lên để **Private**; token để trong Secrets; chọn checkpoint chỉ trên `calib_fit`; trọng số mang về `MODELS_DIR/finetuned/<tên>/<ngày>/` kèm SHA-256 và `card.md`, không commit.
 
+**Cập nhật 19/10 (PAD, nhánh `feat/FACE-04-pad-kaggle`):** dữ liệu dạy/chọn/test của PAD đổi thành **FAS-VN chia lại theo nhóm người** (lọc trùng, khử lộ đề); Zalo 2022, Axon, UniData chỉ làm test phụ; không dùng CelebA-Spoof. Hai notebook `ml/notebooks/finetune_pad_minifasnet.ipynb` / `finetune_pad_dinov2.ipynb` (2 người chạy song song, gộp bằng `ml/notebooks/combine_pad.py`; sinh bằng `scripts/build_pad_notebook.py`, hướng dẫn `ml/notebooks/README-pad.md`) nhúng code repo thay vì kéo repo (repo private). Thiếu ảnh in giấy/mặt nạ trong dữ liệu dạy — ghi ở `card.md` xuất ra.
+
+---
+
+**Cập nhật trưởng nhóm 18/10 (ADR-0015):**
+- **PAD:** thử cả hai cách rồi giữ cách thắng trên `calib_fit`: (a) tinh chỉnh **MiniFASNet**; (b) **DINOv2-reg ViT-B/14** chỉ dạy lớp cuối và vài khối cuối, trên Zalo train và CelebA-Spoof. Thêm DINOv2 vào manifest, ghi rõ giấy phép.
+- **GenD:** mặt thật lấy thêm khung từ **video selfie thật của Zalo 2022** (quay bằng điện thoại, người Việt, đúng miền dữ liệu của app) và vn_celeb.
+- **Mọi lần huấn luyện thật chạy trên Colab hoặc Kaggle**, kể cả PAD. Không thu dữ liệu tay.
+
+---
+
+
+**Cập nhật trưởng nhóm 20/10 (ADR-0015 mục "Cập nhật 19–20/10") — thay các ghi chú dữ liệu ở trên:**
+- **PAD:** dạy, hiệu chỉnh và test đều trên **FAS-VN đã làm sạch và chia lại theo người**. Có 2 notebook Kaggle (MiniFASNet, DINOv2; PR #38). Kết hợp = max của hai xác suất đã hiệu chỉnh, chỉ dùng nếu thắng mô hình đơn.
+- **GenD:** **không tinh chỉnh; chỉ hiệu chỉnh** (PR #39). Lớp thật = FAS-VN live + video gốc RTFS; lớp giả = RTFS. RTFS **không còn chỉ là test** — phần test là phần test trong `splits.csv` của notebook.
+- **`splits.csv` do notebook sinh là cách chia chuẩn** cho mọi phép đo R1/R2 sau này trên FAS-VN và RTFS.
+- Không tự tạo deepfake người thật.
+
 ---
 
 ### FACE-05 · Tối ưu tốc độ
