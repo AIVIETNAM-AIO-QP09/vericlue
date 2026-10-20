@@ -270,7 +270,12 @@ for path in gc.sample_rows(fas_files, N_FAS_LIVE, SEED + 2):
 vlr_index: dict[str, tuple[str, d4.ZipMember]] = {}
 for part in VLR_PARTS:
     url = d4.VLR_URL.format(record=d4.VLR_RECORD, part=part)
-    members = d4.list_remote_zip(url)
+    cache = WORK / "vlr_index" / f"{part}.json"  # mục lục ZIP đã đọc (chạy lại thì khỏi tải)
+    if cache.is_file():
+        members = [d4.ZipMember(**m) for m in json.loads(cache.read_text(encoding="utf-8"))]
+    else:
+        members = d4.list_remote_zip(url)
+        nb.write_json(cache, [m.__dict__ for m in members])
     by_name = {m.name: m for m in members}
     clips = [c for m in members if (c := d4.parse_vlr_member(m.name, m.file_size))]
     chosen = d4.plan_candidates(clips, VLR_VIDEOS_PER_PART, VLR_CLIPS_PER_VIDEO, SEED)
@@ -299,13 +304,29 @@ import numpy as np
 
 started = time.time()
 (WORK / "raw" / "vlr").mkdir(parents=True, exist_ok=True)
-session = requests.Session()
-for clip_id, (url, member) in vlr_index.items():
+import threading
+from concurrent.futures import ThreadPoolExecutor
+
+_local = threading.local()
+
+
+def fetch_vlr(item: tuple[str, tuple[str, d4.ZipMember]]) -> None:
+    """Tải một clip VLR (HTTP Range); mỗi luồng một session."""
+    clip_id, (url, member) = item
     dst = WORK / "raw" / "vlr" / f"{clip_id}.mp4"
-    if not dst.is_file():
-        tmp = dst.with_suffix(".part")
-        tmp.write_bytes(d4.fetch_member(url, member, session))
-        tmp.replace(dst)
+    if dst.is_file():
+        return
+    if not hasattr(_local, "session"):
+        _local.session = requests.Session()
+    tmp = dst.with_name(dst.name + ".part")
+    tmp.write_bytes(d4.fetch_member(url, member, _local.session))
+    tmp.replace(dst)
+
+
+with ThreadPoolExecutor(8) as pool:
+    for i, _ in enumerate(pool.map(fetch_vlr, vlr_index.items()), 1):
+        if i % 100 == 0 or i == len(vlr_index):
+            print("Tải VLR:", gc.eta_text(i, len(vlr_index), time.time() - started))
 print(f"VLR đã có {len(vlr_index)} clip ({time.time() - started:.0f} s)")
 
 
