@@ -1,6 +1,6 @@
 # STATUS — Tình trạng dự án
 
-> **Cập nhật:** 17/10/2026 · **Sprint:** S0 → S1 (18/10) · **Mốc kế tiếp:** tích hợp 21/10, demo M1 25/10 · **Hạn nộp:** trước 06/11 (còn 19 ngày)
+> **Cập nhật:** 21/10/2026 · **Sprint:** S1 · **Mốc kế tiếp:** demo M1 25/10 · **Hạn nộp:** trước 06/11 (còn 16 ngày)
 > **Chỉ trưởng nhóm sửa file này** (tránh xung đột git). Người khác ghi vào file bàn giao, trưởng nhóm gom lại.
 > Số liệu task luôn mới nhất: `uv run python scripts/plan_check.py --board`.
 
@@ -8,35 +8,42 @@
 
 | Phần | Trạng thái | Ghi chú |
 |---|---|---|
-| Proposal | ✅ Chốt bản 3 | `docs/proposal/proposal.md` |
-| Kiến trúc | ✅ Cập nhật theo code | `docs/architecture/architecture.md` (§5 DB, §6 luồng phiên) |
-| Kế hoạch | ✅ 56 task | **15 done · 2 review · 1 doing** (`plan_check.py`, 0 lỗi) |
-| Nền tảng (web, API, DB, Docker) | ✅ Khung chạy được | `docker compose up` → web :3000, API :8000, PostgreSQL. AI **giả lập** mặc định. PLAT-01…05, PLAT-08 |
-| Luồng người dân `/verify` | 🟡 Khung xong, **demo được với AI giả lập** | CAP-01 (luồng, đồng ý), CAP-02 (camera, oval, cổng chất lượng — chờ đo ≥ 15 fps trên Android), CAP-03 (trang thử ChromaPulse, đóng). **ChromaPulse là tín hiệu phụ** (17/10). `/review`, `/forensic` mới là trang trống (REV-02, FOR-02) |
-| Bộ quyết định | ✅ Chính sách đầy đủ, ngưỡng **tạm** | ROUT-01 (hiệu chỉnh), ROUT-02 (TrustRouter, `ml/configs/thresholds.yaml` `provisional: true`) |
-| Bàn duyệt | 🟡 API xong | REV-01 (nhật ký chuỗi băm, UNIQUE ở DB, mã lý do tạm). Giao diện REV-02 chưa làm |
-| Giọng nói | 🟡 Kiểm câu đọc xong | VOICE-04 (PhoWhisper offline, so khớp 2 lớp; thử nhỏ trên ViMD) |
-| Mô hình | ✅ Tải đủ 8 mô hình + CLIP (8,1 GB, SHA-256) | DATA-02. SBI để FACE-03; PerTh chờ FOR-03 xác minh quyền |
-| Dữ liệu | ✅ 11/13 bộ (21,9 GB) | Đủ âm thanh + ảnh: Zalo 2022, FAS-VN, RTFS-10k, WildDeepfake, ViCocktail, vn_celeb_faces, MLAAD-vi, VSASV, ViMD, VIVOS, ViSpoofDB. CelebA-Spoof, LAV-DF bỏ qua có chủ đích. Còn **lượt nghiệm thu chạy cả danh mục** (`download_data.py --subset small`, không `--only`) trước khi DATA-01 → done. Kho chung `D:\Projects\vericlue-store\` (ngoài repo) |
-| Chia tập theo người | 🟡 Âm thanh xong (PR #20) | Phần ảnh: Codex `vericlue-data` đang làm (Zalo gộp theo embedding ArcFace; FAS-VN, RTFS-10k, WildDeepfake chỉ test) |
-| Kết quả R1–R7 | ⬜ Chưa có | Cần mô hình thật chạy trên dữ liệu đã chia (FACE-01/02, VOICE-01) |
+| Proposal | ✅ Chốt bản 3 · ⚠ cần sửa | Đổi sang app Android (ADR-0014) và bản chốt dữ liệu (ADR-0015) chưa vào proposal — cần task riêng (luật 7) |
+| Kiến trúc | 🟡 Cần cập nhật | `architecture.md` chưa có 3 luồng eKYC (ADR-0013) và app (ADR-0014) |
+| Kế hoạch | ✅ 68 task | **14 done · 3 review · 4 doing** (`plan_check.py`, 0 lỗi). Thêm epic E9 (FLOW, SEC, APP) và DATA-06 |
+| Nền tảng (web, API, DB, Docker) | ✅ Chạy được | `docker compose up` → web :3000, API :8000, PostgreSQL |
+| **MVP chạy toàn mô hình thật** | ✅ 18/10 (ADR-0012) | `ROUTER_PROFILE=mvp USE_MOCK_MODELS=false`: MiniFASNet, GenD, AntiDeepfake, PhoWhisper, quality, CamProbe; lipsync chỉ tham khảo. Calibrator **identity (tạm)**. RTX 4050: bước mặt 0,9–2,2 s, bước giọng 1–1,7 s, VRAM 3,5–4,4 GB (thử tay, không phải số R) |
+| Luồng người dân | 🟡 Web `/verify` chạy được; **app Android chưa bắt đầu** | ADR-0014: demo bằng app Kotlin native, web làm dự phòng. 3 luồng (đăng ký, đăng nhập lại, khôi phục — ADR-0013): FLOW-01…05, SEC-01/02, APP-01…04 đều `todo` |
+| Bộ quyết định | ✅ Chính sách đủ, ngưỡng **tạm** | ROUT-02 xong, hồ sơ `mvp`; ROUT-01 `review` (identity MVP); ngưỡng thật chờ ROUT-03 |
+| Bàn duyệt | 🟡 API xong | REV-01. Giao diện REV-02 chưa làm |
+| Giám định | 🟡 API theo đoạn xong | PR #33: chia đoạn, AudioSeal, C2PA. Giao diện FOR-02 chưa làm. Máy demo cần FFmpeg |
+| Giọng nói | 🟡 Chạy thật, **chưa tinh chỉnh** | **Lỗi đã biết:** AntiDeepfake gốc cho giọng mms-tts-vie qua (0,115 → pass). Sửa bằng VOICE-03 (notebook Kaggle giọng — chưa bắt đầu) |
+| Mô hình | ✅ 8 mô hình + CLIP | Đã chọn thêm AdaFace (so mặt 1:1) và DINOv2-reg (PAD tầng 2) — ADR-0015 |
+| Dữ liệu | ✅ Đã rà soát có bằng chứng, **bản chốt mới** | `docs/research/2026-10-19-data-audit/`, ADR-0015 mục "Cập nhật 19–20/10". Dữ liệu dạy/hiệu chỉnh chỉ lấy trên Kaggle/Colab |
+| Tinh chỉnh PAD | 🟡 Đang chạy | Prep trên Kaggle xong (`splits.csv` SHA-256 `22b0d16f…0534a`); 2 thành viên chạy MiniFASNet và DINOv2 |
+| Hiệu chỉnh GenD | ⬜ Notebook sẵn, chưa ai chạy | `ml/notebooks/calibrate_gend.ipynb` |
+| Kết quả R1–R7 | ⬜ Chưa có | Chờ tinh chỉnh + calibrator thật + ROUT-03 |
 
 ## Đang làm
 
-| Mã | Người | Ghi chú |
+| Mã | Người · nơi chạy | Ghi chú |
 |---|---|---|
-| DATA-03 (ảnh) | M3 + M4 · Codex (`vericlue-data`) | Kế hoạch đã duyệt 17/10; chờ PR |
-| DATA-01 | M3 + M4 · Codex | `review` — chờ lượt nghiệm thu chạy cả danh mục |
-| CAP-02 | M1 · Claude | `review` — chờ đo ≥ 15 fps trên Android (chỉ là thử app, không thu dữ liệu) |
+| FACE-04 (prep PAD) | Trưởng nhóm · Kaggle "pre-pad" | Chạy lại bằng **Save & Run All (Commit)** để có Output; kiểm SHA rồi báo 2 thành viên dùng bản mới nhất |
+| FACE-04 (PAD) | Quang Lê (MiniFASNet), Ducky06 (DINOv2) · Kaggle | Chạy SMOKE rồi chạy thật → gửi zip qua Drive nhóm → trưởng nhóm chạy `combine_pad.py` |
+| FACE-04 (GenD) | **chưa có người** | Notebook hiệu chỉnh sẵn sàng (GPU T4) |
+| DATA-03 (ảnh) | Codex `vericlue-data` | **Lỗi thời** so với bản chốt dữ liệu (FAS-VN/RTFS chia trong notebook) — chờ quyết dừng hay sửa |
+| DATA-01 · CAP-02 · ROUT-01 | — | `review` lâu: DATA-01 chờ lượt nghiệm thu; CAP-02 chờ đo fps Android (có thể chuyển sang app); ROUT-01 chờ calibrator thật |
+| FACE-02 · VOICE-05 | — | `doing` trên bảng nhưng code MVP đã gộp (PR #31, #32); còn phần kết quả R2 / hiệu chỉnh lipsync |
 
-Ba phiên AI (`vericlue-claude`, `vericlue-codex`, `vericlue-data`) **không nhận task mới** sau DATA-03 ảnh; giao việc cho thành viên từ 18/10 (bàn giao LEAD 17/10).
+Các worktree `vericlue-claude`, `vericlue-codex`, `vericlue-lab`, `vericlue-nb-gend`, `vericlue-nb-pad` đang rảnh (nhánh đã gộp). Giao task mới: `git switch -c … origin/main`.
 
 ## Bị chặn
 
 | Mã | Lý do | Cần ai giải quyết |
 |---|---|---|
-| FACE-01, FACE-02 (chạy đánh giá) | Chờ DATA-03 phần ảnh | Codex `vericlue-data` |
-| Giao việc S1 | Chưa có tên M1–M5 (Q4) | Họp nhóm |
+| VOICE-03 (tinh chỉnh giọng) | Chưa có notebook; Common Voice cần bấm đồng ý điều khoản trên Mozilla Data Collective | Trưởng nhóm đồng ý bắt đầu + bấm đồng ý |
+| ROUT-03, R1–R4 | Chờ PAD/GenD/giọng có calibrator thật | FACE-04, VOICE-03 |
+| Tinh chỉnh GenD (sau này) | Không tự tạo deepfake người thật; cần đơn DeepSpeak / Celeb-DF++ (email trường) | Ai có email trường |
 
 ## Câu hỏi mở
 
@@ -45,7 +52,7 @@ Ba phiên AI (`vericlue-claude`, `vericlue-codex`, `vericlue-data`) **không nh�
 | Q1 | Vòng 2 phải nộp những gì (bản chạy, báo cáo, video, slide, link repo)? | M2 hỏi BTC/mentor | 16/10 |
 | Q2 | Có được nêu Đề 62 và DA940-02 là đề liên quan ngoài BTL86-16 không? | M2 hỏi BTC | 16/10 |
 | Q3 | Điều khoản gốc của Zalo AI 2022 về việc dùng dữ liệu? | M3 | 17/10 |
-| Q4 | Gán tên thật cho M1–M5; chọn trưởng nhóm và tech lead; điền `team.md` và `CODEOWNERS` | Cả nhóm | 16/10 |
+| Q4 | Gán tên thật cho M1–M5 (đã có 2 thành viên chạy notebook: Quang Lê, Ducky06); chọn tech lead; điền `team.md` và `CODEOWNERS` | Cả nhóm | quá hạn |
 | Q5 | Máy nào làm máy demo (có GPU)? Máy nào làm máy red-team? | Cả nhóm | 17/10 |
 | Q6 | Tra lại Google Scholar cho tuyên bố "lần đầu áp dụng Learn-then-Test" | M5 | trước khi nộp |
 | Q7 | Kênh liên lạc chính của nhóm (Zalo/Discord/…)? Giờ họp nhanh 21:00 có hợp không? | Cả nhóm | 16/10 |
@@ -53,6 +60,13 @@ Ba phiên AI (`vericlue-claude`, `vericlue-codex`, `vericlue-data`) **không nh�
 | Q9 | **Màn đồng ý** (CAP-01): còn để trống quyền rút lại đồng ý/xóa sớm, bên kiểm soát dữ liệu, hạn lưu giọng nói, nơi lưu bản ghi đồng ý. Demo chỉ dùng mặt/giọng thành viên nhóm, nhưng nên có câu chữ trước khi nộp | M2 | 01/11 |
 | Q10 | **Media giám định** hiện không tự xóa (`FORENSIC_TTL_DAYS` trống). Chính sách giữ chứng cứ cho điều tra viên? | M2 + M5 | 01/11 |
 | Q11 | Danh sách **mã lý do** bàn duyệt (9 mã tạm, REV-01) — M2 chốt khi làm REV-02 | M2 | 25/10 |
+| Q12 | Ai chạy notebook hiệu chỉnh GenD? | Trưởng nhóm | 22/10 |
+| Q13 | Bắt đầu notebook giọng (VOICE-03, ưu tiên số 1) chưa? Giao phiên AI nào? | Trưởng nhóm | 22/10 |
+| Q14 | Giao E9 (APP-01, FLOW-01/02, SEC-01) cho phiên AI nào? Ai trong nhóm biết Kotlin? | Trưởng nhóm | 22/10 |
+| Q15 | `vericlue-data` (DATA-03 ảnh): dừng hay sửa theo bản chốt mới? | Trưởng nhóm | 22/10 |
+| Q16 | Sửa `vispoofdb/SOURCE.md` (giọng thật không phải VIVOS) và chia lại audio — làm cùng notebook giọng | Phiên làm VOICE-03 | cùng VOICE-03 |
+| Q17 | Kiểm văn bản gốc: Luật 91/2025/QH15 về dữ liệu cá nhân có thể đã thay NĐ 13/2023 | M2 | 01/11 |
+| Q18 | Giấy phép PhoWhisper: manifest ghi BSD-3, một nguồn ghi Apache-2.0 | M2 | trước khi nộp |
 
 ## Rủi ro cần theo dõi
 
@@ -61,12 +75,25 @@ Ba phiên AI (`vericlue-claude`, `vericlue-codex`, `vericlue-data`) **không nh�
 | Hạn 4 giây mỗi bộ phát hiện **tính cả thời gian xếp hàng** (PLAT-08); mô hình thật vài giây/lần → người xếp sau quá giờ → `review` oan | Thử FACE-01/02 trên máy demo | Đo trên máy demo có GPU; chỉnh `INFERENCE_BUDGET_SECONDS`, `DETECTOR_QUEUE_SIZE`; ghi giới hạn số người cùng lúc vào kịch bản demo |
 | Bài thử trình duyệt (`npm run test:e2e`) chưa vào CI | PR web chưa ai chạy e2e | Chạy tay trước PR chạm `/verify`; PLAT-09 đưa vào CI |
 | Dữ liệu small rất nhỏ (ViMD 3 người/tập, quota calib chưa đủ) | SUMMARY.md của DATA-03 | Ghi rõ giới hạn trong R3; tải bản đầy đủ nếu ổ đĩa cho phép |
-| Ổ D: còn ~105 GB | `download_data.py` báo thiếu chỗ | Chỉ tải `--subset small`; dùng ổ ngoài nếu cần full |
+| Ổ D còn ~62 GB; RAM 16 GB căng khi nhiều phiên AI | Lỗi cấp phát bộ nhớ khi 2 API chạy cùng lúc | Dữ liệu dạy chỉ trên Kaggle/Colab; phiên AI thử ở cổng 8200, không đụng :8000 |
+| **Giọng AI lọt** (AntiDeepfake chưa tinh chỉnh) | e2e 18/10: mms-tts-vie ra 0,115 → pass | VOICE-03; **không hạ ngưỡng tay** |
+| App Android chưa bắt đầu, còn 16 ngày | APP-01 vẫn `todo` | Giao ngay; web `/verify` làm dự phòng |
+| Lộ đề trong dữ liệu (FAS-VN, RTFS, ViSpoofDB) | Mô hình chỉ dùng siêu dữ liệu đạt AUC cao | Khử lộ đề trong notebook; kiểm AUC ≤ 0,65 trước khi dạy |
+| Kaggle Quick Save không lưu Output | Version có Output = 0 file | Luôn dùng "Save & Run All (Commit)"; output có ảnh mặt → luôn Private |
 
 ## Quyết định gần đây
 
 | Ngày | Quyết định | Tham chiếu |
 |---|---|---|
+| 21/10 | Gộp PR #41 (Kaggle: chỉ "Save & Run All (Commit)" mới lưu Output) và #42 (bàn giao LEAD, báo cáo rà soát dữ liệu) | PR #41, #42 |
+| 19–20/10 | **Bản chốt dữ liệu mới** sau rà soát có bằng chứng: PAD dạy trên FAS-VN đã làm sạch và chia lại theo người; GenD **không tinh chỉnh, chỉ hiệu chỉnh** (thật = FAS-VN live + RTFS gốc; giả = RTFS); giọng: thật từ Common Voice/DNU-ViSpeech/Speech-MASSIVE/FLEURS, giả nhân bản chính những người đó; `splits.csv` của notebook là cách chia chuẩn duy nhất cho FAS-VN và RTFS | ADR-0015 "Cập nhật 19–20/10", `docs/research/2026-10-19-data-audit/` |
+| 19–20/10 | **Không tự tạo deepfake người thật** — DATA-04 cũ hủy; loại ForgeryNet (cần tài khoản OpenDataLab/115), DFDC (điều khoản cấm sinh trắc), bản sao FF++ trên Kaggle | ADR-0015 |
+| 19–20/10 | PAD kết hợp max(p_MiniFASNet, p_DINOv2), chỉ dùng cả hai nếu thắng mô hình đơn ở BPCER ≤ 1% trên calib_fit | ADR-0015, PR #38 |
+| 19–20/10 | Notebook nhúng code bằng script build (`scripts/build_*`, có `--check`); không sửa tay notebook | PR #38, #39, #40 |
+| 18/10 | **MVP chạy toàn mô hình thật** (`ROUTER_PROFILE=mvp`), calibrator identity tạm, lipsync chỉ tham khảo; không lấy số R từ MVP | ADR-0012, PR #25–#36 |
+| 18/10 | Ba luồng eKYC (đăng ký, đăng nhập lại, khôi phục), 6 câu hỏi theo thứ tự cố định | ADR-0013 |
+| 18/10 | **Demo bằng app Android Kotlin native**; bàn duyệt và giám định vẫn web; web `/verify` dự phòng; HTTPS từ đầu | ADR-0014 (thay một phần ADR-0003) |
+| 18/10 | Chọn mô hình: giữ GenD, AntiDeepfake MMS-300M, MiniFASNet; thêm DINOv2-reg (PAD) và AdaFace (so mặt); tinh chỉnh chỉ trên Colab/Kaggle | ADR-0015 |
 | 14/10 | Chốt proposal v3: 1 bộ não + 2 chế độ; chỉ dữ liệu công khai; GenD, AntiDeepfake, MAPIE, mã nháy màu AWS Amplify, quét thủy vân | `docs/adr/0001`–`0009` |
 | 14/10 | Monorepo, mock trước, AGENTS.md làm luật chung cho mọi AI | ADR-0001 |
 | 14/10 | Cân lại kế hoạch theo tải từng sprint: SBI và tinh chỉnh GenD sang S2; PLAT-06/07 → M2; FOR-01 → M5; FOR-03 → M3; thêm PLAT-09 (kiểm thử đầu–cuối) và EVAL-03 (đánh giá giám định, R7) | `docs/plan/roadmap.md` |
@@ -96,7 +123,7 @@ Ba phiên AI (`vericlue-claude`, `vericlue-codex`, `vericlue-data`) **không nh�
 
 ## Kết quả đã có
 
-Chưa có R1–R7. Thử nghiệm nhỏ: `docs/status/results/VOICE-04.md` (kiểm câu đọc trên 19 câu ViMD — chỉ chứng minh chạy được, **không** đưa vào báo cáo như số liệu theo miền).
+Chưa có R1–R7. MVP 18/10 chỉ là thử tay (bàn giao LEAD 18/10), không đưa vào báo cáo. Thử nghiệm nhỏ: `docs/status/results/VOICE-04.md` (kiểm câu đọc trên 19 câu ViMD — chỉ chứng minh chạy được, **không** đưa vào báo cáo như số liệu theo miền).
 
 ## Liên kết nhanh
 
