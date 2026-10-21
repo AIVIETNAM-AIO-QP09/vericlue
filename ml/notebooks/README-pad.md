@@ -8,7 +8,7 @@ Người cần **sửa** notebook (nhóm AI) đọc thêm [`HANDBOOK-pad.md`](HA
 
 | Thứ tự | Ai | File | Máy | Thời gian (chạy thật) |
 |---|---|---|---|---|
-| 1 | **Người 1** | `prep_pad.ipynb` — chuẩn bị dữ liệu, **chạy MỘT lần** | **CPU** (Accelerator: None) | khoảng 65–90 phút (laptop nhóm đo 65 phút) |
+| 1 | **Người 1** | `prep_pad.ipynb` — chuẩn bị dữ liệu, **chạy MỘT lần** | **CPU** (Accelerator: None) | khoảng **100–120 phút** (lần chạy thật trên Kaggle: 105 phút) |
 | 2 | **Người 1** | `finetune_pad_minifasnet.ipynb` | GPU T4 x2 | khoảng 1–2 giờ |
 | 2 | **Người 2** | `finetune_pad_dinov2.ipynb` | GPU T4 x2 | khoảng 1,5–2,5 giờ |
 
@@ -16,9 +16,9 @@ Người cần **sửa** notebook (nhóm AI) đọc thêm [`HANDBOOK-pad.md`](HA
 - Hai notebook dạy đều dùng **cùng một** dữ liệu đã chuẩn bị, nên cách chia tập giống hệt nhau. Notebook dạy **không** tự chia lại tập.
 - Trong mọi notebook, bạn **chỉ sửa một chỗ: `SMOKE`** (`True` = chạy thử nhỏ, `False` = chạy thật). Không sửa gì khác, trừ khi được hướng dẫn trong ô "Chỉ khi lỗi hết bộ nhớ" ở Phần G.
 - **Thứ tự chạy thử khuyên dùng:**
-  1. Người 1 chạy `prep_pad.ipynb` với `SMOKE = True`, Save Version.
+  1. Người 1 chạy `prep_pad.ipynb` với `SMOKE = True` (Run All), rồi **Save Version → Save & Run All (Commit)** (Phần P).
   2. Hai người chạy notebook dạy của mình với `SMOKE = True` để kiểm tra.
-  3. Người 1 chạy lại `prep_pad.ipynb` với `SMOKE = False`, Save Version.
+  3. Người 1 đặt `SMOKE = False` rồi **Save Version → Save & Run All (Commit)** (Phần P), khoảng 100–120 phút chạy ngầm.
   4. Hai người chạy thật với `SMOKE = False`.
 - Notebook dạy **từ chối** dạy thật trên dữ liệu chuẩn bị bản chạy thử.
 
@@ -64,20 +64,32 @@ Không thấy cột phải thì bấm **View → Show sidebar**.
 
 ## Phần P — Người 1 lưu và chia sẻ dữ liệu đã chuẩn bị
 
-Làm sau khi `prep_pad.ipynb` in dòng **"XONG chuẩn bị: …/pad_prep"** ở cuối:
+> **Quan trọng:** notebook dạy chỉ đọc được dữ liệu chuẩn bị từ **Output của một phiên bản đã lưu**.
+> **Quick Save** (mặc định) **KHÔNG lưu file output**: phiên bản sẽ có Output = 0 file, notebook dạy báo
+> "KHÔNG TÌM THẤY DỮ LIỆU ĐÃ CHUẨN BỊ". Hãy dùng **Save & Run All (Commit)**.
 
-1. Góc phải trên bấm **Save Version** → chọn **Quick Save** → **Save**. Đợi thông báo lưu xong (vài phút, vì output khoảng 3–4 GB).
-2. Bấm **Share** (góc phải trên) → ô **Add collaborators** → gõ **tên Kaggle của Người 2** → quyền **Can view** → **Save**.
+1. Ô "Bước 0": đặt `SMOKE = False` (chạy thật) hoặc `True` (chạy thử).
+2. Góc phải trên bấm **Save Version** → chọn **Save & Run All (Commit)** → **Save**.
+   - Kaggle chạy lại toàn bộ notebook **ngầm**, bạn đóng tab được. Chạy thật mất khoảng **100–120 phút**
+     (lần chạy thật trên Kaggle: 105 phút, gồm bước 2 khoảng 23 phút và bước 3 khoảng 81 phút).
+   - Xem tiến độ: trang notebook → **Version history** (hoặc biểu tượng đồng hồ) → phiên bản đang chạy → **Logs**.
+3. Khi phiên bản báo **Complete**: mở phiên bản đó → tab **Output** → phải thấy thư mục `pad_prep` có **khoảng 13 file
+   (~3,9 GB)**: `crops80.npy`, `crops224.npy`, `raw80.npy`, `raw224.npy`, `rows.csv`, `splits.csv`, 4 file `split_*.csv`,
+   `cleaning_report.json`, `leak_check.json`, `prep_done.json`. Thấy **0 file** thì chưa dùng được: làm lại bước 2.
+   - Cách khác, chỉ khi phiên tương tác **vẫn còn chạy** và đã in "XONG chuẩn bị": Save Version → **Quick Save** →
+     **Advanced Settings** → chọn **Always save output** → Save. Vẫn phải kiểm tab Output như trên.
+4. Bấm **Share** (góc phải trên) → ô **Add collaborators** → gõ **tên Kaggle của Người 2** → quyền **Can view** → **Save**.
    - **Giữ Private.** **KHÔNG** chọn Public.
-3. Gửi Người 2 tên notebook. Gửi trưởng nhóm dòng `SHA-256 splits.csv = …` in ở cuối notebook.
+5. Gửi Người 2 tên notebook. Gửi trưởng nhóm dòng `SHA-256 splits.csv = …` in ở cuối notebook (Logs của phiên bản).
 
 Người 2 (và chính Người 1, khi mở notebook dạy) làm như sau:
 1. Mở notebook dạy → **+ Add Input** → tab **Notebooks**.
 2. Tìm tên notebook prep: Người 2 xem mục **Shared with you**, Người 1 xem **Your Work**.
-3. Bấm **dấu +** → **Add**.
+3. Bấm **dấu +** → **Add**. Nếu Kaggle hỏi phiên bản (**Version**), chọn **phiên bản MỚI NHẤT** có Output khoảng 13 file
+   (bản chạy thật, không phải bản chạy thử). Người 1 chạy lại prep thì cả hai người phải đổi Input sang phiên bản mới.
 
 Nếu Người 2 không thấy notebook ở mục **Shared with you**:
-- Người 1 kiểm tra lại đã thêm Người 2 làm collaborator và đã Save Version.
+- Người 1 kiểm tra lại đã thêm Người 2 làm collaborator và phiên bản đã lưu bằng **Save & Run All (Commit)**, có Output khoảng 13 file.
 - Vẫn không được thì báo trưởng nhóm. Cách chia sẻ này chưa được thử trên Kaggle thật.
 
 ## Phần E — Chạy
@@ -94,7 +106,7 @@ Nếu Người 2 không thấy notebook ở mục **Shared with you**:
 
 | Notebook | Bước | Ước tính |
 |---|---|---|
-| prep | 1 tải trọng số · 2 kiểm kê · 3 làm sạch/gom người/cắt mặt · 4 kiểm lộ đề · 5 lưu | 3 phút · 1–2 phút · **60–90 phút (CPU; laptop nhóm đo 63 phút)** · 1–2 phút · < 1 phút |
+| prep (tổng **100–120 phút**) | 1 tải trọng số · 2 kiểm kê · 3 làm sạch/gom người/cắt mặt · 4 kiểm lộ đề · 5 lưu | 1–3 phút · **khoảng 23 phút** · **khoảng 81 phút (CPU)** · 1–2 phút · < 1 phút |
 | dạy | 1 tải trọng số · 2 nạp dữ liệu chuẩn bị · 5 đo gốc · 6a hoặc 6b dạy · 7 hiệu chỉnh · 8 test phụ · 9–10 đóng gói | 3–6 phút · 1 phút · < 1 phút · **10–20 phút (MiniFASNet) / 30–60 phút (DINOv2)** · < 1 phút · 5–15 phút · 2–5 phút |
 
 ### Theo dõi
@@ -108,12 +120,13 @@ Nếu Người 2 không thấy notebook ở mục **Shared with you**:
 
 - **Notebook dạy** lưu checkpoint sau mỗi epoch vào `pad_work/ckpt`.
   - Phiên vẫn còn, hoặc Persistence = Files only: bấm **Run All** lại, notebook chạy tiếp từ epoch cuối.
-  - Phiên đã mất: nếu kịp thì **Save Version → Quick Save** trước. Lần sau **+ Add Input** → tab **Notebooks** → chọn **chính notebook này** (bản đã lưu) → Run All. Notebook tự sao chép checkpoint cũ về và chạy tiếp.
-- **`prep_pad`** mất khoảng 65–90 phút. Bị ngắt thì Run All lại từ đầu.
+  - Cách chắc nhất cho lần chạy thật: **Save Version → Save & Run All (Commit)** (chạy ngầm, tối đa 12 giờ), rồi tải zip ở tab **Output** của phiên bản.
+  - Phiên tương tác đã mất: **Quick Save mặc định không lưu file**, nên checkpoint chỉ còn nếu trước đó bạn lưu bằng Quick Save + **Advanced Settings → Always save output** khi phiên còn chạy. Khi đó **+ Add Input** → tab **Notebooks** → chọn **chính notebook này** (phiên bản mới nhất) → Run All: notebook tự sao chép checkpoint cũ và chạy tiếp.
+- **`prep_pad`** mất khoảng 100–120 phút. Luôn chạy thật bằng **Save & Run All (Commit)** (Phần P). Bị ngắt thì chạy lại từ đầu.
 
 ## Phần F — Gửi kết quả cho trưởng nhóm
 
-1. Cột phải → **Output** → thư mục `/kaggle/working`.
+1. Chạy bằng **Save & Run All (Commit)**: mở phiên bản đã xong → tab **Output**. Chạy tương tác: cột phải → **Output** → thư mục `/kaggle/working`.
 2. Bấm file zip → **Download**:
    - Người 1: **`pad_export_minifasnet_<ngày-giờ>.zip`**;
    - Người 2: **`pad_export_dinov2_<ngày-giờ>.zip`**.

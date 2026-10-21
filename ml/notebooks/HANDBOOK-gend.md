@@ -109,6 +109,7 @@ Nếu cách sửa **bắt buộc** đụng vào một trong các mục dưới: 
 | ffmpeg không có (`Lệnh lỗi … ffmpeg`) | Máy thiếu ffmpeg | Kaggle/Colab thường có sẵn; nếu không, ô 4 tự tải bản tĩnh (cần Internet). Hoặc `!apt-get -y install ffmpeg` |
 | `Lệnh lỗi (mã …)` ở bước 7 | Một video RTFS hỏng hoặc giải mã lỗi | Xem `OUT/logs/ffmpeg.log`, gửi tên file cho trưởng nhóm. **Không** tự bỏ mẫu (sẽ đổi số mẫu) |
 | Nhiều `not_applicable`/`degraded` ở bước 9 | Không thấy mặt trong video đã cắt | Vài % là bình thường; > 10% thì gửi trưởng nhóm |
+| Phiên bản có **Output = 0 file** / không thấy zip | Phiên bản lưu bằng **Quick Save**: mặc định Kaggle **không lưu** `/kaggle/working` | Lưu lại bằng **Save Version → Save & Run All (Commit)**. Cách khác chỉ khi phiên tương tác còn chạy: Quick Save → Advanced Settings → **Always save output**. Khi Add Input output của một notebook, luôn chọn **phiên bản mới nhất** |
 | Hết 12 giờ / phiên nghỉ do idle | Giới hạn của Kaggle | Dùng **Save & Run All (Commit)** để chạy ngầm. Chạy lại trong cùng phiên thì tự chạy tiếp (mục 1) |
 | Colab: `Không thấy dữ liệu Add Input và không có KAGGLE_KEY` | Chưa thêm Secrets | Biểu tượng chìa khóa → thêm `KAGGLE_USERNAME`, `KAGGLE_KEY`, bật **Notebook access** |
 | Colab: Drive không mount | Chưa cho phép | Chạy lại ô 4, bấm **Allow** |
