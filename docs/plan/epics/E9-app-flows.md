@@ -220,3 +220,100 @@
 
 **Tiêu chí hoàn thành:**
 - [ ] Đi hết giai đoạn A trên điện thoại thật.
+
+---
+
+## Dynamic Liveness (ADR-0016)
+
+> Server là trọng tài. Điện thoại chỉ quay, ký và gửi. Không tuyên bố "chặn 100 %" hay "đầu tiên". Lớp ① dùng ChromaPulse (CAP-04, PRES-02).
+
+### LIVE-01 · Gói thử thách động theo phiên
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M5 | 1 | S2 | P0 | FLOW-01 |
+
+**Mục tiêu:** mỗi phiên có một gói thử thách mới, chỉ dùng một lần.
+
+**Đầu ra:**
+- Server sinh bằng bộ sinh số ngẫu nhiên mật mã: chuỗi màu, đường chấm sáng (các điểm và thời gian), thứ tự quay đầu, câu đọc. Gói gắn với mã phiên và hết hạn theo ADR-0011.
+- Hợp đồng API thêm gói thử thách. PR gắn `[contract]`.
+- Router coi lớp nào thiếu hoặc lỗi là không đạt (luật 4).
+
+**Tiêu chí hoàn thành:**
+- [ ] Test: hai phiên không bao giờ nhận cùng gói; gói dùng lại bị từ chối (409).
+- [ ] Hợp đồng, API và type web khớp nhau (`gen_openapi --check`).
+
+---
+
+### LIVE-02 · Chấm sáng và đo ánh mắt
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M3 (+M1) | 1,5 | S2 | P0 | LIVE-01 |
+
+**Mục tiêu:** lớp ② của thử thách động.
+
+**Đầu ra:**
+- Web hiện chấm sáng chạy theo đường trong gói thử thách, camera trước vẫn quay.
+- Server dò mống mắt trên video (MediaPipe hoặc tương đương, giấy phép không GPL), dựng đường đi của mắt, so với đường của chấm (tương quan và độ trễ).
+- Ngưỡng là hằng số có tên trong file mô-đun, chờ ROUT-03. Trả `ModuleResult` và có bản mock.
+
+**Tiêu chí hoàn thành:**
+- [ ] Test bằng chuỗi điểm tổng hợp: khớp, lệch, đứng yên, đường của phiên khác.
+- [ ] Đo trên điện thoại thật trong phòng sáng và phòng tối; ghi số mẫu vào bàn giao. Không đưa con số vào báo cáo nếu không chạy ra từ code.
+
+---
+
+### LIVE-03 · Ký media theo phiên trên web, chặn phát lại
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M2 (+M1) | 1 | S2 | P0 | LIVE-01 |
+
+**Mục tiêu:** video cũ hoặc quay lén không dùng lại được.
+
+**Đầu ra:**
+- Web tạo passkey (WebAuthn) cho thiết bị, ký `challenge` = băm(mã phiên ‖ gói thử thách ‖ băm media).
+- Server kiểm chữ ký, mã phiên và băm media. Sai thì từ chối, ghi lý do cho bàn duyệt; người dân không thấy lý do.
+- App native dùng SEC-02 (Keystore) cho cùng việc.
+
+**Tiêu chí hoàn thành:**
+- [ ] Test: dùng lại media phiên cũ, sửa media sau khi ký, chữ ký sai, mã phiên sai.
+
+---
+
+### LIVE-04 · Kháng lượng tử: đường truyền và chữ ký kết quả
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M2 | 1 | S2 | P0 | FLOW-01 |
+
+**Mục tiêu:** dữ liệu sinh trắc không bị "ghi hôm nay, giải mã sau"; kết quả không bị làm giả kể cả khi có máy lượng tử.
+
+**Đầu ra:**
+- Kiểm và ghi lại: đường hầm Cloudflare và trình duyệt điện thoại có dùng trao đổi khóa lai ML-KEM không (ảnh chụp hoặc log làm bằng chứng).
+- Kết quả trả cho bên tích hợp ký kép: chữ ký hiện tại và ML-DSA (FIPS 204) bằng liboqs (MIT). Ghi `third_party/README.md`.
+- Khi trình bày gọi là "kháng lượng tử", không gọi là "máy tính lượng tử".
+
+**Tiêu chí hoàn thành:**
+- [ ] Test: kết quả bị sửa một byte thì kiểm ML-DSA thất bại; khóa sai thì thất bại.
+
+---
+
+### LIVE-05 · Giấy chứng nhận ZKP cho bên tích hợp
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M5 | 2,5 | S3 | P1 | LIVE-04 |
+
+**Mục tiêu:** bên tích hợp biết "đã xác minh, trên 18 tuổi" mà không nhận video, ảnh hay số CCCD.
+
+**Đầu ra:**
+- VeriClue cấp giấy chứng nhận: từng thuộc tính được cam kết bằng hàm băm, ký ML-DSA.
+- Bằng chứng zk-STARK cho câu "trên 18 tuổi" và "đã xác minh". Thư viện Apache/MIT (ví dụ RISC Zero, Winterfell); không dùng circom/snarkjs (GPL). Kiểm giấy phép trước khi chép.
+- Tạo bằng chứng trên laptop demo là chấp nhận được; ghi rõ giới hạn.
+
+**Tiêu chí hoàn thành:**
+- [ ] Test: bằng chứng đúng thì qua; người dưới 18 tuổi hoặc bằng chứng bị sửa thì không qua.
+- [ ] Nếu không kịp: đổi trạng thái `cut`, chuyển phần trình bày vào báo cáo như lộ trình.

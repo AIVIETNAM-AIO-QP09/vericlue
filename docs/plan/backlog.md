@@ -128,6 +128,11 @@
 | APP-02 ★ | App: chụp mặt, quay 3 s, quay đầu ngẫu nhiên | M1 | | 2 | S1–S2 | P0 | APP-01 | todo |
 | APP-03 | App: ghi âm đọc câu (WAV 16 kHz) | M1 | | 1 | S2 | P0 | APP-01 | todo |
 | APP-04 | App: OTP, chụp CCCD, xác nhận thông tin | M2 (+M1) | | 1,5 | S1–S2 | P0 | APP-01 | todo |
+| LIVE-01 | Gói thử thách động theo phiên (màu, chấm sáng, quay đầu, câu) [contract] | M5 | | 1 | S2 | P0 | FLOW-01 | todo |
+| LIVE-02 | Chấm sáng + đo ánh mắt khớp đường đi | M3 (+M1) | | 1,5 | S2 | P0 | LIVE-01 | todo |
+| LIVE-03 | Ký media theo phiên trên web (WebAuthn), chặn phát lại | M2 (+M1) | | 1 | S2 | P0 | LIVE-01 | todo |
+| LIVE-04 | Kháng lượng tử: đường truyền ML-KEM, ký kết quả ML-DSA | M2 | | 1 | S2 | P0 | FLOW-01 | todo |
+| LIVE-05 | Giấy chứng nhận ZKP cho bên tích hợp | M5 | | 2,5 | S3 | P1 | LIVE-04 | todo |
 
 ## Tổng hợp tải (chạy `plan_check.py` để có số mới nhất)
 
