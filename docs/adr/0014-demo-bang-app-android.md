@@ -34,3 +34,12 @@ ADR-0003 chọn chạy trên **web ở điện thoại**. Trưởng nhóm quyế
 - **Proposal** cần sửa các chỗ nói "web trên điện thoại" và "quét QR thử ngay". Theo AGENTS §6 luật 7, việc này cần task riêng; giao cho DEMO-03 hoặc một task proposal.
 - **CamProbe:** phần bắt can thiệp vào JavaScript chỉ có ý nghĩa trên web hoặc WebView. App native cần thêm kiểm tra root/hook và chứng thực thiết bị.
 - **Thêm task APP-01 đến APP-04** (epic E9). Phần server của các luồng nằm ở FLOW-01 đến FLOW-05.
+
+## Cập nhật 21/10 — phạm vi và cách làm (trưởng nhóm chốt)
+1. **Phạm vi bản nộp:** chỉ làm **đăng ký** (`onboarding`) và **đăng nhập lại** (`reauth`). Luồng **khôi phục** (`recovery`) chỉ mô tả trong báo cáo, làm thêm nếu còn thời gian. Lý do: còn 16 ngày, cả 3 luồng cần khoảng 13,5 ngày công.
+2. **Làm theo lát cắt dọc:** trước tiên app phải đi hết một luồng trên điện thoại thật bằng API MVP đang có (tạo phiên → ảnh/video mặt → tín hiệu → chốt → đọc câu → kết quả). Sau đó mới thêm OTP, CCCD, quay đầu, so mặt.
+3. **Phiên AI Claude viết app** ở worktree riêng; phiên Codex duyệt chéo. Trưởng nhóm build và cài thử trên điện thoại Android 10+ của nhóm.
+4. **HTTPS bằng đường hầm Cloudflare** (`cloudflared`) trỏ vào API trên máy demo:
+   - có chứng chỉ thật, điện thoại dùng 4G hay Wi-Fi nào cũng vào được, không phải cài chứng chỉ tự ký;
+   - **đánh đổi:** dữ liệu sinh trắc đi qua hạ tầng Cloudflare (vẫn mã hóa trên đường truyền, TLS kết thúc tại Cloudflare). Chấp nhận cho bản demo; ghi là giới hạn trong báo cáo, sản phẩm thật dùng HTTPS trực tiếp + certificate pinning (B9);
+   - địa chỉ đường hầm đặt bằng cấu hình build (không cứng trong code), không commit token Cloudflare.
