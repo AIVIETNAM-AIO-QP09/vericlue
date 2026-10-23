@@ -1,0 +1,481 @@
+package vn.vericlue.app.ui.screens
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AccountBalance
+import androidx.compose.material.icons.outlined.Badge
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Face
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
+import vn.vericlue.app.BuildConfig
+import vn.vericlue.app.R
+import vn.vericlue.app.flow.AgreementGate
+import vn.vericlue.app.ui.components.ChecklistCard
+import vn.vericlue.app.ui.components.LinkButton
+import vn.vericlue.app.ui.components.PrimaryButton
+import vn.vericlue.app.ui.components.SystemBarIcons
+import vn.vericlue.app.ui.components.TitleBlock
+import vn.vericlue.app.ui.components.Tone
+import vn.vericlue.app.ui.components.VcLogo
+import vn.vericlue.app.ui.components.VcScreen
+import vn.vericlue.app.ui.components.StatusBadge
+import vn.vericlue.app.ui.theme.Palette
+import vn.vericlue.app.ui.theme.Vc
+import vn.vericlue.app.ui.theme.VcType
+
+// ── Host bank app (mock) ──────────────────────────────────────────────────────
+
+@Composable
+private fun BankHeader() {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Box(
+            Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)).background(Palette.BankGreen),
+            contentAlignment = Alignment.Center,
+        ) { Icon(Icons.Outlined.AccountBalance, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp)) }
+        Text("Ngân hàng Mẫu", style = VcType.label, color = Palette.BankGreen)
+    }
+}
+
+/** Mock of the bank app that opens VeriClue. Not part of VeriClue itself. */
+@Composable
+fun BankStartScreen(onOpenAccount: () -> Unit, onGallery: () -> Unit) {
+    val c = Vc.colors
+    SystemBarIcons(c.background)
+    Column(Modifier.fillMaxSize().background(c.background).statusBarsPadding().padding(20.dp)) {
+        BankHeader()
+        Spacer(Modifier.height(32.dp))
+        Box(
+            Modifier.fillMaxWidth().height(180.dp).clip(RoundedCornerShape(20.dp)).background(c.surfaceInfo),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Icon(Icons.Outlined.AccountBalance, contentDescription = null, tint = c.accent, modifier = Modifier.size(52.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Icon(Icons.Outlined.Shield, contentDescription = null, tint = c.accent, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Outlined.Badge, contentDescription = null, tint = c.accent, modifier = Modifier.size(20.dp))
+                }
+            }
+        }
+        Spacer(Modifier.height(32.dp))
+        Text("Mở tài khoản trực tuyến", style = VcType.titleLarge, color = c.ink)
+        Spacer(Modifier.height(8.dp))
+        Text("Chỉ cần CCCD gắn chip và khoảng 2 phút.", style = VcType.body, color = c.muted)
+        Spacer(Modifier.weight(1f))
+        PrimaryButton("Mở tài khoản", onOpenAccount, container = Palette.BankGreen)
+        if (BuildConfig.DEBUG) LinkButton("Xem tất cả màn (bản demo giao diện)", onGallery)
+        Spacer(Modifier.navigationBarsPadding())
+    }
+}
+
+@Composable
+fun BankOpenedScreen(onDone: () -> Unit) {
+    val c = Vc.colors
+    SystemBarIcons(c.background)
+    Column(
+        Modifier.fillMaxSize().background(c.background).statusBarsPadding().padding(20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(Modifier.fillMaxWidth()) { BankHeader() }
+        Spacer(Modifier.weight(1f))
+        StatusBadge(Icons.Outlined.CheckCircle, Tone.Ok)
+        Spacer(Modifier.height(24.dp))
+        Text("Mở tài khoản thành công", style = VcType.titleLarge, color = c.ink, textAlign = TextAlign.Center)
+        Spacer(Modifier.height(24.dp))
+        ChecklistCard(
+            title = "Số tài khoản",
+            rows = listOf(Triple(Icons.Outlined.AccountBalance, "0123 4567 8901", null)),
+            trailing = listOf("Dữ liệu mẫu"),
+        )
+        Spacer(Modifier.weight(1.4f))
+        PrimaryButton("Vào ứng dụng", onDone, container = Palette.BankGreen)
+        Spacer(Modifier.navigationBarsPadding())
+    }
+}
+
+// ── Splash ────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun Rings(color: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val center = Offset(size.width / 2f, size.height / 2f)
+        listOf(0.28f, 0.42f, 0.58f).forEach { r ->
+            drawCircle(color, radius = size.width * r, center = center, style = Stroke(1.dp.toPx()))
+        }
+    }
+}
+
+@Composable
+fun SplashScreen(onDone: () -> Unit) {
+    val appear = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        appear.animateTo(1f, tween(700, easing = FastOutSlowInEasing))
+        delay(900)
+        onDone()
+    }
+    val bg = Brush.verticalGradient(listOf(Palette.Primary, Color(0xFF0B4F8A), Palette.LogoNavy))
+    SystemBarIcons(Palette.LogoNavy)
+    Box(Modifier.fillMaxSize().background(bg), contentAlignment = Alignment.Center) {
+        Rings(Color.White.copy(alpha = 0.18f * appear.value), Modifier.fillMaxSize())
+        Column(
+            Modifier.alpha(appear.value).scale(0.92f + 0.08f * appear.value),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            VcLogo(height = 52.dp, onDark = true)
+            Text("Xác minh danh tính an toàn, nhanh chóng", style = VcType.bodySmall, color = Color.White.copy(alpha = 0.85f))
+        }
+        Column(
+            Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 48.dp).alpha(appear.value),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            LinearProgressIndicator(
+                modifier = Modifier.width(120.dp).height(3.dp).clip(RoundedCornerShape(2.dp)),
+                color = Color.White,
+                trackColor = Color.White.copy(alpha = 0.25f),
+            )
+            Text("Đang khởi động…", style = VcType.caption, color = Color.White.copy(alpha = 0.8f))
+        }
+    }
+}
+
+// ── Sign in / sign up ─────────────────────────────────────────────────────────
+
+@Composable
+private fun FloatingChip(text: String, icon: ImageVector, modifier: Modifier, phase: Float) {
+    val c = Vc.colors
+    Row(
+        modifier.offset(y = (phase * 4f).dp).clip(RoundedCornerShape(12.dp)).background(c.surface)
+            .border(1.dp, c.border, RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Icon(icon, contentDescription = null, tint = c.accent, modifier = Modifier.size(16.dp))
+        Text(text, style = VcType.labelXs, color = c.ink)
+    }
+}
+
+@Composable
+fun AuthScreen(onRegister: () -> Unit, onLogin: () -> Unit, onRecover: () -> Unit) {
+    val c = Vc.colors
+    val float = rememberInfiniteTransition(label = "float")
+    val phase by float.animateFloat(
+        initialValue = -1f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(2400, easing = LinearEasing), RepeatMode.Reverse),
+        label = "phase",
+    )
+    SystemBarIcons(c.background)
+    Column(Modifier.fillMaxSize().background(c.background).statusBarsPadding()) {
+        Box(
+            Modifier.fillMaxWidth().height(300.dp)
+                .background(Brush.verticalGradient(listOf(c.surfaceInfo, c.background))),
+        ) {
+            Rings(c.accent.copy(alpha = 0.35f), Modifier.fillMaxSize())
+            Box(
+                Modifier.align(Alignment.Center).size(84.dp).clip(RoundedCornerShape(24.dp)).background(Palette.LogoNavy),
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(painterResource(R.drawable.logo_mark), contentDescription = null, modifier = Modifier.width(54.dp))
+            }
+            FloatingChip("CCCD", Icons.Outlined.Badge, Modifier.align(Alignment.TopStart).padding(start = 24.dp, top = 64.dp), phase)
+            FloatingChip("Khuôn mặt", Icons.Outlined.Face, Modifier.align(Alignment.CenterEnd).padding(end = 20.dp), -phase)
+            FloatingChip("Giọng nói", Icons.Outlined.Mic, Modifier.align(Alignment.BottomStart).padding(start = 40.dp, bottom = 52.dp), phase)
+            VcLogo(Modifier.padding(start = 20.dp, top = 12.dp))
+        }
+        Column(
+            Modifier.weight(1f).padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            TitleBlock(
+                title = "Chào mừng bạn đến với VeriClue",
+                body = "Xác minh danh tính bằng CCCD, khuôn mặt và giọng nói. Chỉ mất khoảng 2 phút.",
+            )
+            Spacer(Modifier.weight(1f))
+            PrimaryButton("Đăng ký", onRegister)
+            Box(
+                Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(12.dp)).background(c.surfaceInfo)
+                    .clickable(role = Role.Button, onClick = onLogin),
+                contentAlignment = Alignment.Center,
+            ) { Text("Đăng nhập", style = VcType.button, color = c.accent) }
+            Text(
+                buildAnnotatedString {
+                    append("Mất tài khoản? ")
+                    withStyle(SpanStyle(color = c.accent, fontWeight = FontWeight.SemiBold)) { append("Khôi phục tài khoản") }
+                },
+                style = VcType.caption,
+                color = c.muted,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onRecover).padding(vertical = 6.dp),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 12.dp)) {
+                Icon(Icons.Outlined.Shield, contentDescription = null, tint = c.accent, modifier = Modifier.size(16.dp))
+                Text(
+                    "Dữ liệu được mã hóa khi truyền và chỉ dùng để xác minh. Khi tiếp tục, bạn đồng ý với Điều khoản sử dụng và Chính sách quyền riêng tư.",
+                    style = VcType.footnote,
+                    color = c.muted,
+                )
+            }
+        }
+        Spacer(Modifier.navigationBarsPadding())
+    }
+}
+
+// ── Terms: must scroll to the end before ticking ─────────────────────────────
+
+private val termsSections = listOf(
+    "1. Mục đích xử lý dữ liệu" to "VeriClue xác minh danh tính của bạn khi mở tài khoản, đăng nhập trên thiết bị mới hoặc khôi phục tài khoản. Ứng dụng chụp ảnh và quay video ngắn khuôn mặt, đổi màu màn hình trong vài giây để kiểm tra camera, và có thể yêu cầu bạn đọc một câu.",
+    "2. Dữ liệu được thu thập" to "• Ảnh hai mặt CCCD và thông tin đọc từ mã QR trên thẻ.\n• Ảnh và video ngắn khuôn mặt.\n• Bản ghi giọng đọc một câu ngắn.\n• Số điện thoại để nhận mã xác nhận.",
+    "3. Thời gian lưu" to "Dữ liệu khuôn mặt và giọng nói tự xóa sau 24 giờ nếu xác minh thành công, hoặc sau 30 ngày nếu hồ sơ cần nhân viên xem xét. [chờ nhóm chốt]",
+    "4. Ai được xem dữ liệu" to "Chỉ nhân viên thẩm định được giao hồ sơ của bạn. Mọi lần xem đều được ghi nhật ký.",
+    "5. Không dùng để huấn luyện AI" to "Dữ liệu của bạn không được dùng để huấn luyện mô hình AI.",
+    "6. Quyền của bạn" to "Bạn có thể dừng xác minh bất cứ lúc nào. Bạn có quyền xem, rút lại sự đồng ý và yêu cầu xóa dữ liệu theo quy định pháp luật Việt Nam về bảo vệ dữ liệu cá nhân. Cách gửi yêu cầu: [chờ nhóm chốt].",
+    "7. Bên kiểm soát dữ liệu" to "[Tên, địa chỉ và kênh liên hệ của bên kiểm soát dữ liệu – chờ nhóm chốt].",
+    "8. Thay đổi điều khoản" to "Khi điều khoản thay đổi, ứng dụng sẽ thông báo và hỏi lại sự đồng ý của bạn trước khi tiếp tục xử lý dữ liệu.",
+)
+
+@Composable
+fun TermsScreen(onBack: () -> Unit, onAccept: () -> Unit) {
+    val c = Vc.colors
+    val scroll = rememberScrollState()
+    val gate = remember { AgreementGate() }
+    var accepted by remember { mutableStateOf(false) }
+    var readToEnd by remember { mutableStateOf(false) }
+    val atEnd by remember { derivedStateOf { scroll.maxValue > 0 && scroll.value >= scroll.maxValue - 8 } }
+    LaunchedEffect(atEnd) {
+        if (atEnd) {
+            gate.reachedEnd()
+            readToEnd = true
+        }
+    }
+    val fraction by animateFloatAsState(
+        if (readToEnd) 1f else if (scroll.maxValue == 0) 0f else scroll.value.toFloat() / scroll.maxValue,
+        label = "read",
+    )
+
+    VcScreen(
+        onBack = onBack,
+        actions = { PrimaryButton("Đồng ý và tiếp tục", onAccept, enabled = gate.canContinue && accepted) },
+    ) {
+        TitleBlock("Điều khoản sử dụng", "Đọc hết nội dung bên dưới để đồng ý và tiếp tục.")
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                LinearProgressIndicator(
+                    progress = { fraction },
+                    modifier = Modifier.weight(1f).height(4.dp).clip(RoundedCornerShape(2.dp)),
+                    color = if (readToEnd) c.ok else c.accent,
+                    trackColor = c.border,
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    if (readToEnd) "Đã đọc hết" else "Đang đọc",
+                    style = VcType.labelXs,
+                    color = if (readToEnd) c.ok else c.muted,
+                )
+            }
+            Box(
+                Modifier.fillMaxWidth().height(300.dp).clip(RoundedCornerShape(14.dp)).background(c.surfaceSubtle)
+                    .border(1.dp, c.border, RoundedCornerShape(14.dp)),
+            ) {
+                Column(
+                    Modifier.verticalScroll(scroll).padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    Text(
+                        "Nội dung mẫu · chờ nhóm và pháp chế chốt",
+                        style = VcType.labelXs,
+                        color = c.warn,
+                        modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(c.warnBg).padding(horizontal = 8.dp, vertical = 4.dp),
+                    )
+                    Text("Phiên bản demo · cập nhật 22/10/2026", style = VcType.footnote, color = c.muted)
+                    termsSections.forEach { (h, b) ->
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(h, style = VcType.labelSmall, color = c.ink)
+                            Text(b, style = VcType.caption, color = c.muted)
+                        }
+                    }
+                    AnimatedVisibility(readToEnd, enter = fadeIn()) {
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.okBg).padding(10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = c.ok, modifier = Modifier.size(16.dp))
+                            Text("Bạn đã đọc đến cuối điều khoản", style = VcType.labelXs, color = c.ok)
+                        }
+                    }
+                }
+                androidx.compose.animation.AnimatedVisibility(
+                    !readToEnd,
+                    enter = fadeIn(),
+                    exit = fadeOut(),
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp),
+                ) {
+                    Row(
+                        Modifier.clip(RoundedCornerShape(50)).background(c.surface).border(1.dp, c.border, RoundedCornerShape(50))
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("Kéo xuống để đọc tiếp", style = VcType.labelXs, color = c.accent)
+                        Icon(Icons.Outlined.KeyboardArrowDown, contentDescription = null, tint = c.accent, modifier = Modifier.size(16.dp))
+                    }
+                }
+            }
+            Row(
+                Modifier.fillMaxWidth().clickable(enabled = readToEnd, role = Role.Checkbox) {
+                    gate.toggle()
+                    accepted = gate.accepted
+                },
+                verticalAlignment = Alignment.Top,
+            ) {
+                Checkbox(
+                    checked = accepted,
+                    onCheckedChange = {
+                        gate.toggle()
+                        accepted = gate.accepted
+                    },
+                    enabled = readToEnd,
+                    colors = CheckboxDefaults.colors(checkedColor = c.primary),
+                )
+                Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        "Tôi đã đọc hết và đồng ý với Điều khoản sử dụng và Chính sách xử lý dữ liệu cá nhân.",
+                        style = VcType.caption,
+                        color = if (readToEnd) c.ink else c.muted,
+                    )
+                    Text(
+                        when {
+                            accepted -> "Đã đồng ý."
+                            readToEnd -> "Bạn đã đọc hết. Tích để đồng ý."
+                            else -> "Kéo xuống cuối điều khoản để bật ô này."
+                        },
+                        style = VcType.footnote,
+                        color = if (readToEnd) c.accent else c.muted,
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ── Per-item consent ──────────────────────────────────────────────────────────
+
+private data class ConsentItem(val title: String, val tag: String, val detail: String, val required: Boolean)
+
+private val consentItems = listOf(
+    ConsentItem(
+        "Xử lý khuôn mặt và giọng nói", "bắt buộc",
+        "để xác minh bạn là người thật, đúng chủ CCCD. Tự xóa sau 24 giờ nếu thành công, hoặc sau 30 ngày nếu cần xem xét.", true,
+    ),
+    ConsentItem("Lưu mẫu khuôn mặt (đã mã hóa)", "tùy chọn", "để lần sau xác thực nhanh hơn.", false),
+    ConsentItem("Lưu thông tin CCCD", "tùy chọn", "để mở và quản lý tài khoản.", false),
+)
+
+@Composable
+fun ConsentScreen(onBack: () -> Unit, onContinue: () -> Unit) {
+    val c = Vc.colors
+    var checked by remember { mutableStateOf(setOf<Int>()) }
+    val requiredOk = consentItems.withIndex().filter { it.value.required }.all { it.index in checked }
+    VcScreen(
+        onBack = onBack,
+        actions = { PrimaryButton("Đồng ý và tiếp tục", onContinue, enabled = requiredOk) },
+    ) {
+        TitleBlock("Bạn đồng ý cho chúng tôi xử lý", "Mỗi mục đồng ý riêng. Dữ liệu của bạn không dùng để huấn luyện AI.")
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            consentItems.forEachIndexed { i, item ->
+                val on = i in checked
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                        .background(c.surfaceSubtle)
+                        .border(if (on) 1.5.dp else 1.dp, if (on) c.accent else c.border, RoundedCornerShape(14.dp))
+                        .clickable(role = Role.Checkbox) { checked = if (on) checked - i else checked + i }
+                        .padding(end = 14.dp, top = 4.dp, bottom = 12.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Checkbox(
+                        checked = on,
+                        onCheckedChange = { checked = if (on) checked - i else checked + i },
+                        colors = CheckboxDefaults.colors(checkedColor = c.primary),
+                    )
+                    Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            buildAnnotatedString {
+                                withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = c.ink)) { append(item.title) }
+                                append(" · ${item.tag}")
+                            },
+                            style = VcType.caption,
+                            color = c.muted,
+                        )
+                        Text(item.detail, style = VcType.caption, color = c.muted)
+                    }
+                }
+            }
+        }
+    }
+}

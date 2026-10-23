@@ -42,6 +42,7 @@ Mỗi khu vực code có `AGENTS.md` riêng (`apps/web/`, `services/api/`, `ml/`
 
 ```
 apps/web/            Next.js: /verify (người dân), /review (nhân viên), /forensic (điều tra viên)
+apps/android/        App Kotlin cho người dân (ADR-0014); hiện có phần giao diện
 services/api/        FastAPI: phiên eKYC, bàn duyệt, giám định
 ml/                  gói vericlue_ml: face/ presence/ voice/ router/ forensic/ eval/ mock/
 packages/contracts/  JSON Schema — hợp đồng giữa các phần
