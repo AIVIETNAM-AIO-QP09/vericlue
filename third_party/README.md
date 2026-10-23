@@ -114,3 +114,14 @@ Wrapper đọc Transformers dependency Apache-2.0, không gọi mã remote hoặ
 | Phông [Be Vietnam Pro](https://github.com/bettergui/BeVietnamPro) (Regular, Medium, SemiBold, Bold) | SIL Open Font License 1.1 (`third_party/licenses/BeVietnamPro-OFL.txt`) | `apps/android/app/src/main/res/font/` (file `.ttf` nguyên bản, chỉ đổi tên file) | Tải từ `github.com/google/fonts/ofl/bevietnampro` | APP-01 |
 | Jetpack Compose, Navigation Compose, Material 3, Material Icons Extended (AndroidX) | Apache-2.0 | `apps/android` (phụ thuộc Gradle, không chép mã) | Gradle | APP-01 |
 | Paparazzi (cashapp) | Apache-2.0 | `apps/android` (chỉ dùng khi test, chụp ảnh màn) | Gradle | APP-01 |
+
+## APP-02, APP-03, APP-04 (camera, micro, API trên app Android)
+
+Dùng nguyên bản qua Gradle, không chép mã.
+
+| Nguồn | Giấy phép | Dùng ở đâu | Task |
+|---|---|---|---|
+| CameraX 1.4 (`camera-camera2`, `camera-lifecycle`, `camera-view`, `camera-video`) | Apache-2.0 | `apps/android/.../capture/CameraSession.kt` | APP-02, APP-04 |
+| ML Kit Face Detection 16.1, Barcode Scanning 17.3 (bản đóng gói trong app) | Điều khoản dịch vụ Google APIs / ML Kit (miễn phí, không phải mã nguồn mở); không phải GPL | `apps/android/.../capture/CameraSession.kt` (hướng dẫn căn mặt, góc quay đầu, đọc QR CCCD; không ra phán quyết) | APP-02, APP-04 |
+| OkHttp 4.12 (+ MockWebServer khi test) | Apache-2.0 | `apps/android/.../data/api/Api.kt` | APP-01 |
+| kotlinx.serialization 1.7, kotlinx.coroutines 1.9 | Apache-2.0 | `apps/android` | APP-01 |

@@ -195,3 +195,22 @@ Mỗi giai đoạn mở **một PR riêng** (nhánh `feat/APP-0x-...`). Mỗi PR
 - **Quang:** kiểm màn hình và chữ hiển thị vẫn khớp Figma; luồng đúng ADR-0016/0017.
 - **Trưởng nhóm:** chốt Q1–Q6; duyệt từng PR theo mục 8.
 - Mỗi PR kèm ảnh chụp màn hình trên máy ảo hoặc điện thoại thật.
+
+## 11. Đã làm tới đâu (cập nhật 24/10, nhánh `feat/APP-02-camera-mic-scaffold`)
+
+Bản dựng khung do Ngọc Quang + Claude làm trước để anh Lý lấy về làm tiếp. Đã chạy hết luồng trên máy ảo với API mock. **Chưa thử trên điện thoại thật.**
+
+| Giai đoạn | Trạng thái | Ghi chú |
+|---|---|---|
+| 0 · Chuẩn bị | Xong | `API_BASE_URL` qua `-Pvericlue.apiBaseUrl`; debug cho HTTP tới `10.0.2.2` |
+| 1 · Lát cắt dọc API | Xong (client viết tay) | Chưa sinh từ `openapi.json` |
+| 2 · Camera trước, căn mặt | Xong phần khung | Ngưỡng `QualityGate` cần chỉnh trên máy thật |
+| 3 · Nháy màu, tín hiệu | Xong phần khung | Có khóa AE/AWB, quay MP4, `color_events`, `frame_times`; thiếu `region_means`, `camprobe` |
+| 4 · Quay đầu | Một phần | Dùng góc ML Kit; thứ tự chờ LIVE-01; chưa kiểm chiều dấu góc |
+| 5 · Chấm sáng | Chưa | Chờ hợp đồng đường đi (Q3) |
+| 6 · Ghi âm | Xong | WAV 16 kHz; câu từ `voice_prompt` |
+| 7 · CCCD, OTP | Một phần | Camera sau, QR, đo nét/lóa, điền từ QR; chưa gửi server (Q4) |
+| 8 · Gián đoạn | Xong phần app | Phiên mới khi làm lại vì chưa có LIVE-06 |
+| 9 · Máy thật | Chưa | |
+
+Cách chạy thử với API mock: xem `apps/android/README.md`, mục "Chạy thử với API mock".

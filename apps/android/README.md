@@ -4,19 +4,22 @@
 
 ## Trạng thái
 
-Bản hiện tại là **phần giao diện** của APP-01: đủ các màn theo Figma "VeriClue eKYC App", điều hướng 3 luồng (đăng ký, đăng nhập lại, khôi phục), dữ liệu giả.
+- **Giao diện (APP-01):** đủ các màn theo Figma "VeriClue eKYC App"; điều hướng 3 luồng (đăng ký, đăng nhập lại, khôi phục).
+- **Bản dựng khung camera, micro, API** (nhánh `feat/APP-02-camera-mic-scaffold`): đã chạy hết luồng trên máy ảo với API mock. **Chưa thử trên điện thoại thật.**
+- **Kế hoạch đầy đủ:** [`docs/plan-camera-mic.md`](docs/plan-camera-mic.md) (giai đoạn, thư viện, đồng hồ thời gian, câu hỏi cần chốt). Mục 11 của file đó ghi đã làm tới đâu.
 
-**Chưa có:** camera thật (CameraX), ghi âm, gọi API, HTTPS, Keystore. Các phần này làm ở APP-01 (API), APP-02 (camera), APP-03 (ghi âm), APP-04 (OTP, CCCD), SEC-02 (Keystore).
-
-**Kế hoạch gắn camera, micro, API:** [`docs/plan-camera-mic.md`](docs/plan-camera-mic.md) (giai đoạn, thư viện, đồng hồ thời gian, câu hỏi cần chốt).
-
-| Chỗ giả | Thay bằng |
-|---|---|
-| `FakeCameraFeed` (hình bóng người vẽ bằng Canvas) | Preview CameraX (APP-02) |
-| Hẹn giờ tự chuyển màn ở căn mặt, giữ yên, quay đầu, kiểm tra | Tín hiệu từ ML Kit/MediaPipe và kết quả API |
-| `DemoOutcome` trong `flow/Flow.kt` | `status` từ API (`pass`, `retry`, `review`, `voice_challenge`) |
-| Thứ tự quay đầu ngẫu nhiên trên máy | Gói thử thách của server (LIVE-01) |
-| Câu đọc, họ tên, số CCCD, số tài khoản | Dữ liệu thật từ API và mã QR (đang hiện nhãn "Dữ liệu mẫu") |
+| Phần | Đã thật | Còn giả hoặc chưa làm |
+|---|---|---|
+| Gọi API | Tạo phiên, `media` (ảnh + MP4), `signals`, `finalize`, `voice`; header `X-Mock-Scenario` | Client viết tay (APP-01 muốn sinh từ `openapi.json`); HTTPS qua cloudflared |
+| Camera trước | CameraX, ML Kit dò mặt, cổng chất lượng tự chụp, quay MP4 lúc nháy màu, khóa AE/AWB | Ngưỡng cần chỉnh trên máy thật; `region_means`, `camprobe` |
+| Nháy màu | Màu, nhịp từ `challenge` của server; ghi `color_events`, `frame_times` cùng một đồng hồ | Đo phản chiếu trên máy thật |
+| Quay đầu | Góc quay từ ML Kit (`headEulerAngleY`) | Thứ tự trái/phải vẫn chọn trên máy (chờ LIVE-01); chiều dấu của góc phải kiểm trên máy thật |
+| Chấm sáng | Giao diện | Đường đi và việc ghi `(t, x, y)` chờ hợp đồng LIVE-01 |
+| Ghi âm | `AudioRecord` 16 kHz mono → WAV, câu đọc từ `voice_prompt` | |
+| CCCD | Camera sau, đọc QR (ML Kit), đo nét/lóa, điền thông tin từ QR | Chưa có endpoint gửi CCCD (FLOW-03); thứ tự trường QR cần kiểm với thẻ thật |
+| OTP | Giao diện, bàn phím | Chưa có endpoint (FLOW-02) |
+| Gián đoạn | Xuống nền giữa lúc quay → bỏ lượt, màn "Xác minh bị gián đoạn" | Gia hạn phiên (LIVE-06) |
+| Keystore, ký media | | SEC-02, LIVE-03 |
 
 ## Cài đặt lần đầu (Windows)
 
@@ -30,36 +33,67 @@ Nếu không muốn cài Android Studio:
    ```
 3. Tạo `apps/android/local.properties` (không commit) với dòng `sdk.dir=D\:/tools/android-sdk` (đổi theo đường dẫn của bạn).
 
+Trên **macOS** (Apple Silicon): cài Android Studio, mở `apps/android`, tạo máy ảo Pixel ảnh `arm64-v8a`; trong Advanced Settings đặt Camera Front = Webcam0 để dùng webcam của Mac.
+
 ## Lệnh
 
 ```bash
 cd apps/android
 ./gradlew assembleDebug          # APK: app/build/outputs/apk/debug/app-debug.apk
-./gradlew testDebugUnitTest      # test logic luồng + kiểm chữ cấm hiển thị cho người dân
+./gradlew testDebugUnitTest      # test logic: luồng, API (MockWebServer), camera, WAV, CCCD, chữ cấm
 ./gradlew recordPaparazziDebug   # chụp ảnh mọi màn trên máy tính (không cần giả lập), ra app/src/test/snapshots/images
 ```
 
-Cài lên điện thoại Android 10+: bật *Gỡ lỗi USB*, rồi `adb install -r app/build/outputs/apk/debug/app-debug.apk`. Hoặc chép file APK sang máy và mở.
+Địa chỉ API mặc định là `http://10.0.2.2:8000/` (máy ảo gọi về máy tính). Đổi khi build, không ghi cứng địa chỉ đường hầm vào code:
 
-Bản debug có nút **"Xem tất cả màn (bản demo giao diện)"** ở màn ngân hàng mẫu: mở thẳng từng màn, chọn luồng và kết quả mô phỏng (đạt, chờ duyệt, chụp lại, làm lại thử thách, đọc lại câu).
+```bash
+./gradlew assembleDebug -Pvericlue.apiBaseUrl=https://<địa-chỉ-cloudflared>/
+```
+
+Bản debug cho phép HTTP thường **chỉ** tới `10.0.2.2` và `localhost` (`src/debug/res/xml/network_security_config.xml`); bản release chỉ dùng HTTPS.
+
+## Chạy thử với API mock (không cần Postgres, không cần điện thoại)
+
+```bash
+# ở thư mục gốc repo
+uv sync --frozen --all-packages
+export DATABASE_URL="sqlite:///$PWD/tmp/dev.db" MEDIA_DIR="$PWD/tmp/media" USE_MOCK_MODELS=true
+uv run --frozen alembic -c services/api/alembic.ini upgrade head
+uv run --frozen uvicorn vericlue_api.main:app --app-dir services/api/src --host 0.0.0.0 --port 8000
+```
+
+Trong app (bản debug): màn ngân hàng mẫu → **"Xem tất cả màn (bản demo giao diện)"** → chọn **"API thật"** và một kịch bản mock (`genuine`, `low_quality`, `voice_clone`, `error`…) → mở **"Chuẩn bị"** → "Tôi đã sẵn sàng".
+
+Máy ảo không có mặt người trước camera nên bản debug có nút **"Chụp ngay (debug)"** ở màn căn mặt và **"Bỏ qua (debug)"** ở màn quay đầu. Hai nút này không có trong bản release.
+
+Kết quả đã thử trên máy ảo (23–24/10): `genuine` → thành công; `voice_clone` → đọc câu → chờ duyệt; `low_quality` → chụp lại (câu nhắc và số lần còn lại lấy từ server); `error`, `print` → chờ duyệt. Server nhận được ảnh JPEG, video MP4 và tín hiệu.
 
 ## Cấu trúc
 
 ```
 app/src/main/java/vn/vericlue/app/
   MainActivity.kt
-  flow/Flow.kt              luật điều hướng, OTP, số điện thoại, cổng điều khoản (Kotlin thuần, có test)
-  ui/App.kt                 NavHost, FlowState, màn "tất cả màn"
+  data/api/Api.kt           client API phiên (OkHttp + kotlinx.serialization); lỗi nào cũng thành ApiError, không ném ra UI
+  flow/Flow.kt              luật điều hướng, status → màn, OTP, số điện thoại, cổng điều khoản (Kotlin thuần, có test)
+  flow/LiveFlow.kt          một lượt xác minh thật: phiên → media → signals → finalize → voice
+  capture/CameraSession.kt  CameraX (trước/sau), ML Kit (mặt, QR), ảnh JPEG, quay MP4, frame_times, khóa AE/AWB
+  capture/Signals.kt        đồng hồ chung, cổng chất lượng, theo dõi quay đầu, lịch nháy màu
+  capture/WavRecorder.kt    ghi âm WAV 16 kHz
+  capture/IdCard.kt         đo nét/lóa, đọc QR CCCD
+  ui/App.kt                 NavHost, quyền, nối camera/API vào màn, màn "tất cả màn"
   ui/theme/Theme.kt         màu (khớp biến Figma "VeriClue / Màu"), kiểu chữ, theme sáng/tối
-  ui/components/            thanh trên, thanh tiến độ 3 bước, nút, bàn phím số, khung camera, thẻ danh sách
+  ui/components/            thanh trên, thanh tiến độ, nút, bàn phím số, khung camera, thẻ danh sách
   ui/screens/               Bắt đầu, Danh tính, Khuôn mặt, Giọng nói + Kết quả
 ```
 
 ## Quy ước
 
 - Người dân **không bao giờ** thấy điểm số, %, màu đỏ hay chữ "giả mạo". `CitizenCopyTest` quét mọi chuỗi trong `src/main` để chặn.
+- **Chỉ `pass` mới là đạt.** Lỗi mạng, phản hồi sai dạng, status lạ (`error`, `degraded`…) đều ra màn lỗi (`FlowRules.routeForStatus`, `errorRoute`).
 - Chỉ dẫn trên camera là **một câu về chất lượng** (ánh sáng, khoảng cách). Thông báo làm lại chia hai loại theo ADR-0017.
+- Mọi mốc thời gian gửi server dùng `CaptureClock` (elapsedRealtime, ms). Xem mục 4 của kế hoạch.
 - Màn camera và màn nháy màu **không có hiệu ứng trang trí**; chỉ chấm sáng, mũi tên quay đầu và thanh tiến độ được chuyển động.
 - Màu và cỡ chữ lấy từ `ui/theme`, không viết mã màu trong màn.
+- Ảnh CCCD và dữ liệu QR hiện chỉ nằm trên máy, không gửi đi (chưa có endpoint).
 - Phông Be Vietnam Pro (SIL OFL 1.1) đóng gói trong `res/font`, chạy offline. Giấy phép: `third_party/licenses/BeVietnamPro-OFL.txt`.
-- Chưa dùng lại code từ `AIVIETNAM-AIO-QP09/eKYC-system`; khi chép CameraX hay Keystore từ đó (APP-02, SEC-02) phải giữ dòng giấy phép MIT và ghi vào `third_party/README.md`.
+- Chưa dùng lại code từ `AIVIETNAM-AIO-QP09/eKYC-system`; khi chép Keystore từ đó (SEC-02) phải giữ dòng giấy phép MIT và ghi vào `third_party/README.md`.
