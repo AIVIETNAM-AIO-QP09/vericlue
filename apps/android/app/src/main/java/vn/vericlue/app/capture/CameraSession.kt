@@ -19,6 +19,9 @@ import androidx.camera.view.LifecycleCameraController
 import androidx.camera.view.video.AudioConfig
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
+import com.google.mlkit.vision.barcode.BarcodeScannerOptions
+import com.google.mlkit.vision.barcode.BarcodeScanning
+import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
@@ -45,6 +48,16 @@ class CameraSession(private val context: Context) {
             .setMinFaceSize(0.15f)
             .build(),
     )
+
+    private val qrScanner = BarcodeScanning.getClient(
+        BarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build(),
+    )
+    @Volatile private var backMode = false
+    private var idRequest: CompletableDeferred<Pair<ByteArray, IdQuality>>? = null
+    private val _qr = MutableStateFlow<String?>(null)
+
+    /** Last QR text seen by the rear camera (ID card back side). */
+    val qr: StateFlow<String?> = _qr
 
     private val _face = MutableStateFlow<FaceSignal?>(null)
     val face: StateFlow<FaceSignal?> = _face
@@ -81,6 +94,21 @@ class CameraSession(private val context: Context) {
         controller.setImageAnalysisAnalyzer(analysisExecutor, ::analyze)
         controller.bindToLifecycle(owner)
         bound = true
+    }
+
+    /** Rear camera for the ID card (APP-04), front camera for the face part. Main thread only. */
+    fun useBackCamera(back: Boolean) {
+        if (backMode == back) return
+        backMode = back
+        _qr.value = null
+        controller.cameraSelector = if (back) CameraSelector.DEFAULT_BACK_CAMERA else CameraSelector.DEFAULT_FRONT_CAMERA
+    }
+
+    /** Photo of the card plus local quality checks, from the next analysed rear-camera frame. */
+    suspend fun captureId(): Pair<ByteArray, IdQuality> {
+        val req = CompletableDeferred<Pair<ByteArray, IdQuality>>()
+        idRequest = req
+        return req.await()
     }
 
     fun unbind() {
@@ -162,6 +190,10 @@ class CameraSession(private val context: Context) {
             }
         }
         val rotation = proxy.imageInfo.rotationDegrees
+        if (backMode) {
+            analyzeIdFrame(proxy, media, rotation)
+            return
+        }
         val upright = rotation % 180 == 0
         val w = if (upright) proxy.width else proxy.height
         val h = if (upright) proxy.height else proxy.width
@@ -189,6 +221,26 @@ class CameraSession(private val context: Context) {
                     )
                 }
             }
+            .addOnCompleteListener { proxy.close() }
+    }
+
+    @androidx.annotation.OptIn(ExperimentalGetImage::class)
+    private fun analyzeIdFrame(proxy: ImageProxy, media: android.media.Image, rotation: Int) {
+        val request = idRequest
+        if (request != null) {
+            idRequest = null
+            val plane = proxy.planes[0]
+            val buf = plane.buffer.duplicate()
+            val luma = ByteArray(buf.remaining()).also { buf.get(it) }
+            val quality = IdQuality(
+                sharpness = ImageChecks.laplacianVariance(luma, proxy.width, proxy.height, plane.rowStride),
+                glareFraction = ImageChecks.glareFraction(luma, proxy.width, proxy.height, plane.rowStride),
+                qr = _qr.value,
+            )
+            request.complete(toJpeg(proxy, rotation) to quality)
+        }
+        qrScanner.process(InputImage.fromMediaImage(media, rotation))
+            .addOnSuccessListener { codes -> codes.firstNotNullOfOrNull { it.rawValue }?.let { _qr.value = it } }
             .addOnCompleteListener { proxy.close() }
     }
 

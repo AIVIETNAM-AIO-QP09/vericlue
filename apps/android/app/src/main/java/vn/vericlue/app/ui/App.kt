@@ -47,6 +47,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import vn.vericlue.app.BuildConfig
 import vn.vericlue.app.capture.CameraSession
+import vn.vericlue.app.capture.CccdInfo
+import vn.vericlue.app.capture.CccdQr
+import vn.vericlue.app.capture.IdQuality
+import vn.vericlue.app.ui.screens.idFields
 import vn.vericlue.app.capture.ColorSchedule
 import vn.vericlue.app.capture.QualityGate
 import vn.vericlue.app.capture.WavRecorder
@@ -141,6 +145,40 @@ fun VeriClueApp() {
         if (!hasCamera) nav.go(Routes.ErrorCamera)
     }
     val exit = { nav.go(Routes.ExitConfirm) }
+
+    // ID card photos and QR data stay on the phone: no API endpoint for them yet (FLOW-03).
+    var idFront by remember { mutableStateOf<Pair<ByteArray, IdQuality>?>(null) }
+    var idBack by remember { mutableStateOf<Pair<ByteArray, IdQuality>?>(null) }
+    var cccd by remember { mutableStateOf<CccdInfo?>(null) }
+
+    @Composable
+    fun IdCaptureRoute(back: Boolean, onCaptured: () -> Unit) {
+        LaunchedEffect(Unit) {
+            if (!hasCamera) askPermissions.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
+        }
+        LaunchedEffect(hasCamera) {
+            if (hasCamera) {
+                camera.bind(lifecycleOwner)
+                camera.useBackCamera(true)
+            }
+        }
+        IdCaptureScreen(back = back, glare = false, onBack = { nav.popBackStack() }, onCapture = {
+            if (!hasCamera) {
+                onCaptured()
+            } else {
+                scope.launch {
+                    val shot = withTimeoutOrNull(3000) { camera.captureId() }
+                    if (back) {
+                        idBack = shot
+                        cccd = CccdQr.parse(shot?.second?.qr)
+                    } else {
+                        idFront = shot
+                    }
+                    onCaptured()
+                }
+            }
+        })
+    }
 
     fun startFace() {
         flow.newChallenge()
@@ -253,20 +291,44 @@ fun VeriClueApp() {
         composable(Routes.OtpError) {
             OtpScreen(onBack = { nav.popBackStack() }, onVerified = { nav.go(FlowRules.afterOtp(flow.purpose)) }, startWithError = true)
         }
-        composable(Routes.IdFront) { IdCaptureScreen(back = false, glare = false, onBack = { nav.popBackStack() }, onCapture = { nav.go(Routes.IdFrontReview) }) }
+        composable(Routes.IdFront) { IdCaptureRoute(back = false) { nav.go(Routes.IdFrontReview) } }
         composable(Routes.IdFrontReview) {
-            IdReviewScreen(back = false, onBack = { nav.popBackStack() }, onRetake = { nav.popBackStack() }, onConfirm = { nav.go(Routes.IdBack) })
+            IdReviewScreen(
+                back = false,
+                onBack = { nav.popBackStack() },
+                onRetake = { nav.popBackStack() },
+                onConfirm = { nav.go(Routes.IdBack) },
+                photo = idFront?.first,
+                quality = idFront?.second,
+            )
         }
         composable(Routes.IdFrontGlare) { IdCaptureScreen(back = false, glare = true, onBack = { nav.popBackStack() }, onCapture = { nav.go(Routes.IdFront) }) }
-        composable(Routes.IdBack) { IdCaptureScreen(back = true, glare = false, onBack = { nav.popBackStack() }, onCapture = { nav.go(Routes.IdBackReview) }) }
+        composable(Routes.IdBack) { IdCaptureRoute(back = true) { nav.go(Routes.IdBackReview) } }
         composable(Routes.IdBackReview) {
-            IdReviewScreen(back = true, onBack = { nav.popBackStack() }, onRetake = { nav.popBackStack() }, onConfirm = { nav.go(Routes.Confirm) })
+            IdReviewScreen(
+                back = true,
+                onBack = { nav.popBackStack() },
+                onRetake = { nav.popBackStack() },
+                onConfirm = { nav.go(Routes.Confirm) },
+                photo = idBack?.first,
+                quality = idBack?.second,
+            )
         }
         composable(Routes.Confirm) {
-            ConfirmInfoScreen(onBack = { nav.popBackStack() }, onCorrect = { nav.go(Routes.FaceReady) }, onEdit = { nav.go(Routes.EditInfo) })
+            ConfirmInfoScreen(
+                onBack = { nav.popBackStack() },
+                onCorrect = { nav.go(Routes.FaceReady) },
+                onEdit = { nav.go(Routes.EditInfo) },
+                fields = idFields(cccd),
+            )
         }
         composable(Routes.EditInfo) {
-            EditInfoScreen(onBack = { nav.popBackStack() }, onSave = { nav.go(Routes.FaceReady) }, onRetake = { nav.go(Routes.IdFront) })
+            EditInfoScreen(
+                onBack = { nav.popBackStack() },
+                onSave = { nav.go(Routes.FaceReady) },
+                onRetake = { nav.go(Routes.IdFront) },
+                fields = idFields(cccd),
+            )
         }
 
         // Stage B: face
@@ -278,7 +340,12 @@ fun VeriClueApp() {
             LaunchedEffect(Unit) {
                 if (!hasCamera || !hasMic) askPermissions.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
             }
-            LaunchedEffect(hasCamera) { if (hasCamera) camera.bind(lifecycleOwner) }
+            LaunchedEffect(hasCamera) {
+                if (hasCamera) {
+                    camera.bind(lifecycleOwner)
+                    camera.useBackCamera(false)
+                }
+            }
             LaunchedEffect(flow.live) {
                 if (flow.live) live.ensureSession(flow.mockScenario)?.let { nav.go(errorRoute(it)) }
             }

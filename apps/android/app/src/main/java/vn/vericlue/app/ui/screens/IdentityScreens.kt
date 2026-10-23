@@ -51,10 +51,20 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import vn.vericlue.app.flow.OtpRules
+import vn.vericlue.app.capture.CccdInfo
+import vn.vericlue.app.capture.CccdQr
+import vn.vericlue.app.capture.IdQuality
+import vn.vericlue.app.ui.components.CameraFeed
+import vn.vericlue.app.ui.components.LocalCameraFeed
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import vn.vericlue.app.flow.PhoneRules
 import vn.vericlue.app.ui.components.Banner
 import vn.vericlue.app.ui.components.InfoRow
@@ -242,8 +252,8 @@ fun IdCaptureScreen(back: Boolean, glare: Boolean, onBack: () -> Unit, onCapture
                 }
                 Text(if (back) "Chụp mặt sau CCCD" else "Chụp mặt trước CCCD", style = VcType.titleLarge, color = c.ink)
                 Box(Modifier.fillMaxWidth().aspectRatio(1.586f).padding(4.dp)) {
-                    Box(Modifier.fillMaxSize().padding(10.dp)) {
-                        CardPlaceholder(back)
+                    Box(Modifier.fillMaxSize().padding(10.dp).clip(RoundedCornerShape(12.dp))) {
+                        if (LocalCameraFeed.current != null) CameraFeed() else CardPlaceholder(back)
                         if (glare) {
                             Canvas(Modifier.fillMaxSize()) {
                                 drawOval(
@@ -274,7 +284,8 @@ fun IdCaptureScreen(back: Boolean, glare: Boolean, onBack: () -> Unit, onCapture
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Box(
                         Modifier.size(72.dp).clip(CircleShape).border(4.dp, Color.White, CircleShape).padding(8.dp)
-                            .clip(CircleShape).background(Color.White).clickable(role = Role.Button, onClick = onCapture),
+                            .clip(CircleShape).background(Color.White).clickable(role = Role.Button, onClick = onCapture)
+                            .semantics { contentDescription = "Chụp ảnh" },
                     )
                 }
             }
@@ -288,7 +299,14 @@ fun IdCaptureScreen(back: Boolean, glare: Boolean, onBack: () -> Unit, onCapture
  * The three rows are quality checks only (ADR-0017 §1), never a verdict on the card.
  */
 @Composable
-fun IdReviewScreen(back: Boolean, onBack: () -> Unit, onRetake: () -> Unit, onConfirm: () -> Unit) {
+fun IdReviewScreen(
+    back: Boolean,
+    onBack: () -> Unit,
+    onRetake: () -> Unit,
+    onConfirm: () -> Unit,
+    photo: ByteArray? = null,
+    quality: IdQuality? = null,
+) {
     VcTheme(dark = true) {
         val c = Vc.colors
         SystemBarIcons(c.background)
@@ -308,12 +326,23 @@ fun IdReviewScreen(back: Boolean, onBack: () -> Unit, onRetake: () -> Unit, onCo
                 Box(
                     Modifier.fillMaxWidth().aspectRatio(1.586f).clip(RoundedCornerShape(16.dp))
                         .border(2.dp, c.ok, RoundedCornerShape(16.dp)).padding(8.dp),
-                ) { CardPlaceholder(back) }
+                ) {
+                    val bitmap = remember(photo) {
+                        photo?.let { android.graphics.BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }
+                    }
+                    if (bitmap != null) {
+                        Image(bitmap, contentDescription = "Ảnh thẻ vừa chụp", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(10.dp)))
+                    } else {
+                        CardPlaceholder(back)
+                    }
+                }
+                val checks = idChecks(back, quality)
                 ChecklistCard(
                     title = "Kiểm tra chất lượng ảnh",
-                    rows = listOf("Thấy đủ 4 góc thẻ", "Ảnh rõ nét, không mờ", "Không bị lóa").map { Triple(null, it, RowState.Done) },
-                    trailing = listOf("Ổn", "Ổn", "Ổn"),
+                    rows = checks.map { (label, ok) -> Triple(null, label, if (ok) RowState.Done else RowState.Waiting) },
+                    trailing = checks.map { (_, ok) -> if (ok) "Ổn" else "Chưa ổn" },
                 )
+                idRetakeHint(back, quality)?.let { Banner(it, tone = Tone.Warn) }
             }
             Column(
                 Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 16.dp),
@@ -327,6 +356,33 @@ fun IdReviewScreen(back: Boolean, onBack: () -> Unit, onRetake: () -> Unit, onCo
     }
 }
 
+/** Quality rows for the review screen. Without a real photo (demo) every row passes. */
+private fun idChecks(back: Boolean, q: IdQuality?): List<Pair<String, Boolean>> = buildList {
+    add("Ảnh rõ nét, không mờ" to (q?.sharp ?: true))
+    add("Không bị lóa" to (q?.noGlare ?: true))
+    if (back) add("Đọc được mã QR" to (q == null || CccdQr.parse(q.qr) != null))
+}
+
+/** One quality hint for the first failed check (ADR-0017 §1: specific, with how to fix it). */
+fun idRetakeHint(back: Boolean, q: IdQuality?): String? = when {
+    q == null -> null
+    !q.sharp -> "Ảnh bị mờ, hãy giữ máy chắc tay rồi chụp lại."
+    !q.noGlare -> "Thẻ bị lóa, hãy nghiêng nhẹ thẻ rồi chụp lại."
+    back && CccdQr.parse(q.qr) == null -> "Chưa đọc được mã QR, hãy đưa mặt sau thẻ lại gần hơn rồi chụp lại."
+    else -> null
+}
+
+/** Rows shown on the confirm screen: from the QR code when read, otherwise the sample data. */
+fun idFields(info: CccdInfo?): List<Pair<String, String>> = info?.let {
+    listOf(
+        "Họ và tên" to it.fullName.uppercase(),
+        "Số CCCD" to CccdQr.groupId(it.idNumber),
+        "Ngày sinh" to it.dateOfBirth,
+        "Giới tính" to it.gender,
+        "Nơi thường trú" to it.address,
+    )
+} ?: sampleIdFields
+
 // ── Confirm / edit ID information ─────────────────────────────────────────────
 
 /** Sample data only (shown as such); real values come from the QR code (FLOW-03). */
@@ -339,7 +395,7 @@ val sampleIdFields = listOf(
 )
 
 @Composable
-fun ConfirmInfoScreen(onBack: () -> Unit, onCorrect: () -> Unit, onEdit: () -> Unit) {
+fun ConfirmInfoScreen(onBack: () -> Unit, onCorrect: () -> Unit, onEdit: () -> Unit, fields: List<Pair<String, String>> = sampleIdFields) {
     val c = Vc.colors
     VcScreen(
         onBack = onBack,
@@ -355,13 +411,15 @@ fun ConfirmInfoScreen(onBack: () -> Unit, onCorrect: () -> Unit, onEdit: () -> U
                 .border(1.dp, c.border, RoundedCornerShape(16.dp)).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text(
-                "Dữ liệu mẫu",
-                style = VcType.labelXs,
-                color = c.warn,
-                modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(c.warnBg).padding(horizontal = 8.dp, vertical = 3.dp),
-            )
-            sampleIdFields.forEach { (k, v) ->
+            if (fields === sampleIdFields) {
+                Text(
+                    "Dữ liệu mẫu",
+                    style = VcType.labelXs,
+                    color = c.warn,
+                    modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(c.warnBg).padding(horizontal = 8.dp, vertical = 3.dp),
+                )
+            }
+            fields.forEach { (k, v) ->
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(k, style = VcType.footnote, color = c.muted)
                     Text(v, style = VcType.bodyStrong, color = c.ink)
@@ -372,9 +430,9 @@ fun ConfirmInfoScreen(onBack: () -> Unit, onCorrect: () -> Unit, onEdit: () -> U
 }
 
 @Composable
-fun EditInfoScreen(onBack: () -> Unit, onSave: () -> Unit, onRetake: () -> Unit) {
+fun EditInfoScreen(onBack: () -> Unit, onSave: () -> Unit, onRetake: () -> Unit, fields: List<Pair<String, String>> = sampleIdFields) {
     val c = Vc.colors
-    val values = remember { sampleIdFields.map { mutableStateOf(it.second) } }
+    val values = remember(fields) { fields.map { mutableStateOf(it.second) } }
     VcScreen(
         onBack = onBack,
         step = 1,
@@ -385,7 +443,7 @@ fun EditInfoScreen(onBack: () -> Unit, onSave: () -> Unit, onRetake: () -> Unit)
     ) {
         TitleBlock("Chỉnh sửa thông tin", "Số CCCD được khóa theo mã QR. Nếu mã QR đọc chưa chuẩn, hãy chụp lại thẻ.")
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            sampleIdFields.forEachIndexed { i, (label, _) ->
+            fields.forEachIndexed { i, (label, _) ->
                 val locked = i == 1
                 OutlinedTextField(
                     value = values[i].value,
