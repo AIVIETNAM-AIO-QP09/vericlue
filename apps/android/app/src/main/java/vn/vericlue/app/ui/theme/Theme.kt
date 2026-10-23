@@ -15,6 +15,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.unit.sp
 import vn.vericlue.app.R
 
@@ -138,8 +139,9 @@ object VcType {
         lineHeight = (size * lineHeight).sp,
     )
 
-    val titleLarge = style(FontWeight.Bold, 26, 1.3f)
-    val titleMedium = style(FontWeight.Bold, 22, 1.3f)
+    // Headings balance their lines so a single word is not left alone on the last line.
+    val titleLarge = style(FontWeight.Bold, 26, 1.3f).copy(lineBreak = LineBreak.Heading)
+    val titleMedium = style(FontWeight.Bold, 22, 1.3f).copy(lineBreak = LineBreak.Heading)
     val section = style(FontWeight.SemiBold, 16, 1.4f)
     val body = style(FontWeight.Normal, 15, 1.5f)
     val bodyStrong = style(FontWeight.SemiBold, 15, 1.5f)

@@ -17,6 +17,11 @@
 - Bản debug có màn "Xem tất cả màn" để mở thẳng từng màn và chọn kết quả mô phỏng.
 - Test JVM: luật luồng, OTP, số điện thoại, cổng điều khoản; `CitizenCopyTest` chặn chữ cấm trong mọi chuỗi (`giả mạo`, `deepfake`, `%`, `điểm số`…).
 - Paparazzi chụp 48 ảnh màn trên máy tính, không cần giả lập (ảnh không commit).
+- Sửa theo góp ý của Quang khi bấm thử trên máy ảo:
+  - Nút "Đồng ý và tiếp tục" ở màn điều khoản trước đây không bật sau khi tích ô, phải kéo lại mới bật. Đã sửa: trạng thái gom vào một `Agreement` bất biến; đã kiểm lại trên máy ảo.
+  - Làm lại màn đồng ý từng mục: tiêu đề ngắn một dòng; mỗi mục có icon, nhãn "Bắt buộc"/"Tùy chọn", câu mô tả viết hoa đầu câu; thêm "Chọn tất cả" và thẻ "Bạn luôn có quyền thay đổi".
+  - Thêm màn xem lại ảnh sau khi chụp mỗi mặt CCCD (`IdReviewScreen`, kiểm chất lượng: đủ 4 góc, rõ nét, không lóa) với nút "Chụp lại".
+  - Tiêu đề dùng `LineBreak.Heading` để không rớt một chữ lẻ xuống dòng cuối.
 
 ## Đang dở
 - Chưa gọi API, chưa có HTTPS (phần còn lại của APP-01).

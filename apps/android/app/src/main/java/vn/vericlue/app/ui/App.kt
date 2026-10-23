@@ -43,6 +43,7 @@ import vn.vericlue.app.ui.screens.FaceReadyScreen
 import vn.vericlue.app.ui.screens.FramingScreen
 import vn.vericlue.app.ui.screens.HoldStillScreen
 import vn.vericlue.app.ui.screens.IdCaptureScreen
+import vn.vericlue.app.ui.screens.IdReviewScreen
 import vn.vericlue.app.ui.screens.IntroScreen
 import vn.vericlue.app.ui.screens.Messages
 import vn.vericlue.app.ui.screens.OtpScreen
@@ -130,9 +131,15 @@ fun VeriClueApp() {
         composable(Routes.OtpError) {
             OtpScreen(onBack = { nav.popBackStack() }, onVerified = { nav.go(FlowRules.afterOtp(flow.purpose)) }, startWithError = true)
         }
-        composable(Routes.IdFront) { IdCaptureScreen(back = false, glare = false, onBack = { nav.popBackStack() }, onCapture = { nav.go(Routes.IdBack) }) }
+        composable(Routes.IdFront) { IdCaptureScreen(back = false, glare = false, onBack = { nav.popBackStack() }, onCapture = { nav.go(Routes.IdFrontReview) }) }
+        composable(Routes.IdFrontReview) {
+            IdReviewScreen(back = false, onBack = { nav.popBackStack() }, onRetake = { nav.popBackStack() }, onConfirm = { nav.go(Routes.IdBack) })
+        }
         composable(Routes.IdFrontGlare) { IdCaptureScreen(back = false, glare = true, onBack = { nav.popBackStack() }, onCapture = { nav.go(Routes.IdFront) }) }
-        composable(Routes.IdBack) { IdCaptureScreen(back = true, glare = false, onBack = { nav.popBackStack() }, onCapture = { nav.go(Routes.Confirm) }) }
+        composable(Routes.IdBack) { IdCaptureScreen(back = true, glare = false, onBack = { nav.popBackStack() }, onCapture = { nav.go(Routes.IdBackReview) }) }
+        composable(Routes.IdBackReview) {
+            IdReviewScreen(back = true, onBack = { nav.popBackStack() }, onRetake = { nav.popBackStack() }, onConfirm = { nav.go(Routes.Confirm) })
+        }
         composable(Routes.Confirm) {
             ConfirmInfoScreen(onBack = { nav.popBackStack() }, onCorrect = { nav.go(Routes.FaceReady) }, onEdit = { nav.go(Routes.EditInfo) })
         }
@@ -206,7 +213,8 @@ private fun GalleryScreen(nav: NavHostController, flow: FlowState) {
         "Danh tính" to listOf(
             "Giới thiệu" to Routes.Intro, "Quyền camera, micro" to Routes.Permission, "Số điện thoại" to Routes.Phone,
             "OTP" to Routes.Otp, "OTP nhập sai" to Routes.OtpError, "CCCD mặt trước" to Routes.IdFront,
-            "CCCD bị lóa" to Routes.IdFrontGlare, "CCCD mặt sau" to Routes.IdBack, "Kiểm tra thông tin" to Routes.Confirm,
+            "CCCD bị lóa" to Routes.IdFrontGlare, "Xem lại ảnh mặt trước" to Routes.IdFrontReview,
+            "CCCD mặt sau" to Routes.IdBack, "Xem lại ảnh mặt sau" to Routes.IdBackReview, "Kiểm tra thông tin" to Routes.Confirm,
             "Sửa thông tin" to Routes.EditInfo,
         ),
         "Khuôn mặt" to listOf("Chuẩn bị" to Routes.FaceReady, "Căn mặt" to Routes.Framing, "Giữ yên + nháy màu + chấm sáng" to Routes.HoldStill, "Quay đầu" to Routes.TurnHead),

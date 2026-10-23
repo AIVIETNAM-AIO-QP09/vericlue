@@ -39,7 +39,9 @@ object Routes {
     const val OtpError = "otp_error"
     const val IdFront = "id_front"
     const val IdFrontGlare = "id_front_glare"
+    const val IdFrontReview = "id_front_review"
     const val IdBack = "id_back"
+    const val IdBackReview = "id_back_review"
     const val Confirm = "confirm"
     const val EditInfo = "edit_info"
 
@@ -91,7 +93,8 @@ object FlowRules {
 
     fun stepOf(route: String): Int? = when (route) {
         Routes.Intro, Routes.Permission, Routes.Phone, Routes.Otp, Routes.OtpError,
-        Routes.IdFront, Routes.IdFrontGlare, Routes.IdBack, Routes.Confirm, Routes.EditInfo -> 1
+        Routes.IdFront, Routes.IdFrontGlare, Routes.IdFrontReview, Routes.IdBack, Routes.IdBackReview,
+        Routes.Confirm, Routes.EditInfo -> 1
         Routes.FaceReady, Routes.Framing, Routes.HoldStill, Routes.TurnHead,
         Routes.RetryQuality, Routes.RetryChallenge -> 2
         Routes.Voice, Routes.VoiceAgain -> 3
@@ -125,20 +128,14 @@ object OtpRules {
     fun isComplete(code: String): Boolean = code.length == LENGTH
 }
 
-/** Terms must be scrolled to the end before the box can be ticked. */
-class AgreementGate {
-    var readToEnd: Boolean = false
-        private set
-    var accepted: Boolean = false
-        private set
+/**
+ * Terms must be scrolled to the end before the box can be ticked. Immutable so it can sit in
+ * a single Compose state: every change recomposes the button too.
+ */
+data class Agreement(val readToEnd: Boolean = false, val accepted: Boolean = false) {
+    fun reachedEnd(): Agreement = copy(readToEnd = true)
 
-    fun reachedEnd() {
-        readToEnd = true
-    }
-
-    fun toggle() {
-        if (readToEnd) accepted = !accepted
-    }
+    fun toggle(): Agreement = if (readToEnd) copy(accepted = !accepted) else this
 
     val canContinue: Boolean get() = readToEnd && accepted
 }

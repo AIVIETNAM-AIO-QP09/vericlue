@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import vn.vericlue.app.flow.AgreementGate
+import vn.vericlue.app.flow.Agreement
 import vn.vericlue.app.flow.DemoOutcome
 import vn.vericlue.app.flow.FlowRules
 import vn.vericlue.app.flow.OtpRules
@@ -55,14 +55,11 @@ class FlowRulesTest {
 
     @Test
     fun termsCannotBeAcceptedBeforeReadingToTheEnd() {
-        val gate = AgreementGate()
-        gate.toggle()
-        assertFalse(gate.accepted)
-        assertFalse(gate.canContinue)
-        gate.reachedEnd()
-        gate.toggle()
-        assertTrue(gate.canContinue)
-        gate.toggle()
-        assertFalse(gate.canContinue)
+        var a = Agreement().toggle()
+        assertFalse(a.accepted)
+        assertFalse(a.canContinue)
+        a = a.reachedEnd().toggle()
+        assertTrue(a.canContinue)
+        assertFalse(a.toggle().canContinue)
     }
 }

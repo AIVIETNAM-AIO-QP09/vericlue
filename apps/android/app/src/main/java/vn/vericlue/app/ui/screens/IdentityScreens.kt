@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Badge
@@ -60,6 +62,9 @@ import vn.vericlue.app.ui.components.LinkButton
 import vn.vericlue.app.ui.components.NumericKeypad
 import vn.vericlue.app.ui.components.OtpBoxes
 import vn.vericlue.app.ui.components.PrimaryButton
+import vn.vericlue.app.ui.components.ChecklistCard
+import vn.vericlue.app.ui.components.RowState
+import vn.vericlue.app.ui.components.SecondaryButton
 import vn.vericlue.app.ui.components.StepProgress
 import vn.vericlue.app.ui.components.SystemBarIcons
 import vn.vericlue.app.ui.components.TitleBlock
@@ -272,6 +277,50 @@ fun IdCaptureScreen(back: Boolean, glare: Boolean, onBack: () -> Unit, onCapture
                             .clip(CircleShape).background(Color.White).clickable(role = Role.Button, onClick = onCapture),
                     )
                 }
+            }
+            Spacer(Modifier.navigationBarsPadding())
+        }
+    }
+}
+
+/**
+ * Shown right after each ID photo: the user checks the photo is sharp before moving on.
+ * The three rows are quality checks only (ADR-0017 §1), never a verdict on the card.
+ */
+@Composable
+fun IdReviewScreen(back: Boolean, onBack: () -> Unit, onRetake: () -> Unit, onConfirm: () -> Unit) {
+    VcTheme(dark = true) {
+        val c = Vc.colors
+        SystemBarIcons(c.background)
+        Column(Modifier.fillMaxSize().background(c.background).statusBarsPadding()) {
+            TopBar(onBack)
+            StepProgress(1, stepLabel(1))
+            Column(
+                Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Text(if (back) "Kiểm tra ảnh mặt sau" else "Kiểm tra ảnh mặt trước", style = VcType.titleLarge, color = c.ink)
+                Text(
+                    "Xem lại ảnh trước khi gửi: chữ và ảnh trên thẻ phải rõ, không mờ, không lóa.",
+                    style = VcType.body,
+                    color = c.muted,
+                )
+                Box(
+                    Modifier.fillMaxWidth().aspectRatio(1.586f).clip(RoundedCornerShape(16.dp))
+                        .border(2.dp, c.ok, RoundedCornerShape(16.dp)).padding(8.dp),
+                ) { CardPlaceholder(back) }
+                ChecklistCard(
+                    title = "Kiểm tra chất lượng ảnh",
+                    rows = listOf("Thấy đủ 4 góc thẻ", "Ảnh rõ nét, không mờ", "Không bị lóa").map { Triple(null, it, RowState.Done) },
+                    trailing = listOf("Ổn", "Ổn", "Ổn"),
+                )
+            }
+            Column(
+                Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                PrimaryButton(if (back) "Ảnh rõ, tiếp tục" else "Ảnh rõ, chụp mặt sau", onConfirm)
+                SecondaryButton("Chụp lại", onRetake)
             }
             Spacer(Modifier.navigationBarsPadding())
         }

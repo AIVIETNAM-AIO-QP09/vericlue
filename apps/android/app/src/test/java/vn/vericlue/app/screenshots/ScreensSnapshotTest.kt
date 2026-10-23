@@ -19,6 +19,7 @@ import vn.vericlue.app.ui.screens.FramingScreen
 import vn.vericlue.app.ui.screens.FramingState
 import vn.vericlue.app.ui.screens.HoldStillScreen
 import vn.vericlue.app.ui.screens.IdCaptureScreen
+import vn.vericlue.app.ui.screens.IdReviewScreen
 import vn.vericlue.app.ui.screens.IntroScreen
 import vn.vericlue.app.ui.screens.Messages
 import vn.vericlue.app.ui.screens.OtpScreen
@@ -63,6 +64,7 @@ class ScreensSnapshotTest {
         shot("13_otp_error") { OtpScreen(n, n, startWithError = true) }
         shot("14_id_front") { IdCaptureScreen(back = false, glare = false, onBack = n, onCapture = n) }
         shot("14_id_glare") { IdCaptureScreen(back = false, glare = true, onBack = n, onCapture = n) }
+        shot("14_id_review") { IdReviewScreen(back = false, onBack = n, onRetake = n, onConfirm = n) }
         shot("15_id_back") { IdCaptureScreen(back = true, glare = false, onBack = n, onCapture = n) }
         shot("16_confirm") { ConfirmInfoScreen(n, n, n) }
         shot("16_confirm_dark", dark = true) { ConfirmInfoScreen(n, n, n) }

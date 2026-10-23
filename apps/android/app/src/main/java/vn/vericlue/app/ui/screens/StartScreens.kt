@@ -41,6 +41,7 @@ import androidx.compose.material.icons.outlined.Badge
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Face
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.Checkbox
@@ -76,7 +77,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import vn.vericlue.app.BuildConfig
 import vn.vericlue.app.R
-import vn.vericlue.app.flow.AgreementGate
+import vn.vericlue.app.flow.Agreement
 import vn.vericlue.app.ui.components.ChecklistCard
 import vn.vericlue.app.ui.components.LinkButton
 import vn.vericlue.app.ui.components.PrimaryButton
@@ -305,14 +306,13 @@ private val termsSections = listOf(
 fun TermsScreen(onBack: () -> Unit, onAccept: () -> Unit) {
     val c = Vc.colors
     val scroll = rememberScrollState()
-    val gate = remember { AgreementGate() }
-    var accepted by remember { mutableStateOf(false) }
-    var readToEnd by remember { mutableStateOf(false) }
+    var agreement by remember { mutableStateOf(Agreement()) }
+    val readToEnd = agreement.readToEnd
+    val accepted = agreement.accepted
     val atEnd by remember { derivedStateOf { scroll.maxValue > 0 && scroll.value >= scroll.maxValue - 8 } }
     LaunchedEffect(atEnd) {
         if (atEnd) {
-            gate.reachedEnd()
-            readToEnd = true
+            agreement = agreement.reachedEnd()
         }
     }
     val fraction by animateFloatAsState(
@@ -322,7 +322,7 @@ fun TermsScreen(onBack: () -> Unit, onAccept: () -> Unit) {
 
     VcScreen(
         onBack = onBack,
-        actions = { PrimaryButton("Đồng ý và tiếp tục", onAccept, enabled = gate.canContinue && accepted) },
+        actions = { PrimaryButton("Đồng ý và tiếp tục", onAccept, enabled = agreement.canContinue) },
     ) {
         TitleBlock("Điều khoản sử dụng", "Đọc hết nội dung bên dưới để đồng ý và tiếp tục.")
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -389,17 +389,13 @@ fun TermsScreen(onBack: () -> Unit, onAccept: () -> Unit) {
             }
             Row(
                 Modifier.fillMaxWidth().clickable(enabled = readToEnd, role = Role.Checkbox) {
-                    gate.toggle()
-                    accepted = gate.accepted
+                    agreement = agreement.toggle()
                 },
                 verticalAlignment = Alignment.Top,
             ) {
                 Checkbox(
                     checked = accepted,
-                    onCheckedChange = {
-                        gate.toggle()
-                        accepted = gate.accepted
-                    },
+                    onCheckedChange = { agreement = agreement.toggle() },
                     enabled = readToEnd,
                     colors = CheckboxDefaults.colors(checkedColor = c.primary),
                 )
@@ -426,55 +422,93 @@ fun TermsScreen(onBack: () -> Unit, onAccept: () -> Unit) {
 
 // ── Per-item consent ──────────────────────────────────────────────────────────
 
-private data class ConsentItem(val title: String, val tag: String, val detail: String, val required: Boolean)
+private data class ConsentItem(val icon: ImageVector, val title: String, val detail: String, val required: Boolean)
 
 private val consentItems = listOf(
     ConsentItem(
-        "Xử lý khuôn mặt và giọng nói", "bắt buộc",
-        "để xác minh bạn là người thật, đúng chủ CCCD. Tự xóa sau 24 giờ nếu thành công, hoặc sau 30 ngày nếu cần xem xét.", true,
+        Icons.Outlined.Face, "Xử lý khuôn mặt và giọng nói",
+        "Để xác minh bạn là người thật và đúng chủ CCCD. Tự xóa sau 24 giờ nếu thành công, hoặc sau 30 ngày nếu cần xem xét.",
+        true,
     ),
-    ConsentItem("Lưu mẫu khuôn mặt (đã mã hóa)", "tùy chọn", "để lần sau xác thực nhanh hơn.", false),
-    ConsentItem("Lưu thông tin CCCD", "tùy chọn", "để mở và quản lý tài khoản.", false),
+    ConsentItem(Icons.Outlined.Lock, "Lưu mẫu khuôn mặt đã mã hóa", "Để lần sau xác thực nhanh hơn.", false),
+    ConsentItem(Icons.Outlined.Badge, "Lưu thông tin CCCD", "Để mở và quản lý tài khoản.", false),
 )
+
+@Composable
+private fun ConsentTag(required: Boolean) {
+    val c = Vc.colors
+    Text(
+        if (required) "Bắt buộc" else "Tùy chọn",
+        style = VcType.labelXs,
+        color = if (required) c.accent else c.muted,
+        modifier = Modifier.clip(RoundedCornerShape(6.dp))
+            .background(if (required) c.surfaceInfo else c.background)
+            .border(1.dp, if (required) c.surfaceInfo else c.border, RoundedCornerShape(6.dp))
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+    )
+}
 
 @Composable
 fun ConsentScreen(onBack: () -> Unit, onContinue: () -> Unit) {
     val c = Vc.colors
     var checked by remember { mutableStateOf(setOf<Int>()) }
     val requiredOk = consentItems.withIndex().filter { it.value.required }.all { it.index in checked }
+    val allOn = checked.size == consentItems.size
     VcScreen(
         onBack = onBack,
         actions = { PrimaryButton("Đồng ý và tiếp tục", onContinue, enabled = requiredOk) },
     ) {
-        TitleBlock("Bạn đồng ý cho chúng tôi xử lý", "Mỗi mục đồng ý riêng. Dữ liệu của bạn không dùng để huấn luyện AI.")
+        TitleBlock("Đồng ý xử lý dữ liệu", "Bạn chọn từng mục. Dữ liệu của bạn không được dùng để huấn luyện AI.")
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                Modifier.fillMaxWidth().clickable(role = Role.Checkbox) {
+                    checked = if (allOn) emptySet() else consentItems.indices.toSet()
+                },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("${checked.size}/${consentItems.size} mục đã chọn", style = VcType.caption, color = c.muted, modifier = Modifier.weight(1f))
+                Text(if (allOn) "Bỏ chọn tất cả" else "Chọn tất cả", style = VcType.label, color = c.accent)
+            }
             consentItems.forEachIndexed { i, item ->
                 val on = i in checked
                 Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                        .background(c.surfaceSubtle)
-                        .border(if (on) 1.5.dp else 1.dp, if (on) c.accent else c.border, RoundedCornerShape(14.dp))
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                        .background(if (on) c.surfaceInfo else c.surfaceSubtle)
+                        .border(if (on) 1.5.dp else 1.dp, if (on) c.accent else c.border, RoundedCornerShape(16.dp))
                         .clickable(role = Role.Checkbox) { checked = if (on) checked - i else checked + i }
-                        .padding(end = 14.dp, top = 4.dp, bottom = 12.dp),
-                    verticalAlignment = Alignment.Top,
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
+                    Box(
+                        Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(c.surface),
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(item.icon, contentDescription = null, tint = c.accent, modifier = Modifier.size(22.dp)) }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        ConsentTag(item.required)
+                        Text(item.title, style = VcType.bodyStrong, color = c.ink)
+                        Text(item.detail, style = VcType.caption, color = c.muted)
+                    }
                     Checkbox(
                         checked = on,
                         onCheckedChange = { checked = if (on) checked - i else checked + i },
                         colors = CheckboxDefaults.colors(checkedColor = c.primary),
+                        modifier = Modifier.size(24.dp),
                     )
-                    Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(
-                            buildAnnotatedString {
-                                withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = c.ink)) { append(item.title) }
-                                append(" · ${item.tag}")
-                            },
-                            style = VcType.caption,
-                            color = c.muted,
-                        )
-                        Text(item.detail, style = VcType.caption, color = c.muted)
-                    }
                 }
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.surfaceSubtle).padding(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(Icons.Outlined.Shield, contentDescription = null, tint = c.ok, modifier = Modifier.size(20.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Bạn luôn có quyền thay đổi", style = VcType.labelSmall, color = c.ink)
+                Text(
+                    "Rút lại đồng ý hoặc yêu cầu xóa dữ liệu bất cứ lúc nào trong phần Cài đặt › Quyền riêng tư của ứng dụng ngân hàng.",
+                    style = VcType.caption,
+                    color = c.muted,
+                )
             }
         }
     }
