@@ -8,6 +8,8 @@ Bản hiện tại là **phần giao diện** của APP-01: đủ các màn theo
 
 **Chưa có:** camera thật (CameraX), ghi âm, gọi API, HTTPS, Keystore. Các phần này làm ở APP-01 (API), APP-02 (camera), APP-03 (ghi âm), APP-04 (OTP, CCCD), SEC-02 (Keystore).
 
+**Kế hoạch gắn camera, micro, API:** [`docs/plan-camera-mic.md`](docs/plan-camera-mic.md) (giai đoạn, thư viện, đồng hồ thời gian, câu hỏi cần chốt).
+
 | Chỗ giả | Thay bằng |
 |---|---|
 | `FakeCameraFeed` (hình bóng người vẽ bằng Canvas) | Preview CameraX (APP-02) |
