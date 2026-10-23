@@ -49,6 +49,18 @@ class LiveFlow(private val api: SessionApi) {
         pendingWav = null
     }
 
+    /**
+     * Drops everything captured in the current face attempt. Stage A data would be kept, but the
+     * API cannot issue a fresh challenge on its own yet (LIVE-06), so a live run starts a new session.
+     */
+    fun dropFaceAttempt() {
+        frontalJpeg = null
+        colorEvents.clear()
+        pendingWav = null
+        session = null
+        challenge = null
+    }
+
     suspend fun ensureSession(mockScenario: String?): ApiError? {
         if (session != null) return null
         return when (val r = api.createSession(mockScenario)) {

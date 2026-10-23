@@ -32,6 +32,10 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.rememberCoroutineScope
@@ -183,6 +187,23 @@ fun VeriClueApp() {
                 }
             },
         )
+    }
+
+    // ADR-0017 §2: going to the background while the camera or mic runs interrupts the attempt.
+    val backStack by nav.currentBackStackEntryAsState()
+    val currentRoute = backStack?.destination?.route
+    DisposableEffect(lifecycleOwner, currentRoute) {
+        val observer = LifecycleEventObserver { _, event ->
+            // Act on ON_STOP itself: the activity may be recreated before it starts again.
+            if (event == Lifecycle.Event.ON_STOP && FlowRules.isInterruptedBy(currentRoute)) {
+                camera.stopRecording()
+                recorder.stop()
+                live.dropFaceAttempt()
+                nav.navigate(Routes.Interrupted) { launchSingleTop = true }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     val cameraFeed: (@Composable (Modifier) -> Unit)? =
@@ -380,7 +401,15 @@ fun VeriClueApp() {
         composable(Routes.UploadFailed) { Messages.UploadFailed(onResend = { nav.go(Routes.Uploading) }, onStop = exit) }
         composable(Routes.Slow) { Messages.Slow(onWait = { nav.go(Routes.Checking) }, onStop = exit) }
         composable(Routes.ExitConfirm) {
-            Messages.ExitConfirm(onResume = { nav.go(Routes.FaceReady) }, onStop = { nav.go(Routes.Stopped) })
+            Messages.ExitConfirm(
+                onResume = {
+                    camera.stopRecording()
+                    recorder.stop()
+                    live.dropFaceAttempt()
+                    nav.go(Routes.FaceReady)
+                },
+                onStop = { nav.go(Routes.Stopped) },
+            )
         }
         composable(Routes.Stopped) { Messages.Stopped(onBank = { leave() }) }
     }

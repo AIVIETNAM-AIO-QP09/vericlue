@@ -118,6 +118,14 @@ object FlowRules {
         else -> "Hãy ra chỗ sáng hơn và giữ điện thoại ngang tầm mặt."
     }
 
+    /**
+     * Screens where the front camera (or mic) is running. Leaving the app here interrupts the
+     * attempt: its face data is dropped and the face part restarts (ADR-0017 §2).
+     */
+    val capturingRoutes = setOf(Routes.Framing, Routes.HoldStill, Routes.TurnHead, Routes.Voice, Routes.VoiceAgain)
+
+    fun isInterruptedBy(route: String?): Boolean = route in capturingRoutes
+
     fun stepOf(route: String): Int? = when (route) {
         Routes.Intro, Routes.Permission, Routes.Phone, Routes.Otp, Routes.OtpError,
         Routes.IdFront, Routes.IdFrontGlare, Routes.IdFrontReview, Routes.IdBack, Routes.IdBackReview,
