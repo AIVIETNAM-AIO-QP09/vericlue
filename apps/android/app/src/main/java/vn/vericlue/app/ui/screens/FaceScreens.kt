@@ -246,6 +246,7 @@ fun HoldStillScreen(
     onColorsStart: () -> Unit = {},
     onPainted: (ColorSlot, Double) -> Unit = { _, _ -> },
     onColorsDone: () -> Unit = {},
+    onBaselineDone: () -> Unit = {},
 ) {
     val frozen = when {
         startPhase == 0 -> 0
@@ -263,6 +264,7 @@ fun HoldStillScreen(
             slot = i
             withFrameNanos { t -> onPainted(slots[i], CaptureClock.frameNanosToMs(t)) }
             delay(slots[i].durationMs.toLong())
+            if (i == 0) onBaselineDone()
         }
         onColorsDone()
         slot = -1

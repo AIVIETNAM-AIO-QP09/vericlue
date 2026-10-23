@@ -125,6 +125,26 @@ class CameraSession(private val context: Context) {
         return req.await()
     }
 
+    @Volatile private var aeAwbLocked = false
+
+    /**
+     * Locks auto-exposure and auto white balance so the camera does not cancel out the colour
+     * reflected on the skin (ADR-0016 layer 1). Call after the grey baseline; unlock afterwards.
+     * Some devices ignore the request; client_quality reports what was asked.
+     */
+    @androidx.annotation.OptIn(ExperimentalCamera2Interop::class)
+    fun lockAeAwb(lock: Boolean) {
+        val control = controller.cameraControl ?: return
+        runCatching {
+            androidx.camera.camera2.interop.Camera2CameraControl.from(control).captureRequestOptions =
+                androidx.camera.camera2.interop.CaptureRequestOptions.Builder()
+                    .setCaptureRequestOption(android.hardware.camera2.CaptureRequest.CONTROL_AE_LOCK, lock)
+                    .setCaptureRequestOption(android.hardware.camera2.CaptureRequest.CONTROL_AWB_LOCK, lock)
+                    .build()
+            aeAwbLocked = lock || aeAwbLocked
+        }
+    }
+
     /** Starts the MP4 recording that the server receives as `video` in /media. Audio off. */
     @SuppressLint("MissingPermission")
     fun startRecording() {
@@ -167,7 +187,7 @@ class CameraSession(private val context: Context) {
             "clock" to "elapsedRealtime",
             "timestamp_source" to source,
             "analysis_fps" to (Math.round(fps * 10) / 10.0).toString(),
-            "ae_awb_locked" to "false",
+            "ae_awb_lock_requested" to aeAwbLocked.toString(),
             "video" to if (recordedVideo() != null) "mp4" else "missing",
             "frames_recorded" to frameTimes().size.toString(),
         )

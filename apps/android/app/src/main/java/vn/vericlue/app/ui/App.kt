@@ -388,7 +388,11 @@ fun VeriClueApp() {
                     if (hasCamera) camera.startRecording()
                 },
                 onPainted = { slot, t -> slot.index?.let { live.colorEvents += ColorEvent(it, slot.rgb, t) } },
-                onColorsDone = { camera.stopRecording() },
+                onBaselineDone = { camera.lockAeAwb(true) },
+                onColorsDone = {
+                    camera.stopRecording()
+                    camera.lockAeAwb(false)
+                },
             )
         }
         composable(Routes.TurnHead) {
