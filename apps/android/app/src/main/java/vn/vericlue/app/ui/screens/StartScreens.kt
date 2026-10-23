@@ -505,7 +505,7 @@ fun ConsentScreen(onBack: () -> Unit, onContinue: () -> Unit) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Bạn luôn có quyền thay đổi", style = VcType.labelSmall, color = c.ink)
                 Text(
-                    "Rút lại đồng ý hoặc yêu cầu xóa dữ liệu bất cứ lúc nào trong phần Cài đặt › Quyền riêng tư của ứng dụng ngân hàng.",
+                    "Rút lại đồng ý hoặc xin xóa dữ liệu bất cứ lúc nào trong Cài đặt › Quyền riêng tư.",
                     style = VcType.caption,
                     color = c.muted,
                 )
