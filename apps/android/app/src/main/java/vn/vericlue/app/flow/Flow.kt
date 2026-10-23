@@ -10,6 +10,9 @@ enum class Purpose { Onboarding, Reauth, Recovery }
 
 enum class TurnDir { Left, Right }
 
+/** One quality hint on the framing screen (ADR-0017 §1: one sentence about quality). */
+enum class FramingState { NoFace, LowLight, TooFar, OffCenter, Good }
+
 /**
  * What the fake server answers after the checking screen. Mirrors the citizen-facing
  * statuses in packages/contracts (pass | retry | review | voice_challenge). Never a score.
@@ -89,6 +92,30 @@ object FlowRules {
         DemoOutcome.RetryQuality -> Routes.RetryQuality
         DemoOutcome.RetryChallenge -> Routes.RetryChallenge
         DemoOutcome.VoiceAgain -> Routes.VoiceAgain
+    }
+
+    /**
+     * Server status → next screen. Only "pass" leads to success; an unknown status returns null,
+     * which the caller must treat as an error (AGENTS.md §6 rule 4).
+     */
+    fun routeForStatus(status: String, retryHint: String?, inVoiceStep: Boolean): String? = when (status) {
+        "pass" -> Routes.Success
+        "review" -> Routes.Review
+        "retry" -> if (retryHint != null) Routes.RetryQuality else Routes.RetryChallenge
+        "voice_challenge" -> if (inVoiceStep) Routes.VoiceAgain else Routes.Voice
+        else -> null
+    }
+
+    /** Quality hints from the server, same wording as the web (apps/web/src/i18n/vi.ts). */
+    fun retryHintText(hint: String?): String = when (hint) {
+        "MORE_LIGHT" -> "Ra chỗ sáng hơn"
+        "MOVE_CLOSER" -> "Lại gần hơn"
+        "MOVE_BACK" -> "Lùi ra xa hơn một chút"
+        "FACE_CENTER" -> "Đưa khuôn mặt vào giữa khung hình"
+        "HOLD_STILL" -> "Giữ yên điện thoại và khuôn mặt"
+        "QUIET_PLACE" -> "Chuyển đến nơi yên tĩnh hơn"
+        "BRIGHTNESS_UP" -> "Tăng độ sáng màn hình"
+        else -> "Hãy ra chỗ sáng hơn và giữ điện thoại ngang tầm mặt."
     }
 
     fun stepOf(route: String): Int? = when (route) {

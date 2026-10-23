@@ -61,7 +61,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import vn.vericlue.app.flow.Purpose
 import vn.vericlue.app.ui.components.ChecklistCard
-import vn.vericlue.app.ui.components.FakeCameraFeed
+import vn.vericlue.app.ui.components.CameraFeed
 import vn.vericlue.app.ui.components.PrimaryButton
 import vn.vericlue.app.ui.components.RowState
 import vn.vericlue.app.ui.components.SecondaryButton
@@ -79,7 +79,7 @@ import vn.vericlue.app.ui.theme.VcType
 private fun CameraStillOn() {
     val c = Vc.colors
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(width = 52.dp, height = 64.dp).clip(RoundedCornerShape(10.dp))) { FakeCameraFeed() }
+        Box(Modifier.size(width = 52.dp, height = 64.dp).clip(RoundedCornerShape(10.dp))) { CameraFeed() }
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Box(Modifier.size(6.dp).clip(CircleShape).background(c.ok))
@@ -91,14 +91,15 @@ private fun CameraStillOn() {
 }
 
 @Composable
-private fun Waveform() {
+private fun Waveform(level: Float? = null) {
     val c = Vc.colors
     val t = rememberInfiniteTransition(label = "wave")
     val p by t.animateFloat(0f, 1f, infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "p")
     Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.height(28.dp)) {
         val base = listOf(0.3f, 0.7f, 0.45f, 1f, 0.6f, 0.85f, 0.4f, 0.75f, 0.5f, 0.9f, 0.35f)
         base.forEachIndexed { i, b ->
-            val h = (0.25f + b * (if (i % 2 == 0) p else 1f - p)) * 28f
+            val amp = level?.let { (0.3f + it * 2f).coerceAtMost(1f) } ?: (if (i % 2 == 0) p else 1f - p)
+            val h = (0.25f + b * amp) * 28f
             Box(Modifier.width(3.dp).height(h.dp).clip(RoundedCornerShape(2.dp)).background(c.accent))
         }
     }
@@ -109,7 +110,15 @@ private fun Waveform() {
  * Sentences are examples; the real ones come from the server challenge (LIVE-01).
  */
 @Composable
-fun VoiceScreen(onBack: () -> Unit, onFinished: () -> Unit, again: Boolean = false, startRecording: Boolean = false) {
+fun VoiceScreen(
+    onBack: () -> Unit,
+    onFinished: () -> Unit,
+    again: Boolean = false,
+    startRecording: Boolean = false,
+    sentence: String? = null,
+    level: Float? = null,
+    onStartRecording: () -> Unit = {},
+) {
     val c = Vc.colors
     var recording by remember { mutableStateOf(startRecording) }
     VcScreen(onBack = onBack, step = 3) {
@@ -125,7 +134,8 @@ fun VoiceScreen(onBack: () -> Unit, onFinished: () -> Unit, again: Boolean = fal
         ) {
             Icon(Icons.Outlined.FormatQuote, contentDescription = null, tint = c.accent, modifier = Modifier.size(22.dp))
             Text(
-                if (again) "“Tôi xác nhận mở tài khoản, mã số tám ba năm một.”" else "“Tôi xác nhận mở tài khoản, mã số bốn bảy hai chín.”",
+                sentence?.let { "“$it”" }
+                    ?: if (again) "“Tôi xác nhận mở tài khoản, mã số tám ba năm một.”" else "“Tôi xác nhận mở tài khoản, mã số bốn bảy hai chín.”",
                 style = VcType.titleMedium,
                 color = c.ink,
             )
@@ -139,7 +149,14 @@ fun VoiceScreen(onBack: () -> Unit, onFinished: () -> Unit, again: Boolean = fal
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(
                 Modifier.size(76.dp).clip(CircleShape).background(if (recording) Palette.LogoNavy else c.primary)
-                    .clickable(role = Role.Button) { if (recording) onFinished() else recording = true },
+                    .clickable(role = Role.Button) {
+                        if (recording) {
+                            onFinished()
+                        } else {
+                            recording = true
+                            onStartRecording()
+                        }
+                    },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -149,7 +166,7 @@ fun VoiceScreen(onBack: () -> Unit, onFinished: () -> Unit, again: Boolean = fal
                     modifier = Modifier.size(34.dp),
                 )
             }
-            if (recording) Waveform()
+            if (recording) Waveform(level)
             Text(
                 if (recording) "Đang nghe… bấm để dừng" else "Bấm để bắt đầu đọc",
                 style = VcType.caption,
@@ -230,21 +247,21 @@ fun ReviewScreen(onBackToBank: () -> Unit) {
 
 /** Quality retry (ADR-0017 §1): specific, with how to fix it, and attempts left. */
 @Composable
-fun RetryQualityScreen(onBack: () -> Unit, onRetake: () -> Unit) {
+fun RetryQualityScreen(onBack: () -> Unit, onRetake: () -> Unit, hint: String? = null, attemptsLeft: Int? = 1) {
     VcScreen(onBack = onBack, step = 2, centered = true, actions = { PrimaryButton("Chụp lại", onRetake) }) {
         StatusBadge(Icons.Outlined.WbSunny, Tone.Warn)
-        TitleBlock("Ảnh chưa đủ rõ", "Hãy ra chỗ sáng hơn và giữ điện thoại ngang tầm mặt.", centered = true)
-        Text("Còn 1 lần chụp lại", style = VcType.caption, color = Vc.colors.muted)
+        TitleBlock("Ảnh chưa đủ rõ", hint ?: "Hãy ra chỗ sáng hơn và giữ điện thoại ngang tầm mặt.", centered = true)
+        if (attemptsLeft != null) Text("Còn $attemptsLeft lần chụp lại", style = VcType.caption, color = Vc.colors.muted)
     }
 }
 
 /** Challenge retry (ADR-0017 §1): how to do it right, never which check failed. */
 @Composable
-fun RetryChallengeScreen(onBack: () -> Unit, onRetry: () -> Unit) {
+fun RetryChallengeScreen(onBack: () -> Unit, onRetry: () -> Unit, attemptsLeft: Int? = 1) {
     VcScreen(onBack = onBack, step = 2, centered = true, actions = { PrimaryButton("Thử lại", onRetry) }) {
         StatusBadge(Icons.Outlined.Refresh)
         TitleBlock("Chúng ta thử lại nhé", "Giữ đầu yên, chỉ đưa mắt theo chấm sáng. Khi quay đầu, quay chậm rồi quay lại nhìn thẳng.", centered = true)
-        Text("Còn 1 lần thử", style = VcType.caption, color = Vc.colors.muted)
+        if (attemptsLeft != null) Text("Còn $attemptsLeft lần thử", style = VcType.caption, color = Vc.colors.muted)
     }
 }
 

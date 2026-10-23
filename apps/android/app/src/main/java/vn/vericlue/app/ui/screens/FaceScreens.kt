@@ -60,9 +60,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import vn.vericlue.app.flow.TurnDir
+import vn.vericlue.app.flow.FramingState
+import vn.vericlue.app.capture.CaptureClock
+import vn.vericlue.app.capture.ColorSchedule
+import vn.vericlue.app.capture.ColorSlot
+import vn.vericlue.app.capture.TurnTracker
+import vn.vericlue.app.ui.components.CameraFeed
+import androidx.compose.runtime.withFrameNanos
 import vn.vericlue.app.ui.components.Banner
 import vn.vericlue.app.ui.components.CameraArea
-import vn.vericlue.app.ui.components.FakeCameraFeed
 import vn.vericlue.app.ui.components.FullCamera
 import vn.vericlue.app.ui.components.GuidanceChip
 import vn.vericlue.app.ui.components.LinkButton
@@ -143,24 +149,38 @@ private fun CameraScaffold(onBack: () -> Unit, content: @Composable () -> Unit) 
     }
 }
 
-enum class FramingState { LowLight, TooFar, Good }
+private val demoFraming = listOf(FramingState.LowLight, FramingState.TooFar, FramingState.Good)
 
+/**
+ * [live] comes from the real camera (QualityGate); when it is null the screen plays a demo
+ * sequence so the design can be reviewed without a camera.
+ */
 @Composable
-fun FramingScreen(onExit: () -> Unit, onCaptured: () -> Unit, start: FramingState = FramingState.LowLight, auto: Boolean = true) {
-    var state by remember { mutableStateOf(start) }
-    LaunchedEffect(auto) {
-        if (!auto) return@LaunchedEffect
-        while (state != FramingState.Good) {
+fun FramingScreen(
+    onExit: () -> Unit,
+    onCaptured: () -> Unit,
+    start: FramingState = FramingState.LowLight,
+    auto: Boolean = true,
+    live: FramingState? = null,
+    onDebugCapture: (() -> Unit)? = null,
+) {
+    var demo by remember { mutableStateOf(start) }
+    LaunchedEffect(auto, live == null) {
+        if (!auto || live != null) return@LaunchedEffect
+        var i = demoFraming.indexOf(demo).coerceAtLeast(0)
+        while (i < demoFraming.lastIndex) {
             delay(1600)
-            state = FramingState.entries[state.ordinal + 1]
+            i++
+            demo = demoFraming[i]
         }
         delay(1400)
         onCaptured()
     }
+    val state = live ?: demo
     CameraScaffold(onExit) {
         Box(Modifier.fillMaxSize()) {
             Box(Modifier.fillMaxSize()) {
-                FakeCameraFeed(faceScale = if (state == FramingState.TooFar) 0.6f else 1f, dim = if (state == FramingState.LowLight) 0.45f else 0f)
+                CameraFeed(faceScale = if (state == FramingState.TooFar) 0.6f else 1f, dim = if (state == FramingState.LowLight) 0.45f else 0f)
             }
             val good = state == FramingState.Good
             Box(Modifier.fillMaxSize()) {
@@ -180,8 +200,10 @@ fun FramingScreen(onExit: () -> Unit, onCaptured: () -> Unit, start: FramingStat
                 )
                 Box(Modifier.fillMaxWidth().offset(y = oval.bottom + 24.dp), contentAlignment = Alignment.TopCenter) {
                     when (state) {
+                        FramingState.NoFace -> GuidanceChip("Đưa khuôn mặt vào khung", Icons.Outlined.CenterFocusWeak)
                         FramingState.LowLight -> GuidanceChip("Ra chỗ sáng hơn", Icons.Outlined.WbSunny, Tone.Warn)
                         FramingState.TooFar -> GuidanceChip("Lại gần hơn", Icons.Outlined.OpenInFull)
+                        FramingState.OffCenter -> GuidanceChip("Đưa khuôn mặt vào giữa khung hình", Icons.Outlined.CenterFocusWeak)
                         FramingState.Good -> GuidanceChip("Tốt, giữ nguyên", Icons.Outlined.Check, Tone.Ok)
                     }
                 }
@@ -192,36 +214,67 @@ fun FramingScreen(onExit: () -> Unit, onCaptured: () -> Unit, start: FramingStat
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter).padding(bottom = 24.dp),
                 )
+                if (onDebugCapture != null) DebugButton("Chụp ngay (debug)", onDebugCapture, Modifier.align(Alignment.BottomCenter).padding(bottom = 56.dp))
             }
         }
     }
 }
 
+/** Debug builds only: lets developers test the upload path on an emulator with no face in view. */
+@Composable
+private fun DebugButton(text: String, onClick: () -> Unit, modifier: Modifier) {
+    androidx.compose.material3.TextButton(onClick = onClick, modifier = modifier) {
+        Text(text, style = VcType.labelSmall, color = Palette.WarnBorder)
+    }
+}
+
 // ── Task 1: hold still (grey → colour flash → follow the dot) ────────────────
 
-private val flashColors = listOf(Palette.FlashBlue, Palette.FlashPink, Palette.FlashYellow, Palette.FlashMint)
-
-/** Phase index: 0 = grey, 1..4 = flash colours, 5 = follow the dot. */
+/**
+ * Task 1. Plays [slots] (grey baseline, the server's 8 colours, grey tail), then the dot.
+ * [onPainted] gets the time each colour actually reached the screen (first frame after the
+ * change, on the shared clock). [onColorsStart]/[onColorsDone] bracket the video recording.
+ * When [auto] is false the screen is frozen at [startPhase] (0 grey, 1..4 a colour, 5 dot) for previews.
+ */
 @Composable
-fun HoldStillScreen(onStop: () -> Unit, onDone: () -> Unit, startPhase: Int = 0, auto: Boolean = true) {
-    var phase by remember { mutableIntStateOf(startPhase) }
+fun HoldStillScreen(
+    onStop: () -> Unit,
+    onDone: () -> Unit,
+    startPhase: Int = 0,
+    auto: Boolean = true,
+    slots: List<ColorSlot> = ColorSchedule.demo(),
+    onColorsStart: () -> Unit = {},
+    onPainted: (ColorSlot, Double) -> Unit = { _, _ -> },
+    onColorsDone: () -> Unit = {},
+) {
+    val frozen = when {
+        startPhase == 0 -> 0
+        startPhase in 1..4 -> slots.indexOfFirst { it.index == startPhase - 1 }.coerceAtLeast(0)
+        else -> -1
+    }
+    var slot by remember { mutableIntStateOf(if (auto) 0 else frozen) }
     LaunchedEffect(auto) {
         if (!auto) return@LaunchedEffect
-        while (phase < 5) {
-            delay(if (phase == 0) 1200 else 900)
-            phase++
+        // Let the screen transition finish first: the camera reconfigures when the preview moves
+        // to this screen, and a recording started during that is cancelled (ERROR_SOURCE_INACTIVE).
+        delay(SETTLE_MS)
+        onColorsStart()
+        for (i in slots.indices) {
+            slot = i
+            withFrameNanos { t -> onPainted(slots[i], CaptureClock.frameNanosToMs(t)) }
+            delay(slots[i].durationMs.toLong())
         }
+        onColorsDone()
+        slot = -1
         delay(6400)
         onDone()
     }
     BackHandler(onBack = onStop)
+    FullBrightness(enabled = auto)
     // The flash screens are light whatever the system theme, so the light palette is forced.
     CompositionLocalProvider(LocalVcColors provides LightColors) {
-        val bg = when (phase) {
-            0 -> Palette.FlashGrey
-            in 1..4 -> flashColors[phase - 1]
-            else -> Color.White
-        }
+        val current = slots.getOrNull(slot)
+        val bg = current?.let { Color(ColorSchedule.parse(it.rgb)) } ?: Color.White
         SystemBarIcons(bg)
         Column(Modifier.fillMaxSize().background(bg).statusBarsPadding()) {
             TopBar(onStop)
@@ -231,13 +284,13 @@ fun HoldStillScreen(onStop: () -> Unit, onDone: () -> Unit, startPhase: Int = 0,
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
-                if (phase < 5) {
+                if (current != null) {
                     Text(
-                        if (phase == 0) "Giữ yên, nhìn thẳng" else "Giữ yên",
+                        if (current.index == null) "Giữ yên, nhìn thẳng" else "Giữ yên",
                         style = VcType.titleMedium,
                         color = Palette.Ink,
                     )
-                    OvalPreview(progress = (phase + 1) / 6f)
+                    OvalPreview(progress = (slot + 1f) / (slots.size + 1))
                 } else {
                     Text(
                         "Giữ đầu yên, chỉ đưa mắt theo chấm sáng",
@@ -261,11 +314,33 @@ fun HoldStillScreen(onStop: () -> Unit, onDone: () -> Unit, startPhase: Int = 0,
     }
 }
 
+private const val SETTLE_MS = 600L
+
+/** Screen at full brightness while the colours play, so the skin reflection is measurable. */
+@Composable
+private fun FullBrightness(enabled: Boolean) {
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.runtime.DisposableEffect(enabled) {
+        val window = (view.context as? android.app.Activity)?.window
+        val before = window?.attributes?.screenBrightness
+        if (enabled && window != null) {
+            window.attributes = window.attributes.apply { screenBrightness = 1f }
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        onDispose {
+            if (enabled && window != null && before != null) {
+                window.attributes = window.attributes.apply { screenBrightness = before }
+                window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
+        }
+    }
+}
+
 @Composable
 private fun OvalPreview(progress: Float) {
     Box(Modifier.size(width = 196.dp, height = 252.dp), contentAlignment = Alignment.Center) {
         Box(Modifier.size(width = 172.dp, height = 228.dp).clip(androidx.compose.foundation.shape.GenericShape { s, _ -> addOval(androidx.compose.ui.geometry.Rect(Offset.Zero, s)) })) {
-            FakeCameraFeed()
+            CameraFeed()
         }
         Canvas(Modifier.fillMaxSize()) {
             drawArc(
@@ -301,7 +376,7 @@ private fun FollowDot(modifier: Modifier, running: Boolean) {
         Box(
             Modifier.align(Alignment.TopEnd).size(width = 60.dp, height = 78.dp).clip(RoundedCornerShape(12.dp))
                 .border(2.dp, Palette.Border, RoundedCornerShape(12.dp)),
-        ) { FakeCameraFeed() }
+        ) { CameraFeed() }
         Box(
             Modifier.offset(x = (pos.value.x - 12).dp, y = (pos.value.y - 12).dp).size(24.dp)
                 .clip(CircleShape).background(Palette.Primary.copy(alpha = 0.18f)),
@@ -319,10 +394,25 @@ private fun FollowDot(modifier: Modifier, running: Boolean) {
 // ── Task 2: turn left / right in server order ────────────────────────────────
 
 @Composable
-fun TurnHeadScreen(order: List<TurnDir>, onExit: () -> Unit, onDone: () -> Unit, auto: Boolean = true) {
+fun TurnHeadScreen(
+    order: List<TurnDir>,
+    onExit: () -> Unit,
+    onDone: () -> Unit,
+    auto: Boolean = true,
+    yaw: Float? = null,
+    onDebugSkip: (() -> Unit)? = null,
+) {
     var index by remember { mutableIntStateOf(0) }
-    LaunchedEffect(auto) {
-        if (!auto) return@LaunchedEffect
+    // Live: advance when the head turn is detected (ML Kit yaw). Demo: advance on a timer.
+    val tracker = remember(index) { TurnTracker() }
+    LaunchedEffect(yaw) {
+        if (yaw == null || !auto) return@LaunchedEffect
+        if (tracker.update(yaw, android.os.SystemClock.elapsedRealtime())) {
+            if (index < order.size - 1) index++ else onDone()
+        }
+    }
+    LaunchedEffect(auto, yaw == null) {
+        if (!auto || yaw != null) return@LaunchedEffect
         while (index < order.size - 1) {
             delay(2600)
             index++
@@ -376,6 +466,7 @@ fun TurnHeadScreen(order: List<TurnDir>, onExit: () -> Unit, onDone: () -> Unit,
                         }
                     }
                 }
+                if (onDebugSkip != null) DebugButton("Bỏ qua (debug)", onDebugSkip, Modifier.align(Alignment.BottomCenter).padding(bottom = 56.dp))
                 Text(
                     "Ảnh sẽ tự chụp khi bạn quay đủ",
                     style = VcType.bodySmall,

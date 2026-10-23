@@ -16,7 +16,7 @@ import vn.vericlue.app.ui.screens.ConsentScreen
 import vn.vericlue.app.ui.screens.EditInfoScreen
 import vn.vericlue.app.ui.screens.FaceReadyScreen
 import vn.vericlue.app.ui.screens.FramingScreen
-import vn.vericlue.app.ui.screens.FramingState
+import vn.vericlue.app.flow.FramingState
 import vn.vericlue.app.ui.screens.HoldStillScreen
 import vn.vericlue.app.ui.screens.IdCaptureScreen
 import vn.vericlue.app.ui.screens.IdReviewScreen

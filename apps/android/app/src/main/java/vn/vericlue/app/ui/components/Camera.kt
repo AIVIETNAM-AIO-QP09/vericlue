@@ -107,7 +107,30 @@ data class DpRect(val left: Dp, val top: Dp, val width: Dp, val height: Dp) {
 @Composable
 fun FullCamera(faceScale: Float = 1f, ringColor: Color = Color.White, progress: Float? = null, ringWidth: Dp = 2.dp) {
     Box(Modifier.fillMaxSize()) {
-        FakeCameraFeed(faceScale = faceScale)
+        CameraFeed(faceScale = faceScale)
         OvalOverlay(ringColor = ringColor, ringWidth = ringWidth, progress = progress)
     }
+}
+
+/**
+ * Real camera preview when the app provides one (LocalCameraFeed), otherwise the drawn
+ * stand-in. Screens call this so previews and screenshot tests still work without a camera.
+ */
+val LocalCameraFeed = androidx.compose.runtime.staticCompositionLocalOf<(@Composable (Modifier) -> Unit)?> { null }
+
+@Composable
+fun CameraFeed(modifier: Modifier = Modifier, faceScale: Float = 1f, dim: Float = 0f) {
+    val live = LocalCameraFeed.current
+    if (live != null) live(modifier.fillMaxSize()) else FakeCameraFeed(modifier, faceScale, dim)
+}
+
+/** The session's single PreviewView, moved into whichever screen is showing it. */
+@Composable
+fun CameraXPreview(session: vn.vericlue.app.capture.CameraSession, modifier: Modifier = Modifier) {
+    androidx.compose.ui.viewinterop.AndroidView(
+        factory = { ctx ->
+            session.previewView(ctx).also { v -> (v.parent as? android.view.ViewGroup)?.removeView(v) }
+        },
+        modifier = modifier,
+    )
 }
