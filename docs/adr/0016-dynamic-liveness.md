@@ -61,3 +61,16 @@
   - dò ánh mắt bằng camera trước điện thoại rẻ có thể kém khi thiếu sáng: phải đo trước khi hứa;
   - nháy màu không dùng được với người nhạy cảm ánh sáng: giữ cảnh báo và cho dừng;
   - thời gian: còn 15 ngày, LIVE đứng sau mô hình giọng và luồng người dân.
+
+## Cập nhật 22/10 — gọn giai đoạn B cho người dùng (trưởng nhóm chốt)
+Giai đoạn B trước đây có 6 bước (~30 giây, 4 lần đổi lệnh). Nay gộp còn **2 việc** (~18 giây, 1 lần đổi tư thế), không bỏ kiểm tra nào:
+
+| Việc | Người dùng | Hệ thống thu được |
+|---|---|---|
+| 1 · Giữ đầu yên (~12 giây) | Mặt vào khung đủ sáng là **tự bắt đầu**, không bấm nút. Giây 1 nền xám; giây 2–5 màn hình nháy màu; giây 6–12 chấm sáng chạy, chỉ đưa mắt theo | Ảnh chính diện (góc 1) chụp lúc nền xám, trước khi nháy màu, để so với CCCD · lớp ① ánh sáng · lớp ② ánh mắt (đầu đứng yên nên đo sạch) |
+| 2 · Quay trái, quay phải (~6 giây) | Theo mũi tên; thứ tự trái/phải do server ra ngẫu nhiên | Góc 2, góc 3 · lớp ③ quay đầu, mặt 3D · DINOv2 và GenD chấm khung nghiêng · AdaFace kiểm 3 góc cùng một người |
+
+- **Bỏ màn chờ sau giai đoạn B:** người dùng sang ngay bước đọc câu (giai đoạn C); server chấm giai đoạn B **song song**.
+- **Thay quy tắc ADR-0013 mục 3** ("điểm mặt ≥ A … dừng, chuyển xét duyệt, không cho đọc câu"): nay người dùng vẫn đọc câu, nhưng nghi rõ ở giai đoạn B thì **kết quả cuối vẫn là chuyển duyệt**. Lý do: người thật không phải chờ; kẻ gian chỉ mất thêm khoảng 10 giây. Cổng chặn vẫn giữ, chỉ dời thời điểm báo kết quả.
+- Đã cân nhắc gộp nhìn theo chấm sáng với quay đầu (một việc "đưa mặt theo chấm"): loại, vì đo mắt khi đầu chuyển động kém sạch và người dùng có thể chỉ liếc mắt nên không đủ góc nghiêng.
+- Tổng thời gian luồng mở tài khoản ước lượng còn ~1 phút 40 giây (chưa đo).

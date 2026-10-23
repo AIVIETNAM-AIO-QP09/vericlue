@@ -276,10 +276,12 @@
 **Đầu ra:**
 - Web tạo passkey (WebAuthn) cho thiết bị, ký `challenge` = băm(mã phiên ‖ gói thử thách ‖ băm media).
 - Server kiểm chữ ký, mã phiên và băm media. Sai thì từ chối, ghi lý do cho bàn duyệt; người dân không thấy lý do.
+- **Tải lên dần (ADR-0017):** video WebM chia đoạn, gửi trong lúc quay; mỗi đoạn ký, chuỗi chữ ký nối các đoạn với mã phiên. Gửi kèm ảnh tĩnh chất lượng cao cho ba góc mặt. Không nén mạnh tới mức mất chi tiết; đo dung lượng và thời gian tải trên 4G.
+- Ghi rõ trong tài liệu: ký số chống phát lại và sửa giữa đường, **không** chống chèn luồng camera (việc của CamProbe và lớp ánh sáng).
 - App native dùng SEC-02 (Keystore) cho cùng việc.
 
 **Tiêu chí hoàn thành:**
-- [ ] Test: dùng lại media phiên cũ, sửa media sau khi ký, chữ ký sai, mã phiên sai.
+- [ ] Test: dùng lại media phiên cũ, sửa media sau khi ký, chữ ký sai, mã phiên sai, thiếu hoặc đổi chỗ một đoạn video.
 
 ---
 
@@ -317,3 +319,38 @@
 **Tiêu chí hoàn thành:**
 - [ ] Test: bằng chứng đúng thì qua; người dưới 18 tuổi hoặc bằng chứng bị sửa thì không qua.
 - [ ] Nếu không kịp: đổi trạng thái `cut`, chuyển phần trình bày vào báo cáo như lộ trình.
+
+---
+
+### LIVE-06 · Gia hạn phiên khi gián đoạn, làm lại riêng phần khuôn mặt
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M5 | 0,5 | S2 | P0 | LIVE-01 |
+
+**Mục tiêu:** người dùng bị gián đoạn (cuộc gọi, chuyển ứng dụng) không phải làm lại từ đầu, mà không mở khe hở tráo người (ADR-0017 mục 2).
+
+**Đầu ra:**
+- Giai đoạn A: tự gia hạn mã truy cập khi quay lại, làm tiếp từ bước đang dở.
+- Giai đoạn B, C: giữ kết quả giai đoạn A; phần khuôn mặt và câu đọc làm lại với gói thử thách mới, bỏ dữ liệu khuôn mặt của lần dở.
+- Giới hạn tổng thời gian cho cả phiên (đề xuất 15 phút, chốt khi làm). Hợp đồng API đổi: PR gắn `[contract]`.
+
+**Tiêu chí hoàn thành:**
+- [ ] Test: gián đoạn ở từng bước A, B, C; quá giới hạn tổng; gói thử thách cũ bị từ chối sau khi làm lại.
+
+---
+
+### LIVE-07 · Thông báo làm lại theo hai loại
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M1 | 0,5 | S2 | P0 | LIVE-01 |
+
+**Mục tiêu:** người thật biết chính xác cách sửa, kẻ gian không biết lớp kiểm tra nào đã bắt được họ (ADR-0017 mục 1).
+
+**Đầu ra:**
+- Bảng chữ hiển thị cho mọi tình huống làm lại: lỗi chất lượng báo cụ thể kèm cách sửa; lỗi thử thách chỉ hướng dẫn cách làm cho đúng.
+- Nhắc chất lượng ngay trong lúc chụp; màn làm lại hiện số lần thử còn lại.
+
+**Tiêu chí hoàn thành:**
+- [ ] Không chữ nào chứa điểm số, "giả mạo", hay tên lớp kiểm tra (luật 3). Có test rà chữ hiển thị.

@@ -63,6 +63,8 @@ Thêm **tải lên dần**: phần nào chụp xong thì gửi ngay để server
 
 **Luồng đăng ký không tự từ chối.** Ngoại lệ duy nhất là vượt giới hạn số lần thử.
 
+> **Cập nhật 22/10 (ADR-0016):** giai đoạn B gộp còn 2 việc; người dùng sang bước đọc câu ngay trong lúc server chấm giai đoạn B. Nghi rõ ở giai đoạn B vẫn dẫn tới "chuyển xét duyệt", nhưng không còn chặn bước đọc câu.
+
 ## 4. Luồng xác thực lại (`purpose=reauth`)
 VeriClue là **dịch vụ eKYC dùng chung**, không gắn với ngành cụ thể (trưởng nhóm quyết 18/10). **Bên tích hợp** quyết định:
 - khi nào cần xác thực lại (đăng nhập thiết bị mới, thao tác nhạy cảm…);

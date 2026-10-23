@@ -1,6 +1,6 @@
 # ADR-0011: Token theo phiên, mỗi bước nhận một lần; thử thách sống 120 giây; nhịp nháy màu an toàn
 
-- **Trạng thái:** đã chấp nhận
+- **Trạng thái:** đã chấp nhận. **Mục 1–2 được thay một phần bởi ADR-0017** (gia hạn khi gián đoạn, làm lại riêng phần khuôn mặt).
 - **Ngày:** 2026-10-14
 
 ## Bối cảnh
