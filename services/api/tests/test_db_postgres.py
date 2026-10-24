@@ -15,6 +15,7 @@ from sqlalchemy import func, inspect, select, text
 from sqlalchemy.exc import DBAPIError
 
 from vericlue_api.core.config import Settings, get_settings
+from vericlue_api.core.session_tokens import token_digest
 from vericlue_api.db.database import Database
 from vericlue_api.db.models import (
     DecisionRow,
@@ -87,14 +88,15 @@ def test_postgres_migration_mock_flow_and_restart(postgres):
     with TestClient(create_app()) as restarted:
         with restarted.app.state.vericlue.transaction() as state:
             assert state.sessions.get(sid).results
-            assert state.sessions.get(sid).token == body["token"]
+            assert state.sessions.get(sid).token == ""
+            assert state.sessions.get(sid).token_hash == token_digest(body["token"])
         assert (
             restarted.post(
                 f"/v1/sessions/{sid}/signals",
                 headers=auth,
                 json={"color_events": [], "frame_times": []},
             ).status_code
-            == 200
+            == 409
         )
 
 

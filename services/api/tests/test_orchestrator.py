@@ -683,7 +683,7 @@ def test_sqlite_guarded_routes_pass_lock_timeout_and_consume_absolute_budget(mon
                 with root.transaction() as state:
                     session = state.sessions.get(sid)
                     session.voice_requested = True
-                    session.voice_prompt = "CÃ¢u thá»­ nghiá»‡m"
+                    state.flow._new_prompt(session)
             transaction_arguments, runner_arguments = [], []
             real_transaction, real_run = root.transaction, root.orchestrator.run
 
