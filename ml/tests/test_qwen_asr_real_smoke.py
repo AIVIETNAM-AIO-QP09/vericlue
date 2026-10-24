@@ -45,4 +45,6 @@ def test_qwen_native_cpu_generation_and_silence_gate(tmp_path):
     sf.write(path, np.zeros(16000, np.float32), 16000, subtype="PCM_16")
     with pytest.raises(SpeechNotFound):
         provider.transcribe(path)
+    with pytest.raises(SpeechNotFound):
+        provider.transcribe_samples(np.zeros(48000, np.float32), 48000)
     assert len(generated) == 1

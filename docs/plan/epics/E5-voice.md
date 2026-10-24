@@ -194,3 +194,24 @@ liệu VOICE-04 và không coi benchmark cũ là nghiệm thu Qwen.
 **Ngoài nghiệm thu kỹ thuật này:** độ chính xác tiếng Việt, công bằng miền,
 đánh giá trên người, so sánh PhoWhisper, tối ưu GPU/ONNX/INT8 và nối API cần
 đánh giá riêng trước khi sử dụng. Không tuyên bố đã phát hiện giọng AI/khớp môi.
+
+---
+
+### VOICE-08 · Thử câu đọc bằng microphone trên laptop
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M4 | 0,5 | S2 | P0 | VOICE-07 |
+
+**Mục tiêu:** sau khi VOICE-07 được merge, cho nhóm tự thu và đối chiếu câu
+trực tiếp trong công cụ nội bộ; dùng runtime Qwen riêng, không sửa UI sản phẩm.
+
+**Tiêu chí hoàn thành:**
+- [x] Micro chỉ mở theo nút bấm; dừng/hủy/đóng cửa sổ giải phóng stream, giới hạn 20 giây.
+- [x] Audio trong RAM, VAD/ASR và luật khớp dùng chung backend; lỗi/overflow không đạt.
+- [x] UI không bị khóa khi nạp/suy luận; không chồng lượt, bỏ kết quả đã hủy.
+- [x] Hiện transcript/chỉ số đúng nghĩa; JSON tùy chọn có commit/model/hash/runtime/số mẫu.
+- [x] Test không dùng micro/model; QA cửa sổ tổng hợp, lint/plan_check và bàn giao.
+
+Không nghiệm thu accuracy trên người, phát hiện giọng AI, nhịp đọc, khớp môi
+hay quyết định eKYC. Câu local không phải thử thách được server xác thực.

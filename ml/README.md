@@ -25,6 +25,9 @@ VOICE-07 thêm backend Qwen3-ASR-0.6B để kiểm nội dung câu đọc qua fa
 diagnostic riêng. Cần runtime Transformers 5.13.0, không cài chung runtime mặt.
 Chưa thay PhoWhisper/API và chưa đánh giá accuracy tiếng Việt; xem
 [`qwen-asr-diagnostic.md`](../docs/architecture/qwen-asr-diagnostic.md).
+VOICE-08 thêm `python -m vericlue_ml.eval.voice_lab` trong runtime Qwen riêng:
+bấm thu micro → dừng/kiểm câu, audio trong RAM, hủy được và không chồng lượt.
+Chỉ là công cụ nội bộ cho nhóm, chưa phải kiểm giọng AI hoặc luồng eKYC.
 
 PRES-02 đã thêm diagnostic đo màu 5 vùng da + nền, dùng chung task MediaPipe
 với mắt/quay đầu. Chưa hiệu chỉnh, luôn unclear và chưa đổi module ChromaPulse

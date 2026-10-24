@@ -29,6 +29,53 @@ không gửi audio lên dịch vụ bên ngoài. Hỗ trợ tối đa 30 giây, 
 8–192 kHz qua decoder hiện có rồi đổi về mono 16 kHz. Model giữ nguyên trọng số
 gốc, nạp FP32 CPU; không tuyên bố parity với BF16 hoặc runtime khác.
 
+## Thử trực tiếp bằng micro (VOICE-08)
+
+Đã có cửa sổ nội bộ riêng cho laptop. Giữ nguyên cửa sổ/runtime webcam vì hai
+backend dùng Transformers khác phiên bản. Sau khi chuẩn bị runtime Qwen ở trên:
+
+```powershell
+uv pip install --python tmp/qwen-asr-runtime/Scripts/python.exe -r ml/requirements/voice-lab.txt
+$env:HF_HUB_OFFLINE = "1"
+$env:TRANSFORMERS_OFFLINE = "1"
+tmp/qwen-asr-runtime/Scripts/python.exe -m vericlue_ml.eval.voice_lab --models-dir models/selected-2026-10-24
+```
+
+1. Kiểm micro đầu vào mặc định trong Windows; CLI có `--device <index>` nếu
+   muốn chọn thiết bị khác. Cửa sổ ban đầu **không mở micro hoặc nạp model**.
+2. Bấm **Thu âm**, chờ **ĐANG THU** rồi đọc nguyên câu. Bấm **Dừng & kiểm câu**
+   khi đọc xong; tự dừng khi đủ 20 giây âm thanh. Micro được đóng trước ASR.
+3. Xem **Máy nghe**, WER và độ giống khi bỏ dấu. WER thấp hơn là tốt hơn,
+   có thể lớn hơn 1 khi thừa nhiều âm tiết; không đổi thành “% xác minh đúng”.
+   **Khớp câu** chỉ là kết quả luật nội dung hiện có, chưa chứng minh giọng thật.
+4. **Hủy / Esc** bỏ lượt hiện tại; khi đang suy luận phải chờ tác vụ native
+   kết thúc trước khi thu lượt mới. Cửa sổ vẫn phản hồi; kết quả bị hủy không hiện
+   lại. Đóng cửa sổ yêu cầu dừng capture; driver/model lỗi không trở thành pass.
+5. **Đổi câu** chỉ dùng lúc rảnh. Câu lấy từ ngân hàng local bằng `secrets`,
+   không phải challenge do server ký, không gửi kết quả này để cho qua eKYC.
+6. **Lưu JSON (có câu đọc)** là tùy chọn, chứa transcript/câu dự kiến, số đo,
+   commit, version/revision, hash model/runtime, thời lượng, hash PCM float32,
+   `sample_count=1`. Không chứa mẫu âm thanh; từ chối ghi đè file hoặc lưu vào
+   thư mục trọng số. Chọn đường dẫn trong `tmp/` ignored, không commit báo cáo.
+
+Âm thanh mono float32 thu theo sample rate mặc định của thiết bị (8–192 kHz),
+giữ trong RAM, chuyển về 16 kHz bằng `resample_poly`, cùng VAD/budget/ASR và
+luật khớp với CLI. Mẫu NaN/Inf, giá trị ngoài [-1,1], thiếu mẫu hoặc
+PortAudio overflow bị từ chối; không chấm một đoạn bị lỗi như dữ liệu đầy đủ.
+Không phát lại tiếng, ghi file WAV hoặc gửi audio lên dịch vụ bên ngoài. Buffer
+chính được xóa sau tác vụ; Python/native có thể giữ bản sao tạm tới khi xử lý
+kết thúc, đây không phải cam kết xóa bộ nhớ an toàn về mật mã.
+
+Model CPU nạp lười một lần; lượt đầu gồm kiểm hash/nạp model nên có thể lâu.
+**Chưa thử thu giọng người** trong nghiệm thu tự động: test dùng stream giả,
+checkpoint thật chỉ chạy tín hiệu 0; cần thành viên tự thử đúng/sai câu và mic.
+Xem UI không mở micro bằng `--ui-preview`; toàn bộ nút tác vụ bị vô hiệu hóa.
+Thiết kế dùng [InputStream/read/abort/close chính thức](https://python-sounddevice.readthedocs.io/en/latest/api/streams.html),
+pin [sounddevice 0.5.6](https://pypi.org/project/sounddevice/0.5.6/) trong runtime riêng;
+không chép code upstream, không nâng runtime mặt/CUDA.
+
+## CLI và nguồn câu từ server
+
 Có thể thay `--expected-text-file` bằng `--server-response tmp/session.json`
 của lượt dynamic đầu tiên. CLI kiểm session/challenge/version và đọc câu từ
 dynamic; JSON phải được giữ từ nguồn server đáng tin. CLI không xác thực chữ
