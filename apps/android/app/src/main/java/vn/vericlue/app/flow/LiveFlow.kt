@@ -135,14 +135,19 @@ class LiveFlow(private val api: SessionApi) {
         }
     }
 
-    suspend fun submitVoice(wav: ByteArray): Next {
+    /**
+     * Sends the reading: the WAV, plus the MP4 recorded over the same span when there is one
+     * (lip sync, VOICE-05). [onAccepted] runs once the server has both, so the local video can go.
+     */
+    suspend fun submitVoice(wav: ByteArray, video: File? = null, onAccepted: () -> Unit = {}): Next {
         val s = session ?: return Next.Fail(ApiError.Expired)
         if (wav.isEmpty()) return Next.To(Routes.NoVoice)
-        return when (val r = api.sendVoice(s.sessionId, s.token, wav, null)) {
+        return when (val r = api.sendVoice(s.sessionId, s.token, wav, video)) {
             is ApiResult.Err -> Next.Fail(r.error)
             is ApiResult.Ok -> {
                 pendingWav = null
                 voiceChecked = true
+                onAccepted()
                 if (r.value.status == "voice_challenge") voicePrompt = r.value.voicePrompt ?: return Next.Fail(ApiError.BadResponse)
                 FlowRules.routeForStatus(r.value.status, null, inVoiceStep = true)?.let { Next.To(it) } ?: Next.Fail(ApiError.BadResponse)
             }

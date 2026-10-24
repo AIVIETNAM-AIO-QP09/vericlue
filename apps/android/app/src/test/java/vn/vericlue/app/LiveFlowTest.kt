@@ -100,4 +100,23 @@ class LiveFlowTest {
         server.enqueue(json("""{"status":"retry","retry_hint":"MORE_LIGHT"}"""))
         assertTrue(flow.submitFace(null, emptyList(), emptyMap()) is Next.Fail)
     }
+
+    @Test
+    fun voiceSendsTheReadingVideoNextToTheWav() = runTest {
+        startAndCapture()
+        server.enqueue(json(ack))
+        server.enqueue(json(ack))
+        server.enqueue(json("""{"status":"voice_challenge","voice_prompt":"Tôi xác nhận"}"""))
+        flow.submitFace(null, emptyList(), emptyMap())
+        val video = kotlin.io.path.createTempFile("voice_", ".mp4").toFile().apply { writeBytes(byteArrayOf(9, 9, 9)); deleteOnExit() }
+        var accepted = false
+        server.enqueue(json("""{"status":"pass"}"""))
+        assertEquals(Next.To(Routes.Success), flow.submitVoice(byteArrayOf(1, 2), video, onAccepted = { accepted = true }))
+        assertTrue(accepted)
+        repeat(4) { server.takeRequest() }
+        val voice = server.takeRequest()
+        assertEquals("/v1/sessions/ses_1/voice", voice.path)
+        val body = voice.body.readUtf8()
+        assertTrue(body.contains("name=\"audio\"") && body.contains("name=\"video\"") && body.contains("video/mp4"))
+    }
 }

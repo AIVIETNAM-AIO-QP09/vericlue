@@ -155,6 +155,7 @@ fun VeriClueApp() {
     var idFront by remember { mutableStateOf<Pair<ByteArray, IdQuality>?>(null) }
     var idBack by remember { mutableStateOf<Pair<ByteArray, IdQuality>?>(null) }
     var cccd by remember { mutableStateOf<CccdInfo?>(null) }
+    val voiceStart = remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
     @Composable
     fun IdCaptureRoute(back: Boolean, onCaptured: () -> Unit) {
@@ -214,9 +215,23 @@ fun VeriClueApp() {
             again = again,
             sentence = if (flow.live) live.voicePrompt else null,
             level = level,
-            onStartRecording = { if (hasMic) recorder.start(scope) },
+            onStartRecording = {
+                if (hasMic) {
+                    // Video and WAV start together so the server can line up lips and voice (VOICE-05):
+                    // the WAV waits for the camera, which is the slower one to start.
+                    voiceStart.value = scope.launch {
+                        if (flow.live && hasCamera) {
+                            camera.startRecording(voice = true)
+                            camera.awaitRecordingStarted()
+                        }
+                        recorder.start(scope)
+                    }
+                }
+            },
             onFinished = {
+                voiceStart.value?.cancel() // finished before the mic even started: nothing recorded
                 val wav = recorder.stop()
+                camera.stopRecording()
                 if (flow.live) {
                     if (!hasMic) nav.go(Routes.ErrorMic) else {
                         live.pendingWav = wav
@@ -428,7 +443,7 @@ fun VeriClueApp() {
                     // A retry comes back here; LiveFlow resends only what the server has not received.
                     follow(
                         if (wav != null) {
-                            live.submitVoice(wav)
+                            live.submitVoice(wav, camera.finishedVideo(), onAccepted = camera::deleteVideo)
                         } else {
                             val probe = withContext(Dispatchers.IO) { camera.camProbe() }
                             live.submitFace(

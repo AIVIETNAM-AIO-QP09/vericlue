@@ -31,6 +31,7 @@ import java.util.concurrent.Executors
 import kotlin.coroutines.resume
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import vn.vericlue.app.data.api.FrameTime
@@ -177,23 +178,56 @@ class CameraSession(private val context: Context) {
         }
     }
 
-    /** Starts the MP4 recording that the server receives as `video` in /media. Audio off. */
+    private var finalized: CompletableDeferred<Unit>? = null
+
+    /**
+     * Starts an MP4 recording, audio off. [voice] = false: the colour flash, sent as `video` in
+     * /media, with frame_times and region_means. [voice] = true: the sentence reading, sent as
+     * `video` in /voice next to the WAV (lip sync, VOICE-05); the face signals are left untouched.
+     */
     @SuppressLint("MissingPermission")
-    fun startRecording() {
+    fun startRecording(voice: Boolean = false) {
         if (recording != null || !videoEnabled) return
-        val file = File(context.cacheDir, "face_${System.currentTimeMillis()}.mp4").also { videoFile = it }
-        synchronized(frames) { frames.clear() }
-        synchronized(regionFrames) { regionFrames.clear() }
-        firstFrameNs = 0L
-        recordingFrames = true
+        val prefix = if (voice) "voice_" else "face_"
+        val file = File(context.cacheDir, "$prefix${System.currentTimeMillis()}.mp4").also { videoFile = it }
+        if (!voice) {
+            synchronized(frames) { frames.clear() }
+            synchronized(regionFrames) { regionFrames.clear() }
+            firstFrameNs = 0L
+            recordingFrames = true
+        }
+        val done = CompletableDeferred<Unit>().also { finalized = it }
+        val begun = CompletableDeferred<Unit>().also { started = it }
         recording = runCatching {
             controller.startRecording(
                 FileOutputOptions.Builder(file).build(),
                 AudioConfig.AUDIO_DISABLED,
                 ContextCompat.getMainExecutor(context),
-            ) { event -> if (event is VideoRecordEvent.Finalize && event.hasError()) videoFile = null }
+            ) { event ->
+                // Start arrives before any frame; the first frame shows as recorded time > 0.
+                if (event is VideoRecordEvent.Status && event.recordingStats.recordedDurationNanos > 0) begun.complete(Unit)
+                if (event is VideoRecordEvent.Finalize) {
+                    begun.complete(Unit)
+                    if (event.hasError()) videoFile = null
+                    done.complete(Unit)
+                }
+            }
         }.getOrNull()
-        if (recording == null) videoFile = null
+        if (recording == null) {
+            videoFile = null
+            done.complete(Unit)
+            begun.complete(Unit)
+        }
+    }
+
+    private var started: CompletableDeferred<Unit>? = null
+
+    /**
+     * Waits until the first video frame is written (about 0.9 s after the start on the emulator).
+     * Starting the WAV only then keeps both files on the same start time (VOICE-05).
+     */
+    suspend fun awaitRecordingStarted(timeoutMs: Long = 2000) {
+        withTimeoutOrNull(timeoutMs) { started?.await() }
     }
 
     fun stopRecording() {
@@ -204,10 +238,17 @@ class CameraSession(private val context: Context) {
 
     fun recordedVideo(): File? = videoFile?.takeIf { it.exists() && it.length() > 0 }
 
-    /** Deletes every face video in the cache: once the server has it, or when the attempt is dropped. */
+    /** The last recording once CameraX has finished writing it (the MP4 is unreadable before). */
+    suspend fun finishedVideo(timeoutMs: Long = 3000): File? {
+        withTimeoutOrNull(timeoutMs) { finalized?.await() }
+        return recordedVideo()
+    }
+
+    /** Deletes every recorded video in the cache: once the server has it, or when the attempt is dropped. */
     fun deleteVideo() {
         videoFile = null
-        context.cacheDir.listFiles { f -> f.name.startsWith("face_") && f.name.endsWith(".mp4") }?.forEach { it.delete() }
+        context.cacheDir.listFiles { f -> (f.name.startsWith("face_") || f.name.startsWith("voice_")) && f.name.endsWith(".mp4") }
+            ?.forEach { it.delete() }
     }
 
     fun frameTimes(): List<FrameTime> = synchronized(frames) { frames.toList() }
