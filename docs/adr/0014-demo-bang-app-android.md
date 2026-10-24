@@ -12,14 +12,14 @@ ADR-0003 chọn chạy trên **web ở điện thoại**. Trưởng nhóm quyế
    - **Bàn duyệt** và **giám định** vẫn là web trên máy tính.
    - Web `/verify` được giữ làm bản dự phòng và để phát triển nhanh.
 2. **Cách làm app: viết app Kotlin native** (trưởng nhóm quyết 18/10).
-   - Stack: Jetpack Compose, CameraX, ML Kit hoặc MediaPipe để hướng dẫn người dùng, Android Keystore. API client sinh từ `openapi.json`.
+   - Stack: Jetpack Compose, CameraX, **ML Kit** để hướng dẫn người dùng (căn mặt, đo góc quay đầu, đọc QR CCCD; chốt 24/10, `apps/android/docs/can-chot.md` câu 7), Android Keystore. API client sinh từ `openapi.json`. ML Kit không ra phán quyết; dò mống mắt làm ở server (LIVE-02).
    - **Dùng lại code từ `AIVIETNAM-AIO-QP09/eKYC-system` (MIT):** khung app, CameraX, quay video, dò mặt kèm góc quay đầu, Keystore.
      - Phải giữ dòng giấy phép và ghi vào `third_party/README.md` (AGENTS §6 luật 6).
      - **Không** dùng lại phần app tự quyết `approval` và các mô hình trên máy của repo đó (`face_recognition_s.onnx` chưa rõ giấy phép).
    - Tách thành APP-01 đến APP-04.
    - Web `/verify` giữ làm **bản dự phòng** khi demo.
    - Đã cân nhắc bọc web bằng Capacitor: nhanh hơn (1–2 ngày) nhưng không chọn.
-3. **Mô hình quyết định luôn chạy ở server** (ADR-0013 nguyên tắc 7). Trên máy chỉ chạy MediaPipe, OpenCV và thư viện đọc QR để hướng dẫn người dùng. Vì vậy chọn mô hình không phụ thuộc phần cứng điện thoại.
+3. **Mô hình quyết định luôn chạy ở server** (ADR-0013 nguyên tắc 7). Trên máy chỉ chạy ML Kit (dò mặt, đọc QR) và phép đo ảnh đơn giản (nét, lóa) để hướng dẫn người dùng. Vì vậy chọn mô hình không phụ thuộc phần cứng điện thoại.
 4. **Kết nối từ app tới server demo dùng HTTPS**, vì hai lý do:
    - từ Android 9, app mặc định chặn HTTP không mã hóa;
    - dữ liệu sinh trắc phải được mã hóa trên đường truyền.

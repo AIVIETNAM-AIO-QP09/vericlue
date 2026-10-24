@@ -34,7 +34,7 @@ Rà lại luồng đăng ký mới (23/10), nhóm thấy ba chỗ dễ làm ngư
 Điều này **thay một phần ADR-0011 mục 1–2**: mã truy cập vẫn ngắn (khoảng 5 phút) nhưng được gia hạn trong giới hạn tổng; "mỗi bước nhận một lần" vẫn giữ trong từng lượt làm phần khuôn mặt, mỗi lượt mới dùng gói thử thách mới. Hợp đồng API thay đổi: PR gắn `[contract]`.
 
 ### 3. Tải media lên
-- Video dạng **WebM** (trình duyệt tự quay), độ phân giải vừa phải; **không nén mạnh** tới mức mất chi tiết.
+- Video dạng **WebM trên web** (trình duyệt tự quay) và **MP4 trên app Android** (CameraX quay ra MP4; server nhận cả hai, sửa 24/10 theo `apps/android/docs/can-chot.md` câu 6). Độ phân giải vừa phải; **không nén mạnh** tới mức mất chi tiết.
 - Gửi kèm **ảnh tĩnh chất lượng cao** cho ba góc mặt (góc 1 lúc nền xám, góc 2, góc 3) để các mô hình cần chi tiết dùng.
 - **Tải lên dần trong lúc quay**: chia video thành nhiều đoạn, gửi từng đoạn. Mỗi đoạn được ký, chuỗi chữ ký nối các đoạn với nhau và với mã phiên, nên máy chủ phát hiện được đoạn bị thiếu, bị đổi chỗ hay bị thay.
 - **Đo thực tế** dung lượng và thời gian tải trên mạng 4G trước khi chốt độ phân giải. Con số ước lượng hiện có (khoảng 4–8 MB cho 20 giây) chưa đo.

@@ -45,6 +45,17 @@ Sửa theo kết quả duyệt của trưởng nhóm ngày 24/10.
 - Bấm dừng trước khi mic kịp bắt đầu thì việc khởi động bị hủy, không có bản ghi thừa.
 - Test mới `voiceSendsTheReadingVideoNextToTheWav`.
 
+**Cập nhật 12:10: trưởng nhóm duyệt miệng mọi đề xuất trong `can-chot.md`** (Quang chuyển lời).
+- Cột "Trả lời" đã điền đủ 17 câu.
+- Câu 11: Quang quyết không chia việc cho anh Lý; backlog APP-02/03/04 ghi "Ngọc Quang+Claude".
+- Câu 6, 7: đã sửa ADR-0017 §3 (WebM trên web, MP4 trên app) và ADR-0014 mục 2, 3 (ML Kit).
+- Câu 8, 16: mở PR `[contract]` #47 (nhánh `feat/APP-contract-clock-voice-offset`, tách từ `main`):
+  - `/voice` nhận `audio_offset_ms`;
+  - sửa mô tả đồng hồ trong `session.schema.json`;
+  - sinh lại `openapi.json`, thêm 3 test API.
+- App gửi `audio_offset_ms`: lấy độ dài video CameraX đã báo ở sự kiện `Status` gần nhất, cộng thời gian từ sự kiện đó tới lúc WAV bắt đầu (`CameraSession.videoElapsedMs`). Chưa kiểm giá trị này trên máy ảo, vì server mock đang chạy là bản cũ, chưa có trường này.
+- Câu 3 (M5, LIVE-01), 4 (FLOW-02 của M2, FLOW-03 của M1), 10 (PRES-02), 17 (REV-02) là việc của task khác; câu 5 duyệt nhưng chưa chọn cách. Xem "Câu hỏi cho nhóm".
+
 ## Đang dở
 - Chưa thử trên điện thoại thật.
 - Thứ tự quay đầu vẫn chọn trên máy; đường chấm sáng chưa ghi. Cả hai chờ hợp đồng LIVE-01.
@@ -69,6 +80,8 @@ Sửa theo kết quả duyệt của trưởng nhóm ngày 24/10.
 - Tiêu chí "Build được APK trên máy Windows" (E9, APP-01) vẫn giữ dấu tích, vì đã build thật trên máy này (xem phần Test đã chạy). Câu 15 trong `can-chot.md` để trưởng nhóm xác nhận.
 
 ## Câu hỏi cho nhóm
+- Câu 5: duyệt "chốt một cách" nhưng chưa nói cách nào. App tạm giữ như API hiện tại: chỉ đọc câu khi `finalize` trả `voice_challenge`.
+- Câu 3 (LIVE-01) và câu 4 (OTP, CCCD) đang chặn app. Nếu M5/M2 bận thì Quang+Claude làm được: FLOW-03 vốn thuộc M1.
 - Câu 16 (`can-chot.md`, M4): thêm `audio_offset_ms` vào `/voice`, vì video vẫn bắt đầu trước WAV khoảng 0,6 s.
 - Câu 17: bàn duyệt chưa xem được media. `MediaRef.kind` thiếu `voice_video`, chưa có route `/media`, web `/review` còn trống.
 - Câu 14 (`can-chot.md`): cần cách để server mở ca duyệt thủ công khi người dùng không xem được màn nháy màu.
