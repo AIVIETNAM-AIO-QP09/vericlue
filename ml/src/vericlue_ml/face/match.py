@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+from collections.abc import Mapping
 from itertools import combinations
 from pathlib import Path
 from threading import RLock
@@ -223,8 +224,16 @@ class FaceMatchDetector:
                 self._failed = True
                 raise
 
-    def _embedding(self, path: Path) -> tuple[np.ndarray, str]:
-        image = _decode(path)
+    def _embedding(self, source: Path | np.ndarray) -> tuple[np.ndarray, str]:
+        image = _decode(source) if isinstance(source, Path) else source
+        if (
+            not isinstance(image, np.ndarray)
+            or image.ndim != 3
+            or image.shape[2] != 3
+            or image.dtype != np.uint8
+            or min(image.shape[:2]) <= 0
+        ):
+            raise MatchError(ErrorCode.E_DECODE, Status.DEGRADED)
         faces = self.finder.find(image)
         if not faces:
             raise MatchError(ErrorCode.E_NO_FACE, Status.NOT_APPLICABLE)
@@ -238,14 +247,26 @@ class FaceMatchDetector:
         return vector, hashlib.sha256(image.tobytes()).hexdigest()
 
     def predict(self, inp: DetectorInput) -> ModuleResult:
+        return self._predict(inp, inp.image_roles, inp.images)
+
+    def predict_frames(self, inp: DetectorInput, frames: Mapping[str, np.ndarray]) -> ModuleResult:
+        """Internal ML call with decoded server-selected pixels; no frames are written to disk.
+
+        Ignore inp.images/image_roles: frame roles here are owned by the video pipeline.
+        This is not an additional JSON/HTTP input field.
+        """
+        return self._predict(inp, list(frames), list(frames.values()))
+
+    def _predict(
+        self, inp: DetectorInput, roles: list[str], sources: list[Path | np.ndarray]
+    ) -> ModuleResult:
         started = perf_counter()
         try:
             if inp.reference_image is None:
                 raise MatchError(ErrorCode.E_DECODE, Status.DEGRADED)
-            roles = inp.image_roles
             if (
-                len(inp.images) not in (1, 3)
-                or len(roles) != len(inp.images)
+                len(sources) not in (1, 3)
+                or len(roles) != len(sources)
                 or set(roles) != ({"front"} if len(roles) == 1 else {"front", "left", "right"})
             ):
                 raise MatchError(ErrorCode.E_CHALLENGE_MISMATCH, Status.DEGRADED)
@@ -253,8 +274,8 @@ class FaceMatchDetector:
                 self.preload()
                 reference, _ = self._embedding(inp.reference_image)
                 vectors, hashes = {}, []
-                for role, path in zip(roles, inp.images, strict=True):
-                    vector, checksum = self._embedding(path)
+                for role, source in zip(roles, sources, strict=True):
+                    vector, checksum = self._embedding(source)
                     vectors[role] = vector
                     hashes.append(checksum)
                 if len(set(hashes)) != len(hashes):

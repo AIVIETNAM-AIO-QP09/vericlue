@@ -10,6 +10,10 @@ sâu. Giấy phép trọng số nghiên cứu phi thương mại, hash/revision 
 `models/manifest.yaml`. Lệnh chạy và hợp đồng:
 [`head-and-match.md`](../../../../docs/architecture/head-and-match.md).
 
+`predict_frames` nhận pixel BGR đã được server chọn trong RAM và dùng đúng cùng
+tiền xử lý/phép so như ảnh rời; không thêm trường JSON/HTTP mới. Chuỗi
+`presence.video_identity` chọn và kiểm tư thế khung từ video trước khi gọi.
+
 ## PAD: `pad.py` (FACE-01, bước 1 — bọc mô hình)
 
 `FacePadDetector` (module `face_pad`): ảnh → SCRFD `det_10g` tìm mặt → MiniFASNet V2 → `score = 1 − p_real`; `prob_attack` để trống (xác suất sau hiệu chỉnh do TrustRouter tính từ `score`).

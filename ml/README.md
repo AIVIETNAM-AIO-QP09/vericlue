@@ -30,6 +30,8 @@ FLOW-04/FLOW-05 thêm diagnostic `head_turn` và `face_match` (LVFace-B + SCRFD)
 Kiểm thứ tự quay đầu và tương đồng danh tính là hai kết quả riêng; chưa chứng
 minh chiều sâu. Thiếu ngưỡng hiệu chỉnh thì so mặt luôn `degraded/unclear`.
 Full vẫn 9 module, MVP vẫn 7; chưa bật hai module này trong quyết định HTTP.
+`eval.video_face_match` đã ghép quay đầu → chọn/kiểm khung từ video → so mặt
+trong RAM, không nhận ba ảnh query rời và không ghi khung ra đĩa.
 Lệnh chạy, định dạng artifact và giới hạn:
 [`head-and-match.md`](../docs/architecture/head-and-match.md).
 

@@ -91,13 +91,14 @@ Chi tiết: `docs/architecture/dynamic-session-api.md`.
 
 **Tiêu chí hoàn thành:**
 - [x] Test bằng chuỗi góc tổng hợp: đúng/sai thứ tự, thiếu bước, quá hạn, thiếu dữ liệu và thiếu tư thế trung tính.
+- [x] Chọn ba khung từ video theo timestamp server, kiểm lại tư thế trên đúng pixel, so mặt trong RAM; lỗi/thiếu/trùng khung không được đạt.
 - [ ] Test mặt phẳng (biến đổi homography) và kiểm chứng chiều sâu vật lý.
 
 **Lát cắt backend 24/10 (Codex, doing):** `head_turn` dùng reader MediaPipe,
 chỉ kiểm chuyển động/thứ tự/thời gian từ video với lịch server gắn phiên/lượt.
 Lịch hiện hành 6 giây theo LIVE-01; các hằng góc/giữ tư thế là thử nghiệm.
-Trả thời điểm ảnh chính diện/nghiêng để tích hợp sau; chưa trích khung cho GenD,
-chưa kiểm 3D, chưa nối quyết định API/retry hay sửa UI. Gate pass của module
+Đã có chuỗi offline lấy ảnh chính diện/nghiêng trong RAM cho LVFace; chưa đưa
+khung cho GenD, chưa kiểm 3D, chưa nối quyết định API/retry hay sửa UI. Gate pass của module
 chỉ nói chuyển động phù hợp, luôn ghi `depth_verified=false`.
 CAP-06 còn phụ thuộc cho toàn luồng; diagnostic độc lập không cần UI đó.
 Xem [`head-and-match.md`](../../architecture/head-and-match.md).
@@ -127,10 +128,13 @@ Xem [`head-and-match.md`](../../architecture/head-and-match.md).
 - [ ] Nối FLOW-03/API và vòng đời mẫu mã hóa/xóa 24 giờ.
 
 **Lát cắt backend 24/10 (Codex, doing):** diagnostic offline qua `eval.face_match`.
+`eval.video_face_match` nối head_turn → chọn khung và kiểm lại tư thế → LVFace,
+không nhận nhãn góc/ảnh query từ client trong chuỗi này, không ghi khung ra đĩa.
 Ngưỡng không có mặc định: thiếu artifact `calib_ltt` đúng version thì
 `degraded/unclear`, dù cosine cao. Embedding chỉ nằm trong RAM. Chưa kiểm chứng
-độ chính xác trên người thật hay ảnh CCCD, chưa tuyên bố ba ảnh đúng góc hoặc
-có chiều sâu. FLOW-03 còn phụ thuộc cho tích hợp toàn luồng; wrapper nhận ảnh
+độ chính xác trên người thật hay ảnh CCCD. Tư thế ảnh được kiểm lại bằng ước
+lượng MediaPipe, chưa nghiệm thu quy ước góc trên điện thoại hay chiều sâu.
+FLOW-03 còn phụ thuộc cho tích hợp toàn luồng; wrapper nhận ảnh
 chân dung tham chiếu đã cắt do server quản lý. Xem
 [`head-and-match.md`](../../architecture/head-and-match.md).
 

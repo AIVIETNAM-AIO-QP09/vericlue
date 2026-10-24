@@ -120,8 +120,8 @@
 | FLOW-01 | Tham số purpose + luật theo luồng | M5 | Codex | 1 | S1 | P0 | ROUT-02, PLAT-08 | doing |
 | FLOW-02 | OTP mô phỏng | M2 | Ngọc Quang+Claude | 0,5 | S1 | P0 | PLAT-05 | doing |
 | FLOW-03 | Chụp CCCD, QR, chân dung, kiểm đã đăng ký | M1 | Ngọc Quang+Claude | 1,5 | S1 | P0 | PLAT-05, FACE-01 | doing |
-| FLOW-04 | Thử thách quay đầu ngẫu nhiên — diagnostic thứ tự/thời gian | M1 (+M3) | Codex | 1 | S1 | P0 | CAP-06 | doing |
-| FLOW-05 | So mặt 1:1 (LVFace-B) + nhất quán ba góc — diagnostic | M3 | Codex | 1 | S1 | P0 | FLOW-03, FACE-01 | doing |
+| FLOW-04 | Quay đầu ngẫu nhiên + chọn khung video trong RAM — diagnostic | M1 (+M3) | Codex | 1 | S1 | P0 | CAP-06 | doing |
+| FLOW-05 | So mặt LVFace-B + ba góc lấy từ video — diagnostic | M3 | Codex | 1 | S1 | P0 | FLOW-03, FACE-01 | doing |
 | SEC-01 | Khóa theo phiên, che dữ liệu, nhật ký truy cập | M2 | | 1,5 | S1 | P0 | REV-01, PLAT-05 | todo |
 | SEC-02 ★ | Khóa thiết bị, ký media, nonce một lần | M2 (+M1) | | 1 | S2 | P0 | APP-01, PLAT-06 | todo |
 | APP-01 ★ | App Kotlin: khung, API qua HTTPS, điều hướng 3 luồng | M1 | | 1,5 | S1 | P0 | PLAT-04 | todo |

@@ -78,6 +78,12 @@ không xuất landmark/ảnh mặt ra báo cáo mặc định. Đây không ph�
 
 ## Còn phải làm trước khi bật thật
 
+FLOW-04/FLOW-05 đã có `video_identity.match_video_views`: head_turn → chọn ba
+khung bằng timestamp decoder → kiểm lại tư thế → so mặt trong RAM. Dùng lại
+task MediaPipe; không nạp LVFace nếu bước trước chưa đạt. Đây vẫn là diagnostic
+độc lập. Lệnh `eval.video_face_match`, giới hạn và giả định ở
+[`head-and-match.md`](../../../../docs/architecture/head-and-match.md).
+
 Đo trên điện thoại thật, ánh sáng/thiết bị/kính/tư thế khác nhau; kiểm dấu hai trục,
 đồng bộ mốc video, độ phủ và lỗi. Hiệu chỉnh trên calib, thử video phát lại/đường
 khác, kiểm head-turn/so mặt/chữ ký. Chọn cấu hình dependency dùng chung và nối
