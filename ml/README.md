@@ -50,6 +50,8 @@ checkpoint tổng hợp: [`face-diagnostic-runtime.md`](../docs/architecture/fac
 Thử trực tiếp webcam bằng cửa sổ nội bộ `python -m vericlue_ml.eval.webcam_lab`:
 [`webcam-lab.md`](../docs/architecture/webcam-lab.md). Chỉ mở camera sau nút bấm,
 không lưu ảnh/video và không thay UI sản phẩm.
+Có nút **Thử ánh sáng · 6–8 giây**: dùng cùng task MediaPipe để đo màu trong
+RAM, báo R²/lag biểu kiến với version đồng hồ host riêng, luôn unclear.
 
 1. Mọi bộ phát hiện kế thừa giao diện `Detector` và trả `ModuleResult` (`docs/architecture/architecture.md` §3).
 2. Mọi bộ phát hiện **phải có bản mock** cùng tên trong `mock/`.

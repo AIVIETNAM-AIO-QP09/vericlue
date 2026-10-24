@@ -56,6 +56,11 @@ Chưa có client/server mismatch, số ký hiệu giải mã độc lập, CAP-0
 Lag từ decoder/lịch dự kiến chỉ là lag biểu kiến; không dùng tiêu chí “100 ms
 là fail” khi chưa có đồng hồ và ngưỡng được kiểm chứng.
 
+**Bổ sung webcam 24/10:** nút thử ánh sáng 6–8 giây trong lab nội bộ, dùng
+chung task MediaPipe cho mắt/đầu/màu. Chỉ giữ số đo và log yêu cầu vẽ trong RAM;
+dừng/hủy bỏ lượt, kết quả luôn unclear. Chưa có mẫu người hoặc kết quả kiểm
+thiết bị/tấn công; không đánh dấu xong tiêu chí cổng bằng smoke tổng hợp.
+
 **Mục tiêu:** detector `chromapulse` trả `ModuleResult` với `gate` = pass / fail / unclear, kèm bằng chứng.
 
 **Đầu ra:** `ml/src/vericlue_ml/presence/chromapulse.py`

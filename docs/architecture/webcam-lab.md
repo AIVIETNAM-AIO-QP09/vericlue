@@ -34,7 +34,15 @@ opencv-contrib-python có GUI trong runtime riêng, không thay OpenCV của API
    theo thứ tự trái/phải ngẫu nhiên rồi về giữa 12–18 s. Cửa sổ giữ kích thước
    trong lượt thử. Nếu mắt và đầu đều `ok/pass`, chọn ba khung đúng tư thế
    trong RAM rồi chấm cả ba. Nếu thiếu/lỗi thì không chấm nhánh ba góc đó.
-5. **Dừng/Esc:** ngừng thu, bỏ tham chiếu/lượt thử và vô hiệu hóa kết quả cũ
+5. **Thử ánh sáng · 6–8 giây:** chỉ cần bật camera, không cần chụp tham chiếu.
+   Tạm dừng AI và chờ lượt chấm hiện tại kết thúc, rồi bấm nút thử. Giữ đầu yên
+   khi vùng lớn bên trái đổi màu theo bảng pastel/timing dùng chung của dự án.
+   Một task MediaPipe trả đồng thời mắt/góc đầu và màu 5 vùng da + nền; không
+   nạp thêm model. Hết lượt, worker đối chiếu số đo và hiển thị R² fit/lag biểu
+   kiến nếu đủ dữ liệu. Thiếu mặt/vùng/nền hoặc gián đoạn thì không có kết quả
+   khớp dùng được. Lượt luôn `degraded/unclear`, không kết luận người thật.
+   Esc dừng camera; thu nhỏ hoặc chuyển sang cửa sổ khác hủy lượt màu.
+6. **Dừng/Esc:** ngừng thu, bỏ tham chiếu/lượt thử và vô hiệu hóa kết quả cũ
    đang về. Lượt AI native đang chạy không thể cưỡng bức ngắt; hoàn tất rồi
    bỏ dữ liệu giữ trong worker. Camera được giải phóng sau lượt đọc hiện tại.
    Đóng cửa sổ để thoát cả tiến trình.
@@ -52,12 +60,26 @@ chiếu, khung mới nhất và tối đa 75 khung cần cho lượt thử chuy�
 **Lưu báo cáo JSON** mới ghi metadata/kết quả/hash vào `tmp/webcam-lab/`; không
 ghi landmark thô, pixel hay embedding. Báo cáo là snapshot chẩn đoán mới nhất,
 `sample_count=1`, không phải báo cáo độ chính xác từ nhiều người.
+Lượt ánh sáng chỉ giữ tối đa 120 hàng số đo và 512 mốc yêu cầu vẽ, không giữ
+video/khung màu riêng. JSON thêm `color` (ModuleResult), `color_plan` (lịch,
+hash cấu hình, ID cục bộ, mốc yêu cầu vẽ). Bắt đầu lượt mới hoặc chụp tham chiếu
+xóa kết quả ánh sáng cũ để không ghép nhầm lượt.
 
 Thử thách sinh **cục bộ bằng CSPRNG** cho lab, không giả làm phản hồi server.
 Timestamp là đồng hồ host khi lấy khung từ webcam, không phải timestamp cảm
 biến hay bằng chứng chống camera ảo. Độ trễ đọc camera/hiển thị chưa được
-nghiệm thu; không thay chữ ký media/SEC-02, kiểm chiều sâu, ánh sáng ChromaPulse
-hoặc kiểm giọng. Lượt lab không được đưa vào API như bằng chứng xác minh.
+nghiệm thu; không thay chữ ký media/SEC-02, kiểm chiều sâu hoặc kiểm giọng.
+Lượt lab không được đưa vào API như bằng chứng xác minh.
+
+ChromaPulse trong lab dùng version riêng `+local-host-clock-v1`: lịch sinh cục
+bộ bằng CSPRNG, có đủ bốn màu và không lặp kề nhau. Mốc Tk chỉ là **yêu cầu vẽ**,
+không phải thời điểm màn hình trình chiếu hoặc cảm biến chụp. Dùng lịch dự kiến
+để fit; ghi log vẽ cho chẩn đoán, không tối ưu lệch đồng hồ để làm đẹp kết quả.
+Khởi đầu vẽ trễ, thiếu cuối lịch hoặc gap >200 ms thì bỏ fit. Đây là quality
+guard thử nghiệm, không phải ngưỡng độ trễ phát hiện deepfake. Lưới fit 5 ms,
+mẫu camera ~100 ms không chứng minh đo chính xác 5 ms. R² là khớp trên cùng
+mẫu để fit, không phải độ chính xác phân loại. Xem
+[`chromapulse-diagnostic.md`](chromapulse-diagnostic.md) về các giới hạn còn lại.
 
 GenD ảnh đơn có version riêng `+single-frame-v1`; ba góc giữ version cũ.
 FS-VFM ảnh RAM đơn dùng cùng tiền xử lý/version ảnh đơn. LVFace nhận tham
@@ -73,3 +95,8 @@ tmp/face-diagnostic-runtime/Scripts/python.exe -m vericlue_ml.eval.webcam_lab --
 Chế độ này vô hiệu hóa nút camera, dùng để kiểm layout; không được báo là test
 mặt người thật. Bộ test `ml/tests/test_webcam_trial.py` dùng dữ liệu tổng hợp
 và camera giả, kiểm timing, giới hạn RAM, chọn đúng pixel, dừng và lỗi đọc.
+`test_webcam_color.py` kiểm lịch màu, số đo/đồng hồ tổng hợp, hủy/stop,
+kết quả cũ, giới hạn RAM và export số liệu. Smoke opt-in
+`test_webcam_color_real_smoke.py` dùng checkpoint thật trên một khung xám tự
+sinh, không gọi camera và không có mẫu người thật. Các kiểm tra này không phải
+nghiệm thu thiết bị, khả năng phản chiếu ánh sáng hoặc phát hiện tấn công.
