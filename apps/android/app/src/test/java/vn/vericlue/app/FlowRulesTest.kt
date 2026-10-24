@@ -62,4 +62,25 @@ class FlowRulesTest {
         assertTrue(a.canContinue)
         assertFalse(a.toggle().canContinue)
     }
+
+    @Test
+    fun liveRetryResendsInsteadOfTheScriptedCheck() {
+        assertEquals(Routes.Uploading, FlowRules.afterNetworkRetry(live = true))
+        assertEquals(Routes.Checking, FlowRules.afterNetworkRetry(live = false))
+    }
+
+    @Test
+    fun exitDialogRedoesFaceOnlyFromStageBOrC() {
+        assertTrue(FlowRules.resumeRedoesFace(Routes.HoldStill))
+        assertTrue(FlowRules.resumeRedoesFace(Routes.Voice))
+        assertFalse(FlowRules.resumeRedoesFace(Routes.Uploading))
+        assertFalse(FlowRules.resumeRedoesFace(Routes.IdFront))
+        assertFalse(FlowRules.resumeRedoesFace(null))
+    }
+
+    @Test
+    fun successTicksOnlyWhatTheServerChecked() {
+        assertEquals(listOf("Khuôn mặt"), FlowRules.checkedByServer(voiceChecked = false))
+        assertEquals(listOf("Khuôn mặt", "Giọng nói"), FlowRules.checkedByServer(voiceChecked = true))
+    }
 }

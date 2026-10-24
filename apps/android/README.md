@@ -12,7 +12,7 @@
 | Phần | Đã thật | Còn giả hoặc chưa làm |
 |---|---|---|
 | Gọi API | Tạo phiên, `media` (ảnh + MP4), `signals`, `finalize`, `voice`; header `X-Mock-Scenario` | Client viết tay (APP-01 muốn sinh từ `openapi.json`); HTTPS qua cloudflared |
-| Camera trước | CameraX, ML Kit dò mặt, cổng chất lượng tự chụp, quay MP4 lúc nháy màu, khóa AE/AWB | Ngưỡng cần chỉnh trên máy thật; `region_means`, `camprobe` |
+| Camera trước | CameraX, ML Kit dò mặt, cổng chất lượng tự chụp, quay MP4 lúc nháy màu, khóa AE/AWB | Ngưỡng cần chỉnh trên máy thật. Đã gửi `region_means` (vùng theo hộp mặt ML Kit, chờ PRES-02 chốt định nghĩa) và `camprobe` (cờ `android:*`) |
 | Nháy màu | Màu, nhịp từ `challenge` của server; ghi `color_events`, `frame_times` cùng một đồng hồ | Đo phản chiếu trên máy thật |
 | Quay đầu | Góc quay từ ML Kit (`headEulerAngleY`) | Thứ tự trái/phải vẫn chọn trên máy (chờ LIVE-01); chiều dấu của góc phải kiểm trên máy thật |
 | Chấm sáng | Giao diện | Đường đi và việc ghi `(t, x, y)` chờ hợp đồng LIVE-01 |
@@ -41,7 +41,7 @@ Trên **macOS** (Apple Silicon): cài Android Studio, mở `apps/android`, tạo
 ```bash
 cd apps/android
 ./gradlew assembleDebug          # APK theo loại chip: app/build/outputs/apk/debug/app-<abi>-debug.apk
-./gradlew assembleRelease        # bản rút gọn (R8): app/build/outputs/apk/release/app-arm64-v8a-release.apk ~22 MB
+./gradlew assembleRelease -Pvericlue.apiBaseUrl=https://<địa-chỉ>/   # bản rút gọn (R8), ~22 MB; thiếu https:// thì build dừng
 ./gradlew testDebugUnitTest      # test logic: luồng, API (MockWebServer), camera, WAV, CCCD, chữ cấm
 ./gradlew recordPaparazziDebug   # chụp ảnh mọi màn trên máy tính (không cần giả lập), ra app/src/test/snapshots/images
 ```
@@ -63,7 +63,7 @@ Bản debug cho phép HTTP thường **chỉ** tới `10.0.2.2` và `localhost` 
 | `app-x86_64-*.apk` | Máy ảo trên máy tính Windows/Intel |
 | `app-universal-*.apk` | Mọi máy (nặng nhất) |
 
-Bản **release** dùng API thật ngay (không có chế độ giả lập, không có màn "Xem tất cả màn"), chỉ gọi HTTPS. Build release phải truyền `-Pvericlue.apiBaseUrl=https://...`. Bản release hiện ký bằng khóa debug để cài thử; phải đổi sang khóa thật trước khi phát hành.
+Bản **release** dùng API thật ngay (không có chế độ giả lập, không có màn "Xem tất cả màn"), chỉ gọi HTTPS. Build release phải truyền `-Pvericlue.apiBaseUrl=https://...`; thiếu hoặc không phải `https://` thì task `checkReleaseApiUrl` dừng build. Bản release hiện ký bằng khóa debug để cài thử; phải đổi sang khóa thật trước khi phát hành.
 
 ## Chạy thử với API mock (không cần Postgres, không cần điện thoại)
 

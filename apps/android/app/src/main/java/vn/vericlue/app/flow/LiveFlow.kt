@@ -37,8 +37,18 @@ class LiveFlow(private val api: SessionApi) {
     var attemptsLeft: Int? = null
         private set
 
-    /** WAV waiting to be sent from the upload screen. */
+    /** WAV waiting to be sent from the upload screen. Kept until the server accepts it, so a retry can resend it. */
     var pendingWav: ByteArray? = null
+
+    /** Steps the server already received in this attempt; a retry skips them (a second send is 409). */
+    var mediaAcked = false
+        private set
+    var signalsAcked = false
+        private set
+
+    /** The server received and checked a voice recording in this session. */
+    var voiceChecked = false
+        private set
 
     fun reset() {
         session = null
@@ -49,6 +59,9 @@ class LiveFlow(private val api: SessionApi) {
         retryHint = null
         attemptsLeft = null
         pendingWav = null
+        mediaAcked = false
+        signalsAcked = false
+        voiceChecked = false
     }
 
     /**
@@ -61,6 +74,9 @@ class LiveFlow(private val api: SessionApi) {
         pendingWav = null
         session = null
         challenge = null
+        mediaAcked = false
+        signalsAcked = false
+        voiceChecked = false
     }
 
     suspend fun ensureSession(mockScenario: String?): ApiError? {
@@ -75,18 +91,30 @@ class LiveFlow(private val api: SessionApi) {
         }
     }
 
-    /** Sends the face part and returns the next screen. */
+    /**
+     * Sends the face part and returns the next screen. Calling it again after a failure (the
+     * "Thử lại" button) only sends the steps the server has not acknowledged yet.
+     */
     suspend fun submitFace(
         video: File?,
         frameTimes: List<FrameTime>,
         clientQuality: Map<String, String>,
         camprobe: CamProbe? = null,
         regionMeans: List<RegionFrame>? = null,
+        onMediaAcked: () -> Unit = {},
     ): Next {
         val s = session ?: return Next.Fail(ApiError.Expired)
         val jpeg = frontalJpeg ?: return Next.Fail(ApiError.BadResponse)
-        api.uploadMedia(s.sessionId, s.token, jpeg, video).failOrNull()?.let { return it }
-        api.sendSignals(s.sessionId, s.token, Signals(colorEvents.toList(), frameTimes, clientQuality, camprobe, regionMeans)).failOrNull()?.let { return it }
+        if (!mediaAcked) {
+            api.uploadMedia(s.sessionId, s.token, jpeg, video).ackOrFail()?.let { return it }
+            mediaAcked = true
+            onMediaAcked() // the server has the video: the local copy can go
+        }
+        if (!signalsAcked) {
+            api.sendSignals(s.sessionId, s.token, Signals(colorEvents.toList(), frameTimes, clientQuality, camprobe, regionMeans))
+                .ackOrFail()?.let { return it }
+            signalsAcked = true
+        }
         return when (val r = api.finalize(s.sessionId, s.token)) {
             is ApiResult.Err -> Next.Fail(r.error)
             is ApiResult.Ok -> {
@@ -96,6 +124,8 @@ class LiveFlow(private val api: SessionApi) {
                     challenge = f.challenge ?: return Next.Fail(ApiError.BadResponse)
                     colorEvents.clear()
                     frontalJpeg = null
+                    mediaAcked = false
+                    signalsAcked = false
                 }
                 retryHint = f.retryHint
                 attemptsLeft = f.attemptsLeft
@@ -111,13 +141,23 @@ class LiveFlow(private val api: SessionApi) {
         return when (val r = api.sendVoice(s.sessionId, s.token, wav, null)) {
             is ApiResult.Err -> Next.Fail(r.error)
             is ApiResult.Ok -> {
+                pendingWav = null
+                voiceChecked = true
                 if (r.value.status == "voice_challenge") voicePrompt = r.value.voicePrompt ?: return Next.Fail(ApiError.BadResponse)
                 FlowRules.routeForStatus(r.value.status, null, inVoiceStep = true)?.let { Next.To(it) } ?: Next.Fail(ApiError.BadResponse)
             }
         }
     }
 
-    private fun <T> ApiResult<T>.failOrNull(): Next? = (this as? ApiResult.Err)?.let { Next.Fail(it.error) }
+    /**
+     * Null when the step counts as received. A 409 means the server already has this step in
+     * the attempt (the earlier response was lost), unless the session itself is closed.
+     */
+    private fun <T> ApiResult<T>.ackOrFail(): Next? {
+        val err = this as? ApiResult.Err ?: return null
+        if (err.error == ApiError.Conflict && err.code != "session_closed") return null
+        return Next.Fail(err.error)
+    }
 }
 
 /** Error → screen. Every branch is an error screen; none is a pass (AGENTS.md §6 rule 4). */

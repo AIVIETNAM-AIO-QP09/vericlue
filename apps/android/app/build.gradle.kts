@@ -6,6 +6,21 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+// API address. Emulator → host machine is 10.0.2.2. Override with
+// ./gradlew assembleRelease -Pvericlue.apiBaseUrl=https://<tunnel>/  (never hard-code the tunnel)
+val apiBaseUrl = (project.findProperty("vericlue.apiBaseUrl") as String?) ?: "http://10.0.2.2:8000/"
+
+// A release build only talks HTTPS: stop it when the address is not https:// (debug may use http).
+val checkReleaseApiUrl by tasks.registering {
+    val url = apiBaseUrl
+    doLast {
+        if (!url.startsWith("https://")) {
+            throw GradleException("Release cần -Pvericlue.apiBaseUrl=https://… (đang là \"$url\").")
+        }
+    }
+}
+tasks.matching { it.name == "preReleaseBuild" }.configureEach { dependsOn(checkReleaseApiUrl) }
+
 android {
     namespace = "vn.vericlue.app"
     compileSdk = 35
@@ -17,9 +32,6 @@ android {
         versionCode = 1
         versionName = "0.2.0-scaffold"
 
-        // API address. Emulator → host machine is 10.0.2.2. Override with
-        // ./gradlew assembleDebug -Pvericlue.apiBaseUrl=https://<tunnel>/  (never hard-code the tunnel)
-        val apiBaseUrl = (project.findProperty("vericlue.apiBaseUrl") as String?) ?: "http://10.0.2.2:8000/"
         buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
     }
 

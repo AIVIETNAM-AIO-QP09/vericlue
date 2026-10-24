@@ -191,6 +191,7 @@ fun VeriClueApp() {
     /** Leaves the flow: camera off, session data dropped. */
     fun leave() {
         camera.unbind()
+        camera.deleteVideo()
         recorder.stop()
         live.reset()
         nav.toBank()
@@ -237,6 +238,7 @@ fun VeriClueApp() {
             // Act on ON_STOP itself: the activity may be recreated before it starts again.
             if (event == Lifecycle.Event.ON_STOP && FlowRules.isInterruptedBy(currentRoute)) {
                 camera.stopRecording()
+                camera.deleteVideo()
                 recorder.stop()
                 live.dropFaceAttempt()
                 nav.navigate(Routes.Interrupted) { launchSingleTop = true }
@@ -335,7 +337,12 @@ fun VeriClueApp() {
 
         // Stage B: face
         composable(Routes.FaceReady) {
-            FaceReadyScreen(onBack = { nav.popBackStack() }, onReady = ::startFace, onSkipFlash = { nav.go(Routes.Voice) })
+            // Skipping the flash must not skip the face part: stop here. Nothing reaches the server yet,
+            // so the screen promises no review (question 14 in docs/can-chot.md).
+            FaceReadyScreen(onBack = { nav.popBackStack() }, onReady = ::startFace, onSkipFlash = {
+                camera.unbind()
+                nav.go(Routes.FlashSkipped)
+            })
         }
         composable(Routes.Framing) {
             val face by camera.face.collectAsState()
@@ -418,9 +425,9 @@ fun VeriClueApp() {
             if (flow.live) {
                 LaunchedEffect(Unit) {
                     val wav = live.pendingWav
+                    // A retry comes back here; LiveFlow resends only what the server has not received.
                     follow(
                         if (wav != null) {
-                            live.pendingWav = null
                             live.submitVoice(wav)
                         } else {
                             val probe = withContext(Dispatchers.IO) { camera.camProbe() }
@@ -430,6 +437,7 @@ fun VeriClueApp() {
                                 camera.clientQuality(),
                                 probe,
                                 camera.regionMeans().ifEmpty { null },
+                                onMediaAcked = camera::deleteVideo,
                             )
                         },
                     )
@@ -438,14 +446,18 @@ fun VeriClueApp() {
             Messages.Uploading(onStop = exit, onDone = { nav.go(Routes.Checking) }, auto = !flow.live)
         }
         composable(Routes.Checking) {
-            CheckingScreen(flow.purpose, onDone = {
+            // Demo only: the result comes from DemoOutcome. A live run never decides here.
+            if (flow.live) LaunchedEffect(Unit) { nav.navigate(Routes.Uploading) { popUpTo(Routes.Checking) { inclusive = true } } }
+            CheckingScreen(flow.purpose, auto = !flow.live, onDone = {
                 nav.navigate(FlowRules.afterChecking(flow.outcome)) { popUpTo(Routes.Checking) { inclusive = true } }
             })
         }
         composable(Routes.Success) {
-            SuccessScreen(flow.purpose, onContinue = {
-                if (flow.purpose == Purpose.Onboarding) nav.go(Routes.BankOpened) else leave()
-            })
+            SuccessScreen(
+                flow.purpose,
+                onContinue = { if (flow.purpose == Purpose.Onboarding) nav.go(Routes.BankOpened) else leave() },
+                checked = if (flow.live) FlowRules.checkedByServer(live.voiceChecked) else null,
+            )
         }
         composable(Routes.Review) { ReviewScreen(onBackToBank = { leave() }) }
         composable(Routes.RetryQuality) {
@@ -468,7 +480,11 @@ fun VeriClueApp() {
         // Errors and interruptions
         composable(Routes.ErrorCamera) { Messages.CameraDenied(onRetry = { nav.go(Routes.FaceReady) }, onBack = { nav.popBackStack() }) }
         composable(Routes.ErrorMic) { Messages.MicDenied(onRetry = { nav.go(Routes.Voice) }, onBack = { nav.popBackStack() }) }
-        composable(Routes.ErrorNetwork) { Messages.Network(onRetry = { nav.go(Routes.Checking) }, onBack = { nav.popBackStack() }) }
+        composable(Routes.ErrorNetwork) {
+            Messages.Network(onRetry = {
+                nav.navigate(FlowRules.afterNetworkRetry(flow.live)) { popUpTo(Routes.ErrorNetwork) { inclusive = true } }
+            }, onBack = { nav.popBackStack() })
+        }
         composable(Routes.ErrorSession) { Messages.SessionExpired(onBank = { leave() }) }
         composable(Routes.ErrorService) { Messages.ServiceDown(onBank = { leave() }) }
         composable(Routes.ErrorDevice) {
@@ -477,19 +493,37 @@ fun VeriClueApp() {
         composable(Routes.Interrupted) { Messages.Interrupted(onRedo = { nav.go(Routes.FaceReady) }, onStop = { nav.go(Routes.Stopped) }) }
         composable(Routes.NoVoice) { Messages.NoVoice(onRetry = { nav.go(Routes.Voice) }, onStop = exit) }
         composable(Routes.UploadFailed) { Messages.UploadFailed(onResend = { nav.go(Routes.Uploading) }, onStop = exit) }
-        composable(Routes.Slow) { Messages.Slow(onWait = { nav.go(Routes.Checking) }, onStop = exit) }
+        composable(Routes.Slow) {
+            Messages.Slow(onWait = {
+                nav.navigate(FlowRules.afterNetworkRetry(flow.live)) { popUpTo(Routes.Slow) { inclusive = true } }
+            }, onStop = exit)
+        }
         composable(Routes.ExitConfirm) {
+            val redoesFace = remember { FlowRules.resumeRedoesFace(nav.previousBackStackEntry?.destination?.route) }
             Messages.ExitConfirm(
+                redoesFace = redoesFace,
                 onResume = {
-                    camera.stopRecording()
-                    recorder.stop()
-                    live.dropFaceAttempt()
-                    nav.go(Routes.FaceReady)
+                    if (redoesFace) {
+                        camera.stopRecording()
+                        camera.deleteVideo()
+                        recorder.stop()
+                        live.dropFaceAttempt()
+                        nav.go(Routes.FaceReady)
+                    } else {
+                        nav.popBackStack()
+                    }
                 },
-                onStop = { nav.go(Routes.Stopped) },
+                onStop = {
+                    // Stop capturing now, not when the user leaves the "stopped" screen.
+                    camera.stopRecording()
+                    camera.deleteVideo()
+                    recorder.stop()
+                    nav.go(Routes.Stopped)
+                },
             )
         }
         composable(Routes.Stopped) { Messages.Stopped(onBank = { leave() }) }
+        composable(Routes.FlashSkipped) { Messages.FlashSkipped(onBank = { leave() }) }
     }
     }
 }
@@ -519,6 +553,7 @@ private fun GalleryScreen(nav: NavHostController, flow: FlowState) {
             "Hết phiên" to Routes.ErrorSession, "Dịch vụ không đáp ứng" to Routes.ErrorService, "Thiết bị chưa đáp ứng" to Routes.ErrorDevice,
             "Bị gián đoạn" to Routes.Interrupted, "Không thu được giọng" to Routes.NoVoice, "Gửi thất bại" to Routes.UploadFailed,
             "Kiểm tra lâu" to Routes.Slow, "Xác nhận dừng" to Routes.ExitConfirm, "Đã dừng" to Routes.Stopped,
+            "Bỏ qua nháy màu" to Routes.FlashSkipped,
         ),
         "App ngân hàng (mô phỏng)" to listOf("Mở tài khoản thành công" to Routes.BankOpened),
     )

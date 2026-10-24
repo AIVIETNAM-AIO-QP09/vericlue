@@ -103,7 +103,7 @@ fun FaceReadyScreen(onBack: () -> Unit, onReady: () -> Unit, onSkipFlash: () -> 
         step = 2,
         actions = {
             PrimaryButton("Tôi đã sẵn sàng", onReady)
-            LinkButton("Bỏ qua nháy màu, chuyển sang đọc câu", onSkipFlash)
+            LinkButton("Bỏ qua nháy màu, chờ nhân viên xác minh", onSkipFlash)
         },
     ) {
         TitleBlock("Tiếp theo: quay khuôn mặt", "Giữ điện thoại cách mặt khoảng 25 đến 40 cm, ở nơi đủ sáng.")

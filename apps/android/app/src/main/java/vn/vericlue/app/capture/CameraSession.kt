@@ -39,7 +39,8 @@ import vn.vericlue.app.data.api.FrameTime
  * One camera session for the whole face part: the front camera stays on from framing to the
  * end of the voice step (ADR-0013 principle 4). Screens only show its preview.
  *
- * Not done yet (plan phase 3/9): AE/AWB lock during the colour flash, region_means, camprobe.
+ * Also collects frame_times, region_means and the camprobe facts sent with the signals.
+ * Not done yet: the dot path (waits for LIVE-01) and media signing (SEC-02).
  */
 class CameraSession(private val context: Context) {
     val controller = LifecycleCameraController(context)
@@ -202,6 +203,12 @@ class CameraSession(private val context: Context) {
     }
 
     fun recordedVideo(): File? = videoFile?.takeIf { it.exists() && it.length() > 0 }
+
+    /** Deletes every face video in the cache: once the server has it, or when the attempt is dropped. */
+    fun deleteVideo() {
+        videoFile = null
+        context.cacheDir.listFiles { f -> f.name.startsWith("face_") && f.name.endsWith(".mp4") }?.forEach { it.delete() }
+    }
 
     fun frameTimes(): List<FrameTime> = synchronized(frames) { frames.toList() }
 

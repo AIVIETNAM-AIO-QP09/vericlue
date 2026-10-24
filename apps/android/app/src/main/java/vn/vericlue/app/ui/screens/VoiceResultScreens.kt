@@ -212,7 +212,7 @@ fun CheckingScreen(purpose: Purpose, onDone: () -> Unit, auto: Boolean = true) {
 // ── Results ──────────────────────────────────────────────────────────────────
 
 @Composable
-fun SuccessScreen(purpose: Purpose, onContinue: () -> Unit, auto: Boolean = true) {
+fun SuccessScreen(purpose: Purpose, onContinue: () -> Unit, auto: Boolean = true, checked: List<String>? = null) {
     LaunchedEffect(auto) {
         if (auto) {
             delay(2600)
@@ -224,7 +224,9 @@ fun SuccessScreen(purpose: Purpose, onContinue: () -> Unit, auto: Boolean = true
         when (purpose) {
             Purpose.Onboarding -> {
                 TitleBlock("Xác minh thành công", "Đang quay lại ứng dụng ngân hàng…", centered = true)
-                ChecklistCard("Đã hoàn tất", listOf("Ảnh giấy tờ", "Khuôn mặt", "Giọng nói").map { Triple(null, it, RowState.Done) }, trailing = listOf("", "", ""))
+                // Live runs pass `checked`: only what the server has really checked.
+                val rows = checked ?: listOf("Ảnh giấy tờ", "Khuôn mặt", "Giọng nói")
+                ChecklistCard("Đã hoàn tất", rows.map { Triple(null, it, RowState.Done) }, trailing = rows.map { "" })
             }
             Purpose.Reauth -> {
                 TitleBlock("Đăng nhập thành công", "Danh tính của bạn đã được xác nhận. Thiết bị này đã được liên kết với tài khoản.", centered = true)
@@ -329,10 +331,18 @@ object Messages {
         "Quay lại ứng dụng ngân hàng" to onBank,
     )
 
-    @Composable fun ExitConfirm(onResume: () -> Unit, onStop: () -> Unit) = MessageScreen(
+    /** [redoesFace]: "resume" restarts the face part (stage B/C) instead of going back to the last screen. */
+    @Composable fun ExitConfirm(onResume: () -> Unit, onStop: () -> Unit, redoesFace: Boolean = true) = MessageScreen(
         Icons.Outlined.PauseCircle, "Bạn muốn dừng xác minh?",
-        "Bạn có thể quay lại chuẩn bị hoặc dừng phiên xác minh hiện tại.",
-        "Quay lại chuẩn bị" to onResume, "Dừng xác minh" to onStop, onBack = onResume,
+        if (redoesFace) "Bạn có thể quay lại chuẩn bị hoặc dừng phiên xác minh hiện tại." else "Bạn có thể tiếp tục hoặc dừng phiên xác minh hiện tại.",
+        (if (redoesFace) "Quay lại chuẩn bị" else "Tiếp tục") to onResume, "Dừng xác minh" to onStop, onBack = onResume,
+    )
+
+    /** "Bỏ qua nháy màu": the face part cannot be done in the app. Promises nothing (nothing was sent). */
+    @Composable fun FlashSkipped(onBank: () -> Unit) = MessageScreen(
+        Icons.Outlined.PhoneAndroid, "Cần xác minh theo cách khác",
+        "Phần khuôn mặt cần màn hình đổi màu nhạt trong vài giây. Nếu bạn không xem được, vui lòng liên hệ ngân hàng để được hướng dẫn cách xác minh khác.",
+        "Quay lại ứng dụng ngân hàng" to onBank,
     )
 
     @Composable fun Stopped(onBank: () -> Unit) = MessageScreen(

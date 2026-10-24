@@ -75,6 +75,7 @@ object Routes {
     const val NoVoice = "no_voice"
     const val ExitConfirm = "exit_confirm"
     const val Stopped = "stopped"
+    const val FlashSkipped = "flash_skipped"
 }
 
 object FlowRules {
@@ -125,6 +126,22 @@ object FlowRules {
     val capturingRoutes = setOf(Routes.Framing, Routes.HoldStill, Routes.TurnHead, Routes.Voice, Routes.VoiceAgain)
 
     fun isInterruptedBy(route: String?): Boolean = route in capturingRoutes
+
+    /**
+     * "Thử lại" / "Tiếp tục chờ" after a network error or a slow answer. A live run sends again
+     * (only the steps the server has not received); only the demo goes through the scripted check.
+     */
+    fun afterNetworkRetry(live: Boolean): String = if (live) Routes.Uploading else Routes.Checking
+
+    /** "Tiếp tục" in the exit dialog redoes the face part only when it was opened during stage B or C. */
+    fun resumeRedoesFace(previousRoute: String?): Boolean = previousRoute?.let(::stepOf) in setOf(2, 3)
+
+    /**
+     * What the success screen may tick in a live run: only what the server has checked. The ID card
+     * is not sent yet (FLOW-03), and a pass straight from finalize skips the voice.
+     */
+    fun checkedByServer(voiceChecked: Boolean): List<String> =
+        if (voiceChecked) listOf("Khuôn mặt", "Giọng nói") else listOf("Khuôn mặt")
 
     fun stepOf(route: String): Int? = when (route) {
         Routes.Intro, Routes.Permission, Routes.Phone, Routes.Otp, Routes.OtpError,
