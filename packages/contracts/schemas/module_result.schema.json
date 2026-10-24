@@ -24,7 +24,9 @@
         "voice_challenge",
         "lipsync",
         "provenance",
-        "gaze_tracking"
+        "gaze_tracking",
+        "head_turn",
+        "face_match"
       ]
     },
     "model_version": {

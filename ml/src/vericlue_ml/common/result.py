@@ -23,6 +23,8 @@ class Module(StrEnum):
     LIPSYNC = "lipsync"
     PROVENANCE = "provenance"
     GAZE_TRACKING = "gaze_tracking"
+    HEAD_TURN = "head_turn"
+    FACE_MATCH = "face_match"
 
 
 class Status(StrEnum):

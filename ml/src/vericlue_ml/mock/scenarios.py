@@ -41,6 +41,8 @@ def _text(name: str, value: str, label_vi: str) -> dict[str, Any]:
 # Kết quả của người thật — mặc định cho mọi kịch bản nếu không ghi đè.
 GENUINE: dict[Module, Spec] = {
     Module.GAZE_TRACKING: {"status": "ok", "gate": "pass"},
+    Module.HEAD_TURN: {"status": "ok", "gate": "pass"},
+    Module.FACE_MATCH: {"status": "ok", "gate": "pass"},
     Module.QUALITY: {
         "status": "ok",
         "gate": "pass",

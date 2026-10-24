@@ -16,6 +16,7 @@ import numpy as np
 
 from vericlue_ml.common.detector import DetectorInput
 from vericlue_ml.common.result import ErrorCode, Evidence, Gate, Module, ModuleResult, Status
+from vericlue_ml.presence.challenge import expected_dynamic
 from vericlue_ml.presence.landmarks import FaceObservation, FaceObservationReader, LandmarkError
 
 GAZE_VERSION = "gaze-rules@0.1+face-landmarker-f16-1"
@@ -44,20 +45,7 @@ def _number(value: Any) -> bool:
 
 def parse_plan(inp: DetectorInput) -> GazePlan:
     """Accept only the server's expected_challenge, bound to this session and attempt."""
-    challenge = inp.metadata.get("expected_challenge")
-    if not isinstance(challenge, dict):
-        raise LandmarkError(ErrorCode.E_CHALLENGE_MISMATCH)
-    dynamic = challenge.get("dynamic")
-    if (
-        not isinstance(dynamic, dict)
-        or not inp.session_id
-        or dynamic.get("session_id") != inp.session_id
-        or not inp.metadata.get("challenge_id")
-        or inp.metadata["challenge_id"] != challenge.get("challenge_id")
-        or type(dynamic.get("version")) is not int
-        or dynamic["version"] != 1
-    ):
-        raise LandmarkError(ErrorCode.E_CHALLENGE_MISMATCH)
+    dynamic = expected_dynamic(inp)
     rows = dynamic.get("gaze_points")
     if not isinstance(rows, list) or len(rows) != 8:
         raise LandmarkError(ErrorCode.E_CHALLENGE_MISMATCH)

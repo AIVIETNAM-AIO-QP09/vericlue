@@ -1,6 +1,24 @@
 # DATA-02: pin nguồn; sha256 ghi sau tải/kiểm byte thực. Không commit weights.
 schema_version: 1
 models:
+- id: lvface-b
+  purpose: FLOW-05 — so mặt và nhất quán ba góc, chưa hiệu chỉnh ngưỡng
+  source:
+    type: hf
+    repo: bytedance-research/LVFace
+    revision: b12702ab1f5c721748e054a66dc90e1edd1f0724
+  license: nghiên cứu phi thương mại (trọng số); MIT (code)
+  license_url: https://github.com/bytedance/LVFace/blob/80bd20c8bb78e56eb708941180d800a27c396a6b/README.md#license
+  license_status: accepted-research
+  owner: M3
+  status: ready
+  files:
+  - path: LVFace-B_Glint360K.onnx
+    url: https://huggingface.co/bytedance-research/LVFace/resolve/b12702ab1f5c721748e054a66dc90e1edd1f0724/LVFace-B_Glint360K/LVFace-B_Glint360K.onnx?download=true
+    size_bytes: 455533594
+    sha256: 9d834ed8e927fd35b9123b2bf97c40aad05785b1f9ecfb1c4c1f6242d38d1382
+    upstream_sha256: 9d834ed8e927fd35b9123b2bf97c40aad05785b1f9ecfb1c4c1f6242d38d1382
+  note: HF gắn MIT nhưng README tác giả giới hạn trọng số phi thương mại; chỉ dùng nghiên cứu/demo.
 - id: arcface-mnet
   purpose: DATA-03 nhóm rủi ro danh tính ảnh; không dùng nhận dạng sản phẩm
   source:

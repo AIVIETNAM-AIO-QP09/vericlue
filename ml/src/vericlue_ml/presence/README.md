@@ -39,8 +39,10 @@ Topology chỉ số mắt: `google-ai-edge/mediapipe`, tag `v0.10.21`,
   coi tương quan là xác suất tấn công. `prob_attack` để trống; chỉ có gate và số đo
   nội bộ. API người dân không được nhận các số đo này.
 
-Reader có thể trích yaw/pitch/roll cho FLOW-04 dùng tiếp. Đây là góc từ ma trận
-ước lượng, **chưa kiểm thứ tự quay đầu và chưa kiểm mặt phẳng/chiều sâu**.
+FLOW-04 đã dùng yaw/pitch/roll từ reader cho `HeadTurnDetector` để kiểm thứ tự
+và thời gian thử thách. Đây là góc từ ma trận ước lượng, **chưa kiểm mặt
+phẳng/chiều sâu**. Chưa bật quyết định API. Lệnh diagnostic và giới hạn ở
+[`head-and-match.md`](../../../../docs/architecture/head-and-match.md).
 Video tối đa 30 giây, 1800 khung, 1920×1080; ngân sách đọc 15 giây được kiểm giữa
 các khung. Không coi đây là khả năng ngắt một lời gọi native đang treo. Khi đưa
 vào orchestrator cần đo lại ngân sách 4 giây hiện có và chính sách quá tải.
