@@ -11,13 +11,13 @@
 
 | Phần | Đã thật | Còn giả hoặc chưa làm |
 |---|---|---|
-| Gọi API | Tạo phiên, `media` (ảnh + MP4), `signals`, `finalize`, `voice`; header `X-Mock-Scenario` | Client viết tay (APP-01 muốn sinh từ `openapi.json`); HTTPS qua cloudflared |
+| Gọi API | Tạo phiên, OTP, CCCD (`id-card`, `id-card/confirm`), `challenge` (thử thách mới trước mỗi lượt quay mặt), `media` (ảnh + MP4), `signals`, `finalize`, `voice`; header `X-Mock-Scenario` | Client viết tay (APP-01 muốn sinh từ `openapi.json`); HTTPS qua cloudflared |
 | Camera trước | CameraX, ML Kit dò mặt, cổng chất lượng tự chụp, quay MP4 lúc nháy màu, khóa AE/AWB | Ngưỡng cần chỉnh trên máy thật. Đã gửi `region_means` (vùng theo hộp mặt ML Kit, chờ PRES-02 chốt định nghĩa) và `camprobe` (cờ `android:*`) |
 | Nháy màu | Màu, nhịp từ `challenge` của server; ghi `color_events`, `frame_times` cùng một đồng hồ | Đo phản chiếu trên máy thật |
-| Quay đầu | Góc quay từ ML Kit (`headEulerAngleY`) | Thứ tự trái/phải vẫn chọn trên máy (chờ LIVE-01); chiều dấu của góc phải kiểm trên máy thật |
-| Chấm sáng | Giao diện | Đường đi và việc ghi `(t, x, y)` chờ hợp đồng LIVE-01 |
+| Quay đầu | Góc quay từ ML Kit (`headEulerAngleY`); thứ tự lấy từ `challenge.turn_order` (LIVE-01) | Chiều dấu của góc phải kiểm trên máy thật |
+| Chấm sáng | Chạy theo `challenge.dot_path`, ghi `dot_events`; video quay tiếp suốt đoạn chấm sáng | `x`, `y` tính theo vùng chấm chạy, chưa theo cả màn hình |
 | Ghi âm | `AudioRecord` 16 kHz mono → WAV, câu đọc từ `voice_prompt`; quay MP4 cùng lúc (API thật) và gửi kèm ở `/voice` cho khớp môi (VOICE-05) | Video bắt đầu trước WAV khoảng 0,6 s; app gửi độ lệch ở `audio_offset_ms` (PR #47), server mới chuyển cho mô-đun, SyncNet chưa dùng |
-| CCCD | Camera sau, đọc QR (ML Kit), đo nét/lóa, điền thông tin từ QR | Chưa có endpoint gửi CCCD (FLOW-03); thứ tự trường QR cần kiểm với thẻ thật |
+| CCCD | Camera sau, đọc QR (ML Kit), đo nét/lóa, điền thông tin từ QR | Gửi 2 ảnh + chuỗi QR lên server, thông tin xác nhận theo server; thứ tự trường QR cần kiểm với thẻ thật |
 | OTP | Giao diện, bàn phím | Chưa có endpoint (FLOW-02) |
 | Gián đoạn | Xuống nền giữa lúc quay → bỏ lượt, màn "Xác minh bị gián đoạn" | Gia hạn phiên (LIVE-06) |
 | Keystore, ký media | | SEC-02, LIVE-03 |

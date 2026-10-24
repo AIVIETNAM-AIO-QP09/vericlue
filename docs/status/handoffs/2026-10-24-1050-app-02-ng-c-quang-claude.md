@@ -56,6 +56,21 @@ Sửa theo kết quả duyệt của trưởng nhóm ngày 24/10.
 - App gửi `audio_offset_ms`: lấy độ dài video CameraX đã báo ở sự kiện `Status` gần nhất, cộng thời gian từ sự kiện đó tới lúc WAV bắt đầu (`CameraSession.videoElapsedMs`). Chưa kiểm giá trị này trên máy ảo, vì server mock đang chạy là bản cũ, chưa có trường này.
 - Câu 3 (M5, LIVE-01), 4 (FLOW-02 của M2, FLOW-03 của M1), 10 (PRES-02), 17 (REV-02) là việc của task khác; câu 5 duyệt nhưng chưa chọn cách. Xem "Câu hỏi cho nhóm".
 
+**Cập nhật 13:20: câu 3, 4, 18–26 đã duyệt; làm cả server lẫn app.**
+- Server và hợp đồng nằm ở PR #47 (nhánh `feat/APP-contract-clock-voice-offset`), đã merge vào nhánh này cho khớp hợp đồng:
+  - gói thử thách LIVE-01 (`turn_order`, `dot_path`, `dot_events`);
+  - OTP mô phỏng;
+  - CCCD (`id-card`, `id-card/confirm`);
+  - `POST /challenge` (thử thách mới, gia hạn phiên tối đa 15 phút).
+- App, chế độ API thật:
+  - **Phiên bắt đầu ở màn số điện thoại.** OTP hiện tin nhắn mô phỏng từ server. Mã sai hiện "Mã chưa đúng. Bạn còn N lần thử."; hết hạn hoặc bị khóa thì nhắc bấm "Gửi lại mã".
+  - **CCCD:** gửi 2 ảnh và chuỗi QR ở màn xem lại mặt sau. Server trả `retry` thì quay lại chụp mặt sau. Thông tin xác nhận lấy theo server; sửa thì chỉ gửi trường đã sửa (`FlowRules.confirmedFields`).
+  - **Trước mỗi lượt quay mặt** gọi `LiveFlow.prepareFace`: tạo phiên mới nếu chưa có, còn lại thì gọi `POST /challenge`. Gián đoạn hay thoát giữa chừng giờ giữ phiên, không tạo phiên mới.
+  - **Chấm sáng** chạy theo `dot_path`, ghi `dot_events`. Video quay tiếp tới hết đoạn chấm sáng (cho LIVE-02).
+  - **Thứ tự quay đầu** lấy từ `turn_order`.
+- Test: 61 test JVM (thêm `LiveFlowStageATest`, 8 test).
+- **Kế hoạch app iOS** cho anh Lý (trưởng nhóm đồng ý miệng): `apps/ios/docs/plan-ios.md`.
+
 ## Đang dở
 - Chưa thử trên điện thoại thật.
 - Thứ tự quay đầu vẫn chọn trên máy; đường chấm sáng chưa ghi. Cả hai chờ hợp đồng LIVE-01.
@@ -98,6 +113,16 @@ Windows 11, JDK 17 (D:\tools\jdk17), Android SDK 35, apps/android:
   → BUILD FAILED đúng ý: :app:checkReleaseApiUrl "Release cần -Pvericlue.apiBaseUrl=https://…"
 ./gradlew --no-daemon assembleRelease -Pvericlue.apiBaseUrl=https://example.invalid/
   → BUILD SUCCESSFUL, app-arm64-v8a-release.apk 23 488 823 byte
+
+Cập nhật 13:20:
+./gradlew testDebugUnitTest assembleDebug → BUILD SUCCESSFUL, 61/61 test qua
+uv run pytest services/api (nhánh contract) → qua; gen_openapi --check khớp; ruff sạch
+Máy ảo + API mới ở cổng 8001 (app build với -Pvericlue.apiBaseUrl=http://10.0.2.2:8001/):
+  OTP: tin nhắn mô phỏng hiện mã; nhập sai → "Mã chưa đúng. Bạn còn 4 lần thử."; nhập đúng → sang chụp CCCD
+  CCCD: server lưu id_front.jpg + id_back.jpg; máy ảo không có QR → server trả retry → app quay lại chụp mặt sau
+  low_quality: server nhận 7 dot_events khớp 7 điểm dot_path → "Ảnh chưa đủ rõ", còn 1 lần
+    → "Chụp lại" → app gọi POST /challenge → turn_order mới ["right","left"], app hiện "Quay sang phải" trước
+  Chưa thử: sửa thông tin CCCD (máy ảo không có QR thật), gián đoạn sau bước A
 
 Cập nhật 11:20:
 ./gradlew testDebugUnitTest assembleDebug → BUILD SUCCESSFUL, 53/53 test qua
