@@ -69,7 +69,7 @@ Sửa theo kết quả duyệt của trưởng nhóm ngày 24/10.
   - **Chấm sáng** chạy theo `dot_path`, ghi `dot_events`. Video quay tiếp tới hết đoạn chấm sáng (cho LIVE-02).
   - **Thứ tự quay đầu** lấy từ `turn_order`.
 - Test: 61 test JVM (thêm `LiveFlowStageATest`, 8 test).
-- **Kế hoạch app iOS** cho anh Lý (trưởng nhóm đồng ý miệng): `apps/ios/docs/plan-ios.md`.
+- **Kế hoạch app iOS** cho anh Lý: đã soạn, chờ Quang duyệt, chưa đưa vào repo.
 
 ## Đang dở
 - Chưa thử trên điện thoại thật.
