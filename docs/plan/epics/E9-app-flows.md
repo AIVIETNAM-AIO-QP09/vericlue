@@ -195,7 +195,7 @@ chân dung tham chiếu đã cắt do server quản lý. Xem
 - Chỉ hiện `pass`, `retry`, `review`, `voice_challenge` và thông báo "Xác thực không thành công, vui lòng thử lại sau" khi `deny`.
 
 **Tiêu chí hoàn thành:**
-- [ ] Build được APK bằng Gradle trên máy Windows; README có các bước cài Android Studio/SDK.
+- [x] Build được APK bằng Gradle trên máy Windows; README có các bước cài Android Studio/SDK.
 - [ ] Tạo phiên và nhận kết quả từ API thật trên điện thoại thật.
 - [ ] CI không bắt buộc build Android ở bước này; ghi rõ trong PR.
 

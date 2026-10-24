@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="vc_navy">#FF0C2345</color>
+    <color name="vc_splash">#FF0B4F8A</color>
+
+    <style name="Theme.VeriClue" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/vc_splash</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>
