@@ -124,6 +124,16 @@ class Deepfake:
         )
 
 
+class Pad(Deepfake):
+    version = "synthetic-fsvfm@unit-test"
+    frames_version = version + "+headturn-3views-max-v1"
+
+    def predict_frames(self, inp, frames):
+        result = super().predict_frames(inp, frames)
+        result.module = Module.FACE_PAD
+        return result
+
+
 def setup(monkeypatch):
     selections = []
     monkeypatch.setattr(pipeline, "video_sha256", lambda path: "a" * 64)
@@ -206,6 +216,45 @@ def test_head_failure_blocks_gend_without_model_load(monkeypatch):
         result.face_deepfake.status == Status.DEGRADED and result.face_deepfake.gate == Gate.UNCLEAR
     )
     assert not deepfake.preloads and not deepfake.calls
+
+
+def test_optional_pad_gend_match_share_exact_pixels_and_provenance(monkeypatch):
+    setup(monkeypatch)
+    pad, deepfake, matcher = Pad(), Deepfake(), Matcher()
+    result = pipeline.match_video_views(
+        inputs(), reader=Reader(), matcher=matcher, pad=pad, deepfake=deepfake
+    )
+    assert result.face_pad.status == Status.OK and result.face_pad.score == 0.7
+    assert result.face_pad.prob_attack is None and result.face_pad.gate is None
+    assert all(
+        pad.calls[0][role] is deepfake.calls[0][role] is matcher.calls[0][1][role]
+        for role in pad.calls[0]
+    )
+    evidence = next(e.value for e in result.face_pad.evidence if e.name == "source_video_sha256")
+    assert evidence == "a" * 64
+    assert "face_pad" in result.to_contract()
+
+
+@pytest.mark.parametrize("failure", ["head", "source", "pose", "pad"])
+def test_pad_blocks_early_and_model_failure_preserves_other_measurements(monkeypatch, failure):
+    setup(monkeypatch)
+    pad, deepfake, matcher = Pad(broken=failure == "pad"), Deepfake(), Matcher()
+    if failure == "source":
+        hashes = iter(["a" * 64, "b" * 64])
+        monkeypatch.setattr(pipeline, "video_sha256", lambda path: next(hashes))
+    result = pipeline.match_video_views(
+        inputs(),
+        reader=Reader(no_motion=failure == "head", bad_role=2 if failure == "pose" else None),
+        matcher=matcher,
+        deepfake=deepfake,
+        pad=pad,
+    )
+    assert result.face_pad.status != Status.OK and result.face_pad.prob_attack is None
+    if failure == "pad":
+        assert result.face_pad.error_code == "E_INTEGRITY"
+        assert result.face_deepfake.status == Status.OK and matcher.calls
+    else:
+        assert not pad.preloads and not pad.calls
 
 
 @pytest.mark.parametrize("broken", ["matcher", "gend"])

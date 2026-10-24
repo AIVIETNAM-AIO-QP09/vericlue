@@ -141,16 +141,59 @@ CLI ghi commit/trạng thái dirty, version/hash mô hình, hash đầu vào và
 runtime, một trường hợp chẩn đoán và số phép so trong ModuleResult; không phải
 báo cáo độ chính xác. Không commit ảnh, video, embedding hay trọng số.
 
+## 2b. PAD FS-VFM-L tùy chọn trên cùng ba khung
+
+Thêm `--with-pad` vào CLI trên (có thể dùng cùng `--with-gend`), hoặc truyền
+`pad=FsvfmPadDetector()` vào `match_video_views`. `get_fsvfm_pad()` là factory
+diagnostic riêng; `get_detector("face_pad")` và cấu hình API vẫn là MiniFASNet.
+Runtime cần extra face/gend hoặc CUDA; thiếu dependency không đổi sang mock.
+
+- Checkpoint **FS-VFM ViT-L/16 FAS OCI2M run 0**, không phải backbone pretrain:
+  `Wolowolo/fsfm-3c@59f7b50a…`, hai file checkpoint/stats pin SHA trong manifest.
+  Chỉ nạp byte cục bộ đã kiểm hash, `weights_only=True`, allowlist giới hạn cho
+  NumPy scalar metadata; không chạy code tác giả, không fallback pickle tùy ý.
+  Không lấy threshold hay kết quả đánh giá có sẵn trong checkpoint.
+- Kiến trúc viết riêng bằng lớp TransformerEncoderLayer của PyTorch: 24 lớp,
+  width 1024, 16 heads; patch-mean rồi fc_norm; bottleneck 512; chuẩn hóa theo
+  **chiều token**; chuẩn hóa cột classifier; softmax **lớp 0 là giả**. Đọc đủ
+  tensor, kiểm alias bottleneck bằng nhau, strict shape/key, không bỏ head.
+- Bản này chạy **FP32**, từng góc một để giới hạn bộ nhớ activation; chưa
+  ONNX/FP16/INT8/KD. Mô hình được nạp một lần cho mỗi instance.
+- Mỗi khung phải có đúng một mặt với landmark hợp lệ, cạnh tối thiểu 40 px
+  (hằng thử nghiệm). SCRFD dùng RGB, chia 128; căn 5 điểm thẳng lên 224 px,
+  không giảm xuống 112 rồi phóng lại. Sau đó RGB/Pillow bicubic/224, chia 255,
+  chuẩn hóa bằng mean/std ở dòng đầu file stats đúng bản pretrain.
+- **Khác biệt với tác giả:** dữ liệu MCIO gốc đã được cắt/căn bằng MTCNN.
+  SCRFD/đích căn ArcFace là biến thể triển khai để dùng chung detector, chưa
+  có bằng chứng tương đương. Kết quả luôn ghi `upstream_crop_parity=false`.
+  Không gán số benchmark gốc cho biến thể này; cần đánh giá riêng crop và góc.
+- `view_scores` giữ điểm từng góc; score phiên là **max**. Version gồm revision,
+  `scrfd128-align224-rgb-v1` và `headturn-3views-max-v1`. Đây là quy tắc gộp thử
+  nghiệm, khác video-mean của tác giả, cần calibrator/đánh giá toàn phiên riêng.
+  `prob_attack`/gate để trống kể cả status=ok. Không dùng score để cho qua.
+- Cùng pixel/timestamp/hash với LVFace và GenD. Head/video/pose lỗi thì chặn
+  PAD trước preload; lỗi checkpoint PAD giữ nguyên phép đo các module khác.
+  Đây là báo lỗi độc lập, không phải cho phép bỏ một gate khi tích hợp API.
+
+Test toán học bằng mạng nhỏ kiểm attention/MLP, pooling, chuẩn hóa token và
+chiều nhãn; smoke tùy chọn `FSVFM_MODELS_DIR=<root>` kiểm checkpoint CPU thật,
+tái dùng mô hình và chặn ảnh trống. Không có độ chính xác người thật từ smoke.
+Môi trường MediaPipe/ORT riêng hiện chưa có torch: đã kiểm CLI dừng sớm trên
+video trống, chưa kiểm toàn chuỗi với mặt thật trong cùng runtime.
+
 ## 3. Nguồn và giấy phép
 
 - [LVFace inference chính thức, commit cố định](https://github.com/bytedance/LVFace/blob/80bd20c8bb78e56eb708941180d800a27c396a6b/inference_onnx.py): tiền xử lý RGB/112/[-1,1].
 - [Mốc landmark ArcFace](https://github.com/deepinsight/insightface/blob/master/python-package/insightface/utils/face_align.py): dùng các tọa độ đích; phép fit least-squares viết riêng, không chép implementation.
 - [Giấy phép tác giả LVFace](https://github.com/bytedance/LVFace/blob/80bd20c8bb78e56eb708941180d800a27c396a6b/README.md#license): code MIT, trọng số nghiên cứu phi thương mại. Giữ giới hạn này dù thẻ Hugging Face gắn MIT.
 - [Nguồn trọng số LVFace-B đã pin](https://huggingface.co/bytedance-research/LVFace/tree/b12702ab1f5c721748e054a66dc90e1edd1f0724): SHA-256 và kích thước byte ở `models/manifest.yaml`; runtime kiểm hash trước nạp, không tải ngầm.
+- [Kiến trúc FS-VFM FAS](https://github.com/wolo-wolo/FSFM-CVPR25/tree/b84aafa2507c30bb4986564de8262969647e450c/fsvfm/finetune/cross_domain_FAS): `fas.py`, `models_vit.py`, `utils/dataset.py`, `utils/evaluate.py`; chỉ đối chiếu thiết kế, không chép/vendoring code.
+- [Trọng số FS-VFM-L FAS và stats](https://huggingface.co/Wolowolo/fsfm-3c/tree/59f7b50a1865d53b0cc1c80ec620022c39b11c9a): checkpoint OCI2M. [Giấy phép tác giả](https://github.com/wolo-wolo/FSFM-CVPR25/blob/b84aafa2507c30bb4986564de8262969647e450c/LICENSE) CC-BY-NC-4.0, chỉ nghiên cứu/demo.
+- [Tiền xử lý MCIO kế thừa few-shot-fas/FLIP](https://github.com/koushiksrivats/FLIP/blob/main/docs/datasets.md): crop/căn MTCNN, RGB/224; SCRFD trong diagnostic chưa được coi là tương đương.
 
 ## 4. Phần còn lại
 
 Kiểm tra chiều yaw/khả dụng trên điện thoại, người thật và video giả; kiểm
-chiều sâu/homography; đánh giá GenD ba góc và calibrator riêng; FLOW-03 trích chân dung CCCD;
+chiều sâu/homography; đánh giá GenD/PAD ba góc, crop FS-VFM và calibrator riêng; FLOW-03 trích chân dung CCCD;
 hiệu chỉnh ngưỡng so mặt trên dữ liệu chia người; kiểm VRAM/latency cả bộ;
 quản lý mã hóa/xóa mẫu 24 giờ; cuối cùng mới nối gate vào API và retry.

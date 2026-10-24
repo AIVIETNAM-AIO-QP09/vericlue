@@ -15,6 +15,7 @@ from pathlib import Path
 from vericlue_ml.common.detector import DetectorInput
 from vericlue_ml.eval.face_match import checksum
 from vericlue_ml.eval.report import git_revision
+from vericlue_ml.face.fsvfm import CHECKPOINT_FILE, MODEL_ID, FsvfmPadDetector
 from vericlue_ml.face.gend import FaceDeepfakeDetector
 from vericlue_ml.face.match import FaceMatchDetector
 from vericlue_ml.face.pad import _manifest_entry
@@ -36,6 +37,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Also score the selected views with GenD; requires the gend extra",
     )
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--with-pad",
+        action="store_true",
+        help="Also score views with FS-VFM-L (FP32); requires face + gend extras",
+    )
     args = parser.parse_args(argv)
     artifact = args.calibration or os.environ.get("FACE_MATCH_CALIBRATION")
     inputs = [args.video, args.reference, args.server_response]
@@ -47,6 +53,7 @@ def main(argv: list[str] | None = None) -> int:
     reader = FaceObservationReader()
     matcher = FaceMatchDetector(calibration_path=args.calibration)
     deepfake = FaceDeepfakeDetector() if args.with_gend else None
+    pad = FsvfmPadDetector() if args.with_pad else None
     try:
         result = match_video_views(
             DetectorInput(
@@ -61,6 +68,7 @@ def main(argv: list[str] | None = None) -> int:
             reader=reader,
             matcher=matcher,
             deepfake=deepfake,
+            pad=pad,
             models_dir=args.models_dir,
             device=args.device,
         )
@@ -69,6 +77,7 @@ def main(argv: list[str] | None = None) -> int:
     revision = git_revision()
     face_loaded = matcher.embedder.session is not None
     gend_loaded = deepfake is not None and deepfake._classifier is not None
+    pad_loaded = pad is not None and pad._classifier is not None
     runtime = {name: importlib.metadata.version(name) for name in ("numpy", "mediapipe")}
     if face_loaded:
         import onnxruntime as ort
@@ -76,7 +85,7 @@ def main(argv: list[str] | None = None) -> int:
         runtime.update(
             onnxruntime=ort.__version__, providers=matcher.embedder.session.get_providers()
         )
-    if gend_loaded:
+    if gend_loaded or pad_loaded:
         import torch
 
         runtime["torch"] = torch.__version__
@@ -94,6 +103,11 @@ def main(argv: list[str] | None = None) -> int:
         "face_match_model_loaded": face_loaded,
         "gend_requested": args.with_gend,
         "gend_model_loaded": gend_loaded,
+        "pad_requested": args.with_pad,
+        "pad_model_loaded": pad_loaded,
+        "pad_model_sha256": _manifest_entry(MODEL_ID, CHECKPOINT_FILE)["sha256"]
+        if pad_loaded
+        else None,
         "gend_model_sha256": _manifest_entry("gend-clip-l14", "model.safetensors")["sha256"]
         if gend_loaded
         else None,
@@ -116,7 +130,7 @@ def main(argv: list[str] | None = None) -> int:
         1
         if any(
             r is not None and r.status == "error"
-            for r in (result.head_turn, result.face_match, result.face_deepfake)
+            for r in (result.head_turn, result.face_match, result.face_deepfake, result.face_pad)
         )
         else 0
     )

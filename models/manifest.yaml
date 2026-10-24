@@ -1,6 +1,31 @@
 # DATA-02: pin nguồn; sha256 ghi sau tải/kiểm byte thực. Không commit weights.
 schema_version: 1
 models:
+- id: fs-vfm-vit-l-fas
+  purpose: PAD FS-VFM-L — diagnostic FP32, chưa hiệu chỉnh, không thay MiniFASNet của API
+  source:
+    type: hf
+    repo: Wolowolo/fsfm-3c
+    revision: 59f7b50a1865d53b0cc1c80ec620022c39b11c9a
+  license: CC-BY-NC-4.0
+  license_url: https://github.com/wolo-wolo/FSFM-CVPR25/blob/b84aafa2507c30bb4986564de8262969647e450c/LICENSE
+  license_status: accepted-research
+  owner: M3
+  status: ready
+  files:
+  - path: msu_vit_0_shot_checkpoint_run_0.pth.tar
+    url: https://huggingface.co/Wolowolo/fsfm-3c/resolve/59f7b50a1865d53b0cc1c80ec620022c39b11c9a/finetuned_models/FS-VFM_extensions/cross_domain_FAS/ViT-L_VF2_600e/MCIO_protocol/OCI2M/msu_vit_0_shot_checkpoint_run_0.pth.tar
+    size_bytes: 1215435159
+    sha256: c51bb148d49742cc951e5baa8062ccf9bddada78c92b8e2c5649fa6bcadbdaf2
+    upstream_sha256: null
+  - path: pretrain_ds_mean_std.txt
+    url: https://huggingface.co/Wolowolo/fsfm-3c/resolve/59f7b50a1865d53b0cc1c80ec620022c39b11c9a/pretrained_models/FS-VFM_ViT-L_VF2_600e/pretrain_ds_mean_std.txt
+    size_bytes: 1136
+    sha256: 10ddf058cf60780f9119ba585d1f3ede19c88d8ec5b7f1fd9278a6bce6247882
+    upstream_sha256: null
+  dependencies: [scrfd-10g]
+  note: OCI2M FAS checkpoint, không phải backbone pretrain. Chỉ dùng nghiên cứu/demo;
+    không nạp code tác giả. SCRFD thay MTCNN là biến thể triển khai chưa chứng minh tương đương.
 - id: lvface-b
   purpose: FLOW-05 — so mặt và nhất quán ba góc, chưa hiệu chỉnh ngưỡng
   source:

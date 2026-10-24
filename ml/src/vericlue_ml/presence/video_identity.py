@@ -11,6 +11,7 @@ from typing import Any
 
 from vericlue_ml.common.detector import DetectorInput
 from vericlue_ml.common.result import ErrorCode, Evidence, Gate, Module, ModuleResult, Status
+from vericlue_ml.face.fsvfm import FsvfmPadDetector
 from vericlue_ml.face.gend import FaceDeepfakeDetector
 from vericlue_ml.face.match import FaceMatchDetector, MatchError
 from vericlue_ml.face.pad import PadError
@@ -30,6 +31,7 @@ class VideoIdentityDiagnostic:
     head_turn: ModuleResult
     face_match: ModuleResult
     face_deepfake: ModuleResult | None = None
+    face_pad: ModuleResult | None = None
 
     def to_contract(self) -> dict[str, Any]:
         results = {
@@ -38,6 +40,8 @@ class VideoIdentityDiagnostic:
         }
         if self.face_deepfake is not None:
             results["face_deepfake"] = self.face_deepfake.to_contract()
+        if self.face_pad is not None:
+            results["face_pad"] = self.face_pad.to_contract()
         return results
 
 
@@ -47,6 +51,7 @@ def match_video_views(
     reader: FaceObservationReader,
     matcher: FaceMatchDetector,
     deepfake: FaceDeepfakeDetector | None = None,
+    pad: FsvfmPadDetector | None = None,
     models_dir: Path | None = None,
     device: str | None = None,
 ) -> VideoIdentityDiagnostic:
@@ -71,14 +76,14 @@ def match_video_views(
             latency_ms=(perf_counter() - started) * 1000,
         )
 
-    def blocked_deepfake(reason: str) -> ModuleResult | None:
+    def blocked(detector, module, reason: str) -> ModuleResult | None:
         return (
             unavailable(
-                Module.FACE_DEEPFAKE,
-                getattr(deepfake, "frames_version", deepfake.version),
+                module,
+                getattr(detector, "frames_version", detector.version),
                 reason=reason,
             )
-            if deepfake is not None
+            if detector is not None
             else None
         )
 
@@ -108,7 +113,8 @@ def match_video_views(
             return VideoIdentityDiagnostic(
                 head,
                 unavailable(Module.FACE_MATCH, matcher.version, reason="head_turn_not_passed"),
-                blocked_deepfake("head_turn_not_passed"),
+                blocked(deepfake, Module.FACE_DEEPFAKE, "head_turn_not_passed"),
+                blocked(pad, Module.FACE_PAD, "head_turn_not_passed"),
             )
         entries = [e.value for e in head.evidence if e.name == "view_times_ms"]
         times = entries[0] if len(entries) == 1 else None
@@ -153,6 +159,7 @@ def match_video_views(
         gend = (
             score_frames(deepfake, Module.FACE_DEEPFAKE, frames) if deepfake is not None else None
         )
+        pad_result = score_frames(pad, Module.FACE_PAD, frames) if pad is not None else None
         provenance = [
             Evidence(type="text", name="view_sampler", value=VIEW_SAMPLER_VERSION),
             Evidence(type="text", name="source_video_sha256", value=original_sha),
@@ -170,13 +177,13 @@ def match_video_views(
                 unit="ms",
             ),
         ]
-        for measured in (match, gend):
+        for measured in (match, gend, pad_result):
             if measured is not None:
                 measured.quality.update(
                     views_from_video=True, depth_verified=False, provisional=True
                 )
                 measured.evidence.extend(e.model_copy(deep=True) for e in provenance)
-        return VideoIdentityDiagnostic(head, match, gend)
+        return VideoIdentityDiagnostic(head, match, gend, pad_result)
     except Exception as exc:
         status = exc.status if isinstance(exc, (LandmarkError, MatchError)) else Status.ERROR
         code = exc.code if isinstance(exc, (LandmarkError, PadError)) else ErrorCode.E_INTERNAL
@@ -205,5 +212,14 @@ def match_video_views(
                 reason="video_identity_unavailable",
             )
             if deepfake is not None
+            else None,
+            unavailable(
+                Module.FACE_PAD,
+                getattr(pad, "frames_version", pad.version),
+                status=status,
+                code=code,
+                reason="video_identity_unavailable",
+            )
+            if pad is not None
             else None,
         )
