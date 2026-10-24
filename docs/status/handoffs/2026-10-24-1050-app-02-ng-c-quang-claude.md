@@ -79,6 +79,21 @@ Sửa theo kết quả duyệt của trưởng nhóm ngày 24/10.
 - **Backlog:** nhận LIVE-06 (phần gia hạn và làm lại phần mặt).
 - **Còn lại (ghi cho SEC-01/PLAT-06):** bớt số lần thử OTP chưa khóa hàng nên gửi song song có thể thử quá 5 lần; `ID_HMAC_KEY` mặc định chưa bị chặn khi chạy mô hình thật; `simulated_sms` chưa có công tắc tắt.
 
+**Cập nhật 16:00: theo thiết kế LIVE-01 của #49 (Quang chốt), #47 đã merge.**
+- **#47 (server):** bỏ `turn_order`, `dot_path`, `dot_events` của mình. Giữ OTP, CCCD, `/challenge` (giờ sinh lại cả gói `dynamic` và mã lần đọc, cấp token mới), `audio_offset_ms`. Đã gộp `main` (#48–#51) và merge lúc 08:30Z.
+- **App chuyển sang API dynamic:**
+  - Tạo phiên có `purpose` + `nonce`.
+  - Gửi `challenge_id` ở media/signals/finalize, `voice_challenge_id` ở voice. Sau `/challenge` thì dùng token mới.
+  - Chỉ 409 `step_already_received` mới tính là "đã nhận"; các 409 khác (`challenge_mismatch`, …) là lỗi.
+  - Thêm 2 màn `deny`, `recovery_required`.
+- **`FaceTimeline` + `FaceTimelineScreen`:** cả phần mặt (nền xám → 8 màu → 8 điểm chấm trên toàn màn hình → quay đầu trái/phải/nhìn thẳng) là **một video liên tục**, chạy đúng mốc `at_ms` tính từ khung đầu của file video.
+  - Mốc 0 lấy từ sự kiện `Status` của CameraX, vì bộ mã hóa bắt đầu trễ hơn khung phân tích 0,1–0,9 giây.
+  - Ảnh chính diện chụp tại `frontal_capture_at_ms`.
+  - Luồng `reauth` chỉ quay thụ động 3 giây.
+- **Bẫy đã gặp:** đổi chỗ khung camera giữa các pha làm CameraX cấu hình lại và hủy đoạn quay (`ERROR_SOURCE_INACTIVE`). Màn mới giữ **một** khung camera cố định suốt cả 4 pha.
+- **Màn gửi:** chờ CameraX ghi xong MP4 (`finishedVideo`) rồi mới gửi.
+- **Kế hoạch iOS** viết lại theo API dynamic, chi tiết từng bước (`apps/ios/docs/plan-ios.md`). Vẫn **chưa đưa vào repo**, chờ Quang duyệt.
+
 ## Đang dở
 - Chưa thử trên điện thoại thật.
 - Thứ tự quay đầu vẫn chọn trên máy; đường chấm sáng chưa ghi. Cả hai chờ hợp đồng LIVE-01.
@@ -121,6 +136,14 @@ Windows 11, JDK 17 (D:\tools\jdk17), Android SDK 35, apps/android:
   → BUILD FAILED đúng ý: :app:checkReleaseApiUrl "Release cần -Pvericlue.apiBaseUrl=https://…"
 ./gradlew --no-daemon assembleRelease -Pvericlue.apiBaseUrl=https://example.invalid/
   → BUILD SUCCESSFUL, app-arm64-v8a-release.apk 23 488 823 byte
+
+Cập nhật 16:00:
+./gradlew testDebugUnitTest assembleDebug → BUILD SUCCESSFUL, 67/67 (thêm FaceTimelineTest 5, test 409 challenge_mismatch, test token mới, test purpose/nonce)
+Máy ảo + API main mới nhất (cổng 8001, USE_MOCK_MODELS=true), genuine, purpose onboarding:
+  Giữ yên → màu → chấm sáng → quay đầu → đọc câu → "Xác minh thành công" (tích Khuôn mặt + Giọng nói)
+  server nhận face_image.jpg + face_video.mp4 (3,3 MB, 20,01 s; lịch kết thúc 19,69 s) + signals có challenge_id đúng, 8 color_events
+  logcat: không còn ERROR_SOURCE_INACTIVE
+  Chưa thử: reauth (recovery_required), recovery, chiều yaw trên máy thật
 
 Cập nhật 13:20:
 ./gradlew testDebugUnitTest assembleDebug → BUILD SUCCESSFUL, 61/61 test qua

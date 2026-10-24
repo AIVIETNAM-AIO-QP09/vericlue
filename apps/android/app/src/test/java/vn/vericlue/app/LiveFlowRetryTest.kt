@@ -138,6 +138,14 @@ class LiveFlowRetryTest {
     }
 
     @Test
+    fun staleChallengeIsAFailureNotAReceipt() = runTest {
+        startAndCapture()
+        server.enqueue(error(409, "challenge_mismatch"))
+        assertEquals(Next.Fail(ApiError.Conflict), submit())
+        assertFalse(flow.mediaAcked)
+    }
+
+    @Test
     fun retryAfterNetworkErrorNeverPassesOnANonPassStatus() = runTest {
         val finals = listOf(
             """{"status":"retry","challenge":$challenge}""",

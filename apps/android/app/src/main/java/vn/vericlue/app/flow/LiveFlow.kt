@@ -1,6 +1,8 @@
 package vn.vericlue.app.flow
 
 import java.io.File
+import java.security.SecureRandom
+import java.util.Base64
 import vn.vericlue.app.capture.CamProbe
 import vn.vericlue.app.capture.RegionFrame
 import vn.vericlue.app.data.api.ApiError
@@ -8,7 +10,7 @@ import vn.vericlue.app.data.api.ApiResult
 import vn.vericlue.app.data.api.Challenge
 import vn.vericlue.app.data.api.ColorEvent
 import vn.vericlue.app.data.api.CreateSessionResponse
-import vn.vericlue.app.data.api.DotEvent
+import vn.vericlue.app.data.api.CreateSessionRequest
 import vn.vericlue.app.data.api.IdCardFields
 import vn.vericlue.app.data.api.FrameTime
 import vn.vericlue.app.data.api.SessionApi
@@ -32,8 +34,11 @@ class LiveFlow(private val api: SessionApi) {
         private set
     var frontalJpeg: ByteArray? = null
     val colorEvents = mutableListOf<ColorEvent>()
-    val dotEvents = mutableListOf<DotEvent>()
     var voicePrompt: String? = null
+        private set
+
+    /** Sessions with a purpose (FLOW-01): the id that must come back with the voice step. */
+    var voiceChallengeId: String? = null
         private set
     var retryHint: String? = null
         private set
@@ -61,10 +66,10 @@ class LiveFlow(private val api: SessionApi) {
         challenge = null
         frontalJpeg = null
         colorEvents.clear()
-        dotEvents.clear()
         otpSms = null
         idFields = null
         voicePrompt = null
+        voiceChallengeId = null
         retryHint = null
         attemptsLeft = null
         pendingWav = null
@@ -80,16 +85,21 @@ class LiveFlow(private val api: SessionApi) {
     fun dropFaceAttempt() {
         frontalJpeg = null
         colorEvents.clear()
-        dotEvents.clear()
         pendingWav = null
         mediaAcked = false
         signalsAcked = false
         voiceChecked = false
     }
 
-    suspend fun ensureSession(mockScenario: String?): ApiError? {
+    /**
+     * Starts the session once. [purpose] ("onboarding", "reauth", "recovery") asks for the FLOW-01
+     * flow: a `dynamic` schedule for onboarding/recovery, purpose rules on the server. Null keeps the
+     * old MVP session.
+     */
+    suspend fun ensureSession(mockScenario: String?, purpose: String? = null): ApiError? {
         if (session != null) return null
-        return when (val r = api.createSession(mockScenario)) {
+        val request = purpose?.let { CreateSessionRequest(it, newNonce()) }
+        return when (val r = api.createSession(mockScenario, request)) {
             is ApiResult.Ok -> {
                 session = r.value
                 challenge = r.value.challenge
@@ -103,14 +113,15 @@ class LiveFlow(private val api: SessionApi) {
      * Before each face attempt: a new session, or a fresh challenge with the token extended when the
      * session already exists (stage A took time, a retry, or a redo after an interruption).
      */
-    suspend fun prepareFace(mockScenario: String?): ApiError? {
-        val s = session ?: return ensureSession(mockScenario)
+    suspend fun prepareFace(mockScenario: String?, purpose: String? = null): ApiError? {
+        val s = session ?: return ensureSession(mockScenario, purpose)
         return when (val r = api.refreshChallenge(s.sessionId, s.token)) {
             is ApiResult.Ok -> {
+                // The old token stops working (PLAT-06): carry on with the new one.
+                session = s.copy(token = r.value.token, expiresAt = r.value.expiresAt)
                 challenge = r.value.challenge
                 colorEvents.clear()
-                dotEvents.clear()
-                mediaAcked = false
+                        mediaAcked = false
                 signalsAcked = false
                 voiceChecked = false
                 null
@@ -130,8 +141,8 @@ class LiveFlow(private val api: SessionApi) {
         private set
 
     /** Starts the session if needed and asks for a code. Null = sent. */
-    suspend fun sendOtp(phone: String, mockScenario: String?): ApiError? {
-        ensureSession(mockScenario)?.let { return it }
+    suspend fun sendOtp(phone: String, mockScenario: String?, purpose: String? = null): ApiError? {
+        ensureSession(mockScenario, purpose)?.let { return it }
         val s = session ?: return ApiError.Expired
         return when (val r = api.sendOtp(s.sessionId, s.token, phone)) {
             is ApiResult.Ok -> {
@@ -188,17 +199,18 @@ class LiveFlow(private val api: SessionApi) {
     ): Next {
         val s = session ?: return Next.Fail(ApiError.Expired)
         val jpeg = frontalJpeg ?: return Next.Fail(ApiError.BadResponse)
+        val challengeId = challenge?.challengeId
         if (!mediaAcked) {
-            api.uploadMedia(s.sessionId, s.token, jpeg, video).ackOrFail()?.let { return it }
+            api.uploadMedia(s.sessionId, s.token, jpeg, video, challengeId).ackOrFail()?.let { return it }
             mediaAcked = true
             onMediaAcked() // the server has the video: the local copy can go
         }
         if (!signalsAcked) {
-            api.sendSignals(s.sessionId, s.token, Signals(colorEvents.toList(), frameTimes, clientQuality, camprobe, regionMeans, dotEvents.toList().ifEmpty { null }))
+            api.sendSignals(s.sessionId, s.token, Signals(colorEvents.toList(), frameTimes, clientQuality, camprobe, regionMeans, challengeId))
                 .ackOrFail()?.let { return it }
             signalsAcked = true
         }
-        return when (val r = api.finalize(s.sessionId, s.token)) {
+        return when (val r = api.finalize(s.sessionId, s.token, challengeId)) {
             is ApiResult.Err -> Next.Fail(r.error)
             is ApiResult.Ok -> {
                 val f = r.value
@@ -206,14 +218,17 @@ class LiveFlow(private val api: SessionApi) {
                     // A retry comes with a fresh challenge for the next attempt (contract).
                     challenge = f.challenge ?: return Next.Fail(ApiError.BadResponse)
                     colorEvents.clear()
-                    dotEvents.clear()
-                    frontalJpeg = null
+                                frontalJpeg = null
                     mediaAcked = false
                     signalsAcked = false
                 }
                 retryHint = f.retryHint
                 attemptsLeft = f.attemptsLeft
-                if (f.status == "voice_challenge") voicePrompt = f.voicePrompt ?: return Next.Fail(ApiError.BadResponse)
+                if (f.status == "voice_challenge") {
+                    voicePrompt = f.voicePrompt ?: return Next.Fail(ApiError.BadResponse)
+                    voiceChallengeId = f.voiceChallengeId
+                    if (s.purpose != null && voiceChallengeId == null) return Next.Fail(ApiError.BadResponse)
+                }
                 FlowRules.routeForStatus(f.status, f.retryHint, inVoiceStep = false)?.let { Next.To(it) } ?: Next.Fail(ApiError.BadResponse)
             }
         }
@@ -226,26 +241,36 @@ class LiveFlow(private val api: SessionApi) {
     suspend fun submitVoice(wav: ByteArray, video: File? = null, audioOffsetMs: Int? = null, onAccepted: () -> Unit = {}): Next {
         val s = session ?: return Next.Fail(ApiError.Expired)
         if (wav.isEmpty()) return Next.To(Routes.NoVoice)
-        return when (val r = api.sendVoice(s.sessionId, s.token, wav, video, audioOffsetMs)) {
+        return when (val r = api.sendVoice(s.sessionId, s.token, wav, video, audioOffsetMs, voiceChallengeId)) {
             is ApiResult.Err -> Next.Fail(r.error)
             is ApiResult.Ok -> {
                 pendingWav = null
                 voiceChecked = true
                 onAccepted()
-                if (r.value.status == "voice_challenge") voicePrompt = r.value.voicePrompt ?: return Next.Fail(ApiError.BadResponse)
+                if (r.value.status == "voice_challenge") {
+                    // A re-read has a new sentence and a new id; the old recording cannot be resent.
+                    voicePrompt = r.value.voicePrompt ?: return Next.Fail(ApiError.BadResponse)
+                    voiceChallengeId = r.value.voiceChallengeId
+                }
                 FlowRules.routeForStatus(r.value.status, null, inVoiceStep = true)?.let { Next.To(it) } ?: Next.Fail(ApiError.BadResponse)
             }
         }
     }
 
     /**
-     * Null when the step counts as received. A 409 means the server already has this step in
-     * the attempt (the earlier response was lost), unless the session itself is closed.
+     * Null when the step counts as received: OK, or 409 `step_already_received` (the server has this
+     * step of the attempt, the earlier response was lost). Any other 409 (closed session, stale or
+     * expired challenge) is an error.
      */
     private fun <T> ApiResult<T>.ackOrFail(): Next? {
         val err = this as? ApiResult.Err ?: return null
-        if (err.error == ApiError.Conflict && err.code != "session_closed") return null
+        if (err.error == ApiError.Conflict && err.code == "step_already_received") return null
         return Next.Fail(err.error)
+    }
+
+    private fun newNonce(): String {
+        val bytes = ByteArray(18).also { SecureRandom().nextBytes(it) }
+        return "app_" + Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
     }
 }
 

@@ -79,6 +79,8 @@ object Routes {
     const val ExitConfirm = "exit_confirm"
     const val Stopped = "stopped"
     const val FlashSkipped = "flash_skipped"
+    const val Deny = "deny"
+    const val RecoveryRequired = "recovery_required"
 }
 
 object FlowRules {
@@ -107,7 +109,17 @@ object FlowRules {
         "review" -> Routes.Review
         "retry" -> if (retryHint != null) Routes.RetryQuality else Routes.RetryChallenge
         "voice_challenge" -> if (inVoiceStep) Routes.VoiceAgain else Routes.Voice
+        // FLOW-01 purpose flows: a clear failure, and re-auth without a verified device.
+        "deny" -> Routes.Deny
+        "recovery_required" -> Routes.RecoveryRequired
         else -> null
+    }
+
+    /** The FLOW-01 `purpose` sent when a live session starts. */
+    fun purposeCode(purpose: Purpose): String = when (purpose) {
+        Purpose.Onboarding -> "onboarding"
+        Purpose.Reauth -> "reauth"
+        Purpose.Recovery -> "recovery"
     }
 
     /** Quality hints from the server, same wording as the web (apps/web/src/i18n/vi.ts). */
@@ -175,18 +187,6 @@ object FlowRules {
             sex = if (changed(3) && edited[3] in setOf("Nam", "Nữ")) edited[3] else server.sex,
             address = if (changed(4)) edited[4] else server.address,
         )
-    }
-
-    /** The server's turn order (LIVE-01); null when missing or malformed, so the caller keeps its own. */
-    fun turnOrderFrom(order: List<String>?): List<TurnDir>? {
-        val dirs = order?.map {
-            when (it) {
-                "left" -> TurnDir.Left
-                "right" -> TurnDir.Right
-                else -> return null
-            }
-        }
-        return dirs?.takeIf { it.size == 2 && it.toSet().size == 2 }
     }
 
     /**

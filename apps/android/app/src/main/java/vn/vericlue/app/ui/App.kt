@@ -57,7 +57,7 @@ import vn.vericlue.app.capture.ColorSchedule
 import vn.vericlue.app.capture.QualityGate
 import vn.vericlue.app.capture.WavRecorder
 import vn.vericlue.app.data.api.ColorEvent
-import vn.vericlue.app.data.api.DotEvent
+import vn.vericlue.app.capture.FaceTimeline
 import vn.vericlue.app.data.api.SessionApi
 import vn.vericlue.app.flow.FramingState
 import vn.vericlue.app.flow.LiveFlow
@@ -75,6 +75,7 @@ import vn.vericlue.app.ui.screens.AuthScreen
 import vn.vericlue.app.ui.screens.BankOpenedScreen
 import vn.vericlue.app.ui.screens.BankStartScreen
 import vn.vericlue.app.ui.screens.CheckingScreen
+import vn.vericlue.app.ui.screens.FaceTimelineScreen
 import vn.vericlue.app.ui.screens.ConfirmInfoScreen
 import vn.vericlue.app.ui.screens.ConsentScreen
 import vn.vericlue.app.ui.screens.EditInfoScreen
@@ -332,7 +333,7 @@ fun VeriClueApp() {
                     nav.go(Routes.Otp)
                 } else {
                     // The session starts here: OTP and ID card belong to it (can-chot.md Q4).
-                    once { live.sendOtp(number, flow.mockScenario)?.let { nav.go(errorRoute(it)) } ?: nav.go(Routes.Otp) }
+                    once { live.sendOtp(number, flow.mockScenario, FlowRules.purposeCode(flow.purpose))?.let { nav.go(errorRoute(it)) } ?: nav.go(Routes.Otp) }
                 }
             })
         }
@@ -356,7 +357,7 @@ fun VeriClueApp() {
                     },
                     onResend = {
                         otpError = null
-                        once { live.sendOtp(phone, flow.mockScenario)?.let { nav.go(errorRoute(it)) } }
+                        once { live.sendOtp(phone, flow.mockScenario, FlowRules.purposeCode(flow.purpose))?.let { nav.go(errorRoute(it)) } }
                     },
                 )
             }
@@ -459,7 +460,9 @@ fun VeriClueApp() {
             // Live: a fresh challenge for this attempt (new session, or refresh after stage A / retry / redo).
             var prepared by remember { mutableStateOf(!flow.live) }
             LaunchedEffect(flow.live) {
-                if (flow.live) live.prepareFace(flow.mockScenario)?.let { nav.go(errorRoute(it)) } ?: run { prepared = true }
+                if (flow.live) {
+                    live.prepareFace(flow.mockScenario, FlowRules.purposeCode(flow.purpose))?.let { nav.go(errorRoute(it)) } ?: run { prepared = true }
+                }
             }
             val gate = if (hasCamera) QualityGate.evaluate(face) else null
             // Good for a moment → take the frontal still (on the grey screen, before the flash: ADR-0016).
@@ -487,35 +490,53 @@ fun VeriClueApp() {
         }
         composable(Routes.HoldStill) {
             val challenge = live.challenge
-            val slots = remember(challenge) {
-                if (flow.live && challenge != null) ColorSchedule.from(challenge) else ColorSchedule.demo()
+            if (flow.live) {
+                // Live: the server's FLOW-01 schedule on one recording (colours → dot → head turns),
+                // or passive capture for re-auth. No schedule where one is due is a bad response.
+                val timeline = remember(challenge) {
+                    challenge?.let { FaceTimeline.from(it) } ?: if (flow.purpose == Purpose.Reauth) FaceTimeline.passive() else null
+                }
+                LaunchedEffect(timeline) {
+                    if (timeline == null || !ColorSchedule.isSafe(timeline.slots)) nav.go(Routes.ErrorService)
+                }
+                if (timeline != null) {
+                    FaceTimelineScreen(
+                        timeline,
+                        onStop = exit,
+                        onStart = {
+                            live.colorEvents.clear()
+                            if (hasCamera) camera.startRecording()
+                        },
+                        recordingStartMs = { camera.recordingStartMs() },
+                        onPainted = { slot, t -> slot.index?.let { live.colorEvents += ColorEvent(it, slot.rgb, t) } },
+                        // The frontal still is taken at the server's mark, on the grey screen (ADR-0016).
+                        onFrontal = { scope.launch { withTimeoutOrNull(1500) { camera.captureJpeg() }?.let { live.frontalJpeg = it } } },
+                        onBaselineDone = { camera.lockAeAwb(true) },
+                        onColorsDone = { camera.lockAeAwb(false) },
+                        onDone = {
+                            camera.stopRecording()
+                            nav.go(Routes.Uploading)
+                        },
+                        onNoRecording = { nav.go(Routes.ErrorDevice) },
+                    )
+                }
+            } else {
+                HoldStillScreen(
+                    onStop = exit,
+                    onDone = { nav.go(Routes.TurnHead) },
+                    slots = remember { ColorSchedule.demo() },
+                    onColorsStart = { if (hasCamera) camera.startRecording() },
+                    onBaselineDone = { camera.lockAeAwb(true) },
+                    onColorsDone = { camera.lockAeAwb(false) },
+                    onDotDone = { camera.stopRecording() },
+                )
             }
-            LaunchedEffect(slots) { if (flow.live && (challenge == null || !ColorSchedule.isSafe(slots))) nav.go(Routes.ErrorService) }
-            HoldStillScreen(
-                onStop = exit,
-                onDone = { nav.go(Routes.TurnHead) },
-                slots = slots,
-                onColorsStart = {
-                    live.colorEvents.clear()
-                    live.dotEvents.clear()
-                    if (hasCamera) camera.startRecording()
-                },
-                onPainted = { slot, t -> slot.index?.let { live.colorEvents += ColorEvent(it, slot.rgb, t) } },
-                onBaselineDone = { camera.lockAeAwb(true) },
-                onColorsDone = { camera.lockAeAwb(false) },
-                // The recording runs on through the dot so the server can follow the eyes (LIVE-02).
-                dotPath = if (flow.live) challenge?.dotPath else null,
-                onDot = { i, x, y, t -> live.dotEvents += DotEvent(i, x, y, t) },
-                onDotDone = { camera.stopRecording() },
-            )
         }
         composable(Routes.TurnHead) {
             val face by camera.face.collectAsState()
-            // Live: the server decides the order (LIVE-01); a challenge without one is a bad response.
-            val serverOrder = FlowRules.turnOrderFrom(live.challenge?.turnOrder)
-            LaunchedEffect(serverOrder) { if (flow.live && serverOrder == null) nav.go(Routes.ErrorService) }
+            // Demo only: live runs the head turns inside FaceTimelineScreen, on the server's schedule.
             TurnHeadScreen(
-                if (flow.live) serverOrder ?: flow.turnOrder else flow.turnOrder,
+                flow.turnOrder,
                 onExit = exit,
                 onDone = { nav.go(if (flow.live) Routes.Uploading else FlowRules.afterTurnHead(flow.purpose)) },
                 yaw = if (hasCamera) face?.yaw else null,
@@ -543,7 +564,7 @@ fun VeriClueApp() {
                         } else {
                             val probe = withContext(Dispatchers.IO) { camera.camProbe() }
                             live.submitFace(
-                                camera.recordedVideo(),
+                                camera.finishedVideo(), // waits for CameraX to finish writing the MP4 (it was stopped just before)
                                 camera.frameTimes(),
                                 camera.clientQuality(),
                                 probe,
@@ -635,6 +656,8 @@ fun VeriClueApp() {
         }
         composable(Routes.Stopped) { Messages.Stopped(onBank = { leave() }) }
         composable(Routes.FlashSkipped) { Messages.FlashSkipped(onBank = { leave() }) }
+        composable(Routes.Deny) { Messages.Denied(onBank = { leave() }) }
+        composable(Routes.RecoveryRequired) { Messages.RecoveryRequired(onBank = { leave() }) }
     }
     }
 }
@@ -664,7 +687,8 @@ private fun GalleryScreen(nav: NavHostController, flow: FlowState) {
             "Hết phiên" to Routes.ErrorSession, "Dịch vụ không đáp ứng" to Routes.ErrorService, "Thiết bị chưa đáp ứng" to Routes.ErrorDevice,
             "Bị gián đoạn" to Routes.Interrupted, "Không thu được giọng" to Routes.NoVoice, "Gửi thất bại" to Routes.UploadFailed,
             "Kiểm tra lâu" to Routes.Slow, "Xác nhận dừng" to Routes.ExitConfirm, "Đã dừng" to Routes.Stopped,
-            "Bỏ qua nháy màu" to Routes.FlashSkipped,
+            "Bỏ qua nháy màu" to Routes.FlashSkipped, "Không thành công" to Routes.Deny,
+            "Cần khôi phục" to Routes.RecoveryRequired,
         ),
         "App ngân hàng (mô phỏng)" to listOf("Mở tài khoản thành công" to Routes.BankOpened),
     )

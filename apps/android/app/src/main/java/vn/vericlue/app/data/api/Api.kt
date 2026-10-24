@@ -40,17 +40,33 @@ data class Challenge(
     @SerialName("color_sequence") val colorSequence: List<ColorStep>,
     @SerialName("capture_at_ms") val captureAtMs: List<Int> = emptyList(),
     @SerialName("expires_at") val expiresAt: String? = null,
-    /** LIVE-01: turn order chosen by the server ("left"/"right", user's point of view). */
-    @SerialName("turn_order") val turnOrder: List<String>? = null,
-    /** LIVE-01: the dot's path, x/y as a fraction of the screen. */
-    @SerialName("dot_path") val dotPath: List<DotPoint>? = null,
+    /** FLOW-01/LIVE-01 schedule; only for sessions created with purpose onboarding or recovery. */
+    val dynamic: DynamicChallenge? = null,
+)
+
+/** One mark of the dot path: x/y as a fraction of the display area, time from the recording's start. */
+@Serializable
+data class GazePoint(val x: Double, val y: Double, @SerialName("at_ms") val atMs: Int)
+
+/** Every *_at_ms is counted from the first frame of the face recording (dynamic-session-api.md). */
+@Serializable
+data class DynamicChallenge(
+    val version: Int,
+    @SerialName("session_id") val sessionId: String,
+    val nonce: String,
+    @SerialName("gaze_points") val gazePoints: List<GazePoint>,
+    /** e.g. ["left","right","center"], user's point of view. */
+    @SerialName("head_turns") val headTurns: List<String>,
+    @SerialName("head_start_at_ms") val headStartAtMs: Int,
+    @SerialName("head_duration_ms") val headDurationMs: Int,
+    @SerialName("voice_start_at_ms") val voiceStartAtMs: Int,
+    @SerialName("voice_prompt") val voicePrompt: String,
+    @SerialName("voice_challenge_id") val voiceChallengeId: String,
+    @SerialName("frontal_capture_at_ms") val frontalCaptureAtMs: Int,
 )
 
 @Serializable
-data class DotPoint(@SerialName("t_ms") val tMs: Int, val x: Double, val y: Double)
-
-@Serializable
-data class DotEvent(val index: Int, val x: Double, val y: Double, @SerialName("painted_at") val paintedAt: Double)
+data class CreateSessionRequest(val purpose: String, val nonce: String)
 
 @Serializable
 data class CreateSessionResponse(
@@ -58,6 +74,8 @@ data class CreateSessionResponse(
     val token: String,
     @SerialName("expires_at") val expiresAt: String,
     val challenge: Challenge,
+    val purpose: String? = null,
+    val nonce: String? = null,
 )
 
 @Serializable
@@ -77,7 +95,8 @@ data class Signals(
     @SerialName("client_quality") val clientQuality: Map<String, String> = emptyMap(),
     val camprobe: vn.vericlue.app.capture.CamProbe? = null,
     @SerialName("region_means") val regionMeans: List<vn.vericlue.app.capture.RegionFrame>? = null,
-    @SerialName("dot_events") val dotEvents: List<DotEvent>? = null,
+    /** Required for sessions with a purpose: the current challenge (FLOW-01). */
+    @SerialName("challenge_id") val challengeId: String? = null,
 )
 
 @Serializable
@@ -90,6 +109,7 @@ data class FinalizeResponse(
     @SerialName("voice_prompt") val voicePrompt: String? = null,
     @SerialName("attempts_left") val attemptsLeft: Int? = null,
     val challenge: Challenge? = null,
+    @SerialName("voice_challenge_id") val voiceChallengeId: String? = null,
 )
 
 @Serializable
@@ -97,7 +117,11 @@ data class VoiceResponse(
     val status: String,
     @SerialName("voice_prompt") val voicePrompt: String? = null,
     @SerialName("attempts_left") val attemptsLeft: Int? = null,
+    @SerialName("voice_challenge_id") val voiceChallengeId: String? = null,
 )
+
+@Serializable
+data class FinalizeRequest(@SerialName("challenge_id") val challengeId: String)
 
 @Serializable
 data class OtpRequest(val phone: String)
@@ -137,7 +161,12 @@ data class IdCardResponse(
 data class IdCardConfirmResponse(val received: Boolean = false)
 
 @Serializable
-data class ChallengeResponse(@SerialName("expires_at") val expiresAt: String, val challenge: Challenge)
+data class ChallengeResponse(
+    /** New session token: the old one stops working (PLAT-06). */
+    val token: String,
+    @SerialName("expires_at") val expiresAt: String,
+    val challenge: Challenge,
+)
 
 @Serializable
 data class ErrorResponse(@SerialName("error_code") val errorCode: String, val message: String)
@@ -161,13 +190,17 @@ class SessionApi(
     private val base = baseUrl.toHttpUrl()
     private val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
 
-    suspend fun createSession(mockScenario: String? = null): ApiResult<CreateSessionResponse> =
-        call(post(url("v1", "sessions"), "{}".toRequestBody(JSON), null, mockScenario))
+    /** [request] null = the old MVP session (no purpose, no dynamic schedule). */
+    suspend fun createSession(mockScenario: String? = null, request: CreateSessionRequest? = null): ApiResult<CreateSessionResponse> {
+        val body = request?.let { json.encodeToString(CreateSessionRequest.serializer(), it) } ?: "{}"
+        return call(post(url("v1", "sessions"), body.toRequestBody(JSON), null, mockScenario))
+    }
 
-    suspend fun uploadMedia(sessionId: String, token: String, imageJpeg: ByteArray, video: File?): ApiResult<StepAck> {
+    suspend fun uploadMedia(sessionId: String, token: String, imageJpeg: ByteArray, video: File?, challengeId: String? = null): ApiResult<StepAck> {
         val body = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart("image", "face.jpg", imageJpeg.toRequestBody(JPEG))
             .apply { if (video != null) addFormDataPart("video", video.name, video.asRequestBody(MP4)) }
+            .apply { if (challengeId != null) addFormDataPart("challenge_id", challengeId) }
             .build()
         return call(post(url("v1", "sessions", sessionId, "media"), body, token))
     }
@@ -175,11 +208,20 @@ class SessionApi(
     suspend fun sendSignals(sessionId: String, token: String, signals: Signals): ApiResult<StepAck> =
         call(post(url("v1", "sessions", sessionId, "signals"), json.encodeToString(Signals.serializer(), signals).toRequestBody(JSON), token))
 
-    suspend fun finalize(sessionId: String, token: String): ApiResult<FinalizeResponse> =
-        call(post(url("v1", "sessions", sessionId, "finalize"), "".toRequestBody(JSON), token))
+    suspend fun finalize(sessionId: String, token: String, challengeId: String? = null): ApiResult<FinalizeResponse> {
+        val body = challengeId?.let { json.encodeToString(FinalizeRequest.serializer(), FinalizeRequest(it)) } ?: ""
+        return call(post(url("v1", "sessions", sessionId, "finalize"), body.toRequestBody(JSON), token))
+    }
 
     /** [audioOffsetMs]: when the WAV starts, from the video's first frame (sent only with a video). */
-    suspend fun sendVoice(sessionId: String, token: String, wav: ByteArray, video: File?, audioOffsetMs: Int? = null): ApiResult<VoiceResponse> {
+    suspend fun sendVoice(
+        sessionId: String,
+        token: String,
+        wav: ByteArray,
+        video: File?,
+        audioOffsetMs: Int? = null,
+        voiceChallengeId: String? = null,
+    ): ApiResult<VoiceResponse> {
         val body = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart("audio", "voice.wav", wav.toRequestBody(WAV))
             .apply {
@@ -187,6 +229,7 @@ class SessionApi(
                     addFormDataPart("video", video.name, video.asRequestBody(MP4))
                     audioOffsetMs?.let { addFormDataPart("audio_offset_ms", it.coerceIn(-5000, 5000).toString()) }
                 }
+                if (voiceChallengeId != null) addFormDataPart("voice_challenge_id", voiceChallengeId)
             }
             .build()
         return call(post(url("v1", "sessions", sessionId, "voice"), body, token))

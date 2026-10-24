@@ -377,6 +377,20 @@ object Messages {
         "Tiếp tục chờ" to onWait, "Dừng xác minh" to onStop, onBack = onStop,
     )
 
+    /** FLOW-01 `deny`: a clear failure. Says nothing about why (AGENTS.md §6 rule 3). */
+    @Composable fun Denied(onBank: () -> Unit) = MessageScreen(
+        Icons.Outlined.Dns, "Xác thực không thành công",
+        "Vui lòng thử lại sau.",
+        "Quay lại ứng dụng ngân hàng" to onBank,
+    )
+
+    /** FLOW-01 re-auth without a verified device key (SEC-02): the user must recover instead. */
+    @Composable fun RecoveryRequired(onBank: () -> Unit) = MessageScreen(
+        Icons.Outlined.PhoneAndroid, "Cần xác minh lại đầy đủ",
+        "Thiết bị này chưa được liên kết. Hãy làm theo hướng dẫn khôi phục tài khoản trong ứng dụng ngân hàng.",
+        "Quay lại ứng dụng ngân hàng" to onBank,
+    )
+
     @Composable fun ServiceDown(onBank: () -> Unit) = MessageScreen(
         Icons.Outlined.Dns, "Tạm thời chưa thể xác minh",
         "Dịch vụ chưa phản hồi. Vui lòng thử lại sau. Lúc này chưa có kết quả xác minh.",

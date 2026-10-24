@@ -3,7 +3,6 @@ package vn.vericlue.app.ui.screens
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.animateFloat
@@ -68,7 +67,7 @@ import vn.vericlue.app.capture.CaptureClock
 import vn.vericlue.app.capture.ColorSchedule
 import vn.vericlue.app.capture.ColorSlot
 import vn.vericlue.app.capture.TurnTracker
-import vn.vericlue.app.data.api.DotPoint
+import vn.vericlue.app.capture.FaceTimeline
 import vn.vericlue.app.ui.components.CameraFeed
 import androidx.compose.runtime.withFrameNanos
 import vn.vericlue.app.ui.components.Banner
@@ -251,8 +250,6 @@ fun HoldStillScreen(
     onPainted: (ColorSlot, Double) -> Unit = { _, _ -> },
     onColorsDone: () -> Unit = {},
     onBaselineDone: () -> Unit = {},
-    dotPath: List<DotPoint>? = null,
-    onDot: (index: Int, x: Double, y: Double, paintedAt: Double) -> Unit = { _, _, _, _ -> },
     onDotDone: () -> Unit = {},
 ) {
     var dotFinished by remember { mutableStateOf(false) }
@@ -276,8 +273,8 @@ fun HoldStillScreen(
         }
         onColorsDone()
         slot = -1
-        // The dot follows the server's path (LIVE-01); without one (demo) it runs on a timer.
-        if (dotPath != null) snapshotFlow { dotFinished }.first { it } else delay(6400)
+        // Demo / MVP only: the live FLOW-01 schedule runs in FaceTimelineScreen instead.
+        snapshotFlow { dotFinished }.first { it }
         onDotDone()
         onDone()
     }
@@ -313,8 +310,6 @@ fun HoldStillScreen(
                     FollowDot(
                         Modifier.fillMaxWidth().weight(1f, fill = false).height(220.dp),
                         running = auto,
-                        path = dotPath,
-                        onDot = onDot,
                         onFinished = { dotFinished = true },
                     )
                 }
@@ -374,46 +369,22 @@ private fun OvalPreview(progress: Float) {
     }
 }
 
-/**
- * The dot follows the server's path (LIVE-01), x/y as a fraction of this area, moving in a straight
- * line between points on their t_ms; the user follows it with the eyes only (ADR-0016, layer 2).
- * Each point reached is reported with its frame time. Without a path (demo) it wanders at random.
- */
+/** Demo / MVP: the dot wanders at random; the user follows it with the eyes only (ADR-0016, layer 2). */
 @Composable
-private fun FollowDot(
-    modifier: Modifier,
-    running: Boolean,
-    path: List<DotPoint>? = null,
-    onDot: (index: Int, x: Double, y: Double, paintedAt: Double) -> Unit = { _, _, _, _ -> },
-    onFinished: () -> Unit = {},
-) {
+private fun FollowDot(modifier: Modifier, running: Boolean, onFinished: () -> Unit = {}) {
     BoxWithConstraints(modifier) {
         val w = maxWidth.value
         val h = maxHeight.value
-        val start = path?.firstOrNull()?.let { Offset(w * it.x.toFloat(), h * it.y.toFloat()) } ?: Offset(w * 0.2f, h * 0.5f)
-        val pos = remember { Animatable(start, Offset.VectorConverter) }
-        val total = path?.size ?: 7
+        val pos = remember { Animatable(Offset(w * 0.2f, h * 0.5f), Offset.VectorConverter) }
+        val total = 7
         var steps by remember { mutableIntStateOf(0) }
         LaunchedEffect(running) {
             if (!running) return@LaunchedEffect
-            if (path != null) {
-                path.forEachIndexed { i, p ->
-                    val target = Offset(w * p.x.toFloat(), h * p.y.toFloat())
-                    if (i == 0) {
-                        pos.snapTo(target)
-                    } else {
-                        pos.animateTo(target, tween((p.tMs - path[i - 1].tMs).coerceAtLeast(1), easing = LinearEasing))
-                    }
-                    withFrameNanos { t -> onDot(i, p.x, p.y, CaptureClock.frameNanosToMs(t)) }
-                    steps = i + 1
-                }
-            } else {
-                val rnd = java.util.Random()
-                repeat(total) {
-                    val target = Offset(w * (0.1f + rnd.nextFloat() * 0.8f), h * (0.15f + rnd.nextFloat() * 0.6f))
-                    pos.animateTo(target, tween(850, easing = FastOutSlowInEasing))
-                    steps++
-                }
+            val rnd = java.util.Random()
+            repeat(total) {
+                val target = Offset(w * (0.1f + rnd.nextFloat() * 0.8f), h * (0.15f + rnd.nextFloat() * 0.6f))
+                pos.animateTo(target, tween(850, easing = FastOutSlowInEasing))
+                steps++
             }
             onFinished()
         }
@@ -519,6 +490,177 @@ fun TurnHeadScreen(
                     modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter).padding(bottom = 24.dp),
                 )
             }
+        }
+    }
+}
+
+// ── Live FLOW-01 schedule: the whole face part on one recording ─────────────
+
+/**
+ * Plays the server's schedule (FaceTimeline) on one continuous recording: grey baseline (frontal
+ * still at its mark), colour steps, the dot path over the whole screen, then the head turns. Times
+ * run from the recording's first frame, so the server can cut the video on the same marks; nothing
+ * waits for the user. [recordingStartMs] gives that first frame on the capture clock (null until it
+ * exists). Used only in live mode with a `dynamic` challenge; the demo keeps HoldStill + TurnHead.
+ */
+@Composable
+fun FaceTimelineScreen(
+    timeline: FaceTimeline,
+    onStop: () -> Unit,
+    onStart: () -> Unit,
+    recordingStartMs: () -> Double?,
+    onPainted: (ColorSlot, Double) -> Unit,
+    onFrontal: () -> Unit,
+    onBaselineDone: () -> Unit,
+    onColorsDone: () -> Unit,
+    onDone: () -> Unit,
+    onNoRecording: () -> Unit,
+) {
+    var phase by remember { mutableStateOf<FaceTimeline.Phase>(FaceTimeline.Phase.Colour(0)) }
+    LaunchedEffect(Unit) {
+        delay(SETTLE_MS) // let the preview settle before recording (see HoldStillScreen)
+        onStart()
+        var t0: Double? = null
+        kotlinx.coroutines.withTimeoutOrNull(3000) {
+            while (t0 == null) {
+                t0 = recordingStartMs()
+                if (t0 == null) delay(16)
+            }
+        }
+        val start = t0 ?: return@LaunchedEffect onNoRecording()
+        var lastSlot = -1
+        var frontalDone = false
+        var baselineDone = false
+        var coloursDone = false
+        while (true) {
+            val nowMs = withFrameNanos { CaptureClock.frameNanosToMs(it) }
+            val t = nowMs - start
+            val p = timeline.phaseAt(t)
+            phase = p
+            if (p is FaceTimeline.Phase.Colour && p.slot != lastSlot) {
+                lastSlot = p.slot
+                onPainted(timeline.slots[p.slot], nowMs)
+            }
+            if (!frontalDone && t >= timeline.frontalAtMs) {
+                frontalDone = true
+                onFrontal()
+            }
+            if (!baselineDone && t >= timeline.baselineEndMs) {
+                baselineDone = true
+                onBaselineDone()
+            }
+            if (!coloursDone && t >= timeline.coloursEndMs) {
+                coloursDone = true
+                onColorsDone()
+            }
+            if (p is FaceTimeline.Phase.Done) {
+                onDone()
+                break
+            }
+        }
+    }
+    BackHandler(onBack = onStop)
+    FullBrightness(enabled = true)
+    CompositionLocalProvider(LocalVcColors provides LightColors) {
+        Box(Modifier.fillMaxSize()) {
+            when (val p = phase) {
+                is FaceTimeline.Phase.Colour -> TimelineColour(timeline, p.slot, onStop)
+                FaceTimeline.Phase.Gap, is FaceTimeline.Phase.Gaze -> TimelineGaze(p as? FaceTimeline.Phase.Gaze, onStop)
+                is FaceTimeline.Phase.Head -> TimelineHead(p.dir, p.segment, timeline.headTurns.size, onStop)
+                FaceTimeline.Phase.Done -> TimelineHead(null, timeline.headTurns.lastIndex, timeline.headTurns.size, onStop)
+            }
+            // ONE camera preview for the whole recording, never moved: re-attaching the PreviewView
+            // makes CameraX reconfigure the camera and cancels the recording (ERROR_SOURCE_INACTIVE).
+            Box(
+                Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 64.dp, end = 16.dp)
+                    .size(width = 96.dp, height = 128.dp).clip(RoundedCornerShape(14.dp))
+                    .border(2.dp, Palette.Border, RoundedCornerShape(14.dp)),
+            ) { CameraFeed() }
+        }
+    }
+}
+
+@Composable
+private fun TimelineColour(timeline: FaceTimeline, slot: Int, onStop: () -> Unit) {
+    val current = timeline.slots.getOrNull(slot)
+    val bg = current?.let { Color(ColorSchedule.parse(it.rgb)) } ?: Color.White
+    SystemBarIcons(bg)
+    Column(Modifier.fillMaxSize().background(bg).statusBarsPadding()) {
+        TopBar(onStop)
+        StepProgress(2, stepLabel(2))
+        Column(
+            Modifier.weight(1f).fillMaxWidth().padding(horizontal = 20.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+        ) {
+            Text(if (current?.index == null) "Giữ yên, nhìn thẳng" else "Giữ yên", style = VcType.titleMedium, color = Palette.Ink)
+            Spacer(Modifier.weight(1f))
+            Banner("Màn hình sẽ nhấp nháy màu nhạt vài giây. Người nhạy cảm với ánh sáng nhấp nháy không nên tiếp tục.")
+        }
+    }
+}
+
+/** The dot moves over the whole screen: x/y are fractions of this area, not of the camera image. */
+@Composable
+private fun TimelineGaze(gaze: FaceTimeline.Phase.Gaze?, onStop: () -> Unit) {
+    SystemBarIcons(Color.White)
+    BoxWithConstraints(Modifier.fillMaxSize().background(Color.White)) {
+        Column(Modifier.fillMaxWidth().statusBarsPadding()) {
+            TopBar(onStop)
+            Text(
+                "Giữ đầu yên, chỉ đưa mắt theo chấm sáng",
+                style = VcType.titleMedium,
+                color = Palette.Ink,
+                modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 128.dp),
+            )
+        }
+        if (gaze != null) {
+            val x = maxWidth * gaze.x.toFloat()
+            val y = maxHeight * gaze.y.toFloat()
+            Box(
+                Modifier.offset(x = x - 24.dp, y = y - 24.dp).size(48.dp).clip(CircleShape)
+                    .background(Palette.Primary.copy(alpha = 0.18f)),
+                contentAlignment = Alignment.Center,
+            ) { Box(Modifier.size(28.dp).clip(CircleShape).background(Palette.Primary)) }
+        }
+    }
+}
+
+@Composable
+private fun TimelineHead(dir: TurnDir?, segment: Int, segments: Int, onStop: () -> Unit) {
+    SystemBarIcons(Color.White)
+    Column(Modifier.fillMaxSize().background(Color.White).statusBarsPadding()) {
+        TopBar(onStop)
+        StepProgress(2, stepLabel(2))
+        Column(
+            Modifier.weight(1f).fillMaxWidth().padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            if (dir != null) {
+                Box(
+                    Modifier.size(96.dp).clip(CircleShape).background(Palette.LogoNavy.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        if (dir == TurnDir.Left) Icons.AutoMirrored.Outlined.ArrowBack else Icons.AutoMirrored.Outlined.ArrowForward,
+                        contentDescription = null,
+                        tint = Palette.LogoNavy,
+                        modifier = Modifier.size(48.dp),
+                    )
+                }
+            }
+            Text(
+                when (dir) {
+                    TurnDir.Left -> "Quay sang trái"
+                    TurnDir.Right -> "Quay sang phải"
+                    null -> "Nhìn thẳng"
+                },
+                style = VcType.titleLarge,
+                color = Palette.Ink,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 20.dp),
+            )
+            Text("Quay từ từ theo mũi tên · ${segment + 1} / $segments", style = VcType.bodySmall, color = Palette.Ink, modifier = Modifier.padding(top = 8.dp))
         }
     }
 }

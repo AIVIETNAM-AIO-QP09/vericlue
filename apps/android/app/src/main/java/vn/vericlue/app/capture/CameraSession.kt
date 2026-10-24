@@ -234,6 +234,17 @@ class CameraSession(private val context: Context) {
      * How far the running recording is from its first frame, in ms, right now: the last reported
      * length plus the time since that report. Sent as `audio_offset_ms` when the WAV starts.
      */
+    /**
+     * The first frame of the running recording's file, on the capture clock (ms); null until CameraX
+     * reports one. This is t = 0 of the server's schedule (FLOW-01). It is not the first analysed
+     * frame: the encoder starts 0.1–0.9 s after analysis does.
+     */
+    fun recordingStartMs(): Double? {
+        if (recording == null) return null
+        val (lengthNs, atNs) = recordedAt ?: return null
+        return (atNs - lengthNs) / 1e6
+    }
+
     fun videoElapsedMs(): Int? {
         if (recording == null) return null
         val (lengthNs, atNs) = recordedAt ?: return null

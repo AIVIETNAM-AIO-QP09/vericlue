@@ -14,7 +14,6 @@ import vn.vericlue.app.data.api.IdCardFields
 import vn.vericlue.app.data.api.SessionApi
 import vn.vericlue.app.flow.FlowRules
 import vn.vericlue.app.flow.LiveFlow
-import vn.vericlue.app.flow.TurnDir
 
 /** Stage A against the server (OTP, ID card), and a fresh challenge before each face attempt. */
 class LiveFlowStageATest {
@@ -83,11 +82,25 @@ class LiveFlowStageATest {
     fun faceAttemptAfterStageAGetsAFreshChallenge() = runTest {
         server.enqueue(json(session))
         flow.ensureSession(null)
-        server.enqueue(json("""{"expires_at":"2026-10-24T10:05:00Z","challenge":${challenge("ch_2")}}"""))
+        server.enqueue(json("""{"token":"tok_2","expires_at":"2026-10-24T10:05:00Z","challenge":${challenge("ch_2")}}"""))
         assertNull(flow.prepareFace(null))
         assertEquals("ch_2", flow.challenge?.challengeId)
         server.takeRequest()
         assertEquals("/v1/sessions/ses_1/challenge", server.takeRequest().path)
+        // The refresh hands out a new token (PLAT-06): every later call must use it.
+        server.enqueue(json("""{"status":"pass","attempts_left":5}"""))
+        flow.verifyOtp("123456")
+        assertEquals("Bearer tok_2", server.takeRequest().getHeader("Authorization"))
+    }
+
+    @Test
+    fun purposeSessionSendsPurposeAndNonce() = runTest {
+        server.enqueue(json(session))
+        assertNull(flow.ensureSession("genuine", "onboarding"))
+        val body = server.takeRequest().body.readUtf8()
+        assertTrue(body.contains("\"purpose\":\"onboarding\""))
+        val nonce = Regex("\"nonce\":\"([^\"]+)\"").find(body)!!.groupValues[1]
+        assertTrue(nonce.matches(Regex("[A-Za-z0-9_-]{16,128}")))
     }
 
     @Test
@@ -96,14 +109,6 @@ class LiveFlowStageATest {
         assertNull(flow.prepareFace("genuine"))
         assertEquals("ch_1", flow.challenge?.challengeId)
         assertEquals(1, server.requestCount)
-    }
-
-    @Test
-    fun turnOrderComesFromTheServer() {
-        assertEquals(listOf(TurnDir.Right, TurnDir.Left), FlowRules.turnOrderFrom(listOf("right", "left")))
-        assertNull(FlowRules.turnOrderFrom(listOf("left", "left")))
-        assertNull(FlowRules.turnOrderFrom(listOf("up", "left")))
-        assertNull(FlowRules.turnOrderFrom(null))
     }
 
     @Test
