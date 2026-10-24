@@ -11,11 +11,12 @@ from __future__ import annotations
 import hashlib
 import math
 import os
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from threading import RLock
 from time import perf_counter
-from typing import Any
+from typing import Any, TypeVar
 
 import numpy as np
 import yaml
@@ -29,6 +30,7 @@ SAMPLE_INTERVAL_MS = 100
 MAX_EXTRACT_SECONDS = 15
 MIN_EYE_WIDTH_PX = 12
 MIN_EYE_OPEN_RATIO = 0.10  # Provisional quality constants, not calibrated security thresholds.
+Measurement = TypeVar("Measurement")
 
 
 class LandmarkError(Exception):
@@ -173,6 +175,22 @@ class FaceObservationReader:
 
     def extract(self, video: Path, *, start_ms: float, end_ms: float) -> list[FaceObservation]:
         """Sample by decoder timestamps; never manufacture timing from nominal FPS."""
+        return self.extract_measurements(
+            video,
+            start_ms=start_ms,
+            end_ms=end_ms,
+            observer=lambda frame, time: self.observe(frame, at_ms=time),
+        )
+
+    def extract_measurements(
+        self,
+        video: Path,
+        *,
+        start_ms: float,
+        end_ms: float,
+        observer: Callable[[np.ndarray, float], Measurement],
+    ) -> list[Measurement]:
+        """Share bounded decoding with server-side measurements such as color ROIs."""
         if not 0 <= start_ms < end_ms <= MAX_VIDEO_MS:
             raise LandmarkError(ErrorCode.E_CHALLENGE_MISMATCH)
         if not video.is_file():
@@ -216,7 +234,7 @@ class FaceObservationReader:
                         raise LandmarkError(ErrorCode.E_TIMEOUT)
                     if at_ms < next_sample:
                         continue
-                    observations.append(self.observe(frame, at_ms=at_ms))
+                    observations.append(observer(frame, at_ms))
                     next_sample = at_ms + SAMPLE_INTERVAL_MS - 1
                 else:
                     raise LandmarkError(ErrorCode.E_TIMEOUT)
@@ -226,6 +244,22 @@ class FaceObservationReader:
 
     def observe(self, frame: np.ndarray, *, at_ms: float) -> FaceObservation:
         """Recheck the exact server-selected BGR frame with the same stateless task."""
+        return self.measure(
+            frame,
+            at_ms=at_ms,
+            transform=lambda result, rgb: observation_from_result(
+                result, at_ms, rgb.shape[1], rgb.shape[0]
+            ),
+        )
+
+    def measure(
+        self,
+        frame: np.ndarray,
+        *,
+        at_ms: float,
+        transform: Callable[[Any, np.ndarray], Measurement],
+    ) -> Measurement:
+        """Run one validated landmark inference and transform it while holding the lock."""
         if (
             not isinstance(frame, np.ndarray)
             or frame.ndim != 3
@@ -245,7 +279,7 @@ class FaceObservationReader:
             result = self._task.detect(
                 self._mp.Image(image_format=self._mp.ImageFormat.SRGB, data=rgb)
             )
-            return observation_from_result(result, at_ms, frame.shape[1], frame.shape[0])
+            return transform(result, rgb)
 
     def close(self) -> None:
         """Release the native task under the same lock as inference."""

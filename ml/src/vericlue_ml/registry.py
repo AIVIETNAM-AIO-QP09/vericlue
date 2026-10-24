@@ -179,3 +179,13 @@ def get_fsvfm_pad(*, mock: bool = False) -> Detector:
     from vericlue_ml.face.fsvfm import FsvfmPadDetector
 
     return FsvfmPadDetector()
+
+
+@lru_cache(maxsize=2)
+def get_chromapulse_diagnostic(*, mock: bool = False) -> Detector:
+    """Opt-in color measurements; keep HTTP real/mixed selection unchanged."""
+    if mock:
+        return MOCK_DETECTORS[Module.CHROMAPULSE]
+    from vericlue_ml.presence.chromapulse import ChromaPulseDetector
+
+    return ChromaPulseDetector()

@@ -45,6 +45,17 @@
 |---|---|---|---|---|
 | M3 | 2 | S1 | P0 | PRES-01, PLAT-03 |
 
+**Tiến độ 24/10 — doing, chưa nghiệm thu cổng:** đã có đo median 5 vùng da/nền
+phía server, trừ nền miền log, khớp affine và quét lag, ModuleResult, factory
+diagnostic dùng mock sẵn có và CLI. Xem
+[`chromapulse-diagnostic.md`](../../architecture/chromapulse-diagnostic.md).
+ADR-0016 đã đưa ChromaPulse về lớp 1, thay quyết định hạ xuống phụ ngày 17/10;
+việc bật gate vẫn cần kiểm chứng. Hiện luôn `degraded/unclear`, không sửa ngưỡng
+hoặc bật thật trong HTTP. Các tiêu chí cổng/độ trễ bên dưới còn **chưa hoàn thành**.
+Chưa có client/server mismatch, số ký hiệu giải mã độc lập, CAP-03 thật hay R5.
+Lag từ decoder/lịch dự kiến chỉ là lag biểu kiến; không dùng tiêu chí “100 ms
+là fail” khi chưa có đồng hồ và ngưỡng được kiểm chứng.
+
 **Mục tiêu:** detector `chromapulse` trả `ModuleResult` với `gate` = pass / fail / unclear, kèm bằng chứng.
 
 **Đầu ra:** `ml/src/vericlue_ml/presence/chromapulse.py`

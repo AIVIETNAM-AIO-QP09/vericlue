@@ -21,6 +21,11 @@
 
 ## Quy ước bắt buộc
 
+PRES-02 đã thêm diagnostic đo màu 5 vùng da + nền, dùng chung task MediaPipe
+với mắt/quay đầu. Chưa hiệu chỉnh, luôn unclear và chưa đổi module ChromaPulse
+trong full/MVP. Lệnh chạy, ý nghĩa R²/lag và giới hạn đồng hồ:
+[`chromapulse-diagnostic.md`](../docs/architecture/chromapulse-diagnostic.md).
+
 LIVE-02 đã có `gaze_tracking` và reader MediaPipe dùng chung cho dữ liệu mắt/tư
 thế đầu. Đây là diagnostic riêng, chưa nằm trong profile full/MVP hoặc quyết định
 API. Chạy bằng môi trường riêng để giữ dependency CUDA/OpenCV hiện có; xem

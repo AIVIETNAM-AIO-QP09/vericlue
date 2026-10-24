@@ -54,7 +54,7 @@
 | Mã | Task | Vai trò | Người | Ngày công | Sprint | Ưu tiên | Phụ thuộc | Trạng thái |
 |---|---|---|---|---|---|---|---|---|
 | PRES-01 | Spike phân tích độ trễ (cổng quyết định 17/10) | M3 | Lead | 1 | S0 | P0 | CAP-03 | done |
-| PRES-02 | chromapulse.py | M3 | | 2 | S1 | P0 | PRES-01, PLAT-03 | todo |
+| PRES-02 | ChromaPulse: đo màu/khớp diagnostic; chờ kiểm chứng cổng | M3 | Codex | 2 | S1 | P0 | PRES-01, PLAT-03 | doing |
 | PRES-03 | camprobe.py | M3 | | 0,5 | S1 | P0 | CAP-05, PLAT-03 | todo |
 | PRES-04 | Chạy thử của nhóm, chỉnh ngưỡng (R5) | M1 (+M3) | | 1 | S2 | P0 | PRES-02, PRES-03, CAP-06, REDT-01 | todo |
 

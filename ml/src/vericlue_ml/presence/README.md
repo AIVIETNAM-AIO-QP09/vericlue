@@ -1,5 +1,10 @@
 # Hiện diện và chuyển động mắt
 
+PRES-02 có backend đo phản hồi màu từ video bằng cùng MediaPipe, xuất R²/lag
+biểu kiến qua CLI riêng. Chưa có ngưỡng hoặc kiểm chứng đồng hồ; kết quả thật
+luôn unclear, chưa nối HTTP. Xem
+[ChromaPulse diagnostic](../../../../docs/architecture/chromapulse-diagnostic.md).
+
 ## LIVE-02 — trạng thái
 
 `GazeDetector` đã có backend MediaPipe thật và mock; trả `ModuleResult` với tên
