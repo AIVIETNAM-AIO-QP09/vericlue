@@ -21,6 +21,11 @@
 
 ## Quy ước bắt buộc
 
+VOICE-10 ghép tùy chọn `--nes2net-python` vào Voice Lab: một bản thu RAM,
+hai tab kết quả Qwen/NES2Net riêng. Worker giữ model trong runtime CPU riêng,
+có timeout/hủy/đóng, chưa đưa điểm vào quyết định eKYC. Xem
+[`qwen-asr-diagnostic.md`](../docs/architecture/qwen-asr-diagnostic.md).
+
 VOICE-09 thêm NES2Net-X CPU diagnostic opt-in cho `voice_spoof`, checkpoint đầy
 đủ XLS-R/head. Chỉ chấm 4 giây đầu, luôn degraded/unclear, chưa parity frontend
 hoặc calibration tiếng Việt; không thay backend API. Xem

@@ -49,12 +49,25 @@ def fake_backends(monkeypatch, broken=None):
 
 def test_all_backends_report_without_embeddings_or_synthetic_attack_scores(monkeypatch, tmp_path):
     closed = fake_backends(monkeypatch)
+    # A valid elapsed time may equal the fake score; text searches confuse the two.
+    ticks = iter([0.0, 0.00025] * 4)
+    monkeypatch.setattr(face_runtime, "perf_counter", lambda: next(ticks))
     result = face_runtime.check_backends(tmp_path)
     assert result["all_backends_ok"] and closed == [True]
     assert set(result["checks"]) == {"landmarker", "face_match", "face_deepfake", "face_pad"}
     assert result["checks"]["face_match"]["output_shape"] == [512]
-    assert all("diagnostic_elapsed_ms" in row for row in result["checks"].values())
-    assert "embedding" not in json.dumps(result) and "0.25" not in json.dumps(result)
+    common = {"status", "diagnostic_elapsed_ms", "model_sha256"}
+    classifier = {"model_version", "finite_output", "device"}
+    expected = {
+        "landmarker": common | {"face_count", "covers_modules"},
+        "face_match": common | classifier | {"output_shape", "providers"},
+        "face_deepfake": common | classifier,
+        "face_pad": common | classifier,
+    }
+    for name, row in result["checks"].items():
+        # Exact public fields forbid embedding/score output without banning timings.
+        assert set(row) == expected[name]
+        assert row["diagnostic_elapsed_ms"] == 0.25
 
 
 @pytest.mark.parametrize("broken", ["gend", "pad"])

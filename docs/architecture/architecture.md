@@ -65,6 +65,11 @@ Data4Life/
 
 ## 3. Giao diện chung của mô-đun AI
 
+VOICE-10 nối công cụ micro nội bộ với worker NES2Net CPU riêng: thu một lần,
+Qwen kiểm nội dung, NES2Net đo margin thô 4 giây đầu; không hợp nhất hai kết quả.
+PCM qua pipe giới hạn/hash/id, không lưu audio; worker có timeout/hủy và giữ
+model giữa các lượt. Không đổi hợp đồng HTTP, backend hoặc chốt xác minh.
+
 VOICE-09 bổ sung `get_nes2net()` opt-in cho `voice_spoof`, checkpoint NES2Net-X
 với frontend Transformers CPU riêng. Chưa parity Fairseq hoặc calibration,
 luôn degraded/unclear, không prob_attack; chấm raw 4 giây đầu theo demo tác giả.

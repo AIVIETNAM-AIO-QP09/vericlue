@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import importlib.metadata
+import math
 import queue
 import threading
 from datetime import UTC, datetime
 from typing import Any
+
+import numpy as np
 
 from vericlue_ml.eval.microphone import record_microphone
 from vericlue_ml.eval.report import git_revision
@@ -16,8 +19,11 @@ from vericlue_ml.eval.report import git_revision
 class VoiceTrial:
     """GUI polls bounded events; cancellation discards results and forbids overlap."""
 
-    def __init__(self, detector: Any, *, device: int | None = None, recorder=record_microphone):
+    def __init__(
+        self, detector: Any, *, device: int | None = None, recorder=record_microphone, spoof=None
+    ):
         self.detector, self.device, self.recorder = detector, device, recorder
+        self.spoof = spoof
         self.events = queue.SimpleQueue()
         self.stop = threading.Event()
         self.cancelled = threading.Event()
@@ -44,14 +50,19 @@ class VoiceTrial:
         """Stop capture and discard any in-flight native inference result."""
         self.cancelled.set()
         self.stop.set()
+        if self.spoof is not None:
+            self.spoof.cancel()
 
     def close(self) -> None:
         """Request release without blocking the UI on OS/model work."""
         self.closed = True
         self.cancel()
+        if self.spoof is not None:
+            self.spoof.close()
 
     def _work(self, prompt: str) -> None:
         recording = None
+        resampled = None
         payload = None
         error = None
         try:
@@ -92,12 +103,27 @@ class VoiceTrial:
                 },
                 "result": result.to_contract(),
             }
+            if self.spoof is not None and not self.cancelled.is_set():
+                from vericlue_ml.eval.nes2net_client import unavailable
+
+                self.events.put(("spoof_processing", None))
+                try:
+                    resampled = nes2net_samples(recording.samples, recording.sample_rate)
+                    payload["voice_spoof"] = self.spoof.predict_samples(
+                        resampled, cancelled=self.cancelled
+                    )
+                except Exception:
+                    payload["voice_spoof"] = unavailable()
+                payload["dataset"] = "local_dual_voice_diagnostic_not_accuracy_evaluation"
+                payload["created_at"] = datetime.now(UTC).isoformat()
         except Exception:
             # No native exception text, paths or device identifiers in the GUI/report.
             error = "Không thể thu hoặc xử lý âm thanh. Kiểm tra micro, quyền truy cập và runtime."
         finally:
             if recording is not None:
                 recording.samples.fill(0)
+            if resampled is not None:
+                resampled.fill(0)
             self.events.put(("done", (payload, error)))
 
     def poll(self) -> list[tuple[str, Any]]:
@@ -113,6 +139,27 @@ class VoiceTrial:
                 continue
             result.append((kind, value))
         return result
+
+
+def nes2net_samples(samples: np.ndarray, rate: int) -> np.ndarray:
+    """Bound capture PCM, then resample once for the NES2Net wire; no trim/normalization."""
+    from scipy.signal import resample_poly
+
+    if (
+        type(rate) is not int
+        or not 8000 <= rate <= 192000
+        or not isinstance(samples, np.ndarray)
+        or samples.dtype != np.float32
+        or samples.ndim != 1
+        or not 0 < len(samples) <= 30 * rate
+        or not np.isfinite(samples).all()
+        or np.any(np.abs(samples) > 1)
+    ):
+        raise ValueError("Invalid capture PCM")
+    if rate == 16000:
+        return samples.copy()
+    divisor = math.gcd(rate, 16000)
+    return np.asarray(resample_poly(samples, 16000 // divisor, rate // divisor), dtype=np.float32)
 
 
 def _version(name: str) -> str:
