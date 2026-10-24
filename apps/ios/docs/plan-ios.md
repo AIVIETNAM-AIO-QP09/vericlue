@@ -1,7 +1,7 @@
 # Kế hoạch chi tiết app iOS — VeriClue
 
 > **Người làm:** anh Lý (Lý Anh Quân), trên Mac, làm cùng AI (Claude Code hoặc Codex).
-> **Người soạn:** Ngọc Quang + Claude, 24/10/2026. **Trạng thái:** Quang đã duyệt (24/10). Trưởng nhóm còn phải chốt các câu ở mục 16.
+> **Người soạn:** Ngọc Quang + Claude, 24/10/2026. **Trạng thái:** Quang đã duyệt; trưởng nhóm đã chốt mục 16 theo đề xuất (24/10). ADR-0014 và backlog (IOS-01..07) đã cập nhật.
 > **Hạn:** nộp vòng 2 trước **06/11/2026**. App Android là bản nộp chính; iOS là bản thêm. Không kịp phần nào thì cắt theo mục 14, không kéo trễ Android.
 
 Đọc hết file này một lượt trước khi bắt đầu. Mỗi task ở mục 9 ghi rõ: làm file nào, hàm nào, gọi API nào với dữ liệu gì, thử thế nào, khi nào coi là xong. Gặp chỗ file này không nói tới thì **làm giống app Android** (`apps/android/`). Nếu Android cũng không có thì ghi câu hỏi vào file bàn giao, **không tự nghĩ ra**.
@@ -25,7 +25,7 @@
 13. Kiểm tra cuối và bàn giao
 14. Nếu không kịp thì cắt gì
 15. Câu lệnh mẫu cho AI
-16. Cần trưởng nhóm chốt
+16. Đã chốt (24/10)
 
 ---
 
@@ -599,12 +599,14 @@ Ví dụ cụ thể cho IOS-02:
 
 ---
 
-## 16. Cần trưởng nhóm chốt trước khi bắt đầu
+## 16. Đã chốt (24/10)
 
-| # | Câu hỏi | Đề xuất |
+Trưởng nhóm đồng ý chốt theo đề xuất, có lỗi thì sửa sau. Ghi ở ADR-0014 (mục "Cập nhật 24/10") và `docs/plan/backlog.md`.
+
+| # | Câu hỏi | Đã chốt |
 |---|---|---|
 | 1 | Sửa ADR-0014 (đang ghi "iOS không làm") | Ghi: có thêm app iOS (SwiftUI, Vision), người làm Lý Anh Quân; Android vẫn là bản nộp chính |
-| 2 | Thêm IOS-01..07 vào `docs/plan/backlog.md` và task card | Người làm Lý Anh Quân; sprint S2 |
+| 2 | Thêm IOS-01..07 vào `docs/plan/backlog.md` và task card | Đã thêm: người làm Lý Anh Quân, sprint S2, ưu tiên P1 (bản phụ); task card ở `docs/plan/epics/E9-app-flows.md` |
 | 3 | Mua Apple Developer Program (99 USD/năm) để cài qua TestFlight | Không mua cho vòng 2: demo bằng iPhone của nhóm, cài qua cáp |
 | 4 | Bundle ID, tên app | `vn.vericlue.app`, "VeriClue", giống Android |
 | 5 | iOS dùng Vision, Android dùng ML Kit | Chấp nhận: cả hai chỉ để hướng dẫn, không ra phán quyết |

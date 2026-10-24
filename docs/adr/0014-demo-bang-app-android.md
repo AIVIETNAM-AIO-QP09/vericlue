@@ -1,6 +1,6 @@
 # ADR-0014: Bản demo cho người dân là app Android (thay ADR-0003 cho luồng người dân)
 
-- **Trạng thái:** đã chấp nhận (18/10). Cách làm app ở mục 2 đã chốt: **app Kotlin native**.
+- **Trạng thái:** đã chấp nhận (18/10). Cách làm app ở mục 2 đã chốt: **app Kotlin native**. Cập nhật 24/10: thêm app iOS làm bản phụ (xem mục cuối).
 - **Ngày:** 2026-10-18
 - **Người quyết định:** Trưởng nhóm (người dùng)
 
@@ -43,3 +43,10 @@ ADR-0003 chọn chạy trên **web ở điện thoại**. Trưởng nhóm quyế
    - có chứng chỉ thật, điện thoại dùng 4G hay Wi-Fi nào cũng vào được, không phải cài chứng chỉ tự ký;
    - **đánh đổi:** dữ liệu sinh trắc đi qua hạ tầng Cloudflare (vẫn mã hóa trên đường truyền, TLS kết thúc tại Cloudflare). Chấp nhận cho bản demo; ghi là giới hạn trong báo cáo, sản phẩm thật dùng HTTPS trực tiếp + certificate pinning (B9);
    - địa chỉ đường hầm đặt bằng cấu hình build (không cứng trong code), không commit token Cloudflare.
+
+## Cập nhật 24/10 — thêm app iOS làm bản phụ (trưởng nhóm đồng ý, Ngọc Quang chuyển lời)
+1. **App Android vẫn là bản nộp chính.** Thêm **app iOS** (SwiftUI, AVFoundation, **Vision**) làm bản phụ; người làm: Lý Anh Quân, trên Mac. Task IOS-01 đến IOS-07 (epic E9); kế hoạch chi tiết ở `apps/ios/docs/plan-ios.md`. Câu "iOS không làm" ở mục Bối cảnh không còn đúng.
+2. **Cùng server, cùng hợp đồng** với app Android (FLOW-01 dynamic, OTP, CCCD, `/challenge`, `/voice`). Không thêm endpoint hay trường riêng cho iOS.
+3. **Vision trên iOS, ML Kit trên Android** (mục 2): cả hai chỉ để hướng dẫn người dùng, không ra phán quyết (mục 3).
+4. **Không mua Apple Developer Program** cho vòng 2: demo bằng iPhone của nhóm, cài qua cáp với Apple ID thường (app hết hạn sau 7 ngày, cài lại trước buổi demo). Bundle ID `vn.vericlue.app`, tên "VeriClue", giống Android. Bản Release dùng chung địa chỉ HTTPS (cloudflared) với Android.
+5. **Không kịp thì cắt** theo mục 14 của kế hoạch iOS; không kéo trễ app Android. Bản dự phòng trên iPhone vẫn là web `/verify` mở bằng Safari.

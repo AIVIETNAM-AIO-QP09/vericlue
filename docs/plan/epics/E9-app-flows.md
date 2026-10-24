@@ -257,6 +257,124 @@ chân dung tham chiếu đã cắt do server quản lý. Xem
 
 ---
 
+## App iOS (bản thêm, ADR-0014 cập nhật 24/10)
+
+Kế hoạch chi tiết từng bước: [`apps/ios/docs/plan-ios.md`](../../../apps/ios/docs/plan-ios.md). App Android (APP-01..04) là đặc tả hành vi và câu chữ.
+
+### IOS-01 · App iOS: khung SwiftUI, theme, toàn bộ màn, điều hướng 3 luồng, chế độ demo
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M1 | 2 | S2 | P1 | APP-01 |
+
+**Mục tiêu:** Có đủ màn và điều hướng như app Android, chạy demo không cần server.
+
+**Đầu ra:**
+- Project Xcode ở `apps/ios/`, iOS 16+, SwiftUI; theme và font theo Android/Figma.
+- Đủ route như Android, thêm `deny`, `recovery_required`; màn "Xem tất cả màn" chỉ ở Debug.
+
+**Tiêu chí hoàn thành:**
+- [ ] Đi hết luồng demo của 3 `purpose` trên Simulator.
+
+---
+
+### IOS-02 · App iOS: client API, LiveFlow, FlowRules + test
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M1 | 1,5 | S2 | P1 | FLOW-01 |
+
+**Mục tiêu:** Gọi đúng API phiên (FLOW-01 dynamic, OTP, CCCD, `/challenge`, `/voice`) như `LiveFlow.kt`.
+
+**Đầu ra:**
+- `Models.swift`, `SessionApi.swift` (URLSession async/await, multipart), `LiveFlow.swift`, `FlowRules.swift`.
+- Port test `LiveFlowTest`, `LiveFlowRetryTest`, `LiveFlowStageATest`, `FlowRulesTest`; giải mã các ví dụ trong `packages/contracts/examples`.
+
+**Tiêu chí hoàn thành:**
+- [ ] `xcodebuild test` xanh, không test nào gọi mạng thật.
+
+---
+
+### IOS-03 · App iOS: OTP, chụp CCCD (nét, lóa, QR bằng Vision), xác nhận thông tin
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M1 | 1,5 | S2 | P1 | IOS-01, IOS-02, FLOW-02, FLOW-03 |
+
+**Mục tiêu:** Giai đoạn A chạy với server như app Android.
+
+**Đầu ra:**
+- Màn số điện thoại, OTP (SMS mô phỏng), camera sau chụp hai mặt, xem lại, xác nhận/sửa thông tin.
+
+**Tiêu chí hoàn thành:**
+- [ ] Trên iPhone thật với API mock: OTP sai/đúng đúng câu; server nhận 2 ảnh CCCD và trả thông tin từ QR.
+
+---
+
+### IOS-04 · App iOS: camera trước, lịch phần mặt một video (màu, chấm, quay đầu), signals, camprobe
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M1 | 3 | S2 | P1 | IOS-02, LIVE-01 |
+
+**Mục tiêu:** Phần mặt chạy đúng lịch `challenge.dynamic`, một video liên tục, như `FaceTimeline.kt`.
+
+**Đầu ra:**
+- AVCaptureSession + AVAssetWriter (MP4 không lật), Vision dò mặt, khóa AE/AWB, `color_events`, `frame_times`, `camprobe` iOS.
+
+**Tiêu chí hoàn thành:**
+- [ ] Trên iPhone thật: `genuine` gửi đủ JPEG, MP4 (dài bằng lịch) và signals; `low_quality` ra chụp lại.
+
+---
+
+### IOS-05 · App iOS: đọc câu, WAV 16 kHz + MP4, audio_offset_ms
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M1 | 1 | S2 | P1 | IOS-04 |
+
+**Mục tiêu:** Bước đọc câu như app Android (VOICE-05).
+
+**Đầu ra:**
+- `WavRecorder.swift` (AVAudioEngine → 16 kHz mono), video cùng lúc, `voice_challenge_id`, `audio_offset_ms`.
+
+**Tiêu chí hoàn thành:**
+- [ ] `voice_clone` → đọc câu → chờ duyệt; server lưu WAV và MP4.
+
+---
+
+### IOS-06 · App iOS: gián đoạn, thử lại khi mất mạng, xóa file tạm
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M1 | 1 | S2 | P1 | IOS-04 |
+
+**Mục tiêu:** Hành vi khi gián đoạn và mất mạng giống Android (ADR-0017).
+
+**Đầu ra:**
+- Xuống nền khi đang quay → "Xác minh bị gián đoạn", lượt sau gọi `/challenge`; thử lại chỉ gửi phần chưa nhận; xóa file tạm.
+
+**Tiêu chí hoàn thành:**
+- [ ] Các mục tương ứng trong checklist mục 13 của `apps/ios/docs/plan-ios.md` đạt.
+
+---
+
+### IOS-07 · App iOS: bản Release HTTPS, đo trên máy thật, README, bàn giao
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M1 | 1 | S2 | P1 | IOS-03, IOS-05, IOS-06 |
+
+**Mục tiêu:** Bản iOS demo được trên iPhone thật.
+
+**Đầu ra:**
+- Release chỉ HTTPS (cloudflared), ẩn nút debug; `apps/ios/README.md`; số đo thật trong bàn giao.
+
+**Tiêu chí hoàn thành:**
+- [ ] Checklist mục 13 của `apps/ios/docs/plan-ios.md` đạt; có bàn giao kèm số đo.
+
+---
+
 ## Dynamic Liveness (ADR-0016)
 
 > Server là trọng tài. Điện thoại chỉ quay, ký và gửi. Không tuyên bố "chặn 100 %" hay "đầu tiên". Lớp ① dùng ChromaPulse (CAP-04, PRES-02).

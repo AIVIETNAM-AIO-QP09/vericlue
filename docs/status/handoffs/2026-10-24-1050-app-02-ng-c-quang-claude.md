@@ -94,6 +94,8 @@ Sửa theo kết quả duyệt của trưởng nhóm ngày 24/10.
 - **Màn gửi:** chờ CameraX ghi xong MP4 (`finishedVideo`) rồi mới gửi.
 - **Kế hoạch iOS** viết lại theo API dynamic, chi tiết từng bước (`apps/ios/docs/plan-ios.md`), Quang đã duyệt.
 
+**Cập nhật 16:30:** #46, #47 đã merge. Trưởng nhóm chốt mục 16 của kế hoạch iOS theo đề xuất: sửa ADR-0014 (thêm app iOS làm bản phụ), thêm IOS-01..07 vào backlog và E9 (Lý Anh Quân, S2, P1). PR `docs/IOS-00-decisions`.
+
 ## Đang dở
 - Chưa thử trên điện thoại thật.
 - Thứ tự quay đầu vẫn chọn trên máy; đường chấm sáng chưa ghi. Cả hai chờ hợp đồng LIVE-01.
