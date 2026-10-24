@@ -345,6 +345,11 @@ export interface components {
              */
             audio: string;
             /**
+             * Audio Offset Ms
+             * @description Thời điểm WAV bắt đầu, tính bằng ms từ khung hình đầu của video (dương = WAV bắt đầu sau). Dùng để căn khớp môi; chỉ có khi gửi video.
+             */
+            audio_offset_ms?: number | null;
+            /**
              * Video
              * @description Video lúc đọc câu
              */
