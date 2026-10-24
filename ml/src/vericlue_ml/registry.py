@@ -167,3 +167,15 @@ def get_detector(name: str | Module, *, mock: bool | str | None = None) -> Detec
 def register(module: Module, factory: Callable[[], Detector]) -> None:
     """Đăng ký mô hình thật cho một module."""
     _REAL_FACTORIES[Module(module)] = factory
+
+
+@lru_cache(maxsize=2)
+def get_fsvfm_pad(*, mock: bool = False) -> Detector:
+    """Explicit diagnostic alternative; leave get_detector('face_pad') unchanged."""
+    if mock:
+        from vericlue_ml.mock.fsvfm import MockFsvfmPadDetector
+
+        return MockFsvfmPadDetector()
+    from vericlue_ml.face.fsvfm import FsvfmPadDetector
+
+    return FsvfmPadDetector()

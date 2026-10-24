@@ -19,6 +19,10 @@ gaze:
   model_file: face_landmarker.task
   sha256: 64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff
 
+# Opt-in offline diagnostic, not the HTTP full/MVP face_pad selection above.
+diagnostic_models:
+  face_pad: fs-vfm-vit-l-fas
+
 # VOICE-04: VAD has no checkpoint; matching constants live in voice/challenge.py.
 voice:
   model_subdir: phowhisper

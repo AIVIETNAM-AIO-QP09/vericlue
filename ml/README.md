@@ -34,6 +34,9 @@ Full vẫn 9 module, MVP vẫn 7; chưa bật hai module này trong quyết đ�
 trong RAM, không nhận ba ảnh query rời và không ghi khung ra đĩa.
 Thêm `--with-gend` để chấm deepfake trên chính các khung đó; cần extra gend,
 version/calibrator riêng cho ba góc, chưa ảnh hưởng luồng GenD cũ của API.
+Thêm `--with-pad` để chấm PAD bằng FS-VFM-L FAS gốc FP32 (cùng extra face/gend).
+Đây là diagnostic có version riêng, không thay MiniFASNet trong API. SCRFD
+căn mặt khác MTCNN của dữ liệu gốc; chưa có hiệu chỉnh/độ chính xác cho biến thể này.
 Lệnh chạy, định dạng artifact và giới hạn:
 [`head-and-match.md`](../docs/architecture/head-and-match.md).
 
