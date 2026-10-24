@@ -25,7 +25,7 @@ from vericlue_ml.eval.voice_wire import MAX_REPLY, PROTOCOL, encode_request
 from vericlue_ml.voice.nes2net import VERSION
 
 
-def unavailable(code: str = "E_INTERNAL") -> dict:
+def unavailable(code: str = "E_INTERNAL", *, model_version: str = VERSION) -> dict:
     """A failed worker can never produce an accepted voice decision."""
     return {
         "worker_available": False,
@@ -33,7 +33,7 @@ def unavailable(code: str = "E_INTERNAL") -> dict:
         "frontend_parity_verified": False,
         "result": ModuleResult(
             module="voice_spoof",
-            model_version=VERSION,
+            model_version=model_version,
             status="error",
             gate="unclear",
             error_code=code,
@@ -42,7 +42,14 @@ def unavailable(code: str = "E_INTERNAL") -> dict:
     }
 
 
-def validate_reply(raw: bytes, request_id: str, checksum: str) -> dict:
+def validate_reply(
+    raw: bytes,
+    request_id: str,
+    checksum: str,
+    *,
+    expected_version: str = VERSION,
+    sample_count: int | None = None,
+) -> dict:
     """Require the current take and the raw-only NES2Net contract, even after restart."""
     if len(raw) > MAX_REPLY or not raw.endswith(b"\n"):
         raise ValueError("Invalid reply bounds")
@@ -52,7 +59,7 @@ def validate_reply(raw: bytes, request_id: str, checksum: str) -> dict:
         or body.get("protocol") != PROTOCOL
         or body.get("request_id") != request_id
         or body.get("pcm_float32_sha256") != checksum
-        or body.get("model_version") != VERSION
+        or body.get("model_version") != expected_version
         or body.get("frontend_parity_verified") is not False
         or body.get("calibrated") is not False
     ):
@@ -60,7 +67,7 @@ def validate_reply(raw: bytes, request_id: str, checksum: str) -> dict:
     result = ModuleResult.model_validate(body["result"])
     if (
         result.module != "voice_spoof"
-        or result.model_version != VERSION
+        or result.model_version != expected_version
         or result.gate != "unclear"
         or result.prob_attack is not None
         or result.status not in {"degraded", "error", "not_applicable"}
@@ -69,6 +76,13 @@ def validate_reply(raw: bytes, request_id: str, checksum: str) -> dict:
         or (result.status != "degraded" and result.score is not None)
     ):
         raise ValueError("Worker is not a raw diagnostic")
+    from vericlue_ml.voice.nes2net_timeline import VERSION as TIMELINE_VERSION
+    from vericlue_ml.voice.nes2net_timeline import validate_timeline
+
+    if expected_version == TIMELINE_VERSION:
+        if type(sample_count) is not int or body.get("received_samples") != sample_count:
+            raise ValueError("Wrong timeline length")
+        validate_timeline(result, sample_count)
     body["result"] = result.to_contract()
     body["worker_available"] = True
     return body
@@ -77,7 +91,20 @@ def validate_reply(raw: bytes, request_id: str, checksum: str) -> dict:
 class Nes2NetClient:
     """Lazy worker, serialized requests; UI cancellation only signals/terminates, never waits."""
 
-    def __init__(self, python: Path, models_dir: Path, *, timeout: float = 180) -> None:
+    def __init__(
+        self,
+        python: Path,
+        models_dir: Path,
+        *,
+        timeout: float = 180,
+        whole_utterance: bool = False,
+    ) -> None:
+        from vericlue_ml.voice.nes2net_timeline import VERSION as TIMELINE_VERSION
+
+        if type(whole_utterance) is not bool:
+            raise ValueError("Expected explicit timeline mode")
+        self.whole_utterance = whole_utterance
+        self.version = TIMELINE_VERSION if whole_utterance else VERSION
         self.python, self.models_dir = python.resolve(), models_dir.resolve()
         if not self.python.is_file() or self.python.suffix.lower() in {".bat", ".cmd"}:
             raise ValueError("Select a local Python executable, not a batch file")
@@ -125,6 +152,7 @@ class Nes2NetClient:
                         "vericlue_ml.eval.nes2net_worker",
                         "--models-dir",
                         str(self.models_dir),
+                        *(["--whole-utterance"] if self.whole_utterance else []),
                     ],
                     stdin=subprocess.PIPE,
                     stdout=subprocess.PIPE,
@@ -204,7 +232,7 @@ class Nes2NetClient:
             request_id = checksum = None
 
             def failure(code="E_INTERNAL"):
-                body = unavailable(code)
+                body = unavailable(code, model_version=self.version)
                 body.update(
                     request_id=request_id,
                     pcm_float32_sha256=checksum,
@@ -246,7 +274,13 @@ class Nes2NetClient:
                         continue
                 if error or cancelled.is_set() or self._closed:
                     raise ValueError("Worker stopped")
-                payload = validate_reply(raw, request_id, checksum)
+                payload = validate_reply(
+                    raw,
+                    request_id,
+                    checksum,
+                    expected_version=self.version,
+                    sample_count=len(samples),
+                )
                 payload["round_trip_ms"] = (perf_counter() - started) * 1000
                 return payload
             except Exception:

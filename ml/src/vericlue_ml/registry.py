@@ -212,6 +212,18 @@ def get_nes2net(*, mock: bool = False) -> Detector:
 
 
 @lru_cache(maxsize=2)
+def get_nes2net_timeline(*, mock: bool = False) -> Detector:
+    """Opt-in per-window NES2Net evidence; keep HTTP and first4s factories unchanged."""
+    if mock:
+        from vericlue_ml.mock.nes2net_timeline import MockNes2NetTimelineDetector
+
+        return MockNes2NetTimelineDetector()
+    from vericlue_ml.voice.nes2net_timeline import Nes2NetTimelineDetector
+
+    return Nes2NetTimelineDetector()
+
+
+@lru_cache(maxsize=2)
 def get_reading_timing(*, mock: bool = False) -> Detector:
     """Explicit timing diagnostic; preserve the HTTP content/ASR backend."""
     if mock:

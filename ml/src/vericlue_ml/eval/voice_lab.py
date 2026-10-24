@@ -52,7 +52,9 @@ class VoiceLab:
         if nes2net_python is not None and not preview:
             from vericlue_ml.eval.nes2net_client import Nes2NetClient
 
-            spoof = Nes2NetClient(nes2net_python, self.models_dir, timeout=worker_timeout)
+            spoof = Nes2NetClient(
+                nes2net_python, self.models_dir, timeout=worker_timeout, whole_utterance=True
+            )
         self.trial = VoiceTrial(
             QwenVoiceChallengeDetector(QwenASR(self.models_dir)),
             device=device,
@@ -121,7 +123,7 @@ class VoiceLab:
         self.tabs = ttk.Notebook(body)
         content_tab, spoof_tab, timing_tab = [ttk.Frame(self.tabs) for _ in range(3)]
         self.tabs.add(content_tab, text="Câu đọc")
-        self.tabs.add(spoof_tab, text="Giọng AI · 4 giây đầu")
+        self.tabs.add(spoof_tab, text="Giọng AI · theo đoạn")
         self.tabs.add(timing_tab, text="Nhịp đọc")
         self.result_text = tk.Text(
             content_tab,
@@ -280,7 +282,7 @@ class VoiceLab:
             elif kind == "spoof_processing":
                 self.phase = "processing"
                 self.status_text.set(
-                    "MICRO ĐÃ TẮT · Đang đo điểm NES2Net; lần đầu cần nạp model riêng."
+                    "MICRO ĐÃ TẮT · Đang kiểm từng đoạn NES2Net; lần đầu cần nạp model riêng."
                 )
             elif kind == "timing_processing":
                 self.phase = "processing"
@@ -348,6 +350,13 @@ class VoiceLab:
             )
             return
         result = payload["result"]
+        from vericlue_ml.voice.nes2net_timeline import VERSION as TIMELINE_VERSION
+
+        if result["model_version"] == TIMELINE_VERSION:
+            from vericlue_ml.eval.nes2net_report import timeline_text
+
+            self._spoof_result(timeline_text(payload))
+            return
         score = result.get("score")
         if score is None or result["status"] != "degraded":
             text = "CHƯA ĐO ĐƯỢC ĐIỂM GIỌNG AI · thử lại hoặc kiểm tra runtime"

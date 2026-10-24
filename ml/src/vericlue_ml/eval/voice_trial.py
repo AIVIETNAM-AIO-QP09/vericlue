@@ -129,7 +129,11 @@ class VoiceTrial:
                         resampled, cancelled=self.cancelled
                     )
                 except Exception:
-                    payload["voice_spoof"] = unavailable()
+                    from vericlue_ml.voice.nes2net import VERSION
+
+                    payload["voice_spoof"] = unavailable(
+                        model_version=getattr(self.spoof, "version", VERSION)
+                    )
                 payload["dataset"] = "local_dual_voice_diagnostic_not_accuracy_evaluation"
                 payload["created_at"] = datetime.now(UTC).isoformat()
             if self.timing is not None and not self.cancelled.is_set():
