@@ -48,7 +48,7 @@ Chi tiết: `docs/architecture/dynamic-session-api.md`.
 - App hiện khung **"SMS mô phỏng"**. Kênh gửi đặt sau một giao diện chung, để sau này cắm nhà cung cấp SMS thật.
 
 **Tiêu chí hoàn thành:**
-- [ ] Test các trường hợp: hết hạn, sai quá số lần, dùng lại mã.
+- [x] Test các trường hợp: hết hạn, sai quá số lần, dùng lại mã (`services/api/tests/test_identity_steps.py`).
 
 ---
 

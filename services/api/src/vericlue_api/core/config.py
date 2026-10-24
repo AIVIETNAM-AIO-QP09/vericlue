@@ -74,10 +74,18 @@ class Settings(BaseSettings):
     def blank_disables_forensic_expiration(cls, value):
         return None if isinstance(value, str) and not value.strip() else value
 
-    # Phiên và thử thách (ADR-0011); gia hạn theo ADR-0017 thuộc LIVE-06.
+    # Phiên và thử thách (ADR-0011); gia hạn theo ADR-0017 (LIVE-06): POST /challenge.
     session_signing_secret: SecretStr | None = None
     session_ttl_seconds: int = Field(default=300, gt=0)
     challenge_ttl_seconds: int = Field(default=120, gt=0)
+    # Giới hạn tổng của một phiên khi gia hạn token (ADR-0017 §2).
+    session_max_seconds: int = Field(default=900, gt=0)
+    # OTP mô phỏng (FLOW-02): mã 6 số, hạn 2 phút, sai 5 lần thì khóa.
+    otp_ttl_seconds: int = 120
+    otp_max_attempts: int = 5
+    otp_max_sends: int = 3  # số lần gửi mã mỗi phiên
+    # Khóa HMAC cho số điện thoại và số CCCD (FLOW-03). Mặc định chỉ để chạy dev; máy demo đặt ID_HMAC_KEY.
+    id_hmac_key: SecretStr = SecretStr("dev-only-not-secret")
     max_retries: int = Field(default=2, ge=0, le=2)
     max_upload_mb: int = 50
     # Để trống = dùng bảng màu trong packages/contracts/chromapulse.json (nguồn chung với web).
