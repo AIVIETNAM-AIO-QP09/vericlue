@@ -45,10 +45,11 @@ def test_voice_step_is_single_use_after_it_finishes(client):
 
 
 def test_genuine_voice_passes_once_requested(client):
-    body, auth = start_session(client, "genuine")
+    body, auth = start_session(client, "voice_clone")
     sid = body["session_id"]
+    assert client.post(FINALIZE.format(sid=sid), headers=auth).json()["status"] == "voice_challenge"
     with client.app.state.vericlue.transaction() as state:
-        state.sessions.get(sid).voice_requested = True
+        state.sessions.get(sid).scenario = "genuine"
     assert client.post(VOICE.format(sid=sid), headers=auth, files=AUDIO).json() == {
         "status": "pass"
     }
@@ -110,15 +111,18 @@ def _session(client, sid):
         return state.sessions.get(sid)
 
 
-def test_finalize_resets_voice_request_so_a_review_blocks_voice(client):
+def test_finalize_cannot_reopen_face_attempt_while_voice_is_pending(client):
     body, auth = start_session(client, "voice_clone")
     sid = body["session_id"]
     assert client.post(FINALIZE.format(sid=sid), headers=auth).json()["status"] == "voice_challenge"
     assert _session(client, sid).voice_requested is True
 
-    with client.app.state.vericlue.transaction() as state:
-        state.sessions.get(sid).scenario = "print"  # lần finalize sau ra review
-    assert client.post(FINALIZE.format(sid=sid), headers=auth).json() == {"status": "review"}
+    repeated = client.post(FINALIZE.format(sid=sid), headers=auth)
+    assert repeated.status_code == 409
+    assert _session(client, sid).voice_requested is True
+    assert client.post(VOICE.format(sid=sid), headers=auth, files=AUDIO).json() == {
+        "status": "review"
+    }
     assert _session(client, sid).voice_requested is False
     res = client.post(VOICE.format(sid=sid), headers=auth, files=AUDIO)
     assert res.status_code == 409

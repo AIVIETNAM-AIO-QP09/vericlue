@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Header, UploadFile
@@ -20,13 +19,12 @@ from vericlue_api.schemas.session import (
     VoiceResponse,
 )
 from vericlue_api.services.session_store import Session
-from vericlue_api.services.uploads import read_limited, save_upload
+from vericlue_api.services.uploads import read_limited
 from vericlue_ml.mock import SCENARIOS
 
 router = APIRouter(prefix="/v1/sessions", tags=["sessions"])
 
-# 401: thiếu/sai token. 409: sai trạng thái (voice_not_requested, session_closed — đã cài ở PLAT-04) và
-# bước đã nhận trong lượt này (hợp đồng đã khai báo, PLAT-06 cài đặt).
+# 401: thiếu/sai/hết hạn token. 409: sai trạng thái, bước đã nhận hoặc thử thách hết hạn.
 SESSION_ERRORS: dict[int | str, dict] = {
     401: {"model": ErrorResponse, "description": "Thiếu hoặc sai token phiên"},
     409: {
@@ -73,24 +71,16 @@ async def upload_media(
     image: Annotated[UploadFile, File(description="Ảnh mặt chất lượng cao")],
     video: Annotated[UploadFile | None, File(description="Đoạn video lúc phát màu")] = None,
 ) -> StepAck:
-    media_dir = state.settings.media_dir
-    session.images = [
-        save_upload(
-            media_dir,
-            session.session_id,
-            "face_image",
-            image.filename,
-            await read_limited(image, state.settings.max_upload_mb),
-        )
-    ]
-    if video is not None:
-        session.video = save_upload(
-            media_dir,
-            session.session_id,
-            "face_video",
-            video.filename,
-            await read_limited(video, state.settings.max_upload_mb),
-        )
+    state.flow.ensure_face_step_allowed(session, "media")
+    image_bytes = await read_limited(image, state.settings.max_upload_mb)
+    video_bytes = await read_limited(video, state.settings.max_upload_mb) if video else None
+    state.flow.accept_media(
+        session,
+        image=image_bytes,
+        image_filename=image.filename,
+        video=video_bytes,
+        video_filename=video.filename if video else None,
+    )
     return StepAck(step="media")
 
 
@@ -129,21 +119,13 @@ async def voice(
     video: Annotated[UploadFile | None, File(description="Video lúc đọc câu")] = None,
 ) -> VoiceResponse:
     state.flow.ensure_voice_allowed(session)  # kiểm TRƯỚC khi ghi bất kỳ file nào
-    media_dir = state.settings.media_dir
-    session.audio = save_upload(
-        media_dir,
-        session.session_id,
-        "voice_audio",
-        audio.filename,
-        await read_limited(audio, state.settings.max_upload_mb),
+    audio_bytes = await read_limited(audio, state.settings.max_upload_mb)
+    video_bytes = await read_limited(video, state.settings.max_upload_mb) if video else None
+    voice_video = state.flow.accept_voice_media(
+        session,
+        audio=audio_bytes,
+        audio_filename=audio.filename,
+        video=video_bytes,
+        video_filename=video.filename if video else None,
     )
-    voice_video: Path | None = None
-    if video is not None:
-        voice_video = save_upload(
-            media_dir,
-            session.session_id,
-            "voice_video",
-            video.filename,
-            await read_limited(video, state.settings.max_upload_mb),
-        )
     return await run_in_threadpool(state.flow.voice, session, voice_video=voice_video)

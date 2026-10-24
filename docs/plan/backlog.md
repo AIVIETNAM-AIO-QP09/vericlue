@@ -20,7 +20,7 @@
 | PLAT-03 ★ | FastAPI + vericlue_ml + ModuleResult + mock | M5 | Claude | 1 | S0 | P0 | PLAT-01 | done |
 | PLAT-04 ★ | Chốt API v1, hợp đồng, sinh type cho web | M5 (+M1) | Claude | 1 | S0 | P0 | PLAT-02, PLAT-03 | done |
 | PLAT-05 ★ | DB, Alembic, Docker Compose | M5 | Codex | 1 | S1 | P0 | PLAT-04 | done |
-| PLAT-06 | Token phiên, giới hạn lượt, khóa Ed25519 | M2 | | 1 | S1 | P0 | PLAT-05 | todo |
+| PLAT-06 | Token phiên, giới hạn lượt, khóa Ed25519 | M2 | Codex | 1 | S1 | P0 | PLAT-05 | doing |
 | PLAT-07 | CI xanh, branch protection, CODEOWNERS | M2 | | 0,5 | S0 | P0 | PLAT-01, PLAT-02 | todo |
 | PLAT-08 ★ | Orchestrator chạy song song detector | M5 | Codex | 1 | S1 | P0 | PLAT-05 | done |
 | PLAT-09 ★ | Kiểm thử đầu–cuối theo kịch bản (mock) | M1 | | 1 | S2 | P0 | PLAT-08, ROUT-02, CAP-06 | todo |
