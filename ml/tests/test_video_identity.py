@@ -274,6 +274,8 @@ def test_gaze_and_head_share_reader_and_both_precede_scoring(monkeypatch):
         and len(matcher.calls) == len(pad.calls) == len(deepfake.calls) == 1
     )
     assert result.gaze_tracking.prob_attack is None
+    assert result.gaze_tracking.quality["video_bound"] is True
+    assert not any(e.name == "selected_frames" for e in result.gaze_tracking.evidence)
     assert (
         next(e.value for e in result.gaze_tracking.evidence if e.name == "source_video_sha256")
         == "a" * 64

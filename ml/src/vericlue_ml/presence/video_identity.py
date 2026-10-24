@@ -205,12 +205,16 @@ def match_video_views(
                 unit="ms",
             ),
         ]
-        for measured in (match, gend, pad_result, gaze):
+        for measured in (match, gend, pad_result):
             if measured is not None:
                 measured.quality.update(
                     views_from_video=True, depth_verified=False, provisional=True
                 )
                 measured.evidence.extend(e.model_copy(deep=True) for e in provenance)
+        if gaze is not None:
+            # Eye motion uses its own time window, not the three head-pose frames.
+            gaze.quality["video_bound"] = True
+            gaze.evidence.append(provenance[1].model_copy(deep=True))
         return VideoIdentityDiagnostic(head, match, gend, pad_result, gaze)
     except Exception as exc:
         status = exc.status if isinstance(exc, (LandmarkError, MatchError)) else Status.ERROR
