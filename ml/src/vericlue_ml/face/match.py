@@ -249,20 +249,38 @@ class FaceMatchDetector:
     def predict(self, inp: DetectorInput) -> ModuleResult:
         return self._predict(inp, inp.image_roles, inp.images)
 
-    def predict_frames(self, inp: DetectorInput, frames: Mapping[str, np.ndarray]) -> ModuleResult:
+    def predict_frames(
+        self,
+        inp: DetectorInput,
+        frames: Mapping[str, np.ndarray],
+        *,
+        reference_frame: np.ndarray | None = None,
+    ) -> ModuleResult:
         """Internal ML call with decoded server-selected pixels; no frames are written to disk.
 
         Ignore inp.images/image_roles: frame roles here are owned by the video pipeline.
         This is not an additional JSON/HTTP input field.
+        reference_frame is a trusted internal RAM alternative, used by the local webcam lab.
+        It does not create a client-controlled reference resolver or change preprocessing.
         """
-        return self._predict(inp, list(frames), list(frames.values()))
+        return self._predict(
+            inp, list(frames), list(frames.values()), reference_frame=reference_frame
+        )
 
     def _predict(
-        self, inp: DetectorInput, roles: list[str], sources: list[Path | np.ndarray]
+        self,
+        inp: DetectorInput,
+        roles: list[str],
+        sources: list[Path | np.ndarray],
+        *,
+        reference_frame: np.ndarray | None = None,
     ) -> ModuleResult:
         started = perf_counter()
         try:
-            if inp.reference_image is None:
+            reference_source = (
+                reference_frame if reference_frame is not None else inp.reference_image
+            )
+            if reference_source is None:
                 raise MatchError(ErrorCode.E_DECODE, Status.DEGRADED)
             if (
                 len(sources) not in (1, 3)
@@ -272,7 +290,7 @@ class FaceMatchDetector:
                 raise MatchError(ErrorCode.E_CHALLENGE_MISMATCH, Status.DEGRADED)
             with self._lock:
                 self.preload()
-                reference, _ = self._embedding(inp.reference_image)
+                reference, _ = self._embedding(reference_source)
                 vectors, hashes = {}, []
                 for role, source in zip(roles, sources, strict=True):
                     vector, checksum = self._embedding(source)

@@ -303,21 +303,28 @@ class FaceDeepfakeDetector:
         Ignore inp.video/images/image_roles; no intermediate image files or authentication gate.
         This sampling mode deliberately has a different model_version from predict().
         """
+        return self._predict_views(frames, ("front", "left", "right"), three=True)
+
+    def predict_frame(self, inp: DetectorInput, frame: np.ndarray) -> ModuleResult:
+        """Single RAM frame diagnostic; separate sampling identity, never a calibrated gate."""
+        return self._predict_views({"front": frame}, ("front",), three=False)
+
+    def _predict_views(self, frames, roles, *, three):
         started = time.perf_counter()
 
         def result(status: Status, **fields: Any) -> ModuleResult:
             return ModuleResult(
                 module=Module.FACE_DEEPFAKE,
-                model_version=self.frames_version,
+                model_version=self.frames_version if three else f"{self.version}+single-frame-v1",
                 status=status,
                 latency_ms=(time.perf_counter() - started) * 1000,
                 **fields,
             )
 
         try:
-            if set(frames) != {"front", "left", "right"}:
+            if set(frames) != set(roles):
                 return result(Status.DEGRADED, error_code=ErrorCode.E_CHALLENGE_MISMATCH)
-            values = [frames[role] for role in ("front", "left", "right")]
+            values = [frames[role] for role in roles]
             if any(
                 not isinstance(frame, np.ndarray)
                 or frame.ndim != 3
@@ -328,7 +335,7 @@ class FaceDeepfakeDetector:
                 for frame in values
             ):
                 return result(Status.DEGRADED, error_code=ErrorCode.E_DECODE)
-            if len({hashlib.sha256(frame.tobytes()).digest() for frame in values}) != 3:
+            if len({hashlib.sha256(frame.tobytes()).digest() for frame in values}) != len(roles):
                 return result(Status.DEGRADED, error_code=ErrorCode.E_INTEGRITY)
             self.preload()
             crops = []
@@ -348,7 +355,7 @@ class FaceDeepfakeDetector:
                     return result(Status.DEGRADED, error_code=ErrorCode.E_LOW_QUALITY)
                 crops.append(to_tensor(align_face(frame, np.asarray(face.landmarks))))
             probabilities = self._classifier.p_fake(np.stack(crops))
-            if len(probabilities) != 3 or not all(
+            if len(probabilities) != len(roles) or not all(
                 math.isfinite(p) and 0 <= p <= 1 for p in probabilities
             ):
                 raise GendError("Invalid selected-view scores.")
@@ -357,9 +364,9 @@ class FaceDeepfakeDetector:
                 Status.OK,
                 score=max(mean, top),
                 quality={
-                    "frames_sampled": 3,
-                    "frames_used": 3,
-                    "sampling": HEAD_VIEWS_TAG,
+                    "frames_sampled": len(roles),
+                    "frames_used": len(roles),
+                    "sampling": HEAD_VIEWS_TAG if three else "single-frame-v1",
                     "provisional": True,
                 },
                 evidence=[
@@ -367,10 +374,7 @@ class FaceDeepfakeDetector:
                         type=EvidenceType.TIMESERIES,
                         name="view_scores",
                         value={
-                            role: float(p)
-                            for role, p in zip(
-                                ("front", "left", "right"), probabilities, strict=True
-                            )
+                            role: float(p) for role, p in zip(roles, probabilities, strict=True)
                         },
                     ),
                     Evidence(type=EvidenceType.SCALAR, name="mean", value=mean),

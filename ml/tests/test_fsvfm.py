@@ -113,6 +113,14 @@ def test_factory_preserves_legacy_and_mock_does_not_import_torch():
     assert mock.predict_frames(DetectorInput(), frames()).module == "face_pad"
 
 
+def test_single_ram_frame_matches_single_image_measurement_version():
+    detector = FsvfmPadDetector(finder=Finder(), classifier=Classifier([0.3]))
+    result = detector.predict_frame(DetectorInput(), frames()["front"])
+    assert result.status == Status.OK and result.score == 0.3
+    assert result.model_version == detector.version != detector.frames_version
+    assert result.prob_attack is None and result.gate is None
+
+
 def test_preload_uses_rgb_scrfd_normalization_and_reuses_models(monkeypatch, tmp_path):
     from vericlue_ml.face import fsvfm
 

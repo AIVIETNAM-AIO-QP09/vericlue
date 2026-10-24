@@ -42,6 +42,9 @@ Lệnh chạy, định dạng artifact và giới hạn:
 `--with-gaze` ghép thêm kiểm mắt bằng cùng reader MediaPipe: mắt và quay đầu
 phải đạt trước khi chấm ba khung. Môi trường CPU dùng chung và lệnh kiểm
 checkpoint tổng hợp: [`face-diagnostic-runtime.md`](../docs/architecture/face-diagnostic-runtime.md).
+Thử trực tiếp webcam bằng cửa sổ nội bộ `python -m vericlue_ml.eval.webcam_lab`:
+[`webcam-lab.md`](../docs/architecture/webcam-lab.md). Chỉ mở camera sau nút bấm,
+không lưu ảnh/video và không thay UI sản phẩm.
 
 1. Mọi bộ phát hiện kế thừa giao diện `Detector` và trả `ModuleResult` (`docs/architecture/architecture.md` §3).
 2. Mọi bộ phát hiện **phải có bản mock** cùng tên trong `mock/`.
