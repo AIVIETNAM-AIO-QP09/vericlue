@@ -74,6 +74,24 @@ def test_reader_uses_decoder_timestamps_and_reuses_stateless_model(monkeypatch, 
     assert len(predicted) == 6 and all(cap.released for cap in captures)
 
 
+def test_custom_measurement_reuses_decode_bounds_and_one_inference_per_sample(
+    monkeypatch, tmp_path
+):
+    reader, video, captures, predicted = fake_reader(monkeypatch, tmp_path, [0, 80, 100, 200, 310])
+    rows = reader.extract_measurements(
+        video,
+        start_ms=0,
+        end_ms=200,
+        observer=lambda frame, time: reader.measure(
+            frame,
+            at_ms=time,
+            transform=lambda result, rgb: (time, len(result.face_landmarks), rgb.shape),
+        ),
+    )
+    assert rows == [(time, 0, (240, 320, 3)) for time in (0, 100, 200)]
+    assert len(predicted) == 3 and captures[0].released
+
+
 @pytest.mark.parametrize("times", [[0, 0], [0, 100, 50], [float("nan")], [1000], [-1]])
 def test_invalid_timing_never_falls_back_to_fps(monkeypatch, tmp_path, times):
     reader, video, captures, _ = fake_reader(monkeypatch, tmp_path, times)
