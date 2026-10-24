@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import random
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import get_args
 
@@ -19,6 +19,7 @@ from vericlue_api.core.config import Settings
 from vericlue_api.core.errors import ApiError
 from vericlue_api.schemas.review import MediaRef
 from vericlue_api.schemas.session import (
+    ChallengeResponse,
     CreateSessionResponse,
     FinalizeResponse,
     RetryHint,
@@ -82,6 +83,34 @@ class SessionFlow:
             expires_at=session.token_expires_at,
             challenge=session.challenge,
         )
+
+    def refresh_challenge(self, session: Session) -> ChallengeResponse:
+        """Thử thách mới cho phần khuôn mặt và gia hạn token, trong giới hạn tổng (ADR-0017 §2).
+
+        Dùng khi bắt đầu phần khuôn mặt sau giai đoạn A, hoặc làm lại phần khuôn mặt sau khi bị
+        gián đoạn. Dữ liệu khuôn mặt và giọng của lượt cũ bị bỏ; số lần chụp lại đã dùng vẫn giữ.
+        """
+        self.ensure_open(session)
+        now = datetime.now(UTC)
+        started = session.created_at or now
+        if started.tzinfo is None:
+            started = started.replace(tzinfo=UTC)
+        end = started + timedelta(seconds=self.settings.session_max_seconds)
+        if now >= end:
+            raise ApiError(
+                409, "session_too_long", "Phiên đã quá thời gian cho phép. Hãy bắt đầu lại."
+            )
+        session.challenge = generate_challenge(self.settings)
+        session.token_expires_at = min(
+            now + timedelta(seconds=self.settings.session_ttl_seconds), end
+        )
+        session.images = []
+        session.video = None
+        session.audio = None
+        session.signals = {}
+        session.voice_requested = False
+        session.voice_prompt = None
+        return ChallengeResponse(expires_at=session.token_expires_at, challenge=session.challenge)
 
     # --- tải lên ---------------------------------------------------------
     def accept_signals(self, session: Session, signals: Signals) -> None:
@@ -164,7 +193,13 @@ class SessionFlow:
         return FinalizeResponse(status=outcome.status)
 
     # --- voice -----------------------------------------------------------
-    def voice(self, session: Session, *, voice_video: Path | None = None) -> VoiceResponse:
+    def voice(
+        self,
+        session: Session,
+        *,
+        voice_video: Path | None = None,
+        audio_offset_ms: int | None = None,
+    ) -> VoiceResponse:
         self.ensure_voice_allowed(session)
         session_valid = self._valid_time(session)
         results = (
@@ -175,7 +210,11 @@ class SessionFlow:
                 images=session.images,
                 video=voice_video,
                 audio=session.audio,
-                extra_metadata={"prompt": session.voice_prompt},
+                extra_metadata={
+                    "prompt": session.voice_prompt,
+                    # Khi WAV bắt đầu, tính từ khung hình đầu của video (app Android).
+                    **({"audio_offset_ms": audio_offset_ms} if audio_offset_ms is not None else {}),
+                },
             )
             if session_valid
             else {}
@@ -213,6 +252,13 @@ class SessionFlow:
         session.voice_prompt = random.SystemRandom().choice(choices)
         return session.voice_prompt
 
+    @staticmethod
+    def _case_notes(session: Session) -> list[str]:
+        notes = [f"Chụp lại {session.retries_used} lần"] if session.retries_used else []
+        if session.id_edited:
+            notes.append("Người dùng sửa thông tin CCCD khác QR: " + ", ".join(session.id_edited))
+        return notes
+
     def _open_case(self, session: Session, outcome: Outcome) -> None:
         if session.case_id is not None:  # một phiên chỉ một ca
             return
@@ -229,7 +275,7 @@ class SessionFlow:
             scenario=session.scenario,
             results=dict(session.results),
             media=media,
-            notes=[f"Chụp lại {session.retries_used} lần"] if session.retries_used else [],
+            notes=self._case_notes(session),
         )
         session.case_id = record.case_id
 

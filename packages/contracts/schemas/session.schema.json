@@ -14,9 +14,37 @@
         "transition_ms": { "type": "integer", "const": 150 }
       }
     },
+    "DotPoint": {
+      "type": "object",
+      "required": [
+        "t_ms",
+        "x",
+        "y"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "t_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Thời điểm chấm tới điểm này, ms, tính từ lúc chấm bắt đầu chạy"
+        },
+        "x": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Tọa độ ngang theo chiều rộng màn hình (0 = mép trái)"
+        },
+        "y": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Tọa độ dọc theo chiều cao màn hình (0 = mép trên)"
+        }
+      }
+    },
     "Challenge": {
       "type": "object",
-      "description": "Thử thách màu cho một lượt. Bảng màu KHÔNG cố định trong schema (có thể đổi sau PRES-01); bộ sinh chuỗi có test riêng.",
+      "description": "Gói thử thách cho một lượt (LIVE-01, ADR-0016): chuỗi màu, đường chấm sáng, thứ tự quay đầu. Bảng màu KHÔNG cố định trong schema (có thể đổi sau PRES-01); bộ sinh có test riêng.",
       "required": ["challenge_id", "color_sequence"],
       "additionalProperties": false,
       "properties": {
@@ -24,7 +52,9 @@
         "baseline_ms": { "type": "integer", "default": 1000 },
         "color_sequence": { "type": "array", "items": { "$ref": "#/$defs/ColorStep" }, "minItems": 8, "maxItems": 8 },
         "capture_at_ms": { "type": "array", "items": { "type": "integer" }, "description": "Thời điểm server chọn để chụp ảnh chất lượng cao" },
-        "expires_at": { "type": "string", "format": "date-time", "description": "Hạn của thử thách này (120 giây kể từ lúc cấp); tách khỏi hạn của token" }
+        "expires_at": { "type": "string", "format": "date-time", "description": "Hạn của thử thách này (120 giây kể từ lúc cấp); tách khỏi hạn của token" },
+        "turn_order": {"type": "array", "items": {"type": "string", "enum": ["left", "right"]}, "minItems": 2, "maxItems": 2, "uniqueItems": true, "description": "Thứ tự quay đầu do server chọn ngẫu nhiên (lớp ③). Trái/phải theo góc nhìn của người dùng"},
+        "dot_path": {"type": "array", "items": {"$ref": "#/$defs/DotPoint"}, "minItems": 2, "description": "Đường chấm sáng (lớp ②): chấm đi thẳng giữa hai điểm liền kề theo t_ms"}
       }
     },
     "CreateSessionResponse": {
@@ -40,7 +70,7 @@
     },
     "Signals": {
       "type": "object",
-      "description": "Tín hiệu trình duyệt đo. Server KHÔNG tin tuyệt đối, sẽ tính lại từ media.",
+      "description": "Tín hiệu do web hoặc app Android đo. Server KHÔNG tin tuyệt đối, sẽ tính lại từ media. Mọi mốc thời gian trong một lần gửi dùng chung một đồng hồ, tính bằng ms; client_quality.clock ghi đồng hồ nào.",
       "required": ["color_events", "frame_times"],
       "properties": {
         "color_events": {
@@ -51,16 +81,17 @@
             "properties": {
               "index": { "type": "integer" },
               "rgb": { "type": "string" },
-              "painted_at": { "type": "number", "description": "performance.now() từ requestAnimationFrame" }
+              "painted_at": { "type": "number", "description": "Lúc khung màu được vẽ, ms. Web: performance.now() từ requestAnimationFrame. App Android: SystemClock.elapsedRealtime (khung vẽ của Compose, quy về elapsedRealtime)" }
             }
           }
         },
+        "dot_events": {"type": "array", "description": "Mỗi lần chấm sáng tới một điểm của dot_path; cùng đồng hồ với color_events", "items": {"type": "object", "required": ["index", "x", "y", "painted_at"], "properties": {"index": {"type": "integer", "minimum": 0}, "x": {"type": "number", "minimum": 0, "maximum": 1}, "y": {"type": "number", "minimum": 0, "maximum": 1}, "painted_at": {"type": "number", "description": "Lúc chấm được vẽ tại điểm này, ms"}}}},
         "frame_times": {
           "type": "array",
           "items": {
             "type": "object",
             "properties": {
-              "capture_time": { "type": ["number", "null"], "description": "requestVideoFrameCallback captureTime" },
+              "capture_time": { "type": ["number", "null"], "description": "Lúc camera chụp khung, ms, cùng đồng hồ với painted_at. Web: requestVideoFrameCallback captureTime. App Android: timestamp của khung CameraX quy về elapsedRealtime; null nếu không có" },
               "presented_frames": { "type": "integer" },
               "media_time": { "type": "number" }
             }
@@ -82,7 +113,7 @@
             "duplicate_frame_ratio": { "type": "number" }
           }
         },
-        "client_quality": { "type": "object" }
+        "client_quality": { "type": "object", "description": "Thông tin máy khách để server đánh giá độ tin cậy của mốc thời gian, ví dụ client (web | android), clock (performance.now | elapsedRealtime), timestamp_source, fps" }
       }
     },
     "StepAck": {
@@ -122,9 +153,180 @@
         "attempts_left": { "type": "integer" }
       }
     },
+    "OtpRequest": {
+      "type": "object",
+      "required": [
+        "phone"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "phone": {
+          "type": "string",
+          "pattern": "^0[0-9]{9}$",
+          "description": "Số di động Việt Nam 10 số"
+        }
+      }
+    },
+    "OtpSent": {
+      "type": "object",
+      "required": [
+        "expires_at",
+        "attempts_left"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "expires_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Hạn của mã (2 phút)"
+        },
+        "attempts_left": {
+          "type": "integer"
+        },
+        "simulated_sms": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Chỉ khi kênh gửi là SMS mô phỏng (bản demo): nội dung tin nhắn để app hiện trong khung 'SMS mô phỏng'. Kênh SMS thật không bao giờ trả trường này"
+        }
+      }
+    },
+    "OtpVerifyRequest": {
+      "type": "object",
+      "required": [
+        "code"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[0-9]{6}$"
+        }
+      }
+    },
+    "OtpVerifyResponse": {
+      "type": "object",
+      "required": [
+        "status",
+        "attempts_left"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "retry"
+          ]
+        },
+        "attempts_left": {
+          "type": "integer",
+          "description": "0 = đã khóa; muốn thử tiếp phải xin mã mới"
+        }
+      }
+    },
+    "IdCardFields": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Thông tin đọc từ QR của CCCD gắn chip",
+      "properties": {
+        "full_name": {
+          "type": "string"
+        },
+        "id_number": {
+          "type": "string",
+          "pattern": "^[0-9]{12}$"
+        },
+        "date_of_birth": {
+          "type": "string",
+          "format": "date"
+        },
+        "sex": {
+          "type": "string",
+          "enum": [
+            "Nam",
+            "Nữ"
+          ]
+        },
+        "address": {
+          "type": "string"
+        },
+        "issued_on": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        }
+      }
+    },
+    "IdCardResponse": {
+      "type": "object",
+      "required": [
+        "status"
+      ],
+      "additionalProperties": false,
+      "description": "Kết quả nhận ảnh CCCD. 'retry' chỉ nói về chất lượng ảnh hoặc QR, không kết luận thẻ thật/giả (phát hiện thẻ giả nằm ngoài phạm vi)",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "retry"
+          ]
+        },
+        "fields": {
+          "$ref": "#/$defs/IdCardFields"
+        },
+        "retry_hint": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            null,
+            "QR_UNREADABLE",
+            "QR_INVALID"
+          ]
+        }
+      }
+    },
+    "IdCardConfirmResponse": {
+      "type": "object",
+      "required": [
+        "received"
+      ],
+      "additionalProperties": false,
+      "description": "Xác nhận đã nhận thông tin người dùng xác nhận/sửa. Sửa khác QR thì server ghi chú cho nhân viên duyệt; người dân không thấy kết luận nào",
+      "properties": {
+        "received": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ChallengeResponse": {
+      "type": "object",
+      "required": [
+        "expires_at",
+        "challenge"
+      ],
+      "additionalProperties": false,
+      "description": "Thử thách mới cho phần khuôn mặt, kèm hạn token đã gia hạn (ADR-0017 §2, giới hạn tổng của phiên)",
+      "properties": {
+        "expires_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Hạn mới của token"
+        },
+        "challenge": {
+          "$ref": "#/$defs/Challenge"
+        }
+      }
+    },
     "ErrorResponse": {
       "type": "object",
-      "description": "Định dạng lỗi chung: 401 (thiếu Bearer, token sai hoặc hết hạn), 409 (bước đã nhận trong lượt này, hoặc sai thứ tự luồng: voice_not_requested khi finalize chưa yêu cầu đọc câu, session_closed khi phiên đã vào bàn duyệt), 422 (dữ liệu sai). Mã cho thử thách hết hạn do PLAT-06 chốt.",
+      "description": "Định dạng lỗi chung: 401 (thiếu Bearer, token sai hoặc hết hạn), 409 (bước đã nhận trong lượt này, hoặc sai thứ tự luồng: voice_not_requested khi finalize chưa yêu cầu đọc câu, session_closed khi phiên đã vào bàn duyệt), 422 (dữ liệu sai). Mã cho thử thách hết hạn do PLAT-06 chốt. Mã 409 thêm cho OTP/CCCD: otp_not_requested, otp_expired, otp_locked, otp_already_verified; session_too_long khi phiên quá giới hạn tổng.",
       "required": ["error_code", "message"],
       "additionalProperties": false,
       "properties": {

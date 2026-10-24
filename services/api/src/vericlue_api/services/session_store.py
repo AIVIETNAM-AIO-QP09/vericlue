@@ -33,6 +33,18 @@ class Session:
     voice_prompt: str | None = None
     voice_requested: bool = False  # finalize đã trả voice_challenge
     case_id: str | None = None
+    created_at: datetime | None = None  # None: phiên cũ, trước khi có giới hạn tổng
+    # Giai đoạn A (FLOW-02, FLOW-03). Không lưu số điện thoại hay số CCCD dạng rõ.
+    otp_hash: str | None = None
+    otp_expires_at: datetime | None = None
+    otp_attempts_left: int = 0
+    otp_verified: bool = False
+    phone_hmac: str | None = None
+    id_front: Path | None = None
+    id_back: Path | None = None
+    id_fields: dict | None = None
+    id_number_hmac: str | None = None
+    id_edited: list[str] = field(default_factory=list)  # trường người dùng sửa khác QR
 
 
 class SessionStore:
@@ -47,6 +59,7 @@ class SessionStore:
             token_expires_at=datetime.now(UTC) + timedelta(seconds=ttl_seconds),
             scenario=scenario,
             challenge=challenge,
+            created_at=datetime.now(UTC),
         )
         row = SessionRow(session_id=session.session_id, payload=jsonable_encoder(session))
         self.db.add(row)
@@ -64,10 +77,12 @@ class SessionStore:
             return None
         data = dict(row.payload)
         data["token_expires_at"] = datetime.fromisoformat(data["token_expires_at"])
+        for key in ("created_at", "otp_expires_at"):
+            data[key] = datetime.fromisoformat(data[key]) if data.get(key) else None
         data["challenge"] = Challenge.model_validate(data["challenge"])
         data["images"] = [Path(p) for p in data["images"]]
-        for key in ("video", "audio"):
-            data[key] = Path(data[key]) if data[key] else None
+        for key in ("video", "audio", "id_front", "id_back"):
+            data[key] = Path(data[key]) if data.get(key) else None
         data["results"] = {
             Module(k): ModuleResult.model_validate(v) for k, v in data["results"].items()
         }

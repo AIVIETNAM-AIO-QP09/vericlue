@@ -61,6 +61,40 @@
         "title": "Body_create_job_v1_forensic_jobs_post",
         "type": "object"
       },
+      "Body_upload_id_card_v1_sessions__session_id__id_card_post": {
+        "properties": {
+          "back": {
+            "contentMediaType": "application/octet-stream",
+            "description": "Ảnh mặt sau CCCD (có QR)",
+            "title": "Back",
+            "type": "string"
+          },
+          "front": {
+            "contentMediaType": "application/octet-stream",
+            "description": "Ảnh mặt trước CCCD",
+            "title": "Front",
+            "type": "string"
+          },
+          "qr": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Chuỗi QR app đã đọc ở mặt sau; thiếu thì trả retry",
+            "title": "Qr"
+          }
+        },
+        "required": [
+          "front",
+          "back"
+        ],
+        "title": "Body_upload_id_card_v1_sessions__session_id__id_card_post",
+        "type": "object"
+      },
       "Body_upload_media_v1_sessions__session_id__media_post": {
         "properties": {
           "image": {
@@ -96,6 +130,20 @@
             "description": "Âm thanh lúc đọc câu",
             "title": "Audio",
             "type": "string"
+          },
+          "audio_offset_ms": {
+            "anyOf": [
+              {
+                "maximum": 5000.0,
+                "minimum": -5000.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Thời điểm WAV bắt đầu, tính bằng ms từ khung hình đầu của video (dương = WAV bắt đầu sau). Dùng để căn khớp môi; chỉ có khi gửi video.",
+            "title": "Audio Offset Ms"
           },
           "video": {
             "anyOf": [
@@ -223,6 +271,21 @@
             "title": "Color Sequence",
             "type": "array"
           },
+          "dot_path": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DotPoint"
+                },
+                "minItems": 2,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dot Path"
+          },
           "expires_at": {
             "anyOf": [
               {
@@ -234,6 +297,26 @@
               }
             ],
             "title": "Expires At"
+          },
+          "turn_order": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "left",
+                    "right"
+                  ],
+                  "type": "string"
+                },
+                "maxItems": 2,
+                "minItems": 2,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turn Order"
           }
         },
         "required": [
@@ -241,6 +324,25 @@
           "color_sequence"
         ],
         "title": "Challenge",
+        "type": "object"
+      },
+      "ChallengeResponse": {
+        "properties": {
+          "challenge": {
+            "$ref": "#/components/schemas/Challenge"
+          },
+          "expires_at": {
+            "description": "Hạn mới của token",
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expires_at",
+          "challenge"
+        ],
+        "title": "ChallengeResponse",
         "type": "object"
       },
       "ColorStep": {
@@ -321,6 +423,35 @@
           "status"
         ],
         "title": "DecisionResponse",
+        "type": "object"
+      },
+      "DotPoint": {
+        "description": "Một điểm của đường chấm sáng; x, y theo tỉ lệ màn hình (0–1).",
+        "properties": {
+          "t_ms": {
+            "minimum": 0.0,
+            "title": "T Ms",
+            "type": "integer"
+          },
+          "x": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "t_ms",
+          "x",
+          "y"
+        ],
+        "title": "DotPoint",
         "type": "object"
       },
       "ErrorResponse": {
@@ -903,6 +1034,138 @@
         "title": "Health",
         "type": "object"
       },
+      "IdCardConfirmResponse": {
+        "properties": {
+          "received": {
+            "default": true,
+            "title": "Received",
+            "type": "boolean"
+          }
+        },
+        "title": "IdCardConfirmResponse",
+        "type": "object"
+      },
+      "IdCardFields": {
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "date_of_birth": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date Of Birth"
+          },
+          "full_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Name"
+          },
+          "id_number": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9]{12}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id Number"
+          },
+          "issued_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issued On"
+          },
+          "sex": {
+            "anyOf": [
+              {
+                "enum": [
+                  "Nam",
+                  "Nữ"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sex"
+          }
+        },
+        "title": "IdCardFields",
+        "type": "object"
+      },
+      "IdCardResponse": {
+        "properties": {
+          "fields": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IdCardFields"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "retry_hint": {
+            "anyOf": [
+              {
+                "enum": [
+                  "QR_UNREADABLE",
+                  "QR_INVALID"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retry Hint"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "retry"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "IdCardResponse",
+        "type": "object"
+      },
       "InitialDecisionRequest": {
         "additionalProperties": false,
         "properties": {
@@ -978,6 +1241,87 @@
           "url"
         ],
         "title": "MediaRef",
+        "type": "object"
+      },
+      "OtpRequest": {
+        "properties": {
+          "phone": {
+            "pattern": "^0[0-9]{9}$",
+            "title": "Phone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "phone"
+        ],
+        "title": "OtpRequest",
+        "type": "object"
+      },
+      "OtpSent": {
+        "properties": {
+          "attempts_left": {
+            "title": "Attempts Left",
+            "type": "integer"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "simulated_sms": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Chỉ có với kênh SMS mô phỏng (bản demo)",
+            "title": "Simulated Sms"
+          }
+        },
+        "required": [
+          "expires_at",
+          "attempts_left"
+        ],
+        "title": "OtpSent",
+        "type": "object"
+      },
+      "OtpVerifyRequest": {
+        "properties": {
+          "code": {
+            "pattern": "^[0-9]{6}$",
+            "title": "Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "OtpVerifyRequest",
+        "type": "object"
+      },
+      "OtpVerifyResponse": {
+        "properties": {
+          "attempts_left": {
+            "title": "Attempts Left",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "pass",
+              "retry"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "attempts_left"
+        ],
+        "title": "OtpVerifyResponse",
         "type": "object"
       },
       "ReasonCode": {
@@ -2313,6 +2657,74 @@
         ]
       }
     },
+    "/v1/sessions/{session_id}/challenge": {
+      "post": {
+        "description": "Thử thách mới cho phần khuôn mặt và gia hạn token (ADR-0017 §2, giới hạn tổng 15 phút).",
+        "operationId": "refresh_challenge_v1_sessions__session_id__challenge_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChallengeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai token phiên"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "session_closed, session_too_long"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Refresh Challenge",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
     "/v1/sessions/{session_id}/finalize": {
       "post": {
         "operationId": "finalize_v1_sessions__session_id__finalize_post",
@@ -2390,6 +2802,161 @@
         ]
       }
     },
+    "/v1/sessions/{session_id}/id-card": {
+      "post": {
+        "operationId": "upload_id_card_v1_sessions__session_id__id_card_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_id_card_v1_sessions__session_id__id_card_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdCardResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai token phiên"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "session_closed; OTP: otp_not_requested, otp_expired, otp_locked, otp_already_verified; CCCD: id_card_not_received"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Upload Id Card",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/v1/sessions/{session_id}/id-card/confirm": {
+      "post": {
+        "description": "Thông tin người dùng xác nhận; sửa khác QR thì ghi chú cho nhân viên duyệt.",
+        "operationId": "confirm_id_card_v1_sessions__session_id__id_card_confirm_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdCardFields"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdCardConfirmResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai token phiên"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "session_closed; OTP: otp_not_requested, otp_expired, otp_locked, otp_already_verified; CCCD: id_card_not_received"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Confirm Id Card",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
     "/v1/sessions/{session_id}/media": {
       "post": {
         "operationId": "upload_media_v1_sessions__session_id__media_post",
@@ -2462,6 +3029,161 @@
           }
         ],
         "summary": "Upload Media",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/v1/sessions/{session_id}/otp": {
+      "post": {
+        "description": "Gửi mã 6 số (hạn 2 phút, sai 5 lần thì khóa). Gọi lại = mã mới, mã cũ hết hiệu lực.",
+        "operationId": "send_otp_v1_sessions__session_id__otp_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OtpRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OtpSent"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai token phiên"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "session_closed; OTP: otp_not_requested, otp_expired, otp_locked, otp_already_verified; CCCD: id_card_not_received"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Send Otp",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/v1/sessions/{session_id}/otp/verify": {
+      "post": {
+        "operationId": "verify_otp_v1_sessions__session_id__otp_verify_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OtpVerifyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OtpVerifyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai token phiên"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "session_closed; OTP: otp_not_requested, otp_expired, otp_locked, otp_already_verified; CCCD: id_card_not_received"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Verify Otp",
         "tags": [
           "sessions"
         ]
