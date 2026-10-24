@@ -22,14 +22,24 @@ giao thức FG-NET. Context fallback chưa bật trong developer API.
 
 ## File cần người phụ trách tải lên kho model
 
-**Chỉ cần tải `cccd_field_detector_v1.zip`**, khoảng 208 MB (198.6 MiB), vào
-Drive chung của nhóm hoặc phần Assets của GitHub Release. Không `git add` ZIP/model.
+**Tải [cccd_field_detector_v1.zip từ Google Drive](https://drive.google.com/file/d/1qIHqDAR6AnmDfJgnwrPSZf4AWpu514TJ/view?usp=sharing)**,
+khoảng 208 MB (198.6 MiB). Link do người phụ trách cung cấp ngày 24/10/2026.
+Không `git add` ZIP/model.
 Gói có duy nhất `best.pt`, không ảnh hay kết quả OCR cá nhân.
 
 - SHA-256 ZIP: `0373ded72471508a28784026e3288c531344ba49ab84f1e2d782019202815dff`
 - SHA-256 `best.pt`: `92510cb983808bc2b4e426a4e82a062676df35419f38eb009ede67a2e3805827`
 - Máy nhận giải nén thành `vericlue/models/cccd_detector/best.pt`.
-- Sau khi upload, gửi link cho nhóm cùng SHA-256; chưa có URL chia sẻ trong repo.
+- Sau khi tải, kiểm tra SHA-256 ZIP khớp giá trị trên trước khi giải nén/nạp model.
+  Hash trên lấy từ gói cục bộ đã bàn giao; chưa tải lại bản Drive để xác minh.
+- Nếu Drive yêu cầu quyền truy cập, đăng nhập tài khoản được chia sẻ hoặc yêu cầu
+  chủ file cấp quyền; không cần công khai file nếu nhóm dùng chia sẻ giới hạn.
+
+Kiểm tra file tải về bằng PowerShell (thay đường dẫn nếu lưu ở nơi khác):
+
+```powershell
+Get-FileHash "$env:USERPROFILE/Downloads/cccd_field_detector_v1.zip" -Algorithm SHA256
+```
 
 VietOCR pretrained và SCRFD/AdaFace là trọng số có nguồn tải chính thức. Không cần
 upload lại. Tạo venv riêng theo README và đặt `IDENTITY_MODELS_DIR` trước khi chạy:
