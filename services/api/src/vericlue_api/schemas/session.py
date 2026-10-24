@@ -124,6 +124,7 @@ class IdCardConfirmResponse(BaseModel):
 
 
 class ChallengeResponse(BaseModel):
+    token: str = Field(description="Token mới của phiên; token cũ hết hiệu lực")
     expires_at: datetime = Field(description="Hạn mới của token")
     challenge: Challenge
 

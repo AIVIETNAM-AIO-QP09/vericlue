@@ -1,19 +1,17 @@
-"""Xác thực phiên bằng `Authorization: Bearer`.
-
-TẠM — PLAT-06 thay bằng token HMAC gắn session_id, hết hạn ~5 phút, kèm máy trạng thái
-chống phát lại (mỗi bước một lần mỗi lượt, lần hai → 409). Hiện chỉ kiểm: có header Bearer
-và khớp token của phiên, nếu không → 401.
-"""
+"""Xác thực token HMAC đúng phiên, đúng hạn và khớp bản băm đã lưu."""
 
 from __future__ import annotations
 
 import secrets
+from datetime import UTC, datetime
 
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from vericlue_api.core.errors import ApiError
+from vericlue_api.core.session_tokens import token_digest
 from vericlue_api.core.state import AppState, get_state
+from vericlue_api.db.models import aware
 from vericlue_api.services.session_store import Session
 
 bearer_scheme = HTTPBearer(
@@ -33,10 +31,15 @@ def require_session(
 ) -> Session:
     if credentials is None or credentials.scheme.lower() != "bearer":
         raise _unauthorized()
+    token = credentials.credentials
+    if not state.settings.session_token_signer.verify(token, session_id):
+        raise _unauthorized()
     session = state.sessions.get(session_id)
     # Phiên không tồn tại cũng trả 401 để không lộ phiên nào có thật.
-    if session is None or not secrets.compare_digest(
-        session.token.encode(), credentials.credentials.encode("utf-8", errors="replace")
+    if (
+        session is None
+        or aware(session.token_expires_at) <= datetime.now(UTC)
+        or not secrets.compare_digest(session.token_hash, token_digest(token))
     ):
         raise _unauthorized()
     return session

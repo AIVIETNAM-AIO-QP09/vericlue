@@ -308,12 +308,17 @@
     "ChallengeResponse": {
       "type": "object",
       "required": [
+        "token",
         "expires_at",
         "challenge"
       ],
       "additionalProperties": false,
       "description": "Thử thách mới cho phần khuôn mặt, kèm hạn token đã gia hạn (ADR-0017 §2, giới hạn tổng của phiên)",
       "properties": {
+        "token": {
+          "type": "string",
+          "description": "Token mới của phiên (gửi 'Authorization: Bearer' từ đây); token cũ hết hiệu lực"
+        },
         "expires_at": {
           "type": "string",
           "format": "date-time",

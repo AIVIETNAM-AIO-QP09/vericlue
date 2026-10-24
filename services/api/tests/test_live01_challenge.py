@@ -48,7 +48,7 @@ def test_session_response_carries_the_new_fields(client):
     assert body["challenge"]["turn_order"] and body["challenge"]["dot_path"]
 
 
-def test_refresh_gives_a_new_challenge_and_extends_the_token(client):
+def test_refresh_gives_a_new_challenge_and_a_new_token(client):
     body, auth = start_session(client)
     sid = body["session_id"]
     res = client.post(CHALLENGE.format(sid=sid), headers=auth)
@@ -57,6 +57,11 @@ def test_refresh_gives_a_new_challenge_and_extends_the_token(client):
     validate(out, "session", "ChallengeResponse")
     assert out["challenge"]["challenge_id"] != body["challenge"]["challenge_id"]
     assert out["expires_at"] >= body["expires_at"]
+    assert out["token"] != body["token"]
+    # Token cũ hết hiệu lực; token mới dùng được.
+    assert client.post(CHALLENGE.format(sid=sid), headers=auth).status_code == 401
+    new = {"Authorization": f"Bearer {out['token']}"}
+    assert client.post(CHALLENGE.format(sid=sid), headers=new).status_code == 200
 
 
 def test_refresh_is_refused_after_the_session_limit(client):
@@ -98,12 +103,19 @@ VOICE = "/v1/sessions/{sid}/voice"
 AUDIO = {"audio": ("voice.wav", b"synthetic audio", "audio/wav")}
 
 
+def _refresh(client, sid, auth) -> dict:
+    """POST /challenge; trả header Bearer với token MỚI (token cũ hết hiệu lực)."""
+    res = client.post(CHALLENGE.format(sid=sid), headers=auth)
+    assert res.status_code == 200, res.text
+    return {"Authorization": f"Bearer {res.json()['token']}"}
+
+
 def test_refresh_does_not_escape_the_voice_step(client):
     """Đã bị đòi đọc câu thì lượt mặt mới (dù ra pass) vẫn phải đọc câu."""
     body, auth = start_session(client, "voice_clone")
     sid = body["session_id"]
     assert client.post(FINALIZE.format(sid=sid), headers=auth).json()["status"] == "voice_challenge"
-    client.post(CHALLENGE.format(sid=sid), headers=auth)
+    auth = _refresh(client, sid, auth)
     with client.app.state.vericlue.transaction() as state:
         state.sessions.get(sid).scenario = "genuine"  # lượt mặt mới tự nó sẽ ra pass
     again = client.post(FINALIZE.format(sid=sid), headers=auth).json()
@@ -115,7 +127,7 @@ def test_refresh_after_a_scored_attempt_uses_up_a_retry(client):
     sid = body["session_id"]
     client.post(FINALIZE.format(sid=sid), headers=auth)
     for _ in range(3):
-        client.post(CHALLENGE.format(sid=sid), headers=auth)
+        auth = _refresh(client, sid, auth)
         client.post(FINALIZE.format(sid=sid), headers=auth)
     with client.app.state.vericlue.transaction() as state:
         assert state.sessions.get(sid).retries_used >= 3
@@ -140,11 +152,12 @@ def test_refresh_drops_old_results(client):
 
 
 def test_voice_done_clears_what_is_owed(client):
-    body, auth = start_session(client, "genuine")
+    body, auth = start_session(client, "voice_clone")
     sid = body["session_id"]
+    assert client.post(FINALIZE.format(sid=sid), headers=auth).json()["status"] == "voice_challenge"
     with client.app.state.vericlue.transaction() as state:
-        s = state.sessions.get(sid)
-        s.voice_requested = s.voice_owed = True
+        assert state.sessions.get(sid).voice_owed is True
+        state.sessions.get(sid).scenario = "genuine"  # giọng đọc lần này ra pass
     assert client.post(VOICE.format(sid=sid), headers=auth, files=AUDIO).json()["status"] == "pass"
     with client.app.state.vericlue.transaction() as state:
         assert state.sessions.get(sid).voice_owed is False

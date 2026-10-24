@@ -511,6 +511,11 @@ export interface components {
              * @description Hạn mới của token
              */
             expires_at: string;
+            /**
+             * Token
+             * @description Token mới của phiên; token cũ hết hiệu lực
+             */
+            token: string;
         };
         /** ColorStep */
         ColorStep: {

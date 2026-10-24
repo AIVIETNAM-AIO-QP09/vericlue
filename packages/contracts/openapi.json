@@ -336,9 +336,15 @@
             "format": "date-time",
             "title": "Expires At",
             "type": "string"
+          },
+          "token": {
+            "description": "Token mới của phiên; token cũ hết hiệu lực",
+            "title": "Token",
+            "type": "string"
           }
         },
         "required": [
+          "token",
           "expires_at",
           "challenge"
         ],

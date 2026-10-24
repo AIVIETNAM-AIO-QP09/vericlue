@@ -2,18 +2,21 @@
 
 from __future__ import annotations
 
+import secrets
 from functools import cached_property, lru_cache
 from typing import Literal
 
-from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic import Field, PrivateAttr, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import URL
 
 from vericlue_api.core.chromapulse_config import load_chromapulse_config
+from vericlue_api.core.session_tokens import SessionTokenSigner
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    _mock_session_key: bytes = PrivateAttr(default_factory=lambda: secrets.token_bytes(32))
 
     app_name: str = "VeriClue API"
     api_cors_origins: str = "http://localhost:3000"
@@ -71,23 +74,39 @@ class Settings(BaseSettings):
     def blank_disables_forensic_expiration(cls, value):
         return None if isinstance(value, str) and not value.strip() else value
 
-    # Phiên và thử thách (ADR-0011). Token HMAC/TTL thật do PLAT-06 cài.
-    session_ttl_seconds: int = 300
-    challenge_ttl_seconds: int = 120
+    # Phiên và thử thách (ADR-0011); gia hạn theo ADR-0017 (LIVE-06): POST /challenge.
+    session_signing_secret: SecretStr | None = None
+    session_ttl_seconds: int = Field(default=300, gt=0)
+    challenge_ttl_seconds: int = Field(default=120, gt=0)
     # Giới hạn tổng của một phiên khi gia hạn token (ADR-0017 §2).
-    session_max_seconds: int = 900
+    session_max_seconds: int = Field(default=900, gt=0)
     # OTP mô phỏng (FLOW-02): mã 6 số, hạn 2 phút, sai 5 lần thì khóa.
     otp_ttl_seconds: int = 120
     otp_max_attempts: int = 5
     otp_max_sends: int = 3  # số lần gửi mã mỗi phiên
     # Khóa HMAC cho số điện thoại và số CCCD (FLOW-03). Mặc định chỉ để chạy dev; máy demo đặt ID_HMAC_KEY.
     id_hmac_key: SecretStr = SecretStr("dev-only-not-secret")
-    max_retries: int = 2
+    max_retries: int = Field(default=2, ge=0, le=2)
     max_upload_mb: int = 50
     # Để trống = dùng bảng màu trong packages/contracts/chromapulse.json (nguồn chung với web).
     challenge_palette: str = ""
 
     thresholds_config: str | None = None
+
+    @cached_property
+    def session_token_signer(self) -> SessionTokenSigner:
+        from vericlue_api.core.errors import ApiError
+
+        key = (
+            self.session_signing_secret.get_secret_value().encode("utf-8")
+            if self.session_signing_secret is not None
+            else b""
+        )
+        if not key and self.use_mock_models is True:
+            key = self._mock_session_key  # Stable even for concurrent first requests.
+        if len(key) < 32:
+            raise ApiError(503, "security_unavailable", "Dịch vụ xác thực chưa sẵn sàng.")
+        return SessionTokenSigner(key)
 
     @cached_property
     def router_config(self):

@@ -1,7 +1,7 @@
 # services/api — Máy chủ API (FastAPI)
 
 **Phụ trách:** M5
-**Trạng thái:** API v1 chạy với dữ liệu mock (PLAT-03 khung, **PLAT-04** endpoint + hợp đồng). DB đã chuyển sang SQLAlchemy/PostgreSQL ở PLAT-05. Token còn là phần TẠM; chính sách ROUT-02 đã nối ML, ngưỡng/fusion đang provisional; PLAT-08 đã có orchestrator song song, xem "Phần tạm" bên dưới.
+**Trạng thái:** API v1 chạy với dữ liệu mock (PLAT-03 khung, **PLAT-04** endpoint + hợp đồng). DB đã chuyển sang SQLAlchemy/PostgreSQL ở PLAT-05. PLAT-06 đã có token HMAC, TTL và chặn nhận lặp; các phần bảo mật còn lại xem "Phần tạm". Chính sách ROUT-02 đã nối ML, ngưỡng/fusion đang provisional; PLAT-08 có orchestrator song song.
 
 ## Trách nhiệm
 
@@ -42,8 +42,12 @@ Chạy mock (`USE_MOCK_MODELS=true`, mặc định) chọn kịch bản bằng h
 ## Token, lượt, thử thách (ADR-0011)
 
 - Token theo phiên, gửi `Authorization: Bearer`; thiếu hoặc sai → 401 (phiên không tồn tại cũng 401).
+- Token ký HMAC-SHA256, gắn `session_id`, thời hạn và nonce ngẫu nhiên. DB chỉ lưu `token_hash`; token gốc chỉ xuất hiện trong phản hồi tạo phiên. Token tạm của phiên cũ không được nâng cấp: mở phiên mới sau khi cập nhật.
+- `SESSION_SIGNING_SECRET` phải là khóa ngẫu nhiên ít nhất 32 byte trong chế độ thật/mixed; thiếu hoặc quá ngắn → 503 `security_unavailable` khi cấp/kiểm token. Khi chạy thuần mock và không cấu hình khóa, dùng khóa tạm gắn với instance Settings, không bảo đảm token qua restart. Dùng cùng khóa cấu hình cho mọi worker nếu cần giữ phiên qua restart; thay khóa làm token cũ mất hiệu lực.
 - **Lượt = một challenge.** `finalize` trả `retry` (kèm `challenge` mới) hoặc `voice_challenge` thì mở lượt mới. Đọc lại câu tối đa 1 lần. Mỗi challenge sống 120 giây (`challenge.expires_at`), tách khỏi hạn token (`expires_at` ở gốc).
-- **Kiểm thứ tự luồng (đã cài, không phải máy trạng thái PLAT-06):** `/voice` chỉ nhận khi `finalize` vừa trả `voice_challenge` (không thì 409 `voice_not_requested`, và không ghi file nào); `finalize` luôn đặt lại yêu cầu giọng nói và bộ đếm đọc lại; phiên đã vào bàn duyệt là trạng thái cuối, `finalize`/`voice` gọi lại → 409 `session_closed`. Không có đường tắt tới `pass` bỏ qua cổng khuôn mặt.
+- **Chặn nhận lặp:** media/signals chỉ nhận một lần mỗi lượt; lần hai → 409 `step_already_received`, không ghi đè dữ liệu. Khi đã yêu cầu đọc câu, không nhận lại bước khuôn mặt (`step_not_allowed`). `pass` và `review` đều đóng phiên; mọi bước gọi lại → 409 `session_closed`. Khi `retry`, cấp challenge mới và xóa tham chiếu ảnh/video/âm thanh, tín hiệu và kết quả ML của lượt trước. File cũ còn trên đĩa được xử lý theo TTL, không được dùng làm đầu vào lượt mới.
+- Challenge khuôn mặt hết hạn → 409 `challenge_expired` trước khi lưu file/chạy model. Mỗi câu đọc có hạn riêng tính từ khi cấp câu, không dùng lại hạn màu; câu đọc lại được cấp hạn mới. Token hết hạn → 401. Gia hạn và khôi phục sau gián đoạn thuộc LIVE-06 (ADR-0017), chưa được cài trong phần này.
+- Chưa ràng buộc byte media vào `challenge_id`/chữ ký của client: chặn nhận lặp endpoint không thay thế ký media/kiểm nonce ở LIVE-03 và SEC-02.
 - Upload quá `MAX_UPLOAD_MB` → 413 `upload_too_large`.
 - Cấu hình: `SESSION_TTL_SECONDS` (300), `CHALLENGE_TTL_SECONDS` (120), `MAX_RETRIES` (2), `MAX_UPLOAD_MB` (50), `CHALLENGE_PALETTE` (bảng màu, phân cách bằng dấu phẩy; bộ sinh từ chối bảng vi phạm giới hạn độ chói 0,064 hoặc R/(R+G+B) >= 0,8).
 
@@ -65,7 +69,7 @@ Chạy mock (`USE_MOCK_MODELS=true`, mặc định) chọn kịch bản bằng h
 
 | Phần | Hiện nay | Thay bằng |
 |---|---|---|
-| Token | chuỗi ngẫu nhiên, chỉ so khớp | **PLAT-06**: HMAC gắn `session_id`, TTL ~5 phút, 409 và máy trạng thái "mỗi bước một lần mỗi lượt", 429 (3 phiên/giờ/IP), hết hạn challenge 120 giây thật |
+| Phiên | HMAC, hash token trong DB, TTL và chặn nhận lặp đã có; thử thách khuôn mặt/câu đọc có hạn riêng | **PLAT-06** còn 429 (3 phiên/giờ/IP), khóa ký báo cáo, auth nhân viên, giới hạn body trước multipart; LIVE-03/SEC-02 ràng buộc media với thử thách; LIVE-06 gia hạn phiên |
 | Lưu trữ | **PLAT-05**: PostgreSQL, migration Alembic, transaction theo request | Đã có persistence; nghiệp vụ tiếp tục ở các task tương ứng |
 | Chạy detector | **PLAT-08**: executor chung, preload lifespan, deadline/timeout và latency thực | Đã có; detector thật được bổ sung bởi các task mô hình |
 | Luật quyết định | **ROUT-02**: ML TrustRouter, snapshot `ml/configs/thresholds.yaml`, provisional max-fusion | **ROUT-03**: ngưỡng LTT trên calib_ltt; logistic học trên calib_fit khi có dữ liệu thật |
@@ -115,7 +119,7 @@ Kiểm PostgreSQL thật: đặt `TEST_DATABASE_URL` tới DB test đã cấp qu
 Job Python CI có service PostgreSQL16 với credential mẫu chỉ cho DB test tạm;
 các bước CI hiện có được giữ nguyên. Tuyệt đối không dùng credential CI cho triển khai.
 
-Cleanup lọc điều kiện hết hạn ngay trong SQL và dùng `FOR UPDATE SKIP LOCKED`; không khóa phiên/job chưa hết hạn. GET danh sách ca duyệt chỉ đọc, không khóa row. Token tạm hiện lưu **dạng rõ** trong `sessions.payload`; PLAT-06 phải đổi sang lưu hash (không lưu token gốc).
+Cleanup lọc điều kiện hết hạn ngay trong SQL và dùng `FOR UPDATE SKIP LOCKED`; không khóa phiên/job chưa hết hạn. GET danh sách ca duyệt chỉ đọc, không khóa row. Phiên mới chỉ lưu `token_hash`, không lưu token gốc. Không có thay đổi DDL; metadata bảo vệ phiên nằm trong JSON snapshot hiện có. Các row cũ chứa token tạm không còn được chấp nhận để xác thực, nhưng không tự sửa/xóa dữ liệu lịch sử của chúng.
 
 ## Điều phối detector (PLAT-08)
 
@@ -218,9 +222,10 @@ Quality error/degraded và module bắt buộc lỗi ở bước đã tới → 
 `voice.spoof_threshold` riêng với biên ≤ pass, không dùng B và không trộn WER.
 Cờ splice dương → review ưu tiên cao; giá trị không phải số/không hữu hạn → review; thiếu là absent. Sai câu chỉ đọc lại một lần.
 SessionFlow tăng counters/cấp challenge hoặc câu mới; ML chỉ trả quyết định thuần.
-Token không khớp vẫn 401; deadline token đã lưu hoặc challenge màu quá hạn (finalize)
-→ review ưu tiên cao, không chạy detector. Voice kiểm hạn token, không dùng lại hạn
-challenge màu. HMAC/replay/429 vẫn ở PLAT-06. Các chốt409/row lock/deadline/queue/503
+Token không khớp/hết hạn → 401; challenge hết hạn trước bước → 409, không chạy
+detector/ghi quyết định mới. Nếu hết hạn trong khi inference đang chạy, policy
+không cho pass. Voice có hạn câu đọc riêng, không dùng lại hạn challenge màu.
+429 vẫn thuộc phần còn lại của PLAT-06. Các chốt409/row lock/deadline/queue/503
 storage_busy của PLAT-04/05/08 giữ nguyên. Công dân chỉ nhận schema cũ, không nhận
 xác suất, Λ, hash cấu hình, ngưỡng, lý do nội bộ hay transcript.
 
