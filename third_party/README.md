@@ -9,6 +9,20 @@ Mọi đoạn code **chép** từ dự án khác phải được ghi vào bảng
 
 Văn bản giấy phép gốc lưu trong `third_party/licenses/<tên-dự-án>.txt`.
 
+## VOICE-09 — NES2Net-X
+
+| Nguồn | Giấy phép | Chép vào đâu | Đã sửa gì | Task |
+|---|---|---|---|---|
+| Tianchi Liu, [Nes2Net_ASVspoof_ITW@c9fe1177](https://github.com/Liu-Tianchi/Nes2Net_ASVspoof_ITW/blob/c9fe1177f44040f002cb40def928332d2e261f1e/model_scripts/wav2vec2_Nes2Net_X.py), các lớp SEModule/Bottle2neck/ASTP/Nested_Res2Net_TDNN | Apache-2.0 theo [README §License and Usage tại cùng revision](https://github.com/Liu-Tianchi/Nes2Net_ASVspoof_ITW/tree/c9fe1177f44040f002cb40def928332d2e261f1e#license-and-usage); bản Apache-2.0 chuẩn ở `licenses/nes2net-Apache-2.0.txt` (upstream không có LICENSE riêng) | `ml/src/vericlue_ml/voice/_nes2net_arch.py` | Chỉ tách head, tuple defaults, formatter/lint/khởi tạo biến vòng lặp; không đổi phép toán. Loại loader Fairseq, không chép dữ liệu/RawBoost. | VOICE-09 |
+
+Giữ attribution Tianchi Liu trong file. Mã nguồn upstream dùng đối chiếu native
+có SHA-256 `8a81756688e026243b40c0a8733e2d122401322c74cb32add8046f9bb60bc75f`.
+Checkpoint `checkpoint.pth` do README công bố cũng thuộc tuyên bố Apache-2.0
+của tác giả; chứa frontend XLS-R đã tinh chỉnh. Quyền/điều khoản frontend và
+dữ liệu bên thứ ba không được mở rộng bởi tuyên bố này. Không phân phối trọng số.
+Không gọi hoặc chép Fairseq (MIT); dùng Transformers đã cài (Apache-2.0) và
+mapping Fairseq có attribution sẵn trong `voice/antispoof.py`.
+
 ## Thư viện và mô hình dùng nguyên bản (không chép mã)
 
 Không chép vào `src/`, nhưng vẫn ghi nhận để giữ đúng giấy phép. File tải bằng script, **không commit** (`apps/web/public/mediapipe/` nằm trong `.gitignore`).

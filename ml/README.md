@@ -21,6 +21,11 @@
 
 ## Quy ước bắt buộc
 
+VOICE-09 thêm NES2Net-X CPU diagnostic opt-in cho `voice_spoof`, checkpoint đầy
+đủ XLS-R/head. Chỉ chấm 4 giây đầu, luôn degraded/unclear, chưa parity frontend
+hoặc calibration tiếng Việt; không thay backend API. Xem
+[`nes2net-diagnostic.md`](../docs/architecture/nes2net-diagnostic.md).
+
 VOICE-07 thêm backend Qwen3-ASR-0.6B để kiểm nội dung câu đọc qua factory/CLI
 diagnostic riêng. Cần runtime Transformers 5.13.0, không cài chung runtime mặt.
 Chưa thay PhoWhisper/API và chưa đánh giá accuracy tiếng Việt; xem

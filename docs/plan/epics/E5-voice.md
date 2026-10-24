@@ -215,3 +215,27 @@ trực tiếp trong công cụ nội bộ; dùng runtime Qwen riêng, không s�
 
 Không nghiệm thu accuracy trên người, phát hiện giọng AI, nhịp đọc, khớp môi
 hay quyết định eKYC. Câu local không phải thử thách được server xác thực.
+
+---
+
+### VOICE-09 · NES2Net-X: diagnostic phát hiện giọng AI
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M4 | 1 | S2 | P0 | PLAT-03 |
+
+**Mục tiêu:** dùng checkpoint NES2Net-X đã chọn/tải để có backend raw chạy offline
+trên CPU và CLI kiểm file. Phần mở rộng sau khi VOICE-08 merge; không thay nhiệm
+vụ VOICE-01/03 hoặc kết quả benchmark AntiDeepfake.
+
+**Tiêu chí kỹ thuật:**
+- [x] Kiểm SHA trước/sau nạp, tensor-only weights_only, tải một lần, khóa inference.
+- [x] Mapping đủ frontend/head; dùng lại head Apache-2.0 có attribution/giấy phép.
+- [x] Tiền xử lý theo demo upstream: mono 16 kHz raw, lặp/cắt 64000 mẫu đầu;
+      quality gate riêng không sửa mẫu; ghi rõ phần audio không được chấm.
+- [x] ModuleResult/mock/factory opt-in; luôn degraded/unclear, không prob_attack.
+- [x] CLI xuất provenance, logit/margin và giới hạn; chặn thay input/ghi đè model.
+- [x] Unit không cần model/Torch, native synthetic smoke, tài liệu/bàn giao/lint/plan_check.
+
+**Chưa nghiệm thu:** parity frontend Fairseq ↔ Transformers, EER tiếng Việt,
+calibration, xử lý toàn câu dài hơn 4 giây, ghép GUI/API hoặc quyết định eKYC.

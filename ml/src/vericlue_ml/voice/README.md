@@ -1,5 +1,9 @@
 # VOICE-04 — kiểm câu đọc
 
+VOICE-09 thêm diagnostic giọng giả NES2Net-X trong runtime CPU riêng, không
+thay default AntiDeepfake/API. Luôn degraded/unclear, chỉ chấm 4 giây đầu;
+xem [NES2Net diagnostic](../../../../docs/architecture/nes2net-diagnostic.md).
+
 VOICE-07 có lựa chọn Qwen3-ASR-0.6B HF-native trong runtime CPU riêng, factory
 opt-in và CLI cho file audio. Giữ nguyên lựa chọn PhoWhisper/API bên dưới.
 Xem [Qwen ASR diagnostic](../../../../docs/architecture/qwen-asr-diagnostic.md).
