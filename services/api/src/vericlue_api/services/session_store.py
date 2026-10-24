@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from vericlue_api.core.session_tokens import SessionTokenSigner, token_digest
 from vericlue_api.db.models import DecisionRow, ModuleResultRow, SessionRow, utcnow
-from vericlue_api.schemas.session import Challenge
+from vericlue_api.schemas.session import Challenge, SessionPurpose
 from vericlue_ml.common.result import Module, ModuleResult
 
 
@@ -55,6 +55,11 @@ class Session:
     id_fields: dict | None = None
     id_number_hmac: str | None = None
     id_edited: list[str] = field(default_factory=list)  # trường người dùng sửa khác QR
+    purpose: SessionPurpose | None = None
+    nonce: str | None = None
+    reference_image_id: str | None = None
+    device_verified: bool = False  # Never populated from request JSON; SEC-02 owns verification.
+    voice_challenge_id: str | None = None
 
 
 class SessionStore:
@@ -124,10 +129,12 @@ class SessionStore:
         self, session: Session, action: str, *, thresholds: dict, config_version: str
     ) -> None:
         row = self._loaded[session.session_id][1]
-        row.status = action if action in {"pass", "review"} else "incomplete"
+        row.status = (
+            action if action in {"pass", "review", "deny", "recovery_required"} else "incomplete"
+        )
         row.ever_review = row.ever_review or action == "review"
         # Review retention starts only when staff close the case, not at routing time.
-        row.decided_at = utcnow() if action == "pass" else None
+        row.decided_at = utcnow() if action in {"pass", "deny", "recovery_required"} else None
         self.db.add(
             DecisionRow(
                 session_id=session.session_id,

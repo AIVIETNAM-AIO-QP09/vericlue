@@ -21,6 +21,11 @@
 
 ## Quy ước bắt buộc
 
+LIVE-02 đã có `gaze_tracking` và reader MediaPipe dùng chung cho dữ liệu mắt/tư
+thế đầu. Đây là diagnostic riêng, chưa nằm trong profile full/MVP hoặc quyết định
+API. Chạy bằng môi trường riêng để giữ dependency CUDA/OpenCV hiện có; xem
+[`presence/README.md`](src/vericlue_ml/presence/README.md).
+
 1. Mọi bộ phát hiện kế thừa giao diện `Detector` và trả `ModuleResult` (`docs/architecture/architecture.md` §3).
 2. Mọi bộ phát hiện **phải có bản mock** cùng tên trong `mock/`.
 3. Không hard-code đường dẫn: dùng `MODELS_DIR`, `configs/models.yaml`.

@@ -65,6 +65,11 @@ Data4Life/
 
 ## 3. Giao diện chung của mô-đun AI
 
+LIVE-02 bổ sung `gaze_tracking` và reader MediaPipe để diagnostic video ở server.
+Mô-đun này dùng gate thử nghiệm, chưa ở profile full/MVP và chưa tham gia quyết
+định API. Xem [`presence/README.md`](../../ml/src/vericlue_ml/presence/README.md).
+Ngưỡng/chiều tọa độ chưa nghiệm thu trên điện thoại; không bỏ chốt real/mixed.
+
 Mọi bộ phát hiện (kể cả cổng chất lượng `quality`) đều trả một `ModuleResult` (schema: `packages/contracts/schemas/module_result.schema.json`):
 
 ```python
@@ -147,6 +152,12 @@ Token hiện vẫn là token tạm PLAT-04, không thêm HMAC/TTL enforcement/40
 Nhật ký ghi actor `staff-unverified` vì xác thực nhân viên thuộc PLAT-06; không coi đây là chữ ký giám định thật.
 
 ## 6. Luồng một phiên eKYC
+
+**Luồng opt-in theo purpose (FLOW-01/LIVE-01, 24/10):** xem
+[`dynamic-session-api.md`](dynamic-session-api.md). Body tạo phiên mới sinh gói
+ánh sáng/ánh mắt/quay đầu/câu đọc, yêu cầu mã lượt ở upload/finalize/voice và luôn
+đọc câu khi đăng ký/khôi phục. Chỉ mở mock; real/mixed chặn 503 cho tới khi có đủ
+bộ kiểm chứng thật. Phần dưới mô tả MVP tương thích cũ khi không gửi body.
 
 1. Web hiện màn đồng ý, xin quyền camera, rồi chạy cổng chất lượng (MediaPipe). Chưa đạt thì nhắc chụp lại, chưa gửi gì lên.
 2. Đạt cổng chất lượng xong, web mới gọi `POST /v1/sessions` và nhận thử thách. Tạo phiên **ngay trước bước nháy màu** (không phải ngay sau đồng ý) vì thử thách chỉ sống 120 giây (ADR-0011); quyết định trưởng nhóm 15/10, CAP-01. Mỗi lần chụp lại cũng đi qua cổng chất lượng trước (CAP-02).

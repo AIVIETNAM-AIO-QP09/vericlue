@@ -12,8 +12,10 @@ from vericlue_api.core.security import bearer_scheme, require_session
 from vericlue_api.core.state import AppState, get_state
 from vericlue_api.schemas.session import (
     ChallengeResponse,
+    CreateSessionRequest,
     CreateSessionResponse,
     ErrorResponse,
+    FinalizeRequest,
     FinalizeResponse,
     IdCardConfirmResponse,
     IdCardFields,
@@ -37,8 +39,9 @@ SESSION_ERRORS: dict[int | str, dict] = {
     401: {"model": ErrorResponse, "description": "Thiếu hoặc sai token phiên"},
     409: {
         "model": ErrorResponse,
-        "description": "Sai trạng thái: voice_not_requested (finalize chưa yêu cầu đọc câu), session_closed (phiên đã vào bàn duyệt). Bước đã nhận trong lượt này cũng 409 (PLAT-06).",
+        "description": "Sai trạng thái, phiên đã kết thúc, thiếu bước hoặc sai/hết hạn mã thử thách; bước gửi trùng cũng trả 409.",
     },
+    503: {"model": ErrorResponse, "description": "Kho dữ liệu hoặc luồng xác minh chưa sẵn sàng"},
 }
 
 SessionDep = Annotated[Session, Depends(require_session)]
@@ -54,9 +57,17 @@ def resolve_scenario(header: str | None, state: AppState) -> str:
     return header
 
 
-@router.post("", response_model=CreateSessionResponse, response_model_exclude_none=True)
+@router.post(
+    "",
+    response_model=CreateSessionResponse,
+    response_model_exclude_none=True,
+    responses={
+        503: {"model": ErrorResponse, "description": "Luồng purpose chưa hỗ trợ mô hình thật"}
+    },
+)
 def create_session(
     state: StateDep,
+    request: CreateSessionRequest | None = None,
     x_mock_scenario: Annotated[
         str | None,
         Header(
@@ -64,7 +75,7 @@ def create_session(
         ),
     ] = None,
 ) -> CreateSessionResponse:
-    return state.flow.create(resolve_scenario(x_mock_scenario, state))
+    return state.flow.create(resolve_scenario(x_mock_scenario, state), request)
 
 
 @router.post(
@@ -78,7 +89,11 @@ async def upload_media(
     state: StateDep,
     image: Annotated[UploadFile, File(description="Ảnh mặt chất lượng cao")],
     video: Annotated[UploadFile | None, File(description="Đoạn video lúc phát màu")] = None,
+    challenge_id: Annotated[
+        str | None, Form(description="Mã thử thách; bắt buộc khi có purpose")
+    ] = None,
 ) -> StepAck:
+    state.flow.ensure_binding(session, challenge_id)
     state.flow.ensure_face_step_allowed(session, "media")
     image_bytes = await read_limited(image, state.settings.max_upload_mb)
     video_bytes = await read_limited(video, state.settings.max_upload_mb) if video else None
@@ -94,6 +109,7 @@ async def upload_media(
 
 @router.post("/{session_id}/signals", response_model=StepAck, responses=SESSION_ERRORS)
 def upload_signals(session: SessionDep, state: StateDep, signals: Signals) -> StepAck:
+    state.flow.ensure_binding(session, signals.challenge_id)
     state.flow.accept_signals(session, signals)
     return StepAck(step="signals")
 
@@ -107,8 +123,10 @@ def upload_signals(session: SessionDep, state: StateDep, signals: Signals) -> St
         503: {"model": ErrorResponse, "description": "Kho dữ liệu đang bận hoặc không khả dụng"},
     },
 )
-def finalize(session: SessionDep, state: StateDep) -> FinalizeResponse:
-    return state.flow.finalize(session)
+def finalize(
+    session: SessionDep, state: StateDep, request: FinalizeRequest | None = None
+) -> FinalizeResponse:
+    return state.flow.finalize(session, request.challenge_id if request else None)
 
 
 @router.post(
@@ -136,7 +154,11 @@ async def voice(
             ),
         ),
     ] = None,
+    voice_challenge_id: Annotated[
+        str | None, Form(description="Mã lần đọc; bắt buộc khi có purpose")
+    ] = None,
 ) -> VoiceResponse:
+    state.flow.ensure_binding(session, voice_challenge_id, voice=True)
     state.flow.ensure_voice_allowed(session)  # kiểm TRƯỚC khi ghi bất kỳ file nào
     audio_bytes = await read_limited(audio, state.settings.max_upload_mb)
     video_bytes = await read_limited(video, state.settings.max_upload_mb) if video else None

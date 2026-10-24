@@ -75,8 +75,11 @@ def test_start_preloads_one_instance_once_and_runs_never_reload():
         for _ in range(2):
             assert run(orchestrator, [Module.QUALITY])[Module.QUALITY].status == Status.OK
         assert all(count == 1 for count in constructed.values())
-        assert set(constructed) == set(Module)
-        assert all(instance.preloads == 1 for instance in instances.values())
+        assert set(constructed) == set(Module) - {Module.GAZE_TRACKING}
+        assert all(
+            instance.preloads == int(module != Module.GAZE_TRACKING)
+            for module, instance in instances.items()
+        )
         assert not orchestrator.failed_modules
     finally:
         orchestrator.close()
@@ -348,7 +351,7 @@ def test_api_lifespan_preloads_each_detector_once_per_application(monkeypatch):
             assert client.get("/healthz").json()["failed_modules"] == []
             client.get("/healthz")
             client.post("/v1/sessions")
-    assert len(all_instances) == len(Module) * 2
+    assert len(all_instances) == (len(Module) - 1) * 2
     assert all(instance.preloads == 1 for instance in all_instances)
 
 

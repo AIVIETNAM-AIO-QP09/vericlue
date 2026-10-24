@@ -211,7 +211,7 @@ def test_restart_keeps_session_media_signals_review_and_forensic(database, monke
             session = state.sessions.get(sid)
             assert session.signals["frame_times"][0]["presented_frames"] == 31
             assert session.results and session.images
-            assert session.challenge.model_dump(mode="json") == body["challenge"]
+            assert session.challenge.model_dump(mode="json", exclude_none=True) == body["challenge"]
             assert session.case_id == case_id
         assert restarted.get(f"/v1/review/cases/{case_id}/ai").status_code == 200
         assert restarted.post(f"/v1/sessions/{sid}/finalize", headers=headers).status_code == 409
@@ -285,6 +285,17 @@ def test_incomplete_ttl_uses_last_activity_not_creation(database, tmp_path):
         connection.get(SessionRow, "recently-active").last_activity_at = NOW - timedelta(hours=1)
     cleanup_expired(database, settings, now=NOW)
     assert target.exists()
+
+
+@pytest.mark.parametrize("status", ["deny", "recovery_required"])
+def test_reauth_terminal_media_uses_incomplete_retention(database, tmp_path, status):
+    settings = settings_for(tmp_path)
+    add_session(database, "expired-reauth", status, timedelta(hours=25))
+    add_session(database, "fresh-reauth", status, timedelta(hours=23))
+    expired = media_file(settings, "expired-reauth")
+    fresh = media_file(settings, "fresh-reauth")
+    cleanup_expired(database, settings, now=NOW)
+    assert not expired.exists() and fresh.exists()
 
 
 def test_blank_forensic_ttl_is_disabled(monkeypatch):

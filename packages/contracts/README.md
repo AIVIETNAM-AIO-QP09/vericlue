@@ -13,12 +13,24 @@
 
 ## Quy tắc
 
+LIVE-02 thêm tên module `gaze_tracking` vào ModuleResult để diagnostic và mock
+cùng trả đúng hợp đồng. Đây không phải thay đổi trạng thái cho người dân, không
+tự bật mô-đun trong full/MVP hoặc bỏ chốt chế độ thật của luồng mới.
+
 1. **Đổi schema trước, code sau**, cả hai phía trong **cùng một PR**. Tiêu đề PR có `[contract]`.
 2. Chỉ **thêm** trường tùy chọn thì không phá tương thích. **Đổi tên / xóa / đổi kiểu** thì phải tăng phiên bản API (`/v2`) hoặc báo cả nhóm.
 3. Phía Python sinh model Pydantic từ schema; phía TypeScript sinh type từ OpenAPI của FastAPI (task PLAT-04).
 4. Không ai tự thêm trường "tạm" ngoài schema.
 
 ## Token, lượt và thử thách (ADR-0011)
+
+**FLOW-01/LIVE-01 (24/10):** Tạo phiên có body `CreateSessionRequest` là opt-in
+cho `purpose`/`nonce`; chưa gửi body vẫn giữ MVP. Gói `challenge.dynamic` chứa
+lịch ánh mắt, quay đầu và câu đọc từ trước. Luồng mới cần mã lượt ở media,
+signals, finalize và mã lần đọc ở voice; chỉ hỗ trợ mock hiện tại. Trạng thái
+`deny`/`recovery_required` dành cho bên tích hợp dùng reauth; không hiển thị lý
+do an ninh cho người dân. Xem
+[`dynamic-session-api.md`](../../docs/architecture/dynamic-session-api.md).
 
 - Token **theo phiên**, gửi `Authorization: Bearer` ở mọi lần gọi của phiên. Sai/hết hạn → 401.
 - **Lượt = một challenge.** Mỗi bước (media, signals, finalize, voice) chỉ nhận một lần trong một lượt, gọi lại → 409. `finalize` trả `retry` hoặc `voice_challenge` thì mở lượt mới; đọc lại câu tối đa 1 lần.

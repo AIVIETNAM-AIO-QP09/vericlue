@@ -22,8 +22,16 @@
 - VeriClue là eKYC dùng chung: không có logic riêng của ngành (giao dịch, số tiền, hạn mức) — ADR-0013 §Phạm vi.
 
 **Tiêu chí hoàn thành:**
-- [ ] Test cho từng `purpose`. Không có đường nào ra `pass` khi module bắt buộc lỗi.
-- [ ] Hợp đồng, API và type web khớp nhau (`gen_openapi --check`).
+- [x] Test cho từng `purpose`. Không có đường nào ra `pass` khi module bắt buộc lỗi.
+- [x] Hợp đồng, API và type web khớp nhau (`gen_openapi --check`).
+
+**Cập nhật 24/10 — nền backend (`doing`):** Có body opt-in `purpose`/`nonce`/
+`reference_image_id`, chính sách theo luồng và mock xuyên suốt. Tham chiếu mới chỉ
+là mã nối cho FLOW-03/05; reauth chưa có SEC-02 nên trả `recovery_required`, không
+nhận cờ xác minh thiết bị từ client. Real/mixed bị chặn 503 cho luồng mới cho tới
+khi có đủ bộ kiểm chứng. ADR-0016 cấp câu đọc trước để client thu âm trong lúc chấm
+mặt; backend hiện nhận voice sau finalize. Không đánh dấu hoàn thành toàn bộ luồng.
+Chi tiết: `docs/architecture/dynamic-session-api.md`.
 
 ---
 
@@ -241,8 +249,15 @@
 - Router coi lớp nào thiếu hoặc lỗi là không đạt (luật 4).
 
 **Tiêu chí hoàn thành:**
-- [ ] Test: hai phiên không bao giờ nhận cùng gói; gói dùng lại bị từ chối (409).
+- [x] Test: hai phiên có gói/mã khác nhau; gửi lại cùng bước hoặc mã lượt cũ bị từ chối (409).
 - [x] Hợp đồng, API và type web khớp nhau (`gen_openapi --check`).
+
+**Cập nhật 24/10 — nền backend (`doing`):** Gói có 8 màu an toàn dùng chung,
+đường chấm sáng 7 giây, thứ tự quay trái/phải rồi về giữa, câu đọc và mã lần đọc;
+ràng buộc mã phiên và nonce. Media/signals/finalize/voice kiểm mã lượt hiện hành,
+retry đổi gói, reread đổi câu và ID. Chưa có detector ánh mắt/quay đầu/so mặt
+và chưa ký byte media; các luồng này chỉ mở mock, không cho chạy thật. Kiểm ID
+không chứng minh chống phát lại video được gắn mã mới (LIVE-03/SEC-02).
 
 ---
 
@@ -260,7 +275,12 @@
 - Ngưỡng là hằng số có tên trong file mô-đun, chờ ROUT-03. Trả `ModuleResult` và có bản mock.
 
 **Tiêu chí hoàn thành:**
-- [ ] Test bằng chuỗi điểm tổng hợp: khớp, lệch, đứng yên, đường của phiên khác.
+- [x] Test bằng chuỗi điểm tổng hợp: khớp, lệch, đứng yên, đường của phiên khác.
+- Backend diagnostic 24/10: reader MediaPipe/kiểm SHA, mắt tương đối và góc đầu
+  ước lượng, đối chiếu hai trục/độ trễ, kiểm độ phủ và lỗi. Có mock + ModuleResult
+  gaze_tracking; chưa tham gia router/full/MVP. Đường chấm server được sinh đủ
+  biên độ hai trục; không sửa UI. Giữ doing vì chưa đo trên điện thoại thật và
+  chưa hoàn tất tích hợp quyết định. Xem ml/src/vericlue_ml/presence/README.md.
 - [ ] Đo trên điện thoại thật trong phòng sáng và phòng tối; ghi số mẫu vào bàn giao. Không đưa con số vào báo cáo nếu không chạy ra từ code.
 
 ---
