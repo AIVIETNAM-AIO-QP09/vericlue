@@ -1,5 +1,9 @@
 # VOICE-04 — kiểm câu đọc
 
+VOICE-07 có lựa chọn Qwen3-ASR-0.6B HF-native trong runtime CPU riêng, factory
+opt-in và CLI cho file audio. Giữ nguyên lựa chọn PhoWhisper/API bên dưới.
+Xem [Qwen ASR diagnostic](../../../../docs/architecture/qwen-asr-diagnostic.md).
+
 `VoiceChallengeDetector.predict(DetectorInput)` đọc `audio` và câu phía server ở
 `metadata["prompt"]`. Trả `ModuleResult(module="voice_challenge")`:
 

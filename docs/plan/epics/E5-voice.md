@@ -166,3 +166,31 @@ vẫn `doing`: chưa nghiệm thu tiêu chí DATA-04/độ chính xác ở trên
 - [ ] Phiên đầu–cuối với giọng thật → pass.
 - [ ] Phiên với giọng clone → review.
 - [ ] Chạy < 2 giây trên GPU.
+
+---
+
+### VOICE-07 · Qwen3-ASR: backend kiểm câu đọc — diagnostic riêng
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M4 | 1 | S2 | P0 | PLAT-03, VOICE-04 |
+
+**Mục tiêu:** dùng checkpoint Qwen3-ASR-0.6B-hf đã chọn/tải để nhận dạng và
+đối chiếu câu, không đổi runtime mặt hoặc thay backend PhoWhisper đã nghiệm thu.
+Task mở rộng theo yêu cầu tiếp tục triển khai ngày 24/10; không mở lại các số
+liệu VOICE-04 và không coi benchmark cũ là nghiệm thu Qwen.
+
+**Đầu ra:** `voice/qwen_asr.py`, config hash, factory/mock, CLI
+`eval/qwen_voice.py`, runtime CPU pin riêng và hướng dẫn chạy local.
+
+**Tiêu chí review phần kỹ thuật:**
+- [x] Kiểm file/runtime, tải offline một lần, CPU, serialize inference, không remote code.
+- [x] Audio có giới hạn; VAD; không đưa đề bài vào model; budget/EOS fail-closed.
+- [x] `ModuleResult` và mock; giữ luật so khớp hiện có, không thay ngưỡng/API.
+- [x] CLI xuất metadata/hash/nguồn câu, chặn đổi file và ghi đè input/model.
+- [x] Unit/hồi quy qua; checkpoint thật chạy generation tổng hợp và chặn im lặng.
+- [x] Tài liệu/bàn giao/backlog/lint/plan_check đầy đủ.
+
+**Ngoài nghiệm thu kỹ thuật này:** độ chính xác tiếng Việt, công bằng miền,
+đánh giá trên người, so sánh PhoWhisper, tối ưu GPU/ONNX/INT8 và nối API cần
+đánh giá riêng trước khi sử dụng. Không tuyên bố đã phát hiện giọng AI/khớp môi.

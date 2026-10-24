@@ -21,6 +21,11 @@
 
 ## Quy ước bắt buộc
 
+VOICE-07 thêm backend Qwen3-ASR-0.6B để kiểm nội dung câu đọc qua factory/CLI
+diagnostic riêng. Cần runtime Transformers 5.13.0, không cài chung runtime mặt.
+Chưa thay PhoWhisper/API và chưa đánh giá accuracy tiếng Việt; xem
+[`qwen-asr-diagnostic.md`](../docs/architecture/qwen-asr-diagnostic.md).
+
 PRES-02 đã thêm diagnostic đo màu 5 vùng da + nền, dùng chung task MediaPipe
 với mắt/quay đầu. Chưa hiệu chỉnh, luôn unclear và chưa đổi module ChromaPulse
 trong full/MVP. Lệnh chạy, ý nghĩa R²/lag và giới hạn đồng hồ:

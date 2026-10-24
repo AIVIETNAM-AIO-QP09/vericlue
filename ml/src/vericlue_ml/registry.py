@@ -189,3 +189,13 @@ def get_chromapulse_diagnostic(*, mock: bool = False) -> Detector:
     from vericlue_ml.presence.chromapulse import ChromaPulseDetector
 
     return ChromaPulseDetector()
+
+
+@lru_cache(maxsize=2)
+def get_qwen_voice_challenge(*, mock: bool = False) -> Detector:
+    """Explicit Qwen diagnostic; preserve the HTTP PhoWhisper selection and its runtime."""
+    if mock:
+        return MOCK_DETECTORS[Module.VOICE_CHALLENGE]
+    from vericlue_ml.voice.qwen_asr import QwenVoiceChallengeDetector
+
+    return QwenVoiceChallengeDetector()
