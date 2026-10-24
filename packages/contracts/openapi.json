@@ -63,6 +63,18 @@
       },
       "Body_upload_media_v1_sessions__session_id__media_post": {
         "properties": {
+          "challenge_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Mã thử thách; bắt buộc khi có purpose",
+            "title": "Challenge Id"
+          },
           "image": {
             "contentMediaType": "application/octet-stream",
             "description": "Ảnh mặt chất lượng cao",
@@ -109,6 +121,18 @@
             ],
             "description": "Video lúc đọc câu",
             "title": "Video"
+          },
+          "voice_challenge_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Mã lần đọc; bắt buộc khi có purpose",
+            "title": "Voice Challenge Id"
           }
         },
         "required": [
@@ -223,6 +247,16 @@
             "title": "Color Sequence",
             "type": "array"
           },
+          "dynamic": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DynamicChallenge"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "expires_at": {
             "anyOf": [
               {
@@ -270,6 +304,43 @@
         "title": "ColorStep",
         "type": "object"
       },
+      "CreateSessionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "nonce": {
+            "pattern": "^[A-Za-z0-9_-]{16,128}$",
+            "title": "Nonce",
+            "type": "string"
+          },
+          "purpose": {
+            "enum": [
+              "onboarding",
+              "reauth",
+              "recovery"
+            ],
+            "title": "Purpose",
+            "type": "string"
+          },
+          "reference_image_id": {
+            "anyOf": [
+              {
+                "pattern": "^ref_[A-Za-z0-9_-]{1,120}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Image Id"
+          }
+        },
+        "required": [
+          "purpose",
+          "nonce"
+        ],
+        "title": "CreateSessionRequest",
+        "type": "object"
+      },
       "CreateSessionResponse": {
         "properties": {
           "challenge": {
@@ -281,12 +352,39 @@
             "title": "Expires At",
             "type": "string"
           },
+          "nonce": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nonce"
+          },
+          "purpose": {
+            "anyOf": [
+              {
+                "enum": [
+                  "onboarding",
+                  "reauth",
+                  "recovery"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purpose"
+          },
           "session_id": {
             "title": "Session Id",
             "type": "string"
           },
           "token": {
-            "description": "Token theo phiên, gửi 'Authorization: Bearer'. TẠM — PLAT-06 thay bằng HMAC + TTL.",
+            "description": "Token HMAC-SHA256 theo phiên, có hạn; gửi Authorization: Bearer. DB chỉ lưu hash token.",
             "title": "Token",
             "type": "string"
           }
@@ -321,6 +419,90 @@
           "status"
         ],
         "title": "DecisionResponse",
+        "type": "object"
+      },
+      "DynamicChallenge": {
+        "additionalProperties": false,
+        "properties": {
+          "frontal_capture_at_ms": {
+            "minimum": 0.0,
+            "title": "Frontal Capture At Ms",
+            "type": "integer"
+          },
+          "gaze_points": {
+            "items": {
+              "$ref": "#/components/schemas/GazePoint"
+            },
+            "maxItems": 8,
+            "minItems": 8,
+            "title": "Gaze Points",
+            "type": "array"
+          },
+          "head_duration_ms": {
+            "const": 6000,
+            "title": "Head Duration Ms",
+            "type": "integer"
+          },
+          "head_start_at_ms": {
+            "minimum": 0.0,
+            "title": "Head Start At Ms",
+            "type": "integer"
+          },
+          "head_turns": {
+            "items": {
+              "enum": [
+                "left",
+                "right",
+                "center"
+              ],
+              "type": "string"
+            },
+            "maxItems": 3,
+            "minItems": 3,
+            "title": "Head Turns",
+            "type": "array"
+          },
+          "nonce": {
+            "title": "Nonce",
+            "type": "string"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "version": {
+            "const": 1,
+            "title": "Version",
+            "type": "integer"
+          },
+          "voice_challenge_id": {
+            "title": "Voice Challenge Id",
+            "type": "string"
+          },
+          "voice_prompt": {
+            "title": "Voice Prompt",
+            "type": "string"
+          },
+          "voice_start_at_ms": {
+            "minimum": 0.0,
+            "title": "Voice Start At Ms",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "session_id",
+          "nonce",
+          "gaze_points",
+          "head_turns",
+          "head_start_at_ms",
+          "head_duration_ms",
+          "voice_start_at_ms",
+          "voice_prompt",
+          "voice_challenge_id",
+          "frontal_capture_at_ms"
+        ],
+        "title": "DynamicChallenge",
         "type": "object"
       },
       "ErrorResponse": {
@@ -376,6 +558,20 @@
         "title": "FinalDecisionRequest",
         "type": "object"
       },
+      "FinalizeRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "challenge_id": {
+            "title": "Challenge Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "challenge_id"
+        ],
+        "title": "FinalizeRequest",
+        "type": "object"
+      },
       "FinalizeResponse": {
         "properties": {
           "attempts_left": {
@@ -425,10 +621,23 @@
               "pass",
               "retry",
               "review",
-              "voice_challenge"
+              "voice_challenge",
+              "deny",
+              "recovery_required"
             ],
             "title": "Status",
             "type": "string"
+          },
+          "voice_challenge_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice Challenge Id"
           },
           "voice_prompt": {
             "anyOf": [
@@ -857,6 +1066,35 @@
           "signals"
         ],
         "title": "ForensicSegment",
+        "type": "object"
+      },
+      "GazePoint": {
+        "additionalProperties": false,
+        "properties": {
+          "at_ms": {
+            "minimum": 0.0,
+            "title": "At Ms",
+            "type": "integer"
+          },
+          "x": {
+            "maximum": 0.9,
+            "minimum": 0.1,
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "maximum": 0.9,
+            "minimum": 0.1,
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "at_ms"
+        ],
+        "title": "GazePoint",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -1333,6 +1571,17 @@
         "additionalProperties": true,
         "description": "Tín hiệu trình duyệt đo; server không tin tuyệt đối. Trường lạ được giữ lại.",
         "properties": {
+          "challenge_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Challenge Id"
+          },
           "color_events": {
             "items": {
               "additionalProperties": true,
@@ -1537,10 +1786,22 @@
             "enum": [
               "pass",
               "review",
-              "voice_challenge"
+              "voice_challenge",
+              "deny"
             ],
             "title": "Status",
             "type": "string"
+          },
+          "voice_challenge_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice Challenge Id"
           },
           "voice_prompt": {
             "anyOf": [
@@ -2285,6 +2546,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/CreateSessionRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -2305,6 +2583,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Luồng purpose chưa hỗ trợ mô hình thật"
           }
         },
         "summary": "Create Session",
@@ -2327,6 +2615,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/FinalizeRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -2356,7 +2661,7 @@
                 }
               }
             },
-            "description": "Sai trạng thái: voice_not_requested (finalize chưa yêu cầu đọc câu), session_closed (phiên đã vào bàn duyệt). Bước đã nhận trong lượt này cũng 409 (PLAT-06)."
+            "description": "Sai trạng thái, phiên đã kết thúc, thiếu bước hoặc sai/hết hạn mã thử thách; bước gửi trùng cũng trả 409."
           },
           "422": {
             "content": {
@@ -2443,7 +2748,7 @@
                 }
               }
             },
-            "description": "Sai trạng thái: voice_not_requested (finalize chưa yêu cầu đọc câu), session_closed (phiên đã vào bàn duyệt). Bước đã nhận trong lượt này cũng 409 (PLAT-06)."
+            "description": "Sai trạng thái, phiên đã kết thúc, thiếu bước hoặc sai/hết hạn mã thử thách; bước gửi trùng cũng trả 409."
           },
           "422": {
             "content": {
@@ -2454,6 +2759,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Kho dữ liệu hoặc luồng xác minh chưa sẵn sàng"
           }
         },
         "security": [
@@ -2520,7 +2835,7 @@
                 }
               }
             },
-            "description": "Sai trạng thái: voice_not_requested (finalize chưa yêu cầu đọc câu), session_closed (phiên đã vào bàn duyệt). Bước đã nhận trong lượt này cũng 409 (PLAT-06)."
+            "description": "Sai trạng thái, phiên đã kết thúc, thiếu bước hoặc sai/hết hạn mã thử thách; bước gửi trùng cũng trả 409."
           },
           "422": {
             "content": {
@@ -2531,6 +2846,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Kho dữ liệu hoặc luồng xác minh chưa sẵn sàng"
           }
         },
         "security": [
@@ -2597,7 +2922,7 @@
                 }
               }
             },
-            "description": "Sai trạng thái: voice_not_requested (finalize chưa yêu cầu đọc câu), session_closed (phiên đã vào bàn duyệt). Bước đã nhận trong lượt này cũng 409 (PLAT-06)."
+            "description": "Sai trạng thái, phiên đã kết thúc, thiếu bước hoặc sai/hết hạn mã thử thách; bước gửi trùng cũng trả 409."
           },
           "422": {
             "content": {

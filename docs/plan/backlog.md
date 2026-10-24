@@ -117,7 +117,7 @@
 
 | Mã | Task | Vai trò | Người | Ngày công | Sprint | Ưu tiên | Phụ thuộc | Trạng thái |
 |---|---|---|---|---|---|---|---|---|
-| FLOW-01 | Tham số purpose + luật theo luồng | M5 | | 1 | S1 | P0 | ROUT-02, PLAT-08 | todo |
+| FLOW-01 | Tham số purpose + luật theo luồng | M5 | Codex | 1 | S1 | P0 | ROUT-02, PLAT-08 | doing |
 | FLOW-02 | OTP mô phỏng | M2 | | 0,5 | S1 | P0 | PLAT-05 | todo |
 | FLOW-03 | Chụp CCCD, QR, chân dung, kiểm đã đăng ký | M1 | | 1,5 | S1 | P0 | PLAT-05, FACE-01 | todo |
 | FLOW-04 | Thử thách quay đầu ngẫu nhiên | M1 (+M3) | | 1 | S1 | P0 | CAP-06 | todo |
@@ -128,7 +128,7 @@
 | APP-02 ★ | App: chụp mặt, quay 3 s, quay đầu ngẫu nhiên | M1 | | 2 | S1–S2 | P0 | APP-01 | todo |
 | APP-03 | App: ghi âm đọc câu (WAV 16 kHz) | M1 | | 1 | S2 | P0 | APP-01 | todo |
 | APP-04 | App: OTP, chụp CCCD, xác nhận thông tin | M2 (+M1) | | 1,5 | S1–S2 | P0 | APP-01 | todo |
-| LIVE-01 | Gói thử thách động theo phiên (màu, chấm sáng, quay đầu, câu) [contract] | M5 | | 1 | S2 | P0 | FLOW-01 | todo |
+| LIVE-01 | Gói thử thách động theo phiên (màu, chấm sáng, quay đầu, câu) [contract] | M5 | Codex | 1 | S2 | P0 | FLOW-01 | doing |
 | LIVE-02 | Chấm sáng + đo ánh mắt khớp đường đi | M3 (+M1) | | 1,5 | S2 | P0 | LIVE-01 | todo |
 | LIVE-03 | Ký media theo phiên trên web (WebAuthn), chặn phát lại | M2 (+M1) | | 1 | S2 | P0 | LIVE-01 | todo |
 | LIVE-04 | Kháng lượng tử: đường truyền ML-KEM, ký kết quả ML-DSA | M2 | | 1 | S2 | P0 | FLOW-01 | todo |

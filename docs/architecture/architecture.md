@@ -148,6 +148,12 @@ Nhật ký ghi actor `staff-unverified` vì xác thực nhân viên thuộc PLAT
 
 ## 6. Luồng một phiên eKYC
 
+**Luồng opt-in theo purpose (FLOW-01/LIVE-01, 24/10):** xem
+[`dynamic-session-api.md`](dynamic-session-api.md). Body tạo phiên mới sinh gói
+ánh sáng/ánh mắt/quay đầu/câu đọc, yêu cầu mã lượt ở upload/finalize/voice và luôn
+đọc câu khi đăng ký/khôi phục. Chỉ mở mock; real/mixed chặn 503 cho tới khi có đủ
+bộ kiểm chứng thật. Phần dưới mô tả MVP tương thích cũ khi không gửi body.
+
 1. Web hiện màn đồng ý, xin quyền camera, rồi chạy cổng chất lượng (MediaPipe). Chưa đạt thì nhắc chụp lại, chưa gửi gì lên.
 2. Đạt cổng chất lượng xong, web mới gọi `POST /v1/sessions` và nhận thử thách. Tạo phiên **ngay trước bước nháy màu** (không phải ngay sau đồng ý) vì thử thách chỉ sống 120 giây (ADR-0011); quyết định trưởng nhóm 15/10, CAP-01. Mỗi lần chụp lại cũng đi qua cổng chất lượng trước (CAP-02).
 3. Web phát chuỗi màu, ghi thời điểm vẽ (`requestAnimationFrame`) và thời điểm từng khung (`requestVideoFrameCallback`), chạy CamProbe.

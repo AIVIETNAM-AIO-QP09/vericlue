@@ -16,6 +16,45 @@ RetryHint = Literal[
     "QUIET_PLACE",
     "BRIGHTNESS_UP",
 ]
+SessionPurpose = Literal["onboarding", "reauth", "recovery"]
+
+
+class CreateSessionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    purpose: SessionPurpose
+    nonce: str = Field(pattern=r"^[A-Za-z0-9_-]{16,128}$")
+    reference_image_id: str | None = Field(default=None, pattern=r"^ref_[A-Za-z0-9_-]{1,120}$")
+
+
+class GazePoint(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    x: float = Field(ge=0.1, le=0.9)
+    y: float = Field(ge=0.1, le=0.9)
+    at_ms: int = Field(ge=0)
+
+
+class DynamicChallenge(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    version: Literal[1]
+    session_id: str
+    nonce: str
+    gaze_points: list[GazePoint] = Field(min_length=8, max_length=8)
+    head_turns: list[Literal["left", "right", "center"]] = Field(min_length=3, max_length=3)
+    head_start_at_ms: int = Field(ge=0)
+    head_duration_ms: Literal[6000]
+    voice_start_at_ms: int = Field(ge=0)
+    voice_prompt: str
+    voice_challenge_id: str
+    frontal_capture_at_ms: int = Field(ge=0)
+
+
+class FinalizeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    challenge_id: str
 
 
 class ColorStep(BaseModel):
@@ -30,15 +69,18 @@ class Challenge(BaseModel):
     color_sequence: list[ColorStep] = Field(min_length=8, max_length=8)
     capture_at_ms: list[int] = Field(default_factory=list)
     expires_at: datetime | None = None
+    dynamic: DynamicChallenge | None = None
 
 
 class CreateSessionResponse(BaseModel):
     session_id: str
     token: str = Field(
-        description="Token theo phiên, gửi 'Authorization: Bearer'. TẠM — PLAT-06 thay bằng HMAC + TTL."
+        description="Token HMAC-SHA256 theo phiên, có hạn; gửi Authorization: Bearer. DB chỉ lưu hash token."
     )
     expires_at: datetime = Field(description="Hạn của token (~5 phút)")
     challenge: Challenge
+    purpose: SessionPurpose | None = None
+    nonce: str | None = None
 
 
 class Signals(BaseModel):
@@ -48,6 +90,7 @@ class Signals(BaseModel):
 
     color_events: list[dict[str, Any]]
     frame_times: list[dict[str, Any]]
+    challenge_id: str | None = None
 
 
 class StepAck(BaseModel):
@@ -56,17 +99,19 @@ class StepAck(BaseModel):
 
 
 class FinalizeResponse(BaseModel):
-    status: Literal["pass", "retry", "review", "voice_challenge"]
+    status: Literal["pass", "retry", "review", "voice_challenge", "deny", "recovery_required"]
     retry_hint: RetryHint | None = None
     voice_prompt: str | None = None
     attempts_left: int | None = None
     challenge: Challenge | None = Field(default=None, description="Chỉ có khi status = retry")
+    voice_challenge_id: str | None = None
 
 
 class VoiceResponse(BaseModel):
-    status: Literal["pass", "review", "voice_challenge"]
+    status: Literal["pass", "review", "voice_challenge", "deny"]
     voice_prompt: str | None = None
     attempts_left: int | None = None
+    voice_challenge_id: str | None = None
 
 
 class ErrorResponse(BaseModel):
