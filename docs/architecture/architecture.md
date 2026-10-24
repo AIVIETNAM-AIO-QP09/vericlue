@@ -65,6 +65,12 @@ Data4Life/
 
 ## 3. Giao diện chung của mô-đun AI
 
+VOICE-07/08 cung cấp Qwen3-ASR opt-in để kiểm nội dung câu đọc trong CLI/cửa
+sổ microphone nội bộ. Runtime CPU Transformers 5.13.0 riêng, audio RAM có
+giới hạn và luật khớp dùng chung `VoiceChallengeDetector`; `ok/pass` chỉ là khớp
+câu. Không thay backend PhoWhisper, full/MVP, hợp đồng HTTP hoặc UI sản phẩm.
+Xem [`qwen-asr-diagnostic.md`](qwen-asr-diagnostic.md).
+
 LIVE-02 bổ sung `gaze_tracking` và reader MediaPipe để diagnostic video ở server.
 Mô-đun này dùng gate thử nghiệm, chưa ở profile full/MVP và chưa tham gia quyết
 định API. Xem [`presence/README.md`](../../ml/src/vericlue_ml/presence/README.md).

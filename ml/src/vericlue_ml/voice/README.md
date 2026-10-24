@@ -3,6 +3,8 @@
 VOICE-07 có lựa chọn Qwen3-ASR-0.6B HF-native trong runtime CPU riêng, factory
 opt-in và CLI cho file audio. Giữ nguyên lựa chọn PhoWhisper/API bên dưới.
 Xem [Qwen ASR diagnostic](../../../../docs/architecture/qwen-asr-diagnostic.md).
+VOICE-08 bổ sung cửa sổ thử microphone `eval.voice_lab`: RAM-only, nút thu/dừng/hủy,
+cùng VAD/ASR/luật khớp; không nạp Qwen vào runtime mặt hoặc thay lựa chọn API.
 
 `VoiceChallengeDetector.predict(DetectorInput)` đọc `audio` và câu phía server ở
 `metadata["prompt"]`. Trả `ModuleResult(module="voice_challenge")`:

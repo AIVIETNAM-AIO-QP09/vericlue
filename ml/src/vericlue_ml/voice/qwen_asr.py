@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.metadata
+import math
 import os
 import re
 import threading
@@ -210,6 +211,33 @@ class QwenASR:
             raise SpeechNotFound("Too little speech")
         return self._infer(audio, token_budget=budget)
 
+    def transcribe_samples(
+        self, samples: np.ndarray, sample_rate: int, *, expected_syllable_count: int | None = None
+    ) -> str:
+        """Bounded mono float PCM in RAM; same VAD/decoder as the local-file path."""
+        from scipy.signal import resample_poly
+
+        budget = max(64, generation_token_budget(expected_syllable_count))
+        if (
+            type(sample_rate) is not int
+            or not 8000 <= sample_rate <= 192000
+            or not isinstance(samples, np.ndarray)
+            or samples.ndim != 1
+            or samples.dtype.kind != "f"
+            or not 0 < len(samples) <= MAX_AUDIO_SECONDS * sample_rate
+            or not np.isfinite(samples).all()
+            or np.any(np.abs(samples) > 1)
+        ):
+            raise DecodeError("Invalid bounded mono float PCM")
+        audio = np.array(samples, dtype=np.float32, copy=True)
+        if sample_rate != 16000:
+            divisor = math.gcd(sample_rate, 16000)
+            audio = resample_poly(audio, 16000 // divisor, sample_rate // divisor)
+        audio = trim_silence(audio, mode=1)
+        if len(audio) < 8000:
+            raise SpeechNotFound("Too little speech")
+        return self._infer(audio, token_budget=budget)
+
 
 class QwenVoiceChallengeDetector(VoiceChallengeDetector):
     """Same existing two-layer matching rules; pass means content matched, not eKYC passed."""
@@ -219,4 +247,16 @@ class QwenVoiceChallengeDetector(VoiceChallengeDetector):
 
     def predict(self, inp: DetectorInput) -> ModuleResult:
         result = super().predict(inp)
+        return result.model_copy(update={"quality": {**result.quality, "diagnostic_only": True}})
+
+    def predict_samples(
+        self, samples: np.ndarray, sample_rate: int, *, prompt: str
+    ) -> ModuleResult:
+        """Internal microphone diagnostic; expected text reaches only the matching rules."""
+        result = self._predict_content(
+            prompt,
+            lambda count: self.asr.transcribe_samples(
+                samples, sample_rate, expected_syllable_count=count
+            ),
+        )
         return result.model_copy(update={"quality": {**result.quality, "diagnostic_only": True}})

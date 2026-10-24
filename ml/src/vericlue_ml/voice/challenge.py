@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -180,6 +181,17 @@ class VoiceChallengeDetector:
 
     def predict(self, inp: DetectorInput) -> ModuleResult:
         """Return a content gate; infrastructure/decode failures never pass."""
+        from vericlue_ml.voice.asr import DecodeError
+
+        def transcribe(count: int) -> str:
+            if inp.audio is None:
+                raise DecodeError("Thiếu audio.")
+            return self.asr.transcribe(inp.audio, expected_syllable_count=count)
+
+        return self._predict_content(inp.metadata.get("prompt"), transcribe)
+
+    def _predict_content(self, prompt: object, transcribe: Callable[[int], str]) -> ModuleResult:
+        """Share matching and fail-closed handling across file and in-memory sources."""
         import time
 
         from vericlue_ml.common.result import ErrorCode, Evidence, ModuleResult
@@ -188,14 +200,9 @@ class VoiceChallengeDetector:
         started = time.perf_counter()
         base = dict(module=self.name, model_version=self.version)
         try:
-            prompt = inp.metadata.get("prompt")
             if not isinstance(prompt, str) or not normalize_text(prompt):
                 raise ValueError("Thiếu câu đề bài phía server.")
-            if inp.audio is None:
-                raise DecodeError("Thiếu audio.")
-            transcript = self.asr.transcribe(
-                inp.audio, expected_syllable_count=len(normalize_text(prompt).split())
-            )
+            transcript = transcribe(len(normalize_text(prompt).split()))
             match = compare_transcripts(prompt, transcript, config=self.match_config)
             return ModuleResult(
                 **base,
