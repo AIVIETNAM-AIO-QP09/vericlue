@@ -20,10 +20,17 @@ class VoiceTrial:
     """GUI polls bounded events; cancellation discards results and forbids overlap."""
 
     def __init__(
-        self, detector: Any, *, device: int | None = None, recorder=record_microphone, spoof=None
+        self,
+        detector: Any,
+        *,
+        device: int | None = None,
+        recorder=record_microphone,
+        spoof=None,
+        timing=None,
     ):
         self.detector, self.device, self.recorder = detector, device, recorder
         self.spoof = spoof
+        self.timing = timing
         self.events = queue.SimpleQueue()
         self.stop = threading.Event()
         self.cancelled = threading.Event()
@@ -115,6 +122,29 @@ class VoiceTrial:
                 except Exception:
                     payload["voice_spoof"] = unavailable()
                 payload["dataset"] = "local_dual_voice_diagnostic_not_accuracy_evaluation"
+                payload["created_at"] = datetime.now(UTC).isoformat()
+            if self.timing is not None and not self.cancelled.is_set():
+                from vericlue_ml.common.result import ModuleResult
+                from vericlue_ml.eval.reading_timing import timing_payload
+                from vericlue_ml.voice.reading_timing import VERSION
+
+                self.events.put(("timing_processing", None))
+                try:
+                    if resampled is None:
+                        resampled = nes2net_samples(recording.samples, recording.sample_rate)
+                    payload["reading_timing"] = timing_payload(self.timing, resampled, prompt)
+                except Exception:
+                    payload["reading_timing"] = {
+                        "result": ModuleResult(
+                            module="voice_challenge",
+                            model_version=VERSION,
+                            status="error",
+                            gate="unclear",
+                            error_code="E_INTERNAL",
+                            latency_ms=0,
+                        ).to_contract()
+                    }
+                payload["dataset"] = "local_voice_lab_diagnostic_not_accuracy_evaluation"
                 payload["created_at"] = datetime.now(UTC).isoformat()
         except Exception:
             # No native exception text, paths or device identifiers in the GUI/report.

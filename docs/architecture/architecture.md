@@ -65,6 +65,11 @@ Data4Life/
 
 ## 3. Giao diện chung của mô-đun AI
 
+VOICE-11 thêm nhịp đọc opt-in trong lab/CLI: CTC hiện có nhận raw PCM 16 kHz
+để căn câu đề bài, trả mốc âm tiết/khoảng ngắt và luật thời lượng tạm. Kết quả
+`voice_challenge` có version riêng, luôn unclear, giữ riêng với ASR và giọng AI;
+không thay hợp đồng/backend HTTP hoặc quyết định. Xem [hướng dẫn](reading-timing-lab.md).
+
 VOICE-10 nối công cụ micro nội bộ với worker NES2Net CPU riêng: thu một lần,
 Qwen kiểm nội dung, NES2Net đo margin thô 4 giây đầu; không hợp nhất hai kết quả.
 PCM qua pipe giới hạn/hash/id, không lưu audio; worker có timeout/hủy và giữ

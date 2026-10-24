@@ -26,6 +26,12 @@ diagnostic_models:
   voice_challenge: qwen3-asr-06b-hf
   voice_spoof: nes2net-x-xlsr
 
+# Optional voice_challenge timing variant; not a replacement for ASR/content checking.
+reading_timing:
+  model_id: ctc-aligner
+  version_suffix: voice11-timing-v1-raw16k
+  source: voice/align.py
+
 # VOICE-04: VAD has no checkpoint; matching constants live in voice/challenge.py.
 voice:
   model_subdir: phowhisper

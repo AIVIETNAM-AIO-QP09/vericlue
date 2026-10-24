@@ -263,3 +263,27 @@ nội bộ; giữ runtime hai model riêng và âm thanh trong RAM, không thay 
 
 Không nghiệm thu parity frontend, accuracy tiếng Việt hoặc calibration; điểm
 NES2Net luôn degraded/unclear, không thay HTTP/backend/ngưỡng hoặc quyết định eKYC.
+
+---
+
+### VOICE-11 · Nhịp đọc trong lab microphone
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M4 | 1 | S2 | P0 | VOICE-10 |
+
+**Mục tiêu:** theo yêu cầu ưu tiên tính năng sau PR #64, thêm mốc âm tiết và
+khoảng ngắt vào lượt thu RAM hiện có; dùng lại CTC aligner của VOICE-05.
+
+**Tiêu chí kỹ thuật:**
+- [x] CTC nhận PCM 16 kHz có giới hạn, không trim/ghép âm thanh, căn câu đề bài;
+      không dùng câu ép căn để thay transcript ASR hoặc kết luận đọc đúng.
+- [x] Có thời gian từng âm tiết, khoảng ngắt, tốc độ trong khoảng căn câu và
+      các cờ thời lượng tạm từ VOICE-05; ModuleResult luôn unclear, không xác suất.
+- [x] Lab opt-in có tab nhịp đọc, tiến trình riêng, bỏ lượt hủy/không chồng native;
+      lỗi CTC không xóa kết quả Qwen/NES2Net, không lưu waveform.
+- [x] Có mock/factory, CLI file, provenance model/hash/runtime/PCM, hướng dẫn;
+      test logic không dùng model/micro, smoke CTC bằng tín hiệu tổng hợp, lint/QA/bàn giao.
+
+Chưa đánh giá accuracy, công bằng vùng miền, parity frontend hoặc calibration.
+Không thay SyncNet/API/ngưỡng/hợp đồng hay luồng UI sản phẩm; chưa chứng minh cắt ghép.

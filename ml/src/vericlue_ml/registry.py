@@ -209,3 +209,15 @@ def get_nes2net(*, mock: bool = False) -> Detector:
     from vericlue_ml.voice.nes2net import Nes2NetDetector
 
     return Nes2NetDetector()
+
+
+@lru_cache(maxsize=2)
+def get_reading_timing(*, mock: bool = False) -> Detector:
+    """Explicit timing diagnostic; preserve the HTTP content/ASR backend."""
+    if mock:
+        from vericlue_ml.mock.reading_timing import MockReadingTimingDetector
+
+        return MockReadingTimingDetector()
+    from vericlue_ml.voice.reading_timing import ReadingTimingDetector
+
+    return ReadingTimingDetector()
