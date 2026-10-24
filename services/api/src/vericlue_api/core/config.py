@@ -74,6 +74,13 @@ class Settings(BaseSettings):
     # Phiên và thử thách (ADR-0011). Token HMAC/TTL thật do PLAT-06 cài.
     session_ttl_seconds: int = 300
     challenge_ttl_seconds: int = 120
+    # Giới hạn tổng của một phiên khi gia hạn token (ADR-0017 §2).
+    session_max_seconds: int = 900
+    # OTP mô phỏng (FLOW-02): mã 6 số, hạn 2 phút, sai 5 lần thì khóa.
+    otp_ttl_seconds: int = 120
+    otp_max_attempts: int = 5
+    # Khóa HMAC cho số điện thoại và số CCCD (FLOW-03). Mặc định chỉ để chạy dev; máy demo đặt ID_HMAC_KEY.
+    id_hmac_key: SecretStr = SecretStr("dev-only-not-secret")
     max_retries: int = 2
     max_upload_mb: int = 50
     # Để trống = dùng bảng màu trong packages/contracts/chromapulse.json (nguồn chung với web).

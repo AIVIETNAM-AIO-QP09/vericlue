@@ -40,7 +40,7 @@
 - App hiện khung **"SMS mô phỏng"**. Kênh gửi đặt sau một giao diện chung, để sau này cắm nhà cung cấp SMS thật.
 
 **Tiêu chí hoàn thành:**
-- [ ] Test các trường hợp: hết hạn, sai quá số lần, dùng lại mã.
+- [x] Test các trường hợp: hết hạn, sai quá số lần, dùng lại mã (`services/api/tests/test_identity_steps.py`).
 
 ---
 
@@ -242,7 +242,7 @@
 
 **Tiêu chí hoàn thành:**
 - [ ] Test: hai phiên không bao giờ nhận cùng gói; gói dùng lại bị từ chối (409).
-- [ ] Hợp đồng, API và type web khớp nhau (`gen_openapi --check`).
+- [x] Hợp đồng, API và type web khớp nhau (`gen_openapi --check`).
 
 ---
 

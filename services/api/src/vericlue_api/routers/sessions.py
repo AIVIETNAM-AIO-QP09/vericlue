@@ -12,9 +12,17 @@ from vericlue_api.core.errors import ApiError
 from vericlue_api.core.security import bearer_scheme, require_session
 from vericlue_api.core.state import AppState, get_state
 from vericlue_api.schemas.session import (
+    ChallengeResponse,
     CreateSessionResponse,
     ErrorResponse,
     FinalizeResponse,
+    IdCardConfirmResponse,
+    IdCardFields,
+    IdCardResponse,
+    OtpRequest,
+    OtpSent,
+    OtpVerifyRequest,
+    OtpVerifyResponse,
     Signals,
     StepAck,
     VoiceResponse,
@@ -160,3 +168,94 @@ async def voice(
     return await run_in_threadpool(
         state.flow.voice, session, voice_video=voice_video, audio_offset_ms=audio_offset_ms
     )
+
+
+# --- Giai đoạn A: OTP mô phỏng (FLOW-02), CCCD (FLOW-03) ------------------------------------
+STAGE_A_ERRORS: dict[int | str, dict] = {
+    401: SESSION_ERRORS[401],
+    409: {
+        "model": ErrorResponse,
+        "description": "session_closed; OTP: otp_not_requested, otp_expired, otp_locked, otp_already_verified; CCCD: id_card_not_received",
+    },
+}
+
+
+@router.post(
+    "/{session_id}/otp",
+    response_model=OtpSent,
+    response_model_exclude_none=True,
+    responses=STAGE_A_ERRORS,
+    dependencies=[Depends(bearer_scheme)],
+)
+def send_otp(session: SessionDep, state: StateDep, body: OtpRequest) -> OtpSent:
+    """Gửi mã 6 số (hạn 2 phút, sai 5 lần thì khóa). Gọi lại = mã mới, mã cũ hết hiệu lực."""
+    state.flow.ensure_open(session)
+    return state.identity.send_otp(session, body.phone)
+
+
+@router.post(
+    "/{session_id}/otp/verify",
+    response_model=OtpVerifyResponse,
+    responses=STAGE_A_ERRORS,
+    dependencies=[Depends(bearer_scheme)],
+)
+def verify_otp(session: SessionDep, state: StateDep, body: OtpVerifyRequest) -> OtpVerifyResponse:
+    state.flow.ensure_open(session)
+    return state.identity.verify_otp(session, body.code)
+
+
+@router.post(
+    "/{session_id}/id-card",
+    response_model=IdCardResponse,
+    response_model_exclude_none=True,
+    responses=STAGE_A_ERRORS,
+    dependencies=[Depends(bearer_scheme)],
+)
+async def upload_id_card(
+    session: SessionDep,
+    state: StateDep,
+    front: Annotated[UploadFile, File(description="Ảnh mặt trước CCCD")],
+    back: Annotated[UploadFile, File(description="Ảnh mặt sau CCCD (có QR)")],
+    qr: Annotated[
+        str | None, Form(description="Chuỗi QR app đã đọc ở mặt sau; thiếu thì trả retry")
+    ] = None,
+) -> IdCardResponse:
+    state.flow.ensure_open(session)
+    limit = state.settings.max_upload_mb
+    media_dir = state.settings.media_dir
+    session.id_front = save_upload(
+        media_dir, session.session_id, "id_front", front.filename, await read_limited(front, limit)
+    )
+    session.id_back = save_upload(
+        media_dir, session.session_id, "id_back", back.filename, await read_limited(back, limit)
+    )
+    return state.identity.accept_id_card(session, qr)
+
+
+@router.post(
+    "/{session_id}/id-card/confirm",
+    response_model=IdCardConfirmResponse,
+    responses=STAGE_A_ERRORS,
+    dependencies=[Depends(bearer_scheme)],
+)
+def confirm_id_card(
+    session: SessionDep, state: StateDep, body: IdCardFields
+) -> IdCardConfirmResponse:
+    """Thông tin người dùng xác nhận; sửa khác QR thì ghi chú cho nhân viên duyệt."""
+    state.flow.ensure_open(session)
+    return state.identity.confirm_id_card(session, body)
+
+
+@router.post(
+    "/{session_id}/challenge",
+    response_model=ChallengeResponse,
+    response_model_exclude_none=True,
+    responses={
+        401: SESSION_ERRORS[401],
+        409: {"model": ErrorResponse, "description": "session_closed, session_too_long"},
+    },
+    dependencies=[Depends(bearer_scheme)],
+)
+def refresh_challenge(session: SessionDep, state: StateDep) -> ChallengeResponse:
+    """Thử thách mới cho phần khuôn mặt và gia hạn token (ADR-0017 §2, giới hạn tổng 15 phút)."""
+    return state.flow.refresh_challenge(session)

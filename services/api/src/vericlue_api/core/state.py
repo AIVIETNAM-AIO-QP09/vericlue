@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session as DBSession
 from vericlue_api.core.config import Settings
 from vericlue_api.db.database import Database
 from vericlue_api.services.forensic_service import ForensicStore
+from vericlue_api.services.identity_steps import IdentitySteps
 from vericlue_api.services.orchestrator import Orchestrator
 from vericlue_api.services.review_store import ReviewStore
 from vericlue_api.services.session_flow import SessionFlow
@@ -32,6 +33,7 @@ class AppState:
     reviews: ReviewStore = field(init=False)
     forensic: ForensicStore = field(init=False)
     flow: SessionFlow = field(init=False)
+    identity: IdentitySteps = field(init=False)
 
     def __post_init__(self) -> None:
         runner = partial(self.orchestrator.run, deadline=self.inference_deadline)
@@ -53,6 +55,7 @@ class AppState:
             runner=runner,
             router=self.orchestrator.router,
         )
+        self.identity = IdentitySteps(self.settings)
 
 
 class ApplicationState:

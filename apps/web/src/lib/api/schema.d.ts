@@ -231,6 +231,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/sessions/{session_id}/challenge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresh Challenge
+         * @description Thử thách mới cho phần khuôn mặt và gia hạn token (ADR-0017 §2, giới hạn tổng 15 phút).
+         */
+        post: operations["refresh_challenge_v1_sessions__session_id__challenge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/sessions/{session_id}/finalize": {
         parameters: {
             query?: never;
@@ -248,6 +268,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/sessions/{session_id}/id-card": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload Id Card */
+        post: operations["upload_id_card_v1_sessions__session_id__id_card_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sessions/{session_id}/id-card/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Id Card
+         * @description Thông tin người dùng xác nhận; sửa khác QR thì ghi chú cho nhân viên duyệt.
+         */
+        post: operations["confirm_id_card_v1_sessions__session_id__id_card_confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/sessions/{session_id}/media": {
         parameters: {
             query?: never;
@@ -259,6 +316,43 @@ export interface paths {
         put?: never;
         /** Upload Media */
         post: operations["upload_media_v1_sessions__session_id__media_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sessions/{session_id}/otp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Otp
+         * @description Gửi mã 6 số (hạn 2 phút, sai 5 lần thì khóa). Gọi lại = mã mới, mã cũ hết hiệu lực.
+         */
+        post: operations["send_otp_v1_sessions__session_id__otp_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sessions/{session_id}/otp/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify Otp */
+        post: operations["verify_otp_v1_sessions__session_id__otp_verify_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -324,6 +418,24 @@ export interface components {
              */
             file: string;
         };
+        /** Body_upload_id_card_v1_sessions__session_id__id_card_post */
+        Body_upload_id_card_v1_sessions__session_id__id_card_post: {
+            /**
+             * Back
+             * @description Ảnh mặt sau CCCD (có QR)
+             */
+            back: string;
+            /**
+             * Front
+             * @description Ảnh mặt trước CCCD
+             */
+            front: string;
+            /**
+             * Qr
+             * @description Chuỗi QR app đã đọc ở mặt sau; thiếu thì trả retry
+             */
+            qr?: string | null;
+        };
         /** Body_upload_media_v1_sessions__session_id__media_post */
         Body_upload_media_v1_sessions__session_id__media_post: {
             /**
@@ -383,8 +495,22 @@ export interface components {
             challenge_id: string;
             /** Color Sequence */
             color_sequence: components["schemas"]["ColorStep"][];
+            /** Dot Path */
+            dot_path?: components["schemas"]["DotPoint"][] | null;
             /** Expires At */
             expires_at?: string | null;
+            /** Turn Order */
+            turn_order?: ("left" | "right")[] | null;
+        };
+        /** ChallengeResponse */
+        ChallengeResponse: {
+            challenge: components["schemas"]["Challenge"];
+            /**
+             * Expires At
+             * Format: date-time
+             * @description Hạn mới của token
+             */
+            expires_at: string;
         };
         /** ColorStep */
         ColorStep: {
@@ -425,6 +551,18 @@ export interface components {
              * @enum {string}
              */
             status: "open" | "initial_decided" | "closed";
+        };
+        /**
+         * DotPoint
+         * @description Một điểm của đường chấm sáng; x, y theo tỉ lệ màn hình (0–1).
+         */
+        DotPoint: {
+            /** T Ms */
+            t_ms: number;
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
         };
         /** ErrorResponse */
         ErrorResponse: {
@@ -574,6 +712,40 @@ export interface components {
             /** Version */
             version: string;
         };
+        /** IdCardConfirmResponse */
+        IdCardConfirmResponse: {
+            /**
+             * Received
+             * @default true
+             */
+            received: boolean;
+        };
+        /** IdCardFields */
+        IdCardFields: {
+            /** Address */
+            address?: string | null;
+            /** Date Of Birth */
+            date_of_birth?: string | null;
+            /** Full Name */
+            full_name?: string | null;
+            /** Id Number */
+            id_number?: string | null;
+            /** Issued On */
+            issued_on?: string | null;
+            /** Sex */
+            sex?: ("Nam" | "Nữ") | null;
+        };
+        /** IdCardResponse */
+        IdCardResponse: {
+            fields?: components["schemas"]["IdCardFields"] | null;
+            /** Retry Hint */
+            retry_hint?: ("QR_UNREADABLE" | "QR_INVALID") | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "retry";
+        };
         /** InitialDecisionRequest */
         InitialDecisionRequest: {
             /**
@@ -603,6 +775,41 @@ export interface components {
             kind: "face_image" | "face_video" | "voice_audio";
             /** Url */
             url: string;
+        };
+        /** OtpRequest */
+        OtpRequest: {
+            /** Phone */
+            phone: string;
+        };
+        /** OtpSent */
+        OtpSent: {
+            /** Attempts Left */
+            attempts_left: number;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Simulated Sms
+             * @description Chỉ có với kênh SMS mô phỏng (bản demo)
+             */
+            simulated_sms?: string | null;
+        };
+        /** OtpVerifyRequest */
+        OtpVerifyRequest: {
+            /** Code */
+            code: string;
+        };
+        /** OtpVerifyResponse */
+        OtpVerifyResponse: {
+            /** Attempts Left */
+            attempts_left: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pass" | "retry";
         };
         /** ReasonCode */
         ReasonCode: {
@@ -1344,6 +1551,55 @@ export interface operations {
             };
         };
     };
+    refresh_challenge_v1_sessions__session_id__challenge_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChallengeResponse"];
+                };
+            };
+            /** @description Thiếu hoặc sai token phiên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description session_closed, session_too_long */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     finalize_v1_sessions__session_id__finalize_post: {
         parameters: {
             query?: never;
@@ -1402,6 +1658,112 @@ export interface operations {
             };
         };
     };
+    upload_id_card_v1_sessions__session_id__id_card_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_id_card_v1_sessions__session_id__id_card_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdCardResponse"];
+                };
+            };
+            /** @description Thiếu hoặc sai token phiên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description session_closed; OTP: otp_not_requested, otp_expired, otp_locked, otp_already_verified; CCCD: id_card_not_received */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_id_card_v1_sessions__session_id__id_card_confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IdCardFields"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdCardConfirmResponse"];
+                };
+            };
+            /** @description Thiếu hoặc sai token phiên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description session_closed; OTP: otp_not_requested, otp_expired, otp_locked, otp_already_verified; CCCD: id_card_not_received */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     upload_media_v1_sessions__session_id__media_post: {
         parameters: {
             query?: never;
@@ -1436,6 +1798,112 @@ export interface operations {
                 };
             };
             /** @description Sai trạng thái: voice_not_requested (finalize chưa yêu cầu đọc câu), session_closed (phiên đã vào bàn duyệt). Bước đã nhận trong lượt này cũng 409 (PLAT-06). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_otp_v1_sessions__session_id__otp_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OtpRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OtpSent"];
+                };
+            };
+            /** @description Thiếu hoặc sai token phiên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description session_closed; OTP: otp_not_requested, otp_expired, otp_locked, otp_already_verified; CCCD: id_card_not_received */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_otp_v1_sessions__session_id__otp_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OtpVerifyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OtpVerifyResponse"];
+                };
+            };
+            /** @description Thiếu hoặc sai token phiên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description session_closed; OTP: otp_not_requested, otp_expired, otp_locked, otp_already_verified; CCCD: id_card_not_received */
             409: {
                 headers: {
                     [name: string]: unknown;
