@@ -221,3 +221,15 @@ def get_reading_timing(*, mock: bool = False) -> Detector:
     from vericlue_ml.voice.reading_timing import ReadingTimingDetector
 
     return ReadingTimingDetector()
+
+
+@lru_cache(maxsize=2)
+def get_ram_lipsync(*, mock: bool = False) -> Detector:
+    """Explicit one-container lab backend; keep HTTP SyncNet selection unchanged."""
+    if mock:
+        from vericlue_ml.mock.av_lipsync import MockRamLipSyncDetector
+
+        return MockRamLipSyncDetector()
+    from vericlue_ml.voice.av_lipsync import RamLipSyncDetector
+
+    return RamLipSyncDetector()

@@ -65,6 +65,11 @@ Data4Life/
 
 ## 3. Giao diện chung của mô-đun AI
 
+VOICE-12 thêm A/V lab opt-in: một DirectShow input có hai track, PCM/JPEG và PTS
+chung trong RAM, tái dùng CTC/SCRFD/Stable SyncNet. Kết quả `lipsync` version riêng
+luôn unclear, không score/prob_attack; không thay HTTP hoặc kết luận xác minh.
+Xem [lab khớp môi](av-lipsync-lab.md).
+
 VOICE-11 thêm nhịp đọc opt-in trong lab/CLI: CTC hiện có nhận raw PCM 16 kHz
 để căn câu đề bài, trả mốc âm tiết/khoảng ngắt và luật thời lượng tạm. Kết quả
 `voice_challenge` có version riêng, luôn unclear, giữ riêng với ASR và giọng AI;

@@ -82,7 +82,8 @@
 | VOICE-08 | Thử câu đọc bằng microphone, RAM-only và runtime Qwen riêng | M4 | Codex | 0,5 | S2 | P0 | VOICE-07 | review |
 | VOICE-09 | NES2Net-X: backend + CLI raw diagnostic CPU riêng | M4 | Codex | 1 | S2 | P0 | PLAT-03 | review |
 | VOICE-10 | Ghép NES2Net vào công cụ micro qua worker RAM riêng | M4 | Codex | 1 | S2 | P0 | VOICE-08, VOICE-09 | done |
-| VOICE-11 | Nhịp đọc/CTC trong lab micro, mốc âm tiết RAM và CLI | M4 | Codex | 1 | S2 | P0 | VOICE-10 | review |
+| VOICE-11 | Nhịp đọc/CTC trong lab micro, mốc âm tiết RAM và CLI | M4 | Codex | 1 | S2 | P0 | VOICE-10 | done |
+| VOICE-12 | Lab thu A/V một nguồn và khớp môi SyncNet trong RAM | M4 | Codex | 1,5 | S2 | P0 | VOICE-11 | review |
 
 ## E6 — TrustRouter · `epics/E6-router.md`
 

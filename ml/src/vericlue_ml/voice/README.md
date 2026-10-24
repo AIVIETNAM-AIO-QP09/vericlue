@@ -1,5 +1,9 @@
 # VOICE-04 — kiểm câu đọc
 
+VOICE-12 cung cấp `RamLipSyncDetector` opt-in và `eval.av_lab`: khớp môi trên
+cùng nguồn hình/tiếng, raw offset/cosine luôn unclear; không thay SyncNet của API.
+Xem [lab A/V](../../../../docs/architecture/av-lipsync-lab.md).
+
 VOICE-11 thêm `ReadingTimingDetector` opt-in và `--with-reading-timing` trong
 Voice Lab: tái dùng CTC, căn câu đề bài bằng PCM RAM, trả mốc âm tiết/khoảng ngắt
 ở tab riêng. Không dùng mốc ép căn thay bằng chứng đọc đúng. Xem

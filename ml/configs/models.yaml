@@ -32,6 +32,11 @@ reading_timing:
   version_suffix: voice11-timing-v1-raw16k
   source: voice/align.py
 
+ram_lipsync:
+  model_id: syncnet
+  version_suffix: voice12-v1-single-container-mjpeg
+  source: voice/syncnet.py
+
 # VOICE-04: VAD has no checkpoint; matching constants live in voice/challenge.py.
 voice:
   model_subdir: phowhisper
