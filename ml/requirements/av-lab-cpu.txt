@@ -1,0 +1,7 @@
+# Isolated Python 3.12 A/V lab. Keep existing Qwen/webcam/NES2Net runtimes intact.
+# Direct pins; not a transitive lock. FFmpeg executable installed separately.
+-r qwen-asr-cpu.txt
+av==19.0.2
+opencv-contrib-python==4.14.0.94
+onnxruntime==1.31.0
+pillow==12.3.0

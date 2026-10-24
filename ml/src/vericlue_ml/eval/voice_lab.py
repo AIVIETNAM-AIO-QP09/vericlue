@@ -81,8 +81,9 @@ class VoiceLab:
         )
         body = ttk.Frame(root, padding=24)
         body.pack(fill="both", expand=True)
-        ttk.Label(body, text="Thử giọng nói", font=("Segoe UI", 23, "bold")).pack(anchor="w")
-        ttk.Label(
+        self.header_label = ttk.Label(body, text="Thử giọng nói", font=("Segoe UI", 23, "bold"))
+        self.header_label.pack(anchor="w")
+        self.subtitle_label = ttk.Label(
             body,
             text=(
                 "Nội bộ phát triển · Qwen3-ASR"
@@ -90,7 +91,8 @@ class VoiceLab:
                 + (" + CTC" if with_reading_timing else "")
                 + " · xử lý trên máy"
             ),
-        ).pack(anchor="w")
+        )
+        self.subtitle_label.pack(anchor="w")
         ttk.Label(
             body, text="Đọc nguyên câu dưới đây sau khi trạng thái chuyển sang ĐANG THU."
         ).pack(anchor="w", pady=(24, 8))
@@ -181,14 +183,15 @@ class VoiceLab:
         footer.pack(side="bottom", fill="x", pady=(12, 0))
         self.save_button = ttk.Button(footer, text="Lưu JSON (có câu đọc)", command=self.save)
         self.save_button.pack(anchor="w")
-        ttk.Label(
+        self.footer_note = ttk.Label(
             footer,
             text=(
                 f"Tối đa {MAX_RECORD_SECONDS} giây/lượt · Âm thanh chỉ trong RAM, không ghi file.\n"
                 "Khớp câu chưa chứng minh giọng thật, khớp môi hoặc xác minh thành công."
             ),
             wraplength=750,
-        ).pack(anchor="w", pady=(10, 0))
+        )
+        self.footer_note.pack(anchor="w", pady=(10, 0))
         self.tabs.pack(fill="both", expand=True)
         root.bind("<Escape>", lambda _: self.cancel())
         root.protocol("WM_DELETE_WINDOW", self.close)
@@ -284,6 +287,9 @@ class VoiceLab:
                 self.status_text.set(
                     "MICRO ĐÃ TẮT · Đang căn mốc âm tiết bằng CTC; lần đầu cần nạp model."
                 )
+            elif kind == "lipsync_processing":
+                self.phase = "processing"
+                self.status_text.set("MICRO ĐÃ TẮT · Đang chấm SyncNet trên đoạn câu đã căn.")
             elif kind == "done":
                 self.payload, error = value
                 self.phase = "idle"

@@ -21,6 +21,11 @@
 
 ## Quy ước bắt buộc
 
+VOICE-12 thêm `eval.av_lab` (Windows): một nguồn thu camera+micro, preview và
+tab Khớp môi; cùng audio cho Qwen/NES2Net/CTC/SyncNet. Media chỉ trong RAM,
+raw lipsync luôn unclear; runtime CPU riêng, không thay UI/API sản phẩm. Xem
+[`av-lipsync-lab.md`](../docs/architecture/av-lipsync-lab.md).
+
 VOICE-11 thêm `--with-reading-timing` vào Voice Lab và CLI `eval.reading_timing`:
 căn câu bằng CTC hiện có, mốc âm tiết/khoảng ngắt trong tab riêng, cùng audio RAM.
 Chưa xác minh cắt ghép/độ chính xác; không thay ASR/API. Xem

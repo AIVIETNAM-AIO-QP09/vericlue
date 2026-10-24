@@ -287,3 +287,29 @@ khoảng ngắt vào lượt thu RAM hiện có; dùng lại CTC aligner của V
 
 Chưa đánh giá accuracy, công bằng vùng miền, parity frontend hoặc calibration.
 Không thay SyncNet/API/ngưỡng/hợp đồng hay luồng UI sản phẩm; chưa chứng minh cắt ghép.
+
+---
+
+### VOICE-12 · Lab khớp môi với một luồng thu hình và tiếng
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M4 | 1,5 | S2 | P0 | VOICE-11 |
+
+**Mục tiêu:** theo yêu cầu tiếp tục xây tính năng sau PR #66, thử khớp môi trong
+lab nội bộ bằng camera và micro của cùng một nguồn A/V, dùng lại lõi SyncNet.
+
+**Tiêu chí kỹ thuật:**
+- [x] Thu DirectShow bằng một FFmpeg input có hai track, giữ timestamp chung;
+      chọn thiết bị/chỉ thu sau nút bấm, giới hạn thời gian/RAM, dừng/hủy/dọn process.
+- [x] Video nén và PCM trong RAM, không lưu media; kiểm timestamp/tính liên tục;
+      không tự dịch track hoặc suy luận đồng bộ từ hai bản thu riêng.
+- [x] Dùng lại CTC/SCRFD/Stable SyncNet CPU nạp lười/cache; bản RAM có version riêng,
+      ModuleResult/mock/factory, luôn unclear; hiển thị offset/cosine không xác suất.
+- [x] Lab có preview trong lúc thu và kết quả khớp môi riêng, cùng một audio cho
+      Qwen/NES2Net/nhịp đọc; hủy bỏ lượt, lỗi lipsync không xóa các kết quả khác.
+- [x] Test giả lập/CLI và smoke native tổng hợp không mở thiết bị, QA/lint/hồi quy,
+      tài liệu runtime riêng và bàn giao; không thay UI sản phẩm/API/ngưỡng.
+
+Không nghiệm thu timestamp phần cứng/độ chính xác tiếng Việt/khả năng phát hiện
+deepfake, không gán lệch thiết bị thành tấn công; chưa dùng kết quả cho xác minh.

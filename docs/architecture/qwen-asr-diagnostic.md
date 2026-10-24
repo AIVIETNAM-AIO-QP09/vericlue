@@ -76,6 +76,9 @@ không chép code upstream, không nâng runtime mặt/CUDA.
 
 ## Thu một lần, kiểm cả Qwen và NES2Net (VOICE-10)
 
+VOICE-12 có [lab A/V riêng](av-lipsync-lab.md) để thu cùng camera/micro và xem
+khớp môi bằng Stable SyncNet; lab micro dưới đây tiếp tục hoạt động như trước.
+
 VOICE-11 thêm `--with-reading-timing` để căn âm tiết/khoảng ngắt bằng CTC trên
 cùng lượt thu, có tab **Nhịp đọc** riêng. Hướng dẫn và cách đọc số đo:
 [Nhịp đọc trong Voice Lab](reading-timing-lab.md). Không thay kết quả ASR.

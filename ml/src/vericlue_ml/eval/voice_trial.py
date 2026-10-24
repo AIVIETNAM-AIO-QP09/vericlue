@@ -27,10 +27,15 @@ class VoiceTrial:
         recorder=record_microphone,
         spoof=None,
         timing=None,
+        lipsync=None,
     ):
         self.detector, self.device, self.recorder = detector, device, recorder
         self.spoof = spoof
         self.timing = timing
+        self.lipsync = lipsync
+        self.failure_message = (
+            "Không thể thu hoặc xử lý âm thanh. Kiểm tra micro, quyền truy cập và runtime."
+        )
         self.events = queue.SimpleQueue()
         self.stop = threading.Event()
         self.cancelled = threading.Event()
@@ -45,7 +50,11 @@ class VoiceTrial:
         self.active = True
         self.stop.clear()
         self.cancelled.clear()
-        self.thread = threading.Thread(target=self._work, args=(prompt,), daemon=True)
+        self.thread = threading.Thread(
+            target=self._work,
+            args=(prompt,),
+            daemon=not getattr(self.recorder, "owns_process", False),
+        )
         self.thread.start()
         return True
 
@@ -146,14 +155,23 @@ class VoiceTrial:
                     }
                 payload["dataset"] = "local_voice_lab_diagnostic_not_accuracy_evaluation"
                 payload["created_at"] = datetime.now(UTC).isoformat()
+            if self.lipsync is not None and not self.cancelled.is_set():
+                from vericlue_ml.eval.av_report import lipsync_payload
+
+                self.events.put(("lipsync_processing", None))
+                payload["lipsync"] = lipsync_payload(self.lipsync, recording, prompt)
+                payload["dataset"] = "local_av_lab_diagnostic_not_accuracy_evaluation"
+                payload["created_at"] = datetime.now(UTC).isoformat()
         except Exception:
             # No native exception text, paths or device identifiers in the GUI/report.
-            error = "Không thể thu hoặc xử lý âm thanh. Kiểm tra micro, quyền truy cập và runtime."
+            error = self.failure_message
         finally:
             if recording is not None:
                 recording.samples.fill(0)
             if resampled is not None:
                 resampled.fill(0)
+            if recording is not None and callable(getattr(recording, "wipe", None)):
+                recording.wipe()
             self.events.put(("done", (payload, error)))
 
     def poll(self) -> list[tuple[str, Any]]:
