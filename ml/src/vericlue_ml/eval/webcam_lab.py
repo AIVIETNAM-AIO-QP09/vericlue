@@ -24,11 +24,13 @@ from vericlue_ml.common.detector import DetectorInput
 from vericlue_ml.common.result import ErrorCode, Gate, Module, ModuleResult, Status
 from vericlue_ml.eval.face_runtime import runtime_versions
 from vericlue_ml.eval.report import git_revision
+from vericlue_ml.eval.webcam_color import WebcamColorTrial, local_color_plan, observe_live
 from vericlue_ml.eval.webcam_trial import WebcamTrial
 from vericlue_ml.face.fsvfm import FsvfmPadDetector
 from vericlue_ml.face.gend import FaceDeepfakeDetector
 from vericlue_ml.face.match import FaceMatchDetector
 from vericlue_ml.face.pad import PadError
+from vericlue_ml.presence.color_regions import ColorObservation
 from vericlue_ml.presence.landmarks import FaceObservation, FaceObservationReader
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -58,13 +60,18 @@ class WebcamLab:
         self.last_seen = None
         self.reference = None
         self.trial = None
+        self.color_trial = None
+        self.color_busy = False
+        self.color_collect = threading.Event()
+        self.color_result = None
+        self.color_plan = None
         self.results = {}
         self.motion = {}
         self.motion_plan = None
         self.score_source = {}
         self.landmarker_sha = None
         self.models = (FaceMatchDetector(), FaceDeepfakeDetector(), FsvfmPadDetector())
-        root.title("VeriClue · Webcam Lab nội bộ")
+        root.title("VeriClue · Webcam Lab nội bộ" + (" · xem thử" if preview else ""))
         root.geometry(
             f"{min(1120, root.winfo_screenwidth() - 80)}x{min(740, root.winfo_screenheight() - 100)}"
         )
@@ -140,6 +147,13 @@ class WebcamLab:
             state="disabled",
         )
         self.trial_button.pack(side="left")
+        self.color_button = ttk.Button(
+            controls,
+            text="Thử ánh sáng · 6–8 giây",
+            command=self.start_color_trial,
+            state="disabled",
+        )
+        self.color_button.pack(side="left", padx=(8, 0))
         ttk.Button(controls, text="Lưu báo cáo JSON", command=self.save_report).pack(side="right")
         self.status = tk.StringVar(value="Bấm Bật camera để bắt đầu. Không lưu ảnh hoặc video.")
         ttk.Label(root, textvariable=self.status, wraplength=1000, padding=(22, 0, 22, 8)).pack(
@@ -151,6 +165,13 @@ class WebcamLab:
             padding=(22, 0, 22, 12),
         ).pack(fill="x")
         root.bind("<Escape>", lambda event: self.stop_camera())
+        root.bind("<FocusOut>", lambda event: root.after_idle(self.check_color_visibility))
+        root.bind(
+            "<Unmap>",
+            lambda event: (
+                self.cancel_color_trial("Đã hủy lượt ánh sáng.") if event.widget is root else None
+            ),
+        )
         root.protocol("WM_DELETE_WINDOW", self.close)
         if preview:
             self.open_button.configure(state="disabled")
@@ -194,9 +215,9 @@ class WebcamLab:
                 if acquired - measured < 0.1:
                     continue
                 measured = acquired
-                row = reader.observe(frame, at_ms=0.0)
+                row, color = observe_live(reader, frame, with_color=self.color_collect.is_set())
                 with self.lock:
-                    self.latest = (epoch, acquired, frame, row)
+                    self.latest = (epoch, acquired, frame, row, color)
         except Exception as exc:
             self.events.put(("camera_error", epoch, type(exc).__name__))
         finally:
@@ -208,12 +229,14 @@ class WebcamLab:
                     self.latest = None
             self.events.put(("camera_stopped", epoch, None))
 
-    def current(self) -> tuple[int, float, np.ndarray, FaceObservation] | None:
+    def current(
+        self,
+    ) -> tuple[int, float, np.ndarray, FaceObservation, ColorObservation | None] | None:
         with self.lock:
             return self.latest if self.latest is not None and self.latest[0] == self.epoch else None
 
     def capture_reference(self) -> None:
-        if self.trial is not None:
+        if self.trial is not None or self.color_trial is not None or self.color_busy:
             return
         current = self.current()
         if current is None or current[3].face_count != 1:
@@ -225,18 +248,25 @@ class WebcamLab:
         self.motion = {}
         self.motion_plan = None
         self.score_source = {}
+        self.clear_color_result()
         self.render_results()
         self.ai_button.configure(state="normal")
         self.status.set("Đã chụp tham chiếu trong RAM. Nhìn thẳng rồi bấm Bật AI liên tục.")
 
     def toggle_ai(self) -> None:
-        if self.reference is None or self.trial is not None:
+        if (
+            self.reference is None
+            or self.trial is not None
+            or self.color_trial is not None
+            or self.color_busy
+        ):
             return
         self.auto_ai = not self.auto_ai
         self.ai_button.configure(text="Tạm dừng AI" if self.auto_ai else "3. Bật AI liên tục")
         if self.auto_ai:
             self.motion = {}
             self.motion_plan = None
+            self.clear_color_result()
             self.submit_snapshot()
 
     def submit_snapshot(self) -> None:
@@ -246,6 +276,8 @@ class WebcamLab:
             or self.busy
             or not self.auto_ai
             or self.trial is not None
+            or self.color_trial is not None
+            or self.color_busy
             or self.reference is None
             or current is None
         ):
@@ -293,7 +325,12 @@ class WebcamLab:
         self.events.put(("scores", token, (results, source)))
 
     def start_trial(self) -> None:
-        if self.current() is None:
+        if (
+            self.current() is None
+            or self.trial is not None
+            or self.color_trial is not None
+            or self.color_busy
+        ):
             return
         if self.busy:
             self.auto_ai = False
@@ -310,8 +347,10 @@ class WebcamLab:
         self.motion_plan = None
         self.results = {}
         self.score_source = {}
+        self.clear_color_result()
         self.render_results()
         self.trial_button.configure(state="disabled")
+        self.color_button.configure(state="disabled")
 
     def finish_trial(self) -> None:
         trial = self.trial
@@ -325,6 +364,7 @@ class WebcamLab:
             "head_plan": asdict(trial.head_plan),
         }
         self.trial_button.configure(state="normal")
+        self.color_button.configure(state="normal")
         self.ref_button.configure(state="normal")
         if self.reference is not None:
             self.ai_button.configure(state="normal")
@@ -342,6 +382,101 @@ class WebcamLab:
                 self.status.set("Chưa lấy đủ ba khung đúng tư thế; hãy thử lại.")
         self.render_results()
 
+    def clear_color_result(self) -> None:
+        self.color_result = None
+        self.color_plan = None
+
+    def start_color_trial(self) -> None:
+        if (
+            self.preview
+            or self.current() is None
+            or self.trial is not None
+            or self.color_trial is not None
+            or self.color_busy
+        ):
+            return
+        self.auto_ai = False
+        self.ai_button.configure(text="3. Bật AI liên tục")
+        if self.busy:
+            self.status.set("Đang chấm ảnh. Chờ xong rồi bấm thử ánh sáng.")
+            return
+        try:
+            plan, tail = local_color_plan()
+        except Exception:
+            self.status.set("Không đọc được cấu hình màu hợp lệ; chưa bắt đầu lượt thử.")
+            return
+        self.generation += 1
+        self.results, self.motion, self.score_source = {}, {}, {}
+        self.motion_plan = None
+        self.clear_color_result()
+        self.color_trial = WebcamColorTrial(perf_counter(), plan, tail)
+        self.color_collect.set()
+        self.root.resizable(False, False)
+        for button in (self.ref_button, self.ai_button, self.trial_button, self.color_button):
+            button.configure(state="disabled")
+        self.status.set("Giữ đầu yên. Màn hình đổi màu nhẹ trong 6–8 giây; Esc để dừng.")
+        self.render_results()
+
+    def check_color_visibility(self) -> None:
+        if not self.closed and self.color_trial is not None and self.root.focus_displayof() is None:
+            self.cancel_color_trial("Đã hủy lượt ánh sáng vì cửa sổ mất tiêu điểm.")
+
+    def restore_color_controls(self) -> None:
+        self.target.configure(bg="#111827")
+        self.root.resizable(True, True)
+        ready = self.current() is not None and not self.preview
+        self.ref_button.configure(state="normal" if ready else "disabled")
+        self.ai_button.configure(
+            state="normal" if ready and self.reference is not None else "disabled"
+        )
+        for button in (self.trial_button, self.color_button):
+            button.configure(state="normal" if ready else "disabled")
+
+    def cancel_color_trial(self, reason: str) -> None:
+        if self.color_trial is None:
+            return
+        self.color_collect.clear()
+        self.color_trial = None
+        self.restore_color_controls()
+        self.status.set(reason)
+
+    def finish_color_trial(self) -> None:
+        trial = self.color_trial
+        self.color_trial = None
+        self.color_collect.clear()
+        self.target.configure(bg="#111827")
+        self.color_busy = True
+        self.status.set("Đang đối chiếu số đo ánh sáng…")
+        token = self.generation
+        threading.Thread(target=self.score_color, args=(token, trial), daemon=True).start()
+
+    def score_color(self, token: int, trial: WebcamColorTrial) -> None:
+        try:
+            result = trial.evaluate().to_contract()
+            plan = {
+                "trial_id": trial.trial_id,
+                "color_plan": asdict(trial.plan),
+                "tail_ms": trial.tail_ms,
+                "draw_requests": trial.draws,
+                "timestamp_source": "host_acquisition_and_tk_draw_request_not_attested",
+            }
+            self.events.put(("color_result", token, (result, plan)))
+        except Exception:
+            self.events.put(("color_result", token, (None, None)))
+
+    def receive_color_result(self, token: int, value: tuple) -> None:
+        self.color_busy = False
+        if token != self.generation:
+            return
+        self.color_result, self.color_plan = value
+        self.restore_color_controls()
+        self.render_results()
+        self.status.set(
+            "Đã đo ánh sáng. R² và độ trễ chỉ là số đo thử nghiệm, chưa xác minh."
+            if self.color_result is not None
+            else "Chưa đối chiếu được số đo ánh sáng; hãy thử lại."
+        )
+
     def tick(self) -> None:
         if self.closed:
             return
@@ -349,7 +484,9 @@ class WebcamLab:
 
         while not self.events.empty():
             kind, token, value = self.events.get()
-            if kind == "scores":
+            if kind == "color_result":
+                self.receive_color_result(token, value)
+            elif kind == "scores":
                 self.busy = False
                 if token == self.generation:
                     self.results, self.score_source = value
@@ -366,7 +503,10 @@ class WebcamLab:
                     self.landmarker_sha = value
                     self.ref_button.configure(state="normal")
                     self.trial_button.configure(state="normal")
-                    self.status.set("Camera đã mở. Ngồi đủ sáng, nhìn thẳng và chụp tham chiếu.")
+                    self.color_button.configure(state="normal")
+                    self.status.set(
+                        "Camera đã mở. Chụp tham chiếu để so mặt, hoặc chọn lượt thử bên dưới."
+                    )
                 elif kind == "camera_error":
                     self.stop_camera()
                     self.status.set(
@@ -376,6 +516,7 @@ class WebcamLab:
                     self.open_button.configure(state="normal" if not self.preview else "disabled")
                     self.ref_button.configure(state="disabled")
                     self.trial_button.configure(state="disabled")
+                    self.color_button.configure(state="disabled")
         current = self.current()
         if (
             self.stop_event.is_set()
@@ -385,7 +526,7 @@ class WebcamLab:
         ):
             self.open_button.configure(state="normal")
         if current is not None and current[1] != self.last_seen:
-            _, acquired, frame, row = current
+            _, acquired, frame, row, color = current
             self.last_seen = acquired
             rgb = Image.fromarray(frame[:, :, ::-1])
             rgb.thumbnail((320, 210))
@@ -400,21 +541,36 @@ class WebcamLab:
             )
             if self.trial is not None:
                 self.trial.add(acquired, frame, row)
+            if self.color_trial is not None:
+                self.color_trial.add(acquired, color)
         self.target.delete("all")
         w, h = self.target.winfo_width(), self.target.winfo_height()
-        text = "Bật camera → chụp tham chiếu → bật AI\nHoặc thử mắt và quay đầu trong 18 giây."
+        text = "Bật camera → chụp tham chiếu → bật AI\nHoặc thử chuyển động / phản hồi ánh sáng."
         dot = None
+        text_color = "#F8FAFC"
         if self.trial is not None:
             elapsed = (perf_counter() - self.trial.started) * 1000
             text, dot = self.trial.cue(elapsed)
             text += f"\n{max(0, 18 - elapsed / 1000):.1f} giây còn lại"
             if elapsed >= 18200:
                 self.finish_trial()
+        elif self.color_trial is not None:
+            trial = self.color_trial
+            elapsed = (perf_counter() - trial.started) * 1000
+            if elapsed >= trial.duration_ms + 200:
+                self.finish_color_trial()
+                text = "Đang đối chiếu phản hồi màu…"
+            else:
+                rgb = trial.color_at(elapsed)
+                self.target.configure(bg="#{:02x}{:02x}{:02x}".format(*rgb))
+                trial.record_draw((perf_counter() - trial.started) * 1000, rgb)
+                text_color = "#0F172A"
+                text = f"Giữ đầu yên, nhìn camera\n{max(0, (trial.duration_ms - elapsed) / 1000):.1f} giây · Esc để dừng"
         self.target.create_text(
             w / 2,
             45,
             text=text,
-            fill="#F8FAFC",
+            fill=text_color,
             font=("Segoe UI", 15),
             width=max(120, w - 50),
             justify="center",
@@ -445,6 +601,17 @@ class WebcamLab:
             )
         for name, value in self.motion.items():
             lines.append(f"{name}: {value['gate']}\n  {value['reason']}")
+        if self.color_result is not None:
+            quality = self.color_result["quality"]
+            r2, lag = quality.get("fit_r2_in_sample"), quality.get("apparent_lag_ms")
+            lines.append(
+                "Ánh sáng: đo thử nghiệm / chưa rõ\n  "
+                + (
+                    f"R² fit: {r2:.3f} · lag biểu kiến: {lag:.0f} ms"
+                    if r2 is not None and lag is not None
+                    else "Chưa đủ số đo; giữ đầu yên và thử lại."
+                )
+            )
         self.result_text.configure(state="normal")
         self.result_text.delete("1.0", "end")
         self.result_text.insert(
@@ -455,7 +622,7 @@ class WebcamLab:
         self.result_text.configure(state="disabled")
 
     def save_report(self) -> None:
-        if not self.results and not self.motion:
+        if not self.results and not self.motion and self.color_result is None:
             self.status.set("Chưa có kết quả để lưu.")
             return
         folder = ROOT / "tmp" / "webcam-lab"
@@ -476,6 +643,8 @@ class WebcamLab:
                     "results": self.results,
                     "motion": self.motion,
                     "plan": self.motion_plan,
+                    "color": self.color_result,
+                    "color_plan": self.color_plan,
                 },
                 ensure_ascii=False,
                 indent=2,
@@ -492,6 +661,9 @@ class WebcamLab:
         self.generation += 1
         self.reference = None
         self.trial = None
+        self.color_collect.clear()
+        self.color_trial = None
+        self.clear_color_result()
         self.results = {}
         self.motion = {}
         self.score_source = {}
@@ -499,6 +671,8 @@ class WebcamLab:
         self.ai_button.configure(state="disabled", text="3. Bật AI liên tục")
         self.ref_button.configure(state="disabled")
         self.trial_button.configure(state="disabled")
+        self.color_button.configure(state="disabled")
+        self.target.configure(bg="#111827")
         self.video.configure(image="", text="Camera đang tắt", width=35, height=10)
         self.photo = None
         self.root.resizable(True, True)

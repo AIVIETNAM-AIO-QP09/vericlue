@@ -5,12 +5,16 @@ ADR-0016 đưa ChromaPulse trở lại lớp 1 của thử thách động; quy�
 thay thế dữ liệu kiểm chứng. Factory diagnostic riêng không thay module mock
 hiện hành, profile full/MVP hay chốt 503 của luồng dynamic ở real/mixed.
 
+Đã ghép số đo vào nút **Thử ánh sáng · 6–8 giây** trong
+[Webcam Lab](webcam-lab.md), dùng chung một task MediaPipe. Đây là thử nghiệm
+cục bộ với đồng hồ host/Tk, version riêng; không giả làm phiên xác minh server.
+
 ## Đầu vào và cách chạy
 
 Dùng runtime MediaPipe đã hướng dẫn trong
 [presence/README.md](../../ml/src/vericlue_ml/presence/README.md). Không cần tải
 thêm model: dùng lại `face_landmarker.task`, đường dẫn/hash từ models.yaml.
-Không mở camera, tự nháy màu hoặc sửa UI sản phẩm. Cần video chưa lật gương và
+Lệnh CLI video này không mở camera hoặc tự phát màu. Cần video chưa lật gương và
 bản phản hồi tạo phiên **dynamic do server của nhóm cấp**, cùng đầu bản ghi.
 Phản hồi này phải được giữ từ nguồn đáng tin; CLI không xác thực chữ ký của
 một JSON tùy ý và không coi hash là bằng chứng xác thực nguồn.

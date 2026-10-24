@@ -72,6 +72,8 @@ def test_scheduled_snapshot_cannot_restart_after_stop_or_during_trial():
     lab.busy = False
     lab.auto_ai = False
     lab.trial = None
+    lab.color_trial = None
+    lab.color_busy = False
     lab.reference = np.zeros((10, 10, 3), np.uint8)
     lab.current = lambda: (0, 1.0, np.zeros((10, 10, 3), np.uint8), None)
     lab.submit = lambda frames: pytest.fail("stopped work must not restart")
