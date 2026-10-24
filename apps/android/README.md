@@ -39,7 +39,8 @@ Trên **macOS** (Apple Silicon): cài Android Studio, mở `apps/android`, tạo
 
 ```bash
 cd apps/android
-./gradlew assembleDebug          # APK: app/build/outputs/apk/debug/app-debug.apk
+./gradlew assembleDebug          # APK theo loại chip: app/build/outputs/apk/debug/app-<abi>-debug.apk
+./gradlew assembleRelease        # bản rút gọn (R8): app/build/outputs/apk/release/app-arm64-v8a-release.apk ~22 MB
 ./gradlew testDebugUnitTest      # test logic: luồng, API (MockWebServer), camera, WAV, CCCD, chữ cấm
 ./gradlew recordPaparazziDebug   # chụp ảnh mọi màn trên máy tính (không cần giả lập), ra app/src/test/snapshots/images
 ```
@@ -51,6 +52,17 @@ cd apps/android
 ```
 
 Bản debug cho phép HTTP thường **chỉ** tới `10.0.2.2` và `localhost` (`src/debug/res/xml/network_security_config.xml`); bản release chỉ dùng HTTPS.
+
+### Chọn file APK
+
+| File | Dùng cho |
+|---|---|
+| `app-arm64-v8a-*.apk` | Hầu hết điện thoại Android hiện nay |
+| `app-armeabi-v7a-*.apk` | Điện thoại cũ 32-bit |
+| `app-x86_64-*.apk` | Máy ảo trên máy tính Windows/Intel |
+| `app-universal-*.apk` | Mọi máy (nặng nhất) |
+
+Bản **release** dùng API thật ngay (không có chế độ giả lập, không có màn "Xem tất cả màn"), chỉ gọi HTTPS. Build release phải truyền `-Pvericlue.apiBaseUrl=https://...`. Bản release hiện ký bằng khóa debug để cài thử; phải đổi sang khóa thật trước khi phát hành.
 
 ## Chạy thử với API mock (không cần Postgres, không cần điện thoại)
 

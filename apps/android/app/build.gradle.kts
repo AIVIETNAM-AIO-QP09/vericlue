@@ -25,7 +25,12 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // R8 removes unused code (most of material-icons-extended) and resources.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Demo only: signed with the local debug key so it installs. Use a real key before any release.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {
@@ -34,6 +39,15 @@ android {
     }
     kotlinOptions {
         jvmTarget = "17"
+    }
+    // One APK per CPU type (phones need only arm64-v8a) plus a universal one for convenience.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            isUniversalApk = true
+        }
     }
     buildFeatures {
         compose = true

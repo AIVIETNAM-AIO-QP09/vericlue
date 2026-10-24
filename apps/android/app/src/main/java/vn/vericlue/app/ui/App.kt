@@ -105,8 +105,11 @@ class FlowState {
     var turnOrder by mutableStateOf(newTurnOrder())
         private set
 
-    /** Debug switch: talk to the real API instead of the offline demo (set in "Xem tất cả màn"). */
-    var live by mutableStateOf(false)
+    /**
+     * Real API or offline demo. Release builds always use the API; debug builds start in demo
+     * mode and switch in "Xem tất cả màn".
+     */
+    var live by mutableStateOf(!BuildConfig.DEBUG)
 
     /** Mock scenario sent as X-Mock-Scenario when the API runs with USE_MOCK_MODELS=true. */
     var mockScenario by mutableStateOf("genuine")
