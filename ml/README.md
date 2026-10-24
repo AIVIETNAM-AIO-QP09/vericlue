@@ -21,6 +21,11 @@
 
 ## Quy ước bắt buộc
 
+VOICE-11 thêm `--with-reading-timing` vào Voice Lab và CLI `eval.reading_timing`:
+căn câu bằng CTC hiện có, mốc âm tiết/khoảng ngắt trong tab riêng, cùng audio RAM.
+Chưa xác minh cắt ghép/độ chính xác; không thay ASR/API. Xem
+[`reading-timing-lab.md`](../docs/architecture/reading-timing-lab.md).
+
 VOICE-10 ghép tùy chọn `--nes2net-python` vào Voice Lab: một bản thu RAM,
 hai tab kết quả Qwen/NES2Net riêng. Worker giữ model trong runtime CPU riêng,
 có timeout/hủy/đóng, chưa đưa điểm vào quyết định eKYC. Xem

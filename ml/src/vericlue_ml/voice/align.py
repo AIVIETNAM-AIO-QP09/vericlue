@@ -94,7 +94,8 @@ class Alignment:
         return self.syllables[-1].end_s
 
 
-def _verify_model_files(directory: Path) -> None:
+def _verify_model_files(directory: Path) -> dict[str, str]:
+    verified = {}
     for name, expected in EXPECTED_FILES.items():
         try:
             with (directory / name).open("rb") as handle:
@@ -103,6 +104,8 @@ def _verify_model_files(directory: Path) -> None:
             raise AlignmentLoadError(f"Missing CTC asset: {name}") from exc
         if actual != expected:
             raise AlignmentLoadError(f"CTC asset SHA-256 mismatch: {name}")
+        verified[name] = actual
+    return verified
 
 
 def _root(models_dir: Path | None) -> Path:
@@ -126,6 +129,7 @@ class TorchCTCBackend:
             raise AlignmentLoadError("Invalid CTC cpu_threads")
         self.models_dir = _root(models_dir)
         self.model = self.processor = None
+        self.model_hashes: dict[str, str] = {}
         self.vocabulary: dict[str, int] = {}
         self._failure: Exception | None = None
         self._lock = threading.RLock()
@@ -180,7 +184,10 @@ class TorchCTCBackend:
                     raise AlignmentLoadError("CTC checkpoint coverage is incomplete")
                 if model.config.inputs_to_logits_ratio != 320 or model.config.vocab_size != 31:
                     raise AlignmentLoadError("Unexpected pinned CTC stride/vocabulary size")
-                self.processor, self.model = processor, model.to(device).eval()
+                model = model.to(device).eval()
+                verified = _verify_model_files(directory)
+                self.processor, self.model = processor, model
+                self.model_hashes = verified or {}
                 self.vocabulary = vocabulary
                 self.models_dir, self.device = requested, device
             except Exception as exc:
@@ -374,8 +381,9 @@ class ForcedAligner:
                 self._backend.preload(models_dir=models_dir, device=device)
                 self._preloaded, self._device = True, device
 
-    def align(self, audio: bytes | Path, prompt: str) -> Alignment:
-        """Return absolute original-audio times; never VAD-trim or receive an ASR hypothesis."""
+    @staticmethod
+    def validate_prompt(prompt: str) -> None:
+        """Reject unsupported prompts before decoding or loading the model."""
         if not isinstance(prompt, str):
             raise AlignmentError("Server prompt is required")
         normalized = normalize_text(prompt)
@@ -386,7 +394,30 @@ class ForcedAligner:
             for c in strip_diacritics(normalized)
         ):
             raise AlignmentError("Prompt contains unsupported Vietnamese alignment characters")
+
+    def align(self, audio: bytes | Path, prompt: str) -> Alignment:
+        """Return absolute original-audio times; never VAD-trim or receive an ASR hypothesis."""
+        self.validate_prompt(prompt)
         waveform = _decode_audio(audio)
+        return self._align_waveform(waveform, prompt)
+
+    def align_samples(self, samples: np.ndarray, sample_rate: int, prompt: str) -> Alignment:
+        """Align bounded raw mono float32/16 kHz in RAM without trim or normalization."""
+        self.validate_prompt(prompt)
+        if (
+            type(sample_rate) is not int
+            or sample_rate != SAMPLE_RATE
+            or not isinstance(samples, np.ndarray)
+            or samples.dtype != np.float32
+            or samples.ndim != 1
+            or not 0 < len(samples) <= MAX_AUDIO_SECONDS * SAMPLE_RATE
+            or not np.isfinite(samples).all()
+            or np.any(np.abs(samples) > 1)
+        ):
+            raise DecodeError("CTC expects bounded mono float32 at 16 kHz")
+        return self._align_waveform(samples, prompt)
+
+    def _align_waveform(self, waveform: np.ndarray, prompt: str) -> Alignment:
         with self._lock:
             self.preload(device=self._device)
             emissions, stride = self._backend.emissions(waveform)

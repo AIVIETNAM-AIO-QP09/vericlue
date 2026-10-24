@@ -36,6 +36,7 @@ class VoiceLab:
         preview: bool = False,
         nes2net_python: Path | None = None,
         worker_timeout: float = 180,
+        with_reading_timing: bool = False,
     ) -> None:
         import tkinter as tk
         from tkinter import ttk
@@ -43,12 +44,20 @@ class VoiceLab:
         self.root, self.preview = root, preview
         self.models_dir = models_dir.resolve()
         spoof = None
+        timing = None
+        if with_reading_timing and not preview:
+            from vericlue_ml.voice.reading_timing import ReadingTimingDetector
+
+            timing = ReadingTimingDetector(self.models_dir)
         if nes2net_python is not None and not preview:
             from vericlue_ml.eval.nes2net_client import Nes2NetClient
 
             spoof = Nes2NetClient(nes2net_python, self.models_dir, timeout=worker_timeout)
         self.trial = VoiceTrial(
-            QwenVoiceChallengeDetector(QwenASR(self.models_dir)), device=device, spoof=spoof
+            QwenVoiceChallengeDetector(QwenASR(self.models_dir)),
+            device=device,
+            spoof=spoof,
+            timing=timing,
         )
         self.closed = False
         self.phase = "idle"
@@ -78,6 +87,7 @@ class VoiceLab:
             text=(
                 "Nội bộ phát triển · Qwen3-ASR"
                 + (" + NES2Net-X" if nes2net_python else "")
+                + (" + CTC" if with_reading_timing else "")
                 + " · xử lý trên máy"
             ),
         ).pack(anchor="w")
@@ -107,9 +117,10 @@ class VoiceLab:
         self.progress = ttk.Progressbar(body, mode="indeterminate")
         self.progress.pack(fill="x", pady=(0, 12))
         self.tabs = ttk.Notebook(body)
-        content_tab, spoof_tab = ttk.Frame(self.tabs), ttk.Frame(self.tabs)
+        content_tab, spoof_tab, timing_tab = [ttk.Frame(self.tabs) for _ in range(3)]
         self.tabs.add(content_tab, text="Câu đọc")
         self.tabs.add(spoof_tab, text="Giọng AI · 4 giây đầu")
+        self.tabs.add(timing_tab, text="Nhịp đọc")
         self.result_text = tk.Text(
             content_tab,
             height=9,
@@ -134,7 +145,23 @@ class VoiceLab:
             pady=12,
             takefocus=True,
         )
-        for tab, widget in ((content_tab, self.result_text), (spoof_tab, self.spoof_text)):
+        self.timing_text = tk.Text(
+            timing_tab,
+            height=9,
+            wrap="word",
+            font=("Segoe UI", 12),
+            bg="white",
+            fg="#0F172A",
+            relief="flat",
+            padx=14,
+            pady=12,
+            takefocus=True,
+        )
+        for tab, widget in (
+            (content_tab, self.result_text),
+            (spoof_tab, self.spoof_text),
+            (timing_tab, self.timing_text),
+        ):
             scroll = ttk.Scrollbar(tab, orient="vertical", command=widget.yview)
             scroll.pack(side="right", fill="y")
             widget.configure(yscrollcommand=scroll.set)
@@ -145,6 +172,11 @@ class VoiceLab:
             else "Chưa bật NES2Net trong lần chạy này. Xem hướng dẫn để bật kiểm giọng."
         )
         self._result("Chưa có kết quả. Micro chỉ mở khi bạn bấm Thu âm.")
+        self._timing_result(
+            "Chưa có mốc nhịp đọc. CTC dùng chung lượt thu, không cần đọc thêm."
+            if with_reading_timing
+            else "Chưa bật nhịp đọc. Chạy với --with-reading-timing để bật."
+        )
         footer = ttk.Frame(body)
         footer.pack(side="bottom", fill="x", pady=(12, 0))
         self.save_button = ttk.Button(footer, text="Lưu JSON (có câu đọc)", command=self.save)
@@ -183,6 +215,12 @@ class VoiceLab:
         self.cancel_button.configure(state="normal" if self.trial.active else "disabled")
         self.save_button.configure(state="normal" if self.payload and idle else "disabled")
 
+    def _timing_result(self, text: str) -> None:
+        self.timing_text.configure(state="normal")
+        self.timing_text.delete("1.0", "end")
+        self.timing_text.insert("1.0", text)
+        self.timing_text.configure(state="disabled")
+
     def start(self) -> None:
         if self.preview or not self.trial.start(self.prompt):
             return
@@ -191,6 +229,7 @@ class VoiceLab:
         self.status_text.set("Đang mở micro… Chờ thông báo ĐANG THU rồi bắt đầu đọc.")
         self._result("Chưa có kết quả cho lượt này.")
         self._spoof_result("Chưa có điểm cho lượt này.")
+        self._timing_result("Chưa có mốc nhịp đọc cho lượt này.")
         self.progress.start(12)
         self._buttons()
 
@@ -211,6 +250,7 @@ class VoiceLab:
         self.status_text.set("Đã yêu cầu hủy · Chờ tác vụ hiện tại kết thúc để thử lại.")
         self._result("Lượt này đã hủy; kết quả sẽ bị bỏ qua.")
         self._spoof_result("Lượt này đã hủy; điểm giọng sẽ bị bỏ qua.")
+        self._timing_result("Lượt này đã hủy; mốc nhịp đọc sẽ bị bỏ qua.")
         self._buttons()
 
     def new_prompt(self) -> None:
@@ -221,6 +261,7 @@ class VoiceLab:
         self.payload = None
         self._result("Đã đổi câu. Bấm Thu âm để bắt đầu lượt mới.")
         self._spoof_result("Chưa có điểm cho lượt mới.")
+        self._timing_result("Chưa có mốc nhịp đọc cho lượt mới.")
         self._buttons()
 
     def tick(self) -> None:
@@ -238,6 +279,11 @@ class VoiceLab:
                 self.status_text.set(
                     "MICRO ĐÃ TẮT · Đang đo điểm NES2Net; lần đầu cần nạp model riêng."
                 )
+            elif kind == "timing_processing":
+                self.phase = "processing"
+                self.status_text.set(
+                    "MICRO ĐÃ TẮT · Đang căn mốc âm tiết bằng CTC; lần đầu cần nạp model."
+                )
             elif kind == "done":
                 self.payload, error = value
                 self.phase = "idle"
@@ -246,13 +292,19 @@ class VoiceLab:
                 if self.payload:
                     self.render_result()
                     self.render_spoof()
-                    if self.payload.get("voice_spoof"):
+                    self.render_timing()
+                    if self.payload.get("reading_timing"):
+                        self.status_text.set(
+                            "MICRO ĐANG TẮT · Đã xong · Xem riêng từng tab kết quả"
+                        )
+                    elif self.payload.get("voice_spoof"):
                         self.status_text.set(
                             "MICRO ĐANG TẮT · Xem riêng hai tab Câu đọc và Giọng AI"
                         )
                 elif error:
                     self._result(error + "\nChưa có kết quả kiểm câu; không được coi là đạt.")
                     self._spoof_result("Chưa có kết quả giọng AI cho lượt này.")
+                    self._timing_result("Chưa có mốc nhịp đọc cho lượt này.")
             self._buttons()
         if self.phase == "recording":
             elapsed = perf_counter() - self.record_started
@@ -307,6 +359,48 @@ class VoiceLab:
             f"\nThời gian worker/trao đổi: {payload.get('round_trip_ms', 0) / 1000:.2f} giây"
         )
 
+    def render_timing(self) -> None:
+        payload = self.payload.get("reading_timing")
+        if not payload:
+            self._timing_result("Chưa bật kiểm nhịp đọc trong lần chạy này.")
+            return
+        result = payload["result"]
+        evidence = {item["name"]: item["value"] for item in result.get("evidence", [])}
+        spans = evidence.get("timing_syllables", [])
+        quality = result.get("quality", {})
+        if result["status"] != "degraded" or not spans:
+            self._timing_result(
+                "CHƯA CĂN ĐƯỢC NHỊP ĐỌC · thử lại hoặc kiểm tra CTC/runtime"
+                f"\nTrạng thái: {result['status']} / {result['gate']}"
+                f"\nMã lý do: {result.get('error_code') or 'không'}"
+                "\nKết quả câu đọc và giọng AI được giữ riêng."
+            )
+            return
+        content = self.payload["result"]
+        text = "MỐC ÉP CĂN THEO CÂU YÊU CẦU · CHỈ THAM KHẢO"
+        if content.get("status") != "ok" or content.get("gate") != "pass":
+            text += "\nCâu chưa khớp hoặc chưa nhận dạng được; mốc ép căn có thể sai."
+        text += (
+            "\nKhông chứng minh đọc đúng, giọng thật hoặc có cắt ghép."
+            f"\nTốc độ trong đoạn căn (gồm khoảng ngắt): {quality['syllables_per_second_including_gaps']:.2f} âm tiết/giây"
+            f"\nĐoạn căn: {quality['aligned_span_seconds']:.2f} giây · {len(spans)} âm tiết"
+            f"\nKhoảng ngắt dài nhất giữa âm tiết: {quality['longest_gap_seconds']:.2f} giây"
+            f"\nCờ thời lượng theo luật tạm: {int(quality['timing_flag_count'])}"
+            "\n\nMốc trên bản thu gốc (giây):"
+        )
+        for row in spans:
+            text += f"\n{row['text']}: {row['start_s']:.2f} → {row['end_s']:.2f} ({row['duration_s']:.2f} s)"
+        labels = {
+            "short_syllable": "Âm tiết ngắn",
+            "long_syllable": "Âm tiết dài",
+            "long_pause": "Khoảng ngắt dài",
+            "long_star": "Vùng chưa gán âm tiết dài",
+        }
+        for row in evidence.get("timing_flags", []):
+            text += f"\n{labels.get(row['kind'], 'Cờ thời lượng')}: {row['start_s']:.2f} → {row['end_s']:.2f} s"
+        text += f"\n\nThời gian CTC: {result['latency_ms'] / 1000:.2f} giây · {result['status']} / {result['gate']}"
+        self._timing_result(text)
+
     def save(self) -> None:
         from tkinter import filedialog, messagebox
 
@@ -347,6 +441,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--worker-timeout", type=float, default=180, help="NES2Net timeout, 0–600 seconds"
     )
+    parser.add_argument(
+        "--with-reading-timing", action="store_true", help="Opt in to raw CTC syllable timing"
+    )
     args = parser.parse_args(argv)
     import tkinter as tk
 
@@ -358,6 +455,7 @@ def main(argv: list[str] | None = None) -> int:
         preview=args.ui_preview,
         nes2net_python=args.nes2net_python,
         worker_timeout=args.worker_timeout,
+        with_reading_timing=args.with_reading_timing,
     )
     root.mainloop()
     return 0

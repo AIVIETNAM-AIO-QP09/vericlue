@@ -1,5 +1,10 @@
 # VOICE-04 — kiểm câu đọc
 
+VOICE-11 thêm `ReadingTimingDetector` opt-in và `--with-reading-timing` trong
+Voice Lab: tái dùng CTC, căn câu đề bài bằng PCM RAM, trả mốc âm tiết/khoảng ngắt
+ở tab riêng. Không dùng mốc ép căn thay bằng chứng đọc đúng. Xem
+[hướng dẫn nhịp đọc](../../../../docs/architecture/reading-timing-lab.md).
+
 VOICE-09 thêm diagnostic giọng giả NES2Net-X trong runtime CPU riêng, không
 thay default AntiDeepfake/API. Luôn degraded/unclear, chỉ chấm 4 giây đầu;
 xem [NES2Net diagnostic](../../../../docs/architecture/nes2net-diagnostic.md).
