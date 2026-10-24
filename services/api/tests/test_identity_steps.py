@@ -164,3 +164,30 @@ def test_parse_rejects_wrong_formats():
     assert parse_cccd_qr("12345|x|A|01011995|Nam|HN") is None  # số CCCD không đủ 12 số
     assert parse_cccd_qr("001099012345|x|A|31021995|Nam|HN") is None  # ngày sinh không có thật
     assert parse_cccd_qr("001099012345|x|A|01011995|Khác|HN") is None
+
+
+def test_id_number_is_kept_only_as_hmac(client):
+    sid, auth = _session(client)
+    client.post(ID_CARD.format(sid=sid), headers=auth, files=FILES, data={"qr": QR})
+    with client.app.state.vericlue.transaction() as state:
+        stored = repr(state.sessions.get(sid).__dict__)
+    assert "001099012345" not in stored
+
+
+def test_changed_id_number_is_noted(client):
+    sid, auth = _session(client)
+    client.post(ID_CARD.format(sid=sid), headers=auth, files=FILES, data={"qr": QR})
+    client.post(CONFIRM.format(sid=sid), headers=auth, json={"id_number": "001099012346"})
+    with client.app.state.vericlue.transaction() as state:
+        assert state.sessions.get(sid).id_edited == ["id_number"]
+
+
+def test_otp_can_only_be_sent_a_few_times(client):
+    sid, auth = _session(client)
+    for _ in range(3):
+        assert (
+            client.post(OTP.format(sid=sid), headers=auth, json={"phone": "0912345678"}).status_code
+            == 200
+        )
+    res = client.post(OTP.format(sid=sid), headers=auth, json={"phone": "0912345678"})
+    assert res.status_code == 409 and res.json()["error_code"] == "otp_too_many"

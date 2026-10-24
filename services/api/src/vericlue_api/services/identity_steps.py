@@ -53,6 +53,9 @@ class IdentitySteps:
     def send_otp(self, session: Session, phone: str) -> OtpSent:
         if session.otp_verified:
             raise ApiError(409, "otp_already_verified", "Số điện thoại đã được xác minh.")
+        if session.otp_sends >= self.settings.otp_max_sends:
+            raise ApiError(409, "otp_too_many", "Đã gửi mã quá số lần. Hãy bắt đầu lại.")
+        session.otp_sends += 1
         code = f"{secrets.randbelow(10**6):06d}"
         session.phone_hmac = _digest(self._key(), phone)
         session.otp_hash = _digest(self._key(), f"{session.session_id}:{code}")
@@ -90,7 +93,8 @@ class IdentitySteps:
         fields = parse_cccd_qr(qr)
         if fields is None:
             return IdCardResponse(status="retry", retry_hint="QR_INVALID")
-        session.id_fields = fields.model_dump(mode="json", exclude_none=True)
+        # Số CCCD chỉ giữ dạng HMAC; các trường còn lại giữ để so khi người dùng xác nhận.
+        session.id_fields = fields.model_dump(mode="json", exclude_none=True, exclude={"id_number"})
         session.id_number_hmac = _digest(self._key(), fields.id_number or "")
         return IdCardResponse(status="ok", fields=fields)
 
@@ -98,8 +102,14 @@ class IdentitySteps:
         """Người dùng xác nhận (hoặc sửa) thông tin; trường khác QR được ghi chú cho ca duyệt."""
         if session.id_fields is None:
             raise ApiError(409, "id_card_not_received", "Chưa nhận ảnh CCCD.")
-        given = confirmed.model_dump(mode="json", exclude_none=True)
-        session.id_edited = sorted(k for k, v in given.items() if session.id_fields.get(k) != v)
+        given = confirmed.model_dump(mode="json", exclude_none=True, exclude={"id_number"})
+        edited = {k for k, v in given.items() if session.id_fields.get(k) != v}
+        if (
+            confirmed.id_number
+            and _digest(self._key(), confirmed.id_number) != session.id_number_hmac
+        ):
+            edited.add("id_number")
+        session.id_edited = sorted(edited)
         return IdCardConfirmResponse()
 
 
