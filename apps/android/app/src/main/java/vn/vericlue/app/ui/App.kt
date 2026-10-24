@@ -220,10 +220,12 @@ fun VeriClueApp() {
                     // Video and WAV start together so the server can line up lips and voice (VOICE-05):
                     // the WAV waits for the camera, which is the slower one to start.
                     voiceStart.value = scope.launch {
+                        live.audioOffsetMs = null
                         if (flow.live && hasCamera) {
                             camera.startRecording(voice = true)
                             camera.awaitRecordingStarted()
                         }
+                        live.audioOffsetMs = camera.videoElapsedMs()
                         recorder.start(scope)
                     }
                 }
@@ -443,7 +445,7 @@ fun VeriClueApp() {
                     // A retry comes back here; LiveFlow resends only what the server has not received.
                     follow(
                         if (wav != null) {
-                            live.submitVoice(wav, camera.finishedVideo(), onAccepted = camera::deleteVideo)
+                            live.submitVoice(wav, camera.finishedVideo(), live.audioOffsetMs, onAccepted = camera::deleteVideo)
                         } else {
                             val probe = withContext(Dispatchers.IO) { camera.camProbe() }
                             live.submitFace(

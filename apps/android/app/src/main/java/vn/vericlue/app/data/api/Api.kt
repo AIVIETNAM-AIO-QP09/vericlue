@@ -127,10 +127,16 @@ class SessionApi(
     suspend fun finalize(sessionId: String, token: String): ApiResult<FinalizeResponse> =
         call(post(url("v1", "sessions", sessionId, "finalize"), "".toRequestBody(JSON), token))
 
-    suspend fun sendVoice(sessionId: String, token: String, wav: ByteArray, video: File?): ApiResult<VoiceResponse> {
+    /** [audioOffsetMs]: when the WAV starts, from the video's first frame (sent only with a video). */
+    suspend fun sendVoice(sessionId: String, token: String, wav: ByteArray, video: File?, audioOffsetMs: Int? = null): ApiResult<VoiceResponse> {
         val body = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart("audio", "voice.wav", wav.toRequestBody(WAV))
-            .apply { if (video != null) addFormDataPart("video", video.name, video.asRequestBody(MP4)) }
+            .apply {
+                if (video != null) {
+                    addFormDataPart("video", video.name, video.asRequestBody(MP4))
+                    audioOffsetMs?.let { addFormDataPart("audio_offset_ms", it.coerceIn(-5000, 5000).toString()) }
+                }
+            }
             .build()
         return call(post(url("v1", "sessions", sessionId, "voice"), body, token))
     }

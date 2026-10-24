@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.hardware.camera2.CameraCharacteristics
+import android.os.SystemClock
 import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.CameraSelector
@@ -198,6 +199,7 @@ class CameraSession(private val context: Context) {
         }
         val done = CompletableDeferred<Unit>().also { finalized = it }
         val begun = CompletableDeferred<Unit>().also { started = it }
+        recordedAt = null
         recording = runCatching {
             controller.startRecording(
                 FileOutputOptions.Builder(file).build(),
@@ -205,7 +207,10 @@ class CameraSession(private val context: Context) {
                 ContextCompat.getMainExecutor(context),
             ) { event ->
                 // Start arrives before any frame; the first frame shows as recorded time > 0.
-                if (event is VideoRecordEvent.Status && event.recordingStats.recordedDurationNanos > 0) begun.complete(Unit)
+                if (event is VideoRecordEvent.Status && event.recordingStats.recordedDurationNanos > 0) {
+                    recordedAt = event.recordingStats.recordedDurationNanos to SystemClock.elapsedRealtimeNanos()
+                    begun.complete(Unit)
+                }
                 if (event is VideoRecordEvent.Finalize) {
                     begun.complete(Unit)
                     if (event.hasError()) videoFile = null
@@ -221,6 +226,19 @@ class CameraSession(private val context: Context) {
     }
 
     private var started: CompletableDeferred<Unit>? = null
+
+    /** Last Status event: recorded video length (ns) and when it arrived (elapsedRealtime ns). */
+    @Volatile private var recordedAt: Pair<Long, Long>? = null
+
+    /**
+     * How far the running recording is from its first frame, in ms, right now: the last reported
+     * length plus the time since that report. Sent as `audio_offset_ms` when the WAV starts.
+     */
+    fun videoElapsedMs(): Int? {
+        if (recording == null) return null
+        val (lengthNs, atNs) = recordedAt ?: return null
+        return ((lengthNs + SystemClock.elapsedRealtimeNanos() - atNs) / 1_000_000).toInt()
+    }
 
     /**
      * Waits until the first video frame is written (about 0.9 s after the start on the emulator).

@@ -111,12 +111,13 @@ class LiveFlowTest {
         val video = kotlin.io.path.createTempFile("voice_", ".mp4").toFile().apply { writeBytes(byteArrayOf(9, 9, 9)); deleteOnExit() }
         var accepted = false
         server.enqueue(json("""{"status":"pass"}"""))
-        assertEquals(Next.To(Routes.Success), flow.submitVoice(byteArrayOf(1, 2), video, onAccepted = { accepted = true }))
+        assertEquals(Next.To(Routes.Success), flow.submitVoice(byteArrayOf(1, 2), video, audioOffsetMs = 640, onAccepted = { accepted = true }))
         assertTrue(accepted)
         repeat(4) { server.takeRequest() }
         val voice = server.takeRequest()
         assertEquals("/v1/sessions/ses_1/voice", voice.path)
         val body = voice.body.readUtf8()
         assertTrue(body.contains("name=\"audio\"") && body.contains("name=\"video\"") && body.contains("video/mp4"))
+        assertTrue(body.contains("name=\"audio_offset_ms\"") && body.contains("640"))
     }
 }

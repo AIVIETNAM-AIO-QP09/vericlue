@@ -40,6 +40,9 @@ class LiveFlow(private val api: SessionApi) {
     /** WAV waiting to be sent from the upload screen. Kept until the server accepts it, so a retry can resend it. */
     var pendingWav: ByteArray? = null
 
+    /** When the WAV started, from the reading video's first frame (ms); sent with that video. */
+    var audioOffsetMs: Int? = null
+
     /** Steps the server already received in this attempt; a retry skips them (a second send is 409). */
     var mediaAcked = false
         private set
@@ -139,10 +142,10 @@ class LiveFlow(private val api: SessionApi) {
      * Sends the reading: the WAV, plus the MP4 recorded over the same span when there is one
      * (lip sync, VOICE-05). [onAccepted] runs once the server has both, so the local video can go.
      */
-    suspend fun submitVoice(wav: ByteArray, video: File? = null, onAccepted: () -> Unit = {}): Next {
+    suspend fun submitVoice(wav: ByteArray, video: File? = null, audioOffsetMs: Int? = null, onAccepted: () -> Unit = {}): Next {
         val s = session ?: return Next.Fail(ApiError.Expired)
         if (wav.isEmpty()) return Next.To(Routes.NoVoice)
-        return when (val r = api.sendVoice(s.sessionId, s.token, wav, video)) {
+        return when (val r = api.sendVoice(s.sessionId, s.token, wav, video, audioOffsetMs)) {
             is ApiResult.Err -> Next.Fail(r.error)
             is ApiResult.Ok -> {
                 pendingWav = null
