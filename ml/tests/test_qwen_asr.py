@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 import yaml
+from test_voice_matching import fake_match_libraries as fake_match_libraries
 
 from vericlue_ml.common.detector import DetectorInput
 from vericlue_ml.registry import get_detector, get_qwen_voice_challenge
@@ -188,7 +189,7 @@ def test_count_only_budget_and_silence_do_not_leak_prompt_or_load_model(monkeypa
 
 
 @pytest.mark.parametrize("kind", ["correct", "wrong", "silent", "decode", "backend"])
-def test_content_gate_is_separate_from_voice_authenticity(kind):
+def test_content_gate_is_separate_from_voice_authenticity(kind, fake_match_libraries):
     def transcribe(path, *, expected_syllable_count):
         assert expected_syllable_count == 3
         if kind == "silent":
