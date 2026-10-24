@@ -157,10 +157,7 @@ fun VeriClueApp() {
             if (!hasCamera) askPermissions.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
         }
         LaunchedEffect(hasCamera) {
-            if (hasCamera) {
-                camera.bind(lifecycleOwner)
-                camera.useBackCamera(true)
-            }
+            if (hasCamera && !camera.start(lifecycleOwner, back = true)) nav.go(Routes.ErrorDevice)
         }
         IdCaptureScreen(back = back, glare = false, onBack = { nav.popBackStack() }, onCapture = {
             if (!hasCamera) {
@@ -341,10 +338,7 @@ fun VeriClueApp() {
                 if (!hasCamera || !hasMic) askPermissions.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
             }
             LaunchedEffect(hasCamera) {
-                if (hasCamera) {
-                    camera.bind(lifecycleOwner)
-                    camera.useBackCamera(false)
-                }
+                if (hasCamera && !camera.start(lifecycleOwner, back = false)) nav.go(Routes.ErrorDevice)
             }
             LaunchedEffect(flow.live) {
                 if (flow.live) live.ensureSession(flow.mockScenario)?.let { nav.go(errorRoute(it)) }

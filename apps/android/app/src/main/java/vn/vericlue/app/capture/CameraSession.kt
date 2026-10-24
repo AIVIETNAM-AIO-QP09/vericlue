@@ -28,7 +28,9 @@ import com.google.mlkit.vision.face.FaceDetectorOptions
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.concurrent.Executors
+import kotlin.coroutines.resume
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import vn.vericlue.app.data.api.FrameTime
@@ -86,22 +88,49 @@ class CameraSession(private val context: Context) {
     private var analyzedFrames = 0
     private var analysisStartMs = 0.0
 
-    fun bind(owner: LifecycleOwner) {
-        if (bound) return
-        controller.cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
-        controller.setEnabledUseCases(CameraController.IMAGE_ANALYSIS or CameraController.VIDEO_CAPTURE)
-        controller.imageAnalysisBackpressureStrategy = ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST
-        controller.setImageAnalysisAnalyzer(analysisExecutor, ::analyze)
-        controller.bindToLifecycle(owner)
-        bound = true
+    private var videoEnabled = false
+    private var usedFallbackCamera = false
+
+    /**
+     * Opens the front camera (face part) or the rear camera (ID card, APP-04). Main thread only.
+     * Never throws: falls back to the other camera when the preferred one is missing, drops video
+     * when the device cannot record alongside analysis, and returns false when no camera can be
+     * opened, so the caller shows an error screen instead of crashing.
+     */
+    suspend fun start(owner: LifecycleOwner, back: Boolean): Boolean {
+        if (!awaitInitialized()) return false
+        if (backMode != back) _qr.value = null
+        backMode = back
+        val preferred = if (back) CameraSelector.DEFAULT_BACK_CAMERA else CameraSelector.DEFAULT_FRONT_CAMERA
+        val other = if (back) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
+        val selector = listOf(preferred, other).firstOrNull { runCatching { controller.hasCamera(it) }.getOrDefault(false) }
+            ?: return false
+        if (!bound) {
+            controller.imageAnalysisBackpressureStrategy = ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST
+            controller.setImageAnalysisAnalyzer(analysisExecutor, ::analyze)
+        }
+        for (useCases in listOf(CameraController.IMAGE_ANALYSIS or CameraController.VIDEO_CAPTURE, CameraController.IMAGE_ANALYSIS)) {
+            val ok = runCatching {
+                controller.setEnabledUseCases(useCases)
+                controller.cameraSelector = selector
+                if (!bound) controller.bindToLifecycle(owner)
+            }.isSuccess
+            if (ok) {
+                bound = true
+                videoEnabled = useCases and CameraController.VIDEO_CAPTURE != 0
+                usedFallbackCamera = selector != preferred
+                return true
+            }
+        }
+        return false
     }
 
-    /** Rear camera for the ID card (APP-04), front camera for the face part. Main thread only. */
-    fun useBackCamera(back: Boolean) {
-        if (backMode == back) return
-        backMode = back
-        _qr.value = null
-        controller.cameraSelector = if (back) CameraSelector.DEFAULT_BACK_CAMERA else CameraSelector.DEFAULT_FRONT_CAMERA
+    private suspend fun awaitInitialized(): Boolean = suspendCancellableCoroutine { cont ->
+        val future = controller.initializationFuture
+        future.addListener(
+            { cont.resume(runCatching { future.get() }.isSuccess) },
+            ContextCompat.getMainExecutor(context),
+        )
     }
 
     /** Photo of the card plus local quality checks, from the next analysed rear-camera frame. */
@@ -148,16 +177,19 @@ class CameraSession(private val context: Context) {
     /** Starts the MP4 recording that the server receives as `video` in /media. Audio off. */
     @SuppressLint("MissingPermission")
     fun startRecording() {
-        if (recording != null) return
+        if (recording != null || !videoEnabled) return
         val file = File(context.cacheDir, "face_${System.currentTimeMillis()}.mp4").also { videoFile = it }
         synchronized(frames) { frames.clear() }
         firstFrameNs = 0L
         recordingFrames = true
-        recording = controller.startRecording(
-            FileOutputOptions.Builder(file).build(),
-            AudioConfig.AUDIO_DISABLED,
-            ContextCompat.getMainExecutor(context),
-        ) { event -> if (event is VideoRecordEvent.Finalize && event.hasError()) videoFile = null }
+        recording = runCatching {
+            controller.startRecording(
+                FileOutputOptions.Builder(file).build(),
+                AudioConfig.AUDIO_DISABLED,
+                ContextCompat.getMainExecutor(context),
+            ) { event -> if (event is VideoRecordEvent.Finalize && event.hasError()) videoFile = null }
+        }.getOrNull()
+        if (recording == null) videoFile = null
     }
 
     fun stopRecording() {
@@ -190,6 +222,7 @@ class CameraSession(private val context: Context) {
             "ae_awb_lock_requested" to aeAwbLocked.toString(),
             "video" to if (recordedVideo() != null) "mp4" else "missing",
             "frames_recorded" to frameTimes().size.toString(),
+            "camera_fallback" to usedFallbackCamera.toString(),
         )
     }
 
