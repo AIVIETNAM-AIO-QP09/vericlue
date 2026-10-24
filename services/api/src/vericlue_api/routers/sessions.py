@@ -175,7 +175,7 @@ STAGE_A_ERRORS: dict[int | str, dict] = {
     401: SESSION_ERRORS[401],
     409: {
         "model": ErrorResponse,
-        "description": "session_closed; OTP: otp_not_requested, otp_expired, otp_locked, otp_already_verified; CCCD: id_card_not_received",
+        "description": "session_closed; OTP: otp_not_requested, otp_expired, otp_locked, otp_already_verified, otp_too_many; CCCD: id_card_not_received",
     },
 }
 

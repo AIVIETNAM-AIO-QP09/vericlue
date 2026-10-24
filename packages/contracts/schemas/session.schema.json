@@ -326,7 +326,7 @@
     },
     "ErrorResponse": {
       "type": "object",
-      "description": "Định dạng lỗi chung: 401 (thiếu Bearer, token sai hoặc hết hạn), 409 (bước đã nhận trong lượt này, hoặc sai thứ tự luồng: voice_not_requested khi finalize chưa yêu cầu đọc câu, session_closed khi phiên đã vào bàn duyệt), 422 (dữ liệu sai). Mã cho thử thách hết hạn do PLAT-06 chốt. Mã 409 thêm cho OTP/CCCD: otp_not_requested, otp_expired, otp_locked, otp_already_verified; session_too_long khi phiên quá giới hạn tổng.",
+      "description": "Định dạng lỗi chung: 401 (thiếu Bearer, token sai hoặc hết hạn), 409 (bước đã nhận trong lượt này, hoặc sai thứ tự luồng: voice_not_requested khi finalize chưa yêu cầu đọc câu, session_closed khi phiên đã vào bàn duyệt), 422 (dữ liệu sai). Mã cho thử thách hết hạn do PLAT-06 chốt. Mã 409 thêm cho OTP/CCCD: otp_not_requested, otp_expired, otp_locked, otp_already_verified, otp_too_many (gửi mã quá 3 lần), id_card_not_received; session_too_long khi phiên quá giới hạn tổng.",
       "required": ["error_code", "message"],
       "additionalProperties": false,
       "properties": {

@@ -1691,7 +1691,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description session_closed; OTP: otp_not_requested, otp_expired, otp_locked, otp_already_verified; CCCD: id_card_not_received */
+            /** @description session_closed; OTP: otp_not_requested, otp_expired, otp_locked, otp_already_verified, otp_too_many; CCCD: id_card_not_received */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1744,7 +1744,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description session_closed; OTP: otp_not_requested, otp_expired, otp_locked, otp_already_verified; CCCD: id_card_not_received */
+            /** @description session_closed; OTP: otp_not_requested, otp_expired, otp_locked, otp_already_verified, otp_too_many; CCCD: id_card_not_received */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1850,7 +1850,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description session_closed; OTP: otp_not_requested, otp_expired, otp_locked, otp_already_verified; CCCD: id_card_not_received */
+            /** @description session_closed; OTP: otp_not_requested, otp_expired, otp_locked, otp_already_verified, otp_too_many; CCCD: id_card_not_received */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1903,7 +1903,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description session_closed; OTP: otp_not_requested, otp_expired, otp_locked, otp_already_verified; CCCD: id_card_not_received */
+            /** @description session_closed; OTP: otp_not_requested, otp_expired, otp_locked, otp_already_verified, otp_too_many; CCCD: id_card_not_received */
             409: {
                 headers: {
                     [name: string]: unknown;

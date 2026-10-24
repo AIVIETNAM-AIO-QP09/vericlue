@@ -100,6 +100,10 @@ class SessionFlow:
             raise ApiError(
                 409, "session_too_long", "Phiên đã quá thời gian cho phép. Hãy bắt đầu lại."
             )
+        if session.face_scored:
+            # Bỏ một lượt đã chấm (không phải retry) cũng là một lần chụp lại: không chấm lại vô hạn.
+            session.retries_used += 1
+            session.face_scored = False
         session.challenge = generate_challenge(self.settings)
         session.token_expires_at = min(
             now + timedelta(seconds=self.settings.session_ttl_seconds), end
@@ -108,6 +112,7 @@ class SessionFlow:
         session.video = None
         session.audio = None
         session.signals = {}
+        session.results = {}
         session.voice_requested = False
         session.voice_prompt = None
         return ChallengeResponse(expires_at=session.token_expires_at, challenge=session.challenge)
@@ -170,7 +175,12 @@ class SessionFlow:
             thresholds=outcome.thresholds,
             config_version=outcome.config_version,
         )
-        if outcome.status == "retry":
+        status = outcome.status
+        if status == "pass" and session.voice_owed:
+            # Lượt mặt mới (sau POST /challenge) không xóa yêu cầu đọc câu của lượt trước.
+            status = "voice_challenge"
+        session.face_scored = status != "retry"
+        if status == "retry":
             hint = outcome.retry_hint if outcome.retry_hint in RETRY_HINTS else DEFAULT_HINT
             session.retries_used += 1
             session.challenge = generate_challenge(s)  # lượt mới, thử thách mới
@@ -180,17 +190,18 @@ class SessionFlow:
                 attempts_left=s.max_retries - session.retries_used,
                 challenge=session.challenge,
             )
-        if outcome.status == "voice_challenge":
+        if status == "voice_challenge":
             session.voice_requested = True
+            session.voice_owed = True
             session.voice_rereads_used = 0  # yêu cầu đọc câu mới
             return FinalizeResponse(
                 status="voice_challenge",
                 voice_prompt=self._new_prompt(session),
                 attempts_left=MAX_VOICE_REREADS,
             )
-        if outcome.status == "review":
+        if status == "review":
             self._open_case(session, outcome)
-        return FinalizeResponse(status=outcome.status)
+        return FinalizeResponse(status=status)  # type: ignore[arg-type]
 
     # --- voice -----------------------------------------------------------
     def voice(
@@ -225,6 +236,8 @@ class SessionFlow:
             rereads_used=session.voice_rereads_used,
             session_valid=session_valid and self._valid_time(session),
         )
+        if outcome.status != "voice_challenge":
+            session.voice_owed = False
         session.results.update(outcome.results)
         self.sessions.record_decision(
             session,

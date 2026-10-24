@@ -79,6 +79,7 @@ class Settings(BaseSettings):
     # OTP mô phỏng (FLOW-02): mã 6 số, hạn 2 phút, sai 5 lần thì khóa.
     otp_ttl_seconds: int = 120
     otp_max_attempts: int = 5
+    otp_max_sends: int = 3  # số lần gửi mã mỗi phiên
     # Khóa HMAC cho số điện thoại và số CCCD (FLOW-03). Mặc định chỉ để chạy dev; máy demo đặt ID_HMAC_KEY.
     id_hmac_key: SecretStr = SecretStr("dev-only-not-secret")
     max_retries: int = 2

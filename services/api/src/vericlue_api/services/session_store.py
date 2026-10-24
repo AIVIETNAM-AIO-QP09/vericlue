@@ -32,6 +32,10 @@ class Session:
     voice_rereads_used: int = 0
     voice_prompt: str | None = None
     voice_requested: bool = False  # finalize đã trả voice_challenge
+    # Đã bị đòi đọc câu trong phiên: giữ qua mọi lượt mặt mới cho tới khi xong bước giọng.
+    voice_owed: bool = False
+    # Lượt mặt hiện tại đã được chấm mà chưa tính vào retries_used (finalize không trả retry).
+    face_scored: bool = False
     case_id: str | None = None
     created_at: datetime | None = None  # None: phiên cũ, trước khi có giới hạn tổng
     # Giai đoạn A (FLOW-02, FLOW-03). Không lưu số điện thoại hay số CCCD dạng rõ.
@@ -39,6 +43,7 @@ class Session:
     otp_expires_at: datetime | None = None
     otp_attempts_left: int = 0
     otp_verified: bool = False
+    otp_sends: int = 0
     phone_hmac: str | None = None
     id_front: Path | None = None
     id_back: Path | None = None

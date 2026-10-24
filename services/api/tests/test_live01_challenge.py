@@ -91,3 +91,60 @@ def test_refresh_drops_the_old_face_attempt(client):
     with client.app.state.vericlue.transaction() as state:
         s = state.sessions.get(sid)
         assert s.signals == {} and s.voice_requested is False
+
+
+FINALIZE = "/v1/sessions/{sid}/finalize"
+VOICE = "/v1/sessions/{sid}/voice"
+AUDIO = {"audio": ("voice.wav", b"synthetic audio", "audio/wav")}
+
+
+def test_refresh_does_not_escape_the_voice_step(client):
+    """Đã bị đòi đọc câu thì lượt mặt mới (dù ra pass) vẫn phải đọc câu."""
+    body, auth = start_session(client, "voice_clone")
+    sid = body["session_id"]
+    assert client.post(FINALIZE.format(sid=sid), headers=auth).json()["status"] == "voice_challenge"
+    client.post(CHALLENGE.format(sid=sid), headers=auth)
+    with client.app.state.vericlue.transaction() as state:
+        state.sessions.get(sid).scenario = "genuine"  # lượt mặt mới tự nó sẽ ra pass
+    again = client.post(FINALIZE.format(sid=sid), headers=auth).json()
+    assert again["status"] == "voice_challenge"
+
+
+def test_refresh_after_a_scored_attempt_uses_up_a_retry(client):
+    body, auth = start_session(client, "voice_clone")
+    sid = body["session_id"]
+    client.post(FINALIZE.format(sid=sid), headers=auth)
+    for _ in range(3):
+        client.post(CHALLENGE.format(sid=sid), headers=auth)
+        client.post(FINALIZE.format(sid=sid), headers=auth)
+    with client.app.state.vericlue.transaction() as state:
+        assert state.sessions.get(sid).retries_used >= 3
+
+
+def test_refresh_after_a_retry_is_not_counted_twice(client):
+    body, auth = start_session(client, "low_quality")
+    sid = body["session_id"]
+    assert client.post(FINALIZE.format(sid=sid), headers=auth).json()["status"] == "retry"
+    client.post(CHALLENGE.format(sid=sid), headers=auth)
+    with client.app.state.vericlue.transaction() as state:
+        assert state.sessions.get(sid).retries_used == 1
+
+
+def test_refresh_drops_old_results(client):
+    body, auth = start_session(client, "voice_clone")
+    sid = body["session_id"]
+    client.post(FINALIZE.format(sid=sid), headers=auth)
+    client.post(CHALLENGE.format(sid=sid), headers=auth)
+    with client.app.state.vericlue.transaction() as state:
+        assert state.sessions.get(sid).results == {}
+
+
+def test_voice_done_clears_what_is_owed(client):
+    body, auth = start_session(client, "genuine")
+    sid = body["session_id"]
+    with client.app.state.vericlue.transaction() as state:
+        s = state.sessions.get(sid)
+        s.voice_requested = s.voice_owed = True
+    assert client.post(VOICE.format(sid=sid), headers=auth, files=AUDIO).json()["status"] == "pass"
+    with client.app.state.vericlue.transaction() as state:
+        assert state.sessions.get(sid).voice_owed is False
