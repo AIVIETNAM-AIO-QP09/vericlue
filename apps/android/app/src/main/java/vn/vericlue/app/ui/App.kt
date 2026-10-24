@@ -511,8 +511,11 @@ fun VeriClueApp() {
         }
         composable(Routes.TurnHead) {
             val face by camera.face.collectAsState()
+            // Live: the server decides the order (LIVE-01); a challenge without one is a bad response.
+            val serverOrder = FlowRules.turnOrderFrom(live.challenge?.turnOrder)
+            LaunchedEffect(serverOrder) { if (flow.live && serverOrder == null) nav.go(Routes.ErrorService) }
             TurnHeadScreen(
-                if (flow.live) FlowRules.turnOrderFrom(live.challenge?.turnOrder) ?: flow.turnOrder else flow.turnOrder,
+                if (flow.live) serverOrder ?: flow.turnOrder else flow.turnOrder,
                 onExit = exit,
                 onDone = { nav.go(if (flow.live) Routes.Uploading else FlowRules.afterTurnHead(flow.purpose)) },
                 yaw = if (hasCamera) face?.yaw else null,

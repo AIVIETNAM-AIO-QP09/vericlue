@@ -71,6 +71,14 @@ Sửa theo kết quả duyệt của trưởng nhóm ngày 24/10.
 - Test: 61 test JVM (thêm `LiveFlowStageATest`, 8 test).
 - **Kế hoạch app iOS** cho anh Lý: đã soạn, chờ Quang duyệt, chưa đưa vào repo.
 
+**Cập nhật 14:00: sửa theo reviewer trước khi merge #46, #47** (trưởng nhóm cho tự merge).
+- **Bịt đường né bước đọc câu:** `voice_owed` giữ yêu cầu đọc câu qua mọi lần `POST /challenge`. Lượt mặt nào bỏ dở sau khi đã chấm (không phải retry) tính là một lần chụp lại, và kết quả của lượt cũ bị xóa.
+- **Số CCCD** chỉ lưu dạng HMAC. Họ tên, ngày sinh, địa chỉ vẫn lưu rõ để nhân viên duyệt so; ghi thành giới hạn, SEC-01 xử lý.
+- **OTP** gửi tối đa 3 lần mỗi phiên (409 `otp_too_many`).
+- **App:** thử thách thiếu `turn_order` thì ra màn lỗi dịch vụ, không tự chọn thứ tự.
+- **Backlog:** nhận LIVE-06 (phần gia hạn và làm lại phần mặt).
+- **Còn lại (ghi cho SEC-01/PLAT-06):** bớt số lần thử OTP chưa khóa hàng nên gửi song song có thể thử quá 5 lần; `ID_HMAC_KEY` mặc định chưa bị chặn khi chạy mô hình thật; `simulated_sms` chưa có công tắc tắt.
+
 ## Đang dở
 - Chưa thử trên điện thoại thật.
 - Thứ tự quay đầu vẫn chọn trên máy; đường chấm sáng chưa ghi. Cả hai chờ hợp đồng LIVE-01.
