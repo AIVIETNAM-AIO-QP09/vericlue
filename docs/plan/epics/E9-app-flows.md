@@ -92,13 +92,14 @@ Chi tiết: `docs/architecture/dynamic-session-api.md`.
 **Tiêu chí hoàn thành:**
 - [x] Test bằng chuỗi góc tổng hợp: đúng/sai thứ tự, thiếu bước, quá hạn, thiếu dữ liệu và thiếu tư thế trung tính.
 - [x] Chọn ba khung từ video theo timestamp server, kiểm lại tư thế trên đúng pixel, so mặt trong RAM; lỗi/thiếu/trùng khung không được đạt.
+- [x] Đưa đúng ba khung đã chọn vào GenD trong RAM; trả điểm deepfake riêng, version lấy mẫu riêng, không dùng nhầm calibrator video cũ.
 - [ ] Test mặt phẳng (biến đổi homography) và kiểm chứng chiều sâu vật lý.
 
 **Lát cắt backend 24/10 (Codex, doing):** `head_turn` dùng reader MediaPipe,
 chỉ kiểm chuyển động/thứ tự/thời gian từ video với lịch server gắn phiên/lượt.
 Lịch hiện hành 6 giây theo LIVE-01; các hằng góc/giữ tư thế là thử nghiệm.
-Đã có chuỗi offline lấy ảnh chính diện/nghiêng trong RAM cho LVFace; chưa đưa
-khung cho GenD, chưa kiểm 3D, chưa nối quyết định API/retry hay sửa UI. Gate pass của module
+Đã có chuỗi offline lấy ảnh chính diện/nghiêng trong RAM cho LVFace và GenD
+(bật tùy chọn). Chưa kiểm 3D, chưa nối quyết định API/retry hay sửa UI. Gate pass của module
 chỉ nói chuyển động phù hợp, luôn ghi `depth_verified=false`.
 CAP-06 còn phụ thuộc cho toàn luồng; diagnostic độc lập không cần UI đó.
 Xem [`head-and-match.md`](../../architecture/head-and-match.md).

@@ -78,7 +78,8 @@ không tự bảo đảm cùng tỷ lệ lỗi cho quy tắc lấy min của 6 p
 
 ## 2a. Chuỗi video → ba khung trong RAM → so mặt
 
-`presence.video_identity.match_video_views` ghép hai ModuleResult hiện có,
+`presence.video_identity.match_video_views` ghép hai ModuleResult hiện có và
+tùy chọn kết quả GenD thứ ba (`deepfake=FaceDeepfakeDetector()`),
 không tạo bộ phát hiện mới hay quyết định xác minh cuối cùng:
 
 1. Kiểm lịch server gắn phiên/lượt và hash video cục bộ, giới hạn 64 MiB.
@@ -96,6 +97,13 @@ không tạo bộ phát hiện mới hay quyết định xác minh cuối cùng:
 6. Gọi `FaceMatchDetector.predict_frames` với pixel BGR trong RAM; bỏ qua
    `inp.images/image_roles` và các số đo client trong chuỗi này. Không ghi PNG
    hay embedding ra đĩa. Lớp gọi vẫn quản lý vòng đời video/ảnh tham chiếu gốc.
+7. Khi bật GenD, đưa **cùng pixel** ba khung vào `FaceDeepfakeDetector.predict_frames`:
+   giữ tiền xử lý SCRFD/5 điểm/lề 1,3/CLIP 224, chấm mỗi góc và gộp theo
+   `max(mean, top25_mean)`. Với ba khung, top25_mean là điểm cao nhất. Mỗi khung
+   phải có đúng một mặt đủ lớn; không âm thầm chọn mặt lớn nhất hoặc bỏ góc lỗi.
+   Kết quả so danh tính và deepfake độc lập: lỗi một mô hình không xóa phép đo
+   của mô hình kia. Không có quyết định xác minh cuối cùng; lỗi ở gate bắt buộc
+   vẫn phải chặn khi tích hợp sau này.
 
 Vẫn có giới hạn tối đa 30 giây/1800 khung/1920×1080 và ngân sách đọc 15 giây
 cho mỗi lần đọc; lời gọi native không được cưỡng bức ngắt. Hai lượt giải mã
@@ -106,6 +114,7 @@ nguồn do server quản lý ổn định trong khi chạy và đóng reader khi
 # Thêm ONNX Runtime CPU vào môi trường MediaPipe riêng, không đổi .venv CUDA.
 uv pip install --python tmp/liveness-runtime/Scripts/python.exe onnxruntime==1.31.0
 tmp/liveness-runtime/Scripts/python.exe -m vericlue_ml.eval.video_face_match --video <video.mp4> --reference <portrait.png> --server-response <session-response.json> --models-dir <models-root> --device cpu --output <report.json>
+# Chấm thêm GenD: thêm --with-gend, runtime phải có extra gend (torch/transformers/safetensors/pillow).
 ```
 
 Không truyền ba ảnh query cho CLI này; các ảnh được lấy từ video. Dữ liệu mốc
@@ -114,6 +123,19 @@ server-response ở CLI là đầu vào tin cậy cục bộ, không chứng min
 bản; khi tích hợp HTTP phải dùng lịch từ kho phiên. CLI chỉ ghi hash/timestamp
 và ModuleResult; cho biết LVFace có được nạp hay bị dừng ở bước trước. Mã thoát
 0 nghĩa diagnostic đã chạy, không phải xác minh đạt. Vẫn giữ chốt real/mixed.
+
+GenD ba khung trả `face_deepfake` với `model_version=<version GenD cũ>+headturn-3views-v1`.
+Cách lấy ba góc khác lấy đều 8/32 khung, nên **không dùng lại calibrator cũ** dù
+trọng số/cách gộp không đổi. `score` và `view_scores` là softmax thô; `prob_attack`
+và gate để trống kể cả status=ok. Chưa có calibrator/kết quả trên dữ liệu thật
+cho nhánh mới. Góc nghiêng có thể làm đổi phân bố điểm/khả năng tìm mặt, cần đo
+theo góc và toàn phiên. Luồng GenD video/ảnh cũ và full/MVP giữ nguyên.
+
+Các runtime hiện được kiểm riêng: MediaPipe/ORT ở `tmp/liveness-runtime`, GenD
+thật ở .venv có extra gend/CUDA. Chưa cài torch vào môi trường MediaPipe; muốn
+chạy cả chuỗi trên video có mặt bằng CLI phải có đầy đủ dependency trong cùng
+runtime. Thiếu dependency/mô hình trả error, không đổi sang mock. Smoke với
+video trống kiểm dừng sớm và không chứng minh cả ba mô hình đã chạy trên mặt.
 
 CLI ghi commit/trạng thái dirty, version/hash mô hình, hash đầu vào và artifact,
 runtime, một trường hợp chẩn đoán và số phép so trong ModuleResult; không phải
@@ -129,6 +151,6 @@ báo cáo độ chính xác. Không commit ảnh, video, embedding hay trọng s
 ## 4. Phần còn lại
 
 Kiểm tra chiều yaw/khả dụng trên điện thoại, người thật và video giả; kiểm
-chiều sâu/homography; nối khung đã chọn vào GenD; FLOW-03 trích chân dung CCCD;
+chiều sâu/homography; đánh giá GenD ba góc và calibrator riêng; FLOW-03 trích chân dung CCCD;
 hiệu chỉnh ngưỡng so mặt trên dữ liệu chia người; kiểm VRAM/latency cả bộ;
 quản lý mã hóa/xóa mẫu 24 giờ; cuối cùng mới nối gate vào API và retry.

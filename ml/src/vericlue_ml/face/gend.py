@@ -22,9 +22,11 @@ Nguồn tiền xử lý (chép lại, giữ giấy phép — xem `third_party/RE
 
 from __future__ import annotations
 
+import hashlib
 import math
 import threading
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
@@ -68,6 +70,9 @@ FORENSIC_MODE = "forensic"  # `DetectorInput.metadata["mode"]`; không có thì 
 # Hậu tố của model_version: cách gộp điểm khung → video. Đổi cách gộp (mean/top25/max) thì ĐỔI hậu tố này,
 # vì calibrator được khóa theo model_version. Số khung (8 hay 32) KHÔNG nằm trong version, mà ở evidence.
 AGGREGATION_TAG = "agg-maxmeantop25-v1"
+HEAD_VIEWS_TAG = "headturn-3views-v1"
+MAX_VIEW_PIXELS = 1920 * 1080
+MIN_VIEW_FACE_SIDE_PX = 40  # Provisional quality bound, not a calibrated security threshold.
 # Số luồng CPU của torch khi GenD chạy CPU: đủ nhanh mà không chiếm hết lõi của face_pad/quality/voice.
 # `torch.set_num_threads` là cài đặt toàn tiến trình (voice cũng đặt 4 qua `cpu_threads`).
 GEND_CPU_THREADS = 4
@@ -286,6 +291,104 @@ class FaceDeepfakeDetector:
             and f.y2 - f.y1 >= MIN_FACE_SIDE_PX
         ]
         return max(faces, key=lambda f: f.area) if faces else None
+
+    @property
+    def frames_version(self) -> str:
+        """Targeted three-view sampling needs its own calibrator, separate from legacy video."""
+        return f"{self.version}+{HEAD_VIEWS_TAG}"
+
+    def predict_frames(self, inp: DetectorInput, frames: Mapping[str, np.ndarray]) -> ModuleResult:
+        """Score server-selected front/left/right pixels with original GenD preprocessing.
+
+        Ignore inp.video/images/image_roles; no intermediate image files or authentication gate.
+        This sampling mode deliberately has a different model_version from predict().
+        """
+        started = time.perf_counter()
+
+        def result(status: Status, **fields: Any) -> ModuleResult:
+            return ModuleResult(
+                module=Module.FACE_DEEPFAKE,
+                model_version=self.frames_version,
+                status=status,
+                latency_ms=(time.perf_counter() - started) * 1000,
+                **fields,
+            )
+
+        try:
+            if set(frames) != {"front", "left", "right"}:
+                return result(Status.DEGRADED, error_code=ErrorCode.E_CHALLENGE_MISMATCH)
+            values = [frames[role] for role in ("front", "left", "right")]
+            if any(
+                not isinstance(frame, np.ndarray)
+                or frame.ndim != 3
+                or frame.shape[2] != 3
+                or frame.dtype != np.uint8
+                or min(frame.shape[:2]) <= 0
+                or frame.shape[0] * frame.shape[1] > MAX_VIEW_PIXELS
+                for frame in values
+            ):
+                return result(Status.DEGRADED, error_code=ErrorCode.E_DECODE)
+            if len({hashlib.sha256(frame.tobytes()).digest() for frame in values}) != 3:
+                return result(Status.DEGRADED, error_code=ErrorCode.E_INTEGRITY)
+            self.preload()
+            crops = []
+            for frame in values:
+                faces = self._finder.find(frame)
+                if len(faces) != 1:
+                    return result(
+                        Status.NOT_APPLICABLE,
+                        error_code=(ErrorCode.E_NO_FACE if not faces else ErrorCode.E_MULTI_FACE),
+                    )
+                face = faces[0]
+                # Provisional quality bound for selected views; no change to legacy sampling.
+                if (
+                    face.landmarks is None
+                    or min(face.x2 - face.x1, face.y2 - face.y1) < MIN_VIEW_FACE_SIDE_PX
+                ):
+                    return result(Status.DEGRADED, error_code=ErrorCode.E_LOW_QUALITY)
+                crops.append(to_tensor(align_face(frame, np.asarray(face.landmarks))))
+            probabilities = self._classifier.p_fake(np.stack(crops))
+            if len(probabilities) != 3 or not all(
+                math.isfinite(p) and 0 <= p <= 1 for p in probabilities
+            ):
+                raise GendError("Invalid selected-view scores.")
+            mean, top = video_scores(probabilities)
+            return result(
+                Status.OK,
+                score=max(mean, top),
+                quality={
+                    "frames_sampled": 3,
+                    "frames_used": 3,
+                    "sampling": HEAD_VIEWS_TAG,
+                    "provisional": True,
+                },
+                evidence=[
+                    Evidence(
+                        type=EvidenceType.TIMESERIES,
+                        name="view_scores",
+                        value={
+                            role: float(p)
+                            for role, p in zip(
+                                ("front", "left", "right"), probabilities, strict=True
+                            )
+                        },
+                    ),
+                    Evidence(type=EvidenceType.SCALAR, name="mean", value=mean),
+                    Evidence(type=EvidenceType.SCALAR, name="top25_mean", value=top),
+                    Evidence(
+                        type=EvidenceType.TEXT,
+                        name="score_scope",
+                        value="raw_uncalibrated_not_identity_or_depth",
+                    ),
+                ],
+            )
+        except PadError as exc:
+            return result(
+                Status.DEGRADED if exc.code == ErrorCode.E_LOW_QUALITY else Status.ERROR,
+                error_code=exc.code,
+            )
+        except Exception:
+            return result(Status.ERROR, error_code=ErrorCode.E_INTERNAL)
 
     def _score_frames(self, sampled: Frames, requested: int) -> _FrameScores:
         """Duyệt từng khung (không giữ khung gốc), chỉ giữ crop đã chuẩn hóa. `requested` là số khung
