@@ -20,6 +20,14 @@
 
 ## Token, lượt và thử thách (ADR-0011)
 
+**FLOW-01/LIVE-01 (24/10):** Tạo phiên có body `CreateSessionRequest` là opt-in
+cho `purpose`/`nonce`; chưa gửi body vẫn giữ MVP. Gói `challenge.dynamic` chứa
+lịch ánh mắt, quay đầu và câu đọc từ trước. Luồng mới cần mã lượt ở media,
+signals, finalize và mã lần đọc ở voice; chỉ hỗ trợ mock hiện tại. Trạng thái
+`deny`/`recovery_required` dành cho bên tích hợp dùng reauth; không hiển thị lý
+do an ninh cho người dân. Xem
+[`dynamic-session-api.md`](../../docs/architecture/dynamic-session-api.md).
+
 - Token **theo phiên**, gửi `Authorization: Bearer` ở mọi lần gọi của phiên. Sai/hết hạn → 401.
 - **Lượt = một challenge.** Mỗi bước (media, signals, finalize, voice) chỉ nhận một lần trong một lượt, gọi lại → 409. `finalize` trả `retry` hoặc `voice_challenge` thì mở lượt mới; đọc lại câu tối đa 1 lần.
 - Challenge sống 120 giây (`challenge.expires_at`), tách khỏi hạn của token (`expires_at` ở gốc phản hồi). Khi `finalize` trả `retry`, phản hồi kèm `challenge` mới.

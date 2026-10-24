@@ -124,7 +124,7 @@ def cleanup_expired(
                 ),
                 and_(
                     never_reviewed,
-                    SessionRow.status == "incomplete",
+                    SessionRow.status.in_(("incomplete", "deny", "recovery_required")),
                     SessionRow.last_activity_at
                     <= now - timedelta(hours=settings.media_ttl_incomplete_hours),
                 ),

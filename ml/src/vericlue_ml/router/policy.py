@@ -14,7 +14,7 @@ from vericlue_ml.router.fusion import FusionError, max_probability
 from vericlue_ml.router.profiles import RouterProfileName, get_profile
 
 ResultMap = dict[Module, ModuleResult]
-Action = Literal["pass", "retry", "review", "voice_challenge"]
+Action = Literal["pass", "retry", "review", "voice_challenge", "deny", "recovery_required"]
 Priority = Literal["normal", "high"]
 
 logger = logging.getLogger(__name__)

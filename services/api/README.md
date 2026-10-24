@@ -5,6 +5,12 @@
 
 ## Trách nhiệm
 
+FLOW-01/LIVE-01 đã có nền backend opt-in bằng body `purpose`/`nonce`, gói thử thách
+động, kiểm mã lượt và chính sách theo luồng. **Hiện chỉ chạy mock**; real/mixed trả
+503 cho luồng mới tới khi đủ detector và xác minh danh tính/thiết bị. API cũ không
+gửi body giữ nguyên. Hướng dẫn cho người tích hợp (không sửa UI):
+[`dynamic-session-api.md`](../../docs/architecture/dynamic-session-api.md).
+
 - Phiên eKYC: tạo phiên, cấp thử thách màu, nhận media và tín hiệu, gọi bộ não, trả kết quả.
 - Bàn duyệt: danh sách ca, hồ sơ bằng chứng, ghi quyết định vào nhật ký chuỗi băm.
 - Giám định: nhận file, chạy phân tích theo đoạn, sinh và ký báo cáo.

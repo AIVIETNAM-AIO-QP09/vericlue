@@ -6,52 +6,131 @@
   "$defs": {
     "ColorStep": {
       "type": "object",
-      "required": ["rgb", "hold_ms", "transition_ms"],
+      "required": [
+        "rgb",
+        "hold_ms",
+        "transition_ms"
+      ],
       "additionalProperties": false,
       "properties": {
-        "rgb": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
-        "hold_ms": { "type": "integer", "minimum": 400, "maximum": 650, "description": "Mỗi bước dài >= 550 ms (hold + transition), tức <= 1,8 lần đổi màu/giây (ADR-0011)" },
-        "transition_ms": { "type": "integer", "const": 150 }
+        "rgb": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "hold_ms": {
+          "type": "integer",
+          "minimum": 400,
+          "maximum": 650,
+          "description": "Mỗi bước dài >= 550 ms (hold + transition), tức <= 1,8 lần đổi màu/giây (ADR-0011)"
+        },
+        "transition_ms": {
+          "type": "integer",
+          "const": 150
+        }
       }
     },
     "Challenge": {
       "type": "object",
-      "description": "Thử thách màu cho một lượt. Bảng màu KHÔNG cố định trong schema (có thể đổi sau PRES-01); bộ sinh chuỗi có test riêng.",
-      "required": ["challenge_id", "color_sequence"],
+      "description": "Thử thách cho một lượt. dynamic chỉ có ở onboarding/recovery có body tạo phiên; mọi mốc thời gian dùng chung đầu bản ghi. Chuỗi màu giữ cấu hình an toàn hiện hành.",
+      "required": [
+        "challenge_id",
+        "color_sequence"
+      ],
       "additionalProperties": false,
       "properties": {
-        "challenge_id": { "type": "string" },
-        "baseline_ms": { "type": "integer", "default": 1000 },
-        "color_sequence": { "type": "array", "items": { "$ref": "#/$defs/ColorStep" }, "minItems": 8, "maxItems": 8 },
-        "capture_at_ms": { "type": "array", "items": { "type": "integer" }, "description": "Thời điểm server chọn để chụp ảnh chất lượng cao" },
-        "expires_at": { "type": "string", "format": "date-time", "description": "Hạn của thử thách này (120 giây kể từ lúc cấp); tách khỏi hạn của token" }
+        "challenge_id": {
+          "type": "string"
+        },
+        "baseline_ms": {
+          "type": "integer",
+          "default": 1000
+        },
+        "color_sequence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ColorStep"
+          },
+          "minItems": 8,
+          "maxItems": 8
+        },
+        "capture_at_ms": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "description": "Thời điểm server chọn để chụp ảnh chất lượng cao"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Hạn của thử thách này (120 giây kể từ lúc cấp); tách khỏi hạn của token"
+        },
+        "dynamic": {
+          "$ref": "#/$defs/DynamicChallenge"
+        }
       }
     },
     "CreateSessionResponse": {
       "type": "object",
-      "required": ["session_id", "token", "expires_at", "challenge"],
+      "required": [
+        "session_id",
+        "token",
+        "expires_at",
+        "challenge"
+      ],
       "additionalProperties": false,
       "properties": {
-        "session_id": { "type": "string" },
-        "token": { "type": "string", "description": "Token theo phiên (HMAC, gắn session_id), gửi qua 'Authorization: Bearer' ở mọi lần gọi của phiên. TẠM ở PLAT-04: chuỗi đơn giản; PLAT-06 thay bằng HMAC + TTL." },
-        "expires_at": { "type": "string", "format": "date-time", "description": "Hạn của TOKEN (~5 phút). Hạn của thử thách nằm ở challenge.expires_at." },
-        "challenge": { "$ref": "#/$defs/Challenge" }
+        "session_id": {
+          "type": "string"
+        },
+        "token": {
+          "type": "string",
+          "description": "Token HMAC-SHA256 theo phiên, có hạn; gửi Authorization: Bearer. DB chỉ lưu hash token."
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Hạn của TOKEN (~5 phút). Hạn của thử thách nằm ở challenge.expires_at."
+        },
+        "challenge": {
+          "$ref": "#/$defs/Challenge"
+        },
+        "purpose": {
+          "$ref": "#/$defs/SessionPurpose"
+        },
+        "nonce": {
+          "type": "string"
+        }
       }
     },
     "Signals": {
       "type": "object",
       "description": "Tín hiệu trình duyệt đo. Server KHÔNG tin tuyệt đối, sẽ tính lại từ media.",
-      "required": ["color_events", "frame_times"],
+      "required": [
+        "color_events",
+        "frame_times"
+      ],
       "properties": {
         "color_events": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["index", "rgb", "painted_at"],
+            "required": [
+              "index",
+              "rgb",
+              "painted_at"
+            ],
             "properties": {
-              "index": { "type": "integer" },
-              "rgb": { "type": "string" },
-              "painted_at": { "type": "number", "description": "performance.now() từ requestAnimationFrame" }
+              "index": {
+                "type": "integer"
+              },
+              "rgb": {
+                "type": "string"
+              },
+              "painted_at": {
+                "type": "number",
+                "description": "performance.now() từ requestAnimationFrame"
+              }
             }
           }
         },
@@ -60,77 +139,350 @@
           "items": {
             "type": "object",
             "properties": {
-              "capture_time": { "type": ["number", "null"], "description": "requestVideoFrameCallback captureTime" },
-              "presented_frames": { "type": "integer" },
-              "media_time": { "type": "number" }
+              "capture_time": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "requestVideoFrameCallback captureTime"
+              },
+              "presented_frames": {
+                "type": "integer"
+              },
+              "media_time": {
+                "type": "number"
+              }
             }
           }
         },
         "region_means": {
           "type": "array",
           "description": "Trung vị RGB theo khung cho 5 vùng da + nền (tham khảo)",
-          "items": { "type": "object" }
+          "items": {
+            "type": "object"
+          }
         },
         "camprobe": {
           "type": "object",
           "properties": {
-            "api_tamper_flags": { "type": "array", "items": { "type": "string" } },
-            "constraint_probes": { "type": "array", "items": { "type": "object" } },
-            "device_label": { "type": "string" },
-            "track_settings": { "type": "object" },
-            "track_capabilities": { "type": "object" },
-            "duplicate_frame_ratio": { "type": "number" }
+            "api_tamper_flags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "constraint_probes": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            },
+            "device_label": {
+              "type": "string"
+            },
+            "track_settings": {
+              "type": "object"
+            },
+            "track_capabilities": {
+              "type": "object"
+            },
+            "duplicate_frame_ratio": {
+              "type": "number"
+            }
           }
         },
-        "client_quality": { "type": "object" }
+        "client_quality": {
+          "type": "object"
+        },
+        "challenge_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Bắt buộc với phiên có purpose; phải khớp gói hiện hành."
+        }
       }
     },
     "StepAck": {
       "type": "object",
       "description": "Phản hồi cho bước tải lên (media, signals): chỉ xác nhận đã nhận, không có kết quả phân tích.",
-      "required": ["step", "received"],
+      "required": [
+        "step",
+        "received"
+      ],
       "additionalProperties": false,
       "properties": {
-        "step": { "type": "string", "enum": ["media", "signals"] },
-        "received": { "type": "boolean" }
+        "step": {
+          "type": "string",
+          "enum": [
+            "media",
+            "signals"
+          ]
+        },
+        "received": {
+          "type": "boolean"
+        }
       }
     },
     "RetryHint": {
-      "type": ["string", "null"],
-      "enum": [null, "MORE_LIGHT", "MOVE_CLOSER", "MOVE_BACK", "FACE_CENTER", "HOLD_STILL", "QUIET_PLACE", "BRIGHTNESS_UP"],
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        null,
+        "MORE_LIGHT",
+        "MOVE_CLOSER",
+        "MOVE_BACK",
+        "FACE_CENTER",
+        "HOLD_STILL",
+        "QUIET_PLACE",
+        "BRIGHTNESS_UP"
+      ],
       "description": "Chỉ nói về CHẤT LƯỢNG, không bao giờ nói về giả mạo"
     },
     "FinalizeResponse": {
       "type": "object",
-      "required": ["status"],
+      "required": [
+        "status"
+      ],
       "additionalProperties": false,
       "properties": {
-        "status": { "type": "string", "enum": ["pass", "retry", "review", "voice_challenge"] },
-        "retry_hint": { "$ref": "#/$defs/RetryHint" },
-        "voice_prompt": { "type": ["string", "null"], "description": "Câu tiếng Việt cần đọc" },
-        "attempts_left": { "type": "integer" },
-        "challenge": { "$ref": "#/$defs/Challenge", "description": "Chỉ có khi status = retry: thử thách mới cho lượt chụp lại" }
+        "status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "retry",
+            "review",
+            "voice_challenge",
+            "deny",
+            "recovery_required"
+          ]
+        },
+        "retry_hint": {
+          "$ref": "#/$defs/RetryHint"
+        },
+        "voice_prompt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Câu tiếng Việt cần đọc"
+        },
+        "attempts_left": {
+          "type": "integer"
+        },
+        "challenge": {
+          "$ref": "#/$defs/Challenge",
+          "description": "Chỉ có khi status = retry: thử thách mới cho lượt chụp lại"
+        },
+        "voice_challenge_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Mã lần đọc, phải gửi lại trong form /voice của phiên có purpose."
+        }
       }
     },
     "VoiceResponse": {
       "type": "object",
-      "required": ["status"],
+      "required": [
+        "status"
+      ],
       "additionalProperties": false,
       "properties": {
-        "status": { "type": "string", "enum": ["pass", "review", "voice_challenge"], "description": "voice_challenge = đọc sai câu, được đọc lại tối đa 1 lần với câu mới" },
-        "voice_prompt": { "type": ["string", "null"], "description": "Câu mới, chỉ có khi status = voice_challenge" },
-        "attempts_left": { "type": "integer" }
+        "status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "review",
+            "voice_challenge",
+            "deny"
+          ],
+          "description": "voice_challenge = đọc sai câu, được đọc lại tối đa 1 lần với câu mới"
+        },
+        "voice_prompt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Câu mới, chỉ có khi status = voice_challenge"
+        },
+        "attempts_left": {
+          "type": "integer"
+        },
+        "voice_challenge_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Mã lần đọc, phải gửi lại trong form /voice của phiên có purpose."
+        }
       }
     },
     "ErrorResponse": {
       "type": "object",
-      "description": "Định dạng lỗi chung: 401 (thiếu Bearer, token sai hoặc hết hạn), 409 (bước đã nhận trong lượt này, hoặc sai thứ tự luồng: voice_not_requested khi finalize chưa yêu cầu đọc câu, session_closed khi phiên đã vào bàn duyệt), 422 (dữ liệu sai). Mã cho thử thách hết hạn do PLAT-06 chốt.",
-      "required": ["error_code", "message"],
+      "description": "Định dạng lỗi chung: 401 (thiếu Bearer, token sai hoặc hết hạn), 409 (bước đã nhận trong lượt này, hoặc sai thứ tự luồng: voice_not_requested khi finalize chưa yêu cầu đọc câu, session_closed khi phiên đã vào bàn duyệt), 422 (dữ liệu sai). Mã cho thử thách hết hạn do PLAT-06 chốt. 503 flow_unavailable: luồng purpose chưa hỗ trợ đủ bộ kiểm chứng thật.",
+      "required": [
+        "error_code",
+        "message"
+      ],
       "additionalProperties": false,
       "properties": {
-        "error_code": { "type": "string" },
-        "message": { "type": "string" }
+        "error_code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
       }
+    },
+    "SessionPurpose": {
+      "type": "string",
+      "enum": [
+        "onboarding",
+        "reauth",
+        "recovery"
+      ]
+    },
+    "CreateSessionRequest": {
+      "type": "object",
+      "required": [
+        "purpose",
+        "nonce"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "purpose": {
+          "$ref": "#/$defs/SessionPurpose"
+        },
+        "nonce": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{16,128}$",
+          "description": "Mã tương quan do bên tích hợp cấp; không phải bằng chứng thiết bị hay chữ ký media."
+        },
+        "reference_image_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^ref_[A-Za-z0-9_-]{1,120}$",
+          "description": "Mã ảnh do server quản lý; không nhận đường dẫn hoặc URL. Hiện chỉ là điểm nối cho FLOW-03/05, chưa xác minh danh tính."
+        }
+      },
+      "description": "Gửi body để dùng luồng theo purpose (hiện chỉ hỗ trợ mock). Không gửi body giữ nguyên luồng MVP. Real/mixed trả 503 cho body mới tới khi đủ bộ kiểm chứng."
+    },
+    "GazePoint": {
+      "type": "object",
+      "required": [
+        "x",
+        "y",
+        "at_ms"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 0.9
+        },
+        "y": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 0.9
+        },
+        "at_ms": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "DynamicChallenge": {
+      "type": "object",
+      "required": [
+        "version",
+        "session_id",
+        "nonce",
+        "gaze_points",
+        "head_turns",
+        "head_start_at_ms",
+        "head_duration_ms",
+        "voice_start_at_ms",
+        "voice_prompt",
+        "voice_challenge_id",
+        "frontal_capture_at_ms"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "type": "integer",
+          "const": 1
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "nonce": {
+          "type": "string"
+        },
+        "gaze_points": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GazePoint"
+          },
+          "minItems": 8,
+          "maxItems": 8
+        },
+        "head_turns": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "left",
+              "right",
+              "center"
+            ]
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "head_start_at_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "head_duration_ms": {
+          "type": "integer",
+          "const": 6000
+        },
+        "voice_start_at_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "voice_prompt": {
+          "type": "string"
+        },
+        "voice_challenge_id": {
+          "type": "string"
+        },
+        "frontal_capture_at_ms": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "description": "Mọi at_ms tính từ đầu bản ghi giai đoạn B. Thu âm được bắt đầu theo lịch, không cần chờ finalize; chỉ gửi /voice sau khi finalize yêu cầu. Gói này là lệnh, không phải bằng chứng đã làm đúng."
+    },
+    "FinalizeRequest": {
+      "type": "object",
+      "required": [
+        "challenge_id"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "challenge_id": {
+          "type": "string"
+        }
+      },
+      "description": "Bắt buộc với phiên có purpose; không gửi body cho MVP cũ."
     }
   }
 }
