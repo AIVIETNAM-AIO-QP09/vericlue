@@ -101,6 +101,29 @@ class Matcher:
         )
 
 
+class Deepfake:
+    version = "synthetic-gend@unit-test"
+    frames_version = version + "+headturn-3views-v1"
+
+    def __init__(self, broken=False):
+        self.preloads, self.calls, self.broken = [], [], broken
+
+    def preload(self, **kwargs):
+        self.preloads.append(kwargs)
+        if self.broken:
+            raise PadError("private/gend/path", ErrorCode.E_INTEGRITY)
+
+    def predict_frames(self, inp, frames):
+        self.calls.append(frames)
+        return ModuleResult(
+            module=Module.FACE_DEEPFAKE,
+            model_version=self.frames_version,
+            status=Status.OK,
+            score=0.7,
+            latency_ms=0,
+        )
+
+
 def setup(monkeypatch):
     selections = []
     monkeypatch.setattr(pipeline, "video_sha256", lambda path: "a" * 64)
@@ -157,6 +180,70 @@ def test_reverse_head_order_still_assigns_correct_left_right_roles(monkeypatch):
     result = pipeline.match_video_views(inp, reader=Reader(reverse=True), matcher=matcher)
     assert result.head_turn.gate == Gate.PASS and len(matcher.calls) == 1
     assert selections[0][1]["right"] < selections[0][1]["left"]
+
+
+def test_optional_gend_uses_same_pixel_objects_and_has_separate_measurement(monkeypatch):
+    setup(monkeypatch)
+    matcher, deepfake = Matcher(), Deepfake()
+    result = pipeline.match_video_views(
+        inputs(), reader=Reader(), matcher=matcher, deepfake=deepfake
+    )
+    assert result.face_match.status == Status.DEGRADED
+    assert result.face_deepfake.status == Status.OK and result.face_deepfake.score == 0.7
+    assert result.face_deepfake.prob_attack is None and result.face_deepfake.gate is None
+    assert all(deepfake.calls[0][role] is matcher.calls[0][1][role] for role in deepfake.calls[0])
+    assert set(result.to_contract()) == {"head_turn", "face_match", "face_deepfake"}
+    assert result.face_deepfake.quality["depth_verified"] is False
+
+
+def test_head_failure_blocks_gend_without_model_load(monkeypatch):
+    setup(monkeypatch)
+    deepfake = Deepfake()
+    result = pipeline.match_video_views(
+        inputs(), reader=Reader(no_motion=True), matcher=Matcher(), deepfake=deepfake
+    )
+    assert (
+        result.face_deepfake.status == Status.DEGRADED and result.face_deepfake.gate == Gate.UNCLEAR
+    )
+    assert not deepfake.preloads and not deepfake.calls
+
+
+@pytest.mark.parametrize("broken", ["matcher", "gend"])
+def test_one_model_failure_preserves_other_independent_measurement(monkeypatch, broken):
+    setup(monkeypatch)
+    matcher, deepfake = Matcher(), Deepfake(broken=broken == "gend")
+    if broken == "matcher":
+
+        def fail(**kwargs):
+            raise PadError("private/lvface/path", ErrorCode.E_INTERNAL)
+
+        matcher.preload = fail
+    result = pipeline.match_video_views(
+        inputs(), reader=Reader(), matcher=matcher, deepfake=deepfake
+    )
+    if broken == "matcher":
+        assert result.face_match.status == Status.ERROR and result.face_deepfake.status == Status.OK
+    else:
+        assert (
+            result.face_deepfake.status == Status.ERROR
+            and result.face_match.status == Status.DEGRADED
+        )
+    assert result.head_turn.gate == Gate.PASS and "private/" not in str(result.to_contract())
+
+
+def test_changed_source_invalidates_gend_before_preload(monkeypatch):
+    setup(monkeypatch)
+    hashes = iter(["a" * 64, "b" * 64])
+    monkeypatch.setattr(pipeline, "video_sha256", lambda path: next(hashes))
+    deepfake = Deepfake()
+    result = pipeline.match_video_views(
+        inputs(), reader=Reader(), matcher=Matcher(), deepfake=deepfake
+    )
+    assert (
+        result.face_deepfake.status == Status.ERROR
+        and result.face_deepfake.error_code == "E_INTEGRITY"
+    )
+    assert not deepfake.preloads
 
 
 def test_head_failure_never_selects_frames_or_preloads_matcher(monkeypatch):

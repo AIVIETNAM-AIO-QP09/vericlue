@@ -1,4 +1,4 @@
-"""Offline composition of existing head_turn/face_match modules; no authentication decision."""
+"""Offline head motion, identity and optional deepfake checks; no authentication decision."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from typing import Any
 
 from vericlue_ml.common.detector import DetectorInput
 from vericlue_ml.common.result import ErrorCode, Evidence, Gate, Module, ModuleResult, Status
+from vericlue_ml.face.gend import FaceDeepfakeDetector
 from vericlue_ml.face.match import FaceMatchDetector, MatchError
 from vericlue_ml.face.pad import PadError
 from vericlue_ml.presence.head_turn import (
@@ -28,12 +29,16 @@ from vericlue_ml.presence.views import VIEW_SAMPLER_VERSION, select_video_frames
 class VideoIdentityDiagnostic:
     head_turn: ModuleResult
     face_match: ModuleResult
+    face_deepfake: ModuleResult | None = None
 
     def to_contract(self) -> dict[str, Any]:
-        return {
+        results = {
             "head_turn": self.head_turn.to_contract(),
             "face_match": self.face_match.to_contract(),
         }
+        if self.face_deepfake is not None:
+            results["face_deepfake"] = self.face_deepfake.to_contract()
+        return results
 
 
 def match_video_views(
@@ -41,13 +46,14 @@ def match_video_views(
     *,
     reader: FaceObservationReader,
     matcher: FaceMatchDetector,
+    deepfake: FaceDeepfakeDetector | None = None,
     models_dir: Path | None = None,
     device: str | None = None,
 ) -> VideoIdentityDiagnostic:
     """Select/check frames from the same local video; ignore client image roles and measurements.
 
     Caller owns the reader lifecycle and server-resolved reference/video paths. This function
-    returns two independent ModuleResults and never a final citizen pass/retry decision.
+    returns independent ModuleResults and never a final citizen pass/retry decision.
     """
     started = perf_counter()
     head = None
@@ -65,6 +71,32 @@ def match_video_views(
             latency_ms=(perf_counter() - started) * 1000,
         )
 
+    def blocked_deepfake(reason: str) -> ModuleResult | None:
+        return (
+            unavailable(
+                Module.FACE_DEEPFAKE,
+                getattr(deepfake, "frames_version", deepfake.version),
+                reason=reason,
+            )
+            if deepfake is not None
+            else None
+        )
+
+    def score_frames(detector, module, frames) -> ModuleResult:
+        try:
+            detector.preload(models_dir=models_dir, device=device)
+            return detector.predict_frames(inp, frames)
+        except Exception as exc:
+            return unavailable(
+                module,
+                getattr(detector, "frames_version", detector.version),
+                status=exc.status if isinstance(exc, (LandmarkError, MatchError)) else Status.ERROR,
+                code=exc.code
+                if isinstance(exc, (LandmarkError, PadError))
+                else ErrorCode.E_INTERNAL,
+                reason="model_unavailable",
+            )
+
     try:
         plan = parse_head_plan(inp)
         if inp.video is None or inp.reference_image is None:
@@ -74,7 +106,9 @@ def match_video_views(
         head = HeadTurnDetector(reader).predict(inp)
         if head.status != Status.OK or head.gate != Gate.PASS:
             return VideoIdentityDiagnostic(
-                head, unavailable(Module.FACE_MATCH, matcher.version, reason="head_turn_not_passed")
+                head,
+                unavailable(Module.FACE_MATCH, matcher.version, reason="head_turn_not_passed"),
+                blocked_deepfake("head_turn_not_passed"),
             )
         entries = [e.value for e in head.evidence if e.name == "view_times_ms"]
         times = entries[0] if len(entries) == 1 else None
@@ -115,29 +149,34 @@ def match_video_views(
         if video_sha256(inp.video) != original_sha:
             invalidate_head = True
             raise LandmarkError(ErrorCode.E_INTEGRITY)
-        matcher.preload(models_dir=models_dir, device=device)
-        match = matcher.predict_frames(inp, frames)
-        match.quality.update(views_from_video=True, depth_verified=False, provisional=True)
-        match.evidence.extend(
-            [
-                Evidence(type="text", name="view_sampler", value=VIEW_SAMPLER_VERSION),
-                Evidence(type="text", name="source_video_sha256", value=original_sha),
-                Evidence(
-                    type="timeseries",
-                    name="selected_frames",
-                    value={
-                        role: {
-                            "target_ms": frame.target_ms,
-                            "at_ms": frame.at_ms,
-                            "pixels_sha256": hashlib.sha256(frame.bgr.tobytes()).hexdigest(),
-                        }
-                        for role, frame in selected.items()
-                    },
-                    unit="ms",
-                ),
-            ]
+        match = score_frames(matcher, Module.FACE_MATCH, frames)
+        gend = (
+            score_frames(deepfake, Module.FACE_DEEPFAKE, frames) if deepfake is not None else None
         )
-        return VideoIdentityDiagnostic(head, match)
+        provenance = [
+            Evidence(type="text", name="view_sampler", value=VIEW_SAMPLER_VERSION),
+            Evidence(type="text", name="source_video_sha256", value=original_sha),
+            Evidence(
+                type="timeseries",
+                name="selected_frames",
+                value={
+                    role: {
+                        "target_ms": frame.target_ms,
+                        "at_ms": frame.at_ms,
+                        "pixels_sha256": hashlib.sha256(frame.bgr.tobytes()).hexdigest(),
+                    }
+                    for role, frame in selected.items()
+                },
+                unit="ms",
+            ),
+        ]
+        for measured in (match, gend):
+            if measured is not None:
+                measured.quality.update(
+                    views_from_video=True, depth_verified=False, provisional=True
+                )
+                measured.evidence.extend(e.model_copy(deep=True) for e in provenance)
+        return VideoIdentityDiagnostic(head, match, gend)
     except Exception as exc:
         status = exc.status if isinstance(exc, (LandmarkError, MatchError)) else Status.ERROR
         code = exc.code if isinstance(exc, (LandmarkError, PadError)) else ErrorCode.E_INTERNAL
@@ -158,4 +197,13 @@ def match_video_views(
                 code=code,
                 reason="video_identity_unavailable",
             ),
+            unavailable(
+                Module.FACE_DEEPFAKE,
+                getattr(deepfake, "frames_version", deepfake.version),
+                status=status,
+                code=code,
+                reason="video_identity_unavailable",
+            )
+            if deepfake is not None
+            else None,
         )

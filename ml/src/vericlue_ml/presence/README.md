@@ -84,6 +84,10 @@ task MediaPipe; không nạp LVFace nếu bước trước chưa đạt. Đây v
 độc lập. Lệnh `eval.video_face_match`, giới hạn và giả định ở
 [`head-and-match.md`](../../../../docs/architecture/head-and-match.md).
 
+Tùy chọn `--with-gend` chấm deepfake trên đúng ba khung này, không đọc/lấy mẫu
+video lần nữa. Kết quả độc lập với so danh tính, dùng version lấy mẫu riêng và
+chưa hiệu chỉnh; runtime cần có extra gend. Mặc định chưa bật tùy chọn này.
+
 Đo trên điện thoại thật, ánh sáng/thiết bị/kính/tư thế khác nhau; kiểm dấu hai trục,
 đồng bộ mốc video, độ phủ và lỗi. Hiệu chỉnh trên calib, thử video phát lại/đường
 khác, kiểm head-turn/so mặt/chữ ký. Chọn cấu hình dependency dùng chung và nối

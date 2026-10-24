@@ -15,6 +15,7 @@ from pathlib import Path
 from vericlue_ml.common.detector import DetectorInput
 from vericlue_ml.eval.face_match import checksum
 from vericlue_ml.eval.report import git_revision
+from vericlue_ml.face.gend import FaceDeepfakeDetector
 from vericlue_ml.face.match import FaceMatchDetector
 from vericlue_ml.face.pad import _manifest_entry
 from vericlue_ml.presence.landmarks import FaceObservationReader
@@ -29,6 +30,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--models-dir", type=Path, required=True)
     parser.add_argument("--device", choices=("cpu", "cuda", "auto"), default="cpu")
     parser.add_argument("--calibration", type=Path)
+    parser.add_argument(
+        "--with-gend",
+        action="store_true",
+        help="Also score the selected views with GenD; requires the gend extra",
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
     artifact = args.calibration or os.environ.get("FACE_MATCH_CALIBRATION")
@@ -40,6 +46,7 @@ def main(argv: list[str] | None = None) -> int:
     body = json.loads(args.server_response.read_text(encoding="utf-8"))
     reader = FaceObservationReader()
     matcher = FaceMatchDetector(calibration_path=args.calibration)
+    deepfake = FaceDeepfakeDetector() if args.with_gend else None
     try:
         result = match_video_views(
             DetectorInput(
@@ -53,6 +60,7 @@ def main(argv: list[str] | None = None) -> int:
             ),
             reader=reader,
             matcher=matcher,
+            deepfake=deepfake,
             models_dir=args.models_dir,
             device=args.device,
         )
@@ -60,6 +68,7 @@ def main(argv: list[str] | None = None) -> int:
         reader.close()
     revision = git_revision()
     face_loaded = matcher.embedder.session is not None
+    gend_loaded = deepfake is not None and deepfake._classifier is not None
     runtime = {name: importlib.metadata.version(name) for name in ("numpy", "mediapipe")}
     if face_loaded:
         import onnxruntime as ort
@@ -67,6 +76,10 @@ def main(argv: list[str] | None = None) -> int:
         runtime.update(
             onnxruntime=ort.__version__, providers=matcher.embedder.session.get_providers()
         )
+    if gend_loaded:
+        import torch
+
+        runtime["torch"] = torch.__version__
     payload = {
         "created_at": datetime.now(UTC).isoformat(),
         "commit": revision,
@@ -79,6 +92,11 @@ def main(argv: list[str] | None = None) -> int:
         "challenge_file_sha256": checksum(args.server_response),
         "landmarker_sha256": reader.expected_sha256,
         "face_match_model_loaded": face_loaded,
+        "gend_requested": args.with_gend,
+        "gend_model_loaded": gend_loaded,
+        "gend_model_sha256": _manifest_entry("gend-clip-l14", "model.safetensors")["sha256"]
+        if gend_loaded
+        else None,
         "face_match_model_sha256": {
             "lvface-b": _manifest_entry("lvface-b", "LVFace-B_Glint360K.onnx")["sha256"],
             "scrfd-10g": _manifest_entry("scrfd-10g", "det_10g.onnx")["sha256"],
@@ -94,7 +112,14 @@ def main(argv: list[str] | None = None) -> int:
     args.output.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
-    return 1 if any(r.status == "error" for r in (result.head_turn, result.face_match)) else 0
+    return (
+        1
+        if any(
+            r is not None and r.status == "error"
+            for r in (result.head_turn, result.face_match, result.face_deepfake)
+        )
+        else 0
+    )
 
 
 if __name__ == "__main__":

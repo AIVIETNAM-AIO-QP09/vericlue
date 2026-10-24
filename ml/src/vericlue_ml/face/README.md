@@ -82,6 +82,14 @@ Mã **không gọi mạng**: thiếu file hoặc sai SHA-256 là `error`.
 
 Evidence: `frame_scores` (timeseries `{frame, p_fake}`), `mean`, `top25_mean`; `quality.frames_sampled/frames_used`.
 
+FLOW-04 thêm `predict_frames(inp, frames)` cho ba khung front/left/right đã được
+server chọn trong RAM. Tiền xử lý và gộp điểm giữ nguyên, nhưng bắt buộc đúng
+một mặt ở từng khung, không lặp pixel, đủ cả ba góc. `frames_version` thêm
+`+headturn-3views-v1` để không dùng calibrator lấy mẫu video cũ; `self.version`
+và `predict()` video/ảnh thông thường không đổi. Chỉ trả điểm thô, không gate hay
+xác suất đã hiệu chỉnh. CLI `eval.video_face_match --with-gend` là diagnostic,
+chưa bật nhánh này vào API/full/MVP. Xem `docs/architecture/head-and-match.md`.
+
 **Tốc độ và thiết bị:** `DEVICE=cpu|cuda|auto` (Settings) được truyền tới mọi detector; yêu cầu GPU mà không có thì tự lùi CPU và ghi log `device_fallback`. Chạy CPU, torch dùng tối đa `GEND_CPU_THREADS = 4` luồng. Trên CPU GenD vượt ngân sách detector 4 s (`detector_timeout_seconds`) nên MVP demo chạy GPU. Muốn đo trên máy mình: `ml/scripts/bench_mvp_latency.py` (thử tay, không phải R6); số đo thử ngày 18/10 ghi trong bàn giao FACE-02.
 
 ### Chạy bằng GPU (máy demo Windows, RTX)
