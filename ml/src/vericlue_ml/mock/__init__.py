@@ -6,6 +6,8 @@ from vericlue_ml.mock.scenarios import SCENARIOS
 __all__ = ["MOCK_DETECTORS", "MOCK_VERSION", "SCENARIOS", "MockDetector"]
 
 from vericlue_ml.common.result import Module
+from vericlue_ml.mock.gaze import MockGazeDetector
 from vericlue_ml.mock.voice_challenge import MockVoiceChallengeDetector
 
 MOCK_DETECTORS[Module.VOICE_CHALLENGE] = MockVoiceChallengeDetector()
+MOCK_DETECTORS[Module.GAZE_TRACKING] = MockGazeDetector()

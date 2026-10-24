@@ -34,8 +34,10 @@ class RouterProfile:
 
     @property
     def modules(self) -> tuple[Module, ...]:
+        # LIVE-02 is a standalone diagnostic until all dynamic gates are integrated.
+        # Adding its enum must not change legacy model loading, health or pass policy.
         return (
-            tuple(Module)
+            tuple(module for module in Module if module != Module.GAZE_TRACKING)
             if self.name == "full"
             else (*self.finalize_modules, *self.voice_step_modules)
         )

@@ -13,6 +13,10 @@
 
 ## Quy tắc
 
+LIVE-02 thêm tên module `gaze_tracking` vào ModuleResult để diagnostic và mock
+cùng trả đúng hợp đồng. Đây không phải thay đổi trạng thái cho người dân, không
+tự bật mô-đun trong full/MVP hoặc bỏ chốt chế độ thật của luồng mới.
+
 1. **Đổi schema trước, code sau**, cả hai phía trong **cùng một PR**. Tiêu đề PR có `[contract]`.
 2. Chỉ **thêm** trường tùy chọn thì không phá tương thích. **Đổi tên / xóa / đổi kiểu** thì phải tăng phiên bản API (`/v2`) hoặc báo cả nhóm.
 3. Phía Python sinh model Pydantic từ schema; phía TypeScript sinh type từ OpenAPI của FastAPI (task PLAT-04).

@@ -58,7 +58,7 @@ def test_only_profile_modules_are_constructed_preloaded_and_run(profile):
         return TrackedDetector(module)
 
     engine = Orchestrator(Settings(router_profile=profile), detector_factory=factory)
-    expected = set(Module) if profile == "full" else MVP_MODULES
+    expected = (set(Module) - {Module.GAZE_TRACKING}) if profile == "full" else MVP_MODULES
     try:
         engine.start()
         engine.start()

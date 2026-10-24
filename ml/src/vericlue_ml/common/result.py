@@ -22,6 +22,7 @@ class Module(StrEnum):
     VOICE_CHALLENGE = "voice_challenge"
     LIPSYNC = "lipsync"
     PROVENANCE = "provenance"
+    GAZE_TRACKING = "gaze_tracking"
 
 
 class Status(StrEnum):

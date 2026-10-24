@@ -23,7 +23,8 @@
         "voice_spoof",
         "voice_challenge",
         "lipsync",
-        "provenance"
+        "provenance",
+        "gaze_tracking"
       ]
     },
     "model_version": {
