@@ -19,6 +19,7 @@ VOICE_PROMPTS = (
 GAZE_DURATION_MS = 7000
 GAZE_INTERVAL_MS = 1000
 HEAD_DURATION_MS = 6000
+MIN_GAZE_AXIS_SPAN = 0.30
 PROMPT_WORDS = (
     "mây",
     "sông",
@@ -80,14 +81,22 @@ def generate_dynamic_challenge(settings: Settings, *, session_id: str, nonce: st
     )
     rng = random.SystemRandom()
     # All times share the beginning of the face recording; there is no client clock offset.
-    points = [GazePoint(x=0.5, y=0.5, at_ms=gaze_start)]
-    for offset in range(GAZE_INTERVAL_MS, GAZE_DURATION_MS + 1, GAZE_INTERVAL_MS):
-        previous = points[-1]
-        while True:
-            x, y = rng.randint(20, 80) / 100, rng.randint(20, 80) / 100
-            if (x - previous.x) ** 2 + (y - previous.y) ** 2 >= 0.04:
-                break
-        points.append(GazePoint(x=x, y=y, at_ms=gaze_start + offset))
+    while True:
+        points = [GazePoint(x=0.5, y=0.5, at_ms=gaze_start)]
+        for offset in range(GAZE_INTERVAL_MS, GAZE_DURATION_MS + 1, GAZE_INTERVAL_MS):
+            previous = points[-1]
+            while True:
+                x, y = rng.randint(20, 80) / 100, rng.randint(20, 80) / 100
+                if (x - previous.x) ** 2 + (y - previous.y) ** 2 >= 0.04:
+                    break
+            points.append(GazePoint(x=x, y=y, at_ms=gaze_start + offset))
+        # A near-vertical/horizontal path cannot independently test both gaze axes.
+        if all(
+            max(getattr(p, axis) for p in points) - min(getattr(p, axis) for p in points)
+            >= MIN_GAZE_AXIS_SPAN
+            for axis in ("x", "y")
+        ):
+            break
     turns = ["left", "right"] if secrets.randbelow(2) == 0 else ["right", "left"]
     head_start = gaze_start + GAZE_DURATION_MS
     challenge.dynamic = DynamicChallenge(

@@ -100,6 +100,9 @@ def test_gaze_head_schedule_is_after_safe_color_sequence(client):
     ch = created["challenge"]
     plan = ch["dynamic"]
     points = plan["gaze_points"]
+    assert all(
+        max(p[axis] for p in points) - min(p[axis] for p in points) >= 0.30 for axis in ("x", "y")
+    )
     color_end = ch["baseline_ms"] + sum(
         x["hold_ms"] + x["transition_ms"] for x in ch["color_sequence"]
     )

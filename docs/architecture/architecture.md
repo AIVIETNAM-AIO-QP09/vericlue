@@ -65,6 +65,11 @@ Data4Life/
 
 ## 3. Giao diện chung của mô-đun AI
 
+LIVE-02 bổ sung `gaze_tracking` và reader MediaPipe để diagnostic video ở server.
+Mô-đun này dùng gate thử nghiệm, chưa ở profile full/MVP và chưa tham gia quyết
+định API. Xem [`presence/README.md`](../../ml/src/vericlue_ml/presence/README.md).
+Ngưỡng/chiều tọa độ chưa nghiệm thu trên điện thoại; không bỏ chốt real/mixed.
+
 Mọi bộ phát hiện (kể cả cổng chất lượng `quality`) đều trả một `ModuleResult` (schema: `packages/contracts/schemas/module_result.schema.json`):
 
 ```python

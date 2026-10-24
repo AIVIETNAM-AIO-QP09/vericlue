@@ -275,7 +275,12 @@ không chứng minh chống phát lại video được gắn mã mới (LIVE-03/
 - Ngưỡng là hằng số có tên trong file mô-đun, chờ ROUT-03. Trả `ModuleResult` và có bản mock.
 
 **Tiêu chí hoàn thành:**
-- [ ] Test bằng chuỗi điểm tổng hợp: khớp, lệch, đứng yên, đường của phiên khác.
+- [x] Test bằng chuỗi điểm tổng hợp: khớp, lệch, đứng yên, đường của phiên khác.
+- Backend diagnostic 24/10: reader MediaPipe/kiểm SHA, mắt tương đối và góc đầu
+  ước lượng, đối chiếu hai trục/độ trễ, kiểm độ phủ và lỗi. Có mock + ModuleResult
+  gaze_tracking; chưa tham gia router/full/MVP. Đường chấm server được sinh đủ
+  biên độ hai trục; không sửa UI. Giữ doing vì chưa đo trên điện thoại thật và
+  chưa hoàn tất tích hợp quyết định. Xem ml/src/vericlue_ml/presence/README.md.
 - [ ] Đo trên điện thoại thật trong phòng sáng và phòng tối; ghi số mẫu vào bàn giao. Không đưa con số vào báo cáo nếu không chạy ra từ code.
 
 ---
