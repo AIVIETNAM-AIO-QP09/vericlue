@@ -39,6 +39,12 @@ Sửa theo kết quả duyệt của trưởng nhóm ngày 24/10.
 - Hộp thoại thoát ghi "Tiếp tục" khi không làm lại phần mặt.
 - "Thử lại" và "Tiếp tục chờ" bỏ màn lỗi khỏi back stack.
 
+**Cập nhật 11:20: video lúc đọc câu (VOICE-05), kiểm trên máy ảo.**
+- Ở chế độ API thật, app quay MP4 lúc đọc câu (`CameraSession.startRecording(voice = true)`, file `voice_*.mp4`) và gửi kèm WAV ở `/voice` (`LiveFlow.submitVoice(wav, video, onAccepted)`). Phần quay này không đụng tới `frame_times`/`region_means` của phần mặt.
+- WAV chỉ bắt đầu khi video đã có khung hình đầu (`awaitRecordingStarted`). Trước khi gửi, app chờ CameraX ghi xong file (`finishedVideo`). Server nhận xong thì app xóa video.
+- Bấm dừng trước khi mic kịp bắt đầu thì việc khởi động bị hủy, không có bản ghi thừa.
+- Test mới `voiceSendsTheReadingVideoNextToTheWav`.
+
 ## Đang dở
 - Chưa thử trên điện thoại thật.
 - Thứ tự quay đầu vẫn chọn trên máy; đường chấm sáng chưa ghi. Cả hai chờ hợp đồng LIVE-01.
@@ -63,6 +69,8 @@ Sửa theo kết quả duyệt của trưởng nhóm ngày 24/10.
 - Tiêu chí "Build được APK trên máy Windows" (E9, APP-01) vẫn giữ dấu tích, vì đã build thật trên máy này (xem phần Test đã chạy). Câu 15 trong `can-chot.md` để trưởng nhóm xác nhận.
 
 ## Câu hỏi cho nhóm
+- Câu 16 (`can-chot.md`, M4): thêm `audio_offset_ms` vào `/voice`, vì video vẫn bắt đầu trước WAV khoảng 0,6 s.
+- Câu 17: bàn duyệt chưa xem được media. `MediaRef.kind` thiếu `voice_video`, chưa có route `/media`, web `/review` còn trống.
 - Câu 14 (`can-chot.md`): cần cách để server mở ca duyệt thủ công khi người dùng không xem được màn nháy màu.
 - Câu 15: xác nhận giữ dấu tích "build trên Windows".
 
@@ -77,5 +85,15 @@ Windows 11, JDK 17 (D:\tools\jdk17), Android SDK 35, apps/android:
   → BUILD FAILED đúng ý: :app:checkReleaseApiUrl "Release cần -Pvericlue.apiBaseUrl=https://…"
 ./gradlew --no-daemon assembleRelease -Pvericlue.apiBaseUrl=https://example.invalid/
   → BUILD SUCCESSFUL, app-arm64-v8a-release.apk 23 488 823 byte
-Chưa chạy lại trên máy ảo sau các sửa này.
+
+Cập nhật 11:20:
+./gradlew testDebugUnitTest assembleDebug → BUILD SUCCESSFUL, 53/53 test qua
+Máy ảo Pixel 6 (Android 14, webcam) + API mock (SQLite), điều khiển bằng adb:
+  genuine, tắt mạng máy ảo (svc wifi/data disable) rồi gửi → "Không kết nối được"
+    → "Thử lại" khi vẫn mất mạng → lại "Không kết nối được" (không ra thành công)
+    → bật mạng, "Thử lại" → "Xác minh thành công", chỉ tích "Khuôn mặt"
+    → server nhận face_image.jpg + face_video.mp4 (1,5 MB); cache app không còn face_*.mp4
+  voice_clone → đọc câu → chờ duyệt; server nhận voice_audio.wav + voice_video.mp4
+    độ dài (2 lượt bấm cách nhau 5 s và 6 s): WAV 4,50 s / MP4 5,22 s; WAV 5,66 s / MP4 6,23 s
+  GET /v1/review/cases/{id}: ca có trong danh sách, nhưng media thiếu voice_video và /media/… trả 404 (câu 17)
 ```

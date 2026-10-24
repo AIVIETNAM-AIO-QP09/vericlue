@@ -16,7 +16,7 @@
 | Nháy màu | Màu, nhịp từ `challenge` của server; ghi `color_events`, `frame_times` cùng một đồng hồ | Đo phản chiếu trên máy thật |
 | Quay đầu | Góc quay từ ML Kit (`headEulerAngleY`) | Thứ tự trái/phải vẫn chọn trên máy (chờ LIVE-01); chiều dấu của góc phải kiểm trên máy thật |
 | Chấm sáng | Giao diện | Đường đi và việc ghi `(t, x, y)` chờ hợp đồng LIVE-01 |
-| Ghi âm | `AudioRecord` 16 kHz mono → WAV, câu đọc từ `voice_prompt` | |
+| Ghi âm | `AudioRecord` 16 kHz mono → WAV, câu đọc từ `voice_prompt`; quay MP4 cùng lúc (API thật) và gửi kèm ở `/voice` cho khớp môi (VOICE-05) | Video bắt đầu trước WAV khoảng 0,6 s; chưa gửi độ lệch (câu 16 trong `docs/can-chot.md`) |
 | CCCD | Camera sau, đọc QR (ML Kit), đo nét/lóa, điền thông tin từ QR | Chưa có endpoint gửi CCCD (FLOW-03); thứ tự trường QR cần kiểm với thẻ thật |
 | OTP | Giao diện, bàn phím | Chưa có endpoint (FLOW-02) |
 | Gián đoạn | Xuống nền giữa lúc quay → bỏ lượt, màn "Xác minh bị gián đoạn" | Gia hạn phiên (LIVE-06) |

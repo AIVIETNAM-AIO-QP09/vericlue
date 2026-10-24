@@ -228,5 +228,6 @@ Cập nhật 24/10 (chiều, theo kết quả duyệt của trưởng nhóm):
 - Màn thành công (chế độ thật) chỉ tích phần server đã kiểm: khuôn mặt, và giọng nếu đã gửi.
 - "Bỏ qua nháy màu" không còn bỏ cả phần khuôn mặt: dừng ở màn "Cần xác minh theo cách khác" (câu 14 trong `can-chot.md`).
 - Bản release dừng build nếu `apiBaseUrl` không phải `https://`.
+- Đọc câu (API thật): quay MP4 cùng lúc với WAV và gửi kèm ở `/voice` cho VOICE-05. WAV chỉ bắt đầu khi video đã có khung hình đầu. Trên máy ảo, video vẫn bắt đầu trước WAV khoảng 0,6 s (câu 16 trong `can-chot.md`).
 
 Cách chạy thử với API mock: xem `apps/android/README.md`, mục "Chạy thử với API mock".
