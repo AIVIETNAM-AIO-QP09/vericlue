@@ -164,7 +164,13 @@ class SessionFlow:
         return FinalizeResponse(status=outcome.status)
 
     # --- voice -----------------------------------------------------------
-    def voice(self, session: Session, *, voice_video: Path | None = None) -> VoiceResponse:
+    def voice(
+        self,
+        session: Session,
+        *,
+        voice_video: Path | None = None,
+        audio_offset_ms: int | None = None,
+    ) -> VoiceResponse:
         self.ensure_voice_allowed(session)
         session_valid = self._valid_time(session)
         results = (
@@ -175,7 +181,11 @@ class SessionFlow:
                 images=session.images,
                 video=voice_video,
                 audio=session.audio,
-                extra_metadata={"prompt": session.voice_prompt},
+                extra_metadata={
+                    "prompt": session.voice_prompt,
+                    # Khi WAV bắt đầu, tính từ khung hình đầu của video (app Android).
+                    **({"audio_offset_ms": audio_offset_ms} if audio_offset_ms is not None else {}),
+                },
             )
             if session_valid
             else {}

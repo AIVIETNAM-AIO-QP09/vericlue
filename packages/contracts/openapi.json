@@ -97,6 +97,20 @@
             "title": "Audio",
             "type": "string"
           },
+          "audio_offset_ms": {
+            "anyOf": [
+              {
+                "maximum": 5000.0,
+                "minimum": -5000.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Thời điểm WAV bắt đầu, tính bằng ms từ khung hình đầu của video (dương = WAV bắt đầu sau). Dùng để căn khớp môi; chỉ có khi gửi video.",
+            "title": "Audio Offset Ms"
+          },
           "video": {
             "anyOf": [
               {

@@ -40,7 +40,7 @@
     },
     "Signals": {
       "type": "object",
-      "description": "Tín hiệu trình duyệt đo. Server KHÔNG tin tuyệt đối, sẽ tính lại từ media.",
+      "description": "Tín hiệu do web hoặc app Android đo. Server KHÔNG tin tuyệt đối, sẽ tính lại từ media. Mọi mốc thời gian trong một lần gửi dùng chung một đồng hồ, tính bằng ms; client_quality.clock ghi đồng hồ nào.",
       "required": ["color_events", "frame_times"],
       "properties": {
         "color_events": {
@@ -51,7 +51,7 @@
             "properties": {
               "index": { "type": "integer" },
               "rgb": { "type": "string" },
-              "painted_at": { "type": "number", "description": "performance.now() từ requestAnimationFrame" }
+              "painted_at": { "type": "number", "description": "Lúc khung màu được vẽ, ms. Web: performance.now() từ requestAnimationFrame. App Android: SystemClock.elapsedRealtime (khung vẽ của Compose, quy về elapsedRealtime)" }
             }
           }
         },
@@ -60,7 +60,7 @@
           "items": {
             "type": "object",
             "properties": {
-              "capture_time": { "type": ["number", "null"], "description": "requestVideoFrameCallback captureTime" },
+              "capture_time": { "type": ["number", "null"], "description": "Lúc camera chụp khung, ms, cùng đồng hồ với painted_at. Web: requestVideoFrameCallback captureTime. App Android: timestamp của khung CameraX quy về elapsedRealtime; null nếu không có" },
               "presented_frames": { "type": "integer" },
               "media_time": { "type": "number" }
             }
@@ -82,7 +82,7 @@
             "duplicate_frame_ratio": { "type": "number" }
           }
         },
-        "client_quality": { "type": "object" }
+        "client_quality": { "type": "object", "description": "Thông tin máy khách để server đánh giá độ tin cậy của mốc thời gian, ví dụ client (web | android), clock (performance.now | elapsedRealtime), timestamp_source, fps" }
       }
     },
     "StepAck": {

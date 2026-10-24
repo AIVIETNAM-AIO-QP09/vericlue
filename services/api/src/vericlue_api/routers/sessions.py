@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Header, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Header, UploadFile
 from starlette.concurrency import run_in_threadpool
 
 from vericlue_api.core.errors import ApiError
@@ -127,6 +127,17 @@ async def voice(
     state: StateDep,
     audio: Annotated[UploadFile, File(description="Âm thanh lúc đọc câu")],
     video: Annotated[UploadFile | None, File(description="Video lúc đọc câu")] = None,
+    audio_offset_ms: Annotated[
+        int | None,
+        Form(
+            ge=-5000,
+            le=5000,
+            description=(
+                "Thời điểm WAV bắt đầu, tính bằng ms từ khung hình đầu của video "
+                "(dương = WAV bắt đầu sau). Dùng để căn khớp môi; chỉ có khi gửi video."
+            ),
+        ),
+    ] = None,
 ) -> VoiceResponse:
     state.flow.ensure_voice_allowed(session)  # kiểm TRƯỚC khi ghi bất kỳ file nào
     media_dir = state.settings.media_dir
@@ -146,4 +157,6 @@ async def voice(
             video.filename,
             await read_limited(video, state.settings.max_upload_mb),
         )
-    return await run_in_threadpool(state.flow.voice, session, voice_video=voice_video)
+    return await run_in_threadpool(
+        state.flow.voice, session, voice_video=voice_video, audio_offset_ms=audio_offset_ms
+    )
