@@ -42,4 +42,11 @@
 | 12 | **Điện thoại thật + cloudflared** | Chưa thử trên máy thật; bản release chỉ gọi HTTPS | Chọn người có máy Android 10+, cài `app-arm64-v8a-release.apk` (22 MB). Cần địa chỉ cloudflared tới máy demo để build | |
 | 13 | **Khóa ký app** | Bản release đang ký tạm bằng khóa debug | Nộp bài dùng khóa debug là đủ, hay cần tạo khóa riêng? | |
 
+## F. Sau lần duyệt 24/10
+
+| # | Câu hỏi | Vì sao cần | Đề xuất | Trả lời |
+|---|---|---|---|---|
+| 14 | **Người không xem được màn nháy màu** (nút "Bỏ qua nháy màu") | Trước đây nút này bỏ luôn phần khuôn mặt. Giờ app dừng và hiện màn "Cần xác minh theo cách khác" (mời liên hệ ngân hàng). **Chưa gửi gì lên server**, nên không có hồ sơ nào trong bàn duyệt | Cần endpoint hoặc trạng thái để server mở ca duyệt thủ công (ví dụ `POST .../finalize` kèm `skip_flash: true` → `review`). Tạm thời giữ cách hiện tại | |
+| 15 | **Tiêu chí "Build được APK trên máy Windows"** (E9, APP-01) | Duyệt yêu cầu bỏ tích nếu chưa build thật | Giữ tích: đã build `testDebugUnitTest assembleDebug assembleRelease` trên Windows 11 (JDK 17, Android SDK 35), README có bước cài Android Studio/SDK. Chi tiết trong bàn giao | |
+
 Chi tiết kỹ thuật: [`plan-camera-mic.md`](plan-camera-mic.md) (mục 9 và 11), [`../README.md`](../README.md).

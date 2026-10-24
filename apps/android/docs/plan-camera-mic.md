@@ -222,4 +222,11 @@ Cập nhật 24/10 (sáng):
 - CI có job Android (chạy khi mở PR hoặc push vào `main`).
 - Màn chụp lại: icon và câu nhắc theo `retry_hint` của server.
 
+Cập nhật 24/10 (chiều, theo kết quả duyệt của trưởng nhóm):
+- "Thử lại" (mất mạng) và "Tiếp tục chờ" (chậm) ở chế độ API thật quay về màn gửi. `LiveFlow` nhớ bước server đã nhận nên chỉ gửi phần còn thiếu; 409 khi gửi lại media/signals coi là đã nhận (trừ `session_closed`). Chế độ API thật không bao giờ đi qua kết quả giả (`DemoOutcome`).
+- File `face_*.mp4` trong cache bị xóa khi server đã nhận media, khi rời luồng, khi bị gián đoạn hoặc làm lại.
+- Màn thành công (chế độ thật) chỉ tích phần server đã kiểm: khuôn mặt, và giọng nếu đã gửi.
+- "Bỏ qua nháy màu" không còn bỏ cả phần khuôn mặt: dừng ở màn "Cần xác minh theo cách khác" (câu 14 trong `can-chot.md`).
+- Bản release dừng build nếu `apiBaseUrl` không phải `https://`.
+
 Cách chạy thử với API mock: xem `apps/android/README.md`, mục "Chạy thử với API mock".

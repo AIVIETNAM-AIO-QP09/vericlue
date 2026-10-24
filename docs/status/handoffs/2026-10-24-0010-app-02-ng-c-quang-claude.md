@@ -25,7 +25,7 @@
 - **Bản debug:**
   - Công tắc "API thật" kèm chọn kịch bản mock.
   - Nút "Chụp ngay (debug)" và "Bỏ qua (debug)" để thử trên máy ảo không có mặt người. Bản release không có.
-- **30 test JVM**, gồm `LiveFlowTest` chạy với MockWebServer.
+- **40 test JVM** (30 lúc đầu phiên, 40 sau cập nhật 24/10 sáng), gồm `LiveFlowTest` chạy với MockWebServer.
 - **Tài liệu:** `apps/android/README.md` (bảng đã thật / còn giả, cách chạy API mock bằng SQLite), mục 11 trong `docs/plan-camera-mic.md`, `third_party/README.md`.
 
 ### Cập nhật 24/10 sáng (cùng nhánh)
@@ -74,7 +74,7 @@
 ## Test đã chạy
 ```
 cd apps/android
-./gradlew testDebugUnitTest assembleDebug   → BUILD SUCCESSFUL, 30/30 test qua
+./gradlew testDebugUnitTest assembleDebug   → BUILD SUCCESSFUL, 30/30 test qua (đầu phiên); sau cập nhật 24/10 sáng: 40/40
                                               (CaptureTest 7, CitizenCopyTest 1, FlowRulesTest 6, IdCardTest 5, LiveFlowTest 6, ScreensSnapshotTest 5)
 Máy ảo Pixel 6 (Android 14) + API mock (SQLite):
   genuine → thành công · voice_clone → đọc câu → chờ duyệt · low_quality → chụp lại (gợi ý + số lần từ server)

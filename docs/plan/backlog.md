@@ -125,9 +125,9 @@
 | SEC-01 | Khóa theo phiên, che dữ liệu, nhật ký truy cập | M2 | | 1,5 | S1 | P0 | REV-01, PLAT-05 | todo |
 | SEC-02 ★ | Khóa thiết bị, ký media, nonce một lần | M2 (+M1) | | 1 | S2 | P0 | APP-01, PLAT-06 | todo |
 | APP-01 ★ | App Kotlin: khung, API qua HTTPS, điều hướng 3 luồng | M1 | Ngọc Quang+Claude | 1,5 | S1 | P0 | PLAT-04 | doing |
-| APP-02 ★ | App: chụp mặt, quay 3 s, quay đầu ngẫu nhiên | M1 | Ngọc Quang+Claude (khung), Lý Anh Quân | 2 | S1–S2 | P0 | APP-01 | doing |
-| APP-03 | App: ghi âm đọc câu (WAV 16 kHz) | M1 | Ngọc Quang+Claude (khung), Lý Anh Quân | 1 | S2 | P0 | APP-01 | doing |
-| APP-04 | App: OTP, chụp CCCD, xác nhận thông tin | M2 (+M1) | Ngọc Quang+Claude (khung), Lý Anh Quân | 1,5 | S1–S2 | P0 | APP-01 | doing |
+| APP-02 ★ | App: chụp mặt, quay 3 s, quay đầu ngẫu nhiên | M1 | Ngọc Quang+Claude (khung) | 2 | S1–S2 | P0 | APP-01 | doing |
+| APP-03 | App: ghi âm đọc câu (WAV 16 kHz) | M1 | Ngọc Quang+Claude (khung) | 1 | S2 | P0 | APP-01 | doing |
+| APP-04 | App: OTP, chụp CCCD, xác nhận thông tin | M2 (+M1) | Ngọc Quang+Claude (khung) | 1,5 | S1–S2 | P0 | APP-01 | doing |
 | LIVE-01 | Gói thử thách động theo phiên (màu, chấm sáng, quay đầu, câu) [contract] | M5 | | 1 | S2 | P0 | FLOW-01 | todo |
 | LIVE-02 | Chấm sáng + đo ánh mắt khớp đường đi | M3 (+M1) | | 1,5 | S2 | P0 | LIVE-01 | todo |
 | LIVE-03 | Ký media theo phiên trên web (WebAuthn), chặn phát lại | M2 (+M1) | | 1 | S2 | P0 | LIVE-01 | todo |

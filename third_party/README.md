@@ -114,6 +114,7 @@ Wrapper đọc Transformers dependency Apache-2.0, không gọi mã remote hoặ
 | Phông [Be Vietnam Pro](https://github.com/bettergui/BeVietnamPro) (Regular, Medium, SemiBold, Bold) | SIL Open Font License 1.1 (`third_party/licenses/BeVietnamPro-OFL.txt`) | `apps/android/app/src/main/res/font/` (file `.ttf` nguyên bản, chỉ đổi tên file) | Tải từ `github.com/google/fonts/ofl/bevietnampro` | APP-01 |
 | Jetpack Compose, Navigation Compose, Material 3, Material Icons Extended (AndroidX) | Apache-2.0 | `apps/android` (phụ thuộc Gradle, không chép mã) | Gradle | APP-01 |
 | Paparazzi (cashapp) | Apache-2.0 | `apps/android` (chỉ dùng khi test, chụp ảnh màn) | Gradle | APP-01 |
+| Gradle Wrapper 8.11.1 (`gradle/wrapper/gradle-wrapper.jar`, `gradlew`, `gradlew.bat`) | Apache-2.0 | `apps/android/` (file nguyên bản do `gradle wrapper` sinh ra, chỉ để chạy build) | `gradle wrapper` | APP-01 |
 
 ## APP-02, APP-03, APP-04 (camera, micro, API trên app Android)
 
