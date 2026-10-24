@@ -57,6 +57,7 @@ import vn.vericlue.app.capture.ColorSchedule
 import vn.vericlue.app.capture.QualityGate
 import vn.vericlue.app.capture.WavRecorder
 import vn.vericlue.app.data.api.ColorEvent
+import vn.vericlue.app.data.api.DotEvent
 import vn.vericlue.app.data.api.SessionApi
 import vn.vericlue.app.flow.FramingState
 import vn.vericlue.app.flow.LiveFlow
@@ -151,11 +152,27 @@ fun VeriClueApp() {
     }
     val exit = { nav.go(Routes.ExitConfirm) }
 
-    // ID card photos and QR data stay on the phone: no API endpoint for them yet (FLOW-03).
+    // ID card photos and QR text; in live mode they go to the server at the back-side review (FLOW-03).
     var idFront by remember { mutableStateOf<Pair<ByteArray, IdQuality>?>(null) }
     var idBack by remember { mutableStateOf<Pair<ByteArray, IdQuality>?>(null) }
     var cccd by remember { mutableStateOf<CccdInfo?>(null) }
     val voiceStart = remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    var phone by remember { mutableStateOf("") }
+    var otpError by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+
+    /** Runs one server call at a time from a button; a second tap while it runs is ignored. */
+    fun once(block: suspend () -> Unit) {
+        if (busy) return
+        busy = true
+        scope.launch {
+            try {
+                block()
+            } finally {
+                busy = false
+            }
+        }
+    }
 
     @Composable
     fun IdCaptureRoute(back: Boolean, onCaptured: () -> Unit) {
@@ -307,8 +324,43 @@ fun VeriClueApp() {
                 nav.go(Routes.Phone)
             })
         }
-        composable(Routes.Phone) { PhoneScreen(onBack = { nav.popBackStack() }, onSend = { nav.go(Routes.Otp) }) }
-        composable(Routes.Otp) { OtpScreen(onBack = { nav.popBackStack() }, onVerified = { nav.go(FlowRules.afterOtp(flow.purpose)) }) }
+        composable(Routes.Phone) {
+            PhoneScreen(onBack = { nav.popBackStack() }, onSend = { number ->
+                phone = number
+                otpError = null
+                if (!flow.live) {
+                    nav.go(Routes.Otp)
+                } else {
+                    // The session starts here: OTP and ID card belong to it (can-chot.md Q4).
+                    once { live.sendOtp(number, flow.mockScenario)?.let { nav.go(errorRoute(it)) } ?: nav.go(Routes.Otp) }
+                }
+            })
+        }
+        composable(Routes.Otp) {
+            if (!flow.live) {
+                OtpScreen(onBack = { nav.popBackStack() }, onVerified = { nav.go(FlowRules.afterOtp(flow.purpose)) })
+            } else {
+                OtpScreen(
+                    onBack = { nav.popBackStack() },
+                    onVerified = {},
+                    sms = live.otpSms,
+                    serverError = otpError,
+                    onCode = { code ->
+                        once {
+                            when (val r = live.verifyOtp(code)) {
+                                LiveFlow.OtpResult.Pass -> nav.go(FlowRules.afterOtp(flow.purpose))
+                                is LiveFlow.OtpResult.Wrong -> otpError = FlowRules.otpWrongText(r.attemptsLeft)
+                                is LiveFlow.OtpResult.Fail -> FlowRules.otpErrorText(r.code)?.let { otpError = it } ?: nav.go(errorRoute(r.error))
+                            }
+                        }
+                    },
+                    onResend = {
+                        otpError = null
+                        once { live.sendOtp(phone, flow.mockScenario)?.let { nav.go(errorRoute(it)) } }
+                    },
+                )
+            }
+        }
         composable(Routes.OtpError) {
             OtpScreen(onBack = { nav.popBackStack() }, onVerified = { nav.go(FlowRules.afterOtp(flow.purpose)) }, startWithError = true)
         }
@@ -330,7 +382,26 @@ fun VeriClueApp() {
                 back = true,
                 onBack = { nav.popBackStack() },
                 onRetake = { nav.popBackStack() },
-                onConfirm = { nav.go(Routes.Confirm) },
+                onConfirm = {
+                    val front = idFront?.first
+                    val backPhoto = idBack?.first
+                    if (!flow.live || front == null || backPhoto == null) {
+                        nav.go(Routes.Confirm)
+                    } else {
+                        once {
+                            val (hint, error) = live.sendIdCard(front, backPhoto, idBack?.second?.qr)
+                            when {
+                                error != null -> nav.go(errorRoute(error))
+                                // QR unreadable or not a CCCD: take the back side again.
+                                hint != null -> nav.popBackStack()
+                                else -> {
+                                    live.idFields?.let { cccd = FlowRules.cccdFrom(it) }
+                                    nav.go(Routes.Confirm)
+                                }
+                            }
+                        }
+                    }
+                },
                 photo = idBack?.first,
                 quality = idBack?.second,
             )
@@ -338,7 +409,14 @@ fun VeriClueApp() {
         composable(Routes.Confirm) {
             ConfirmInfoScreen(
                 onBack = { nav.popBackStack() },
-                onCorrect = { nav.go(Routes.FaceReady) },
+                onCorrect = {
+                    val fields = live.idFields
+                    if (!flow.live || fields == null) {
+                        nav.go(Routes.FaceReady)
+                    } else {
+                        once { live.confirmIdCard(fields)?.let { nav.go(errorRoute(it)) } ?: nav.go(Routes.FaceReady) }
+                    }
+                },
                 onEdit = { nav.go(Routes.EditInfo) },
                 fields = idFields(cccd),
             )
@@ -346,7 +424,16 @@ fun VeriClueApp() {
         composable(Routes.EditInfo) {
             EditInfoScreen(
                 onBack = { nav.popBackStack() },
-                onSave = { nav.go(Routes.FaceReady) },
+                onSave = { edited ->
+                    val fields = live.idFields
+                    if (!flow.live || fields == null) {
+                        nav.go(Routes.FaceReady)
+                    } else {
+                        // Fields left as shown keep the QR value; edited ones are noted for the reviewer.
+                        val confirmed = FlowRules.confirmedFields(fields, idFields(cccd).map { it.second }, edited)
+                        once { live.confirmIdCard(confirmed)?.let { nav.go(errorRoute(it)) } ?: nav.go(Routes.FaceReady) }
+                    }
+                },
                 onRetake = { nav.go(Routes.IdFront) },
                 fields = idFields(cccd),
             )
@@ -369,13 +456,15 @@ fun VeriClueApp() {
             LaunchedEffect(hasCamera) {
                 if (hasCamera && !camera.start(lifecycleOwner, back = false)) nav.go(Routes.ErrorDevice)
             }
+            // Live: a fresh challenge for this attempt (new session, or refresh after stage A / retry / redo).
+            var prepared by remember { mutableStateOf(!flow.live) }
             LaunchedEffect(flow.live) {
-                if (flow.live) live.ensureSession(flow.mockScenario)?.let { nav.go(errorRoute(it)) }
+                if (flow.live) live.prepareFace(flow.mockScenario)?.let { nav.go(errorRoute(it)) } ?: run { prepared = true }
             }
             val gate = if (hasCamera) QualityGate.evaluate(face) else null
             // Good for a moment → take the frontal still (on the grey screen, before the flash: ADR-0016).
-            LaunchedEffect(gate == FramingState.Good) {
-                if (gate != FramingState.Good) return@LaunchedEffect
+            LaunchedEffect(gate == FramingState.Good && prepared) {
+                if (gate != FramingState.Good || !prepared) return@LaunchedEffect
                 delay(QualityGate.GOOD_HOLD_MS)
                 live.frontalJpeg = withTimeoutOrNull(3000) { camera.captureJpeg() }
                 nav.go(Routes.HoldStill)
@@ -408,20 +497,22 @@ fun VeriClueApp() {
                 slots = slots,
                 onColorsStart = {
                     live.colorEvents.clear()
+                    live.dotEvents.clear()
                     if (hasCamera) camera.startRecording()
                 },
                 onPainted = { slot, t -> slot.index?.let { live.colorEvents += ColorEvent(it, slot.rgb, t) } },
                 onBaselineDone = { camera.lockAeAwb(true) },
-                onColorsDone = {
-                    camera.stopRecording()
-                    camera.lockAeAwb(false)
-                },
+                onColorsDone = { camera.lockAeAwb(false) },
+                // The recording runs on through the dot so the server can follow the eyes (LIVE-02).
+                dotPath = if (flow.live) challenge?.dotPath else null,
+                onDot = { i, x, y, t -> live.dotEvents += DotEvent(i, x, y, t) },
+                onDotDone = { camera.stopRecording() },
             )
         }
         composable(Routes.TurnHead) {
             val face by camera.face.collectAsState()
             TurnHeadScreen(
-                flow.turnOrder,
+                if (flow.live) FlowRules.turnOrderFrom(live.challenge?.turnOrder) ?: flow.turnOrder else flow.turnOrder,
                 onExit = exit,
                 onDone = { nav.go(if (flow.live) Routes.Uploading else FlowRules.afterTurnHead(flow.purpose)) },
                 yaw = if (hasCamera) face?.yaw else null,

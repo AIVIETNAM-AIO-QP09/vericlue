@@ -164,10 +164,24 @@ fun PhoneScreen(onBack: () -> Unit, onSend: (String) -> Unit) {
 }
 
 @Composable
-fun OtpScreen(onBack: () -> Unit, onVerified: () -> Unit, startWithError: Boolean = false) {
+/**
+ * Live mode passes [onCode] (the server checks the code), the simulated SMS text in [sms] and the
+ * server's answer in [serverError]; the demo checks nothing and calls [onVerified].
+ */
+fun OtpScreen(
+    onBack: () -> Unit,
+    onVerified: () -> Unit,
+    startWithError: Boolean = false,
+    sms: String? = null,
+    serverError: String? = null,
+    onCode: ((String) -> Unit)? = null,
+    onResend: () -> Unit = {},
+) {
     val c = Vc.colors
     var code by remember { mutableStateOf(if (startWithError) "472910" else "") }
     var error by remember { mutableStateOf(startWithError) }
+    LaunchedEffect(serverError) { if (serverError != null) error = true }
+    val submit = { if (onCode != null) onCode(code) else onVerified() }
     var seconds by remember { mutableIntStateOf(45) }
     LaunchedEffect(Unit) {
         while (seconds > 0) {
@@ -185,18 +199,23 @@ fun OtpScreen(onBack: () -> Unit, onVerified: () -> Unit, startWithError: Boolea
     VcScreen(
         onBack = onBack,
         step = 1,
-        actions = { PrimaryButton("Xác nhận", onVerified, enabled = OtpRules.isComplete(code) && !error) },
-        bottom = { NumericKeypad(onDigit = ::type, onBackspace = { code = code.dropLast(1); error = false }, onDone = { if (OtpRules.isComplete(code) && !error) onVerified() }) },
+        actions = { PrimaryButton("Xác nhận", submit, enabled = OtpRules.isComplete(code) && !error) },
+        bottom = { NumericKeypad(onDigit = ::type, onBackspace = { code = code.dropLast(1); error = false }, onDone = { if (OtpRules.isComplete(code) && !error) submit() }) },
     ) {
-        Banner("SMS mô phỏng · Mã xác nhận VeriClue của bạn là [6 SỐ]. Không chia sẻ mã này.", icon = Icons.Outlined.ChatBubbleOutline)
+        Banner("SMS mô phỏng · " + (sms ?: "Mã xác nhận VeriClue của bạn là [6 SỐ]. Không chia sẻ mã này."), icon = Icons.Outlined.ChatBubbleOutline)
         Text("Nhập mã xác nhận", style = VcType.titleLarge, color = c.ink)
         OtpBoxes(code, error)
-        if (error) Banner("Mã chưa đúng. Bạn còn 2 lần thử.", tone = Tone.Warn)
+        if (error) Banner(serverError ?: "Mã chưa đúng. Bạn còn 2 lần thử.", tone = Tone.Warn)
         Text(
             if (seconds > 0) "Gửi lại mã sau 0:${seconds.toString().padStart(2, '0')}" else "Gửi lại mã",
             style = VcType.caption,
             color = if (seconds > 0) c.muted else c.accent,
-            modifier = Modifier.fillMaxWidth().clickable(enabled = seconds == 0, role = Role.Button) { seconds = 45 },
+            modifier = Modifier.fillMaxWidth().clickable(enabled = seconds == 0, role = Role.Button) {
+                seconds = 45
+                code = ""
+                error = false
+                onResend()
+            },
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
     }
@@ -430,14 +449,14 @@ fun ConfirmInfoScreen(onBack: () -> Unit, onCorrect: () -> Unit, onEdit: () -> U
 }
 
 @Composable
-fun EditInfoScreen(onBack: () -> Unit, onSave: () -> Unit, onRetake: () -> Unit, fields: List<Pair<String, String>> = sampleIdFields) {
+fun EditInfoScreen(onBack: () -> Unit, onSave: (List<String>) -> Unit, onRetake: () -> Unit, fields: List<Pair<String, String>> = sampleIdFields) {
     val c = Vc.colors
     val values = remember(fields) { fields.map { mutableStateOf(it.second) } }
     VcScreen(
         onBack = onBack,
         step = 1,
         actions = {
-            PrimaryButton("Lưu và tiếp tục", onSave)
+            PrimaryButton("Lưu và tiếp tục", { onSave(values.map { it.value.trim() }) })
             LinkButton("Chụp lại CCCD", onRetake)
         },
     ) {

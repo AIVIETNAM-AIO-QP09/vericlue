@@ -1,5 +1,8 @@
 package vn.vericlue.app.flow
 
+import vn.vericlue.app.capture.CccdInfo
+import vn.vericlue.app.data.api.IdCardFields
+
 /**
  * Flow rules for the UI-only build. Pure Kotlin so it can be unit-tested.
  * There is no camera or API yet (APP-01..04): results come from [DemoOutcome].
@@ -126,6 +129,65 @@ object FlowRules {
     val capturingRoutes = setOf(Routes.Framing, Routes.HoldStill, Routes.TurnHead, Routes.Voice, Routes.VoiceAgain)
 
     fun isInterruptedBy(route: String?): Boolean = route in capturingRoutes
+
+    // --- Stage A in live mode (FLOW-02, FLOW-03) ---------------------------------------------
+
+    fun otpWrongText(attemptsLeft: Int): String =
+        if (attemptsLeft > 0) "Mã chưa đúng. Bạn còn $attemptsLeft lần thử." else "Bạn đã nhập sai quá số lần. Hãy bấm \"Gửi lại mã\"."
+
+    /** Server codes the OTP screen explains itself; null = show the generic error screen. */
+    fun otpErrorText(code: String?): String? = when (code) {
+        "otp_expired" -> "Mã đã hết hạn. Hãy bấm \"Gửi lại mã\"."
+        "otp_locked" -> "Bạn đã nhập sai quá số lần. Hãy bấm \"Gửi lại mã\"."
+        else -> null
+    }
+
+    /** "1995-01-01" ↔ "01/01/1995" (server dates vs what the screens show). */
+    fun isoToDisplay(iso: String?): String =
+        iso?.split("-")?.takeIf { it.size == 3 }?.let { (y, m, d) -> "$d/$m/$y" } ?: iso.orEmpty()
+
+    fun displayToIso(shown: String): String? =
+        shown.trim().split("/").takeIf { it.size == 3 && it.all { p -> p.all(Char::isDigit) } }
+            ?.let { (d, m, y) -> "${y.padStart(4, '0')}-${m.padStart(2, '0')}-${d.padStart(2, '0')}" }
+
+    fun cccdFrom(f: IdCardFields): CccdInfo? = f.idNumber?.let { id ->
+        CccdInfo(
+            idNumber = id,
+            fullName = f.fullName.orEmpty(),
+            dateOfBirth = isoToDisplay(f.dateOfBirth),
+            gender = f.sex.orEmpty(),
+            address = f.address.orEmpty(),
+            issueDate = f.issuedOn?.let(::isoToDisplay),
+        )
+    }
+
+    /**
+     * What the user confirmed, as server fields. [shown] and [edited] follow the edit screen's rows
+     * (name, ID number, date of birth, sex, address); a row left as shown keeps the server's value,
+     * so only real edits differ from the QR. An edit the server cannot take (bad date, sex other
+     * than Nam/Nữ) keeps the QR value.
+     */
+    fun confirmedFields(server: IdCardFields, shown: List<String>, edited: List<String>): IdCardFields {
+        fun changed(i: Int) = edited.getOrNull(i)?.let { it != shown.getOrNull(i)?.trim() } == true
+        return server.copy(
+            fullName = if (changed(0)) edited[0] else server.fullName,
+            dateOfBirth = if (changed(2)) displayToIso(edited[2]) ?: server.dateOfBirth else server.dateOfBirth,
+            sex = if (changed(3) && edited[3] in setOf("Nam", "Nữ")) edited[3] else server.sex,
+            address = if (changed(4)) edited[4] else server.address,
+        )
+    }
+
+    /** The server's turn order (LIVE-01); null when missing or malformed, so the caller keeps its own. */
+    fun turnOrderFrom(order: List<String>?): List<TurnDir>? {
+        val dirs = order?.map {
+            when (it) {
+                "left" -> TurnDir.Left
+                "right" -> TurnDir.Right
+                else -> return null
+            }
+        }
+        return dirs?.takeIf { it.size == 2 && it.toSet().size == 2 }
+    }
 
     /**
      * "Thử lại" / "Tiếp tục chờ" after a network error or a slow answer. A live run sends again

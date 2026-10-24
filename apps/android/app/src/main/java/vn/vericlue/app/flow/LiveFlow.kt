@@ -8,6 +8,8 @@ import vn.vericlue.app.data.api.ApiResult
 import vn.vericlue.app.data.api.Challenge
 import vn.vericlue.app.data.api.ColorEvent
 import vn.vericlue.app.data.api.CreateSessionResponse
+import vn.vericlue.app.data.api.DotEvent
+import vn.vericlue.app.data.api.IdCardFields
 import vn.vericlue.app.data.api.FrameTime
 import vn.vericlue.app.data.api.SessionApi
 import vn.vericlue.app.data.api.Signals
@@ -30,6 +32,7 @@ class LiveFlow(private val api: SessionApi) {
         private set
     var frontalJpeg: ByteArray? = null
     val colorEvents = mutableListOf<ColorEvent>()
+    val dotEvents = mutableListOf<DotEvent>()
     var voicePrompt: String? = null
         private set
     var retryHint: String? = null
@@ -58,6 +61,9 @@ class LiveFlow(private val api: SessionApi) {
         challenge = null
         frontalJpeg = null
         colorEvents.clear()
+        dotEvents.clear()
+        otpSms = null
+        idFields = null
         voicePrompt = null
         retryHint = null
         attemptsLeft = null
@@ -68,15 +74,14 @@ class LiveFlow(private val api: SessionApi) {
     }
 
     /**
-     * Drops everything captured in the current face attempt. Stage A data would be kept, but the
-     * API cannot issue a fresh challenge on its own yet (LIVE-06), so a live run starts a new session.
+     * Drops everything captured in the current face attempt. The session (and its stage A data)
+     * stays; [prepareFace] asks the server for a fresh challenge before the next attempt.
      */
     fun dropFaceAttempt() {
         frontalJpeg = null
         colorEvents.clear()
+        dotEvents.clear()
         pendingWav = null
-        session = null
-        challenge = null
         mediaAcked = false
         signalsAcked = false
         voiceChecked = false
@@ -92,6 +97,81 @@ class LiveFlow(private val api: SessionApi) {
             }
             is ApiResult.Err -> r.error
         }
+    }
+
+    /**
+     * Before each face attempt: a new session, or a fresh challenge with the token extended when the
+     * session already exists (stage A took time, a retry, or a redo after an interruption).
+     */
+    suspend fun prepareFace(mockScenario: String?): ApiError? {
+        val s = session ?: return ensureSession(mockScenario)
+        return when (val r = api.refreshChallenge(s.sessionId, s.token)) {
+            is ApiResult.Ok -> {
+                challenge = r.value.challenge
+                colorEvents.clear()
+                dotEvents.clear()
+                mediaAcked = false
+                signalsAcked = false
+                voiceChecked = false
+                null
+            }
+            is ApiResult.Err -> r.error
+        }
+    }
+
+    // --- Stage A: OTP (FLOW-02), ID card (FLOW-03) ------------------------------------------
+
+    /** Text of the simulated SMS (demo channel only). */
+    var otpSms: String? = null
+        private set
+
+    /** Fields the server read from the ID card QR. */
+    var idFields: IdCardFields? = null
+        private set
+
+    /** Starts the session if needed and asks for a code. Null = sent. */
+    suspend fun sendOtp(phone: String, mockScenario: String?): ApiError? {
+        ensureSession(mockScenario)?.let { return it }
+        val s = session ?: return ApiError.Expired
+        return when (val r = api.sendOtp(s.sessionId, s.token, phone)) {
+            is ApiResult.Ok -> {
+                otpSms = r.value.simulatedSms
+                null
+            }
+            is ApiResult.Err -> r.error
+        }
+    }
+
+    /** Pass = true; a wrong code gives the attempts left; anything else is an error (expired, locked). */
+    sealed interface OtpResult {
+        data object Pass : OtpResult
+        data class Wrong(val attemptsLeft: Int) : OtpResult
+        data class Fail(val error: ApiError, val code: String?) : OtpResult
+    }
+
+    suspend fun verifyOtp(code: String): OtpResult {
+        val s = session ?: return OtpResult.Fail(ApiError.Expired, null)
+        return when (val r = api.verifyOtp(s.sessionId, s.token, code)) {
+            is ApiResult.Ok -> if (r.value.status == "pass") OtpResult.Pass else OtpResult.Wrong(r.value.attemptsLeft)
+            is ApiResult.Err -> OtpResult.Fail(r.error, r.code)
+        }
+    }
+
+    /** Sends both photos and the QR text. Returns null when the server read the card, else a retry hint or error. */
+    suspend fun sendIdCard(front: ByteArray, back: ByteArray, qr: String?): Pair<String?, ApiError?> {
+        val s = session ?: return null to ApiError.Expired
+        return when (val r = api.uploadIdCard(s.sessionId, s.token, front, back, qr)) {
+            is ApiResult.Ok -> {
+                idFields = r.value.fields
+                if (r.value.status == "ok") null to null else (r.value.retryHint ?: "QR_UNREADABLE") to null
+            }
+            is ApiResult.Err -> null to r.error
+        }
+    }
+
+    suspend fun confirmIdCard(fields: IdCardFields): ApiError? {
+        val s = session ?: return ApiError.Expired
+        return (api.confirmIdCard(s.sessionId, s.token, fields) as? ApiResult.Err)?.error
     }
 
     /**
@@ -114,7 +194,7 @@ class LiveFlow(private val api: SessionApi) {
             onMediaAcked() // the server has the video: the local copy can go
         }
         if (!signalsAcked) {
-            api.sendSignals(s.sessionId, s.token, Signals(colorEvents.toList(), frameTimes, clientQuality, camprobe, regionMeans))
+            api.sendSignals(s.sessionId, s.token, Signals(colorEvents.toList(), frameTimes, clientQuality, camprobe, regionMeans, dotEvents.toList().ifEmpty { null }))
                 .ackOrFail()?.let { return it }
             signalsAcked = true
         }
@@ -126,6 +206,7 @@ class LiveFlow(private val api: SessionApi) {
                     // A retry comes with a fresh challenge for the next attempt (contract).
                     challenge = f.challenge ?: return Next.Fail(ApiError.BadResponse)
                     colorEvents.clear()
+                    dotEvents.clear()
                     frontalJpeg = null
                     mediaAcked = false
                     signalsAcked = false

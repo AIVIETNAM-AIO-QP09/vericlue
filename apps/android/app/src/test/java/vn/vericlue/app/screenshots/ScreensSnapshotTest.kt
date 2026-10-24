@@ -68,7 +68,7 @@ class ScreensSnapshotTest {
         shot("15_id_back") { IdCaptureScreen(back = true, glare = false, onBack = n, onCapture = n) }
         shot("16_confirm") { ConfirmInfoScreen(n, n, n) }
         shot("16_confirm_dark", dark = true) { ConfirmInfoScreen(n, n, n) }
-        shot("17_edit") { EditInfoScreen(n, n, n) }
+        shot("17_edit") { EditInfoScreen(n, {}, n) }
     }
 
     @Test fun face() {

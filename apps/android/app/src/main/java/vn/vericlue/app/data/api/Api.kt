@@ -40,7 +40,17 @@ data class Challenge(
     @SerialName("color_sequence") val colorSequence: List<ColorStep>,
     @SerialName("capture_at_ms") val captureAtMs: List<Int> = emptyList(),
     @SerialName("expires_at") val expiresAt: String? = null,
+    /** LIVE-01: turn order chosen by the server ("left"/"right", user's point of view). */
+    @SerialName("turn_order") val turnOrder: List<String>? = null,
+    /** LIVE-01: the dot's path, x/y as a fraction of the screen. */
+    @SerialName("dot_path") val dotPath: List<DotPoint>? = null,
 )
+
+@Serializable
+data class DotPoint(@SerialName("t_ms") val tMs: Int, val x: Double, val y: Double)
+
+@Serializable
+data class DotEvent(val index: Int, val x: Double, val y: Double, @SerialName("painted_at") val paintedAt: Double)
 
 @Serializable
 data class CreateSessionResponse(
@@ -67,6 +77,7 @@ data class Signals(
     @SerialName("client_quality") val clientQuality: Map<String, String> = emptyMap(),
     val camprobe: vn.vericlue.app.capture.CamProbe? = null,
     @SerialName("region_means") val regionMeans: List<vn.vericlue.app.capture.RegionFrame>? = null,
+    @SerialName("dot_events") val dotEvents: List<DotEvent>? = null,
 )
 
 @Serializable
@@ -87,6 +98,46 @@ data class VoiceResponse(
     @SerialName("voice_prompt") val voicePrompt: String? = null,
     @SerialName("attempts_left") val attemptsLeft: Int? = null,
 )
+
+@Serializable
+data class OtpRequest(val phone: String)
+
+@Serializable
+data class OtpSent(
+    @SerialName("expires_at") val expiresAt: String,
+    @SerialName("attempts_left") val attemptsLeft: Int,
+    /** Only from the simulated channel (demo): the text shown in the "SMS mô phỏng" box. */
+    @SerialName("simulated_sms") val simulatedSms: String? = null,
+)
+
+@Serializable
+data class OtpVerifyRequest(val code: String)
+
+@Serializable
+data class OtpVerifyResponse(val status: String, @SerialName("attempts_left") val attemptsLeft: Int)
+
+@Serializable
+data class IdCardFields(
+    @SerialName("full_name") val fullName: String? = null,
+    @SerialName("id_number") val idNumber: String? = null,
+    @SerialName("date_of_birth") val dateOfBirth: String? = null,
+    val sex: String? = null,
+    val address: String? = null,
+    @SerialName("issued_on") val issuedOn: String? = null,
+)
+
+@Serializable
+data class IdCardResponse(
+    val status: String,
+    val fields: IdCardFields? = null,
+    @SerialName("retry_hint") val retryHint: String? = null,
+)
+
+@Serializable
+data class IdCardConfirmResponse(val received: Boolean = false)
+
+@Serializable
+data class ChallengeResponse(@SerialName("expires_at") val expiresAt: String, val challenge: Challenge)
 
 @Serializable
 data class ErrorResponse(@SerialName("error_code") val errorCode: String, val message: String)
@@ -140,6 +191,28 @@ class SessionApi(
             .build()
         return call(post(url("v1", "sessions", sessionId, "voice"), body, token))
     }
+
+    suspend fun sendOtp(sessionId: String, token: String, phone: String): ApiResult<OtpSent> =
+        call(post(url("v1", "sessions", sessionId, "otp"), json.encodeToString(OtpRequest.serializer(), OtpRequest(phone)).toRequestBody(JSON), token))
+
+    suspend fun verifyOtp(sessionId: String, token: String, code: String): ApiResult<OtpVerifyResponse> =
+        call(post(url("v1", "sessions", sessionId, "otp", "verify"), json.encodeToString(OtpVerifyRequest.serializer(), OtpVerifyRequest(code)).toRequestBody(JSON), token))
+
+    suspend fun uploadIdCard(sessionId: String, token: String, front: ByteArray, back: ByteArray, qr: String?): ApiResult<IdCardResponse> {
+        val body = MultipartBody.Builder().setType(MultipartBody.FORM)
+            .addFormDataPart("front", "front.jpg", front.toRequestBody(JPEG))
+            .addFormDataPart("back", "back.jpg", back.toRequestBody(JPEG))
+            .apply { if (!qr.isNullOrBlank()) addFormDataPart("qr", qr) }
+            .build()
+        return call(post(url("v1", "sessions", sessionId, "id-card"), body, token))
+    }
+
+    suspend fun confirmIdCard(sessionId: String, token: String, fields: IdCardFields): ApiResult<IdCardConfirmResponse> =
+        call(post(url("v1", "sessions", sessionId, "id-card", "confirm"), json.encodeToString(IdCardFields.serializer(), fields).toRequestBody(JSON), token))
+
+    /** Fresh challenge for the face part, with the token extended (ADR-0017 §2). */
+    suspend fun refreshChallenge(sessionId: String, token: String): ApiResult<ChallengeResponse> =
+        call(post(url("v1", "sessions", sessionId, "challenge"), "".toRequestBody(JSON), token))
 
     private fun url(vararg segments: String) = base.newBuilder().apply { segments.forEach { addPathSegment(it) } }.build()
 

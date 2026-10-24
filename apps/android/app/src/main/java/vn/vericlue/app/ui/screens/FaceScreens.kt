@@ -3,6 +3,7 @@ package vn.vericlue.app.ui.screens
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.animateFloat
@@ -45,6 +46,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,12 +61,14 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import vn.vericlue.app.flow.TurnDir
 import vn.vericlue.app.flow.FramingState
 import vn.vericlue.app.capture.CaptureClock
 import vn.vericlue.app.capture.ColorSchedule
 import vn.vericlue.app.capture.ColorSlot
 import vn.vericlue.app.capture.TurnTracker
+import vn.vericlue.app.data.api.DotPoint
 import vn.vericlue.app.ui.components.CameraFeed
 import androidx.compose.runtime.withFrameNanos
 import vn.vericlue.app.ui.components.Banner
@@ -247,7 +251,11 @@ fun HoldStillScreen(
     onPainted: (ColorSlot, Double) -> Unit = { _, _ -> },
     onColorsDone: () -> Unit = {},
     onBaselineDone: () -> Unit = {},
+    dotPath: List<DotPoint>? = null,
+    onDot: (index: Int, x: Double, y: Double, paintedAt: Double) -> Unit = { _, _, _, _ -> },
+    onDotDone: () -> Unit = {},
 ) {
+    var dotFinished by remember { mutableStateOf(false) }
     val frozen = when {
         startPhase == 0 -> 0
         startPhase in 1..4 -> slots.indexOfFirst { it.index == startPhase - 1 }.coerceAtLeast(0)
@@ -268,7 +276,9 @@ fun HoldStillScreen(
         }
         onColorsDone()
         slot = -1
-        delay(6400)
+        // The dot follows the server's path (LIVE-01); without one (demo) it runs on a timer.
+        if (dotPath != null) snapshotFlow { dotFinished }.first { it } else delay(6400)
+        onDotDone()
         onDone()
     }
     BackHandler(onBack = onStop)
@@ -300,7 +310,13 @@ fun HoldStillScreen(
                         color = Palette.Ink,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    FollowDot(Modifier.fillMaxWidth().weight(1f, fill = false).height(220.dp), running = auto)
+                    FollowDot(
+                        Modifier.fillMaxWidth().weight(1f, fill = false).height(220.dp),
+                        running = auto,
+                        path = dotPath,
+                        onDot = onDot,
+                        onFinished = { dotFinished = true },
+                    )
                 }
                 Banner("Màn hình sẽ nhấp nháy màu nhạt vài giây. Người nhạy cảm với ánh sáng nhấp nháy không nên tiếp tục.")
                 Spacer(Modifier.weight(1f))
@@ -358,22 +374,48 @@ private fun OvalPreview(progress: Float) {
     }
 }
 
-/** The dot follows a random path; the user follows it with the eyes only (ADR-0016, layer 2). */
+/**
+ * The dot follows the server's path (LIVE-01), x/y as a fraction of this area, moving in a straight
+ * line between points on their t_ms; the user follows it with the eyes only (ADR-0016, layer 2).
+ * Each point reached is reported with its frame time. Without a path (demo) it wanders at random.
+ */
 @Composable
-private fun FollowDot(modifier: Modifier, running: Boolean) {
+private fun FollowDot(
+    modifier: Modifier,
+    running: Boolean,
+    path: List<DotPoint>? = null,
+    onDot: (index: Int, x: Double, y: Double, paintedAt: Double) -> Unit = { _, _, _, _ -> },
+    onFinished: () -> Unit = {},
+) {
     BoxWithConstraints(modifier) {
         val w = maxWidth.value
         val h = maxHeight.value
-        val pos = remember { Animatable(Offset(w * 0.2f, h * 0.5f), Offset.VectorConverter) }
+        val start = path?.firstOrNull()?.let { Offset(w * it.x.toFloat(), h * it.y.toFloat()) } ?: Offset(w * 0.2f, h * 0.5f)
+        val pos = remember { Animatable(start, Offset.VectorConverter) }
+        val total = path?.size ?: 7
         var steps by remember { mutableIntStateOf(0) }
         LaunchedEffect(running) {
             if (!running) return@LaunchedEffect
-            val rnd = java.util.Random()
-            repeat(7) {
-                val target = Offset(w * (0.1f + rnd.nextFloat() * 0.8f), h * (0.15f + rnd.nextFloat() * 0.6f))
-                pos.animateTo(target, tween(850, easing = FastOutSlowInEasing))
-                steps++
+            if (path != null) {
+                path.forEachIndexed { i, p ->
+                    val target = Offset(w * p.x.toFloat(), h * p.y.toFloat())
+                    if (i == 0) {
+                        pos.snapTo(target)
+                    } else {
+                        pos.animateTo(target, tween((p.tMs - path[i - 1].tMs).coerceAtLeast(1), easing = LinearEasing))
+                    }
+                    withFrameNanos { t -> onDot(i, p.x, p.y, CaptureClock.frameNanosToMs(t)) }
+                    steps = i + 1
+                }
+            } else {
+                val rnd = java.util.Random()
+                repeat(total) {
+                    val target = Offset(w * (0.1f + rnd.nextFloat() * 0.8f), h * (0.15f + rnd.nextFloat() * 0.6f))
+                    pos.animateTo(target, tween(850, easing = FastOutSlowInEasing))
+                    steps++
+                }
             }
+            onFinished()
         }
         Box(
             Modifier.align(Alignment.TopEnd).size(width = 60.dp, height = 78.dp).clip(RoundedCornerShape(12.dp))
@@ -385,7 +427,7 @@ private fun FollowDot(modifier: Modifier, running: Boolean) {
             contentAlignment = Alignment.Center,
         ) { Box(Modifier.size(14.dp).clip(CircleShape).background(Palette.Primary)) }
         LinearProgressIndicator(
-            progress = { steps / 7f },
+            progress = { steps / total.toFloat() },
             modifier = Modifier.fillMaxWidth().height(3.dp).align(Alignment.BottomCenter),
             color = Palette.Primary,
             trackColor = Palette.Border,
