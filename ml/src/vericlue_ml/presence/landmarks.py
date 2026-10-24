@@ -216,17 +216,36 @@ class FaceObservationReader:
                         raise LandmarkError(ErrorCode.E_TIMEOUT)
                     if at_ms < next_sample:
                         continue
-                    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    result = self._task.detect(
-                        self._mp.Image(image_format=self._mp.ImageFormat.SRGB, data=rgb)
-                    )
-                    observations.append(observation_from_result(result, at_ms, width, height))
+                    observations.append(self.observe(frame, at_ms=at_ms))
                     next_sample = at_ms + SAMPLE_INTERVAL_MS - 1
                 else:
                     raise LandmarkError(ErrorCode.E_TIMEOUT)
             finally:
                 capture.release()
             return observations
+
+    def observe(self, frame: np.ndarray, *, at_ms: float) -> FaceObservation:
+        """Recheck the exact server-selected BGR frame with the same stateless task."""
+        if (
+            not isinstance(frame, np.ndarray)
+            or frame.ndim != 3
+            or frame.shape[2] != 3
+            or frame.dtype != np.uint8
+            or min(frame.shape[:2]) <= 0
+            or frame.shape[0] * frame.shape[1] > MAX_FRAME_PIXELS
+            or not math.isfinite(at_ms)
+            or not 0 <= at_ms <= MAX_VIDEO_MS
+        ):
+            raise LandmarkError(ErrorCode.E_LOW_QUALITY, Status.DEGRADED)
+        with self._lock:
+            self.preload()
+            import cv2
+
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            result = self._task.detect(
+                self._mp.Image(image_format=self._mp.ImageFormat.SRGB, data=rgb)
+            )
+            return observation_from_result(result, at_ms, frame.shape[1], frame.shape[0])
 
     def close(self) -> None:
         """Release the native task under the same lock as inference."""

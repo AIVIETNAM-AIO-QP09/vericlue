@@ -19,7 +19,8 @@ giữ mỗi tư thế tối thiểu 300 ms. Thiếu dữ liệu, sai thứ tự,
 không được đạt. Các hằng góc, chất lượng và thời gian giữ là **thử nghiệm**.
 
 `view_times_ms` ghi thời điểm chính diện theo lịch và trung điểm hai đoạn nghiêng
-được chấp nhận; chưa tự trích ảnh và chưa kiểm chất lượng khung chính diện.
+được chấp nhận. `match_video_views` đã có thể lấy khung tại các thời điểm này và
+kiểm lại một khuôn mặt/tư thế trên đúng pixel khung, xem mục 2a bên dưới.
 Chiều dương yaw đang hiểu là trái của người dùng trên **video không lật**;
 cần quay kiểm tra trên điện thoại trước khi dùng cho quyết định.
 
@@ -49,8 +50,9 @@ so cosine với tham chiếu và **mọi cặp ảnh**: ba ảnh tạo 6 phép s
 nhỏ nhất để xét ngưỡng. Ảnh query trùng byte pixel bị từ chối để bắt lỗi lấy
 lặp một khung. Embedding chỉ ở RAM, không xuất vào report.
 
-Nhãn left/right chưa được module này xác thực; khi tích hợp phải lấy khung do
-server chọn từ video sau kiểm quay đầu. So mặt chỉ kiểm danh tính; không thay
+Khi chạy `eval.face_match` với ảnh rời, nhãn left/right vẫn là đầu vào tin cậy
+chưa được module nhận dạng tự xác thực. Chuỗi video mục 2a tự chọn khung và
+kiểm lại tư thế bằng MediaPipe. So mặt chỉ kiểm danh tính; không thay
 PAD, GenD, chứng minh chiều sâu hay tính thật của CCCD.
 
 ```powershell
@@ -74,6 +76,45 @@ hay chứng minh đạt chỉ tiêu thống kê. Cần nghiệm thu trước khi
 Khi đánh giá phải đo cả phiên có nhiều phép so; ngưỡng chọn trên cặp ảnh đơn
 không tự bảo đảm cùng tỷ lệ lỗi cho quy tắc lấy min của 6 phép so.
 
+## 2a. Chuỗi video → ba khung trong RAM → so mặt
+
+`presence.video_identity.match_video_views` ghép hai ModuleResult hiện có,
+không tạo bộ phát hiện mới hay quyết định xác minh cuối cùng:
+
+1. Kiểm lịch server gắn phiên/lượt và hash video cục bộ, giới hạn 64 MiB.
+2. Chạy head_turn. Nếu chưa `ok/pass`, trả face_match `degraded/unclear`, không
+   chọn khung hoặc nạp LVFace/SCRFD.
+3. Dùng thời điểm do head_turn tính và mốc chính diện của server, đọc video
+   tuần tự một lần nữa. Chọn khung gần nhất trong 100 ms; hòa thì lấy khung
+   sớm hơn. Chỉ dùng timestamp decoder, không seek/FPS để dựng lại thời gian.
+4. Dùng lại **cùng task MediaPipe** để kiểm một mặt và tư thế của từng khung:
+   front ở giữa, hai khung nghiêng có yaw phù hợp vai trò. Chưa thay thế cổng
+   chất lượng/PAD/GenD. Quy ước yaw và các hằng số vẫn thử nghiệm.
+5. Kiểm lại SHA-256 video trước khi so mặt. Nếu byte thay đổi giữa các lần đọc,
+   cả hai kết quả không được dùng làm đạt. Đây là kiểm toàn vẹn tệp nội bộ,
+   không phải chữ ký thiết bị hay bảo đảm chống phát lại media.
+6. Gọi `FaceMatchDetector.predict_frames` với pixel BGR trong RAM; bỏ qua
+   `inp.images/image_roles` và các số đo client trong chuỗi này. Không ghi PNG
+   hay embedding ra đĩa. Lớp gọi vẫn quản lý vòng đời video/ảnh tham chiếu gốc.
+
+Vẫn có giới hạn tối đa 30 giây/1800 khung/1920×1080 và ngân sách đọc 15 giây
+cho mỗi lần đọc; lời gọi native không được cưỡng bức ngắt. Hai lượt giải mã
+và các lần suy luận chưa được đo latency toàn phiên. Lớp gọi phải giữ tệp
+nguồn do server quản lý ổn định trong khi chạy và đóng reader khi xong.
+
+```powershell
+# Thêm ONNX Runtime CPU vào môi trường MediaPipe riêng, không đổi .venv CUDA.
+uv pip install --python tmp/liveness-runtime/Scripts/python.exe onnxruntime==1.31.0
+tmp/liveness-runtime/Scripts/python.exe -m vericlue_ml.eval.video_face_match --video <video.mp4> --reference <portrait.png> --server-response <session-response.json> --models-dir <models-root> --device cpu --output <report.json>
+```
+
+Không truyền ba ảnh query cho CLI này; các ảnh được lấy từ video. Dữ liệu mốc
+thời gian giả định video chưa lật và bắt đầu ở 0 như reader hiện hành. File
+server-response ở CLI là đầu vào tin cậy cục bộ, không chứng minh tính nguyên
+bản; khi tích hợp HTTP phải dùng lịch từ kho phiên. CLI chỉ ghi hash/timestamp
+và ModuleResult; cho biết LVFace có được nạp hay bị dừng ở bước trước. Mã thoát
+0 nghĩa diagnostic đã chạy, không phải xác minh đạt. Vẫn giữ chốt real/mixed.
+
 CLI ghi commit/trạng thái dirty, version/hash mô hình, hash đầu vào và artifact,
 runtime, một trường hợp chẩn đoán và số phép so trong ModuleResult; không phải
 báo cáo độ chính xác. Không commit ảnh, video, embedding hay trọng số.
@@ -88,6 +129,6 @@ báo cáo độ chính xác. Không commit ảnh, video, embedding hay trọng s
 ## 4. Phần còn lại
 
 Kiểm tra chiều yaw/khả dụng trên điện thoại, người thật và video giả; kiểm
-chiều sâu/homography; chọn khung và nối GenD; FLOW-03 trích chân dung CCCD;
+chiều sâu/homography; nối khung đã chọn vào GenD; FLOW-03 trích chân dung CCCD;
 hiệu chỉnh ngưỡng so mặt trên dữ liệu chia người; kiểm VRAM/latency cả bộ;
 quản lý mã hóa/xóa mẫu 24 giờ; cuối cùng mới nối gate vào API và retry.

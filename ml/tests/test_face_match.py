@@ -140,6 +140,29 @@ def test_trusted_threshold_can_pass_matching_identity(tmp_path, views):
     assert result.quality["comparisons"] == (1 if views == 1 else 6)
 
 
+def test_in_memory_frames_use_same_six_comparisons_and_ignore_input_paths_roles(tmp_path):
+    detector, inp = setup_detector(tmp_path, threshold=True)
+    inp.images = [Path("never-open-client-query.png")]
+    inp.image_roles = ["front"]
+    frames = {
+        role: np.full((112, 112, 3), 70 + i * 25, dtype=np.uint8)
+        for i, role in enumerate(("front", "left", "right"))
+    }
+    result = detector.predict_frames(inp, frames)
+    assert result.status == Status.OK and result.gate == Gate.PASS
+    assert result.quality["comparisons"] == 6 and result.prob_attack is None
+    assert not (tmp_path / "never-open-client-query.png").exists()
+
+
+def test_repeated_in_memory_pixels_and_invalid_arrays_cannot_pass(tmp_path):
+    detector, inp = setup_detector(tmp_path, threshold=True)
+    frame = np.full((112, 112, 3), 70, dtype=np.uint8)
+    result = detector.predict_frames(inp, {role: frame for role in ("front", "left", "right")})
+    assert result.status == Status.DEGRADED and result.gate == Gate.UNCLEAR
+    detector, inp = setup_detector(tmp_path, threshold=True)
+    assert detector.predict_frames(inp, {"front": np.zeros((112, 112))}).gate == Gate.UNCLEAR
+
+
 @pytest.mark.parametrize(
     "change", ["missing_reference", "wrong_roles", "two_views", "reused_pixels"]
 )
