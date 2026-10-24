@@ -22,11 +22,13 @@ final class VeriClueUITestsLaunchTests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        // Insert steps here to perform after app launch but before taking a screenshot,
-        // such as logging into a test account or navigating somewhere in the app
+        let galleryButton = app.buttons["debug-gallery-button"]
+        XCTAssertTrue(galleryButton.waitForExistence(timeout: 15))
+        galleryButton.tap()
+        XCTAssertTrue(app.staticTexts["debug-gallery-title"].waitForExistence(timeout: 15))
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
-        attachment.name = "Launch Screen"
+        attachment.name = "IOS-01 Debug Gallery"
         attachment.lifetime = .keepAlways
         add(attachment)
     }

@@ -17,5 +17,12 @@
 	<string>VeriClue dùng micro để ghi giọng đọc một câu ngắn khi xác minh.</string>
 	<key>UIRequiresFullScreen</key>
 	<true/>
+	<key>UIAppFonts</key>
+	<array>
+		<string>be_vietnam_pro_regular.ttf</string>
+		<string>be_vietnam_pro_medium.ttf</string>
+		<string>be_vietnam_pro_semibold.ttf</string>
+		<string>be_vietnam_pro_bold.ttf</string>
+	</array>
 </dict>
 </plist>

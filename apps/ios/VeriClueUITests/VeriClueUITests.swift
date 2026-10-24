@@ -23,19 +23,21 @@ final class VeriClueUITests: XCTestCase {
     }
 
     @MainActor
-    func testExample() throws {
-        // UI tests must launch the application that they test.
+    func testLaunchShowsMockBank() throws {
         let app = XCUIApplication()
         app.launch()
-
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
+        XCTAssertTrue(app.staticTexts["Ngân hàng Mẫu"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Mở tài khoản"].exists)
     }
 
     @MainActor
-    func testLaunchPerformance() throws {
-        // This measures how long it takes to launch your application.
-        measure(metrics: [XCTApplicationLaunchMetric()]) {
-            XCUIApplication().launch()
-        }
+    func testDebugGalleryOpens() throws {
+        let app = XCUIApplication()
+        app.launch()
+        let galleryButton = app.buttons["debug-gallery-button"]
+        XCTAssertTrue(galleryButton.waitForExistence(timeout: 15))
+        galleryButton.tap()
+        XCTAssertTrue(app.staticTexts["debug-gallery-title"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["Lỗi và gián đoạn"].exists)
     }
 }
