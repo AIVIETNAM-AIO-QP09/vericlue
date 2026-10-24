@@ -17,7 +17,7 @@
 |---|---|---|---|---|
 | 3 | **Q3 · Hợp đồng LIVE-01**: đường chấm sáng, thứ tự quay đầu | Chưa có trong `session.schema.json`; app đang tự random trên máy | `Challenge` thêm `turn_order` (ví dụ `["left","right"]`) và `dot_path: [{t_ms, x, y}]` (x, y trong 0–1 theo màn hình). `Signals` thêm `dot_events: [{index, x, y, painted_at}]`, cùng đồng hồ với `color_events`. M5 làm PR `[contract]` | ok (duyệt miệng 24/10, Quang chuyển lời). M5 làm PR `[contract]` LIVE-01; app nối khi PR vào `main` |
 | 4 | **Q4 · Endpoint OTP và CCCD** (FLOW-02, FLOW-03) | Chưa có trong `openapi.json`; app chỉ lưu dữ liệu trên máy | OTP: `POST /v1/sessions/{id}/otp` gửi `{phone}`, rồi `POST .../otp/verify` gửi `{code}`; trả `pass`/`retry` + `attempts_left`. CCCD: `POST .../id-card`, multipart `front`, `back`, `qr`; trả các trường đã đọc (họ tên, số CCCD, ngày sinh, giới tính, địa chỉ) | ok (duyệt miệng 24/10, Quang chuyển lời). Server: OTP thuộc FLOW-02 (M2), CCCD thuộc FLOW-03 (M1); làm theo đúng hình đề xuất |
-| 5 | **Q5 · Đọc câu luôn hay chỉ khi server yêu cầu** | ADR-0016 (22/10) ghi luôn đọc; API hiện chỉ cho đọc khi `finalize` trả `voice_challenge` | Chốt một cách. App đang theo API; đổi thì app sửa 1 dòng, server phải đổi luồng | ok (duyệt miệng 24/10, Quang chuyển lời), nhưng chưa chọn cách: tạm giữ như API hiện tại (chỉ đọc khi `finalize` trả `voice_challenge`) |
+| 5 | **Q5 · Đọc câu luôn hay chỉ khi server yêu cầu** | ADR-0016 (22/10) ghi luôn đọc; API hiện chỉ cho đọc khi `finalize` trả `voice_challenge` | Chốt một cách. App đang theo API; đổi thì app sửa 1 dòng, server phải đổi luồng | ok (duyệt miệng 24/10, Quang chuyển lời). Chốt: giữ như API hiện tại, chỉ đọc câu khi `finalize` trả `voice_challenge` (Quang chốt 24/10). ADR-0016 cần ghi lại cho khớp |
 
 ## C. Tài liệu (luật 7: chỉ trưởng nhóm sửa ADR và hợp đồng)
 
@@ -51,5 +51,21 @@
 
 | 16 | **Độ lệch giữa video và WAV ở `/voice`** (VOICE-05, M4) | App quay MP4 và ghi WAV cùng lúc: WAV chỉ bắt đầu khi video đã có khung hình đầu. Trên máy ảo, video vẫn bắt đầu trước WAV khoảng 0,57–0,72 s (đo 2 lượt), và app chưa có chỗ gửi con số này | Thêm trường multipart `audio_offset_ms` vào `/voice` (thời điểm WAV bắt đầu, tính từ khung hình đầu của video), bằng một PR `[contract]`. Nếu chưa thêm, SyncNet nên dò độ lệch trong khoảng ±1 s | ok (duyệt miệng 24/10, Quang chuyển lời). PR `[contract]` thêm `audio_offset_ms`: PR #47; app đã gửi trường này |
 | 17 | **Bàn duyệt chưa xem được media app gửi** (REV, PLAT) | Đã kiểm ca `voice_clone` từ app (24/10, API mock): ca có trong `GET /v1/review/cases`, nhưng (a) `media` thiếu `voice_video`, vì enum `MediaRef.kind` trong `review.schema.json` chưa có; (b) mọi URL `/media/{session}/…` trả 404, vì API chưa có route phát media; (c) web `/review` mới là khung trống | Thêm `voice_video` vào `MediaRef.kind` bằng PR `[contract]` và vào `_open_case` (`session_flow.py`); thêm route media cho nhân viên (có xác thực). Ai làm REV-02 nhận | ok (duyệt miệng 24/10, Quang chuyển lời). Người làm REV-02 (M2) nhận |
+
+## G. Khi làm câu 3 (LIVE-01) và câu 4 (OTP, CCCD), 24/10
+
+Đang làm ở nhánh `feat/APP-contract-clock-voice-offset` (PR #47), chưa commit. Các câu dưới đây cần trưởng nhóm trả lời trước khi đẩy lên. Câu 18–20 quan trọng nhất.
+
+| # | Câu hỏi | Vì sao cần | Đề xuất | Trả lời |
+|---|---|---|---|---|
+| 18 | **Thêm endpoint cấp thử thách mới** `POST /v1/sessions/{id}/challenge` | OTP và CCCD nằm trong phiên (câu 4), nhưng token chỉ sống 5 phút và thử thách màu 120 giây. Làm xong bước A thì thử thách đã hết hạn | Endpoint trả thử thách mới và gia hạn token, phiên dài tối đa 15 phút (phần gia hạn của LIVE-06, theo ADR-0017 §2). Dữ liệu mặt/giọng của lượt cũ bị bỏ; số lần chụp lại đã dùng vẫn giữ. App gọi khi bắt đầu phần khuôn mặt và khi làm lại sau gián đoạn (thay cho việc tạo phiên mới như hiện nay) | |
+| 19 | **Làm thay task của người khác** | LIVE-01 là của M5, FLOW-02 (OTP) của M2; FLOW-03 (CCCD) là của M1 | Quang+Claude làm phần hợp đồng và server của LIVE-01, FLOW-02, FLOW-03. Nhờ M5 và M2 báo nếu đã bắt đầu, để khỏi làm trùng | |
+| 20 | **Gộp vào PR #47 hay tách PR** | Mỗi PR hợp đồng đều sinh lại `openapi.json`; nhiều PR song song sẽ xung đột | Gộp câu 3, 4, 18 vào #47 rồi duyệt một lần. Nếu muốn merge #47 ngay thì mở PR mới | |
+| 21 | **Thông số thử thách** (M3 làm LIVE-02 cần đồng ý) | Server sinh, app hiện, server chấm theo đúng các con số này | Chấm sáng: 7 điểm, mỗi điểm 1 giây (khoảng 6 giây), cách mép 15%, hai điểm liền nhau cách nhau ít nhất 25% màn hình. Quay đầu: 2 bước, mỗi bên một lần, thứ tự ngẫu nhiên (`["left","right"]` hoặc ngược lại) | |
+| 22 | **OTP mô phỏng trả mã trong phản hồi** (`simulated_sms`) | App cần nội dung để hiện khung "SMS mô phỏng" (FLOW-02) | Chỉ kênh mô phỏng (bản demo) trả trường này; kênh SMS thật không bao giờ trả. Mã lưu dạng băm, hạn 2 phút, sai 5 lần thì khóa, dùng một lần | |
+| 23 | **Phạm vi CCCD đợt này** | Task card FLOW-03 còn ba việc chưa làm | Server dùng chuỗi QR do app gửi (ML Kit), chưa tự đọc QR từ ảnh (OpenCV chỉ là thư viện tùy chọn). Chưa cắt chân dung bằng SCRFD. Chưa kiểm "đã đăng ký", mới lưu HMAC số CCCD. Ba việc này làm sau | |
+| 24 | **Người dùng sửa thông tin khác QR** | Task card FLOW-03: sửa khác QR thì gắn cờ cho nhân viên duyệt. Đề xuất câu 4 chưa có chỗ gửi thông tin đã sửa | Thêm trường tùy chọn `confirmed_fields` khi gửi CCCD (hoặc một endpoint xác nhận riêng); server so với QR, khác thì ghi chú cho ca duyệt | |
+| 25 | **Khóa `ID_HMAC_KEY`** | Dùng để băm số điện thoại và số CCCD | Code có giá trị mặc định chỉ để chạy dev. Máy demo đặt biến môi trường; trưởng nhóm giữ khóa | |
+| 26 | **ADR-0016 lệch với câu 5** | ADR-0016 ghi "luôn đọc câu"; câu 5 đã chốt "chỉ đọc khi server yêu cầu" | Trưởng nhóm sửa ADR-0016 cho khớp (luật 7: chỉ trưởng nhóm sửa ADR) | |
 
 Chi tiết kỹ thuật: [`plan-camera-mic.md`](plan-camera-mic.md) (mục 9 và 11), [`../README.md`](../README.md).
