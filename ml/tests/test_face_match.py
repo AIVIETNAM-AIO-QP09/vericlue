@@ -120,6 +120,18 @@ def test_no_threshold_stays_degraded_even_for_identical_embeddings(tmp_path, mon
     assert "embedding" not in result.model_dump_json()
 
 
+def test_ram_reference_does_not_read_an_input_path_and_stays_unclear_without_threshold(
+    tmp_path, monkeypatch
+):
+    monkeypatch.delenv("FACE_MATCH_CALIBRATION", raising=False)
+    detector, inp = setup_detector(tmp_path)
+    inp.reference_image = Path("never-open-reference.png")
+    pixels = np.full((112, 112, 3), 80, np.uint8)
+    result = detector.predict_frames(inp, {"front": pixels}, reference_frame=pixels.copy())
+    assert result.status == Status.DEGRADED and result.gate == Gate.UNCLEAR
+    assert result.quality["comparisons"] == 1 and result.prob_attack is None
+
+
 def test_calibrated_comparison_checks_reference_and_all_cross_view_pairs(tmp_path):
     # Each query matches reference at .8, but left vs right is only .28.
     a, b = 0.8 * vector() + 0.6 * vector(1), 0.8 * vector() - 0.6 * vector(1)
