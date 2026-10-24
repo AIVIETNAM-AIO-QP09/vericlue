@@ -199,3 +199,13 @@ def get_qwen_voice_challenge(*, mock: bool = False) -> Detector:
     from vericlue_ml.voice.qwen_asr import QwenVoiceChallengeDetector
 
     return QwenVoiceChallengeDetector()
+
+
+@lru_cache(maxsize=2)
+def get_nes2net(*, mock: bool = False) -> Detector:
+    """Opt-in raw voice diagnostic; keep the HTTP AntiDeepfake backend unchanged."""
+    if mock:
+        return MOCK_DETECTORS[Module.VOICE_SPOOF]
+    from vericlue_ml.voice.nes2net import Nes2NetDetector
+
+    return Nes2NetDetector()

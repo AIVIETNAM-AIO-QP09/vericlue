@@ -65,6 +65,12 @@ Data4Life/
 
 ## 3. Giao diện chung của mô-đun AI
 
+VOICE-09 bổ sung `get_nes2net()` opt-in cho `voice_spoof`, checkpoint NES2Net-X
+với frontend Transformers CPU riêng. Chưa parity Fairseq hoặc calibration,
+luôn degraded/unclear, không prob_attack; chấm raw 4 giây đầu theo demo tác giả.
+Không đổi lựa chọn API/full/MVP hoặc HTTP contract. Xem
+[`nes2net-diagnostic.md`](nes2net-diagnostic.md).
+
 VOICE-07/08 cung cấp Qwen3-ASR opt-in để kiểm nội dung câu đọc trong CLI/cửa
 sổ microphone nội bộ. Runtime CPU Transformers 5.13.0 riêng, audio RAM có
 giới hạn và luật khớp dùng chung `VoiceChallengeDetector`; `ok/pass` chỉ là khớp
