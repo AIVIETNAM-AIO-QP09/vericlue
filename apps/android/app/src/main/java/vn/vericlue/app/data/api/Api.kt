@@ -29,7 +29,8 @@ import java.util.concurrent.TimeUnit
 data class ColorStep(
     val rgb: String,
     @SerialName("hold_ms") val holdMs: Int,
-    @SerialName("transition_ms") val transitionMs: Int,
+    // Contract: const 150, not required.
+    @SerialName("transition_ms") val transitionMs: Int = 150,
 )
 
 @Serializable
@@ -64,10 +65,12 @@ data class Signals(
     @SerialName("color_events") val colorEvents: List<ColorEvent>,
     @SerialName("frame_times") val frameTimes: List<FrameTime>,
     @SerialName("client_quality") val clientQuality: Map<String, String> = emptyMap(),
+    val camprobe: vn.vericlue.app.capture.CamProbe? = null,
+    @SerialName("region_means") val regionMeans: List<vn.vericlue.app.capture.RegionFrame>? = null,
 )
 
 @Serializable
-data class StepAck(val step: String, val received: Boolean)
+data class StepAck(val step: String, val received: Boolean = false)
 
 @Serializable
 data class FinalizeResponse(

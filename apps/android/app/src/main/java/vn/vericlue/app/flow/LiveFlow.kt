@@ -1,6 +1,8 @@
 package vn.vericlue.app.flow
 
 import java.io.File
+import vn.vericlue.app.capture.CamProbe
+import vn.vericlue.app.capture.RegionFrame
 import vn.vericlue.app.data.api.ApiError
 import vn.vericlue.app.data.api.ApiResult
 import vn.vericlue.app.data.api.Challenge
@@ -74,11 +76,17 @@ class LiveFlow(private val api: SessionApi) {
     }
 
     /** Sends the face part and returns the next screen. */
-    suspend fun submitFace(video: File?, frameTimes: List<FrameTime>, clientQuality: Map<String, String>): Next {
+    suspend fun submitFace(
+        video: File?,
+        frameTimes: List<FrameTime>,
+        clientQuality: Map<String, String>,
+        camprobe: CamProbe? = null,
+        regionMeans: List<RegionFrame>? = null,
+    ): Next {
         val s = session ?: return Next.Fail(ApiError.Expired)
         val jpeg = frontalJpeg ?: return Next.Fail(ApiError.BadResponse)
         api.uploadMedia(s.sessionId, s.token, jpeg, video).failOrNull()?.let { return it }
-        api.sendSignals(s.sessionId, s.token, Signals(colorEvents.toList(), frameTimes, clientQuality)).failOrNull()?.let { return it }
+        api.sendSignals(s.sessionId, s.token, Signals(colorEvents.toList(), frameTimes, clientQuality, camprobe, regionMeans)).failOrNull()?.let { return it }
         return when (val r = api.finalize(s.sessionId, s.token)) {
             is ApiResult.Err -> Next.Fail(r.error)
             is ApiResult.Ok -> {

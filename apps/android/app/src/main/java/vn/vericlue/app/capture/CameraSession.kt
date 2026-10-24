@@ -86,6 +86,8 @@ class CameraSession(private val context: Context) {
     private var recording: Recording? = null
     private var videoFile: File? = null
     private var analyzedFrames = 0
+    private val duplicates = DuplicateFrameMeter()
+    private val regionFrames = mutableListOf<RegionFrame>()
     private var analysisStartMs = 0.0
 
     private var videoEnabled = false
@@ -180,6 +182,7 @@ class CameraSession(private val context: Context) {
         if (recording != null || !videoEnabled) return
         val file = File(context.cacheDir, "face_${System.currentTimeMillis()}.mp4").also { videoFile = it }
         synchronized(frames) { frames.clear() }
+        synchronized(regionFrames) { regionFrames.clear() }
         firstFrameNs = 0L
         recordingFrames = true
         recording = runCatching {
@@ -251,31 +254,72 @@ class CameraSession(private val context: Context) {
         val w = if (upright) proxy.width else proxy.height
         val h = if (upright) proxy.height else proxy.width
         val luma = meanLuma(proxy)
+        duplicates.add(thumbnail(proxy))
         val request = jpegRequest
         if (request != null) {
             jpegRequest = null
             request.complete(toJpeg(proxy, rotation))
         }
+        // One listener on the analysis thread: the frame must stay open while regions are measured.
         detector.process(InputImage.fromMediaImage(media, rotation))
-            .addOnSuccessListener { faces ->
-                val face = faces.maxByOrNull { it.boundingBox.width() }
-                _face.value = if (face == null) {
-                    FaceSignal(0, 0f, 0f, 0f, 0f, luma, ts)
-                } else {
-                    val b = face.boundingBox
-                    FaceSignal(
-                        faces = faces.size,
-                        widthFraction = b.width().toFloat() / w,
-                        centerX = b.exactCenterX() / w,
-                        centerY = b.exactCenterY() / h,
-                        yaw = face.headEulerAngleY,
-                        luma = luma,
-                        timestampNs = ts,
-                    )
+            .addOnCompleteListener(analysisExecutor) { task ->
+                try {
+                    val faces = if (task.isSuccessful) task.result else emptyList()
+                    val face = faces.maxByOrNull { it.boundingBox.width() }
+                    _face.value = if (face == null) {
+                        FaceSignal(0, 0f, 0f, 0f, 0f, luma, ts)
+                    } else {
+                        val b = face.boundingBox
+                        if (recordingFrames) {
+                            val box = Box(b.left.toFloat(), b.top.toFloat(), b.right.toFloat(), b.bottom.toFloat())
+                            val stats = Regions.measure(box, w, h) { x, y -> rgbAt(proxy, x, y, rotation) }
+                            synchronized(regionFrames) { regionFrames += RegionFrame(ts / 1e6, stats) }
+                        }
+                        FaceSignal(
+                            faces = faces.size,
+                            widthFraction = b.width().toFloat() / w,
+                            centerX = b.exactCenterX() / w,
+                            centerY = b.exactCenterY() / h,
+                            yaw = face.headEulerAngleY,
+                            luma = luma,
+                            timestampNs = ts,
+                        )
+                    }
+                } finally {
+                    proxy.close()
                 }
             }
-            .addOnCompleteListener { proxy.close() }
     }
+
+    /** Colour of an upright pixel, read from the YUV_420_888 planes. */
+    private fun rgbAt(proxy: ImageProxy, u: Int, v: Int, rotation: Int): Int {
+        val (x, y) = Regions.sensorXY(u, v, rotation, proxy.width, proxy.height)
+        val (yp, up, vp) = proxy.planes
+        val yv = yp.buffer.get(y * yp.rowStride + x * yp.pixelStride).toInt() and 0xFF
+        val uv = up.buffer.get((y / 2) * up.rowStride + (x / 2) * up.pixelStride).toInt() and 0xFF
+        val vv = vp.buffer.get((y / 2) * vp.rowStride + (x / 2) * vp.pixelStride).toInt() and 0xFF
+        return Regions.yuvToRgb(yv, uv, vv)
+    }
+
+    private fun thumbnail(proxy: ImageProxy): ByteArray {
+        val plane = proxy.planes[0]
+        val buf = plane.buffer
+        val size = DuplicateFrameMeter.SIZE
+        return ByteArray(size * size) { i ->
+            val x = (i % size) * proxy.width / size
+            val y = (i / size) * proxy.height / size
+            buf.get(y * plane.rowStride + x * plane.pixelStride)
+        }
+    }
+
+    /** Device and frame checks for Signals.camprobe. Reads /proc, so call it off the main thread. */
+    fun camProbe(): CamProbe = CamProbe(
+        apiTamperFlags = CamProbeRules.flags(DeviceProbe.facts()),
+        deviceLabel = DeviceProbe.label(if (backMode) "back" else "front"),
+        duplicateFrameRatio = duplicates.ratio(),
+    )
+
+    fun regionMeans(): List<RegionFrame> = synchronized(regionFrames) { regionFrames.toList() }
 
     @androidx.annotation.OptIn(ExperimentalGetImage::class)
     private fun analyzeIdFrame(proxy: ImageProxy, media: android.media.Image, rotation: Int) {

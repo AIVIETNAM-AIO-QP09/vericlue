@@ -42,7 +42,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import vn.vericlue.app.BuildConfig
@@ -418,7 +420,14 @@ fun VeriClueApp() {
                             live.pendingWav = null
                             live.submitVoice(wav)
                         } else {
-                            live.submitFace(camera.recordedVideo(), camera.frameTimes(), camera.clientQuality())
+                            val probe = withContext(Dispatchers.IO) { camera.camProbe() }
+                            live.submitFace(
+                                camera.recordedVideo(),
+                                camera.frameTimes(),
+                                camera.clientQuality(),
+                                probe,
+                                camera.regionMeans().ifEmpty { null },
+                            )
                         },
                     )
                 }
@@ -442,6 +451,7 @@ fun VeriClueApp() {
                 onRetake = { flow.outcome = DemoOutcome.Pass; startFace() },
                 hint = if (flow.live) FlowRules.retryHintText(live.retryHint) else null,
                 attemptsLeft = if (flow.live) live.attemptsLeft else 1,
+                hintCode = if (flow.live) live.retryHint else null,
             )
         }
         composable(Routes.RetryChallenge) {

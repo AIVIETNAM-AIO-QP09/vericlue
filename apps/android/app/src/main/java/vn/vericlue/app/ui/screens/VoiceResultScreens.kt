@@ -39,6 +39,11 @@ import androidx.compose.material.icons.outlined.Stop
 import androidx.compose.material.icons.outlined.StopCircle
 import androidx.compose.material.icons.outlined.VideocamOff
 import androidx.compose.material.icons.outlined.WbSunny
+import androidx.compose.material.icons.outlined.OpenInFull
+import androidx.compose.material.icons.outlined.CloseFullscreen
+import androidx.compose.material.icons.outlined.CenterFocusWeak
+import androidx.compose.material.icons.outlined.PanTool
+import androidx.compose.material.icons.outlined.VolumeOff
 import androidx.compose.material.icons.outlined.WifiOff
 import androidx.compose.material.icons.outlined.Dns
 import androidx.compose.material3.Icon
@@ -247,12 +252,23 @@ fun ReviewScreen(onBackToBank: () -> Unit) {
 
 /** Quality retry (ADR-0017 §1): specific, with how to fix it, and attempts left. */
 @Composable
-fun RetryQualityScreen(onBack: () -> Unit, onRetake: () -> Unit, hint: String? = null, attemptsLeft: Int? = 1) {
-    VcScreen(onBack = onBack, step = 2, centered = true, actions = { PrimaryButton("Chụp lại", onRetake) }) {
-        StatusBadge(Icons.Outlined.WbSunny, Tone.Warn)
-        TitleBlock("Ảnh chưa đủ rõ", hint ?: "Hãy ra chỗ sáng hơn và giữ điện thoại ngang tầm mặt.", centered = true)
+fun RetryQualityScreen(onBack: () -> Unit, onRetake: () -> Unit, hint: String? = null, attemptsLeft: Int? = 1, hintCode: String? = null) {
+    val audio = hintCode == "QUIET_PLACE"
+    VcScreen(onBack = onBack, step = 2, centered = true, actions = { PrimaryButton(if (audio) "Thử lại" else "Chụp lại", onRetake) }) {
+        StatusBadge(retryHintIcon(hintCode), Tone.Warn)
+        TitleBlock(if (audio) "Chưa nghe rõ" else "Ảnh chưa đủ rõ", hint ?: "Hãy ra chỗ sáng hơn và giữ điện thoại ngang tầm mặt.", centered = true)
         if (attemptsLeft != null) Text("Còn $attemptsLeft lần chụp lại", style = VcType.caption, color = Vc.colors.muted)
     }
+}
+
+/** Icon matching the server's quality hint (same codes as RetryHint in the contract). */
+fun retryHintIcon(code: String?): ImageVector = when (code) {
+    "MOVE_CLOSER" -> Icons.Outlined.OpenInFull
+    "MOVE_BACK" -> Icons.Outlined.CloseFullscreen
+    "FACE_CENTER" -> Icons.Outlined.CenterFocusWeak
+    "HOLD_STILL" -> Icons.Outlined.PanTool
+    "QUIET_PLACE" -> Icons.Outlined.VolumeOff
+    else -> Icons.Outlined.WbSunny
 }
 
 /** Challenge retry (ADR-0017 §1): how to do it right, never which check failed. */
