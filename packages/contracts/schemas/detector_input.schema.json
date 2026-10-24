@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vericlue.local/contracts/detector_input.schema.json",
+  "title": "DetectorInput",
+  "description": "Hợp đồng nội bộ API → ML; đường dẫn phải do server giải quyết, không lấy từ signals/client JSON. Không phải body của endpoint công khai.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "session_id": {"type": ["string", "null"]},
+    "images": {"type": "array", "items": {"type": "string"}},
+    "image_roles": {"type": "array", "items": {"type": "string", "enum": ["front", "left", "right"]}},
+    "reference_image": {"type": ["string", "null"], "description": "Ảnh chân dung tham chiếu do server kiểm soát; không phải toàn ảnh CCCD chưa cắt."},
+    "video": {"type": ["string", "null"]},
+    "audio": {"type": ["string", "null"]},
+    "signals": {"type": "object"},
+    "metadata": {"type": "object"}
+  }
+}

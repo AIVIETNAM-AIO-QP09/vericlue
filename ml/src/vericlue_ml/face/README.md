@@ -1,5 +1,15 @@
 # face/ — mô-đun khuôn mặt
 
+## So mặt: `match.py` (FLOW-05, diagnostic)
+
+`FaceMatchDetector` dùng session SCRFD chung + LVFace-B ONNX gốc, căn 5 điểm
+về 112×112 RGB [-1,1], so tham chiếu và mọi cặp front/left/right. Chưa có
+ngưỡng hiệu chỉnh thực, nên mặc định `degraded/unclear`; không bật trong
+full/MVP hoặc quyết định HTTP. Không lưu vector, không chứng minh sống/chiều
+sâu. Giấy phép trọng số nghiên cứu phi thương mại, hash/revision trong
+`models/manifest.yaml`. Lệnh chạy và hợp đồng:
+[`head-and-match.md`](../../../../docs/architecture/head-and-match.md).
+
 ## PAD: `pad.py` (FACE-01, bước 1 — bọc mô hình)
 
 `FacePadDetector` (module `face_pad`): ảnh → SCRFD `det_10g` tìm mặt → MiniFASNet V2 → `score = 1 − p_real`; `prob_attack` để trống (xác suất sau hiệu chỉnh do TrustRouter tính từ `score`).

@@ -90,11 +90,21 @@ Chi tiết: `docs/architecture/dynamic-session-api.md`.
 - Sai thứ tự hoặc quá hạn thì cho làm lại 1 lần.
 
 **Tiêu chí hoàn thành:**
-- [ ] Test bằng chuỗi góc tổng hợp: đúng thứ tự, sai thứ tự, quá hạn, mặt phẳng (biến đổi homography).
+- [x] Test bằng chuỗi góc tổng hợp: đúng/sai thứ tự, thiếu bước, quá hạn, thiếu dữ liệu và thiếu tư thế trung tính.
+- [ ] Test mặt phẳng (biến đổi homography) và kiểm chứng chiều sâu vật lý.
+
+**Lát cắt backend 24/10 (Codex, doing):** `head_turn` dùng reader MediaPipe,
+chỉ kiểm chuyển động/thứ tự/thời gian từ video với lịch server gắn phiên/lượt.
+Lịch hiện hành 6 giây theo LIVE-01; các hằng góc/giữ tư thế là thử nghiệm.
+Trả thời điểm ảnh chính diện/nghiêng để tích hợp sau; chưa trích khung cho GenD,
+chưa kiểm 3D, chưa nối quyết định API/retry hay sửa UI. Gate pass của module
+chỉ nói chuyển động phù hợp, luôn ghi `depth_verified=false`.
+CAP-06 còn phụ thuộc cho toàn luồng; diagnostic độc lập không cần UI đó.
+Xem [`head-and-match.md`](../../architecture/head-and-match.md).
 
 ---
 
-### FLOW-05 · So mặt 1:1 (AdaFace) và mẫu khuôn mặt
+### FLOW-05 · So mặt 1:1 (LVFace-B) và mẫu khuôn mặt
 
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
 |---|---|---|---|---|
@@ -103,15 +113,26 @@ Chi tiết: `docs/architecture/dynamic-session-api.md`.
 **Mục tiêu:** trả lời câu ⑤ của ADR-0013.
 
 **Đầu ra:**
-- Module `face_match` dùng AdaFace IR101 (CVLFace), có dự phòng SFace. Thêm cả hai vào manifest, ghi rõ giấy phép.
+- Module `face_match` dùng LVFace-B ONNX + SCRFD dùng chung theo lựa chọn mô hình trong phiên làm việc 24/10. Manifest pin revision/SHA và giấy phép trọng số nghiên cứu phi thương mại; không tự chuyển sang mô hình dự phòng.
 - So mặt người dùng với ảnh tham chiếu (ảnh CCCD hoặc mẫu đã lưu).
 - Mẫu khuôn mặt lưu dạng vector đặc trưng đã mã hóa; bản demo tự xóa sau 24 giờ.
 - Ngưỡng chọn trên các cặp vn_celeb, chia theo người.
 - So cùng khuôn mặt giữa các bước (ADR-0013 nguyên tắc 4).
 
 **Tiêu chí hoàn thành:**
+- [x] Wrapper, mock, registry và hợp đồng; chuẩn hóa RGB/112/[-1,1], so tham chiếu và mọi cặp giữa ba ảnh.
+- [x] Thiếu ngưỡng/ảnh, nhiều mặt hoặc artifact sai phiên bản không được đạt; không lưu embedding.
 - [ ] Đo VRAM khi chạy cùng bộ mô hình MVP.
 - [ ] Số liệu ngưỡng chạy ra từ code trong repo.
+- [ ] Nối FLOW-03/API và vòng đời mẫu mã hóa/xóa 24 giờ.
+
+**Lát cắt backend 24/10 (Codex, doing):** diagnostic offline qua `eval.face_match`.
+Ngưỡng không có mặc định: thiếu artifact `calib_ltt` đúng version thì
+`degraded/unclear`, dù cosine cao. Embedding chỉ nằm trong RAM. Chưa kiểm chứng
+độ chính xác trên người thật hay ảnh CCCD, chưa tuyên bố ba ảnh đúng góc hoặc
+có chiều sâu. FLOW-03 còn phụ thuộc cho tích hợp toàn luồng; wrapper nhận ảnh
+chân dung tham chiếu đã cắt do server quản lý. Xem
+[`head-and-match.md`](../../architecture/head-and-match.md).
 
 ---
 

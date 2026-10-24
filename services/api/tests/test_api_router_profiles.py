@@ -12,6 +12,7 @@ from vericlue_api.services import orchestrator as orchestration
 from vericlue_api.services.orchestrator import Orchestrator
 from vericlue_ml.common.result import ErrorCode, Module, ModuleResult, Status
 from vericlue_ml.mock.detectors import MockDetector
+from vericlue_ml.router.profiles import DIAGNOSTIC_MODULES
 
 MVP_MODULES = {
     Module.QUALITY,
@@ -58,7 +59,8 @@ def test_only_profile_modules_are_constructed_preloaded_and_run(profile):
         return TrackedDetector(module)
 
     engine = Orchestrator(Settings(router_profile=profile), detector_factory=factory)
-    expected = (set(Module) - {Module.GAZE_TRACKING}) if profile == "full" else MVP_MODULES
+    expected = (set(Module) - DIAGNOSTIC_MODULES) if profile == "full" else MVP_MODULES
+    assert len(expected) == (9 if profile == "full" else 7)
     try:
         engine.start()
         engine.start()
