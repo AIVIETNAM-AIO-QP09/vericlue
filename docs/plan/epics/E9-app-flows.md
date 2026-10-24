@@ -422,6 +422,8 @@ không chứng minh chống phát lại video được gắn mã mới (LIVE-03/
 
 **Tiêu chí hoàn thành:**
 - [x] Test bằng chuỗi điểm tổng hợp: khớp, lệch, đứng yên, đường của phiên khác.
+- [x] Nối opt-in dò mắt với quay đầu/so mặt/GenD/PAD, cùng task MediaPipe;
+  mắt hoặc đầu thiếu/lỗi thì chặn chấm ảnh. Có profile CPU riêng và CLI kiểm runtime.
 - Backend diagnostic 24/10: reader MediaPipe/kiểm SHA, mắt tương đối và góc đầu
   ước lượng, đối chiếu hai trục/độ trễ, kiểm độ phủ và lỗi. Có mock + ModuleResult
   gaze_tracking; chưa tham gia router/full/MVP. Đường chấm server được sinh đủ

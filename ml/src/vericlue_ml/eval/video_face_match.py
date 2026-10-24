@@ -38,6 +38,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument(
+        "--with-gaze",
+        action="store_true",
+        help="Also check eye motion; gaze and head must pass before scoring views",
+    )
+    parser.add_argument(
         "--with-pad",
         action="store_true",
         help="Also score views with FS-VFM-L (FP32); requires face + gend extras",
@@ -69,6 +74,7 @@ def main(argv: list[str] | None = None) -> int:
             matcher=matcher,
             deepfake=deepfake,
             pad=pad,
+            with_gaze=args.with_gaze,
             models_dir=args.models_dir,
             device=args.device,
         )
@@ -100,6 +106,7 @@ def main(argv: list[str] | None = None) -> int:
         "reference_sha256": checksum(args.reference),
         "challenge_file_sha256": checksum(args.server_response),
         "landmarker_sha256": reader.expected_sha256,
+        "gaze_requested": args.with_gaze,
         "face_match_model_loaded": face_loaded,
         "gend_requested": args.with_gend,
         "gend_model_loaded": gend_loaded,
@@ -130,7 +137,13 @@ def main(argv: list[str] | None = None) -> int:
         1
         if any(
             r is not None and r.status == "error"
-            for r in (result.head_turn, result.face_match, result.face_deepfake, result.face_pad)
+            for r in (
+                result.head_turn,
+                result.face_match,
+                result.face_deepfake,
+                result.face_pad,
+                result.gaze_tracking,
+            )
         )
         else 0
     )
