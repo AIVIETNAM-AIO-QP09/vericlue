@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>API_BASE_URL</key>
+	<string>$(API_BASE_URL)</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>VeriClue dùng camera để chụp giấy tờ và quay khuôn mặt khi xác minh danh tính.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>VeriClue kết nối với máy chủ demo trong cùng mạng Wi-Fi để xác minh danh tính.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>VeriClue dùng micro để ghi giọng đọc một câu ngắn khi xác minh.</string>
+	<key>UIRequiresFullScreen</key>
+	<true/>
+</dict>
+</plist>
