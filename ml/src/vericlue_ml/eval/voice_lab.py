@@ -28,20 +28,34 @@ class VoiceLab:
     """Internal diagnostic window; model and microphone are lazy, UI stays responsive."""
 
     def __init__(
-        self, root: Any, *, models_dir: Path, device: int | None = None, preview: bool = False
+        self,
+        root: Any,
+        *,
+        models_dir: Path,
+        device: int | None = None,
+        preview: bool = False,
+        nes2net_python: Path | None = None,
+        worker_timeout: float = 180,
     ) -> None:
         import tkinter as tk
         from tkinter import ttk
 
         self.root, self.preview = root, preview
         self.models_dir = models_dir.resolve()
-        self.trial = VoiceTrial(QwenVoiceChallengeDetector(QwenASR(models_dir)), device=device)
+        spoof = None
+        if nes2net_python is not None and not preview:
+            from vericlue_ml.eval.nes2net_client import Nes2NetClient
+
+            spoof = Nes2NetClient(nes2net_python, self.models_dir, timeout=worker_timeout)
+        self.trial = VoiceTrial(
+            QwenVoiceChallengeDetector(QwenASR(self.models_dir)), device=device, spoof=spoof
+        )
         self.closed = False
         self.phase = "idle"
         self.record_started = 0.0
         self.payload = None
         self.prompt = generate_prompt()
-        root.title("VeriClue · Thử câu đọc" + (" · xem thử" if preview else ""))
+        root.title("VeriClue · Thử giọng nói" + (" · xem thử" if preview else ""))
         root.geometry("850x690")
         root.minsize(760, 640)
         root.configure(bg="#F8FAFC")
@@ -58,8 +72,15 @@ class VoiceLab:
         )
         body = ttk.Frame(root, padding=24)
         body.pack(fill="both", expand=True)
-        ttk.Label(body, text="Thử câu đọc", font=("Segoe UI", 23, "bold")).pack(anchor="w")
-        ttk.Label(body, text="Nội bộ phát triển · Qwen3-ASR-0.6B · xử lý trên máy").pack(anchor="w")
+        ttk.Label(body, text="Thử giọng nói", font=("Segoe UI", 23, "bold")).pack(anchor="w")
+        ttk.Label(
+            body,
+            text=(
+                "Nội bộ phát triển · Qwen3-ASR"
+                + (" + NES2Net-X" if nes2net_python else "")
+                + " · xử lý trên máy"
+            ),
+        ).pack(anchor="w")
         ttk.Label(
             body, text="Đọc nguyên câu dưới đây sau khi trạng thái chuyển sang ĐANG THU."
         ).pack(anchor="w", pady=(24, 8))
@@ -73,7 +94,7 @@ class VoiceLab:
             controls, text="1. Thu âm", style="Record.TButton", command=self.start
         )
         self.record_button.pack(side="left", padx=(0, 8))
-        self.finish_button = ttk.Button(controls, text="2. Dừng & kiểm câu", command=self.finish)
+        self.finish_button = ttk.Button(controls, text="2. Dừng & kiểm", command=self.finish)
         self.finish_button.pack(side="left", padx=(0, 8))
         self.cancel_button = ttk.Button(controls, text="Hủy (Esc)", command=self.cancel)
         self.cancel_button.pack(side="left")
@@ -85,8 +106,12 @@ class VoiceLab:
         )
         self.progress = ttk.Progressbar(body, mode="indeterminate")
         self.progress.pack(fill="x", pady=(0, 12))
+        self.tabs = ttk.Notebook(body)
+        content_tab, spoof_tab = ttk.Frame(self.tabs), ttk.Frame(self.tabs)
+        self.tabs.add(content_tab, text="Câu đọc")
+        self.tabs.add(spoof_tab, text="Giọng AI · 4 giây đầu")
         self.result_text = tk.Text(
-            body,
+            content_tab,
             height=9,
             wrap="word",
             font=("Segoe UI", 12),
@@ -96,6 +121,28 @@ class VoiceLab:
             padx=14,
             pady=12,
             takefocus=True,
+        )
+        self.spoof_text = tk.Text(
+            spoof_tab,
+            height=9,
+            wrap="word",
+            font=("Segoe UI", 12),
+            bg="white",
+            fg="#0F172A",
+            relief="flat",
+            padx=14,
+            pady=12,
+            takefocus=True,
+        )
+        for tab, widget in ((content_tab, self.result_text), (spoof_tab, self.spoof_text)):
+            scroll = ttk.Scrollbar(tab, orient="vertical", command=widget.yview)
+            scroll.pack(side="right", fill="y")
+            widget.configure(yscrollcommand=scroll.set)
+            widget.pack(side="left", fill="both", expand=True)
+        self._spoof_result(
+            "Chưa có điểm giọng AI."
+            if nes2net_python
+            else "Chưa bật NES2Net trong lần chạy này. Xem hướng dẫn để bật kiểm giọng."
         )
         self._result("Chưa có kết quả. Micro chỉ mở khi bạn bấm Thu âm.")
         footer = ttk.Frame(body)
@@ -110,7 +157,7 @@ class VoiceLab:
             ),
             wraplength=750,
         ).pack(anchor="w", pady=(10, 0))
-        self.result_text.pack(fill="both", expand=True)
+        self.tabs.pack(fill="both", expand=True)
         root.bind("<Escape>", lambda _: self.cancel())
         root.protocol("WM_DELETE_WINDOW", self.close)
         self._buttons()
@@ -121,6 +168,12 @@ class VoiceLab:
         self.result_text.delete("1.0", "end")
         self.result_text.insert("1.0", text)
         self.result_text.configure(state="disabled")
+
+    def _spoof_result(self, text: str) -> None:
+        self.spoof_text.configure(state="normal")
+        self.spoof_text.delete("1.0", "end")
+        self.spoof_text.insert("1.0", text)
+        self.spoof_text.configure(state="disabled")
 
     def _buttons(self) -> None:
         idle = not self.preview and not self.trial.active
@@ -137,6 +190,7 @@ class VoiceLab:
         self.phase = "opening"
         self.status_text.set("Đang mở micro… Chờ thông báo ĐANG THU rồi bắt đầu đọc.")
         self._result("Chưa có kết quả cho lượt này.")
+        self._spoof_result("Chưa có điểm cho lượt này.")
         self.progress.start(12)
         self._buttons()
 
@@ -156,6 +210,7 @@ class VoiceLab:
         self.phase = "cancelling"
         self.status_text.set("Đã yêu cầu hủy · Chờ tác vụ hiện tại kết thúc để thử lại.")
         self._result("Lượt này đã hủy; kết quả sẽ bị bỏ qua.")
+        self._spoof_result("Lượt này đã hủy; điểm giọng sẽ bị bỏ qua.")
         self._buttons()
 
     def new_prompt(self) -> None:
@@ -165,6 +220,7 @@ class VoiceLab:
         self.prompt_text.set(self.prompt)
         self.payload = None
         self._result("Đã đổi câu. Bấm Thu âm để bắt đầu lượt mới.")
+        self._spoof_result("Chưa có điểm cho lượt mới.")
         self._buttons()
 
     def tick(self) -> None:
@@ -177,6 +233,11 @@ class VoiceLab:
             elif kind == "processing":
                 self.phase = "processing"
                 self.status_text.set("MICRO ĐÃ TẮT · Đang kiểm câu. Lần đầu cần nạp model CPU.")
+            elif kind == "spoof_processing":
+                self.phase = "processing"
+                self.status_text.set(
+                    "MICRO ĐÃ TẮT · Đang đo điểm NES2Net; lần đầu cần nạp model riêng."
+                )
             elif kind == "done":
                 self.payload, error = value
                 self.phase = "idle"
@@ -184,13 +245,19 @@ class VoiceLab:
                 self.status_text.set("MICRO ĐANG TẮT · Lượt đã kết thúc")
                 if self.payload:
                     self.render_result()
+                    self.render_spoof()
+                    if self.payload.get("voice_spoof"):
+                        self.status_text.set(
+                            "MICRO ĐANG TẮT · Xem riêng hai tab Câu đọc và Giọng AI"
+                        )
                 elif error:
                     self._result(error + "\nChưa có kết quả kiểm câu; không được coi là đạt.")
+                    self._spoof_result("Chưa có kết quả giọng AI cho lượt này.")
             self._buttons()
         if self.phase == "recording":
             elapsed = perf_counter() - self.record_started
             self.status_text.set(
-                f"ĐANG THU · khoảng {elapsed:.1f} / {MAX_RECORD_SECONDS} giây · Đọc xong bấm Dừng & kiểm câu"
+                f"ĐANG THU · khoảng {elapsed:.1f} / {MAX_RECORD_SECONDS} giây · Đọc xong bấm Dừng & kiểm"
             )
         self.root.after(100, self.tick)
 
@@ -213,6 +280,31 @@ class VoiceLab:
             f"{details}\nThời gian xử lý: {result['latency_ms'] / 1000:.2f} giây"
             f"\nTrạng thái kỹ thuật: {result['status']} / {result['gate']}"
             f"\nMã lý do: {result.get('error_code') or 'không'}"
+        )
+
+    def render_spoof(self) -> None:
+        payload = self.payload.get("voice_spoof")
+        if not payload:
+            self._spoof_result(
+                "NES2Net chưa bật trong lần chạy này. Kết quả câu đọc vẫn được giữ riêng."
+            )
+            return
+        result = payload["result"]
+        score = result.get("score")
+        if score is None or result["status"] != "degraded":
+            text = "CHƯA ĐO ĐƯỢC ĐIỂM GIỌNG AI · thử lại hoặc kiểm tra runtime"
+        else:
+            text = (
+                "CHƯA KẾT LUẬN GIỌNG THẬT / GIẢ"
+                f"\nĐiểm thô NES2Net (giả − thật): {score:.4f}"
+                "\nĐiểm cao hơn nghiêng về giọng giả trong mô hình; chưa phải xác suất."
+            )
+        self._spoof_result(
+            text + "\nChỉ chấm 4 giây đầu; âm thanh ngắn hơn sẽ được lặp."
+            "\nChưa xác minh tương đương bản gốc hoặc hiệu chỉnh cho tiếng Việt."
+            f"\nTrạng thái kỹ thuật: {result['status']} / {result['gate']}"
+            f"\nMã lý do: {result.get('error_code') or 'không'}"
+            f"\nThời gian worker/trao đổi: {payload.get('round_trip_ms', 0) / 1000:.2f} giây"
         )
 
     def save(self) -> None:
@@ -249,11 +341,24 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--ui-preview", action="store_true", help="Disable microphone and model work"
     )
+    parser.add_argument(
+        "--nes2net-python", type=Path, help="Opt in using the separate NES2Net Python executable"
+    )
+    parser.add_argument(
+        "--worker-timeout", type=float, default=180, help="NES2Net timeout, 0–600 seconds"
+    )
     args = parser.parse_args(argv)
     import tkinter as tk
 
     root = tk.Tk()
-    VoiceLab(root, models_dir=args.models_dir, device=args.device, preview=args.ui_preview)
+    VoiceLab(
+        root,
+        models_dir=args.models_dir,
+        device=args.device,
+        preview=args.ui_preview,
+        nes2net_python=args.nes2net_python,
+        worker_timeout=args.worker_timeout,
+    )
     root.mainloop()
     return 0
 

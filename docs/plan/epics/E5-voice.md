@@ -239,3 +239,27 @@ vụ VOICE-01/03 hoặc kết quả benchmark AntiDeepfake.
 
 **Chưa nghiệm thu:** parity frontend Fairseq ↔ Transformers, EER tiếng Việt,
 calibration, xử lý toàn câu dài hơn 4 giây, ghép GUI/API hoặc quyết định eKYC.
+
+---
+
+### VOICE-10 · Ghép NES2Net vào công cụ thử microphone
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M4 | 1 | S2 | P0 | VOICE-08, VOICE-09 |
+
+**Mục tiêu:** thu một lần để thử nội dung Qwen và raw NES2Net trong công cụ
+nội bộ; giữ runtime hai model riêng và âm thanh trong RAM, không thay UI sản phẩm.
+
+**Tiêu chí kỹ thuật:**
+- [x] Worker NES2Net nạp lười, giữ model giữa các lượt; PCM qua pipe có giới hạn/hash/id,
+      không file audio, mạng, shell hoặc cửa sổ console phụ trên Windows.
+- [x] Có timeout/hủy/đóng worker, bỏ kết quả cũ; lỗi worker không thành pass và
+      không xóa kết quả nội dung đã đo được.
+- [x] UI hiển thị hai kết quả riêng, tiến trình và phạm vi 4 giây đầu rõ ràng;
+      JSON có provenance riêng từng model và hash PCM truyền cho NES2Net.
+- [x] Unit không cần model/micro, smoke IPC thật bằng tín hiệu tổng hợp, QA UI,
+      hồi quy/lint/plan_check/tài liệu/bàn giao.
+
+Không nghiệm thu parity frontend, accuracy tiếng Việt hoặc calibration; điểm
+NES2Net luôn degraded/unclear, không thay HTTP/backend/ngưỡng hoặc quyết định eKYC.

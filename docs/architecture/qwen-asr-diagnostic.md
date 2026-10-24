@@ -74,6 +74,75 @@ Thiết kế dùng [InputStream/read/abort/close chính thức](https://python-s
 pin [sounddevice 0.5.6](https://pypi.org/project/sounddevice/0.5.6/) trong runtime riêng;
 không chép code upstream, không nâng runtime mặt/CUDA.
 
+## Thu một lần, kiểm cả Qwen và NES2Net (VOICE-10)
+
+Chuẩn bị **cả hai runtime** theo tài liệu này và
+[NES2Net diagnostic](nes2net-diagnostic.md), rồi chạy từ gốc checkout:
+
+```powershell
+$env:HF_HUB_OFFLINE = "1"
+$env:TRANSFORMERS_OFFLINE = "1"
+tmp/qwen-asr-runtime/Scripts/python.exe -m vericlue_ml.eval.voice_lab --models-dir models/selected-2026-10-24 --nes2net-python tmp/nes2net-runtime/Scripts/python.exe
+```
+
+Nếu dùng editable cài từ checkout cũ, cài lại `--no-deps -e ./ml` vào Qwen runtime
+hoặc đặt `PYTHONPATH=<checkout mới>/ml/src` trước lệnh chạy. Không nâng/hạ phiên
+bản Transformers trong runtime khác. Chỉ cần cài dependency của từng runtime
+một lần; worker NES2Net tự trỏ về cùng mã nguồn của công cụ đang chạy.
+
+1. **Thu âm** → chờ ĐANG THU → đọc ngay câu → **Dừng & kiểm** (tối đa 20 giây).
+   Cùng bản thu trong RAM được kiểm nội dung trước, rồi chấm raw NES2Net.
+2. Tab **Câu đọc** giữ transcript/WER/độ giống hiện có. Tab **Giọng AI · 4 giây
+   đầu** chỉ hiện margin thô và giới hạn. Hai kết quả độc lập: khớp câu không
+   có nghĩa giọng thật, margin NES2Net không được đổi thành xác suất/pass.
+3. NES2Net chỉ chấm **4 giây đầu của bản thu**, phần ngắn hơn được lặp; vì vậy
+   cần bắt đầu đọc khi có báo ĐANG THU. Vẫn giữ degraded/unclear, chưa parity
+   frontend hoặc calibration tiếng Việt; phần sau giây 4 chưa được đánh giá.
+4. **Hủy/Esc** bỏ cả lượt, dừng worker NES2Net; nếu Qwen native đang chạy vẫn phải
+   chờ Qwen kết thúc trước lượt mới như trước. Đóng cửa sổ dừng worker thuộc công
+   cụ này. Lượt sau sau khi hủy/timeout sẽ cần nạp lại NES2Net; bình thường giữ
+   model giữa các lượt. Không đóng hoặc mở lại công cụ webcam khác.
+5. Timeout NES2Net mặc định **180 giây**, đổi bằng `--worker-timeout` (>0, tối đa 600).
+   Tính cả khởi động/trao đổi/nạp/suy luận của worker. Lỗi/timeout chỉ hiện chưa
+   đo được ở tab giọng; kết quả nội dung đã đo vẫn được giữ. Không coi lỗi là đạt.
+6. Không truyền `--nes2net-python` thì tiếp tục chỉ kiểm nội dung như trước.
+   Preview luôn vô hiệu hóa model/micro kể cả có tham số worker.
+
+NES2Net chạy trong child Transformers 4.57.6, Qwen trong parent 5.13.0; GUI không
+nạp model NES2Net vào runtime Qwen. Child khởi động lười sau thao tác người dùng,
+không có console phụ trên Windows. PCM mono gốc của micro được resample riêng
+bằng SciPy về 16 kHz cho NES2Net; không trim/normalize. Qwen giữ tiền xử lý hiện
+có. Pipeline ghép có nguồn/rate resampling riêng, **không tuyên bố parity decoder
+so với librosa gốc hoặc độ chính xác toàn hệ thống**.
+
+Qua pipe nhị phân: JSON header nhỏ + PCM little-endian float32, tối đa 30 giây,
+SHA-256 và request_id mới mỗi lượt; không pickle, shell, mạng hoặc file WAV.
+Phản hồi giới hạn 32 KiB, kiểm đúng id/hash/version và trạng thái raw-only.
+Stdout chỉ dành protocol; stderr của child bị bỏ, không ghi log âm thanh.
+Worker lỗi/treo/sai phản hồi bị dừng, model nạp lại ở lần thử sau.
+Trên Windows, dọn đúng cây tiến trình từ PID `Popen` của công cụ vì venv có
+thể dùng launcher sinh Python con; không tìm/đóng tiến trình theo tên toàn hệ
+thống. Luồng khởi động và dọn được giữ sống đủ để xử lý đóng cửa sổ giữa lúc
+OS tạo process, không giữ khóa UI trong thao tác tạo/dọn process.
+
+**Lưu JSON** vẫn tùy chọn. `result`/metadata ở gốc là Qwen để giữ tương thích;
+`voice_spoof.result` là ModuleResult NES2Net, kèm commit/model/hash/runtime,
+`received_samples`, hash PCM 16 kHz, round_trip_ms (gồm cold start). Hash PCM
+ở gốc là bản thu gốc theo rate micro; hai hash có thể khác vì resampling.
+Không có audio trong JSON. Buffer chính được xóa sau tác vụ, nhưng các bản sao
+tạm/bytes/native không được cam kết secure erasure. Không phải bằng chứng phiên
+eKYC và chưa kiểm khớp môi/nhịp đọc/TTL/chữ ký server.
+
+Smoke opt-in worker dùng **tín hiệu tổng hợp**, không mở micro: kiểm hai runtime
+riêng, cùng process/model giữa hai lượt, hash/đầu ra đúng và đóng worker.
+Chưa thu giọng người hoặc đo accuracy trong nghiệm thu này.
+
+```powershell
+$env:NES2NET_WORKER_PYTHON = "$PWD/tmp/nes2net-runtime/Scripts/python.exe"
+$env:NES2NET_MODELS_DIR = "$PWD/models/selected-2026-10-24"
+tmp/qwen-asr-runtime/Scripts/python.exe -m pytest ml/tests/test_voice_worker_real_smoke.py -m slow -ra
+```
+
 ## CLI và nguồn câu từ server
 
 Có thể thay `--expected-text-file` bằng `--server-response tmp/session.json`
