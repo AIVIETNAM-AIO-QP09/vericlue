@@ -23,6 +23,7 @@ gaze:
 diagnostic_models:
   face_pad: fs-vfm-vit-l-fas
   chromapulse: chromapulse-diagnostic@0.1+face-landmarker-f16-1
+  voice_challenge: qwen3-asr-06b-hf
 
 # VOICE-04: VAD has no checkpoint; matching constants live in voice/challenge.py.
 voice:

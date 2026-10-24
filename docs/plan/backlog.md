@@ -78,6 +78,7 @@
 | VOICE-04 | Câu thử thách, nhận dạng, so khớp 2 lớp (chặn lặp token) | M4 | Codex | 1,5 | S1–S2 | P0 | PLAT-03 | done |
 | VOICE-05 | Căn chỉnh câu, cắt ghép, SyncNet (thiết bị riêng, nạp lười) | M4 | Codex | 1,5 | S2 | P0 | VOICE-04, DATA-02 | doing |
 | VOICE-06 | Gộp bước giọng nói vào luồng | M4 | | 0,5 | S2 | P0 | VOICE-03, VOICE-04, VOICE-05, ROUT-02 | todo |
+| VOICE-07 | Qwen3-ASR: backend + CLI kiểm câu đọc, diagnostic CPU riêng | M4 | Codex | 1 | S2 | P0 | PLAT-03, VOICE-04 | review |
 
 ## E6 — TrustRouter · `epics/E6-router.md`
 
