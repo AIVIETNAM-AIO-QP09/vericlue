@@ -7,6 +7,7 @@ from vericlue_ml.common.result import Module
 
 RouterProfileName = Literal["full", "mvp"]
 FACE_MODULES = (Module.FACE_PAD, Module.FACE_DEEPFAKE)
+DIAGNOSTIC_MODULES = frozenset({Module.GAZE_TRACKING, Module.HEAD_TURN, Module.FACE_MATCH})
 
 
 @dataclass(frozen=True)
@@ -34,10 +35,10 @@ class RouterProfile:
 
     @property
     def modules(self) -> tuple[Module, ...]:
-        # LIVE-02 is a standalone diagnostic until all dynamic gates are integrated.
-        # Adding its enum must not change legacy model loading, health or pass policy.
+        # Dynamic gaze/head/identity are standalone diagnostics pending full gate integration.
+        # Adding enums must not change legacy model loading, health or pass policy.
         return (
-            tuple(module for module in Module if module != Module.GAZE_TRACKING)
+            tuple(module for module in Module if module not in DIAGNOSTIC_MODULES)
             if self.name == "full"
             else (*self.finalize_modules, *self.voice_step_modules)
         )

@@ -70,6 +70,14 @@ Mô-đun này dùng gate thử nghiệm, chưa ở profile full/MVP và chưa th
 định API. Xem [`presence/README.md`](../../ml/src/vericlue_ml/presence/README.md).
 Ngưỡng/chiều tọa độ chưa nghiệm thu trên điện thoại; không bỏ chốt real/mixed.
 
+FLOW-04/FLOW-05 thêm `head_turn` (kiểm thứ tự/thời gian, chưa kiểm chiều sâu)
+và `face_match` (SCRFD + LVFace-B, so tham chiếu và các ảnh giữa bước).
+Cả ba module nằm trong `DIAGNOSTIC_MODULES`, bị loại khỏi full/MVP; chưa được
+orchestrator HTTP nạp/chạy. Đầu vào so mặt bổ sung hợp đồng nội bộ
+`detector_input.schema.json` cho `image_roles` và `reference_image` do server
+quản lý. Thiếu ngưỡng hiệu chỉnh đúng version luôn `degraded/unclear`. Xem
+[`head-and-match.md`](head-and-match.md).
+
 Mọi bộ phát hiện (kể cả cổng chất lượng `quality`) đều trả một `ModuleResult` (schema: `packages/contracts/schemas/module_result.schema.json`):
 
 ```python

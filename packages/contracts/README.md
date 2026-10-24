@@ -5,6 +5,7 @@
 | File | Dùng cho |
 |---|---|
 | `schemas/module_result.schema.json` | Kết quả của MỌI bộ phát hiện |
+| `schemas/detector_input.schema.json` | Đầu vào nội bộ API → ML; đường dẫn do server kiểm soát, không phải body HTTP |
 | `schemas/session.schema.json` | API phiên eKYC: tạo phiên, tín hiệu, kết quả (API v1, chốt ở PLAT-04) |
 | `schemas/review.schema.json` | Bàn duyệt. **Draft v1**: chỉ thêm trường tùy chọn. `ReviewCase` không có điểm AI; `ReviewAiOpinion` tách riêng |
 | `schemas/forensic.schema.json` | Cổng giám định. **Draft v1**: chỉ thêm trường tùy chọn |
@@ -16,6 +17,12 @@
 LIVE-02 thêm tên module `gaze_tracking` vào ModuleResult để diagnostic và mock
 cùng trả đúng hợp đồng. Đây không phải thay đổi trạng thái cho người dân, không
 tự bật mô-đun trong full/MVP hoặc bỏ chốt chế độ thật của luồng mới.
+
+FLOW-04/FLOW-05 thêm `head_turn`, `face_match` theo cùng cách diagnostic.
+`DetectorInput.image_roles` gán front/left/right cho từng ảnh, `reference_image`
+là chân dung tham chiếu đã cắt do server quản lý. Các đường dẫn và nhãn góc này
+không được lấy trực tiếp từ JSON/signals của client. Chưa có endpoint nhận
+đường dẫn; chưa tự bật quyết định API hay thêm điểm số cho người dân.
 
 1. **Đổi schema trước, code sau**, cả hai phía trong **cùng một PR**. Tiêu đề PR có `[contract]`.
 2. Chỉ **thêm** trường tùy chọn thì không phá tương thích. **Đổi tên / xóa / đổi kiểu** thì phải tăng phiên bản API (`/v2`) hoặc báo cả nhóm.

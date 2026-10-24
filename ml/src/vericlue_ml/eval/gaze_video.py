@@ -1,4 +1,4 @@
-"""Run a local video against a saved server challenge; diagnostic, not a biometric benchmark."""
+"""Run gaze or head motion against a saved server challenge; diagnostic, not an accuracy benchmark."""
 
 from __future__ import annotations
 
@@ -12,11 +12,13 @@ from pathlib import Path
 from vericlue_ml.common.detector import DetectorInput
 from vericlue_ml.eval.report import git_revision
 from vericlue_ml.presence.gaze import GazeDetector
+from vericlue_ml.presence.head_turn import HeadTurnDetector
 from vericlue_ml.presence.landmarks import FaceObservationReader
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--module", choices=("gaze_tracking", "head_turn"), default="gaze_tracking")
     parser.add_argument("--video", type=Path, required=True)
     parser.add_argument(
         "--server-response",
@@ -29,7 +31,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     body = json.loads(args.server_response.read_text(encoding="utf-8"))
     reader = FaceObservationReader()
-    detector = GazeDetector(reader)
+    detector = (GazeDetector if args.module == "gaze_tracking" else HeadTurnDetector)(reader)
     reader.preload(models_dir=args.models_dir)
     try:
         result = detector.predict(
@@ -54,6 +56,7 @@ def main(argv: list[str] | None = None) -> int:
         "model_sha256": reader.expected_sha256,
         "runtime": {name: importlib.metadata.version(name) for name in ("mediapipe", "numpy")},
         "sample_count": 1,
+        "dataset": "local_diagnostic_not_accuracy_evaluation",
         "video_sha256": checksum,
         "purpose": "local_diagnostic_not_accuracy_evaluation",
         "result": result.to_contract(),
