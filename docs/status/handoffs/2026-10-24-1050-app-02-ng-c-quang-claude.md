@@ -69,7 +69,7 @@ Sửa theo kết quả duyệt của trưởng nhóm ngày 24/10.
   - **Chấm sáng** chạy theo `dot_path`, ghi `dot_events`. Video quay tiếp tới hết đoạn chấm sáng (cho LIVE-02).
   - **Thứ tự quay đầu** lấy từ `turn_order`.
 - Test: 61 test JVM (thêm `LiveFlowStageATest`, 8 test).
-- **Kế hoạch app iOS** cho anh Lý: đã soạn, chờ Quang duyệt, chưa đưa vào repo.
+- **Kế hoạch app iOS** cho anh Lý (Quang duyệt 24/10): `apps/ios/docs/plan-ios.md`.
 
 **Cập nhật 14:00: sửa theo reviewer trước khi merge #46, #47** (trưởng nhóm cho tự merge).
 - **Bịt đường né bước đọc câu:** `voice_owed` giữ yêu cầu đọc câu qua mọi lần `POST /challenge`. Lượt mặt nào bỏ dở sau khi đã chấm (không phải retry) tính là một lần chụp lại, và kết quả của lượt cũ bị xóa.
@@ -92,7 +92,7 @@ Sửa theo kết quả duyệt của trưởng nhóm ngày 24/10.
   - Luồng `reauth` chỉ quay thụ động 3 giây.
 - **Bẫy đã gặp:** đổi chỗ khung camera giữa các pha làm CameraX cấu hình lại và hủy đoạn quay (`ERROR_SOURCE_INACTIVE`). Màn mới giữ **một** khung camera cố định suốt cả 4 pha.
 - **Màn gửi:** chờ CameraX ghi xong MP4 (`finishedVideo`) rồi mới gửi.
-- **Kế hoạch iOS** viết lại theo API dynamic, chi tiết từng bước (`apps/ios/docs/plan-ios.md`). Vẫn **chưa đưa vào repo**, chờ Quang duyệt.
+- **Kế hoạch iOS** viết lại theo API dynamic, chi tiết từng bước (`apps/ios/docs/plan-ios.md`), Quang đã duyệt.
 
 ## Đang dở
 - Chưa thử trên điện thoại thật.
