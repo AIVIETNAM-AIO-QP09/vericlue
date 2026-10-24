@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 
 from vericlue_api.core.chromapulse_config import load_chromapulse_config
 from vericlue_api.core.config import Settings
-from vericlue_api.schemas.session import Challenge, ColorStep, DotPoint
+from vericlue_api.schemas.session import Challenge, ColorStep
 
 # Bảng màu, nhịp và giới hạn lấy từ packages/contracts/chromapulse.json (nguồn chung với web).
 _CFG = load_chromapulse_config()
@@ -23,12 +23,6 @@ TRANSITION_MS = _CFG.transition_ms
 MAX_LUMINANCE_SPREAD = _CFG.max_luminance_spread
 MAX_RED_SHARE = _CFG.max_red_share
 CAPTURE_POINTS = 2
-
-# Đường chấm sáng (LIVE-01, lớp ② của ADR-0016): khoảng 6 giây, chấm đi thẳng giữa các điểm.
-DOT_POINTS = 7
-DOT_STEP_MS = 1000
-DOT_MARGIN = 0.15  # tránh mép màn hình, tai thỏ, thanh điều hướng
-DOT_MIN_JUMP = 0.25  # hai điểm liền kề đủ xa để mắt phải đưa theo
 
 
 def relative_luminance(rgb: str) -> float:
@@ -85,18 +79,4 @@ def generate_challenge(
         color_sequence=sequence,
         capture_at_ms=capture_at,
         expires_at=now + timedelta(seconds=settings.challenge_ttl_seconds),
-        turn_order=rng.sample(["left", "right"], 2),
-        dot_path=generate_dot_path(rng),
     )
-
-
-def generate_dot_path(rng: random.Random) -> list[DotPoint]:
-    """Điểm ngẫu nhiên trong vùng an toàn, mỗi điểm cách điểm trước ít nhất DOT_MIN_JUMP."""
-    points: list[DotPoint] = []
-    lo, hi = DOT_MARGIN, 1 - DOT_MARGIN
-    while len(points) < DOT_POINTS:
-        x, y = round(rng.uniform(lo, hi), 3), round(rng.uniform(lo, hi), 3)
-        if points and ((x - points[-1].x) ** 2 + (y - points[-1].y) ** 2) ** 0.5 < DOT_MIN_JUMP:
-            continue
-        points.append(DotPoint(t_ms=len(points) * DOT_STEP_MS, x=x, y=y))
-    return points

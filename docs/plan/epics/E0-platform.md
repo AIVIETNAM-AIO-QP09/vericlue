@@ -165,13 +165,19 @@
 - Xem thêm danh sách việc để lại trong bàn giao PLAT-04 (`docs/status/handoffs/*plat-04*`).
 
 **Tiêu chí hoàn thành:**
-- [ ] Token sai chữ ký hoặc hết hạn → 401 (test).
-- [ ] Gọi lại một bước đã nhận trong cùng lượt → 409 (test).
+- [x] Token sai chữ ký hoặc hết hạn → 401 (test).
+- [x] Gọi lại một bước đã nhận trong cùng lượt → 409 (test).
 - [ ] Media gắn thử thách quá 120 giây hoặc thử thách cũ → bị từ chối (test).
 - [ ] Vượt giới hạn lượt → 429 (test).
-- [ ] Quá 2 lần chụp lại → `review` (test).
+- [x] Quá 2 lần chụp lại → `review` (test).
 - [ ] Ký và xác minh chữ ký Ed25519 (test).
 - [ ] Gọi `/v1/review/*`, `/v1/forensic/*` không có xác thực nhân viên → 401 (test).
+
+**Phần bảo vệ phiên 24/10 (PLAT-06 vẫn doing):** đã có HMAC-SHA256, chỉ lưu hash token,
+chặn nhận lặp và đóng phiên sau pass/review, hết hạn thử thách khuôn mặt/câu đọc,
+xóa tham chiếu bằng chứng khi retry. Chưa hoàn thành tiêu chí media cũ: cần ràng buộc
+media với challenge_id/chữ ký ở LIVE-03/SEC-02. Còn 429, Ed25519/gen_keys, auth nhân viên
+và giới hạn body trước multipart. Gia hạn sau gián đoạn thuộc LIVE-06 theo ADR-0017.
 
 ---
 

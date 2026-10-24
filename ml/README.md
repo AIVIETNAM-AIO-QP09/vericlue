@@ -21,6 +21,18 @@
 
 ## Quy ước bắt buộc
 
+LIVE-02 đã có `gaze_tracking` và reader MediaPipe dùng chung cho dữ liệu mắt/tư
+thế đầu. Đây là diagnostic riêng, chưa nằm trong profile full/MVP hoặc quyết định
+API. Chạy bằng môi trường riêng để giữ dependency CUDA/OpenCV hiện có; xem
+[`presence/README.md`](src/vericlue_ml/presence/README.md).
+
+FLOW-04/FLOW-05 thêm diagnostic `head_turn` và `face_match` (LVFace-B + SCRFD).
+Kiểm thứ tự quay đầu và tương đồng danh tính là hai kết quả riêng; chưa chứng
+minh chiều sâu. Thiếu ngưỡng hiệu chỉnh thì so mặt luôn `degraded/unclear`.
+Full vẫn 9 module, MVP vẫn 7; chưa bật hai module này trong quyết định HTTP.
+Lệnh chạy, định dạng artifact và giới hạn:
+[`head-and-match.md`](../docs/architecture/head-and-match.md).
+
 1. Mọi bộ phát hiện kế thừa giao diện `Detector` và trả `ModuleResult` (`docs/architecture/architecture.md` §3).
 2. Mọi bộ phát hiện **phải có bản mock** cùng tên trong `mock/`.
 3. Không hard-code đường dẫn: dùng `MODELS_DIR`, `configs/models.yaml`.

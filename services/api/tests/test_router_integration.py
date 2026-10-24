@@ -322,12 +322,14 @@ def expire_session_field(client, sid, field):
 @pytest.mark.parametrize(
     "step, expired_field", [("finalize", "token"), ("finalize", "challenge"), ("voice", "token")]
 )
-def test_router_expired_context_reviews_with_high_priority_without_inference(
+def test_router_expired_context_is_rejected_without_inference_or_new_decision(
     client, monkeypatch, step, expired_field
 ):
     sid, auth = create_session(client, "voice_clone" if step == "voice" else "genuine")
     if step == "voice":
         assert finalize(client, sid, auth).json()["status"] == "voice_challenge"
+    with client.app.state.vericlue.database.sessions() as db:
+        before = list(db.scalars(select(DecisionRow.id).where(DecisionRow.session_id == sid)))
     expire_session_field(client, sid, expired_field)
 
     def forbidden_inference(*_args, **_kwargs):
@@ -335,17 +337,15 @@ def test_router_expired_context_reviews_with_high_priority_without_inference(
 
     monkeypatch.setattr(client.app.state.vericlue.orchestrator, "run", forbidden_inference)
     response = finalize(client, sid, auth) if step == "finalize" else voice(client, sid, auth)
-    assert response.status_code == 200
-    assert response.json() == {"status": "review"}
+    assert response.status_code == (401 if expired_field == "token" else 409)
+    assert response.json()["error_code"] == (
+        "unauthorized" if expired_field == "token" else "challenge_expired"
+    )
     with client.app.state.vericlue.database.sessions() as db:
         case = db.scalar(select(ReviewCaseRow).where(ReviewCaseRow.session_id == sid))
-        assert case is not None
-        assert case.priority == "high"
-        decision = db.scalars(
-            select(DecisionRow).where(DecisionRow.session_id == sid).order_by(DecisionRow.id.desc())
-        ).first()
-        assert decision.action == "review"
-        assert decision.config_version.startswith("sha256:")
+        assert case is None
+        after = list(db.scalars(select(DecisionRow.id).where(DecisionRow.session_id == sid)))
+        assert after == before
 
 
 def test_router_expired_context_does_not_bypass_bad_token_401(client):

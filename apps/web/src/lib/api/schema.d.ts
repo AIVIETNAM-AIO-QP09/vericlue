@@ -439,6 +439,11 @@ export interface components {
         /** Body_upload_media_v1_sessions__session_id__media_post */
         Body_upload_media_v1_sessions__session_id__media_post: {
             /**
+             * Challenge Id
+             * @description Mã thử thách; bắt buộc khi có purpose
+             */
+            challenge_id?: string | null;
+            /**
              * Image
              * @description Ảnh mặt chất lượng cao
              */
@@ -466,6 +471,11 @@ export interface components {
              * @description Video lúc đọc câu
              */
             video?: string | null;
+            /**
+             * Voice Challenge Id
+             * @description Mã lần đọc; bắt buộc khi có purpose
+             */
+            voice_challenge_id?: string | null;
         };
         /** C2paInfo */
         C2paInfo: {
@@ -495,12 +505,9 @@ export interface components {
             challenge_id: string;
             /** Color Sequence */
             color_sequence: components["schemas"]["ColorStep"][];
-            /** Dot Path */
-            dot_path?: components["schemas"]["DotPoint"][] | null;
+            dynamic?: components["schemas"]["DynamicChallenge"] | null;
             /** Expires At */
             expires_at?: string | null;
-            /** Turn Order */
-            turn_order?: ("left" | "right")[] | null;
         };
         /** ChallengeResponse */
         ChallengeResponse: {
@@ -511,6 +518,11 @@ export interface components {
              * @description Hạn mới của token
              */
             expires_at: string;
+            /**
+             * Token
+             * @description Token mới của phiên; token cũ hết hiệu lực
+             */
+            token: string;
         };
         /** ColorStep */
         ColorStep: {
@@ -525,6 +537,18 @@ export interface components {
              */
             transition_ms: 150;
         };
+        /** CreateSessionRequest */
+        CreateSessionRequest: {
+            /** Nonce */
+            nonce: string;
+            /**
+             * Purpose
+             * @enum {string}
+             */
+            purpose: "onboarding" | "reauth" | "recovery";
+            /** Reference Image Id */
+            reference_image_id?: string | null;
+        };
         /** CreateSessionResponse */
         CreateSessionResponse: {
             challenge: components["schemas"]["Challenge"];
@@ -534,11 +558,15 @@ export interface components {
              * @description Hạn của token (~5 phút)
              */
             expires_at: string;
+            /** Nonce */
+            nonce?: string | null;
+            /** Purpose */
+            purpose?: ("onboarding" | "reauth" | "recovery") | null;
             /** Session Id */
             session_id: string;
             /**
              * Token
-             * @description Token theo phiên, gửi 'Authorization: Bearer'. TẠM — PLAT-06 thay bằng HMAC + TTL.
+             * @description Token HMAC-SHA256 theo phiên, có hạn; gửi Authorization: Bearer. DB chỉ lưu hash token.
              */
             token: string;
         };
@@ -552,17 +580,36 @@ export interface components {
              */
             status: "open" | "initial_decided" | "closed";
         };
-        /**
-         * DotPoint
-         * @description Một điểm của đường chấm sáng; x, y theo tỉ lệ màn hình (0–1).
-         */
-        DotPoint: {
-            /** T Ms */
-            t_ms: number;
-            /** X */
-            x: number;
-            /** Y */
-            y: number;
+        /** DynamicChallenge */
+        DynamicChallenge: {
+            /** Frontal Capture At Ms */
+            frontal_capture_at_ms: number;
+            /** Gaze Points */
+            gaze_points: components["schemas"]["GazePoint"][];
+            /**
+             * Head Duration Ms
+             * @constant
+             */
+            head_duration_ms: 6000;
+            /** Head Start At Ms */
+            head_start_at_ms: number;
+            /** Head Turns */
+            head_turns: ("left" | "right" | "center")[];
+            /** Nonce */
+            nonce: string;
+            /** Session Id */
+            session_id: string;
+            /**
+             * Version
+             * @constant
+             */
+            version: 1;
+            /** Voice Challenge Id */
+            voice_challenge_id: string;
+            /** Voice Prompt */
+            voice_prompt: string;
+            /** Voice Start At Ms */
+            voice_start_at_ms: number;
         };
         /** ErrorResponse */
         ErrorResponse: {
@@ -583,6 +630,11 @@ export interface components {
             /** Reason Code */
             reason_code: string;
         };
+        /** FinalizeRequest */
+        FinalizeRequest: {
+            /** Challenge Id */
+            challenge_id: string;
+        };
         /** FinalizeResponse */
         FinalizeResponse: {
             /** Attempts Left */
@@ -595,7 +647,9 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "pass" | "retry" | "review" | "voice_challenge";
+            status: "pass" | "retry" | "review" | "voice_challenge" | "deny" | "recovery_required";
+            /** Voice Challenge Id */
+            voice_challenge_id?: string | null;
             /** Voice Prompt */
             voice_prompt?: string | null;
         };
@@ -695,6 +749,15 @@ export interface components {
             t_end: number;
             /** T Start */
             t_start: number;
+        };
+        /** GazePoint */
+        GazePoint: {
+            /** At Ms */
+            at_ms: number;
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -946,6 +1009,8 @@ export interface components {
          * @description Tín hiệu trình duyệt đo; server không tin tuyệt đối. Trường lạ được giữ lại.
          */
         Signals: {
+            /** Challenge Id */
+            challenge_id?: string | null;
             /** Color Events */
             color_events: {
                 [key: string]: unknown;
@@ -1023,7 +1088,9 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "pass" | "review" | "voice_challenge";
+            status: "pass" | "review" | "voice_challenge" | "deny";
+            /** Voice Challenge Id */
+            voice_challenge_id?: string | null;
             /** Voice Prompt */
             voice_prompt?: string | null;
         };
@@ -1529,7 +1596,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CreateSessionRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -1547,6 +1618,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Luồng purpose chưa hỗ trợ mô hình thật */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -1609,7 +1689,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["FinalizeRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -1629,7 +1713,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Sai trạng thái: voice_not_requested (finalize chưa yêu cầu đọc câu), session_closed (phiên đã vào bàn duyệt). Bước đã nhận trong lượt này cũng 409 (PLAT-06). */
+            /** @description Sai trạng thái, phiên đã kết thúc, thiếu bước hoặc sai/hết hạn mã thử thách; bước gửi trùng cũng trả 409. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1797,7 +1881,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Sai trạng thái: voice_not_requested (finalize chưa yêu cầu đọc câu), session_closed (phiên đã vào bàn duyệt). Bước đã nhận trong lượt này cũng 409 (PLAT-06). */
+            /** @description Sai trạng thái, phiên đã kết thúc, thiếu bước hoặc sai/hết hạn mã thử thách; bước gửi trùng cũng trả 409. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1813,6 +1897,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Kho dữ liệu hoặc luồng xác minh chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -1956,7 +2049,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Sai trạng thái: voice_not_requested (finalize chưa yêu cầu đọc câu), session_closed (phiên đã vào bàn duyệt). Bước đã nhận trong lượt này cũng 409 (PLAT-06). */
+            /** @description Sai trạng thái, phiên đã kết thúc, thiếu bước hoặc sai/hết hạn mã thử thách; bước gửi trùng cũng trả 409. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1972,6 +2065,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Kho dữ liệu hoặc luồng xác minh chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -2009,7 +2111,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Sai trạng thái: voice_not_requested (finalize chưa yêu cầu đọc câu), session_closed (phiên đã vào bàn duyệt). Bước đã nhận trong lượt này cũng 409 (PLAT-06). */
+            /** @description Sai trạng thái, phiên đã kết thúc, thiếu bước hoặc sai/hết hạn mã thử thách; bước gửi trùng cũng trả 409. */
             409: {
                 headers: {
                     [name: string]: unknown;

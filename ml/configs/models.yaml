@@ -10,6 +10,14 @@ modules:
   voice_challenge: phowhisper # VOICE-04; CTC alignment belongs to VOICE-05
   lipsync: syncnet        # VOICE-05: LatentSync stable_syncnet + CTC forced aligner
   provenance: audioseal-detector # FOR-03: AudioSeal + C2PA (extra forensic/c2pa); Perth chưa hỗ trợ
+  gaze_tracking: mediapipe-face-landmarker # LIVE-02: opt-in, chưa nằm trong profile MVP/full
+  head_turn: mediapipe-face-landmarker # FLOW-04: kiểm thứ tự; không chứng minh chiều sâu
+  face_match: lvface-b # FLOW-05: diagnostic, cần artifact ngưỡng mới có thể pass
+
+gaze:
+  model_subdir: mediapipe-face-landmarker
+  model_file: face_landmarker.task
+  sha256: 64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff
 
 # VOICE-04: VAD has no checkpoint; matching constants live in voice/challenge.py.
 voice:

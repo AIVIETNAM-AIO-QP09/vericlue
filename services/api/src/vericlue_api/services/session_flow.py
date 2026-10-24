@@ -1,15 +1,12 @@
 """Luồng một phiên eKYC (kiến trúc §6). Router chỉ gọi các hàm ở đây.
 
-Giai đoạn PLAT-04: chưa có máy trạng thái chống phát lại "mỗi bước một lần mỗi lượt" (409), HMAC,
-TTL token HMAC hay 429 (PLAT-06); DB/transaction và inference song song đã có (PLAT-05/08).
-ROUT-02 dùng TrustRouter và kiểm deadline đã lưu; ngưỡng/fusion còn provisional.
-Chỉ kiểm THỨ TỰ luồng để không có đường tắt tới `pass`: 409 `session_closed` khi phiên đã vào bàn
-duyệt, 409 `voice_not_requested` khi `finalize` chưa yêu cầu đọc câu.
+PLAT-06: mỗi bước chỉ nhận một lần, token có thời hạn và kết quả cuối đóng phiên.
+ROUT-02 dùng TrustRouter; ngưỡng/fusion còn provisional.
 """
 
 from __future__ import annotations
 
-import random
+import secrets
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -17,9 +14,11 @@ from typing import get_args
 
 from vericlue_api.core.config import Settings
 from vericlue_api.core.errors import ApiError
+from vericlue_api.core.session_tokens import token_digest
 from vericlue_api.schemas.review import MediaRef
 from vericlue_api.schemas.session import (
     ChallengeResponse,
+    CreateSessionRequest,
     CreateSessionResponse,
     FinalizeResponse,
     RetryHint,
@@ -28,23 +27,22 @@ from vericlue_api.schemas.session import (
 )
 from vericlue_api.services.challenge import generate_challenge
 from vericlue_api.services.detection import run_detectors
+from vericlue_api.services.dynamic_challenge import (
+    VOICE_PROMPTS,
+    generate_dynamic_challenge,
+    new_dynamic_voice_prompt,
+    new_voice_prompt,
+)
 from vericlue_api.services.provisional_decision import (
     MAX_VOICE_REREADS,
     Outcome,
 )
 from vericlue_api.services.review_store import ReviewStore
 from vericlue_api.services.session_store import Session, SessionStore
+from vericlue_api.services.uploads import save_upload
 from vericlue_ml.common.result import Module
+from vericlue_ml.router.flows import route_face, route_voice
 from vericlue_ml.router.policy import TrustRouter
-
-VOICE_PROMPTS = (
-    "Hôm nay trời đẹp, tôi đang xác minh danh tính của mình.",
-    "Tôi xin xác nhận đây là lần đăng ký tài khoản của chính tôi.",
-    "Mùa thu Hà Nội có hoa sữa và gió se lạnh.",
-    "Tôi đồng ý cho hệ thống xác minh khuôn mặt và giọng nói của tôi.",
-    "Chín mươi tám cộng bảy mươi hai bằng một trăm bảy mươi.",
-)
-
 
 RETRY_HINTS = frozenset(get_args(RetryHint))
 DEFAULT_HINT = "MORE_LIGHT"
@@ -71,17 +69,36 @@ class SessionFlow:
         self.reviews = reviews
 
     # --- tạo phiên -------------------------------------------------------
-    def create(self, scenario: str) -> CreateSessionResponse:
+    def create(
+        self, scenario: str, request: CreateSessionRequest | None = None
+    ) -> CreateSessionResponse:
+        # These flows need gaze/head/match/device verification before real deployment.
+        # No environment switch can accidentally enable an incomplete acceptance path.
+        if request is not None and self.settings.use_mock_models is not True:
+            raise ApiError(503, "flow_unavailable", "Luồng xác minh này chưa sẵn sàng.")
         session = self.sessions.create(
             scenario=scenario,
             challenge=generate_challenge(self.settings),
             ttl_seconds=self.settings.session_ttl_seconds,
+            signer=self.settings.session_token_signer,
         )
+        if request is not None:
+            session.purpose = request.purpose
+            session.nonce = request.nonce
+            session.reference_image_id = request.reference_image_id
+            if request.purpose in {"onboarding", "recovery"}:
+                session.challenge = generate_dynamic_challenge(
+                    self.settings, session_id=session.session_id, nonce=request.nonce
+                )
+                session.voice_prompt = session.challenge.dynamic.voice_prompt
+                session.voice_challenge_id = session.challenge.dynamic.voice_challenge_id
         return CreateSessionResponse(
             session_id=session.session_id,
             token=session.token,
             expires_at=session.token_expires_at,
             challenge=session.challenge,
+            purpose=session.purpose,
+            nonce=session.nonce,
         )
 
     def refresh_challenge(self, session: Session) -> ChallengeResponse:
@@ -104,47 +121,170 @@ class SessionFlow:
             # Bỏ một lượt đã chấm (không phải retry) cũng là một lần chụp lại: không chấm lại vô hạn.
             session.retries_used += 1
             session.face_scored = False
-        session.challenge = generate_challenge(self.settings)
+        # Same as a retry: a whole new pack (LIVE-01 `dynamic` included) with new attempt IDs.
+        session.challenge = (
+            generate_dynamic_challenge(
+                self.settings, session_id=session.session_id, nonce=session.nonce
+            )
+            if session.challenge.dynamic is not None
+            else generate_challenge(self.settings)
+        )
+        # The token carries its own signed expiry (PLAT-06): extending means issuing a new one.
         session.token_expires_at = min(
             now + timedelta(seconds=self.settings.session_ttl_seconds), end
         )
+        token = self.settings.session_token_signer.issue(
+            session.session_id, session.token_expires_at
+        )
+        session.token_hash = token_digest(token)
         session.images = []
         session.video = None
         session.audio = None
         session.signals = {}
         session.results = {}
+        session.accepted_steps = []
         session.voice_requested = False
-        session.voice_prompt = None
-        return ChallengeResponse(expires_at=session.token_expires_at, challenge=session.challenge)
+        dynamic = session.challenge.dynamic
+        session.voice_prompt = dynamic.voice_prompt if dynamic else None
+        session.voice_challenge_id = dynamic.voice_challenge_id if dynamic else None
+        session.voice_expires_at = None
+        return ChallengeResponse(
+            token=token, expires_at=session.token_expires_at, challenge=session.challenge
+        )
+
+    def ensure_binding(
+        self, session: Session, challenge_id: str | None, *, voice: bool = False
+    ) -> None:
+        """An identifier binds a request to an attempt, not to signed camera bytes (LIVE-03)."""
+        if session.purpose is None:
+            return
+        self.ensure_flow_available(session)
+        expected = session.voice_challenge_id if voice else session.challenge.challenge_id
+        if (
+            not challenge_id
+            or not expected
+            or not secrets.compare_digest(challenge_id.encode("utf-8"), expected.encode("utf-8"))
+        ):
+            raise ApiError(409, "challenge_mismatch", "Lượt xác minh không còn phù hợp.")
+
+    def ensure_flow_available(self, session: Session) -> None:
+        """A saved mock session must not become usable after switching the server to real."""
+        if session.purpose is not None and self.settings.use_mock_models is not True:
+            raise ApiError(503, "flow_unavailable", "Luồng xác minh này chưa sẵn sàng.")
 
     # --- tải lên ---------------------------------------------------------
+    def accept_media(
+        self,
+        session: Session,
+        *,
+        image: bytes,
+        image_filename: str | None,
+        video: bytes | None = None,
+        video_filename: str | None = None,
+    ) -> None:
+        """Lưu media sau khi toàn bộ phần tải lên đã được kiểm kích thước."""
+        self.ensure_face_step_allowed(session, "media")
+        session.images = [
+            save_upload(
+                self.settings.media_dir, session.session_id, "face_image", image_filename, image
+            )
+        ]
+        session.video = (
+            save_upload(
+                self.settings.media_dir, session.session_id, "face_video", video_filename, video
+            )
+            if video is not None
+            else None
+        )
+        session.accepted_steps.append("media")
+
+    def accept_voice_media(
+        self,
+        session: Session,
+        *,
+        audio: bytes,
+        audio_filename: str | None,
+        video: bytes | None = None,
+        video_filename: str | None = None,
+    ) -> Path | None:
+        """Chỉ lưu bản ghi của lần đọc được server cho phép."""
+        self.ensure_voice_allowed(session)
+        session.audio = save_upload(
+            self.settings.media_dir, session.session_id, "voice_audio", audio_filename, audio
+        )
+        return (
+            save_upload(
+                self.settings.media_dir, session.session_id, "voice_video", video_filename, video
+            )
+            if video is not None
+            else None
+        )
+
     def accept_signals(self, session: Session, signals: Signals) -> None:
-        session.signals = signals.model_dump(mode="json")
+        self.ensure_face_step_allowed(session, "signals")
+        session.signals = signals.model_dump(mode="json", exclude_none=True)
+        session.accepted_steps.append("signals")
+
+    def ensure_face_step_allowed(self, session: Session, step: str) -> None:
+        """Kiểm trước khi nhận media hoặc chạy detector của lượt khuôn mặt."""
+        self.ensure_flow_available(session)
+        self.ensure_open(session)
+        if session.voice_requested:
+            raise ApiError(409, "step_not_allowed", "Vui lòng hoàn thành bước đọc câu.")
+        if step in session.accepted_steps:
+            raise ApiError(409, "step_already_received", "Bước này đã được tiếp nhận.")
+        if session.challenge.expires_at is None or not self._valid_time(
+            session, color_challenge=True
+        ):
+            raise ApiError(409, "challenge_expired", "Lượt xác minh đã hết hạn.")
 
     @staticmethod
-    def _valid_time(session: Session, *, color_challenge: bool = False) -> bool:
+    def _valid_time(
+        session: Session,
+        *,
+        color_challenge: bool = False,
+        voice_challenge: bool = False,
+    ) -> bool:
         now = datetime.now(UTC)
         deadlines = [session.token_expires_at]
         if color_challenge and session.challenge.expires_at is not None:
             deadlines.append(session.challenge.expires_at)
+        if voice_challenge:
+            if session.voice_expires_at is None:
+                return False
+            deadlines.append(session.voice_expires_at)
         # Legacy snapshots may be naive UTC; never compare naive to aware datetime.
         return all((d.replace(tzinfo=UTC) if d.tzinfo is None else d) > now for d in deadlines)
 
     # --- finalize --------------------------------------------------------
     @staticmethod
     def ensure_open(session: Session) -> None:
-        """Phiên đã vào bàn duyệt là trạng thái cuối: không nhận thêm finalize hay voice."""
-        if session.case_id is not None:
-            raise ApiError(409, "session_closed", "Phiên đã chuyển sang bàn duyệt.")
+        """Cả pass và review là kết quả cuối của phiên."""
+        if session.case_id is not None or session.completed:
+            raise ApiError(409, "session_closed", "Phiên đã kết thúc.")
 
     def ensure_voice_allowed(self, session: Session) -> None:
         """Chỉ nhận giọng nói khi finalize vừa yêu cầu; không thì là đường tắt tới `pass`."""
+        self.ensure_flow_available(session)
         self.ensure_open(session)
         if not session.voice_requested:
             raise ApiError(409, "voice_not_requested", "Chưa có yêu cầu đọc câu cho phiên này.")
+        if "voice" in session.accepted_steps:
+            raise ApiError(409, "step_already_received", "Bước này đã được tiếp nhận.")
+        expiry = session.voice_expires_at
+        if expiry is None or (
+            expiry.replace(tzinfo=UTC) if expiry.tzinfo is None else expiry
+        ) <= datetime.now(UTC):
+            raise ApiError(409, "challenge_expired", "Lượt xác minh đã hết hạn.")
 
-    def finalize(self, session: Session) -> FinalizeResponse:
-        self.ensure_open(session)
+    def finalize(self, session: Session, challenge_id: str | None = None) -> FinalizeResponse:
+        self.ensure_binding(session, challenge_id)
+        self.ensure_face_step_allowed(session, "finalize")
+        if session.purpose is not None and not {"media", "signals"}.issubset(
+            session.accepted_steps
+        ):
+            raise ApiError(409, "steps_incomplete", "Vui lòng hoàn thành bước ghi hình.")
+        session.accepted_steps.append("finalize")
         session.voice_requested = False  # chỉ bật lại nếu lần này ra voice_challenge
         session_valid = self._valid_time(session, color_challenge=True)
         results = (
@@ -155,7 +295,20 @@ class SessionFlow:
                 images=session.images,
                 video=session.video,
                 signals=session.signals,
-                extra_metadata={"challenge_id": session.challenge.challenge_id},
+                extra_metadata={
+                    "challenge_id": session.challenge.challenge_id,
+                    **(
+                        {
+                            "expected_challenge": session.challenge.model_dump(
+                                mode="json", exclude_none=True
+                            ),
+                            "purpose": session.purpose,
+                            "reference_image_id": session.reference_image_id,
+                        }
+                        if session.purpose is not None
+                        else {}
+                    ),
+                },
             )
             if session_valid
             else {}
@@ -168,22 +321,38 @@ class SessionFlow:
             max_retries=s.max_retries,
             session_valid=session_valid and self._valid_time(session, color_challenge=True),
         )
+        outcome = route_face(outcome, session.purpose, device_verified=session.device_verified)
         session.results.update(outcome.results)
-        self.sessions.record_decision(
-            session,
-            outcome.status,
-            thresholds=outcome.thresholds,
-            config_version=outcome.config_version,
-        )
         status = outcome.status
         if status == "pass" and session.voice_owed:
             # Lượt mặt mới (sau POST /challenge) không xóa yêu cầu đọc câu của lượt trước.
             status = "voice_challenge"
+        self.sessions.record_decision(
+            session,
+            status,
+            thresholds=outcome.thresholds,
+            config_version=outcome.config_version,
+        )
         session.face_scored = status != "retry"
         if status == "retry":
             hint = outcome.retry_hint if outcome.retry_hint in RETRY_HINTS else DEFAULT_HINT
             session.retries_used += 1
-            session.challenge = generate_challenge(s)  # lượt mới, thử thách mới
+            session.challenge = (
+                generate_dynamic_challenge(s, session_id=session.session_id, nonce=session.nonce)
+                if session.challenge.dynamic is not None
+                else generate_challenge(s)
+            )
+            # A retry must never reuse evidence/results from the previous capture.
+            session.images = []
+            session.video = None
+            session.audio = None
+            session.signals = {}
+            session.results = {}
+            session.accepted_steps = []
+            dynamic = session.challenge.dynamic
+            session.voice_prompt = dynamic.voice_prompt if dynamic else None
+            session.voice_challenge_id = dynamic.voice_challenge_id if dynamic else None
+            session.voice_expires_at = None
             return FinalizeResponse(
                 status="retry",
                 retry_hint=hint,  # type: ignore[arg-type]
@@ -196,11 +365,13 @@ class SessionFlow:
             session.voice_rereads_used = 0  # yêu cầu đọc câu mới
             return FinalizeResponse(
                 status="voice_challenge",
-                voice_prompt=self._new_prompt(session),
+                voice_prompt=self._start_voice(session),
                 attempts_left=MAX_VOICE_REREADS,
+                voice_challenge_id=session.voice_challenge_id,
             )
         if status == "review":
             self._open_case(session, outcome)
+        session.completed = True
         return FinalizeResponse(status=status)  # type: ignore[arg-type]
 
     # --- voice -----------------------------------------------------------
@@ -212,7 +383,8 @@ class SessionFlow:
         audio_offset_ms: int | None = None,
     ) -> VoiceResponse:
         self.ensure_voice_allowed(session)
-        session_valid = self._valid_time(session)
+        session.accepted_steps.append("voice")
+        session_valid = self._valid_time(session, voice_challenge=True)
         results = (
             self._run(
                 self.router.profile.voice_step_modules,
@@ -225,6 +397,15 @@ class SessionFlow:
                     "prompt": session.voice_prompt,
                     # Khi WAV bắt đầu, tính từ khung hình đầu của video (app Android).
                     **({"audio_offset_ms": audio_offset_ms} if audio_offset_ms is not None else {}),
+                    **(
+                        {
+                            "voice_challenge_id": session.voice_challenge_id,
+                            "challenge_id": session.challenge.challenge_id,
+                            "purpose": session.purpose,
+                        }
+                        if session.purpose is not None
+                        else {}
+                    ),
                 },
             )
             if session_valid
@@ -234,8 +415,9 @@ class SessionFlow:
         outcome = self.router.voice(
             results,
             rereads_used=session.voice_rereads_used,
-            session_valid=session_valid and self._valid_time(session),
+            session_valid=session_valid and self._valid_time(session, voice_challenge=True),
         )
+        outcome = route_voice(outcome, session.purpose)
         if outcome.status != "voice_challenge":
             session.voice_owed = False
         session.results.update(outcome.results)
@@ -247,22 +429,43 @@ class SessionFlow:
         )
         if outcome.status == "voice_challenge":
             session.voice_rereads_used += 1
+            session.accepted_steps.remove("voice")  # A fresh prompt grants one new voice attempt.
             return VoiceResponse(
                 status="voice_challenge",
                 voice_prompt=self._new_prompt(session),
                 attempts_left=MAX_VOICE_REREADS - session.voice_rereads_used,
+                voice_challenge_id=session.voice_challenge_id,
             )
         session.voice_requested = False  # kết thúc bước giọng nói
+        session.completed = True
         if outcome.status == "review":
             self._open_case(session, outcome)
             return VoiceResponse(status="review")
-        return VoiceResponse(status="pass")
+        return VoiceResponse(status=outcome.status)
 
     # --- nội bộ ----------------------------------------------------------
-    @staticmethod
-    def _new_prompt(session: Session) -> str:
-        choices = [p for p in VOICE_PROMPTS if p != session.voice_prompt]
-        session.voice_prompt = random.SystemRandom().choice(choices)
+    def _start_voice(self, session: Session) -> str:
+        # A preissued prompt lets clients record while finalize is still running.
+        if session.challenge.dynamic is None:
+            return self._new_prompt(session)
+        session.voice_prompt = session.challenge.dynamic.voice_prompt
+        session.voice_challenge_id = session.challenge.dynamic.voice_challenge_id
+        session.voice_expires_at = datetime.now(UTC) + timedelta(
+            seconds=self.settings.challenge_ttl_seconds,
+        )
+        return session.voice_prompt
+
+    def _new_prompt(self, session: Session) -> str:
+        session.voice_prompt = (
+            new_dynamic_voice_prompt(session.voice_prompt)
+            if session.purpose is not None
+            else new_voice_prompt(session.voice_prompt)
+        )
+        if session.purpose is not None:
+            session.voice_challenge_id = f"vc_{secrets.token_hex(16)}"
+        session.voice_expires_at = datetime.now(UTC) + timedelta(
+            seconds=self.settings.challenge_ttl_seconds,
+        )
         return session.voice_prompt
 
     @staticmethod

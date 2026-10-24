@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import secrets
 import shutil
 from pathlib import Path
 
@@ -28,6 +29,7 @@ def _mock_env(monkeypatch, tmp_path, db_template):
     monkeypatch.setenv("DATABASE_URL", "sqlite:///" + path.as_posix())
     monkeypatch.setenv("FORENSIC_TTL_DAYS", "")
     monkeypatch.setenv("USE_MOCK_MODELS", "true")
+    monkeypatch.setenv("SESSION_SIGNING_SECRET", secrets.token_urlsafe(32))
     monkeypatch.setenv("MEDIA_DIR", str(tmp_path / "media"))
     get_settings.cache_clear()
     yield

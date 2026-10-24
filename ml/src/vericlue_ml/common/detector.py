@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Literal, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -17,6 +17,8 @@ class DetectorInput(BaseModel):
 
     session_id: str | None = None
     images: list[Path] = Field(default_factory=list, description="Ảnh mặt chất lượng cao")
+    image_roles: list[Literal["front", "left", "right"]] = Field(default_factory=list)
+    reference_image: Path | None = None
     video: Path | None = None
     audio: Path | None = None
     signals: dict[str, Any] = Field(

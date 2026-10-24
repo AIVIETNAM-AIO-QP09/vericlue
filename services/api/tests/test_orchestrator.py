@@ -18,6 +18,7 @@ from vericlue_api.services import orchestrator as orchestration
 from vericlue_api.services.orchestrator import Orchestrator
 from vericlue_ml.common.result import ErrorCode, Module, ModuleResult, Status
 from vericlue_ml.mock.detectors import MockDetector
+from vericlue_ml.router.profiles import DIAGNOSTIC_MODULES
 
 
 class FakeDetector:
@@ -75,8 +76,12 @@ def test_start_preloads_one_instance_once_and_runs_never_reload():
         for _ in range(2):
             assert run(orchestrator, [Module.QUALITY])[Module.QUALITY].status == Status.OK
         assert all(count == 1 for count in constructed.values())
-        assert set(constructed) == set(Module)
-        assert all(instance.preloads == 1 for instance in instances.values())
+        assert set(constructed) == set(Module) - DIAGNOSTIC_MODULES
+        assert len(constructed) == 9
+        assert all(
+            instance.preloads == int(module not in DIAGNOSTIC_MODULES)
+            for module, instance in instances.items()
+        )
         assert not orchestrator.failed_modules
     finally:
         orchestrator.close()
@@ -348,7 +353,7 @@ def test_api_lifespan_preloads_each_detector_once_per_application(monkeypatch):
             assert client.get("/healthz").json()["failed_modules"] == []
             client.get("/healthz")
             client.post("/v1/sessions")
-    assert len(all_instances) == len(Module) * 2
+    assert len(all_instances) == 9 * 2
     assert all(instance.preloads == 1 for instance in all_instances)
 
 
@@ -683,7 +688,7 @@ def test_sqlite_guarded_routes_pass_lock_timeout_and_consume_absolute_budget(mon
                 with root.transaction() as state:
                     session = state.sessions.get(sid)
                     session.voice_requested = True
-                    session.voice_prompt = "CÃ¢u thá»­ nghiá»‡m"
+                    state.flow._new_prompt(session)
             transaction_arguments, runner_arguments = [], []
             real_transaction, real_run = root.transaction, root.orchestrator.run
 

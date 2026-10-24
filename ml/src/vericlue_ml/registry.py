@@ -28,10 +28,34 @@ REAL_TASK: dict[Module, str] = {
     Module.VOICE_CHALLENGE: "VOICE-04",
     Module.LIPSYNC: "VOICE-05",
     Module.PROVENANCE: "FOR-03",
+    Module.GAZE_TRACKING: "LIVE-02",
+    Module.HEAD_TURN: "FLOW-04",
+    Module.FACE_MATCH: "FLOW-05",
 }
 
 
 # Module → hàm tạo mô hình thật. Các task mô hình đăng ký vào đây.
+@lru_cache(maxsize=1)
+def _gaze_tracking() -> Detector:
+    from vericlue_ml.presence.gaze import GazeDetector
+
+    return GazeDetector()
+
+
+@lru_cache(maxsize=1)
+def _head_turn() -> Detector:
+    from vericlue_ml.presence.head_turn import HeadTurnDetector
+
+    return HeadTurnDetector()
+
+
+@lru_cache(maxsize=1)
+def _face_match() -> Detector:
+    from vericlue_ml.face.match import FaceMatchDetector
+
+    return FaceMatchDetector()
+
+
 @lru_cache(maxsize=1)
 def _voice_challenge() -> Detector:
     from vericlue_ml.voice.challenge import VoiceChallengeDetector
@@ -89,6 +113,9 @@ def _provenance() -> Detector:
 
 
 _REAL_FACTORIES: dict[Module, Callable[[], Detector]] = {
+    Module.GAZE_TRACKING: _gaze_tracking,
+    Module.HEAD_TURN: _head_turn,
+    Module.FACE_MATCH: _face_match,
     Module.VOICE_CHALLENGE: _voice_challenge,
     Module.VOICE_SPOOF: _voice_spoof,
     Module.FACE_PAD: _face_pad,

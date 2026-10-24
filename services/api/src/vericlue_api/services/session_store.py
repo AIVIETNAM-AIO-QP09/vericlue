@@ -11,18 +11,23 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
+from vericlue_api.core.session_tokens import SessionTokenSigner, token_digest
 from vericlue_api.db.models import DecisionRow, ModuleResultRow, SessionRow, utcnow
-from vericlue_api.schemas.session import Challenge
+from vericlue_api.schemas.session import Challenge, SessionPurpose
 from vericlue_ml.common.result import Module, ModuleResult
 
 
 @dataclass
 class Session:
     session_id: str
-    token: str
     token_expires_at: datetime
     scenario: str
     challenge: Challenge
+    token_hash: str = ""
+    token: str = field(default="", repr=False)  # Only present while issuing a new session.
+    accepted_steps: list[str] = field(default_factory=list)
+    completed: bool = False
+    voice_expires_at: datetime | None = None
     images: list[Path] = field(default_factory=list)
     video: Path | None = None
     audio: Path | None = None
@@ -50,6 +55,11 @@ class Session:
     id_fields: dict | None = None
     id_number_hmac: str | None = None
     id_edited: list[str] = field(default_factory=list)  # trường người dùng sửa khác QR
+    purpose: SessionPurpose | None = None
+    nonce: str | None = None
+    reference_image_id: str | None = None
+    device_verified: bool = False  # Never populated from request JSON; SEC-02 owns verification.
+    voice_challenge_id: str | None = None
 
 
 class SessionStore:
@@ -57,16 +67,28 @@ class SessionStore:
         self.db = db
         self._loaded: dict[str, tuple[Session, SessionRow]] = {}
 
-    def create(self, *, scenario: str, challenge: Challenge, ttl_seconds: int) -> Session:
+    @staticmethod
+    def _snapshot(session: Session) -> dict:
+        return jsonable_encoder(session, exclude={"token"})
+
+    def create(
+        self,
+        *,
+        scenario: str,
+        challenge: Challenge,
+        ttl_seconds: int,
+        signer: SessionTokenSigner,
+    ) -> Session:
         session = Session(
             session_id=f"ses_{secrets.token_hex(8)}",
-            token=secrets.token_urlsafe(24),  # TẠM — PLAT-06 thay bằng HMAC + TTL
             token_expires_at=datetime.now(UTC) + timedelta(seconds=ttl_seconds),
             scenario=scenario,
             challenge=challenge,
             created_at=datetime.now(UTC),
         )
-        row = SessionRow(session_id=session.session_id, payload=jsonable_encoder(session))
+        session.token = signer.issue(session.session_id, session.token_expires_at)
+        session.token_hash = token_digest(session.token)
+        row = SessionRow(session_id=session.session_id, payload=self._snapshot(session))
         self.db.add(row)
         self.db.flush()
         self._loaded[session.session_id] = (session, row)
@@ -78,11 +100,13 @@ class SessionStore:
         row = self.db.scalar(
             select(SessionRow).where(SessionRow.session_id == session_id).with_for_update()
         )
-        if row is None or not row.payload.get("token"):
+        # Unsigned legacy credentials are revoked, not silently upgraded.
+        if row is None or not row.payload.get("token_hash"):
             return None
         data = dict(row.payload)
+        data.pop("token", None)
         data["token_expires_at"] = datetime.fromisoformat(data["token_expires_at"])
-        for key in ("created_at", "otp_expires_at"):
+        for key in ("created_at", "otp_expires_at", "voice_expires_at"):
             data[key] = datetime.fromisoformat(data[key]) if data.get(key) else None
         data["challenge"] = Challenge.model_validate(data["challenge"])
         data["images"] = [Path(p) for p in data["images"]]
@@ -97,7 +121,7 @@ class SessionStore:
 
     def save_all(self) -> None:
         for session, row in self._loaded.values():
-            row.payload = jsonable_encoder(session)
+            row.payload = self._snapshot(session)
             row.last_activity_at = utcnow()
             row.media_deleted_at = None
 
@@ -105,10 +129,12 @@ class SessionStore:
         self, session: Session, action: str, *, thresholds: dict, config_version: str
     ) -> None:
         row = self._loaded[session.session_id][1]
-        row.status = action if action in {"pass", "review"} else "incomplete"
+        row.status = (
+            action if action in {"pass", "review", "deny", "recovery_required"} else "incomplete"
+        )
         row.ever_review = row.ever_review or action == "review"
         # Review retention starts only when staff close the case, not at routing time.
-        row.decided_at = utcnow() if action == "pass" else None
+        row.decided_at = utcnow() if action in {"pass", "deny", "recovery_required"} else None
         self.db.add(
             DecisionRow(
                 session_id=session.session_id,
