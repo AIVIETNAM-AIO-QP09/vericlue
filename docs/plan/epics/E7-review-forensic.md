@@ -61,6 +61,29 @@
 
 ---
 
+### REV-03 · Chặn quyết định duyệt lặp khi SQLite đọc trạng thái cũ
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M2 | 0,5 | S2 | P0 | REV-01 |
+
+**Mục tiêu:** sửa lỗi đã xuất hiện trong CI PR #62: hai request cùng ghi quyết
+định ban đầu và đều trả 200 khi SQLite đọc trạng thái cũ, dù chuỗi hash không
+rẽ nhánh. Cùng bảo vệ bước quyết định cuối, không đổi hợp đồng/DB schema.
+
+**Tiêu chí hoàn thành:**
+- [x] Test tái hiện có điều khiển: request thua giữ snapshot cũ, request thắng
+      commit trước khi request thua ghi; chỉ một 200, bên còn lại 409.
+- [x] Quyết định initial/final được chốt bằng điều kiện nguyên tử tại DB,
+      không dựa vào khóa Python, không UPDATE/DELETE review_events.
+- [x] Trạng thái ca, nhật ký và quyết định phiên cùng transaction; lỗi rollback
+      không chiếm lượt, không ghi sự kiện hoặc quyết định phiên thừa.
+- [x] Hồi quy SQLite qua; giữ test PostgreSQL để CI kiểm thật, luật xem AI,
+      mã lý do và hợp đồng không đổi.
+- [x] Lint/plan_check/tài liệu/bàn giao đầy đủ.
+
+---
+
 ### FOR-01 · API giám định: tiếp nhận, chia đoạn, chạy bộ não
 
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |

@@ -98,6 +98,7 @@
 |---|---|---|---|---|---|---|---|---|
 | REV-01 | API bàn duyệt + nhật ký chuỗi băm | M2 | Claude | 1 | S1 | P0 | PLAT-05 | done |
 | REV-02 | Giao diện bàn duyệt + hồ sơ bằng chứng | M2 | | 2 | S1–S2 | P0 | REV-01, PLAT-04 | todo |
+| REV-03 | Chặn ghi quyết định duyệt lặp do snapshot SQLite cũ | M2 | Codex | 0,5 | S2 | P0 | REV-01 | review |
 | FOR-01 | API giám định: chia đoạn, chạy bộ não | M5 | | 1,5 | S2 | P0 | PLAT-05, FACE-02, VOICE-01 | todo |
 | FOR-02 | Giao diện giám định | M2 | | 1,5 | S2 | P0 | FOR-01 | todo |
 | FOR-03 | Quét nguồn gốc (AudioSeal, Perth, C2PA) | M3 | | 1 | S2 | P0 | PLAT-03 | todo |

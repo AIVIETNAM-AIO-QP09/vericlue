@@ -144,6 +144,14 @@ một transaction, commit trước khi gửi response; rollback khi lỗi. Khôn
 khi import ứng dụng/sinh OpenAPI. SQLite dùng cho unit test; PostgreSQL thật được
 kiểm riêng trong CI và khi smoke Compose.
 
+REV-03 bảo vệ chuyển trạng thái bàn duyệt bằng `UPDATE review_cases ... WHERE`
+trước khi đọc đuôi chuỗi nhật ký: initial chỉ từ `open` chưa có quyết định;
+final chỉ từ `initial_decided`, initial khớp snapshot và final còn rỗng. Không
+còn hàng khớp → 409 `review_conflict`. Cùng transaction với append sự kiện và
+quyết định phiên, lỗi rollback toàn bộ. `SELECT FOR UPDATE` của PostgreSQL và
+`UNIQUE(case_id, prev_hash)` vẫn giữ; riêng UNIQUE không ngăn request cũ nối
+thêm quyết định lặp vào đuôi mới trên SQLite. Không migration/hợp đồng mới.
+
 | Bảng | Nội dung chính |
 |---|---|
 | `sessions` | id, trạng thái, challenge/token tạm và snapshot luồng (JSON), thời điểm tạo/hoạt động cuối/quyết định cuối, cờ từng vào review, dấu media đã dọn |
