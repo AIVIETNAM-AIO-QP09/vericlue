@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import sys
 import threading
 from types import SimpleNamespace
 
@@ -115,10 +116,29 @@ def test_silence_does_not_force_a_sentence_or_load_model(monkeypatch):
     from vericlue_ml.voice.asr import speech_bounds
 
     model, backend = detector(monkeypatch)
+    # Base CI intentionally has no voice extras; native VAD is covered by opt-in smoke.
+    monkeypatch.setitem(
+        sys.modules,
+        "webrtcvad",
+        SimpleNamespace(Vad=lambda mode: SimpleNamespace(is_speech=lambda pcm, rate: False)),
+    )
     monkeypatch.setattr(timing, "speech_bounds", speech_bounds)
     result = model.predict_samples(np.zeros(16000, np.float32), 16000, prompt="bà mẹ")
     assert result.status == "not_applicable" and result.gate == "unclear"
     assert not backend.inputs and not backend.preloads and result.evidence == []
+
+
+def test_missing_vad_dependency_is_an_error_without_model_load(monkeypatch):
+    model, backend = detector(monkeypatch)
+
+    def missing(samples):
+        raise ImportError("PRIVATE_DEPENDENCY_PATH")
+
+    monkeypatch.setattr(timing, "speech_bounds", missing)
+    result = model.predict_samples(np.zeros(16000, np.float32), 16000, prompt="bà mẹ")
+    assert result.status == "error" and result.gate == "unclear"
+    assert not backend.inputs and result.evidence == []
+    assert "PRIVATE" not in json.dumps(result.to_contract())
 
 
 def test_broken_backend_never_leaks_private_error(monkeypatch):
