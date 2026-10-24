@@ -1,5 +1,9 @@
 # Bàn giao OCR + face matching cho nhóm SW
 
+**Cập nhật tích hợp:** [runbook Android/API](../../docs/runbooks/identity-integration.md)
+mô tả cầu nối QR/OCR, sửa thông tin và ngưỡng AdaFace cosine 0.40 opt-in.
+Các mục dưới là bản bàn giao model ban đầu; API công khai của lab vẫn dành cho developer.
+
 Nhánh `feat/FLOW-05-identity-lab` lưu code trước khi tích hợp UI/UX, dựa trên
 `main` a98098e. Đây là developer lab, không thay module LVFace của FLOW-05 đã có
 trong main. Không gọi API lab là luồng eKYC hoàn chỉnh.

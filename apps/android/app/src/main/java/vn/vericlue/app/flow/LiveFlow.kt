@@ -182,7 +182,9 @@ class LiveFlow(private val api: SessionApi) {
 
     suspend fun confirmIdCard(fields: IdCardFields): ApiError? {
         val s = session ?: return ApiError.Expired
-        return (api.confirmIdCard(s.sessionId, s.token, fields) as? ApiResult.Err)?.error
+        val error = (api.confirmIdCard(s.sessionId, s.token, fields) as? ApiResult.Err)?.error
+        if (error == null) idFields = fields
+        return error
     }
 
     /**

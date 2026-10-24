@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import secrets
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import get_args
@@ -33,6 +34,7 @@ from vericlue_api.services.dynamic_challenge import (
     new_dynamic_voice_prompt,
     new_voice_prompt,
 )
+from vericlue_api.services.identity_runtime import IdentityRuntime
 from vericlue_api.services.provisional_decision import (
     MAX_VOICE_REREADS,
     Outcome,
@@ -40,7 +42,7 @@ from vericlue_api.services.provisional_decision import (
 from vericlue_api.services.review_store import ReviewStore
 from vericlue_api.services.session_store import Session, SessionStore
 from vericlue_api.services.uploads import save_upload
-from vericlue_ml.common.result import Module
+from vericlue_ml.common.result import Gate, Module, Status
 from vericlue_ml.router.flows import route_face, route_voice
 from vericlue_ml.router.policy import TrustRouter
 
@@ -322,6 +324,17 @@ class SessionFlow:
             session_valid=session_valid and self._valid_time(session, color_challenge=True),
         )
         outcome = route_face(outcome, session.purpose, device_verified=session.device_verified)
+        if s.identity_lab_url:
+            if session_valid:
+                session.results[Module.FACE_MATCH] = IdentityRuntime(s).match(
+                    session.id_front, session.images
+                )
+            outcome = self._identity_gate(session, outcome)
+            if not self._valid_time(session, color_challenge=True) and outcome.status in {
+                "pass",
+                "voice_challenge",
+            }:
+                outcome = replace(outcome, status="review", reason="identity inference expired")
         session.results.update(outcome.results)
         status = outcome.status
         if status == "pass" and session.voice_owed:
@@ -418,6 +431,8 @@ class SessionFlow:
             session_valid=session_valid and self._valid_time(session, voice_challenge=True),
         )
         outcome = route_voice(outcome, session.purpose)
+        if self.settings.identity_lab_url:
+            outcome = self._identity_gate(session, outcome)
         if outcome.status != "voice_challenge":
             session.voice_owed = False
         session.results.update(outcome.results)
@@ -468,11 +483,34 @@ class SessionFlow:
         )
         return session.voice_prompt
 
+    def _identity_gate(self, session: Session, outcome):
+        """A face match is one required signal, never an override of PAD or voice failures."""
+        match = session.results.get(Module.FACE_MATCH)
+        thresholds = {
+            **outcome.thresholds,
+            "identity_face_cosine": self.settings.identity_face_threshold,
+        }
+        allowed = (
+            session.id_confirmed
+            and not session.id_edited
+            and session.id_source in {"server_qr", "ocr"}
+            and match is not None
+            and match.status == Status.OK
+            and match.gate == Gate.PASS
+        )
+        if not allowed and outcome.status in {"pass", "voice_challenge"}:
+            return replace(
+                outcome, status="review", reason="identity requires review", thresholds=thresholds
+            )
+        return replace(outcome, thresholds=thresholds)
+
     @staticmethod
     def _case_notes(session: Session) -> list[str]:
         notes = [f"Chụp lại {session.retries_used} lần"] if session.retries_used else []
         if session.id_edited:
-            notes.append("Người dùng sửa thông tin CCCD khác QR: " + ", ".join(session.id_edited))
+            notes.append(
+                "Người dùng sửa thông tin CCCD khác bản quét: " + ", ".join(session.id_edited)
+            )
         return notes
 
     def _open_case(self, session: Session, outcome: Outcome) -> None:

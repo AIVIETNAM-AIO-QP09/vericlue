@@ -104,7 +104,8 @@ def recognize_field(image, box, field, reader, directory, prefix):
     readings = []
     for name, crop in variants:
         filename = f"{prefix}_{name}.png"
-        crop.save(directory / filename)
+        if directory is not None:
+            crop.save(directory / filename)
         text, confidence = reader.predict(crop, return_prob=True)
         confidence = float(confidence)
         readings.append(

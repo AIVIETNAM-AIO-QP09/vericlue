@@ -386,8 +386,10 @@ fun VeriClueApp() {
                 onConfirm = {
                     val front = idFront?.first
                     val backPhoto = idBack?.first
-                    if (!flow.live || front == null || backPhoto == null) {
+                    if (!flow.live) {
                         nav.go(Routes.Confirm)
+                    } else if (front == null || backPhoto == null) {
+                        nav.go(Routes.IdFront)
                     } else {
                         once {
                             val (hint, error) = live.sendIdCard(front, backPhoto, idBack?.second?.qr)
@@ -412,8 +414,10 @@ fun VeriClueApp() {
                 onBack = { nav.popBackStack() },
                 onCorrect = {
                     val fields = live.idFields
-                    if (!flow.live || fields == null) {
+                    if (!flow.live) {
                         nav.go(Routes.FaceReady)
+                    } else if (fields == null) {
+                        nav.go(Routes.IdFront)
                     } else {
                         once { live.confirmIdCard(fields)?.let { nav.go(errorRoute(it)) } ?: nav.go(Routes.FaceReady) }
                     }
@@ -427,8 +431,10 @@ fun VeriClueApp() {
                 onBack = { nav.popBackStack() },
                 onSave = { edited ->
                     val fields = live.idFields
-                    if (!flow.live || fields == null) {
+                    if (!flow.live) {
                         nav.go(Routes.FaceReady)
+                    } else if (fields == null) {
+                        nav.go(Routes.IdFront)
                     } else {
                         // Fields left as shown keep the QR value; edited ones are noted for the reviewer.
                         val confirmed = FlowRules.confirmedFields(fields, idFields(cccd).map { it.second }, edited)

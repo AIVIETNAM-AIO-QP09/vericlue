@@ -4,6 +4,7 @@ import json
 import os
 from typing import Annotated, Literal
 
+from card_scanner import CardScanner
 from face_matching import match_pair
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from identity_lab import MAX_BYTES, IdentityLab, InputError
@@ -13,9 +14,30 @@ from starlette.concurrency import run_in_threadpool
 app = FastAPI(title="VeriClue Identity Lab (developer only)", version="0.1.0")
 lab = IdentityLab()
 legacy_face_lab = IdentityLab(face_model="adaface_ir18")
+card_scanner = CardScanner()
 FACE_EMBEDDING_MODE = os.environ.get("FACE_EMBEDDING_MODE", "single")
 if FACE_EMBEDDING_MODE not in {"single", "flip_mean"}:
     raise ValueError("Unsupported FACE_EMBEDDING_MODE")
+
+
+@app.post("/internal/id-card")
+async def scan_id_card(front: Annotated[UploadFile, File()], back: Annotated[UploadFile, File()]):
+    return await execute(card_scanner.scan, await image_bytes(front), await image_bytes(back))
+
+
+def context_match(reference, selfie):
+    from face_context import enable_context
+
+    with legacy_face_lab._lock:
+        enable_context(legacy_face_lab)
+    return match_pair(legacy_face_lab, reference, selfie)
+
+
+@app.post("/internal/face-match", response_model=FacePairResult)
+async def integration_match(
+    reference: Annotated[UploadFile, File()], selfie: Annotated[UploadFile, File()]
+):
+    return await execute(context_match, await image_bytes(reference), await image_bytes(selfie))
 
 
 async def image_bytes(upload: UploadFile) -> bytes:

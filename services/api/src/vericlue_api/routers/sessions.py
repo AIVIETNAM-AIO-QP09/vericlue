@@ -235,7 +235,9 @@ async def upload_id_card(
     session.id_back = save_upload(
         media_dir, session.session_id, "id_back", back.filename, back_bytes
     )
-    return state.identity.accept_id_card(session, qr)
+    return await run_in_threadpool(
+        state.identity.accept_images, session, front_bytes, back_bytes, qr
+    )
 
 
 @router.post(

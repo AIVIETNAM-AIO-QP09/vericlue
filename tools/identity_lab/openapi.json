@@ -5,6 +5,80 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/internal/id-card": {
+      "post": {
+        "summary": "Scan Id Card",
+        "operationId": "scan_id_card_internal_id_card_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_scan_id_card_internal_id_card_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/face-match": {
+      "post": {
+        "summary": "Integration Match",
+        "operationId": "integration_match_internal_face_match_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_integration_match_internal_face_match_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacePairResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "summary": "Health",
@@ -138,6 +212,26 @@
   },
   "components": {
     "schemas": {
+      "Body_integration_match_internal_face_match_post": {
+        "properties": {
+          "reference": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Reference"
+          },
+          "selfie": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Selfie"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reference",
+          "selfie"
+        ],
+        "title": "Body_integration_match_internal_face_match_post"
+      },
       "Body_match_dev_v1_face_match_post": {
         "properties": {
           "reference": {
@@ -212,6 +306,26 @@
           "image"
         ],
         "title": "Body_ocr_dev_v1_ocr_post"
+      },
+      "Body_scan_id_card_internal_id_card_post": {
+        "properties": {
+          "front": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Front"
+          },
+          "back": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Back"
+          }
+        },
+        "type": "object",
+        "required": [
+          "front",
+          "back"
+        ],
+        "title": "Body_scan_id_card_internal_id_card_post"
       },
       "ExtractedField": {
         "properties": {
