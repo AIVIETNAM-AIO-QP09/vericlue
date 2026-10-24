@@ -8,7 +8,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
-from sqlalchemy import select, text
+from sqlalchemy import select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DBSession
 
@@ -243,6 +243,32 @@ class ReviewStore:
                 "notes": list(record.notes),
             }
 
+    def _claim_decision(self, record: CaseRecord, action: str, decision: str) -> None:
+        """Atomically reserve this transition before reading/appending the audit chain."""
+        statement = update(ReviewCaseRow).where(
+            ReviewCaseRow.case_id == record.case_id,
+            ReviewCaseRow.final_decision.is_(None),
+        )
+        if action == "initial":
+            statement = statement.where(
+                ReviewCaseRow.status == "open", ReviewCaseRow.initial_decision.is_(None)
+            ).values(initial_decision=decision, status="initial_decided")
+        elif action == "final":
+            statement = statement.where(
+                ReviewCaseRow.status == "initial_decided",
+                ReviewCaseRow.initial_decision.is_not(None),
+                ReviewCaseRow.initial_decision == record.initial_decision,
+            ).values(final_decision=decision, status="closed")
+        else:
+            raise ValueError("Unknown review transition")
+        # SQLite ignores SELECT FOR UPDATE. Chain uniqueness alone does not stop
+        # a stale request appending a second decision to the winner's new chain tip.
+        result = self.db.execute(statement.execution_options(synchronize_session=False))
+        if result.rowcount != 1:
+            raise ApiError(
+                409, "review_conflict", "Ca vừa được người khác cập nhật. Hãy tải lại và thử lại."
+            )
+
     def record_event(
         self,
         record: CaseRecord,
@@ -252,6 +278,7 @@ class ReviewStore:
         reason_code: str | None = None,
         note: str | None = None,
     ) -> None:
+        self._claim_decision(record, action, decision)
         previous = (
             self.db.scalar(
                 select(ReviewEventRow.hash)
