@@ -28,6 +28,23 @@
 - **30 test JVM**, gồm `LiveFlowTest` chạy với MockWebServer.
 - **Tài liệu:** `apps/android/README.md` (bảng đã thật / còn giả, cách chạy API mock bằng SQLite), mục 11 trong `docs/plan-camera-mic.md`, `third_party/README.md`.
 
+### Cập nhật 24/10 sáng (cùng nhánh)
+- **Sửa văng app** khi máy chỉ có một camera (`No available camera can be found`). `CameraSession.start()` giờ:
+  - đợi CameraX khởi tạo xong;
+  - dùng camera còn lại nếu thiếu camera cần dùng;
+  - bỏ quay video nếu máy không quay được;
+  - báo lỗi bằng màn "Thiết bị chưa đáp ứng" nếu không mở được camera nào.
+- **`camprobe` bản Android:** cờ `android:emulator|root|test_keys|hook_frida|hook_xposed`, kèm `device_label`, `duplicate_frame_ratio`. Trước đây app không gửi `camprobe`, nên khi chạy mô hình thật server luôn ra `degraded` (không bao giờ đạt).
+- **`region_means`:** 5 vùng da + nền mỗi khung trong lúc nháy màu, cùng cách thống kê với web.
+- **`ContractTest`:** đối chiếu model với `session.schema.json`. Đã nới `StepAck.received` và `ColorStep.transition_ms` cho khớp hợp đồng.
+- **Bản release:** bật R8, tách APK theo loại chip (arm64 còn 22 MB); mặc định dùng API thật.
+- **CI:** thêm job Android vào `.github/workflows/ci.yml`.
+- **Màn chụp lại:** icon và câu nhắc theo `retry_hint`.
+- **Đã kiểm trên máy ảo** (webcam laptop + API mock):
+  - không còn văng;
+  - server nhận `camprobe` (cờ `android:emulator`, tỉ lệ khung lặp 3%), 47 khung `region_means`, 8 `color_events`, 55 `frame_times`, MP4;
+  - bản release tạo được phiên và đọc được phản hồi.
+
 ## Đang dở
 - Chưa thử trên điện thoại thật: ngưỡng `QualityGate`, chiều dấu góc quay đầu, khóa AE/AWB có ăn không, fps.
 - Chấm sáng chưa ghi đường đi; thứ tự quay đầu vẫn chọn trên máy. Cả hai chờ hợp đồng LIVE-01.
@@ -50,6 +67,8 @@
 - **QR CCCD:** test chỉ dùng dữ liệu bịa; thứ tự trường phải kiểm với thẻ thật.
 
 ## Câu hỏi cho nhóm
+- **Server đang coi mọi cờ trong `api_tamper_flags` là không đạt.** Vì vậy demo trên **máy ảo** sẽ luôn bị cờ `android:emulator` khi chạy mô hình thật. Đó là đúng ý đồ (chèn camera ảo thường làm trên máy ảo), nhưng demo phải chạy trên điện thoại thật. Nếu muốn nhãn tiếng Việt cho các cờ `android:*` thì cần thêm vào `ml/src/vericlue_ml/presence/camprobe.py` (thuộc khu vực của nhóm ml).
+- **`region_means` trên app dùng vùng theo tỉ lệ hộp mặt ML Kit, web dùng landmark MediaPipe.** PRES-02 cần chốt một định nghĩa trước khi dùng để quyết định.
 - Q1–Q6 trong `apps/android/docs/plan-camera-mic.md` mục 9: MP4/WebM, ML Kit/MediaPipe, hợp đồng LIVE-01, endpoint OTP/CCCD, thứ tự đọc câu, `frame_times`/`camprobe` cho app native.
 
 ## Test đã chạy

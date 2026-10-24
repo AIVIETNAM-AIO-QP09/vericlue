@@ -205,12 +205,19 @@ Bản dựng khung do Ngọc Quang + Claude làm trước để anh Lý lấy v�
 | 0 · Chuẩn bị | Xong | `API_BASE_URL` qua `-Pvericlue.apiBaseUrl`; debug cho HTTP tới `10.0.2.2` |
 | 1 · Lát cắt dọc API | Xong (client viết tay) | Chưa sinh từ `openapi.json` |
 | 2 · Camera trước, căn mặt | Xong phần khung | Ngưỡng `QualityGate` cần chỉnh trên máy thật |
-| 3 · Nháy màu, tín hiệu | Xong phần khung | Có khóa AE/AWB, quay MP4, `color_events`, `frame_times`; thiếu `region_means`, `camprobe` |
+| 3 · Nháy màu, tín hiệu | Xong phần khung | Có khóa AE/AWB, quay MP4, `color_events`, `frame_times`, `region_means` (vùng theo hộp mặt ML Kit), `camprobe` (máy ảo, root, hook, khung lặp) |
 | 4 · Quay đầu | Một phần | Dùng góc ML Kit; thứ tự chờ LIVE-01; chưa kiểm chiều dấu góc |
 | 5 · Chấm sáng | Chưa | Chờ hợp đồng đường đi (Q3) |
 | 6 · Ghi âm | Xong | WAV 16 kHz; câu từ `voice_prompt` |
 | 7 · CCCD, OTP | Một phần | Camera sau, QR, đo nét/lóa, điền từ QR; chưa gửi server (Q4) |
 | 8 · Gián đoạn | Xong phần app | Phiên mới khi làm lại vì chưa có LIVE-06 |
 | 9 · Máy thật | Chưa | |
+
+Cập nhật 24/10 (sáng):
+- Không còn văng app khi thiếu camera: tự chuyển camera khác, bỏ quay video nếu máy không hỗ trợ, hoặc hiện "Thiết bị chưa đáp ứng".
+- `ContractTest` đối chiếu model của app với `session.schema.json`.
+- Bản release bật R8 và tách APK theo loại chip: bản arm64 còn 22 MB.
+- CI có job Android (chạy khi mở PR hoặc push vào `main`).
+- Màn chụp lại: icon và câu nhắc theo `retry_hint` của server.
 
 Cách chạy thử với API mock: xem `apps/android/README.md`, mục "Chạy thử với API mock".
