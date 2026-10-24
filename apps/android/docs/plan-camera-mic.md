@@ -181,6 +181,8 @@ Mỗi giai đoạn mở **một PR riêng** (nhánh `feat/APP-0x-...`). Mỗi PR
 
 ## 9. Câu hỏi cần trưởng nhóm chốt trước hoặc trong lúc làm
 
+Bản đầy đủ để trưởng nhóm trả lời (13 mục, gồm cả Q1–Q6 dưới đây): [`can-chot.md`](can-chot.md).
+
 | # | Câu hỏi | Vì sao cần | Đề xuất |
 |---|---|---|---|
 | Q1 | Video từ app là MP4, ADR-0017 đang ghi WebM | Server đã nhận `.mp4` (`services/api/.../storage.py`), chỉ cần sửa ADR | Ghi "WebM trên web, MP4 trên app" |
