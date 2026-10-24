@@ -14,8 +14,10 @@ from typing import get_args
 
 from vericlue_api.core.config import Settings
 from vericlue_api.core.errors import ApiError
+from vericlue_api.core.session_tokens import token_digest
 from vericlue_api.schemas.review import MediaRef
 from vericlue_api.schemas.session import (
+    ChallengeResponse,
     CreateSessionRequest,
     CreateSessionResponse,
     FinalizeResponse,
@@ -97,6 +99,57 @@ class SessionFlow:
             challenge=session.challenge,
             purpose=session.purpose,
             nonce=session.nonce,
+        )
+
+    def refresh_challenge(self, session: Session) -> ChallengeResponse:
+        """Thử thách mới cho phần khuôn mặt và gia hạn token, trong giới hạn tổng (ADR-0017 §2).
+
+        Dùng khi bắt đầu phần khuôn mặt sau giai đoạn A, hoặc làm lại phần khuôn mặt sau khi bị
+        gián đoạn. Dữ liệu khuôn mặt và giọng của lượt cũ bị bỏ; số lần chụp lại đã dùng vẫn giữ.
+        """
+        self.ensure_open(session)
+        now = datetime.now(UTC)
+        started = session.created_at or now
+        if started.tzinfo is None:
+            started = started.replace(tzinfo=UTC)
+        end = started + timedelta(seconds=self.settings.session_max_seconds)
+        if now >= end:
+            raise ApiError(
+                409, "session_too_long", "Phiên đã quá thời gian cho phép. Hãy bắt đầu lại."
+            )
+        if session.face_scored:
+            # Bỏ một lượt đã chấm (không phải retry) cũng là một lần chụp lại: không chấm lại vô hạn.
+            session.retries_used += 1
+            session.face_scored = False
+        # Same as a retry: a whole new pack (LIVE-01 `dynamic` included) with new attempt IDs.
+        session.challenge = (
+            generate_dynamic_challenge(
+                self.settings, session_id=session.session_id, nonce=session.nonce
+            )
+            if session.challenge.dynamic is not None
+            else generate_challenge(self.settings)
+        )
+        # The token carries its own signed expiry (PLAT-06): extending means issuing a new one.
+        session.token_expires_at = min(
+            now + timedelta(seconds=self.settings.session_ttl_seconds), end
+        )
+        token = self.settings.session_token_signer.issue(
+            session.session_id, session.token_expires_at
+        )
+        session.token_hash = token_digest(token)
+        session.images = []
+        session.video = None
+        session.audio = None
+        session.signals = {}
+        session.results = {}
+        session.accepted_steps = []
+        session.voice_requested = False
+        dynamic = session.challenge.dynamic
+        session.voice_prompt = dynamic.voice_prompt if dynamic else None
+        session.voice_challenge_id = dynamic.voice_challenge_id if dynamic else None
+        session.voice_expires_at = None
+        return ChallengeResponse(
+            token=token, expires_at=session.token_expires_at, challenge=session.challenge
         )
 
     def ensure_binding(
@@ -270,13 +323,18 @@ class SessionFlow:
         )
         outcome = route_face(outcome, session.purpose, device_verified=session.device_verified)
         session.results.update(outcome.results)
+        status = outcome.status
+        if status == "pass" and session.voice_owed:
+            # Lượt mặt mới (sau POST /challenge) không xóa yêu cầu đọc câu của lượt trước.
+            status = "voice_challenge"
         self.sessions.record_decision(
             session,
-            outcome.status,
+            status,
             thresholds=outcome.thresholds,
             config_version=outcome.config_version,
         )
-        if outcome.status == "retry":
+        session.face_scored = status != "retry"
+        if status == "retry":
             hint = outcome.retry_hint if outcome.retry_hint in RETRY_HINTS else DEFAULT_HINT
             session.retries_used += 1
             session.challenge = (
@@ -301,8 +359,9 @@ class SessionFlow:
                 attempts_left=s.max_retries - session.retries_used,
                 challenge=session.challenge,
             )
-        if outcome.status == "voice_challenge":
+        if status == "voice_challenge":
             session.voice_requested = True
+            session.voice_owed = True
             session.voice_rereads_used = 0  # yêu cầu đọc câu mới
             return FinalizeResponse(
                 status="voice_challenge",
@@ -310,13 +369,19 @@ class SessionFlow:
                 attempts_left=MAX_VOICE_REREADS,
                 voice_challenge_id=session.voice_challenge_id,
             )
-        if outcome.status == "review":
+        if status == "review":
             self._open_case(session, outcome)
         session.completed = True
-        return FinalizeResponse(status=outcome.status)
+        return FinalizeResponse(status=status)  # type: ignore[arg-type]
 
     # --- voice -----------------------------------------------------------
-    def voice(self, session: Session, *, voice_video: Path | None = None) -> VoiceResponse:
+    def voice(
+        self,
+        session: Session,
+        *,
+        voice_video: Path | None = None,
+        audio_offset_ms: int | None = None,
+    ) -> VoiceResponse:
         self.ensure_voice_allowed(session)
         session.accepted_steps.append("voice")
         session_valid = self._valid_time(session, voice_challenge=True)
@@ -330,6 +395,8 @@ class SessionFlow:
                 audio=session.audio,
                 extra_metadata={
                     "prompt": session.voice_prompt,
+                    # Khi WAV bắt đầu, tính từ khung hình đầu của video (app Android).
+                    **({"audio_offset_ms": audio_offset_ms} if audio_offset_ms is not None else {}),
                     **(
                         {
                             "voice_challenge_id": session.voice_challenge_id,
@@ -351,6 +418,8 @@ class SessionFlow:
             session_valid=session_valid and self._valid_time(session, voice_challenge=True),
         )
         outcome = route_voice(outcome, session.purpose)
+        if outcome.status != "voice_challenge":
+            session.voice_owed = False
         session.results.update(outcome.results)
         self.sessions.record_decision(
             session,
@@ -399,6 +468,13 @@ class SessionFlow:
         )
         return session.voice_prompt
 
+    @staticmethod
+    def _case_notes(session: Session) -> list[str]:
+        notes = [f"Chụp lại {session.retries_used} lần"] if session.retries_used else []
+        if session.id_edited:
+            notes.append("Người dùng sửa thông tin CCCD khác QR: " + ", ".join(session.id_edited))
+        return notes
+
     def _open_case(self, session: Session, outcome: Outcome) -> None:
         if session.case_id is not None:  # một phiên chỉ một ca
             return
@@ -415,7 +491,7 @@ class SessionFlow:
             scenario=session.scenario,
             results=dict(session.results),
             media=media,
-            notes=[f"Chụp lại {session.retries_used} lần"] if session.retries_used else [],
+            notes=self._case_notes(session),
         )
         session.case_id = record.case_id
 

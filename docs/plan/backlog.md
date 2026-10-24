@@ -118,8 +118,8 @@
 | Mã | Task | Vai trò | Người | Ngày công | Sprint | Ưu tiên | Phụ thuộc | Trạng thái |
 |---|---|---|---|---|---|---|---|---|
 | FLOW-01 | Tham số purpose + luật theo luồng | M5 | Codex | 1 | S1 | P0 | ROUT-02, PLAT-08 | doing |
-| FLOW-02 | OTP mô phỏng | M2 | | 0,5 | S1 | P0 | PLAT-05 | todo |
-| FLOW-03 | Chụp CCCD, QR, chân dung, kiểm đã đăng ký | M1 | | 1,5 | S1 | P0 | PLAT-05, FACE-01 | todo |
+| FLOW-02 | OTP mô phỏng | M2 | Ngọc Quang+Claude | 0,5 | S1 | P0 | PLAT-05 | doing |
+| FLOW-03 | Chụp CCCD, QR, chân dung, kiểm đã đăng ký | M1 | Ngọc Quang+Claude | 1,5 | S1 | P0 | PLAT-05, FACE-01 | doing |
 | FLOW-04 | Thử thách quay đầu ngẫu nhiên — diagnostic thứ tự/thời gian | M1 (+M3) | Codex | 1 | S1 | P0 | CAP-06 | doing |
 | FLOW-05 | So mặt 1:1 (LVFace-B) + nhất quán ba góc — diagnostic | M3 | Codex | 1 | S1 | P0 | FLOW-03, FACE-01 | doing |
 | SEC-01 | Khóa theo phiên, che dữ liệu, nhật ký truy cập | M2 | | 1,5 | S1 | P0 | REV-01, PLAT-05 | todo |
@@ -133,7 +133,7 @@
 | LIVE-03 | Ký media theo phiên trên web (WebAuthn), chặn phát lại | M2 (+M1) | | 1 | S2 | P0 | LIVE-01 | todo |
 | LIVE-04 | Kháng lượng tử: đường truyền ML-KEM, ký kết quả ML-DSA | M2 | | 1 | S2 | P0 | FLOW-01 | todo |
 | LIVE-05 | Giấy chứng nhận ZKP cho bên tích hợp | M5 | | 2,5 | S3 | P1 | LIVE-04 | todo |
-| LIVE-06 | Gia hạn phiên khi gián đoạn, làm lại riêng phần khuôn mặt [contract] | M5 | | 0,5 | S2 | P0 | LIVE-01 | todo |
+| LIVE-06 | Gia hạn phiên khi gián đoạn, làm lại riêng phần khuôn mặt [contract] | M5 | Ngọc Quang+Claude | 0,5 | S2 | P0 | LIVE-01 | doing |
 | LIVE-07 | Thông báo làm lại theo hai loại (chất lượng · thử thách) | M1 | | 0,5 | S2 | P0 | LIVE-01 | todo |
 
 ## Tổng hợp tải (chạy `plan_check.py` để có số mới nhất)

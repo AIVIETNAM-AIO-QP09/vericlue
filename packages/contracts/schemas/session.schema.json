@@ -105,7 +105,7 @@
     },
     "Signals": {
       "type": "object",
-      "description": "Tín hiệu trình duyệt đo. Server KHÔNG tin tuyệt đối, sẽ tính lại từ media.",
+      "description": "Tín hiệu do web hoặc app Android đo. Server KHÔNG tin tuyệt đối, sẽ tính lại từ media. Mọi mốc thời gian trong một lần gửi dùng chung một đồng hồ, tính bằng ms; client_quality.clock ghi đồng hồ nào.",
       "required": [
         "color_events",
         "frame_times"
@@ -129,7 +129,7 @@
               },
               "painted_at": {
                 "type": "number",
-                "description": "performance.now() từ requestAnimationFrame"
+                "description": "Lúc khung màu được vẽ, ms. Web: performance.now() từ requestAnimationFrame. App Android: SystemClock.elapsedRealtime (khung vẽ của Compose, quy về elapsedRealtime)"
               }
             }
           }
@@ -144,7 +144,7 @@
                   "number",
                   "null"
                 ],
-                "description": "requestVideoFrameCallback captureTime"
+                "description": "Lúc camera chụp khung, ms, cùng đồng hồ với painted_at. Web: requestVideoFrameCallback captureTime. App Android: timestamp của khung CameraX quy về elapsedRealtime; null nếu không có"
               },
               "presented_frames": {
                 "type": "integer"
@@ -192,7 +192,8 @@
           }
         },
         "client_quality": {
-          "type": "object"
+          "type": "object",
+          "description": "Thông tin máy khách để server đánh giá độ tin cậy của mốc thời gian, ví dụ client (web | android), clock (performance.now | elapsedRealtime), timestamp_source, fps"
         },
         "challenge_id": {
           "type": [
@@ -321,9 +322,185 @@
         }
       }
     },
+    "OtpRequest": {
+      "type": "object",
+      "required": [
+        "phone"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "phone": {
+          "type": "string",
+          "pattern": "^0[0-9]{9}$",
+          "description": "Số di động Việt Nam 10 số"
+        }
+      }
+    },
+    "OtpSent": {
+      "type": "object",
+      "required": [
+        "expires_at",
+        "attempts_left"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "expires_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Hạn của mã (2 phút)"
+        },
+        "attempts_left": {
+          "type": "integer"
+        },
+        "simulated_sms": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Chỉ khi kênh gửi là SMS mô phỏng (bản demo): nội dung tin nhắn để app hiện trong khung 'SMS mô phỏng'. Kênh SMS thật không bao giờ trả trường này"
+        }
+      }
+    },
+    "OtpVerifyRequest": {
+      "type": "object",
+      "required": [
+        "code"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[0-9]{6}$"
+        }
+      }
+    },
+    "OtpVerifyResponse": {
+      "type": "object",
+      "required": [
+        "status",
+        "attempts_left"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "retry"
+          ]
+        },
+        "attempts_left": {
+          "type": "integer",
+          "description": "0 = đã khóa; muốn thử tiếp phải xin mã mới"
+        }
+      }
+    },
+    "IdCardFields": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Thông tin đọc từ QR của CCCD gắn chip",
+      "properties": {
+        "full_name": {
+          "type": "string"
+        },
+        "id_number": {
+          "type": "string",
+          "pattern": "^[0-9]{12}$"
+        },
+        "date_of_birth": {
+          "type": "string",
+          "format": "date"
+        },
+        "sex": {
+          "type": "string",
+          "enum": [
+            "Nam",
+            "Nữ"
+          ]
+        },
+        "address": {
+          "type": "string"
+        },
+        "issued_on": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        }
+      }
+    },
+    "IdCardResponse": {
+      "type": "object",
+      "required": [
+        "status"
+      ],
+      "additionalProperties": false,
+      "description": "Kết quả nhận ảnh CCCD. 'retry' chỉ nói về chất lượng ảnh hoặc QR, không kết luận thẻ thật/giả (phát hiện thẻ giả nằm ngoài phạm vi)",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "retry"
+          ]
+        },
+        "fields": {
+          "$ref": "#/$defs/IdCardFields"
+        },
+        "retry_hint": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            null,
+            "QR_UNREADABLE",
+            "QR_INVALID"
+          ]
+        }
+      }
+    },
+    "IdCardConfirmResponse": {
+      "type": "object",
+      "required": [
+        "received"
+      ],
+      "additionalProperties": false,
+      "description": "Xác nhận đã nhận thông tin người dùng xác nhận/sửa. Sửa khác QR thì server ghi chú cho nhân viên duyệt; người dân không thấy kết luận nào",
+      "properties": {
+        "received": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ChallengeResponse": {
+      "type": "object",
+      "required": [
+        "token",
+        "expires_at",
+        "challenge"
+      ],
+      "additionalProperties": false,
+      "description": "Thử thách mới cho phần khuôn mặt, kèm hạn token đã gia hạn (ADR-0017 §2, giới hạn tổng của phiên)",
+      "properties": {
+        "token": {
+          "type": "string",
+          "description": "Token mới của phiên (gửi 'Authorization: Bearer' từ đây); token cũ hết hiệu lực"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Hạn mới của token"
+        },
+        "challenge": {
+          "$ref": "#/$defs/Challenge"
+        }
+      }
+    },
     "ErrorResponse": {
       "type": "object",
-      "description": "Định dạng lỗi chung: 401 (thiếu Bearer, token sai hoặc hết hạn), 409 (bước đã nhận trong lượt này, hoặc sai thứ tự luồng: voice_not_requested khi finalize chưa yêu cầu đọc câu, session_closed khi phiên đã vào bàn duyệt), 422 (dữ liệu sai). Mã cho thử thách hết hạn do PLAT-06 chốt. 503 flow_unavailable: luồng purpose chưa hỗ trợ đủ bộ kiểm chứng thật.",
+      "description": "Định dạng lỗi chung: 401 (thiếu Bearer, token sai hoặc hết hạn), 409 (bước đã nhận trong lượt này, hoặc sai thứ tự luồng: voice_not_requested khi finalize chưa yêu cầu đọc câu, session_closed khi phiên đã vào bàn duyệt), 422 (dữ liệu sai). Mã cho thử thách hết hạn do PLAT-06 chốt. Mã 409 thêm cho OTP/CCCD: otp_not_requested, otp_expired, otp_locked, otp_already_verified, otp_too_many (gửi mã quá 3 lần), id_card_not_received; session_too_long khi phiên quá giới hạn tổng. 503 flow_unavailable: luồng purpose chưa hỗ trợ đủ bộ kiểm chứng thật.",
       "required": [
         "error_code",
         "message"

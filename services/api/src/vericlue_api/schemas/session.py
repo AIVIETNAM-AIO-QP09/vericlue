@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -112,6 +112,52 @@ class VoiceResponse(BaseModel):
     voice_prompt: str | None = None
     attempts_left: int | None = None
     voice_challenge_id: str | None = None
+
+
+class OtpRequest(BaseModel):
+    phone: str = Field(pattern=r"^0[0-9]{9}$")
+
+
+class OtpSent(BaseModel):
+    expires_at: datetime
+    attempts_left: int
+    simulated_sms: str | None = Field(
+        default=None, description="Chỉ có với kênh SMS mô phỏng (bản demo)"
+    )
+
+
+class OtpVerifyRequest(BaseModel):
+    code: str = Field(pattern=r"^[0-9]{6}$")
+
+
+class OtpVerifyResponse(BaseModel):
+    status: Literal["pass", "retry"]
+    attempts_left: int
+
+
+class IdCardFields(BaseModel):
+    full_name: str | None = None
+    id_number: str | None = Field(default=None, pattern=r"^[0-9]{12}$")
+    date_of_birth: date | None = None
+    sex: Literal["Nam", "Nữ"] | None = None
+    address: str | None = None
+    issued_on: date | None = None
+
+
+class IdCardResponse(BaseModel):
+    status: Literal["ok", "retry"]
+    fields: IdCardFields | None = None
+    retry_hint: Literal["QR_UNREADABLE", "QR_INVALID"] | None = None
+
+
+class IdCardConfirmResponse(BaseModel):
+    received: bool = True
+
+
+class ChallengeResponse(BaseModel):
+    token: str = Field(description="Token mới của phiên; token cũ hết hiệu lực")
+    expires_at: datetime = Field(description="Hạn mới của token")
+    challenge: Challenge
 
 
 class ErrorResponse(BaseModel):
