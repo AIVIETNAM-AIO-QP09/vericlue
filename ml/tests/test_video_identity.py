@@ -80,6 +80,61 @@ class Reader:
         )
 
 
+TARGET = [
+    (0.5, 0.5),
+    (0.2, 0.7),
+    (0.8, 0.3),
+    (0.3, 0.2),
+    (0.7, 0.8),
+    (0.2, 0.4),
+    (0.6, 0.2),
+    (0.8, 0.7),
+]
+
+
+def gaze_inputs():
+    inp = inputs()
+    inp.metadata["expected_challenge"]["dynamic"]["gaze_points"] = [
+        {"x": x, "y": y, "at_ms": 5000 + i * 1000} for i, (x, y) in enumerate(TARGET)
+    ]
+    inp.signals["gaze_tracking"] = {"gate": "pass", "correlation_x": 1.0}
+    return inp
+
+
+class GazeReader(Reader):
+    def __init__(self, gaze_failure=None, **kwargs):
+        super().__init__(**kwargs)
+        self.gaze_failure = gaze_failure
+        self.windows = []
+
+    def extract(self, *args, **kwargs):
+        self.windows.append((kwargs["start_ms"], kwargs["end_ms"]))
+        if kwargs["start_ms"] != 5000:
+            return super().extract(*args, **kwargs)
+        if self.gaze_failure == "error":
+            raise RuntimeError("private/biometric/path")
+        if self.gaze_failure == "missing":
+            return []
+        points = np.asarray(TARGET)
+        return [
+            FaceObservation(
+                float(t),
+                1,
+                0.5
+                if self.gaze_failure == "still"
+                else 0.5
+                + 0.2 * float(np.interp(t - 150, np.arange(5000, 12001, 1000), points[:, 0])),
+                0.1
+                if self.gaze_failure == "still"
+                else 0.2 * float(np.interp(t - 150, np.arange(5000, 12001, 1000), points[:, 1])),
+                0.0,
+                0.0,
+                0.0,
+            )
+            for t in range(5000, 12001, 100)
+        ]
+
+
 class Matcher:
     version = "synthetic-identity@unit-test"
 
@@ -204,6 +259,129 @@ def test_optional_gend_uses_same_pixel_objects_and_has_separate_measurement(monk
     assert all(deepfake.calls[0][role] is matcher.calls[0][1][role] for role in deepfake.calls[0])
     assert set(result.to_contract()) == {"head_turn", "face_match", "face_deepfake"}
     assert result.face_deepfake.quality["depth_verified"] is False
+
+
+def test_gaze_and_head_share_reader_and_both_precede_scoring(monkeypatch):
+    setup(monkeypatch)
+    reader, matcher, pad, deepfake = GazeReader(), Matcher(), Pad(), Deepfake()
+    result = pipeline.match_video_views(
+        gaze_inputs(), reader=reader, matcher=matcher, pad=pad, deepfake=deepfake, with_gaze=True
+    )
+    assert result.head_turn.gate == result.gaze_tracking.gate == Gate.PASS
+    assert reader.windows == [(5000, 12000), (11500, 18000)]
+    assert (
+        len(reader.preloads) == 1
+        and len(matcher.calls) == len(pad.calls) == len(deepfake.calls) == 1
+    )
+    assert result.gaze_tracking.prob_attack is None
+    assert result.gaze_tracking.quality["video_bound"] is True
+    assert not any(e.name == "selected_frames" for e in result.gaze_tracking.evidence)
+    assert (
+        next(e.value for e in result.gaze_tracking.evidence if e.name == "source_video_sha256")
+        == "a" * 64
+    )
+    assert "gaze_tracking" in result.to_contract()
+
+
+@pytest.mark.parametrize("failure", ["still", "missing", "error"])
+def test_bad_gaze_blocks_heavy_models_despite_client_pass_and_good_head(monkeypatch, failure):
+    selections = setup(monkeypatch)
+    matcher, pad, deepfake = Matcher(), Pad(), Deepfake()
+    result = pipeline.match_video_views(
+        gaze_inputs(),
+        reader=GazeReader(gaze_failure=failure),
+        matcher=matcher,
+        pad=pad,
+        deepfake=deepfake,
+        with_gaze=True,
+    )
+    assert result.head_turn.gate == Gate.PASS and result.gaze_tracking.gate != Gate.PASS
+    assert not selections and not matcher.preloads and not pad.preloads and not deepfake.preloads
+    assert (
+        result.face_match.gate == result.face_pad.gate == result.face_deepfake.gate == Gate.UNCLEAR
+    )
+    assert "private/" not in str(result.to_contract())
+
+
+def test_good_gaze_does_not_override_head_failure(monkeypatch):
+    selections = setup(monkeypatch)
+    matcher = Matcher()
+    result = pipeline.match_video_views(
+        gaze_inputs(), reader=GazeReader(no_motion=True), matcher=matcher, with_gaze=True
+    )
+    assert result.gaze_tracking.gate == Gate.PASS and result.head_turn.gate == Gate.FAIL
+    assert not selections and not matcher.preloads
+
+
+@pytest.mark.parametrize("changed_after", ["observations", "selection"])
+def test_changed_video_invalidates_gaze_and_head_before_models(monkeypatch, changed_after):
+    setup(monkeypatch)
+    hashes = iter(
+        ["a" * 64, "b" * 64] if changed_after == "observations" else ["a" * 64, "a" * 64, "b" * 64]
+    )
+    monkeypatch.setattr(pipeline, "video_sha256", lambda path: next(hashes))
+    matcher = Matcher()
+    result = pipeline.match_video_views(
+        gaze_inputs(), reader=GazeReader(), matcher=matcher, with_gaze=True
+    )
+    assert all(
+        r.status == Status.ERROR and r.error_code == "E_INTEGRITY" and r.gate == Gate.UNCLEAR
+        for r in (result.gaze_tracking, result.head_turn, result.face_match)
+    )
+    assert not matcher.preloads
+
+
+def test_missing_gaze_plan_is_blocked_before_native_preload(monkeypatch):
+    setup(monkeypatch)
+    reader, matcher = GazeReader(), Matcher()
+    result = pipeline.match_video_views(inputs(), reader=reader, matcher=matcher, with_gaze=True)
+    assert result.gaze_tracking.error_code == "E_CHALLENGE_MISMATCH"
+    assert not reader.preloads and not matcher.preloads
+
+
+def test_unreadable_source_after_extraction_invalidates_positive_gaze(monkeypatch):
+    setup(monkeypatch)
+    count = 0
+
+    def digest(path):
+        nonlocal count
+        count += 1
+        if count > 1:
+            raise pipeline.LandmarkError(ErrorCode.E_DECODE)
+        return "a" * 64
+
+    monkeypatch.setattr(pipeline, "video_sha256", digest)
+    matcher = Matcher()
+    result = pipeline.match_video_views(
+        gaze_inputs(), reader=GazeReader(), matcher=matcher, with_gaze=True
+    )
+    assert all(
+        r.status == Status.ERROR and r.gate == Gate.UNCLEAR
+        for r in (result.head_turn, result.gaze_tracking, result.face_match)
+    )
+    assert not matcher.preloads
+
+
+def test_degraded_gaze_cannot_be_treated_as_pass(monkeypatch):
+    setup(monkeypatch)
+    monkeypatch.setattr(
+        pipeline,
+        "GazeDetector",
+        lambda reader: SimpleNamespace(
+            predict=lambda inp: ModuleResult(
+                module=Module.GAZE_TRACKING,
+                model_version="synthetic@unit",
+                status=Status.DEGRADED,
+                gate=Gate.PASS,
+                latency_ms=0,
+            )
+        ),
+    )
+    matcher = Matcher()
+    result = pipeline.match_video_views(
+        gaze_inputs(), reader=GazeReader(), matcher=matcher, with_gaze=True
+    )
+    assert result.face_match.gate == Gate.UNCLEAR and not matcher.preloads
 
 
 def test_head_failure_blocks_gend_without_model_load(monkeypatch):

@@ -1,0 +1,16 @@
+# Isolated Python 3.12 runtime; install with uv pip --torch-backend cpu.
+# Do not install API extras here: MediaPipe owns the single cv2 distribution.
+# Direct dependencies are pinned; this is not a complete transitive lockfile.
+mediapipe==1.1.1
+opencv-contrib-python==4.14.0.94
+numpy==2.5.4
+onnxruntime==1.31.0
+torch==2.14.1+cpu
+transformers==4.57.6
+safetensors==0.8.0
+pillow==12.3.0
+pydantic==2.14.1
+pyyaml==6.0.3
+scikit-learn==1.9.1
+scipy==1.18.1
+pytest==9.1.1

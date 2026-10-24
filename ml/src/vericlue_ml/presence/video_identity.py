@@ -1,4 +1,4 @@
-"""Offline head motion, identity and optional deepfake checks; no authentication decision."""
+"""Offline eye/head motion, identity and optional PAD/deepfake; no authentication decision."""
 
 from __future__ import annotations
 
@@ -15,6 +15,8 @@ from vericlue_ml.face.fsvfm import FsvfmPadDetector
 from vericlue_ml.face.gend import FaceDeepfakeDetector
 from vericlue_ml.face.match import FaceMatchDetector, MatchError
 from vericlue_ml.face.pad import PadError
+from vericlue_ml.presence.gaze import GAZE_VERSION, GazeDetector
+from vericlue_ml.presence.gaze import parse_plan as parse_gaze_plan
 from vericlue_ml.presence.head_turn import (
     HEAD_VERSION,
     MAX_PITCH_ROLL_DEG,
@@ -32,6 +34,7 @@ class VideoIdentityDiagnostic:
     face_match: ModuleResult
     face_deepfake: ModuleResult | None = None
     face_pad: ModuleResult | None = None
+    gaze_tracking: ModuleResult | None = None
 
     def to_contract(self) -> dict[str, Any]:
         results = {
@@ -42,6 +45,8 @@ class VideoIdentityDiagnostic:
             results["face_deepfake"] = self.face_deepfake.to_contract()
         if self.face_pad is not None:
             results["face_pad"] = self.face_pad.to_contract()
+        if self.gaze_tracking is not None:
+            results["gaze_tracking"] = self.gaze_tracking.to_contract()
         return results
 
 
@@ -52,6 +57,7 @@ def match_video_views(
     matcher: FaceMatchDetector,
     deepfake: FaceDeepfakeDetector | None = None,
     pad: FsvfmPadDetector | None = None,
+    with_gaze: bool = False,
     models_dir: Path | None = None,
     device: str | None = None,
 ) -> VideoIdentityDiagnostic:
@@ -62,6 +68,7 @@ def match_video_views(
     """
     started = perf_counter()
     head = None
+    gaze = None
     invalidate_head = False
 
     def unavailable(module, version, *, status=Status.DEGRADED, code=None, reason):
@@ -102,19 +109,42 @@ def match_video_views(
                 reason="model_unavailable",
             )
 
+    def check_source() -> None:
+        nonlocal invalidate_head
+        try:
+            unchanged = video_sha256(inp.video) == original_sha
+        except Exception:
+            invalidate_head = True
+            raise
+        if not unchanged:
+            invalidate_head = True
+            raise LandmarkError(ErrorCode.E_INTEGRITY)
+
     try:
         plan = parse_head_plan(inp)
+        if with_gaze:
+            parse_gaze_plan(inp)  # Validate the server binding before native/model preload.
         if inp.video is None or inp.reference_image is None:
             raise LandmarkError(ErrorCode.E_DECODE, Status.DEGRADED)
         original_sha = video_sha256(inp.video)
         reader.preload(models_dir=models_dir)
+        if with_gaze:
+            gaze = GazeDetector(reader).predict(inp)
         head = HeadTurnDetector(reader).predict(inp)
+        if with_gaze:
+            check_source()
+        reason = None
         if head.status != Status.OK or head.gate != Gate.PASS:
+            reason = "head_turn_not_passed"
+        elif with_gaze and (gaze is None or gaze.status != Status.OK or gaze.gate != Gate.PASS):
+            reason = "gaze_tracking_not_passed"
+        if reason:
             return VideoIdentityDiagnostic(
                 head,
-                unavailable(Module.FACE_MATCH, matcher.version, reason="head_turn_not_passed"),
-                blocked(deepfake, Module.FACE_DEEPFAKE, "head_turn_not_passed"),
-                blocked(pad, Module.FACE_PAD, "head_turn_not_passed"),
+                unavailable(Module.FACE_MATCH, matcher.version, reason=reason),
+                blocked(deepfake, Module.FACE_DEEPFAKE, reason),
+                blocked(pad, Module.FACE_PAD, reason),
+                gaze,
             )
         entries = [e.value for e in head.evidence if e.name == "view_times_ms"]
         times = entries[0] if len(entries) == 1 else None
@@ -152,9 +182,7 @@ def match_video_views(
                 raise LandmarkError(ErrorCode.E_LOW_QUALITY, Status.DEGRADED)
             frames[role] = frame.bgr
         # Storage must still supply the same bytes after both decoder passes.
-        if video_sha256(inp.video) != original_sha:
-            invalidate_head = True
-            raise LandmarkError(ErrorCode.E_INTEGRITY)
+        check_source()
         match = score_frames(matcher, Module.FACE_MATCH, frames)
         gend = (
             score_frames(deepfake, Module.FACE_DEEPFAKE, frames) if deepfake is not None else None
@@ -183,7 +211,11 @@ def match_video_views(
                     views_from_video=True, depth_verified=False, provisional=True
                 )
                 measured.evidence.extend(e.model_copy(deep=True) for e in provenance)
-        return VideoIdentityDiagnostic(head, match, gend, pad_result)
+        if gaze is not None:
+            # Eye motion uses its own time window, not the three head-pose frames.
+            gaze.quality["video_bound"] = True
+            gaze.evidence.append(provenance[1].model_copy(deep=True))
+        return VideoIdentityDiagnostic(head, match, gend, pad_result, gaze)
     except Exception as exc:
         status = exc.status if isinstance(exc, (LandmarkError, MatchError)) else Status.ERROR
         code = exc.code if isinstance(exc, (LandmarkError, PadError)) else ErrorCode.E_INTERNAL
@@ -221,5 +253,18 @@ def match_video_views(
                 reason="video_identity_unavailable",
             )
             if pad is not None
+            else None,
+            (
+                unavailable(
+                    Module.GAZE_TRACKING,
+                    GAZE_VERSION,
+                    status=status,
+                    code=code,
+                    reason="video_identity_unavailable",
+                )
+                if gaze is None or invalidate_head
+                else gaze
+            )
+            if with_gaze
             else None,
         )

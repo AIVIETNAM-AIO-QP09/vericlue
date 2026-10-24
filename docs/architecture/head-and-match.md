@@ -183,6 +183,11 @@ video trống, chưa kiểm toàn chuỗi với mặt thật trong cùng runtime
 
 ## 3. Nguồn và giấy phép
 
+Runtime CPU chung, lệnh kiểm checkpoint tổng hợp và tùy chọn `--with-gaze`
+(yêu cầu mắt/quay đầu đạt trước khi chấm ảnh) ở
+[`face-diagnostic-runtime.md`](face-diagnostic-runtime.md). Các kiểm tra tổng hợp
+không thay phép đo với người thật hay hiệu chỉnh ngưỡng.
+
 - [LVFace inference chính thức, commit cố định](https://github.com/bytedance/LVFace/blob/80bd20c8bb78e56eb708941180d800a27c396a6b/inference_onnx.py): tiền xử lý RGB/112/[-1,1].
 - [Mốc landmark ArcFace](https://github.com/deepinsight/insightface/blob/master/python-package/insightface/utils/face_align.py): dùng các tọa độ đích; phép fit least-squares viết riêng, không chép implementation.
 - [Giấy phép tác giả LVFace](https://github.com/bytedance/LVFace/blob/80bd20c8bb78e56eb708941180d800a27c396a6b/README.md#license): code MIT, trọng số nghiên cứu phi thương mại. Giữ giới hạn này dù thẻ Hugging Face gắn MIT.

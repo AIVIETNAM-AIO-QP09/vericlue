@@ -88,6 +88,12 @@ Tùy chọn `--with-gend` chấm deepfake trên đúng ba khung này, không đ�
 video lần nữa. Kết quả độc lập với so danh tính, dùng version lấy mẫu riêng và
 chưa hiệu chỉnh; runtime cần có extra gend. Mặc định chưa bật tùy chọn này.
 
+`--with-pad` chấm FS-VFM-L FAS trên cùng các khung; `--with-gaze` thêm bước
+kiểm mắt trước khi chọn/chấm ảnh. Gaze/head đều phải ok/pass; dữ liệu thiếu/lỗi
+không đạt. Runtime CPU chung và smoke checkpoint không dùng dữ liệu người:
+[`face-diagnostic-runtime.md`](../../../../docs/architecture/face-diagnostic-runtime.md).
+Runtime riêng ở trên vẫn dùng cho gaze/head đơn lẻ.
+
 Đo trên điện thoại thật, ánh sáng/thiết bị/kính/tư thế khác nhau; kiểm dấu hai trục,
 đồng bộ mốc video, độ phủ và lỗi. Hiệu chỉnh trên calib, thử video phát lại/đường
 khác, kiểm head-turn/so mặt/chữ ký. Chọn cấu hình dependency dùng chung và nối
