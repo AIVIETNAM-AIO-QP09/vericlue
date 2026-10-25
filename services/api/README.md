@@ -5,6 +5,10 @@
 
 ## Trách nhiệm
 
+SEC-01 opt-in mã hóa snapshot/media phiên, hủy khóa theo TTL, che/mở thông tin và
+credential/nhật ký truy cập nhân viên: [`session-privacy.md`](../../docs/architecture/session-privacy.md).
+Cần migration 0003 và cấu hình khóa riêng; không tự chuyển dữ liệu demo cũ.
+
 OCR/QR và LVFace-B opt-in cho UI Android: xem
 [identity-integration.md](../../docs/runbooks/identity-integration.md).
 `IDENTITY_LAB_URL` bật QR/OCR từ runtime cục bộ và LVFace-B thật trong orchestrator.

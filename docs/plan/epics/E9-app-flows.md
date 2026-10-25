@@ -175,7 +175,16 @@ chân dung tham chiếu đã cắt do server quản lý. Xem
 - Xóa EXIF của ảnh tải lên.
 
 **Tiêu chí hoàn thành:**
-- [ ] Test: hủy khóa thì không đọc lại được dữ liệu; nhật ký không sửa được.
+- [x] Test: hủy khóa thì không đọc lại được dữ liệu; nhật ký không sửa được.
+
+**Cập nhật 25/10 (Codex, review):** Có vault AES-GCM theo phiên, mã hóa snapshot/
+media/kết quả/ghi chú, hủy wrapped DEK theo TTL và giữ tombstone. Native đọc qua
+file giải mã có lease theo future, không xóa sớm khi HTTP timeout. Cờ opt-in không
+tự chuyển kho cũ. Có credential nhân viên riêng, access audit chỉ ghi thêm, API
+che CCCD/ngày sinh và thao tác reveal có nhật ký, loại EXIF ảnh; contract/type web
+cập nhật, không sửa UI. Test dữ liệu tổng hợp bao gồm sửa tag/sai AAD/khóa, hủy
+khóa, URL mã hóa, CORS và job trả muộn. Xem `session-privacy.md`. Chưa nghiệm thu
+UI nhân viên, backup/KMS/crash cleanup hay vận hành production; không chứng nhận tuân thủ.
 
 ---
 

@@ -39,6 +39,7 @@ from vericlue_api.services.provisional_decision import (
     Outcome,
 )
 from vericlue_api.services.review_store import ReviewStore
+from vericlue_api.services.session_privacy import SessionPrivacy
 from vericlue_api.services.session_store import Session, SessionStore
 from vericlue_api.services.uploads import save_upload
 from vericlue_ml.common.result import Gate, Module, Status
@@ -60,6 +61,7 @@ class SessionFlow:
         *,
         runner: Callable = run_detectors,
         router: TrustRouter | None = None,
+        privacy: SessionPrivacy | None = None,
     ) -> None:
         self.router = (
             router
@@ -70,6 +72,7 @@ class SessionFlow:
         self._run = runner
         self.sessions = sessions
         self.reviews = reviews
+        self.privacy = privacy
 
     # --- tạo phiên -------------------------------------------------------
     def create(
@@ -189,12 +192,22 @@ class SessionFlow:
         self.ensure_face_step_allowed(session, "media")
         session.images = [
             save_upload(
-                self.settings.media_dir, session.session_id, "face_image", image_filename, image
+                self.settings.media_dir,
+                session.session_id,
+                "face_image",
+                image_filename,
+                image,
+                privacy=self.privacy,
             )
         ]
         session.video = (
             save_upload(
-                self.settings.media_dir, session.session_id, "face_video", video_filename, video
+                self.settings.media_dir,
+                session.session_id,
+                "face_video",
+                video_filename,
+                video,
+                privacy=self.privacy,
             )
             if video is not None
             else None
@@ -213,11 +226,21 @@ class SessionFlow:
         """Chỉ lưu bản ghi của lần đọc được server cho phép."""
         self.ensure_voice_allowed(session)
         session.audio = save_upload(
-            self.settings.media_dir, session.session_id, "voice_audio", audio_filename, audio
+            self.settings.media_dir,
+            session.session_id,
+            "voice_audio",
+            audio_filename,
+            audio,
+            privacy=self.privacy,
         )
         return (
             save_upload(
-                self.settings.media_dir, session.session_id, "voice_video", video_filename, video
+                self.settings.media_dir,
+                session.session_id,
+                "voice_video",
+                video_filename,
+                video,
+                privacy=self.privacy,
             )
             if video is not None
             else None
