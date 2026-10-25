@@ -37,7 +37,9 @@ MODEL_FILE = "LVFace-B_Glint360K.onnx"
 LVFACE_REVISION = "b12702ab1f5c721748e054a66dc90e1edd1f0724"
 SCRFD_REVISION = "bfcc7d48ea8412d55de406cecf96b65b3ca720b2"
 ALIGNMENT_ID = "arcface112-rgb-minus1to1-v1"
-MATCH_VERSION = "lvface-b@b12702ab1f5c7217+scrfd10g@bfcc7d48+" + ALIGNMENT_ID
+MATCH_VERSION = (
+    "lvface-b@b12702ab1f5c7217+scrfd10g@bfcc7d48+" + ALIGNMENT_ID + "+front-reference-v2"
+)
 MIN_FACE_SIDE = 40
 MAX_ALIGNMENT_ERROR_PX = 10
 ARCFACE_TARGET = np.array(
@@ -179,7 +181,7 @@ class MatchThreshold(BaseModel):
 
 
 class FaceMatchDetector:
-    """Compare a reference portrait with front/left/right photos, including every cross-view pair."""
+    """Compare reference to front; report cross-view consistency separately as raw evidence."""
 
     name = Module.FACE_MATCH.value
     version = MATCH_VERSION
@@ -290,43 +292,48 @@ class FaceMatchDetector:
                 raise MatchError(ErrorCode.E_CHALLENGE_MISMATCH, Status.DEGRADED)
             with self._lock:
                 self.preload()
-                reference, _ = self._embedding(reference_source)
+                reference, reference_hash = self._embedding(reference_source)
                 vectors, hashes = {}, []
                 for role, source in zip(roles, sources, strict=True):
                     vector, checksum = self._embedding(source)
+                    if checksum == reference_hash:
+                        raise MatchError(ErrorCode.E_INTEGRITY, Status.DEGRADED)
                     vectors[role] = vector
                     hashes.append(checksum)
                 if len(set(hashes)) != len(hashes):
                     raise MatchError(ErrorCode.E_INTEGRITY, Status.DEGRADED)
-                similarities = {
-                    "reference_" + role: float(np.clip(reference @ vector, -1, 1))
-                    for role, vector in vectors.items()
+                frontal_cosine = float(np.clip(reference @ vectors["front"], -1, 1))
+                similarities = {"reference_front": frontal_cosine}
+                view_similarities = {
+                    a + "_" + b: float(np.clip(vectors[a] @ vectors[b], -1, 1))
+                    for a, b in combinations(sorted(vectors), 2)
                 }
-                similarities.update(
-                    {
-                        a + "_" + b: float(np.clip(vectors[a] @ vectors[b], -1, 1))
-                        for a, b in combinations(sorted(vectors), 2)
-                    }
-                )
-                minimum = min(similarities.values())
                 available = self._threshold is not None
-                passed = available and minimum >= self._threshold.threshold
+                passed = available and frontal_cosine >= self._threshold.threshold
                 return ModuleResult(
                     module=Module.FACE_MATCH,
                     model_version=self.version,
                     status=Status.OK if available else Status.DEGRADED,
                     gate=(Gate.PASS if passed else Gate.FAIL) if available else Gate.UNCLEAR,
-                    score=1 - minimum,
+                    score=1 - frontal_cosine,
                     quality={
                         "threshold_available": available,
                         "views": len(roles),
                         "comparisons": len(similarities),
+                        "threshold_cosine": self._threshold.threshold if available else None,
+                        "consistency_comparisons": len(view_similarities),
+                        "consistency_verified": False,
                     },
                     evidence=[
                         Evidence(
-                            type="text", name="match_scope", value="identity_only_not_liveness"
+                            type="text",
+                            name="match_scope",
+                            value="reference_to_front_only_not_liveness",
                         ),
                         Evidence(type="scalar", name="cosine_similarities", value=similarities),
+                        Evidence(
+                            type="scalar", name="view_cosine_similarities", value=view_similarities
+                        ),
                     ],
                     latency_ms=(perf_counter() - started) * 1000,
                 )

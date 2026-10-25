@@ -34,7 +34,6 @@ from vericlue_api.services.dynamic_challenge import (
     new_dynamic_voice_prompt,
     new_voice_prompt,
 )
-from vericlue_api.services.identity_runtime import IdentityRuntime
 from vericlue_api.services.provisional_decision import (
     MAX_VOICE_REREADS,
     Outcome,
@@ -43,6 +42,7 @@ from vericlue_api.services.review_store import ReviewStore
 from vericlue_api.services.session_store import Session, SessionStore
 from vericlue_api.services.uploads import save_upload
 from vericlue_ml.common.result import Gate, Module, Status
+from vericlue_ml.face.match import MATCH_VERSION
 from vericlue_ml.router.flows import route_face, route_voice
 from vericlue_ml.router.policy import TrustRouter
 
@@ -328,8 +328,15 @@ class SessionFlow:
         # context (FLOW-05/SEC-02), not a fresh CCCD or the staff-review card gate.
         if s.identity_lab_url and session.purpose != "reauth":
             if session_valid:
-                session.results[Module.FACE_MATCH] = IdentityRuntime(s).match(
-                    session.id_front, session.images
+                session.results.update(
+                    self._run(
+                        [Module.FACE_MATCH],
+                        session_id=session.session_id,
+                        scenario=session.scenario,
+                        reference_image=session.id_front,
+                        images=session.images[:1],
+                        image_roles=["front"],
+                    )
                 )
             outcome = self._identity_gate(session, outcome)
             if not self._valid_time(session, color_challenge=True) and outcome.status in {
@@ -488,15 +495,17 @@ class SessionFlow:
     def _identity_gate(self, session: Session, outcome):
         """A face match is one required signal, never an override of PAD or voice failures."""
         match = session.results.get(Module.FACE_MATCH)
-        thresholds = {
-            **outcome.thresholds,
-            "identity_face_cosine": self.settings.identity_face_threshold,
-        }
+        thresholds = dict(outcome.thresholds)
+        if match is not None and match.model_version == MATCH_VERSION:
+            threshold = match.quality.get("threshold_cosine")
+            if type(threshold) in (int, float) and -1 <= threshold <= 1:
+                thresholds["identity_face_cosine"] = threshold
         allowed = (
             session.id_confirmed
             and not session.id_edited
             and session.id_source in {"server_qr", "ocr"}
             and match is not None
+            and match.model_version == MATCH_VERSION
             and match.status == Status.OK
             and match.gate == Gate.PASS
         )

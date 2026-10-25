@@ -71,7 +71,11 @@ API. Chạy bằng môi trường riêng để giữ dependency CUDA/OpenCV hi�
 FLOW-04/FLOW-05 thêm diagnostic `head_turn` và `face_match` (LVFace-B + SCRFD).
 Kiểm thứ tự quay đầu và tương đồng danh tính là hai kết quả riêng; chưa chứng
 minh chiều sâu. Thiếu ngưỡng hiệu chỉnh thì so mặt luôn `degraded/unclear`.
-Full vẫn 9 module, MVP vẫn 7; chưa bật hai module này trong quyết định HTTP.
+Full mặc định vẫn 9 module, MVP vẫn 7. Opt-in `IDENTITY_LAB_URL` nạp riêng
+LVFace-B thật trong orchestrator HTTP để so CCCD với một selfie, dùng artifact
+`IDENTITY_FACE_CALIBRATION`; thiếu ngưỡng vẫn không đạt. Quay đầu chưa nối HTTP.
+So tham chiếu chỉ dùng front; cosine giữa ba góc được báo riêng, chưa xác nhận
+nhất quán và không so CCCD với ảnh nghiêng.
 `eval.video_face_match` đã ghép quay đầu → chọn/kiểm khung từ video → so mặt
 trong RAM, không nhận ba ảnh query rời và không ghi khung ra đĩa.
 Thêm `--with-gend` để chấm deepfake trên chính các khung đó; cần extra gend,

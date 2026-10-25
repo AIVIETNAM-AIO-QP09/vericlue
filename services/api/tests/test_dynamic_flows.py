@@ -214,9 +214,7 @@ def test_unverified_reauth_requires_recovery_without_staff_case(
     def unexpected_match(*_):
         pytest.fail("Reauth must not use the card/selfie runtime")
 
-    monkeypatch.setattr(
-        "vericlue_api.services.identity_runtime.IdentityRuntime.match", unexpected_match
-    )
+    monkeypatch.setattr("vericlue_ml.face.match.FaceMatchDetector.predict", unexpected_match)
     created, auth = create(client, purpose="reauth")
     assert "dynamic" not in created["challenge"]
     result = submit_face(client, created, auth)
@@ -252,9 +250,7 @@ def test_reauth_with_server_verified_context_has_no_review_case(
     def unexpected_match(*_):
         pytest.fail("Reauth must not use the card/selfie runtime")
 
-    monkeypatch.setattr(
-        "vericlue_api.services.identity_runtime.IdentityRuntime.match", unexpected_match
-    )
+    monkeypatch.setattr("vericlue_ml.face.match.FaceMatchDetector.predict", unexpected_match)
     created, auth = create(client, purpose="reauth", scenario=scenario)
     # Until SEC-02 exists, only a server-owned test fixture can grant this context.
     edit_session(client, created, device_verified=True)
