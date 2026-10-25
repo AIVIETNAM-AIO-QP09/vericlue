@@ -95,6 +95,10 @@ class Settings(BaseSettings):
     session_face_models: bool = False
     identity_consistency_required: bool = False
     identity_consistency_calibration: str | None = None
+    session_voice_models: bool = False
+    voice_runtime_python: str | None = None
+    voice_spoof_python: str | None = None
+    session_model_timeout_seconds: float = Field(default=30, gt=0, le=90)
 
     @model_validator(mode="after")
     def consistency_requires_video(self):
