@@ -14,6 +14,11 @@
 
 ## Quy tắc
 
+SEC-01 thêm `ReviewIdentity` và hai endpoint review xem che/mở đầy đủ. Khi bật
+`SESSION_PRIVACY`, dùng `StaffBearer` độc lập với token người dân; chỉ xem đầy đủ
+qua thao tác reveal có nhật ký. Không thêm PII/điểm vào `ReviewCase` hay phản hồi
+người dân. Chi tiết: [`session-privacy.md`](../../docs/architecture/session-privacy.md).
+
 LIVE-02 thêm tên module `gaze_tracking` vào ModuleResult để diagnostic và mock
 cùng trả đúng hợp đồng. Đây không phải thay đổi trạng thái cho người dân, không
 tự bật mô-đun trong full/MVP hoặc bỏ chốt chế độ thật của luồng mới.

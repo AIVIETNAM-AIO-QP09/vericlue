@@ -5,6 +5,10 @@
 
 ## Trách nhiệm
 
+SEC-01 opt-in mã hóa snapshot/media phiên, hủy khóa theo TTL, che/mở thông tin và
+credential/nhật ký truy cập nhân viên: [`session-privacy.md`](../../docs/architecture/session-privacy.md).
+Cần migration 0003 và cấu hình khóa riêng; không tự chuyển dữ liệu demo cũ.
+
 OCR/QR và LVFace-B opt-in cho UI Android: xem
 [identity-integration.md](../../docs/runbooks/identity-integration.md).
 `IDENTITY_LAB_URL` bật QR/OCR từ runtime cục bộ và LVFace-B thật trong orchestrator.
@@ -256,6 +260,10 @@ Report mặc định `tmp/rout02-compose-smoke.json` (gitignored); xong chạy `
 
 
 ## Hồ sơ MVP (ROUT-01, ADR-0012)
+
+Opt-in Qwen/CTC/NES2Net/SyncNet cho API phiên và runtime tách riêng:
+[`session-voice.md`](../../docs/architecture/session-voice.md). Cờ mặc định tắt;
+khi bật cần đủ runtime local, không tự thay bằng mock khi thiếu mô hình.
 
 `ROUTER_PROFILE=full` mặc định giữ nguyên chính sách và tập module hiện có.
 `ROUTER_PROFILE=mvp` chỉ chạy/preload `quality`, `face_pad`, `face_deepfake`,

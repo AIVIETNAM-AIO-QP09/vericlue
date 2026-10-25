@@ -92,6 +92,22 @@ def test_vfr_selects_nearest_actual_timestamps_preserves_order_and_releases(fake
     assert capture.released is True
 
 
+def test_separate_wav_origin_shifts_video_targets_without_changing_audio_windows(fake_capture):
+    timestamps = [i * 0.04 for i in range(30)]
+    capture = fake_capture(timestamps)
+    windows = syncnet._read_windows(Path("unopened.webm"), [0], object(), audio_offset_s=0.2)
+    assert windows == [list(range(5, 21))]
+    assert capture.released
+
+
+@pytest.mark.parametrize("offset", [-0.1, float("nan"), 120])
+def test_unavailable_audio_origin_cannot_fall_back_to_zero_offset(fake_capture, offset):
+    capture = fake_capture(VFR_TIMES)
+    with pytest.raises(syncnet.SyncNetError):
+        syncnet._read_windows(Path("unopened.webm"), [0], object(), audio_offset_s=offset)
+    assert capture.released
+
+
 @pytest.mark.parametrize(
     "bad_pts", [[float("nan")], [float("inf")], [-0.01], [0, 0], [0, 0.04, 0.03]]
 )
