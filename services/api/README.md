@@ -257,6 +257,10 @@ Report mặc định `tmp/rout02-compose-smoke.json` (gitignored); xong chạy `
 
 ## Hồ sơ MVP (ROUT-01, ADR-0012)
 
+Opt-in Qwen/CTC/NES2Net/SyncNet cho API phiên và runtime tách riêng:
+[`session-voice.md`](../../docs/architecture/session-voice.md). Cờ mặc định tắt;
+khi bật cần đủ runtime local, không tự thay bằng mock khi thiếu mô hình.
+
 `ROUTER_PROFILE=full` mặc định giữ nguyên chính sách và tập module hiện có.
 `ROUTER_PROFILE=mvp` chỉ chạy/preload `quality`, `face_pad`, `face_deepfake`,
 `camprobe`, `voice_challenge`, `voice_spoof`, `lipsync`; không chạy ChromaPulse hay

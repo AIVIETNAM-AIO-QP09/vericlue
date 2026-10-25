@@ -86,6 +86,7 @@
 | VOICE-11 | Nhịp đọc/CTC trong lab micro, mốc âm tiết RAM và CLI | M4 | Codex | 1 | S2 | P0 | VOICE-10 | done |
 | VOICE-12 | Lab thu A/V một nguồn và khớp môi SyncNet trong RAM | M4 | Codex | 1,5 | S2 | P0 | VOICE-11 | done |
 | VOICE-13 | NES2Net theo đoạn phủ toàn bản thu trong lab | M4 | Codex | 1 | S2 | P0 | VOICE-12 | done |
+| VOICE-14 | Qwen/CTC/NES2Net/SyncNet API phiên, worker tách runtime | M4 | Codex | 1 | S2 | P0 | VOICE-13 | review |
 
 ## E6 — TrustRouter · `epics/E6-router.md`
 

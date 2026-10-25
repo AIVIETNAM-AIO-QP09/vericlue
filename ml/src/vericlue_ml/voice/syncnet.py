@@ -235,7 +235,9 @@ def _face_crop(image: np.ndarray, finder: FaceFinder) -> np.ndarray:
     return crop
 
 
-def _read_windows(video: Path, starts: list[int], finder: FaceFinder) -> list[list[np.ndarray]]:
+def _read_windows(
+    video: Path, starts: list[int], finder: FaceFinder, *, audio_offset_s: float = 0
+) -> list[list[np.ndarray]]:
     """Resample real presentation timestamps, including browser variable-frame-rate clips."""
     import cv2
 
@@ -246,7 +248,12 @@ def _read_windows(video: Path, starts: list[int], finder: FaceFinder) -> list[li
         targets = sorted(
             {position for start in starts for position in range(start, start + SYNCNET_FRAMES)}
         )
-        if not targets or targets[0] < 0 or targets[-1] / SYNCNET_FPS > MAX_VIDEO_SECONDS:
+        if (
+            not math.isfinite(audio_offset_s)
+            or not targets
+            or targets[0] / SYNCNET_FPS + audio_offset_s < 0
+            or targets[-1] / SYNCNET_FPS + audio_offset_s > MAX_VIDEO_SECONDS
+        ):
             raise SyncNetError("Invalid video bounds", ErrorCode.E_DECODE)
         selected, cropped = {}, {}
         cursor = 0
@@ -254,7 +261,10 @@ def _read_windows(video: Path, starts: list[int], finder: FaceFinder) -> list[li
 
         def remember(position: int, candidate: tuple[float, np.ndarray, int]) -> None:
             timestamp, image, index = candidate
-            if abs(timestamp - position / SYNCNET_FPS) > MAX_RESAMPLE_ERROR_SECONDS + 1e-6:
+            if (
+                abs(timestamp - (position / SYNCNET_FPS + audio_offset_s))
+                > MAX_RESAMPLE_ERROR_SECONDS + 1e-6
+            ):
                 raise SyncNetError(
                     "Video timestamp gap is too large", ErrorCode.E_LOW_QUALITY, "degraded"
                 )
@@ -286,8 +296,11 @@ def _read_windows(video: Path, starts: list[int], finder: FaceFinder) -> list[li
             if timestamp > MAX_VIDEO_SECONDS:
                 raise SyncNetError("Video timestamp exceeds limit", ErrorCode.E_DECODE)
             current = (timestamp, image, index)
-            while cursor < len(targets) and targets[cursor] / SYNCNET_FPS <= timestamp:
-                target_s = targets[cursor] / SYNCNET_FPS
+            while (
+                cursor < len(targets)
+                and targets[cursor] / SYNCNET_FPS + audio_offset_s <= timestamp
+            ):
+                target_s = targets[cursor] / SYNCNET_FPS + audio_offset_s
                 candidate = current
                 if previous is not None and abs(target_s - previous[0]) <= abs(
                     timestamp - target_s
@@ -513,7 +526,14 @@ class SyncNetDetector:
                     ),
                 ]
                 starts = _window_starts(alignment)
-                crops = _read_windows(inp.video, starts, self._finder)
+                offset = inp.metadata.get("audio_offset_ms", 0)
+                if type(offset) is not int or not -30000 <= offset <= 30000:
+                    raise SyncNetError("Invalid audio origin", ErrorCode.E_LOW_QUALITY, "degraded")
+                crops = (
+                    _read_windows(inp.video, starts, self._finder, audio_offset_s=offset / 1000)
+                    if offset
+                    else _read_windows(inp.video, starts, self._finder)
+                )
                 mel = _mel_spectrogram(load_audio(inp.audio))
                 visual = np.stack([self._backend.embed_video(window) for window in crops])
                 audio_embeddings = _audio_offset_embeddings(self._backend, mel, starts)
