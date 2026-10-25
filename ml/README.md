@@ -21,6 +21,10 @@
 
 ## Quy ước bắt buộc
 
+PRES-05 thêm `eval.presence_lab`: một lượt ánh sáng → mắt → quay đầu, cùng
+camera/reader/đồng hồ, giữ các số đo độc lập và chỉ chấm ba ảnh khi motion đủ.
+Không kết luận xác minh/API; xem [hướng dẫn](../docs/architecture/presence-lab.md).
+
 VOICE-13 thêm `Nes2NetTimelineDetector` opt-in: lab micro/A/V chấm các đoạn phủ
 hết bản thu, giữ raw margin từng đoạn, thống kê hợp các khoảng đã đo, không
 gộp thành điểm toàn câu. CLI bật bằng `--whole-utterance`, mặc định first4s cũ

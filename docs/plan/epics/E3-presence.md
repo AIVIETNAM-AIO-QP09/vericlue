@@ -138,3 +138,30 @@ thiết bị/tấn công; không đánh dấu xong tiêu chí cổng bằng smok
 - [ ] Video phát lại trên `data/selftest/` bị xóa sau khi xong.
 
 **Quyết định trưởng nhóm 17/10:** không tổ chức chạy thử với thành viên nhóm (không thu dữ liệu người thật). R5 bỏ, hoặc thay bằng đánh giá trên dữ liệu tổng hợp (DATA-04) nếu kịp — ghi rõ là dữ liệu tổng hợp.
+
+---
+
+### PRES-05 · Lượt thử mặt liên tục trong lab nội bộ
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M3 | 1 | S2 | P0 | PLAT-03 |
+
+**Mục tiêu:** tiếp tục tính năng ngày 25/10: gộp các thành phần diagnostic đã
+có của PRES-02/LIVE-02/FLOW-04 vào một lượt thử ánh sáng → mắt → quay đầu,
+không đợi nghiệm thu cổng/accuracy của những thẻ đó và không đổi UI sản phẩm.
+
+**Tiêu chí kỹ thuật:**
+- [x] Một nút bắt đầu, một camera/reader, lịch và đồng hồ chung; không mở
+      thiết bị khi khởi động. Giữ nguyên palette/nhịp màu và thời lượng mắt/đầu.
+- [x] Hướng dẫn ba bước, đếm ngược theo lịch thực; thu số đo màu/mắt/đầu
+      từ cùng frame, lấy ba ảnh ở đúng vị trí của lịch đã dịch.
+- [x] Báo cáo các kết quả riêng gắn cùng mã lượt; lỗi một phần vẫn thấy
+      phần khác, không tạo kết luận xác minh/giả mạo chung.
+- [x] Dừng/Esc/đóng/mất tiêu điểm/hide hủy lượt, bỏ kết quả cũ, giới hạn và
+      dọn pixel RAM; không chồng lượt hoặc chấm ảnh khi motion thiếu/lỗi.
+- [x] Test tổng hợp/lifecycle, smoke reader không thiết bị, QA cửa sổ,
+      tài liệu/bàn giao/lint/plan_check. Không đổi API/hợp đồng/ngưỡng/ADR.
+
+Phạm vi này chỉ điều phối công cụ thử local. Không chứng minh màu phản chiếu,
+chiều sâu, danh tính, chống phát lại hoặc tính đúng của camera timestamp.

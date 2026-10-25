@@ -57,6 +57,7 @@
 | PRES-02 | ChromaPulse: video/webcam diagnostic; chờ kiểm chứng cổng | M3 | Codex | 2 | S1 | P0 | PRES-01, PLAT-03 | doing |
 | PRES-03 | camprobe.py | M3 | | 0,5 | S1 | P0 | CAP-05, PLAT-03 | todo |
 | PRES-04 | Chạy thử của nhóm, chỉnh ngưỡng (R5) | M1 (+M3) | | 1 | S2 | P0 | PRES-02, PRES-03, CAP-06, REDT-01 | todo |
+| PRES-05 | Lượt thử mặt local liên tục: màu, mắt, quay đầu | M3 | Codex | 1 | S2 | P0 | PLAT-03 | review |
 
 ## E4 — Khuôn mặt · `epics/E4-face.md`
 
@@ -84,7 +85,7 @@
 | VOICE-10 | Ghép NES2Net vào công cụ micro qua worker RAM riêng | M4 | Codex | 1 | S2 | P0 | VOICE-08, VOICE-09 | done |
 | VOICE-11 | Nhịp đọc/CTC trong lab micro, mốc âm tiết RAM và CLI | M4 | Codex | 1 | S2 | P0 | VOICE-10 | done |
 | VOICE-12 | Lab thu A/V một nguồn và khớp môi SyncNet trong RAM | M4 | Codex | 1,5 | S2 | P0 | VOICE-11 | done |
-| VOICE-13 | NES2Net theo đoạn phủ toàn bản thu trong lab | M4 | Codex | 1 | S2 | P0 | VOICE-12 | review |
+| VOICE-13 | NES2Net theo đoạn phủ toàn bản thu trong lab | M4 | Codex | 1 | S2 | P0 | VOICE-12 | done |
 
 ## E6 — TrustRouter · `epics/E6-router.md`
 
