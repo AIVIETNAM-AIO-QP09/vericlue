@@ -79,4 +79,12 @@ Quang đã duyệt phần app tự làm được: gộp điều khoản và đ�
 | 29 | **Đọc câu chỉ khi server yêu cầu (cả khi đăng ký)** | Từ #49 (FLOW-01), phiên `onboarding`/`recovery` luôn có câu đọc (`session_flow.py`), khớp ADR-0016. Câu 5 và 26 trước đó chốt ngược lại | Vẫn mở. Nếu chốt "chỉ khi cần" thì server đổi luồng `onboarding` và ADR-0016 phải sửa; app chỉ đổi vài dòng. Tạm giữ như #49: đăng ký luôn đọc câu | |
 | 30 | **Màn xác nhận thông tin dời ra sau phần khuôn mặt** | Người dùng làm phần mặt liền sau phần CCCD; thông tin chỉ đọc lại một lần trước khi gửi | **Đã đổi 25/10 (Quang chốt):** app giữ video trên máy, người dùng bấm "Thông tin đúng" xong mới gửi media → signals → `finalize`. Không gửi video song song nữa, vì server nhánh `feat/FLOW-05-identity-lab` (runbook `docs/runbooks/identity-integration.md`) trả 409 `step_not_allowed` cho `id-card/confirm` và cho ảnh CCCD mới khi phiên đã nhận media. Quá 120 giây (thử thách màu hết hạn) thì app cho làm lại riêng phần mặt với thử thách mới (đã thử trên máy ảo 25/10). Báo để người làm FLOW-03/FLOW-05 biết thứ tự mới | |
 
+## I. Khi chạy thử identity lab (FLOW-05), 25/10
+
+| # | Câu hỏi | Vì sao cần | Đề xuất | Trả lời |
+|---|---|---|---|---|
+| 31 | **Không tải được LVFace-B bằng `scripts/download_models.py`** | Script dừng ở `lvface-b`: chuỗi `license` ("nghiên cứu phi thương mại (trọng số); MIT (code)") không nằm trong danh sách DATA-02 cho phép, dù `license_status: accepted-research`. Thiếu model thì `face_match` báo lỗi, mọi ca đăng ký có identity lab đều ra chờ duyệt. Script cũng tự viết lại định dạng `models/manifest.yaml` mỗi lần chạy | M3 (chủ mục `lvface-b`) sửa chuỗi `license` cho khớp danh sách, hoặc thêm chuỗi này vào danh sách nếu nhóm đã chấp nhận dùng cho nghiên cứu; sửa luôn việc script ghi đè manifest. App không tải tay để lách | |
+| 32 | **Luồng khôi phục có chụp CCCD không** | App Android (`FlowRules.afterOtp`) cho khôi phục chụp CCCD; `apps/ios/docs/plan-ios.md` ghi khôi phục bỏ bước CCCD; runbook FLOW-05 áp cầu nối CCCD–selfie cho cả `recovery` | Giữ chụp CCCD khi khôi phục (khớp runbook FLOW-05) và sửa `plan-ios.md` cho khớp | |
+| 33 | **Bật "Squash and merge" cho repo** | Lịch sử `main` rối vì mỗi PR để lại commit gộp lẫn các commit con, cộng nhiều lần gộp `main` ngược vào nhánh | Trưởng nhóm đặt GitHub → Settings → General → Pull Requests: chỉ cho "Squash and merge"; nhánh cập nhật bằng rebase, xóa nhánh sau khi merge | |
+
 Chi tiết kỹ thuật: [`plan-camera-mic.md`](plan-camera-mic.md) (mục 9 và 11), [`../README.md`](../README.md).
