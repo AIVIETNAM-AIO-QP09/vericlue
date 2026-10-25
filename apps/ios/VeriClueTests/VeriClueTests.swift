@@ -94,6 +94,8 @@ struct VeriClueTests {
             .compactMap { $0 as? URL }
             .filter { $0.pathExtension == "swift" } ?? []
 
+        #expect(!files.isEmpty, "Không tìm thấy source để kiểm tra chữ cấm")
+
         for file in files {
             let source = try String(contentsOf: file, encoding: .utf8)
             let range = NSRange(source.startIndex..., in: source)

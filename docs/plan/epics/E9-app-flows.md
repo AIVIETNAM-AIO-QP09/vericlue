@@ -293,7 +293,7 @@ Kế hoạch chi tiết từng bước: [`apps/ios/docs/plan-ios.md`](../../../a
 - Port test `LiveFlowTest`, `LiveFlowRetryTest`, `LiveFlowStageATest`, `FlowRulesTest`; giải mã các ví dụ trong `packages/contracts/examples`.
 
 **Tiêu chí hoàn thành:**
-- [ ] `xcodebuild test` xanh, không test nào gọi mạng thật.
+- [x] `xcodebuild test` xanh, không test nào gọi mạng thật.
 
 ---
 
