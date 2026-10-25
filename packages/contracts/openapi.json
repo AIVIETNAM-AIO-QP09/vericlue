@@ -115,6 +115,19 @@
             "title": "Image",
             "type": "string"
           },
+          "media_signature": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SEC-02: chữ ký DER ECDSA P-256/SHA-256 base64 của manifest media",
+            "title": "Media Signature"
+          },
           "video": {
             "anyOf": [
               {
@@ -156,6 +169,19 @@
             ],
             "description": "Thời điểm WAV bắt đầu, tính bằng ms từ khung hình đầu của video (dương = WAV bắt đầu sau). Dùng để căn khớp môi; chỉ có khi gửi video.",
             "title": "Audio Offset Ms"
+          },
+          "media_signature": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SEC-02: chữ ký manifest gồm audio/video và audio_offset_ms",
+            "title": "Media Signature"
           },
           "video": {
             "anyOf": [
@@ -316,6 +342,18 @@
               }
             ],
             "title": "Expires At"
+          },
+          "media_nonce": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Media Nonce"
           }
         },
         "required": [
@@ -380,6 +418,18 @@
       "CreateSessionRequest": {
         "additionalProperties": false,
         "properties": {
+          "device_public_key_spki": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Public Key Spki"
+          },
           "nonce": {
             "pattern": "^[A-Za-z0-9_-]{16,128}$",
             "title": "Nonce",

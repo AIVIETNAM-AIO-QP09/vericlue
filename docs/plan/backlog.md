@@ -133,7 +133,7 @@
 | FLOW-04 | Quay đầu, chọn khung RAM, GenD và FS-VFM-L PAD — diagnostic | M1 (+M3) | Codex | 1 | S1 | P0 | CAP-06 | doing |
 | FLOW-05 | LVFace-B CCCD–khung video chính diện; mắt/quay đầu API opt-in | M3 | Codex | 1 | S1 | P0 | FLOW-03, FACE-01 | doing |
 | SEC-01 | Khóa theo phiên, che dữ liệu, nhật ký truy cập | M2 | Codex | 1,5 | S1 | P0 | REV-01, PLAT-05 | review |
-| SEC-02 ★ | Khóa thiết bị, ký media, nonce một lần | M2 (+M1) | | 1 | S2 | P0 | APP-01, PLAT-06 | todo |
+| SEC-02 ★ | Khóa thiết bị, ký media, nonce một lần | M2 (+M1) | Codex | 1 | S2 | P0 | APP-01, PLAT-06 | doing |
 | APP-01 ★ | App Kotlin: khung, API qua HTTPS, điều hướng 3 luồng | M1 | Ngọc Quang+Claude | 1,5 | S1 | P0 | PLAT-04 | doing |
 | APP-02 ★ | App: chụp mặt, quay 3 s, quay đầu ngẫu nhiên | M1 | Ngọc Quang+Claude | 2 | S1–S2 | P0 | APP-01 | doing |
 | APP-03 | App: ghi âm đọc câu (WAV 16 kHz) | M1 | Ngọc Quang+Claude | 1 | S2 | P0 | APP-01 | doing |

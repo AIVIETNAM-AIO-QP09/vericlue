@@ -5,6 +5,10 @@
 
 ## Trách nhiệm
 
+SEC-02 có chữ ký media mặt/giọng theo phiên, nonce dùng một lần và client Android
+opt-in: [`media-proof.md`](../../docs/architecture/media-proof.md). Cần migration
+0004; chưa đăng ký khóa tài khoản hoặc mở luồng reauth thật.
+
 SEC-01 opt-in mã hóa snapshot/media phiên, hủy khóa theo TTL, che/mở thông tin và
 credential/nhật ký truy cập nhân viên: [`session-privacy.md`](../../docs/architecture/session-privacy.md).
 Cần migration 0003 và cấu hình khóa riêng; không tự chuyển dữ liệu demo cũ.

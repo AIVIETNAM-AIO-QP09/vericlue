@@ -67,6 +67,11 @@
         },
         "dynamic": {
           "$ref": "#/$defs/DynamicChallenge"
+        },
+        "media_nonce": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "SEC-02: seed ngẫu nhiên của server cho chữ ký media. Chỉ có khi phiên ràng buộc public key; nonce từng lần gửi suy ra theo stage/attempt."
         }
       }
     },
@@ -531,6 +536,11 @@
       ],
       "additionalProperties": false,
       "properties": {
+        "device_public_key_spki": {
+          "type": ["string", "null"],
+          "maxLength": 256,
+          "description": "SEC-02 opt-in: base64 chuẩn DER SubjectPublicKeyInfo EC P-256. Ràng buộc khóa cho cả phiên, chưa phải thiết bị đã ghi danh."
+        },
         "purpose": {
           "$ref": "#/$defs/SessionPurpose"
         },

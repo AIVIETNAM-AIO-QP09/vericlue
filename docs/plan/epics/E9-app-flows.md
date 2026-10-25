@@ -204,6 +204,14 @@ UI nhân viên, backup/KMS/crash cleanup hay vận hành production; không ch�
 **Tiêu chí hoàn thành:**
 - [ ] Test: dùng lại nonce, chữ ký sai, media bị đổi sau khi ký.
 
+**Cập nhật 25/10 (Codex, doing):** Đã có ràng buộc public key P-256 theo phiên,
+nonce server theo stage/lượt, ký hash byte/format/offset ở Android LiveFlow và
+kiểm trước lưu file, claim nullifier bằng PK DB (migration 0004). Test giả lập
+khóa thật: sửa byte, sai khóa/phiên/suffix/offset, replay, refresh/retry; mẫu
+canonical/signature chung Python–Kotlin. Cờ mặc định tắt, không sửa UI.
+Chưa ghi danh khóa với tài khoản, L0 reauth/thu hồi thiết bị hoặc nghiệm thu
+Keystore phần cứng; không cấp `device_verified` cho khóa tự khai. Xem `media-proof.md`.
+
 ---
 
 ### APP-01 ★ · App Kotlin: khung, API qua HTTPS, điều hướng 3 luồng

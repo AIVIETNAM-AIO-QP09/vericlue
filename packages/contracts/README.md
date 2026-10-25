@@ -14,6 +14,12 @@
 
 ## Quy tắc
 
+SEC-02 thêm tùy chọn `CreateSessionRequest.device_public_key_spki`,
+`Challenge.media_nonce` và multipart `media_signature` ở mặt/giọng. Phiên đã
+ràng buộc public key bắt buộc ký cả hai bước. Định dạng ký và mẫu đối chiếu
+Python/Kotlin: [`media-proof.md`](../../docs/architecture/media-proof.md),
+`test-vectors/media-proof-v1.json`. Không cấp `device_verified` từ public key tự gửi.
+
 SEC-01 thêm `ReviewIdentity` và hai endpoint review xem che/mở đầy đủ. Khi bật
 `SESSION_PRIVACY`, dùng `StaffBearer` độc lập với token người dân; chỉ xem đầy đủ
 qua thao tác reveal có nhật ký. Không thêm PII/điểm vào `ReviewCase` hay phản hồi

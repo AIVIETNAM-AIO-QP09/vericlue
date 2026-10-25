@@ -68,6 +68,7 @@ class Settings(BaseSettings):
     session_master_key: SecretStr | None = None
     # Demo staff credentials: JSON object {random_token: actor_id}. No client actor header.
     staff_access_tokens: SecretStr | None = None
+    require_media_proof: bool = False
 
     @field_validator("use_mock_models", mode="before")
     @classmethod

@@ -41,6 +41,17 @@ class SessionKeyRow(Base):
     destroyed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class MediaProofUseRow(Base):
+    __tablename__ = "media_proof_uses"
+    nonce_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    session_id: Mapped[str] = mapped_column(String(80), index=True)
+    attempt_id: Mapped[str] = mapped_column(String(80))
+    stage: Mapped[str] = mapped_column(String(10))
+    manifest_sha256: Mapped[str] = mapped_column(String(64))
+    key_fingerprint: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class AccessEventRow(Base):
     __tablename__ = "access_events"
     __table_args__ = (Index("uq_access_events_scope_prev", "scope", "prev_hash", unique=True),)

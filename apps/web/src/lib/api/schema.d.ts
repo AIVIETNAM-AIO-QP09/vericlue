@@ -486,6 +486,11 @@ export interface components {
              */
             image: string;
             /**
+             * Media Signature
+             * @description SEC-02: chữ ký DER ECDSA P-256/SHA-256 base64 của manifest media
+             */
+            media_signature?: string | null;
+            /**
              * Video
              * @description Đoạn video lúc phát màu
              */
@@ -503,6 +508,11 @@ export interface components {
              * @description Thời điểm WAV bắt đầu, tính bằng ms từ khung hình đầu của video (dương = WAV bắt đầu sau). Dùng để căn khớp môi; chỉ có khi gửi video.
              */
             audio_offset_ms?: number | null;
+            /**
+             * Media Signature
+             * @description SEC-02: chữ ký manifest gồm audio/video và audio_offset_ms
+             */
+            media_signature?: string | null;
             /**
              * Video
              * @description Video lúc đọc câu
@@ -545,6 +555,8 @@ export interface components {
             dynamic?: components["schemas"]["DynamicChallenge"] | null;
             /** Expires At */
             expires_at?: string | null;
+            /** Media Nonce */
+            media_nonce?: string | null;
         };
         /** ChallengeResponse */
         ChallengeResponse: {
@@ -576,6 +588,8 @@ export interface components {
         };
         /** CreateSessionRequest */
         CreateSessionRequest: {
+            /** Device Public Key Spki */
+            device_public_key_spki?: string | null;
             /** Nonce */
             nonce: string;
             /**
