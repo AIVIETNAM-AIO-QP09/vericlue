@@ -1,5 +1,29 @@
 # VOICE-04 — kiểm câu đọc
 
+VOICE-13 thêm `Nes2NetTimelineDetector` và factory/mock riêng: các cửa sổ 4 giây
+phủ hết bản thu, điểm từng đoạn và độ phủ, không gộp xác suất/đạt. Lab micro/A/V
+dùng mode này; CLI first4s vẫn là mặc định. Xem
+[hướng dẫn toàn bản thu](../../../../docs/architecture/nes2net-timeline-lab.md).
+
+VOICE-12 cung cấp `RamLipSyncDetector` opt-in và `eval.av_lab`: khớp môi trên
+cùng nguồn hình/tiếng, raw offset/cosine luôn unclear; không thay SyncNet của API.
+Xem [lab A/V](../../../../docs/architecture/av-lipsync-lab.md).
+
+VOICE-11 thêm `ReadingTimingDetector` opt-in và `--with-reading-timing` trong
+Voice Lab: tái dùng CTC, căn câu đề bài bằng PCM RAM, trả mốc âm tiết/khoảng ngắt
+ở tab riêng. Không dùng mốc ép căn thay bằng chứng đọc đúng. Xem
+[hướng dẫn nhịp đọc](../../../../docs/architecture/reading-timing-lab.md).
+
+VOICE-09 thêm diagnostic giọng giả NES2Net-X trong runtime CPU riêng, không
+thay default AntiDeepfake/API. Luôn degraded/unclear, chỉ chấm 4 giây đầu;
+xem [NES2Net diagnostic](../../../../docs/architecture/nes2net-diagnostic.md).
+
+VOICE-07 có lựa chọn Qwen3-ASR-0.6B HF-native trong runtime CPU riêng, factory
+opt-in và CLI cho file audio. Giữ nguyên lựa chọn PhoWhisper/API bên dưới.
+Xem [Qwen ASR diagnostic](../../../../docs/architecture/qwen-asr-diagnostic.md).
+VOICE-08 bổ sung cửa sổ thử microphone `eval.voice_lab`: RAM-only, nút thu/dừng/hủy,
+cùng VAD/ASR/luật khớp; không nạp Qwen vào runtime mặt hoặc thay lựa chọn API.
+
 `VoiceChallengeDetector.predict(DetectorInput)` đọc `audio` và câu phía server ở
 `metadata["prompt"]`. Trả `ModuleResult(module="voice_challenge")`:
 

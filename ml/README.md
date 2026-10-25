@@ -21,6 +21,48 @@
 
 ## Quy ước bắt buộc
 
+PRES-05 thêm `eval.presence_lab`: một lượt ánh sáng → mắt → quay đầu, cùng
+camera/reader/đồng hồ, giữ các số đo độc lập và chỉ chấm ba ảnh khi motion đủ.
+Không kết luận xác minh/API; xem [hướng dẫn](../docs/architecture/presence-lab.md).
+
+VOICE-13 thêm `Nes2NetTimelineDetector` opt-in: lab micro/A/V chấm các đoạn phủ
+hết bản thu, giữ raw margin từng đoạn, thống kê hợp các khoảng đã đo, không
+gộp thành điểm toàn câu. CLI bật bằng `--whole-utterance`, mặc định first4s cũ
+vẫn giữ. Không đổi API/ngưỡng; xem [hướng dẫn](../docs/architecture/nes2net-timeline-lab.md).
+
+VOICE-12 thêm `eval.av_lab` (Windows): một nguồn thu camera+micro, preview và
+tab Khớp môi; cùng audio cho Qwen/NES2Net/CTC/SyncNet. Media chỉ trong RAM,
+raw lipsync luôn unclear; runtime CPU riêng, không thay UI/API sản phẩm. Xem
+[`av-lipsync-lab.md`](../docs/architecture/av-lipsync-lab.md).
+
+VOICE-11 thêm `--with-reading-timing` vào Voice Lab và CLI `eval.reading_timing`:
+căn câu bằng CTC hiện có, mốc âm tiết/khoảng ngắt trong tab riêng, cùng audio RAM.
+Chưa xác minh cắt ghép/độ chính xác; không thay ASR/API. Xem
+[`reading-timing-lab.md`](../docs/architecture/reading-timing-lab.md).
+
+VOICE-10 ghép tùy chọn `--nes2net-python` vào Voice Lab: một bản thu RAM,
+hai tab kết quả Qwen/NES2Net riêng. Worker giữ model trong runtime CPU riêng,
+có timeout/hủy/đóng, chưa đưa điểm vào quyết định eKYC. Xem
+[`qwen-asr-diagnostic.md`](../docs/architecture/qwen-asr-diagnostic.md).
+
+VOICE-09 thêm NES2Net-X CPU diagnostic opt-in cho `voice_spoof`, checkpoint đầy
+đủ XLS-R/head. Chỉ chấm 4 giây đầu, luôn degraded/unclear, chưa parity frontend
+hoặc calibration tiếng Việt; không thay backend API. Xem
+[`nes2net-diagnostic.md`](../docs/architecture/nes2net-diagnostic.md).
+
+VOICE-07 thêm backend Qwen3-ASR-0.6B để kiểm nội dung câu đọc qua factory/CLI
+diagnostic riêng. Cần runtime Transformers 5.13.0, không cài chung runtime mặt.
+Chưa thay PhoWhisper/API và chưa đánh giá accuracy tiếng Việt; xem
+[`qwen-asr-diagnostic.md`](../docs/architecture/qwen-asr-diagnostic.md).
+VOICE-08 thêm `python -m vericlue_ml.eval.voice_lab` trong runtime Qwen riêng:
+bấm thu micro → dừng/kiểm câu, audio trong RAM, hủy được và không chồng lượt.
+Chỉ là công cụ nội bộ cho nhóm, chưa phải kiểm giọng AI hoặc luồng eKYC.
+
+PRES-02 đã thêm diagnostic đo màu 5 vùng da + nền, dùng chung task MediaPipe
+với mắt/quay đầu. Chưa hiệu chỉnh, luôn unclear và chưa đổi module ChromaPulse
+trong full/MVP. Lệnh chạy, ý nghĩa R²/lag và giới hạn đồng hồ:
+[`chromapulse-diagnostic.md`](../docs/architecture/chromapulse-diagnostic.md).
+
 LIVE-02 đã có `gaze_tracking` và reader MediaPipe dùng chung cho dữ liệu mắt/tư
 thế đầu. Đây là diagnostic riêng, chưa nằm trong profile full/MVP hoặc quyết định
 API. Chạy bằng môi trường riêng để giữ dependency CUDA/OpenCV hiện có; xem
@@ -42,6 +84,11 @@ Lệnh chạy, định dạng artifact và giới hạn:
 `--with-gaze` ghép thêm kiểm mắt bằng cùng reader MediaPipe: mắt và quay đầu
 phải đạt trước khi chấm ba khung. Môi trường CPU dùng chung và lệnh kiểm
 checkpoint tổng hợp: [`face-diagnostic-runtime.md`](../docs/architecture/face-diagnostic-runtime.md).
+Thử trực tiếp webcam bằng cửa sổ nội bộ `python -m vericlue_ml.eval.webcam_lab`:
+[`webcam-lab.md`](../docs/architecture/webcam-lab.md). Chỉ mở camera sau nút bấm,
+không lưu ảnh/video và không thay UI sản phẩm.
+Có nút **Thử ánh sáng · 6–8 giây**: dùng cùng task MediaPipe để đo màu trong
+RAM, báo R²/lag biểu kiến với version đồng hồ host riêng, luôn unclear.
 
 1. Mọi bộ phát hiện kế thừa giao diện `Detector` và trả `ModuleResult` (`docs/architecture/architecture.md` §3).
 2. Mọi bộ phát hiện **phải có bản mock** cùng tên trong `mock/`.

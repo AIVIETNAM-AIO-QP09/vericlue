@@ -1,0 +1,12 @@
+# Separate Python 3.12 runtime; uv pip install --torch-backend cpu -r this-file.
+# Direct dependency pins; no Fairseq, no unsafe pickle loading or Qwen upgrades.
+torch==2.14.1+cpu
+transformers==4.57.6
+numpy==2.5.4
+scipy==1.18.1
+scikit-learn==1.9.1
+pydantic==2.14.1
+pyyaml==6.0.3
+soundfile==0.14.0
+webrtcvad-wheels==2.0.14.post1
+pytest==9.1.1

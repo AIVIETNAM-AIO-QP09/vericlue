@@ -69,6 +69,13 @@ class FlowRulesTest {
     }
 
     @Test
+    fun missingIdentityFieldsAreExplainedOtherErrorsAreNot() {
+        assertTrue(FlowRules.confirmErrorText("identity_incomplete")!!.contains("số CCCD"))
+        assertEquals(null, FlowRules.confirmErrorText("step_not_allowed"))
+        assertEquals(null, FlowRules.confirmErrorText(null))
+    }
+
+    @Test
     fun otpCodeIsReadFromTheSmsText() {
         assertEquals("482910", OtpRules.codeIn("Mã xác nhận VeriClue của bạn là 482910. Không chia sẻ mã này."))
         assertEquals("000123", OtpRules.codeIn("<#> 000123 là mã của bạn"))

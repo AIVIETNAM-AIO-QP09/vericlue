@@ -1,0 +1,27 @@
+# VOICE-09: standalone diagnostic; no calibrated probability or HTTP selection.
+revision: c9fe1177f44040f002cb40def928332d2e261f1e
+model_subdir: nes2net-x-xlsr
+checkpoint: checkpoint.pth
+sha256: 3158d10c6fc3c58e452a33981b409f5a65ecf91d548931b4ffbd675462799685
+cpu_threads: 4
+# XLS-R-300M graph: official facebook/wav2vec2-xls-r-300m config;
+# cross-checked against metadata in xlsr2_300m.pt (no pickle execution).
+backbone:
+  hidden_size: 1024
+  num_hidden_layers: 24
+  num_attention_heads: 16
+  intermediate_size: 4096
+  do_stable_layer_norm: true
+  feat_extract_norm: layer
+  conv_bias: true
+  conv_dim: [512, 512, 512, 512, 512, 512, 512]
+  conv_kernel: [10, 3, 3, 3, 3, 2, 2]
+  conv_stride: [5, 2, 2, 2, 2, 2, 2]
+  num_conv_pos_embeddings: 128
+  num_conv_pos_embedding_groups: 16
+  hidden_act: gelu
+  feat_extract_activation: gelu
+  layer_norm_eps: 0.00001
+  mask_time_prob: 0.075
+  mask_feature_prob: 0.0
+  apply_spec_augment: false

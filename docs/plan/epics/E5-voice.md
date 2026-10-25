@@ -166,3 +166,177 @@ vẫn `doing`: chưa nghiệm thu tiêu chí DATA-04/độ chính xác ở trên
 - [ ] Phiên đầu–cuối với giọng thật → pass.
 - [ ] Phiên với giọng clone → review.
 - [ ] Chạy < 2 giây trên GPU.
+
+---
+
+### VOICE-07 · Qwen3-ASR: backend kiểm câu đọc — diagnostic riêng
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M4 | 1 | S2 | P0 | PLAT-03, VOICE-04 |
+
+**Mục tiêu:** dùng checkpoint Qwen3-ASR-0.6B-hf đã chọn/tải để nhận dạng và
+đối chiếu câu, không đổi runtime mặt hoặc thay backend PhoWhisper đã nghiệm thu.
+Task mở rộng theo yêu cầu tiếp tục triển khai ngày 24/10; không mở lại các số
+liệu VOICE-04 và không coi benchmark cũ là nghiệm thu Qwen.
+
+**Đầu ra:** `voice/qwen_asr.py`, config hash, factory/mock, CLI
+`eval/qwen_voice.py`, runtime CPU pin riêng và hướng dẫn chạy local.
+
+**Tiêu chí review phần kỹ thuật:**
+- [x] Kiểm file/runtime, tải offline một lần, CPU, serialize inference, không remote code.
+- [x] Audio có giới hạn; VAD; không đưa đề bài vào model; budget/EOS fail-closed.
+- [x] `ModuleResult` và mock; giữ luật so khớp hiện có, không thay ngưỡng/API.
+- [x] CLI xuất metadata/hash/nguồn câu, chặn đổi file và ghi đè input/model.
+- [x] Unit/hồi quy qua; checkpoint thật chạy generation tổng hợp và chặn im lặng.
+- [x] Tài liệu/bàn giao/backlog/lint/plan_check đầy đủ.
+
+**Ngoài nghiệm thu kỹ thuật này:** độ chính xác tiếng Việt, công bằng miền,
+đánh giá trên người, so sánh PhoWhisper, tối ưu GPU/ONNX/INT8 và nối API cần
+đánh giá riêng trước khi sử dụng. Không tuyên bố đã phát hiện giọng AI/khớp môi.
+
+---
+
+### VOICE-08 · Thử câu đọc bằng microphone trên laptop
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M4 | 0,5 | S2 | P0 | VOICE-07 |
+
+**Mục tiêu:** sau khi VOICE-07 được merge, cho nhóm tự thu và đối chiếu câu
+trực tiếp trong công cụ nội bộ; dùng runtime Qwen riêng, không sửa UI sản phẩm.
+
+**Tiêu chí hoàn thành:**
+- [x] Micro chỉ mở theo nút bấm; dừng/hủy/đóng cửa sổ giải phóng stream, giới hạn 20 giây.
+- [x] Audio trong RAM, VAD/ASR và luật khớp dùng chung backend; lỗi/overflow không đạt.
+- [x] UI không bị khóa khi nạp/suy luận; không chồng lượt, bỏ kết quả đã hủy.
+- [x] Hiện transcript/chỉ số đúng nghĩa; JSON tùy chọn có commit/model/hash/runtime/số mẫu.
+- [x] Test không dùng micro/model; QA cửa sổ tổng hợp, lint/plan_check và bàn giao.
+
+Không nghiệm thu accuracy trên người, phát hiện giọng AI, nhịp đọc, khớp môi
+hay quyết định eKYC. Câu local không phải thử thách được server xác thực.
+
+---
+
+### VOICE-09 · NES2Net-X: diagnostic phát hiện giọng AI
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M4 | 1 | S2 | P0 | PLAT-03 |
+
+**Mục tiêu:** dùng checkpoint NES2Net-X đã chọn/tải để có backend raw chạy offline
+trên CPU và CLI kiểm file. Phần mở rộng sau khi VOICE-08 merge; không thay nhiệm
+vụ VOICE-01/03 hoặc kết quả benchmark AntiDeepfake.
+
+**Tiêu chí kỹ thuật:**
+- [x] Kiểm SHA trước/sau nạp, tensor-only weights_only, tải một lần, khóa inference.
+- [x] Mapping đủ frontend/head; dùng lại head Apache-2.0 có attribution/giấy phép.
+- [x] Tiền xử lý theo demo upstream: mono 16 kHz raw, lặp/cắt 64000 mẫu đầu;
+      quality gate riêng không sửa mẫu; ghi rõ phần audio không được chấm.
+- [x] ModuleResult/mock/factory opt-in; luôn degraded/unclear, không prob_attack.
+- [x] CLI xuất provenance, logit/margin và giới hạn; chặn thay input/ghi đè model.
+- [x] Unit không cần model/Torch, native synthetic smoke, tài liệu/bàn giao/lint/plan_check.
+
+**Chưa nghiệm thu:** parity frontend Fairseq ↔ Transformers, EER tiếng Việt,
+calibration, xử lý toàn câu dài hơn 4 giây, ghép GUI/API hoặc quyết định eKYC.
+
+---
+
+### VOICE-10 · Ghép NES2Net vào công cụ thử microphone
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M4 | 1 | S2 | P0 | VOICE-08, VOICE-09 |
+
+**Mục tiêu:** thu một lần để thử nội dung Qwen và raw NES2Net trong công cụ
+nội bộ; giữ runtime hai model riêng và âm thanh trong RAM, không thay UI sản phẩm.
+
+**Tiêu chí kỹ thuật:**
+- [x] Worker NES2Net nạp lười, giữ model giữa các lượt; PCM qua pipe có giới hạn/hash/id,
+      không file audio, mạng, shell hoặc cửa sổ console phụ trên Windows.
+- [x] Có timeout/hủy/đóng worker, bỏ kết quả cũ; lỗi worker không thành pass và
+      không xóa kết quả nội dung đã đo được.
+- [x] UI hiển thị hai kết quả riêng, tiến trình và phạm vi 4 giây đầu rõ ràng;
+      JSON có provenance riêng từng model và hash PCM truyền cho NES2Net.
+- [x] Unit không cần model/micro, smoke IPC thật bằng tín hiệu tổng hợp, QA UI,
+      hồi quy/lint/plan_check/tài liệu/bàn giao.
+
+Không nghiệm thu parity frontend, accuracy tiếng Việt hoặc calibration; điểm
+NES2Net luôn degraded/unclear, không thay HTTP/backend/ngưỡng hoặc quyết định eKYC.
+
+---
+
+### VOICE-11 · Nhịp đọc trong lab microphone
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M4 | 1 | S2 | P0 | VOICE-10 |
+
+**Mục tiêu:** theo yêu cầu ưu tiên tính năng sau PR #64, thêm mốc âm tiết và
+khoảng ngắt vào lượt thu RAM hiện có; dùng lại CTC aligner của VOICE-05.
+
+**Tiêu chí kỹ thuật:**
+- [x] CTC nhận PCM 16 kHz có giới hạn, không trim/ghép âm thanh, căn câu đề bài;
+      không dùng câu ép căn để thay transcript ASR hoặc kết luận đọc đúng.
+- [x] Có thời gian từng âm tiết, khoảng ngắt, tốc độ trong khoảng căn câu và
+      các cờ thời lượng tạm từ VOICE-05; ModuleResult luôn unclear, không xác suất.
+- [x] Lab opt-in có tab nhịp đọc, tiến trình riêng, bỏ lượt hủy/không chồng native;
+      lỗi CTC không xóa kết quả Qwen/NES2Net, không lưu waveform.
+- [x] Có mock/factory, CLI file, provenance model/hash/runtime/PCM, hướng dẫn;
+      test logic không dùng model/micro, smoke CTC bằng tín hiệu tổng hợp, lint/QA/bàn giao.
+
+Chưa đánh giá accuracy, công bằng vùng miền, parity frontend hoặc calibration.
+Không thay SyncNet/API/ngưỡng/hợp đồng hay luồng UI sản phẩm; chưa chứng minh cắt ghép.
+
+---
+
+### VOICE-12 · Lab khớp môi với một luồng thu hình và tiếng
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M4 | 1,5 | S2 | P0 | VOICE-11 |
+
+**Mục tiêu:** theo yêu cầu tiếp tục xây tính năng sau PR #66, thử khớp môi trong
+lab nội bộ bằng camera và micro của cùng một nguồn A/V, dùng lại lõi SyncNet.
+
+**Tiêu chí kỹ thuật:**
+- [x] Thu DirectShow bằng một FFmpeg input có hai track, giữ timestamp chung;
+      chọn thiết bị/chỉ thu sau nút bấm, giới hạn thời gian/RAM, dừng/hủy/dọn process.
+- [x] Video nén và PCM trong RAM, không lưu media; kiểm timestamp/tính liên tục;
+      không tự dịch track hoặc suy luận đồng bộ từ hai bản thu riêng.
+- [x] Dùng lại CTC/SCRFD/Stable SyncNet CPU nạp lười/cache; bản RAM có version riêng,
+      ModuleResult/mock/factory, luôn unclear; hiển thị offset/cosine không xác suất.
+- [x] Lab có preview trong lúc thu và kết quả khớp môi riêng, cùng một audio cho
+      Qwen/NES2Net/nhịp đọc; hủy bỏ lượt, lỗi lipsync không xóa các kết quả khác.
+- [x] Test giả lập/CLI và smoke native tổng hợp không mở thiết bị, QA/lint/hồi quy,
+      tài liệu runtime riêng và bàn giao; không thay UI sản phẩm/API/ngưỡng.
+
+Không nghiệm thu timestamp phần cứng/độ chính xác tiếng Việt/khả năng phát hiện
+deepfake, không gán lệch thiết bị thành tấn công; chưa dùng kết quả cho xác minh.
+
+---
+
+### VOICE-13 · NES2Net theo đoạn phủ toàn bản thu
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M4 | 1 | S2 | P0 | VOICE-12 |
+
+**Mục tiêu:** tiếp tục tính năng sau PR #67: bỏ giới hạn chỉ xem 4 giây đầu
+trong lab micro/A/V, dùng lại NES2Net worker/model nạp một lần. Đây là protocol
+diagnostic mới, không gắn số benchmark của recipe 4 giây đầu cho toàn câu.
+
+**Tiêu chí kỹ thuật:**
+- [x] Chia cửa sổ 4 giây có giới hạn, neo cửa sổ cuối ở cuối bản thu; phủ toàn
+      input, không bỏ đuôi ngắn hoặc nối các vùng tiếng; version riêng.
+- [x] Mỗi đoạn có vị trí trên bản thu, logits/margin hoặc trạng thái thiếu tiếng/lỗi;
+      tính độ phủ bằng hợp các đoạn đo được, không cộng trùng vùng chồng lấn.
+- [x] Không gộp điểm thô thành xác suất/đạt; mọi kết quả luôn unclear, lỗi một
+      đoạn không xóa các đoạn khác hoặc giả thành đã chấm.
+- [x] Worker/client kiểm version và timeline gắn đúng hash/số mẫu; timeout/hủy
+      vẫn dọn worker; giữ CLI first4s mặc định, opt-in CLI toàn câu và lab cập nhật.
+- [x] Mock/factory/config, test không thiết bị/trọng số, smoke CPU tổng hợp,
+      hướng dẫn/bàn giao/lint/plan_check; không thay API/ngưỡng/UI sản phẩm.
+
+Đánh giá accuracy/parity/calibration để sau theo yêu cầu người dùng. Độ phủ
+thời gian không phải độ chính xác phát hiện hay bằng chứng toàn bản thu thật.

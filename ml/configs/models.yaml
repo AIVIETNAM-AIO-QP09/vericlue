@@ -22,6 +22,26 @@ gaze:
 # Opt-in offline diagnostic, not the HTTP full/MVP face_pad selection above.
 diagnostic_models:
   face_pad: fs-vfm-vit-l-fas
+  chromapulse: chromapulse-diagnostic@0.1+face-landmarker-f16-1
+  voice_challenge: qwen3-asr-06b-hf
+  voice_spoof: nes2net-x-xlsr
+
+# Optional voice_challenge timing variant; not a replacement for ASR/content checking.
+reading_timing:
+  model_id: ctc-aligner
+  version_suffix: voice11-timing-v1-raw16k
+  source: voice/align.py
+
+ram_lipsync:
+  model_id: syncnet
+  version_suffix: voice12-v1-single-container-mjpeg
+  source: voice/syncnet.py
+
+nes2net_timeline:
+  model_id: nes2net-x-xlsr
+  version_suffix: timeline4s-tail-v1
+  source: voice/nes2net.py
+  aggregation: none
 
 # VOICE-04: VAD has no checkpoint; matching constants live in voice/challenge.py.
 voice:

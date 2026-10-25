@@ -55,6 +55,10 @@ class Session:
     id_fields: dict | None = None
     id_number_hmac: str | None = None
     id_edited: list[str] = field(default_factory=list)  # trường người dùng sửa khác QR
+    id_source: str | None = None
+    id_confirmed_fields: dict | None = None
+    id_confirmed_number_hmac: str | None = None
+    id_confirmed: bool = False
     purpose: SessionPurpose | None = None
     nonce: str | None = None
     reference_image_id: str | None = None

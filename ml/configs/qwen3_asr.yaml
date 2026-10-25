@@ -1,0 +1,13 @@
+# Original HF-native checkpoint, Apache-2.0. No copied model code or remote code.
+repo: Qwen/Qwen3-ASR-0.6B-hf
+revision: 7f1569a48a89f3e3f4dc3a5c9d28bddd903bc76c
+model_subdir: qwen3-asr-06b-hf
+cpu_threads: 4
+sha256:
+  chat_template.jinja: f50e6b694fbf4a683206e37869990d68333fe95d285730f084c838a34b0d98c2
+  config.json: 9eecf6f1b383e343889c2e6010e632590fa57d4bc678e151c7d6a160a0dfb04a
+  generation_config.json: 9939fc9388b79bd70757f938b87381e817173d6a6158f5af6506c0b73e775c3c
+  model.safetensors: d3f212dd20abecd315d830bc54ae3865e56ebfc3276484e57b771288ba27fd35
+  processor_config.json: bc0b230081b44e629dd5b9045b78495615c1831b4b9f4cffe97bd37e82a6156a
+  tokenizer.json: fe1fad59be22a41ee293363fcf95fdedbc7c93f3b49270b1d2e18bd1399a7a05
+  tokenizer_config.json: 945e980986de2ca7768f3326bfdbb4fbea3406f972b8ae0be233089f2b253c11

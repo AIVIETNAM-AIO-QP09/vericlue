@@ -1,0 +1,2 @@
+# Install only into the separate Qwen runtime, after qwen-asr-cpu.txt.
+sounddevice==0.5.6

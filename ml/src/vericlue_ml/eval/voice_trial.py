@@ -1,0 +1,221 @@
+"""One microphone/inference job at a time, independent of Tk and product routes."""
+
+from __future__ import annotations
+
+import hashlib
+import importlib.metadata
+import math
+import queue
+import threading
+from datetime import UTC, datetime
+from typing import Any
+
+import numpy as np
+
+from vericlue_ml.eval.microphone import record_microphone
+from vericlue_ml.eval.report import git_revision
+
+
+class VoiceTrial:
+    """GUI polls bounded events; cancellation discards results and forbids overlap."""
+
+    def __init__(
+        self,
+        detector: Any,
+        *,
+        device: int | None = None,
+        recorder=record_microphone,
+        spoof=None,
+        timing=None,
+        lipsync=None,
+    ):
+        self.detector, self.device, self.recorder = detector, device, recorder
+        self.spoof = spoof
+        self.timing = timing
+        self.lipsync = lipsync
+        self.failure_message = (
+            "Không thể thu hoặc xử lý âm thanh. Kiểm tra micro, quyền truy cập và runtime."
+        )
+        self.events = queue.SimpleQueue()
+        self.stop = threading.Event()
+        self.cancelled = threading.Event()
+        self.active = False
+        self.closed = False
+        self.thread: threading.Thread | None = None
+
+    def start(self, prompt: str) -> bool:
+        """Call only after the user's record action; never start a second job."""
+        if self.active or self.closed:
+            return False
+        self.active = True
+        self.stop.clear()
+        self.cancelled.clear()
+        self.thread = threading.Thread(
+            target=self._work,
+            args=(prompt,),
+            daemon=not getattr(self.recorder, "owns_process", False),
+        )
+        self.thread.start()
+        return True
+
+    def finish(self) -> None:
+        """Stop capture, then check the captured sentence."""
+        self.stop.set()
+
+    def cancel(self) -> None:
+        """Stop capture and discard any in-flight native inference result."""
+        self.cancelled.set()
+        self.stop.set()
+        if self.spoof is not None:
+            self.spoof.cancel()
+
+    def close(self) -> None:
+        """Request release without blocking the UI on OS/model work."""
+        self.closed = True
+        self.cancel()
+        if self.spoof is not None:
+            self.spoof.close()
+
+    def _work(self, prompt: str) -> None:
+        recording = None
+        resampled = None
+        payload = None
+        error = None
+        try:
+            recording = self.recorder(
+                self.stop,
+                device=self.device,
+                started=lambda: self.events.put(("recording", None)),
+            )
+            if self.cancelled.is_set():
+                return
+            self.events.put(("processing", None))
+            result = self.detector.predict_samples(
+                recording.samples, recording.sample_rate, prompt=prompt
+            )
+            if self.cancelled.is_set():
+                return
+            asr = self.detector.asr
+            payload = {
+                "created_at": datetime.now(UTC).isoformat(),
+                "commit": git_revision(),
+                "model_version": self.detector.version,
+                "model_revision": asr.config["revision"],
+                "expected_model_hashes": dict(asr.config.get("sha256", {})),
+                "verified_model_hashes": dict(asr.model_hashes),
+                "model_loaded": asr._model is not None,
+                "dataset": "local_microphone_diagnostic_not_accuracy_evaluation",
+                "sample_count": 1,
+                "prompt_source": "local_random_not_server_authenticated",
+                "expected_text": prompt,
+                "sample_rate": recording.sample_rate,
+                "recorded_seconds": len(recording.samples) / recording.sample_rate,
+                "pcm_float32_sha256": hashlib.sha256(
+                    recording.samples.astype("<f4", copy=False).tobytes()
+                ).hexdigest(),
+                "runtime": {
+                    name: _version(name)
+                    for name in ("transformers", "torch", "numpy", "sounddevice")
+                },
+                "result": result.to_contract(),
+            }
+            if self.spoof is not None and not self.cancelled.is_set():
+                from vericlue_ml.eval.nes2net_client import unavailable
+
+                self.events.put(("spoof_processing", None))
+                try:
+                    resampled = nes2net_samples(recording.samples, recording.sample_rate)
+                    payload["voice_spoof"] = self.spoof.predict_samples(
+                        resampled, cancelled=self.cancelled
+                    )
+                except Exception:
+                    from vericlue_ml.voice.nes2net import VERSION
+
+                    payload["voice_spoof"] = unavailable(
+                        model_version=getattr(self.spoof, "version", VERSION)
+                    )
+                payload["dataset"] = "local_dual_voice_diagnostic_not_accuracy_evaluation"
+                payload["created_at"] = datetime.now(UTC).isoformat()
+            if self.timing is not None and not self.cancelled.is_set():
+                from vericlue_ml.common.result import ModuleResult
+                from vericlue_ml.eval.reading_timing import timing_payload
+                from vericlue_ml.voice.reading_timing import VERSION
+
+                self.events.put(("timing_processing", None))
+                try:
+                    if resampled is None:
+                        resampled = nes2net_samples(recording.samples, recording.sample_rate)
+                    payload["reading_timing"] = timing_payload(self.timing, resampled, prompt)
+                except Exception:
+                    payload["reading_timing"] = {
+                        "result": ModuleResult(
+                            module="voice_challenge",
+                            model_version=VERSION,
+                            status="error",
+                            gate="unclear",
+                            error_code="E_INTERNAL",
+                            latency_ms=0,
+                        ).to_contract()
+                    }
+                payload["dataset"] = "local_voice_lab_diagnostic_not_accuracy_evaluation"
+                payload["created_at"] = datetime.now(UTC).isoformat()
+            if self.lipsync is not None and not self.cancelled.is_set():
+                from vericlue_ml.eval.av_report import lipsync_payload
+
+                self.events.put(("lipsync_processing", None))
+                payload["lipsync"] = lipsync_payload(self.lipsync, recording, prompt)
+                payload["dataset"] = "local_av_lab_diagnostic_not_accuracy_evaluation"
+                payload["created_at"] = datetime.now(UTC).isoformat()
+        except Exception:
+            # No native exception text, paths or device identifiers in the GUI/report.
+            error = self.failure_message
+        finally:
+            if recording is not None:
+                recording.samples.fill(0)
+            if resampled is not None:
+                resampled.fill(0)
+            if recording is not None and callable(getattr(recording, "wipe", None)):
+                recording.wipe()
+            self.events.put(("done", (payload, error)))
+
+    def poll(self) -> list[tuple[str, Any]]:
+        """Only the UI thread consumes events and unlocks the next take."""
+        result = []
+        while not self.events.empty():
+            kind, value = self.events.get_nowait()
+            if kind == "done":
+                self.active = False
+                if self.cancelled.is_set() or self.closed:
+                    value = (None, None)
+            elif self.cancelled.is_set() or self.closed:
+                continue
+            result.append((kind, value))
+        return result
+
+
+def nes2net_samples(samples: np.ndarray, rate: int) -> np.ndarray:
+    """Bound capture PCM, then resample once for the NES2Net wire; no trim/normalization."""
+    from scipy.signal import resample_poly
+
+    if (
+        type(rate) is not int
+        or not 8000 <= rate <= 192000
+        or not isinstance(samples, np.ndarray)
+        or samples.dtype != np.float32
+        or samples.ndim != 1
+        or not 0 < len(samples) <= 30 * rate
+        or not np.isfinite(samples).all()
+        or np.any(np.abs(samples) > 1)
+    ):
+        raise ValueError("Invalid capture PCM")
+    if rate == 16000:
+        return samples.copy()
+    divisor = math.gcd(rate, 16000)
+    return np.asarray(resample_poly(samples, 16000 // divisor, rate // divisor), dtype=np.float32)
+
+
+def _version(name: str) -> str:
+    try:
+        return importlib.metadata.version(name)
+    except importlib.metadata.PackageNotFoundError:
+        return "unavailable"

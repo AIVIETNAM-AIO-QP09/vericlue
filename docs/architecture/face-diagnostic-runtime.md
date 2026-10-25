@@ -84,6 +84,10 @@ SEC-02. Đầu vào production phải lấy lịch và ảnh tham chiếu từ k
 
 ## Nguồn
 
+Muốn ngồi trước laptop và thử live preview, mắt/góc đầu cùng AI cập nhật nền:
+xem [Webcam Lab nội bộ](webcam-lab.md). Không cần tự quay clip hoặc tạo file
+thử thách để dùng lab; kết quả của lab không phải phản hồi phiên server.
+
 - [MediaPipe Face Landmarker Python](https://developers.google.com/edge/mediapipe/solutions/vision/face_landmarker/python).
 - [PyTorch cài backend CPU](https://pytorch.org/get-started/locally/).
 - [Giới hạn và phiên bản từng model](head-and-match.md), [reader/dò mắt](../../ml/src/vericlue_ml/presence/README.md).

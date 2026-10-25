@@ -180,9 +180,12 @@ class LiveFlow(private val api: SessionApi) {
         }
     }
 
-    suspend fun confirmIdCard(fields: IdCardFields): ApiError? {
-        val s = session ?: return ApiError.Expired
-        return (api.confirmIdCard(s.sessionId, s.token, fields) as? ApiResult.Err)?.error
+    /** Null when the server took the fields; otherwise the error with its code (e.g. 422 `identity_incomplete`). */
+    suspend fun confirmIdCard(fields: IdCardFields): ApiResult.Err? {
+        val s = session ?: return ApiResult.Err(ApiError.Expired)
+        val error = api.confirmIdCard(s.sessionId, s.token, fields) as? ApiResult.Err
+        if (error == null) idFields = fields
+        return error
     }
 
     /**

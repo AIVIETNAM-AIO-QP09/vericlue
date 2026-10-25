@@ -188,6 +188,10 @@ class FsvfmPadDetector:
         """Score the exact RAM frames; do not open inp.video or client-supplied images."""
         return self._measure(frames, three_views=True)
 
+    def predict_frame(self, inp: DetectorInput, frame: np.ndarray) -> ModuleResult:
+        """Single RAM frame using the same transform/version as single-image predict()."""
+        return self._measure({"front": frame}, three_views=False)
+
     def _measure(self, frames: Mapping[str, np.ndarray], *, three_views: bool) -> ModuleResult:
         started = time.perf_counter()
 

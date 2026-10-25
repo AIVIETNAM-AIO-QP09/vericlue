@@ -170,6 +170,16 @@ fun VeriClueApp() {
     var faceCaptured by remember { mutableStateOf(false) }
     // Why the server asked for the card again; shown on the camera until the next shot.
     var idHint by remember { mutableStateOf<String?>(null) }
+    // Why the server refused the confirmed fields; shown on the edit screen.
+    var editHint by remember { mutableStateOf<String?>(null) }
+
+    /** A refused confirm: missing fields go back to the edit screen, anything else to an error screen. */
+    fun confirmFailed(e: vn.vericlue.app.data.api.ApiResult.Err) {
+        FlowRules.confirmErrorText(e.code)?.let {
+            editHint = it
+            nav.go(Routes.EditInfo)
+        } ?: nav.go(errorRoute(e.error))
+    }
     var idConfirmed by remember { mutableStateOf(false) }
 
     /** Runs one server call at a time from a button; a second tap while it runs is ignored. */
@@ -444,8 +454,10 @@ fun VeriClueApp() {
                 onContinue = {
                     val front = idFront?.first
                     val backPhoto = idBack?.first
-                    if (!flow.live || front == null || backPhoto == null) {
+                    if (!flow.live) {
                         nav.go(FlowRules.afterIdReview(faceCaptured))
+                    } else if (front == null || backPhoto == null) {
+                        nav.go(Routes.IdFront)
                     } else {
                         once {
                             val (hint, error) = live.sendIdCard(front, backPhoto, idBack?.second?.qr)
@@ -481,12 +493,14 @@ fun VeriClueApp() {
                 onBack = { if (faceCaptured) exit() else nav.popBackStack() },
                 onCorrect = {
                     val fields = live.idFields
-                    if (!flow.live || fields == null) {
+                    if (!flow.live) {
                         idConfirmed = true
                         nav.go(FlowRules.afterConfirm(flow.purpose, flow.live))
+                    } else if (fields == null) {
+                        nav.go(Routes.IdFront)
                     } else {
                         once {
-                            live.confirmIdCard(fields)?.let { nav.go(errorRoute(it)) } ?: run {
+                            live.confirmIdCard(fields)?.let(::confirmFailed) ?: run {
                                 idConfirmed = true
                                 nav.go(FlowRules.afterConfirm(flow.purpose, flow.live))
                             }
@@ -503,14 +517,16 @@ fun VeriClueApp() {
                 onBack = { nav.popBackStack() },
                 onSave = { edited ->
                     val fields = live.idFields
-                    if (!flow.live || fields == null) {
+                    if (!flow.live) {
                         idConfirmed = true
                         nav.go(FlowRules.afterConfirm(flow.purpose, flow.live))
+                    } else if (fields == null) {
+                        nav.go(Routes.IdFront)
                     } else {
                         // Fields left as shown keep the QR value; edited ones are noted for the reviewer.
                         val confirmed = FlowRules.confirmedFields(fields, idFields(cccd).map { it.second }, edited)
                         once {
-                            live.confirmIdCard(confirmed)?.let { nav.go(errorRoute(it)) } ?: run {
+                            live.confirmIdCard(confirmed)?.let(::confirmFailed) ?: run {
                                 idConfirmed = true
                                 nav.go(FlowRules.afterConfirm(flow.purpose, flow.live))
                             }
@@ -522,6 +538,7 @@ fun VeriClueApp() {
                     idBack = null
                     nav.go(Routes.IdFront)
                 },
+                hint = editHint,
                 fields = idFields(cccd),
             )
         }

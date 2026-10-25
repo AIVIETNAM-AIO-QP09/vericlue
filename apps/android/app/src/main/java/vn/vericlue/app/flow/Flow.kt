@@ -165,6 +165,12 @@ object FlowRules {
     fun otpWrongText(attemptsLeft: Int): String =
         if (attemptsLeft > 0) "Mã chưa đúng. Bạn còn $attemptsLeft lần thử." else "Bạn đã nhập sai quá số lần. Hãy bấm \"Gửi lại mã\"."
 
+    /** Server codes the edit screen explains itself (FLOW-05 identity bridge); null = generic error screen. */
+    fun confirmErrorText(code: String?): String? = when (code) {
+        "identity_incomplete" -> "Vui lòng điền đủ họ tên, số CCCD 12 số, ngày sinh, giới tính và nơi thường trú."
+        else -> null
+    }
+
     /** Server codes the OTP screen explains itself; null = show the generic error screen. */
     fun otpErrorText(code: String?): String? = when (code) {
         "otp_expired" -> "Mã đã hết hạn. Hãy bấm \"Gửi lại mã\"."
@@ -180,9 +186,9 @@ object FlowRules {
         shown.trim().split("/").takeIf { it.size == 3 && it.all { p -> p.all(Char::isDigit) } }
             ?.let { (d, m, y) -> "${y.padStart(4, '0')}-${m.padStart(2, '0')}-${d.padStart(2, '0')}" }
 
-    fun cccdFrom(f: IdCardFields): CccdInfo? = f.idNumber?.let { id ->
+    fun cccdFrom(f: IdCardFields): CccdInfo = f.let {
         CccdInfo(
-            idNumber = id,
+            idNumber = f.idNumber.orEmpty(),
             fullName = f.fullName.orEmpty(),
             dateOfBirth = isoToDisplay(f.dateOfBirth),
             gender = f.sex.orEmpty(),
@@ -201,10 +207,19 @@ object FlowRules {
         fun changed(i: Int) = edited.getOrNull(i)?.let { it != shown.getOrNull(i)?.trim() } == true
         return server.copy(
             fullName = if (changed(0)) edited[0] else server.fullName,
+            idNumber = if (changed(1)) edited[1].filterNot(Char::isWhitespace) else server.idNumber,
             dateOfBirth = if (changed(2)) displayToIso(edited[2]) ?: server.dateOfBirth else server.dateOfBirth,
             sex = if (changed(3) && edited[3] in setOf("Nam", "Nữ")) edited[3] else server.sex,
             address = if (changed(4)) edited[4] else server.address,
         )
+    }
+
+    fun validIdentityValues(values: List<String>): Boolean {
+        if (values.size != 5 || values.any { it.isBlank() }) return false
+        if (!Regex("[0-9]{12}").matches(values[1].filterNot(Char::isWhitespace))) return false
+        if (values[3].trim() !in setOf("Nam", "Nữ")) return false
+        val iso = displayToIso(values[2]) ?: return false
+        return runCatching { java.time.LocalDate.parse(iso) }.isSuccess
     }
 
     /**

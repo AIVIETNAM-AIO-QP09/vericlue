@@ -65,6 +65,33 @@ Data4Life/
 
 ## 3. Giao diện chung của mô-đun AI
 
+VOICE-12 thêm A/V lab opt-in: một DirectShow input có hai track, PCM/JPEG và PTS
+chung trong RAM, tái dùng CTC/SCRFD/Stable SyncNet. Kết quả `lipsync` version riêng
+luôn unclear, không score/prob_attack; không thay HTTP hoặc kết luận xác minh.
+Xem [lab khớp môi](av-lipsync-lab.md).
+
+VOICE-11 thêm nhịp đọc opt-in trong lab/CLI: CTC hiện có nhận raw PCM 16 kHz
+để căn câu đề bài, trả mốc âm tiết/khoảng ngắt và luật thời lượng tạm. Kết quả
+`voice_challenge` có version riêng, luôn unclear, giữ riêng với ASR và giọng AI;
+không thay hợp đồng/backend HTTP hoặc quyết định. Xem [hướng dẫn](reading-timing-lab.md).
+
+VOICE-10 nối công cụ micro nội bộ với worker NES2Net CPU riêng: thu một lần,
+Qwen kiểm nội dung, NES2Net đo margin thô 4 giây đầu; không hợp nhất hai kết quả.
+PCM qua pipe giới hạn/hash/id, không lưu audio; worker có timeout/hủy và giữ
+model giữa các lượt. Không đổi hợp đồng HTTP, backend hoặc chốt xác minh.
+
+VOICE-09 bổ sung `get_nes2net()` opt-in cho `voice_spoof`, checkpoint NES2Net-X
+với frontend Transformers CPU riêng. Chưa parity Fairseq hoặc calibration,
+luôn degraded/unclear, không prob_attack; chấm raw 4 giây đầu theo demo tác giả.
+Không đổi lựa chọn API/full/MVP hoặc HTTP contract. Xem
+[`nes2net-diagnostic.md`](nes2net-diagnostic.md).
+
+VOICE-07/08 cung cấp Qwen3-ASR opt-in để kiểm nội dung câu đọc trong CLI/cửa
+sổ microphone nội bộ. Runtime CPU Transformers 5.13.0 riêng, audio RAM có
+giới hạn và luật khớp dùng chung `VoiceChallengeDetector`; `ok/pass` chỉ là khớp
+câu. Không thay backend PhoWhisper, full/MVP, hợp đồng HTTP hoặc UI sản phẩm.
+Xem [`qwen-asr-diagnostic.md`](qwen-asr-diagnostic.md).
+
 LIVE-02 bổ sung `gaze_tracking` và reader MediaPipe để diagnostic video ở server.
 Mô-đun này dùng gate thử nghiệm, chưa ở profile full/MVP và chưa tham gia quyết
 định API. Xem [`presence/README.md`](../../ml/src/vericlue_ml/presence/README.md).
@@ -131,6 +158,14 @@ SQLAlchemy 2 + Alembic, PostgreSQL 16 khi chạy Compose. Mỗi request nghiệp
 một transaction, commit trước khi gửi response; rollback khi lỗi. Không kết nối DB
 khi import ứng dụng/sinh OpenAPI. SQLite dùng cho unit test; PostgreSQL thật được
 kiểm riêng trong CI và khi smoke Compose.
+
+REV-03 bảo vệ chuyển trạng thái bàn duyệt bằng `UPDATE review_cases ... WHERE`
+trước khi đọc đuôi chuỗi nhật ký: initial chỉ từ `open` chưa có quyết định;
+final chỉ từ `initial_decided`, initial khớp snapshot và final còn rỗng. Không
+còn hàng khớp → 409 `review_conflict`. Cùng transaction với append sự kiện và
+quyết định phiên, lỗi rollback toàn bộ. `SELECT FOR UPDATE` của PostgreSQL và
+`UNIQUE(case_id, prev_hash)` vẫn giữ; riêng UNIQUE không ngăn request cũ nối
+thêm quyết định lặp vào đuôi mới trên SQLite. Không migration/hợp đồng mới.
 
 | Bảng | Nội dung chính |
 |---|---|

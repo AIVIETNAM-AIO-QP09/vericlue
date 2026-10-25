@@ -172,9 +172,14 @@ def test_pinned_asset_hashes_match_tracked_manifest() -> None:
     assert {item["path"]: item["sha256"] for item in model["files"]} == align.EXPECTED_FILES
 
 
-@pytest.mark.parametrize("missing_keys", [[], ["ctc_head.weight"]])
+@pytest.mark.parametrize(
+    "missing_keys,corrupt_after_load", [([], False), (["ctc_head.weight"], False), ([], True)]
+)
 def test_hf_loader_is_offline_strict_and_cached(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, missing_keys: list[str]
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    missing_keys: list[str],
+    corrupt_after_load: bool,
 ) -> None:
     calls = []
     vocabulary = {"<blank>": 0, **{f"token-{i}": i for i in range(1, 31)}}
@@ -200,16 +205,26 @@ def test_hf_loader_is_offline_strict_and_cached(
     monkeypatch.setitem(sys.modules, "torch", torch)
     monkeypatch.setitem(sys.modules, "transformers", transformers)
     verified = []
-    monkeypatch.setattr(align, "_verify_model_files", lambda directory: verified.append(directory))
+
+    def verify(directory):
+        verified.append(directory)
+        if corrupt_after_load and len(verified) == 2:
+            raise align.AlignmentLoadError("Changed during load")
+        return {}
+
+    monkeypatch.setattr(align, "_verify_model_files", verify)
     backend = align.TorchCTCBackend(tmp_path)
-    if missing_keys:
+    if missing_keys or corrupt_after_load:
         with pytest.raises(align.AlignmentLoadError):
             backend.preload()
         assert backend.model is None
+        assert backend.model_hashes == {}
+        with pytest.raises(align.AlignmentLoadError, match="previously failed"):
+            backend.preload()
         return
     backend.preload()
     backend.preload()
-    assert verified == [tmp_path.resolve() / "ctc-aligner"]
+    assert verified == [tmp_path.resolve() / "ctc-aligner"] * 2
     assert [name for name, _, _ in calls] == ["processor", "model"]
     for _, path, kwargs in calls:
         assert Path(path) == verified[0]

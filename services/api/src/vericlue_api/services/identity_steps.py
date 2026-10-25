@@ -21,7 +21,10 @@ from vericlue_api.schemas.session import (
     OtpSent,
     OtpVerifyResponse,
 )
+from vericlue_api.services.identity_runtime import IdentityRuntime
 from vericlue_api.services.session_store import Session
+from vericlue_api.services.storage import save_upload
+from vericlue_ml.common.result import Module
 
 
 class OtpChannel(Protocol):
@@ -87,6 +90,97 @@ class IdentitySteps:
         return OtpVerifyResponse(status="retry", attempts_left=session.otp_attempts_left)
 
     # --- CCCD --------------------------------------------------------------
+    @staticmethod
+    def ensure_card_upload_allowed(session: Session) -> None:
+        """Reject card changes before reading, scanning or storing new images."""
+        if session.accepted_steps or session.face_scored:
+            raise ApiError(409, "step_not_allowed", "Hãy bắt đầu lại phiên trước khi đổi ảnh thẻ.")
+
+    def accept_images(
+        self,
+        session: Session,
+        front: bytes,
+        back: bytes,
+        client_qr: str | None,
+        *,
+        front_filename: str | None = None,
+        back_filename: str | None = None,
+    ) -> IdCardResponse:
+        self.ensure_card_upload_allowed(session)
+        response = self._scan_images(session, front, back, client_qr)
+        # Never overwrite a committed reference: DB rollback cannot undo file writes.
+        # Unreferenced files from a failed write/commit are left to the session TTL cleanup.
+        scan_id = secrets.token_hex(16)
+        front_path = save_upload(
+            self.settings.media_dir,
+            session.session_id,
+            f"id_front_{scan_id}",
+            front_filename,
+            front,
+        )
+        back_path = save_upload(
+            self.settings.media_dir, session.session_id, f"id_back_{scan_id}", back_filename, back
+        )
+        session.id_front, session.id_back = front_path, back_path
+        return response
+
+    def _scan_images(
+        self, session: Session, front: bytes, back: bytes, client_qr: str | None
+    ) -> IdCardResponse:
+        # A completed rescan, including a retry response, invalidates prior confirmation.
+        # Exceptions roll the request transaction back, preserving the previous card.
+        session.id_fields = None
+        session.id_number_hmac = None
+        session.id_edited = []
+        session.id_source = None
+        session.id_confirmed = False
+        session.id_confirmed_fields = None
+        session.id_confirmed_number_hmac = None
+        session.results.pop(Module.FACE_MATCH, None)
+        if not self.settings.identity_lab_url:
+            if self.settings.use_mock_models is not True:
+                raise ApiError(503, "identity_unavailable", "Dịch vụ đọc thẻ chưa sẵn sàng.")
+            return self.accept_id_card(session, client_qr)
+        data = IdentityRuntime(self.settings).scan(front, back)
+        codes = data.get("qr_values", [])
+        if not isinstance(codes, list) or not all(isinstance(v, str) for v in codes):
+            raise ApiError(503, "identity_unavailable", "Dịch vụ đọc thẻ chưa sẵn sàng.")
+        candidates = [value for code in codes if (value := parse_cccd_qr(code)) is not None]
+        distinct = {value.model_dump_json() for value in candidates}
+        if len(distinct) > 1:
+            return IdCardResponse(status="retry", retry_hint="QR_INVALID")
+        if candidates:
+            fields, source = candidates[0], "server_qr"
+        else:
+            raw = data.get("fields", {})
+            if not isinstance(raw, dict):
+                raise ApiError(503, "identity_unavailable", "Dịch vụ đọc thẻ chưa sẵn sàng.")
+            try:
+                fields = IdCardFields(
+                    full_name=raw.get("name"),
+                    id_number=raw.get("id"),
+                    date_of_birth=raw.get("dob"),
+                    sex=raw.get("gender") if raw.get("gender") in {"Nam", "Nữ"} else None,
+                    address=", ".join(
+                        str(raw[k]) for k in ("current_place1", "current_place2") if raw.get(k)
+                    )
+                    or None,
+                )
+            except ValueError:
+                return IdCardResponse(status="retry", retry_hint="QR_UNREADABLE")
+            if not any(fields.model_dump().values()):
+                return IdCardResponse(status="retry", retry_hint="QR_UNREADABLE")
+            source = "ocr"
+        return self._accept_fields(session, fields, source)
+
+    def _accept_fields(self, session: Session, fields: IdCardFields, source: str) -> IdCardResponse:
+        session.id_source = source
+        session.id_fields = fields.model_dump(mode="json", exclude_none=True, exclude={"id_number"})
+        session.id_number_hmac = (
+            _digest(self._key(), fields.id_number) if fields.id_number else None
+        )
+        return IdCardResponse(status="ok", fields=fields)
+
     def accept_id_card(self, session: Session, qr: str | None) -> IdCardResponse:
         if not qr or not qr.strip():
             return IdCardResponse(status="retry", retry_hint="QR_UNREADABLE")
@@ -94,22 +188,44 @@ class IdentitySteps:
         if fields is None:
             return IdCardResponse(status="retry", retry_hint="QR_INVALID")
         # Số CCCD chỉ giữ dạng HMAC; các trường còn lại giữ để so khi người dùng xác nhận.
-        session.id_fields = fields.model_dump(mode="json", exclude_none=True, exclude={"id_number"})
-        session.id_number_hmac = _digest(self._key(), fields.id_number or "")
-        return IdCardResponse(status="ok", fields=fields)
+        return self._accept_fields(session, fields, "client_qr_mock")
 
     def confirm_id_card(self, session: Session, confirmed: IdCardFields) -> IdCardConfirmResponse:
         """Người dùng xác nhận (hoặc sửa) thông tin; trường khác QR được ghi chú cho ca duyệt."""
         if session.id_fields is None:
             raise ApiError(409, "id_card_not_received", "Chưa nhận ảnh CCCD.")
-        given = confirmed.model_dump(mode="json", exclude_none=True, exclude={"id_number"})
-        edited = {k for k, v in given.items() if session.id_fields.get(k) != v}
+        if session.accepted_steps or session.face_scored:
+            raise ApiError(
+                409, "step_not_allowed", "Hãy bắt đầu lại phiên trước khi đổi thông tin."
+            )
+        submitted = confirmed.model_dump(mode="json", exclude_unset=True, exclude={"id_number"})
+        given = {**session.id_fields, **submitted}
+        if self.settings.identity_lab_url and not all(
+            (
+                confirmed.full_name and confirmed.full_name.strip(),
+                confirmed.id_number,
+                confirmed.date_of_birth,
+                confirmed.sex,
+                confirmed.address and confirmed.address.strip(),
+            )
+        ):
+            raise ApiError(422, "identity_incomplete", "Vui lòng điền đủ thông tin trên thẻ.")
+        edited = {
+            k
+            for k in set(given) | set(session.id_fields)
+            if session.id_fields.get(k) != given.get(k)
+        }
         if (
             confirmed.id_number
             and _digest(self._key(), confirmed.id_number) != session.id_number_hmac
         ):
             edited.add("id_number")
         session.id_edited = sorted(edited)
+        session.id_confirmed_fields = given
+        session.id_confirmed_number_hmac = (
+            _digest(self._key(), confirmed.id_number) if confirmed.id_number else None
+        )
+        session.id_confirmed = True
         return IdCardConfirmResponse()
 
 

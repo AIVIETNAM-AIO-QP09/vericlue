@@ -179,3 +179,69 @@ def get_fsvfm_pad(*, mock: bool = False) -> Detector:
     from vericlue_ml.face.fsvfm import FsvfmPadDetector
 
     return FsvfmPadDetector()
+
+
+@lru_cache(maxsize=2)
+def get_chromapulse_diagnostic(*, mock: bool = False) -> Detector:
+    """Opt-in color measurements; keep HTTP real/mixed selection unchanged."""
+    if mock:
+        return MOCK_DETECTORS[Module.CHROMAPULSE]
+    from vericlue_ml.presence.chromapulse import ChromaPulseDetector
+
+    return ChromaPulseDetector()
+
+
+@lru_cache(maxsize=2)
+def get_qwen_voice_challenge(*, mock: bool = False) -> Detector:
+    """Explicit Qwen diagnostic; preserve the HTTP PhoWhisper selection and its runtime."""
+    if mock:
+        return MOCK_DETECTORS[Module.VOICE_CHALLENGE]
+    from vericlue_ml.voice.qwen_asr import QwenVoiceChallengeDetector
+
+    return QwenVoiceChallengeDetector()
+
+
+@lru_cache(maxsize=2)
+def get_nes2net(*, mock: bool = False) -> Detector:
+    """Opt-in raw voice diagnostic; keep the HTTP AntiDeepfake backend unchanged."""
+    if mock:
+        return MOCK_DETECTORS[Module.VOICE_SPOOF]
+    from vericlue_ml.voice.nes2net import Nes2NetDetector
+
+    return Nes2NetDetector()
+
+
+@lru_cache(maxsize=2)
+def get_nes2net_timeline(*, mock: bool = False) -> Detector:
+    """Opt-in per-window NES2Net evidence; keep HTTP and first4s factories unchanged."""
+    if mock:
+        from vericlue_ml.mock.nes2net_timeline import MockNes2NetTimelineDetector
+
+        return MockNes2NetTimelineDetector()
+    from vericlue_ml.voice.nes2net_timeline import Nes2NetTimelineDetector
+
+    return Nes2NetTimelineDetector()
+
+
+@lru_cache(maxsize=2)
+def get_reading_timing(*, mock: bool = False) -> Detector:
+    """Explicit timing diagnostic; preserve the HTTP content/ASR backend."""
+    if mock:
+        from vericlue_ml.mock.reading_timing import MockReadingTimingDetector
+
+        return MockReadingTimingDetector()
+    from vericlue_ml.voice.reading_timing import ReadingTimingDetector
+
+    return ReadingTimingDetector()
+
+
+@lru_cache(maxsize=2)
+def get_ram_lipsync(*, mock: bool = False) -> Detector:
+    """Explicit one-container lab backend; keep HTTP SyncNet selection unchanged."""
+    if mock:
+        from vericlue_ml.mock.av_lipsync import MockRamLipSyncDetector
+
+        return MockRamLipSyncDetector()
+    from vericlue_ml.voice.av_lipsync import RamLipSyncDetector
+
+    return RamLipSyncDetector()

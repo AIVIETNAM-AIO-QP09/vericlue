@@ -54,9 +54,10 @@
 | Mã | Task | Vai trò | Người | Ngày công | Sprint | Ưu tiên | Phụ thuộc | Trạng thái |
 |---|---|---|---|---|---|---|---|---|
 | PRES-01 | Spike phân tích độ trễ (cổng quyết định 17/10) | M3 | Lead | 1 | S0 | P0 | CAP-03 | done |
-| PRES-02 | chromapulse.py | M3 | | 2 | S1 | P0 | PRES-01, PLAT-03 | todo |
+| PRES-02 | ChromaPulse: video/webcam diagnostic; chờ kiểm chứng cổng | M3 | Codex | 2 | S1 | P0 | PRES-01, PLAT-03 | doing |
 | PRES-03 | camprobe.py | M3 | | 0,5 | S1 | P0 | CAP-05, PLAT-03 | todo |
 | PRES-04 | Chạy thử của nhóm, chỉnh ngưỡng (R5) | M1 (+M3) | | 1 | S2 | P0 | PRES-02, PRES-03, CAP-06, REDT-01 | todo |
+| PRES-05 | Lượt thử mặt local liên tục: màu, mắt, quay đầu | M3 | Codex | 1 | S2 | P0 | PLAT-03 | review |
 
 ## E4 — Khuôn mặt · `epics/E4-face.md`
 
@@ -78,6 +79,13 @@
 | VOICE-04 | Câu thử thách, nhận dạng, so khớp 2 lớp (chặn lặp token) | M4 | Codex | 1,5 | S1–S2 | P0 | PLAT-03 | done |
 | VOICE-05 | Căn chỉnh câu, cắt ghép, SyncNet (thiết bị riêng, nạp lười) | M4 | Codex | 1,5 | S2 | P0 | VOICE-04, DATA-02 | doing |
 | VOICE-06 | Gộp bước giọng nói vào luồng | M4 | | 0,5 | S2 | P0 | VOICE-03, VOICE-04, VOICE-05, ROUT-02 | todo |
+| VOICE-07 | Qwen3-ASR: backend + CLI kiểm câu đọc, diagnostic CPU riêng | M4 | Codex | 1 | S2 | P0 | PLAT-03, VOICE-04 | review |
+| VOICE-08 | Thử câu đọc bằng microphone, RAM-only và runtime Qwen riêng | M4 | Codex | 0,5 | S2 | P0 | VOICE-07 | review |
+| VOICE-09 | NES2Net-X: backend + CLI raw diagnostic CPU riêng | M4 | Codex | 1 | S2 | P0 | PLAT-03 | review |
+| VOICE-10 | Ghép NES2Net vào công cụ micro qua worker RAM riêng | M4 | Codex | 1 | S2 | P0 | VOICE-08, VOICE-09 | done |
+| VOICE-11 | Nhịp đọc/CTC trong lab micro, mốc âm tiết RAM và CLI | M4 | Codex | 1 | S2 | P0 | VOICE-10 | done |
+| VOICE-12 | Lab thu A/V một nguồn và khớp môi SyncNet trong RAM | M4 | Codex | 1,5 | S2 | P0 | VOICE-11 | done |
+| VOICE-13 | NES2Net theo đoạn phủ toàn bản thu trong lab | M4 | Codex | 1 | S2 | P0 | VOICE-12 | done |
 
 ## E6 — TrustRouter · `epics/E6-router.md`
 
@@ -95,6 +103,7 @@
 |---|---|---|---|---|---|---|---|---|
 | REV-01 | API bàn duyệt + nhật ký chuỗi băm | M2 | Claude | 1 | S1 | P0 | PLAT-05 | done |
 | REV-02 | Giao diện bàn duyệt + hồ sơ bằng chứng | M2 | | 2 | S1–S2 | P0 | REV-01, PLAT-04 | todo |
+| REV-03 | Chặn ghi quyết định duyệt lặp do snapshot SQLite cũ | M2 | Codex | 0,5 | S2 | P0 | REV-01 | review |
 | FOR-01 | API giám định: chia đoạn, chạy bộ não | M5 | | 1,5 | S2 | P0 | PLAT-05, FACE-02, VOICE-01 | todo |
 | FOR-02 | Giao diện giám định | M2 | | 1,5 | S2 | P0 | FOR-01 | todo |
 | FOR-03 | Quét nguồn gốc (AudioSeal, Perth, C2PA) | M3 | | 1 | S2 | P0 | PLAT-03 | todo |
@@ -119,7 +128,7 @@
 |---|---|---|---|---|---|---|---|---|
 | FLOW-01 | Tham số purpose + luật theo luồng | M5 | Codex | 1 | S1 | P0 | ROUT-02, PLAT-08 | doing |
 | FLOW-02 | OTP mô phỏng | M2 | Ngọc Quang+Claude | 0,5 | S1 | P0 | PLAT-05 | doing |
-| FLOW-03 | Chụp CCCD, QR, chân dung, kiểm đã đăng ký | M1 | Ngọc Quang+Claude | 1,5 | S1 | P0 | PLAT-05, FACE-01 | doing |
+| FLOW-03 | Chụp CCCD, QR, chân dung, kiểm đã đăng ký; bảo toàn ảnh khi lỗi | M1 | Ngọc Quang+Claude | 1,5 | S1 | P0 | PLAT-05, FACE-01 | doing |
 | FLOW-04 | Quay đầu, chọn khung RAM, GenD và FS-VFM-L PAD — diagnostic | M1 (+M3) | Codex | 1 | S1 | P0 | CAP-06 | doing |
 | FLOW-05 | So mặt LVFace-B + ba góc lấy từ video — diagnostic | M3 | Codex | 1 | S1 | P0 | FLOW-03, FACE-01 | doing |
 | SEC-01 | Khóa theo phiên, che dữ liệu, nhật ký truy cập | M2 | | 1,5 | S1 | P0 | REV-01, PLAT-05 | todo |
@@ -136,7 +145,7 @@
 | IOS-06 | App iOS: gián đoạn, thử lại khi mất mạng, xóa file tạm | M1 | Lý Anh Quân | 1 | S2 | P1 | IOS-04 | todo |
 | IOS-07 | App iOS: bản Release HTTPS, đo trên máy thật, README, bàn giao | M1 | Lý Anh Quân | 1 | S2 | P1 | IOS-03, IOS-05, IOS-06 | todo |
 | LIVE-01 | Gói thử thách động theo phiên (màu, chấm sáng, quay đầu, câu) [contract] | M5 | Codex | 1 | S2 | P0 | FLOW-01 | doing |
-| LIVE-02 | Dò mắt + chuỗi kiểm mặt, runtime CPU chung — diagnostic | M3 (+M1) | Codex | 1,5 | S2 | P0 | LIVE-01 | doing |
+| LIVE-02 | Dò mắt, chuỗi kiểm mặt và webcam lab — diagnostic | M3 (+M1) | Codex | 1,5 | S2 | P0 | LIVE-01 | doing |
 | LIVE-03 | Ký media theo phiên trên web (WebAuthn), chặn phát lại | M2 (+M1) | | 1 | S2 | P0 | LIVE-01 | todo |
 | LIVE-04 | Kháng lượng tử: đường truyền ML-KEM, ký kết quả ML-DSA | M2 | | 1 | S2 | P0 | FLOW-01 | todo |
 | LIVE-05 | Giấy chứng nhận ZKP cho bên tích hợp | M5 | | 2,5 | S3 | P1 | LIVE-04 | todo |

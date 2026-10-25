@@ -72,6 +72,14 @@ Chi tiết: `docs/architecture/dynamic-session-api.md`.
 **Tiêu chí hoàn thành:**
 - [ ] Test với ảnh thẻ tổng hợp. Không commit ảnh CCCD thật.
 - [ ] Phát hiện thẻ giả nằm **ngoài phạm vi**; ghi rõ là giới hạn.
+- [x] Bản sửa review PR #65: từ chối đổi thẻ sau media/signals/chấm mặt trước mọi ghi file;
+  lỗi OCR/ghi file/commit DB không đổi ảnh hoặc thông tin đã xác nhận. Quét hoàn thành
+  dùng tên file mới và hủy xác nhận cũ, kể cả trả `retry`.
+
+**Cập nhật 25/10 — sửa review PR #65:** giữ cầu nối CCCD–selfie ngoài `reauth` để không
+đổi policy FLOW-01; test cả mặt và giọng với runtime bật/tắt. Chưa hoàn thành nhận dạng
+theo mẫu đăng ký/SEC-02 hoặc nghiệm thu Android. Chi tiết vận hành tại
+[`identity-integration.md`](../../runbooks/identity-integration.md).
 
 ---
 
@@ -424,6 +432,8 @@ không chứng minh chống phát lại video được gắn mã mới (LIVE-03/
 - [x] Test bằng chuỗi điểm tổng hợp: khớp, lệch, đứng yên, đường của phiên khác.
 - [x] Nối opt-in dò mắt với quay đầu/so mặt/GenD/PAD, cùng task MediaPipe;
   mắt hoặc đầu thiếu/lỗi thì chặn chấm ảnh. Có profile CPU riêng và CLI kiểm runtime.
+- [x] Công cụ webcam lab riêng: preview/đo mắt và pose trực tiếp, tham chiếu RAM,
+  AI ảnh đơn chạy nền, thử thách mắt/quay đầu cục bộ; không sửa UI sản phẩm.
 - Backend diagnostic 24/10: reader MediaPipe/kiểm SHA, mắt tương đối và góc đầu
   ước lượng, đối chiếu hai trục/độ trễ, kiểm độ phủ và lỗi. Có mock + ModuleResult
   gaze_tracking; chưa tham gia router/full/MVP. Đường chấm server được sinh đủ

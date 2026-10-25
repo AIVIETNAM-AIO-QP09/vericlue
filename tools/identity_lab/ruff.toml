@@ -1,0 +1,6 @@
+extend = "../../pyproject.toml"
+src = ["../.."]
+
+[lint.per-file-ignores]
+# Colab installs dependencies before importing them; imports also test ABI availability.
+"*.ipynb" = ["E402", "F401"]

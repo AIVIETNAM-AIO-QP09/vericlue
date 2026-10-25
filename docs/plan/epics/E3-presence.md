@@ -45,6 +45,22 @@
 |---|---|---|---|---|
 | M3 | 2 | S1 | P0 | PRES-01, PLAT-03 |
 
+**Tiến độ 24/10 — doing, chưa nghiệm thu cổng:** đã có đo median 5 vùng da/nền
+phía server, trừ nền miền log, khớp affine và quét lag, ModuleResult, factory
+diagnostic dùng mock sẵn có và CLI. Xem
+[`chromapulse-diagnostic.md`](../../architecture/chromapulse-diagnostic.md).
+ADR-0016 đã đưa ChromaPulse về lớp 1, thay quyết định hạ xuống phụ ngày 17/10;
+việc bật gate vẫn cần kiểm chứng. Hiện luôn `degraded/unclear`, không sửa ngưỡng
+hoặc bật thật trong HTTP. Các tiêu chí cổng/độ trễ bên dưới còn **chưa hoàn thành**.
+Chưa có client/server mismatch, số ký hiệu giải mã độc lập, CAP-03 thật hay R5.
+Lag từ decoder/lịch dự kiến chỉ là lag biểu kiến; không dùng tiêu chí “100 ms
+là fail” khi chưa có đồng hồ và ngưỡng được kiểm chứng.
+
+**Bổ sung webcam 24/10:** nút thử ánh sáng 6–8 giây trong lab nội bộ, dùng
+chung task MediaPipe cho mắt/đầu/màu. Chỉ giữ số đo và log yêu cầu vẽ trong RAM;
+dừng/hủy bỏ lượt, kết quả luôn unclear. Chưa có mẫu người hoặc kết quả kiểm
+thiết bị/tấn công; không đánh dấu xong tiêu chí cổng bằng smoke tổng hợp.
+
 **Mục tiêu:** detector `chromapulse` trả `ModuleResult` với `gate` = pass / fail / unclear, kèm bằng chứng.
 
 **Đầu ra:** `ml/src/vericlue_ml/presence/chromapulse.py`
@@ -122,3 +138,30 @@
 - [ ] Video phát lại trên `data/selftest/` bị xóa sau khi xong.
 
 **Quyết định trưởng nhóm 17/10:** không tổ chức chạy thử với thành viên nhóm (không thu dữ liệu người thật). R5 bỏ, hoặc thay bằng đánh giá trên dữ liệu tổng hợp (DATA-04) nếu kịp — ghi rõ là dữ liệu tổng hợp.
+
+---
+
+### PRES-05 · Lượt thử mặt liên tục trong lab nội bộ
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M3 | 1 | S2 | P0 | PLAT-03 |
+
+**Mục tiêu:** tiếp tục tính năng ngày 25/10: gộp các thành phần diagnostic đã
+có của PRES-02/LIVE-02/FLOW-04 vào một lượt thử ánh sáng → mắt → quay đầu,
+không đợi nghiệm thu cổng/accuracy của những thẻ đó và không đổi UI sản phẩm.
+
+**Tiêu chí kỹ thuật:**
+- [x] Một nút bắt đầu, một camera/reader, lịch và đồng hồ chung; không mở
+      thiết bị khi khởi động. Giữ nguyên palette/nhịp màu và thời lượng mắt/đầu.
+- [x] Hướng dẫn ba bước, đếm ngược theo lịch thực; thu số đo màu/mắt/đầu
+      từ cùng frame, lấy ba ảnh ở đúng vị trí của lịch đã dịch.
+- [x] Báo cáo các kết quả riêng gắn cùng mã lượt; lỗi một phần vẫn thấy
+      phần khác, không tạo kết luận xác minh/giả mạo chung.
+- [x] Dừng/Esc/đóng/mất tiêu điểm/hide hủy lượt, bỏ kết quả cũ, giới hạn và
+      dọn pixel RAM; không chồng lượt hoặc chấm ảnh khi motion thiếu/lỗi.
+- [x] Test tổng hợp/lifecycle, smoke reader không thiết bị, QA cửa sổ,
+      tài liệu/bàn giao/lint/plan_check. Không đổi API/hợp đồng/ngưỡng/ADR.
+
+Phạm vi này chỉ điều phối công cụ thử local. Không chứng minh màu phản chiếu,
+chiều sâu, danh tính, chống phát lại hoặc tính đúng của camera timestamp.

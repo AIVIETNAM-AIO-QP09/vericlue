@@ -61,6 +61,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import vn.vericlue.app.flow.PhoneRules
+import vn.vericlue.app.flow.FlowRules
 import vn.vericlue.app.ui.components.Banner
 import vn.vericlue.app.ui.components.LinkButton
 import vn.vericlue.app.ui.components.NumericKeypad
@@ -427,12 +428,12 @@ fun ConfirmInfoScreen(
         onBack = onBack,
         step = if (afterFace) 2 else 1,
         actions = {
-            PrimaryButton("Thông tin đúng", onCorrect)
+            PrimaryButton("Thông tin đúng", onCorrect, enabled = FlowRules.validIdentityValues(fields.map { it.second }))
             LinkButton("Sửa thông tin", onEdit)
         },
     ) {
         if (afterFace) Banner("Đã quay xong. Xem lại thông tin, rồi bấm \"Thông tin đúng\" để gửi.", tone = Tone.Ok)
-        TitleBlock("Kiểm tra thông tin", "Đọc từ mã QR trên CCCD của bạn.")
+        TitleBlock("Kiểm tra thông tin", "Thông tin đọc từ ảnh hoặc mã QR trên CCCD. Hãy kiểm tra và sửa những mục chưa đúng.")
         Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surfaceSubtle)
                 .border(1.dp, c.border, RoundedCornerShape(16.dp)).padding(16.dp),
@@ -457,21 +458,28 @@ fun ConfirmInfoScreen(
 }
 
 @Composable
-fun EditInfoScreen(onBack: () -> Unit, onSave: (List<String>) -> Unit, onRetake: () -> Unit, fields: List<Pair<String, String>> = sampleIdFields) {
+fun EditInfoScreen(
+    onBack: () -> Unit,
+    onSave: (List<String>) -> Unit,
+    onRetake: () -> Unit,
+    fields: List<Pair<String, String>> = sampleIdFields,
+    hint: String? = null,
+) {
     val c = Vc.colors
     val values = remember(fields) { fields.map { mutableStateOf(it.second) } }
     VcScreen(
         onBack = onBack,
         step = 1,
         actions = {
-            PrimaryButton("Lưu và tiếp tục", { onSave(values.map { it.value.trim() }) })
+            PrimaryButton("Lưu và tiếp tục", { onSave(values.map { it.value.trim() }) }, enabled = FlowRules.validIdentityValues(values.map { it.value.trim() }))
             LinkButton("Chụp lại CCCD", onRetake)
         },
     ) {
-        TitleBlock("Chỉnh sửa thông tin", "Số CCCD được khóa theo mã QR. Nếu mã QR đọc chưa chuẩn, hãy chụp lại thẻ.")
+        TitleBlock("Chỉnh sửa thông tin", "Điền thông tin đúng như trên CCCD. Nội dung thay đổi sẽ được kiểm tra lại.")
+        hint?.let { Banner(it, tone = Tone.Warn) }
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             fields.forEachIndexed { i, (label, _) ->
-                val locked = i == 1
+                val locked = false
                 OutlinedTextField(
                     value = values[i].value,
                     onValueChange = { if (!locked) values[i].value = it },

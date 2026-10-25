@@ -41,6 +41,17 @@ class Classifier:
         return self.scores
 
 
+def test_single_ram_frame_has_separate_sampling_version_and_no_calibrated_gate():
+    classifier = Classifier([0.4])
+    detector = FaceDeepfakeDetector(finder=Finder(), classifier=classifier)
+    result = detector.predict_frame(DetectorInput(video=Path("do-not-open.mp4")), frames()["front"])
+    assert result.status == Status.OK and result.score == 0.4
+    assert result.model_version == detector.version + "+single-frame-v1"
+    assert result.model_version != detector.frames_version
+    assert result.prob_attack is None and result.gate is None
+    assert classifier.calls[0].shape == (1, 3, 224, 224)
+
+
 def test_views_preserve_rgb_clip_preprocessing_and_raw_aggregation():
     classifier = Classifier()
     detector = FaceDeepfakeDetector(finder=Finder(), classifier=classifier)

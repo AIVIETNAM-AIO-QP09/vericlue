@@ -1,0 +1,15 @@
+# Separate Python 3.12 runtime; uv pip install --torch-backend cpu -r this-file.
+# Direct pins only, not a transitive lock. Do not install API/face extras here.
+torch==2.14.1+cpu
+transformers==5.13.0
+safetensors==0.8.0
+numpy==2.5.4
+scipy==1.18.1
+scikit-learn==1.9.1
+pydantic==2.14.1
+pyyaml==6.0.3
+soundfile==0.14.0
+webrtcvad-wheels==2.0.14.post1
+jiwer==4.0.0
+rapidfuzz==3.14.6
+pytest==9.1.1
