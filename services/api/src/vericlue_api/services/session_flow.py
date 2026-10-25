@@ -70,6 +70,7 @@ class SessionFlow:
         runner: Callable = run_detectors,
         router: TrustRouter | None = None,
         privacy: SessionPrivacy | None = None,
+        enroll: Callable[[Session], object] | None = None,
     ) -> None:
         self.router = (
             router
@@ -81,6 +82,7 @@ class SessionFlow:
         self.sessions = sessions
         self.reviews = reviews
         self.privacy = privacy
+        self._enroll = enroll
 
     # --- tạo phiên -------------------------------------------------------
     def create(
@@ -607,6 +609,14 @@ class SessionFlow:
         if outcome.status == "review":
             self._open_case(session, outcome)
             return VoiceResponse(status="review")
+        if (
+            outcome.status == "pass"
+            and session.purpose == "onboarding"
+            and self.settings.account_enrollment
+        ):
+            if self._enroll is None:
+                raise ApiError(503, "enrollment_unavailable", "Chưa thể hoàn tất ghi danh lúc này.")
+            self._enroll(session)
         return VoiceResponse(status=outcome.status)
 
     # --- nội bộ ----------------------------------------------------------

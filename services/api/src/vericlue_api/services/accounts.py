@@ -1,4 +1,4 @@
-"""Encrypted account persistence for FLOW-05; no public enrollment route yet.
+"""Encrypted account persistence for FLOW-05; no public account lookup yet.
 
 The caller owns a locked onboarding session and validated face/voice evidence.
 Continuity requires its own calibrated protocol. No mock/mixed session can
@@ -129,9 +129,13 @@ class AccountStore:
             "account:" + row.account_id, actor=actor, action=action
         )
 
-    def _eligible(
-        self, session: Session, template: FaceTemplate, continuity: ModuleResult | None
+    def validate_enrollment(
+        self, session: Session, *, continuity: ModuleResult | None = None
     ) -> None:
+        """Reject ineligible sessions before scheduling any private template extraction."""
+        self._master()
+        if continuity is None:
+            continuity = session.results.get(Module.FACE_CONTINUITY)
         s = self.settings
         # Explicitly exclude mock/mixed biometric decisions and development HMAC keys.
         if (
@@ -186,24 +190,21 @@ class AccountStore:
         if (
             match.model_version != VIDEO_MATCH_VERSION
             or match.quality.get("consistency_verified") is not True
-            or template.model_version != VIDEO_MATCH_VERSION
-            or template.session_id != session.session_id
-            or template.challenge_id != session.challenge.challenge_id
         ):
             raise not_eligible()
         hashes = [e.value for e in match.evidence if e.name == "source_video_sha256"]
         frames = [e.value for e in match.evidence if e.name == "selected_frontal_frame"]
         if (
-            hashes != [template.source_video_sha256]
+            len(hashes) != 1
+            or not isinstance(hashes[0], str)
             or len(frames) != 1
             or not isinstance(frames[0], dict)
-            or frames[0].get("pixels_sha256") != template.pixels_sha256
         ):
             raise not_eligible()
         # A successful CCCD match cannot substitute for the missing cross-stage check.
         expected = {
-            "source_video_sha256": template.source_video_sha256,
-            "challenge_id": template.challenge_id,
+            "source_video_sha256": hashes[0],
+            "challenge_id": session.challenge.challenge_id,
             "voice_challenge_id": session.voice_challenge_id,
         }
         if (
@@ -222,6 +223,22 @@ class AccountStore:
         require_consumed(self.db, session, "face", required=True)
         require_consumed(self.db, session, "voice", required=True)
         public_key(session.media_public_key_spki)
+
+    def _eligible(
+        self, session: Session, template: FaceTemplate, continuity: ModuleResult | None
+    ) -> None:
+        self.validate_enrollment(session, continuity=continuity)
+        match = session.results[Module.FACE_MATCH]
+        hashes = [e.value for e in match.evidence if e.name == "source_video_sha256"]
+        frames = [e.value for e in match.evidence if e.name == "selected_frontal_frame"]
+        if (
+            template.model_version != VIDEO_MATCH_VERSION
+            or template.session_id != session.session_id
+            or template.challenge_id != session.challenge.challenge_id
+            or hashes != [template.source_video_sha256]
+            or frames[0].get("pixels_sha256") != template.pixels_sha256
+        ):
+            raise not_eligible()
 
     def create(
         self,
