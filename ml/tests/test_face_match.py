@@ -116,7 +116,8 @@ def test_no_threshold_stays_degraded_even_for_identical_embeddings(tmp_path, mon
     inp.signals = {"face_match": {"gate": "pass", "threshold": -1}}
     result = detector.predict(inp)
     assert result.status == Status.DEGRADED and result.gate == Gate.UNCLEAR
-    assert result.prob_attack is None and result.quality["comparisons"] == 6
+    assert result.prob_attack is None and result.quality["comparisons"] == 1
+    assert result.quality["consistency_comparisons"] == 3
     assert "embedding" not in result.model_dump_json()
 
 
@@ -127,19 +128,23 @@ def test_ram_reference_does_not_read_an_input_path_and_stays_unclear_without_thr
     detector, inp = setup_detector(tmp_path)
     inp.reference_image = Path("never-open-reference.png")
     pixels = np.full((112, 112, 3), 80, np.uint8)
-    result = detector.predict_frames(inp, {"front": pixels}, reference_frame=pixels.copy())
+    result = detector.predict_frames(inp, {"front": pixels}, reference_frame=pixels // 2)
     assert result.status == Status.DEGRADED and result.gate == Gate.UNCLEAR
     assert result.quality["comparisons"] == 1 and result.prob_attack is None
 
 
-def test_calibrated_comparison_checks_reference_and_all_cross_view_pairs(tmp_path):
-    # Each query matches reference at .8, but left vs right is only .28.
+def test_card_match_uses_front_only_and_reports_cross_view_scores_separately(tmp_path):
+    # Front matches reference; a low side-view score must not change the card match.
     a, b = 0.8 * vector() + 0.6 * vector(1), 0.8 * vector() - 0.6 * vector(1)
     detector, inp = setup_detector(tmp_path, vectors=[vector(), vector(), a, b], threshold=True)
     result = detector.predict(inp)
     scores = next(e.value for e in result.evidence if e.name == "cosine_similarities")
-    assert len(scores) == 6 and min(scores.values()) == pytest.approx(0.28)
-    assert result.status == Status.OK and result.gate == Gate.FAIL
+    views = next(e.value for e in result.evidence if e.name == "view_cosine_similarities")
+    assert scores == {"reference_front": 1.0}
+    assert len(views) == 3 and views["left_right"] == pytest.approx(0.28)
+    assert not result.quality["consistency_verified"]
+    assert result.status == Status.OK and result.gate == Gate.PASS
+    assert result.score == 0
     assert result.prob_attack is None
 
 
@@ -149,10 +154,11 @@ def test_trusted_threshold_can_pass_matching_identity(tmp_path, views):
     inp.images, inp.image_roles = inp.images[:views], inp.image_roles[:views]
     result = detector.predict(inp)
     assert result.status == Status.OK and result.gate == Gate.PASS
-    assert result.quality["comparisons"] == (1 if views == 1 else 6)
+    assert result.quality["comparisons"] == 1
+    assert result.quality["consistency_comparisons"] == (0 if views == 1 else 3)
 
 
-def test_in_memory_frames_use_same_six_comparisons_and_ignore_input_paths_roles(tmp_path):
+def test_in_memory_frames_separate_card_match_and_ignore_input_paths_roles(tmp_path):
     detector, inp = setup_detector(tmp_path, threshold=True)
     inp.images = [Path("never-open-client-query.png")]
     inp.image_roles = ["front"]
@@ -162,7 +168,34 @@ def test_in_memory_frames_use_same_six_comparisons_and_ignore_input_paths_roles(
     }
     result = detector.predict_frames(inp, frames)
     assert result.status == Status.OK and result.gate == Gate.PASS
-    assert result.quality["comparisons"] == 6 and result.prob_attack is None
+    assert result.quality["comparisons"] == 1 and result.prob_attack is None
+    assert result.quality["consistency_comparisons"] == 3
+
+
+def test_side_views_cannot_rescue_a_mismatched_frontal_identity(tmp_path):
+    detector, inp = setup_detector(
+        tmp_path, vectors=[vector(), vector(1), vector(), vector()], threshold=True
+    )
+    result = detector.predict(inp)
+    assert result.status == Status.OK and result.gate == Gate.FAIL
+    assert result.score == 1
+
+
+def test_old_six_pair_calibration_is_rejected_after_protocol_change(tmp_path):
+    detector, inp = setup_detector(tmp_path)
+    detector.calibration_path = artifact(
+        tmp_path, model_version=MATCH_VERSION.removesuffix("+front-reference-v2")
+    )
+    result = detector.predict(inp)
+    assert result.status == Status.ERROR and result.gate == Gate.UNCLEAR
+
+
+def test_identical_reference_and_selfie_pixels_cannot_pass(tmp_path):
+    detector, inp = setup_detector(tmp_path, threshold=True)
+    inp.images, inp.image_roles = [inp.reference_image], ["front"]
+    result = detector.predict(inp)
+    assert result.status == Status.DEGRADED and result.gate == Gate.UNCLEAR
+    assert result.error_code == "E_INTEGRITY"
     assert not (tmp_path / "never-open-client-query.png").exists()
 
 

@@ -1,8 +1,10 @@
-# Tích hợp Android với OCR/QR và AdaFace
+# Tích hợp Android với OCR/QR và LVFace-B
 
 Giai đoạn demo opt-in, nối UI Android hiện có với runtime identity lab. API chính
-vẫn dùng Python 3.12; runtime model dùng venv Python 3.10 đã kiểm tra. Không cài
-Paddle/Torch vào API chỉ để chạy cầu nối. Không đổi module LVFace của registry.
+vẫn dùng Python 3.12; runtime OCR dùng venv Python 3.10 đã kiểm tra. So mặt chạy
+trực tiếp bằng SCRFD + LVFace-B ONNX trong API, không gọi AdaFace qua HTTP.
+Môi trường API cần extra `face` (CPU) hoặc `cuda` hiện có; không cần Paddle/VietOCR
+trong API. Không thay môi trường CUDA đang dùng chỉ để cài extra CPU.
 
 ## Luồng
 
@@ -15,10 +17,27 @@ Paddle/Torch vào API chỉ để chạy cầu nối. Không đổi module LVFac
 4. Server giữ riêng bản quét và bản xác nhận; số CCCD chỉ lưu HMAC. Sửa khác bản quét
    sẽ chặn tự động đạt và ghi tên trường thay đổi cho ca duyệt. Quét lại xóa xác nhận cũ.
 5. Finalize so ảnh CCCD với ảnh tĩnh đầu tiên server nhận của lượt mặt, không chọn
-   điểm cao nhất. Dùng SCRFD/AdaFace IR18 và context fallback; cosine >= 0.40 là
-   qua riêng bước so mặt. Đây là ngưỡng người dùng chọn, chưa hiệu chỉnh CCCD–selfie.
-   Không phải 40% xác suất. Lỗi/thiếu mặt/điểm không hợp lệ không được coi là đạt.
+   điểm cao nhất. Orchestrator nạp một LVFace-B + SCRFD từ `MODELS_DIR` khi khởi động,
+   kiểm revision/SHA và dùng lại qua hàng đợi/deadline hiện có. SCRFD tìm mặt trên
+   ảnh thẻ, căn 5 điểm về 112×112 rồi LVFace so với selfie; không dùng context fallback.
+   Ảnh đầu tiên hiện chưa được kiểm tư thế chính diện tự động hoặc chọn từ video.
+   Việc chọn/kiểm khung từ video là bước tích hợp tiếp theo.
 6. Kết quả PAD, liveness, voice và policy vẫn có hiệu lực. Người dân không nhận điểm.
+
+### Ngưỡng và điểm so mặt
+
+- `score = 1 - cosine(reference, front)`, không phải xác suất. Cosine nằm trong
+  evidence nội bộ; điểm thấp hơn nghĩa là hai embedding gần nhau hơn.
+- `IDENTITY_FACE_THRESHOLD=0.40` của AdaFace **không còn được sử dụng**.
+  `IDENTITY_FACE_CALIBRATION` trỏ tới artifact LVFace do server quản lý, theo
+  [`head-and-match.md`](../architecture/head-and-match.md). Thiếu artifact vẫn trả
+  điểm nhưng `degraded/unclear`, yêu cầu duyệt thay vì tự đạt. Artifact sai/lỗi model
+  làm `face_match` xuất hiện trong `failed_modules` của `/healthz`.
+- Version mới có hậu tố `+front-reference-v2`. Artifact cũ tính min sáu phép so hoặc
+  của AdaFace bị từ chối; kết quả AdaFace đã lưu trong phiên cũ không được cấp đạt.
+- API chỉ so tham chiếu với một selfie. Diagnostic ba góc chỉ so tham chiếu–chính
+  diện; cosine giữa các góc là evidence riêng, chưa hiệu chỉnh/ngưỡng hay xác nhận
+  nhất quán. Không so ảnh nghiêng trực tiếp với CCCD.
 
 ### Bảo toàn ảnh và phạm vi luồng (bản sửa review PR #65)
 
@@ -55,9 +74,11 @@ Terminal 2, cấu hình DB và chạy migration theo README API, rồi:
 
 ```powershell
 $env:IDENTITY_LAB_URL='http://127.0.0.1:8010'
-$env:IDENTITY_FACE_THRESHOLD='0.40'
 $env:IDENTITY_LAB_TIMEOUT_SECONDS='90'
 $env:USE_MOCK_MODELS='true'
+$env:MODELS_DIR="$PWD/models/selected-2026-10-24" # Đổi theo thư mục model đã tải.
+$env:DEVICE='cpu' # Hoặc cấu hình GPU hiện có đã kiểm tra.
+# Chỉ đặt IDENTITY_FACE_CALIBRATION khi đã có artifact thật đúng version.
 & .venv\Scripts\python.exe -m uvicorn vericlue_api.main:app --host 0.0.0.0 --port 8000
 ```
 
@@ -75,9 +96,10 @@ riêng cho các trường này. Không triển khai production trước khi ch�
 
 ## Kiểm chứng
 
-- Unit/integration synthetic kiểm server QR ưu tiên, OCR thiếu trường, sửa thông tin,
-  rescan, threshold boundary 0.4, NaN/bool/out-of-range, không lộ điểm và chặn error.
-- Runtime thật đã đọc QR từ ảnh thử và so mặt HTTP 200; ảnh dùng hai lần chỉ để kiểm
-  transport, không phải nghiệm thu chụp đúng hai mặt thẻ hoặc benchmark chính xác.
+- Unit/integration synthetic kiểm QR ưu tiên, OCR thiếu trường, sửa thông tin,
+  bảo toàn ảnh khi rescan lỗi; LVFace preload một lần, ảnh tham chiếu đúng phiên,
+  artifact đúng/sai/thiếu, không dùng ngưỡng AdaFace, không lộ điểm và chặn error.
+- Kiểm checkpoint LVFace/SCRFD thật bằng tensor tổng hợp chỉ xác nhận nạp/chạy;
+  không phải benchmark CCCD–selfie, nghiệm thu camera hoặc độ chính xác.
 - Android có test mới `IdentityCorrectionTest`; máy phát triển chưa có SDK/JDK 17,
   cần chạy `gradlew testDebugUnitTest assembleDebug` và thử camera trên thiết bị.

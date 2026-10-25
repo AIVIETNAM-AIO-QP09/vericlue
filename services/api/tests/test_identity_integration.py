@@ -1,6 +1,5 @@
 """Synthetic QR/OCR and fail-closed face threshold integration; no model downloads."""
 
-import math
 from types import SimpleNamespace
 
 import pytest
@@ -10,6 +9,7 @@ from vericlue_api.core.config import Settings
 from vericlue_api.services.identity_runtime import IdentityRuntime
 from vericlue_api.services.session_flow import SessionFlow
 from vericlue_ml.common.result import Gate, Module, ModuleResult, Status
+from vericlue_ml.face.match import MATCH_VERSION
 from vericlue_ml.router.policy import Decision
 
 QR = "001099012345||Nguyễn Văn An|01011995|Nam|12 Phố Huế|15062021"
@@ -81,34 +81,13 @@ def test_conflicting_qr_is_not_arbitrarily_selected(client, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    ("score", "gate", "status"),
-    [
-        (0.3999, Gate.FAIL, Status.OK),
-        (0.4, Gate.PASS, Status.OK),
-        (0.8, Gate.PASS, Status.OK),
-        (math.nan, Gate.UNCLEAR, Status.DEGRADED),
-        (True, Gate.UNCLEAR, Status.DEGRADED),
-        (1.1, Gate.UNCLEAR, Status.DEGRADED),
-    ],
-)
-def test_threshold_is_cosine_not_probability(tmp_path, monkeypatch, score, gate, status):
-    image = tmp_path / "image.jpg"
-    image.write_bytes(b"synthetic")
-    monkeypatch.setattr(
-        IdentityRuntime, "_post", lambda *args: {"status": "ok", "cosine_similarity": score}
-    )
-    result = IdentityRuntime(Settings()).match(image, [image])
-    assert result.status == status and result.gate == gate
-    assert result.prob_attack is None
-
-
-@pytest.mark.parametrize(
     ("confirmed", "edited", "status", "gate", "expected"),
     [
         (True, [], Status.OK, Gate.PASS, "pass"),
         (False, [], Status.OK, Gate.PASS, "review"),
         (True, ["full_name"], Status.OK, Gate.PASS, "review"),
         (True, [], Status.ERROR, Gate.PASS, "review"),
+        (True, [], Status.DEGRADED, Gate.PASS, "review"),
         (True, [], Status.OK, Gate.FAIL, "review"),
     ],
 )
@@ -124,7 +103,7 @@ def test_identity_gate_cannot_bypass_confirmation_or_errors(
         results={
             Module.FACE_MATCH: ModuleResult(
                 module=Module.FACE_MATCH,
-                model_version="synthetic",
+                model_version=MATCH_VERSION,
                 status=status,
                 gate=gate,
                 latency_ms=0,
@@ -140,9 +119,21 @@ def test_finalize_does_not_leak_face_score(client, monkeypatch):
     sid, auth = enable(client, monkeypatch, {"qr_values": [QR], "fields": {}})
     fields = client.post(f"/v1/sessions/{sid}/id-card", headers=auth, files=FILES).json()["fields"]
     client.post(f"/v1/sessions/{sid}/id-card/confirm", headers=auth, json=fields)
-    monkeypatch.setattr(
-        IdentityRuntime, "_post", lambda *args: {"status": "ok", "cosine_similarity": 0.39}
-    )
+
+    class SyntheticMatcher:
+        def predict(self, inp):
+            assert inp.reference_image is not None
+            assert inp.image_roles == ["front"] and len(inp.images) == 1
+            return ModuleResult(
+                module=Module.FACE_MATCH,
+                model_version=MATCH_VERSION,
+                status=Status.DEGRADED,
+                score=0.39,
+                gate=Gate.UNCLEAR,
+                latency_ms=0,
+            )
+
+    client.app.state.vericlue.orchestrator._detectors[Module.FACE_MATCH] = SyntheticMatcher()
     client.post(
         f"/v1/sessions/{sid}/media",
         headers=auth,
@@ -154,3 +145,26 @@ def test_finalize_does_not_leak_face_score(client, monkeypatch):
     assert "0.39" not in response.text and "cosine" not in response.text
     with client.app.state.vericlue.transaction() as state:
         assert state.sessions.get(sid).results[Module.FACE_MATCH].score == 0.39
+
+
+def test_saved_adaface_result_cannot_authorize_a_voice_step_after_migration():
+    flow = object.__new__(SessionFlow)
+    flow.settings = Settings()
+    session = SimpleNamespace(
+        id_confirmed=True,
+        id_edited=[],
+        id_source="server_qr",
+        results={
+            Module.FACE_MATCH: ModuleResult(
+                module=Module.FACE_MATCH,
+                model_version="adaface-ir18-context@identity-lab-v1",
+                status=Status.OK,
+                gate=Gate.PASS,
+                quality={"threshold_cosine": 0.4},
+                latency_ms=0,
+            )
+        },
+    )
+    result = flow._identity_gate(session, Decision(status="pass"))
+    assert result.status == "review"
+    assert "identity_face_cosine" not in result.thresholds

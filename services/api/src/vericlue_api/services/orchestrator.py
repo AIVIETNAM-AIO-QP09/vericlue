@@ -11,12 +11,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from threading import Lock
 from time import perf_counter
-from typing import Any
+from typing import Any, Literal
 
 from vericlue_api.core.config import Settings
 from vericlue_ml.common.detector import Detector, DetectorInput
 from vericlue_ml.common.result import ErrorCode, Evidence, Module, ModuleResult, Status
 from vericlue_ml.face.gend import FaceDeepfakeDetector
+from vericlue_ml.face.match import FaceMatchDetector
 from vericlue_ml.face.pad import FacePadDetector
 from vericlue_ml.face.quality import QualityDetector
 from vericlue_ml.registry import get_detector
@@ -45,9 +46,7 @@ class Orchestrator:
     ) -> None:
         self.settings = settings
         self.router = TrustRouter(settings.router_config, profile=settings.router_profile)
-        self._factory = detector_factory or (
-            lambda module: get_detector(module, mock=settings.use_mock_models)
-        )
+        self._factory = detector_factory or self._default_detector
         self._detectors: dict[Module, Detector] = {}
         self._failed: set[Module] = set()
         self._queues: dict[Module, deque[_Job]] = {module: deque() for module in Module}
@@ -55,6 +54,14 @@ class Orchestrator:
         self._lifecycle = Lock()
         self._started = self._closed = False
         self._executor: ThreadPoolExecutor | None = None
+
+    def _default_detector(self, module: Module) -> Detector:
+        if module == Module.FACE_MATCH and self.settings.identity_lab_url:
+            # Identity opt-in is deliberately hybrid: OCR and face matching are real,
+            # even when the remaining API detectors are mocked for the demo.
+            artifact = self.settings.identity_face_calibration
+            return FaceMatchDetector(calibration_path=Path(artifact) if artifact else None)
+        return get_detector(module, mock=self.settings.use_mock_models)
 
     def loaded_detector(self, module: Module) -> Detector | None:
         """Bộ phát hiện đã preload (dùng lại cho giám định, tránh nạp mô hình hai lần); None nếu chưa có."""
@@ -74,7 +81,10 @@ class Orchestrator:
                 raise RuntimeError("Orchestrator is closed")
             if self._started:
                 return
-            for module in self.router.profile.modules:
+            modules = list(self.router.profile.modules)
+            if self.settings.identity_lab_url:
+                modules.append(Module.FACE_MATCH)
+            for module in dict.fromkeys(modules):
                 try:
                     detector = self._factory(module)
                     if Module(detector.name) != module:
@@ -99,6 +109,7 @@ class Orchestrator:
                                 FacePadDetector,
                                 FaceDeepfakeDetector,
                                 QualityDetector,
+                                FaceMatchDetector,
                             ),
                         ):
                             preload(
@@ -227,6 +238,8 @@ class Orchestrator:
         session_id: str | None,
         scenario: str,
         images: list[Path] | None = None,
+        reference_image: Path | None = None,
+        image_roles: list[Literal["front", "left", "right"]] | None = None,
         video: Path | None = None,
         audio: Path | None = None,
         signals: dict[str, Any] | None = None,
@@ -242,6 +255,8 @@ class Orchestrator:
         inp = DetectorInput(
             session_id=session_id,
             images=images or [],
+            reference_image=reference_image,
+            image_roles=image_roles or [],
             video=video,
             audio=audio,
             signals=signals or {},
@@ -252,7 +267,9 @@ class Orchestrator:
         with self._lifecycle:
             for value in dict.fromkeys(modules):
                 module = Module(value)
-                if module not in self.router.profile.modules:
+                if module not in self.router.profile.modules and not (
+                    module == Module.FACE_MATCH and self.settings.identity_lab_url
+                ):
                     out[module] = self._error(
                         module,
                         ErrorCode.E_INTERNAL,

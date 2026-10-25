@@ -1,16 +1,11 @@
-"""Private OCR/face runtime bridge; never sends scores to the citizen API."""
+"""Private QR/OCR runtime bridge; face matching runs locally through the ML orchestrator."""
 
 from __future__ import annotations
-
-import math
-from pathlib import Path
-from time import perf_counter
 
 import httpx
 
 from vericlue_api.core.config import Settings
 from vericlue_api.core.errors import ApiError
-from vericlue_ml.common.result import ErrorCode, Gate, Module, ModuleResult, Status
 
 
 class IdentityRuntime:
@@ -41,45 +36,3 @@ class IdentityRuntime:
 
     def scan(self, front: bytes, back: bytes) -> dict:
         return self._post("/internal/id-card", {"front": front, "back": back})
-
-    def match(self, reference: Path | None, images: list[Path]) -> ModuleResult:
-        started = perf_counter()
-        threshold = self.settings.identity_face_threshold
-        result = ModuleResult(
-            module=Module.FACE_MATCH,
-            model_version="adaface-ir18-context@identity-lab-v1",
-            status=Status.ERROR,
-            error_code=ErrorCode.E_INTERNAL,
-            gate=Gate.UNCLEAR,
-            latency_ms=0,
-            quality={"threshold": threshold, "provisional": True},
-        )
-        if reference is None or not images:
-            return result.model_copy(update={"error_code": ErrorCode.E_NO_FACE})
-        try:
-            # First server-received neutral still; never choose the highest scoring frame.
-            body = self._post(
-                "/internal/face-match",
-                {"reference": reference.read_bytes(), "selfie": images[0].read_bytes()},
-            )
-            score = body.get("cosine_similarity")
-            if (
-                body.get("status") != "ok"
-                or type(score) not in (int, float)
-                or not math.isfinite(score)
-                or not -1 <= score <= 1
-            ):
-                return result.model_copy(
-                    update={"status": Status.DEGRADED, "error_code": ErrorCode.E_LOW_QUALITY}
-                )
-            return result.model_copy(
-                update={
-                    "status": Status.OK,
-                    "error_code": None,
-                    "score": score,
-                    "gate": Gate.PASS if score >= threshold else Gate.FAIL,
-                    "latency_ms": (perf_counter() - started) * 1000,
-                }
-            )
-        except (ApiError, OSError):
-            return result

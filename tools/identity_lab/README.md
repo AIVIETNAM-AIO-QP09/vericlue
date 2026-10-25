@@ -6,6 +6,11 @@ phát triển, không phải tất cả đều được chọn làm mặc địn
 
 ## Face matching
 
+API xác minh hiện dùng SCRFD + LVFace-B trực tiếp trong orchestrator, không gọi
+các endpoint face của lab này. Lab tiếp tục cung cấp QR/OCR; các thử nghiệm AdaFace
+bên dưới được giữ để tái lập, không phải backend so CCCD–selfie đang tích hợp.
+Xem [hướng dẫn tích hợp](../../docs/runbooks/identity-integration.md).
+
 So sánh model bằng dữ liệu ngoài, giữ ảnh cá nhân chỉ để test:
 [FACE_ROBUSTNESS.md](FACE_ROBUSTNESS.md). Có CLI khóa cấu hình trước khi đọc ảnh test.
 

@@ -132,13 +132,20 @@ Xem [`head-and-match.md`](../../architecture/head-and-match.md).
 - So cùng khuôn mặt giữa các bước (ADR-0013 nguyên tắc 4).
 
 **Tiêu chí hoàn thành:**
-- [x] Wrapper, mock, registry và hợp đồng; chuẩn hóa RGB/112/[-1,1], so tham chiếu và mọi cặp giữa ba ảnh.
+- [x] Wrapper, mock, registry và hợp đồng; chuẩn hóa RGB/112/[-1,1], so tham chiếu–chính diện; cosine giữa ba góc riêng.
+- [x] API opt-in dùng LVFace-B thật qua orchestrator, preload/cache/deadline chung; không gọi AdaFace hoặc dùng ngưỡng cũ.
 - [x] Thiếu ngưỡng/ảnh, nhiều mặt hoặc artifact sai phiên bản không được đạt; không lưu embedding.
 - [ ] Đo VRAM khi chạy cùng bộ mô hình MVP.
 - [ ] Số liệu ngưỡng chạy ra từ code trong repo.
 - [ ] Nối FLOW-03/API và vòng đời mẫu mã hóa/xóa 24 giờ.
 
-**Lát cắt backend 24/10 (Codex, doing):** diagnostic offline qua `eval.face_match`.
+**Cập nhật 25/10 (Codex, doing):** API opt-in `IDENTITY_LAB_URL` dùng LVFace-B
+thật cho một selfie đầu tiên với ảnh mặt trước CCCD; OCR giữ runtime riêng.
+Version `front-reference-v2` tách so CCCD–front khỏi cosine giữa các góc,
+chặn artifact/kết quả AdaFace hoặc protocol cũ. Chưa chọn/kiểm chính diện tự động
+từ video trong API; chưa có ngưỡng thật, mặc định không đạt.
+
+**Lát cắt backend 24/10:** diagnostic offline qua `eval.face_match`.
 `eval.video_face_match` nối head_turn → chọn khung và kiểm lại tư thế → LVFace,
 không nhận nhãn góc/ảnh query từ client trong chuỗi này, không ghi khung ra đĩa.
 Ngưỡng không có mặc định: thiếu artifact `calib_ltt` đúng version thì

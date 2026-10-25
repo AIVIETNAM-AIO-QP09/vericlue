@@ -51,7 +51,7 @@ opencv-contrib-python có GUI trong runtime riêng, không thay OpenCV của API
    bỏ dữ liệu giữ trong worker. Camera được giải phóng sau lượt đọc hiện tại.
    Đóng cửa sổ để thoát cả tiến trình.
 
-`face_match.score` là khoảng cách `1-min_cosine`, nhỏ hơn nghĩa gần tham chiếu
+`face_match.score` là khoảng cách `1-cosine(reference,front)`, nhỏ hơn nghĩa gần tham chiếu
 hơn. Thiếu ngưỡng hiệu chỉnh vẫn `degraded/unclear`, không phải xác minh đạt.
 `face_pad` và `face_deepfake` là điểm tấn công thô chưa hiệu chỉnh, không dùng
 ngưỡng 0,5 để tự kết luận. Có thể đọc từng module nhưng không hợp nhất thành
