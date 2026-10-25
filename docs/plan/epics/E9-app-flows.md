@@ -135,7 +135,8 @@ Xem [`head-and-match.md`](../../architecture/head-and-match.md).
 - [x] Wrapper, mock, registry và hợp đồng; chuẩn hóa RGB/112/[-1,1], so tham chiếu–chính diện; cosine giữa ba góc riêng.
 - [x] API opt-in dùng LVFace-B thật qua orchestrator, preload/cache/deadline chung; không gọi AdaFace hoặc dùng ngưỡng cũ.
 - [x] API opt-in chọn khung chính diện theo lịch server, kiểm tư thế trên pixel video; không fallback selfie khi thiếu/sai video. Mắt/quay đầu có cổng API riêng, reader dùng chung.
-- [x] Thiếu ngưỡng/ảnh, nhiều mặt hoặc artifact sai phiên bản không được đạt; không lưu embedding.
+- [x] Thiếu ngưỡng/ảnh, nhiều mặt hoặc artifact sai phiên bản không được đạt; không đưa embedding vào ModuleResult/HTTP.
+- [x] Nền lưu mẫu/tài khoản mã hóa, DEK độc lập phiên, unique HMAC CCCD/phiên nguồn, gắn public key đã ký, TTL 24 giờ và cleanup có test tổng hợp.
 - [ ] Đo VRAM khi chạy cùng bộ mô hình MVP.
 - [ ] Số liệu ngưỡng chạy ra từ code trong repo.
 - [ ] Nối FLOW-03/API và vòng đời mẫu mã hóa/xóa 24 giờ.
@@ -143,8 +144,12 @@ Xem [`head-and-match.md`](../../architecture/head-and-match.md).
 **Cập nhật 25/10 (Codex, doing):** API opt-in `IDENTITY_LAB_URL` dùng LVFace-B
 thật cho một selfie đầu tiên với ảnh mặt trước CCCD; OCR giữ runtime riêng.
 Version `front-reference-v2` tách so CCCD–front khỏi cosine giữa các góc,
-chặn artifact/kết quả AdaFace hoặc protocol cũ. Chưa chọn/kiểm chính diện tự động
-từ video trong API; chưa có ngưỡng thật, mặc định không đạt.
+chặn artifact/kết quả AdaFace hoặc protocol cũ. `IDENTITY_FACE_FROM_VIDEO` đã
+chọn/kiểm chính diện từ video trong API; chưa có ngưỡng thật, mặc định không đạt.
+Nền ghi danh `AccountStore` có migration 0005 và contract template nội bộ, chưa
+có endpoint/lời gọi tự động. Thiếu so cùng người giữa mặt–giọng thì không ghi
+danh; không cho mock/mixed tạo tài khoản. Xem
+[`account-enrollment.md`](../../architecture/account-enrollment.md).
 
 **Lát cắt backend 24/10:** diagnostic offline qua `eval.face_match`.
 `eval.video_face_match` nối head_turn → chọn khung và kiểm lại tư thế → LVFace,

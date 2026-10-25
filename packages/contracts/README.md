@@ -6,6 +6,7 @@
 |---|---|
 | `schemas/module_result.schema.json` | Kết quả của MỌI bộ phát hiện |
 | `schemas/detector_input.schema.json` | Đầu vào nội bộ API → ML; đường dẫn do server kiểm soát, không phải body HTTP |
+| `schemas/face_template.schema.json` | Artifact ML → API nội bộ: vector chỉ lưu mã hóa, không nhận/trả qua HTTP |
 | `schemas/session.schema.json` | API phiên eKYC: tạo phiên, tín hiệu, kết quả (API v1, chốt ở PLAT-04) |
 | `schemas/review.schema.json` | Bàn duyệt. **Draft v1**: chỉ thêm trường tùy chọn. `ReviewCase` không có điểm AI; `ReviewAiOpinion` tách riêng |
 | `schemas/forensic.schema.json` | Cổng giám định. **Draft v1**: chỉ thêm trường tùy chọn |

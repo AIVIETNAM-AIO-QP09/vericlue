@@ -1,6 +1,8 @@
 """Real PostgreSQL migration/transaction tests (CI service or local Docker)."""
 
+import base64
 import os
+import secrets
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -26,6 +28,60 @@ from vericlue_api.db.models import (
 )
 from vericlue_api.main import create_app
 from vericlue_api.services import storage
+
+
+def test_account_duplicate_identity_race(postgres, monkeypatch):
+    """Two different locked sessions must not enroll the same live identity."""
+    from pydantic import SecretStr
+    from test_accounts import prepared, real_settings
+
+    from vericlue_api.core.errors import ApiError
+    from vericlue_api.db.models import AccountRow
+    from vericlue_api.services.accounts import AccountStore
+
+    # This fixture shares PostgreSQL's demo review rows with other test modules.
+    # Keep those synthetic rows plaintext; only the account under test is encrypted.
+    monkeypatch.setenv("SESSION_PRIVACY", "false")
+    get_settings.cache_clear()
+    identity_hmac = secrets.token_hex(32)
+    with TestClient(create_app()) as client:
+        root = client.app.state.vericlue
+        with root.transaction() as state:
+            first = prepared(state, id_hmac=identity_hmac)
+            second = prepared(state, id_hmac=identity_hmac)
+            settings = real_settings(state).model_copy(
+                update={
+                    "session_privacy": True,
+                    "session_master_key": SecretStr(
+                        base64.b64encode(secrets.token_bytes(32)).decode()
+                    ),
+                }
+            )
+        ready = Barrier(2)
+
+        def enroll(record):
+            session, template, continuity = record
+            try:
+                with root.transaction() as state:
+                    loaded = state.sessions.get(session.session_id)
+                    ready.wait(timeout=10)
+                    AccountStore(settings, state.db).create(loaded, template, continuity=continuity)
+                return "created"
+            except ApiError as exc:
+                return exc.error_code
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(enroll, [first, second]))
+        assert sorted(results) == ["created", "enrollment_not_available"]
+        with postgres.sessions() as db:
+            assert (
+                db.scalar(
+                    select(func.count())
+                    .select_from(AccountRow)
+                    .where(AccountRow.id_number_hmac == identity_hmac)
+                )
+                == 1
+            )
 
 
 @pytest.fixture

@@ -16,6 +16,11 @@ sâu. Giấy phép trọng số nghiên cứu phi thương mại, hash/revision 
 tiền xử lý/phép so như ảnh rời; không thêm trường JSON/HTTP mới. Chuỗi
 `presence.video_identity` chọn và kiểm tư thế khung từ video trước khi gọi.
 
+`VideoFaceMatchDetector.enrollment_template` trích artifact nội bộ sau khi chấm
+lại và đối chiếu hash video/pixel; không đưa vector vào `ModuleResult` hay HTTP.
+Nền lưu mã hóa và TTL 24 giờ: [`account-enrollment.md`](../../../../docs/architecture/account-enrollment.md).
+Chưa nối lời gọi trong request; caller phải giữ lease/deadline của worker.
+
 ## PAD: `pad.py` (FACE-01, bước 1 — bọc mô hình)
 
 `FacePadDetector` (module `face_pad`): ảnh → SCRFD `det_10g` tìm mặt → MiniFASNet V2 → `score = 1 − p_real`; `prob_attack` để trống (xác suất sau hiệu chỉnh do TrustRouter tính từ `score`).

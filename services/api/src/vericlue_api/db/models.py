@@ -41,6 +41,21 @@ class SessionKeyRow(Base):
     destroyed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class AccountRow(Base):
+    __tablename__ = "accounts"
+    account_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    source_session_id: Mapped[str] = mapped_column(String(80), unique=True)
+    # Nullable after expiration: live identities are unique; tombstones retain no lookup PII.
+    id_number_hmac: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
+    phone_hmac: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    device_id: Mapped[str] = mapped_column(String(80), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    destroyed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    wrapped_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    encrypted_payload: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
 class MediaProofUseRow(Base):
     __tablename__ = "media_proof_uses"
     nonce_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
