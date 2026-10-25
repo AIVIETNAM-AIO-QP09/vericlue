@@ -1,0 +1,11 @@
+# Optional CPU API runtime with one MediaPipe-owned cv2 distribution.
+# Install both editable workspace packages explicitly; do not add face/cuda extras here.
+-r face-diagnostic-cpu.txt
+fastapi==0.143.1
+httpx==0.28.1
+python-multipart==0.0.32
+uvicorn==0.54.0
+pydantic-settings==2.16.0
+sqlalchemy==2.1.4
+alembic==1.20.0
+psycopg[binary]==3.3.6

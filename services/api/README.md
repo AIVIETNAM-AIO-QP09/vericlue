@@ -12,6 +12,11 @@ OCR/QR và LVFace-B opt-in cho UI Android: xem
 trả điểm nội bộ nhưng không đạt. Không dùng ngưỡng AdaFace `0.40` cũ. Luồng đầy đủ
 vẫn có giới hạn mock/real nêu dưới đây.
 
+`IDENTITY_FACE_FROM_VIDEO=true` chọn khung chính diện theo lịch server thay ảnh đầu;
+`SESSION_FACE_CHECKS=true` chạy thêm mắt/quay đầu, dùng chung MediaPipe. Hai cờ mặc
+định tắt, yêu cầu runtime MediaPipe tương thích. Xem
+[`session-verification.md`](../../docs/architecture/session-verification.md).
+
 FLOW-01/LIVE-01 đã có nền backend opt-in bằng body `purpose`/`nonce`, gói thử thách
 động, kiểm mã lượt và chính sách theo luồng. **Hiện chỉ chạy mock**; real/mixed trả
 503 cho luồng mới tới khi đủ detector và xác minh danh tính/thiết bị. API cũ không

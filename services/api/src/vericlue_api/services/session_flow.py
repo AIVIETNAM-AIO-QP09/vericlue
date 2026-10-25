@@ -43,6 +43,7 @@ from vericlue_api.services.session_store import Session, SessionStore
 from vericlue_api.services.uploads import save_upload
 from vericlue_ml.common.result import Gate, Module, Status
 from vericlue_ml.face.match import MATCH_VERSION
+from vericlue_ml.face.video_match import VIDEO_MATCH_VERSION
 from vericlue_ml.router.flows import route_face, route_voice
 from vericlue_ml.router.policy import TrustRouter
 
@@ -291,7 +292,14 @@ class SessionFlow:
         session_valid = self._valid_time(session, color_challenge=True)
         results = (
             self._run(
-                self.router.profile.finalize_modules,
+                [
+                    *self.router.profile.finalize_modules,
+                    *(
+                        (Module.GAZE_TRACKING, Module.HEAD_TURN)
+                        if self.settings.session_face_checks and session.purpose != "reauth"
+                        else ()
+                    ),
+                ],
                 session_id=session.session_id,
                 scenario=session.scenario,
                 images=session.images,
@@ -336,6 +344,13 @@ class SessionFlow:
                         reference_image=session.id_front,
                         images=session.images[:1],
                         image_roles=["front"],
+                        video=session.video,
+                        extra_metadata={
+                            "challenge_id": session.challenge.challenge_id,
+                            "expected_challenge": session.challenge.model_dump(
+                                mode="json", exclude_none=True
+                            ),
+                        },
                     )
                 )
             outcome = self._identity_gate(session, outcome)
@@ -344,6 +359,15 @@ class SessionFlow:
                 "voice_challenge",
             }:
                 outcome = replace(outcome, status="review", reason="identity inference expired")
+        if s.session_face_checks and session.purpose != "reauth":
+            motion_ok = all(
+                (measured := session.results.get(module)) is not None
+                and measured.status == Status.OK
+                and measured.gate == Gate.PASS
+                for module in (Module.GAZE_TRACKING, Module.HEAD_TURN)
+            )
+            if not motion_ok and outcome.status in {"pass", "voice_challenge"}:
+                outcome = replace(outcome, status="review", reason="motion checks incomplete")
         session.results.update(outcome.results)
         status = outcome.status
         if status == "pass" and session.voice_owed:
@@ -496,7 +520,10 @@ class SessionFlow:
         """A face match is one required signal, never an override of PAD or voice failures."""
         match = session.results.get(Module.FACE_MATCH)
         thresholds = dict(outcome.thresholds)
-        if match is not None and match.model_version == MATCH_VERSION:
+        expected_version = (
+            VIDEO_MATCH_VERSION if self.settings.identity_face_from_video else MATCH_VERSION
+        )
+        if match is not None and match.model_version == expected_version:
             threshold = match.quality.get("threshold_cosine")
             if type(threshold) in (int, float) and -1 <= threshold <= 1:
                 thresholds["identity_face_cosine"] = threshold
@@ -505,9 +532,13 @@ class SessionFlow:
             and not session.id_edited
             and session.id_source in {"server_qr", "ocr"}
             and match is not None
-            and match.model_version == MATCH_VERSION
+            and match.model_version == expected_version
             and match.status == Status.OK
             and match.gate == Gate.PASS
+            and (
+                not self.settings.identity_consistency_required
+                or match.quality.get("consistency_verified") is True
+            )
         )
         if not allowed and outcome.status in {"pass", "voice_challenge"}:
             return replace(

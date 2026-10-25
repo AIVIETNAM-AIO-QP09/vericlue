@@ -26,6 +26,12 @@ diagnostic_models:
   voice_challenge: qwen3-asr-06b-hf
   voice_spoof: nes2net-x-xlsr
 
+session_face:
+  face_match: lvface-b
+  sampler: video-frontal-v1
+  pose_reader: mediapipe-face-landmarker
+  motion: [gaze_tracking, head_turn]
+
 # Optional voice_challenge timing variant; not a replacement for ASR/content checking.
 reading_timing:
   model_id: ctc-aligner

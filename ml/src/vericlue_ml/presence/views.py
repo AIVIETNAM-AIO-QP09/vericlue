@@ -55,8 +55,19 @@ def video_sha256(video: Path) -> str:
 
 def select_video_frames(video: Path, targets: dict[str, float]) -> dict[str, SelectedFrame]:
     """Keep only three nearest frames in RAM; require a frame within 100 ms of each target."""
+    if set(targets) != {"front", "left", "right"}:
+        raise LandmarkError(ErrorCode.E_CHALLENGE_MISMATCH)
+    return _select_frames(video, targets)
+
+
+def select_frontal_frame(video: Path, target_ms: float) -> SelectedFrame:
+    """Select a single server-timed frontal frame, without needing head-turn side views."""
+    return _select_frames(video, {"front": target_ms})["front"]
+
+
+def _select_frames(video: Path, targets: dict[str, float]) -> dict[str, SelectedFrame]:
     if (
-        set(targets) != {"front", "left", "right"}
+        len(targets) not in (1, 3)
         or any(
             isinstance(t, bool)
             or not isinstance(t, (int, float))
@@ -64,7 +75,7 @@ def select_video_frames(video: Path, targets: dict[str, float]) -> dict[str, Sel
             or not 0 <= t <= MAX_VIDEO_MS
             for t in targets.values()
         )
-        or len(set(targets.values())) != 3
+        or len(set(targets.values())) != len(targets)
     ):
         raise LandmarkError(ErrorCode.E_CHALLENGE_MISMATCH)
     video_sha256(video)
@@ -116,6 +127,6 @@ def select_video_frames(video: Path, targets: dict[str, float]) -> dict[str, Sel
         capture.release()
     if set(picked) != set(targets):
         raise LandmarkError(ErrorCode.E_LOW_QUALITY, Status.DEGRADED)
-    if len({frame.at_ms for frame in picked.values()}) != 3:
+    if len({frame.at_ms for frame in picked.values()}) != len(targets):
         raise LandmarkError(ErrorCode.E_INTEGRITY, Status.DEGRADED)
     return picked
