@@ -19,6 +19,7 @@ class DetectorInput(BaseModel):
     images: list[Path] = Field(default_factory=list, description="Ảnh mặt chất lượng cao")
     image_roles: list[Literal["front", "left", "right"]] = Field(default_factory=list)
     reference_image: Path | None = None
+    reference_video: Path | None = None
     video: Path | None = None
     audio: Path | None = None
     signals: dict[str, Any] = Field(

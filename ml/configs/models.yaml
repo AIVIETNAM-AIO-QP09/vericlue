@@ -13,6 +13,7 @@ modules:
   gaze_tracking: mediapipe-face-landmarker # LIVE-02: opt-in, chưa nằm trong profile MVP/full
   head_turn: mediapipe-face-landmarker # FLOW-04: kiểm thứ tự; không chứng minh chiều sâu
   face_match: lvface-b # FLOW-05: diagnostic và API identity opt-in; cần artifact đúng protocol để pass
+  face_continuity: lvface-b # FLOW-05: cùng backend; protocol/ngưỡng front–voice riêng, opt-in
 
 gaze:
   model_subdir: mediapipe-face-landmarker

@@ -65,6 +65,11 @@ Data4Life/
 
 ## 3. Giao diện chung của mô-đun AI
 
+FLOW-05 thêm `face_continuity` opt-in: `reference_video` nội bộ giữ video bước
+mặt, `video` là bản ghi đọc câu. Dùng chung backend LVFace, protocol ba mẫu
+theo WAV/PTS/offset và ngưỡng riêng, không ghi đè `face_match`. Xem
+[so cùng người mặt–giọng](face-voice-continuity.md). Không mở luồng thật/mixed.
+
 VOICE-12 thêm A/V lab opt-in: một DirectShow input có hai track, PCM/JPEG và PTS
 chung trong RAM, tái dùng CTC/SCRFD/Stable SyncNet. Kết quả `lipsync` version riêng
 luôn unclear, không score/prob_attack; không thay HTTP hoặc kết luận xác minh.

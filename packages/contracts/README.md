@@ -15,6 +15,11 @@
 
 ## Quy tắc
 
+FLOW-05 thêm module `face_continuity` và `DetectorInput.reference_video` nội bộ:
+so khung chính diện đã duyệt với ba mẫu video đọc câu, kết quả/ngưỡng riêng với
+`face_match`. Không nhận đường dẫn hay kết quả tham chiếu từ HTTP; response người
+dân không đổi. Xem [`face-voice-continuity.md`](../../docs/architecture/face-voice-continuity.md).
+
 SEC-02 thêm tùy chọn `CreateSessionRequest.device_public_key_spki`,
 `Challenge.media_nonce` và multipart `media_signature` ở mặt/giọng. Phiên đã
 ràng buộc public key bắt buộc ký cả hai bước. Định dạng ký và mẫu đối chiếu

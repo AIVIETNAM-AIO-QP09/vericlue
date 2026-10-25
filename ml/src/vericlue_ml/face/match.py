@@ -263,6 +263,12 @@ class FaceMatchDetector:
     def predict(self, inp: DetectorInput) -> ModuleResult:
         return self._predict(inp, inp.image_roles, inp.images)
 
+    def embed_frames(self, frames: Mapping[str, np.ndarray]) -> dict[str, tuple[np.ndarray, str]]:
+        """Internal trusted pixels → RAM vectors/hashes; never serialize to detector responses."""
+        with self._lock:
+            self.preload()
+            return {name: self._embedding(frame) for name, frame in frames.items()}
+
     def predict_frames(
         self,
         inp: DetectorInput,

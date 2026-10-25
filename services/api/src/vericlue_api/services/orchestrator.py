@@ -16,6 +16,7 @@ from typing import Any, Literal
 from vericlue_api.core.config import Settings
 from vericlue_ml.common.detector import Detector, DetectorInput
 from vericlue_ml.common.result import ErrorCode, Evidence, Module, ModuleResult, Status
+from vericlue_ml.face.continuity import FaceContinuityDetector
 from vericlue_ml.face.fsvfm import FsvfmPadDetector
 from vericlue_ml.face.gend import FaceDeepfakeDetector
 from vericlue_ml.face.match import FaceMatchDetector
@@ -65,6 +66,7 @@ class Orchestrator:
         self._started = self._closed = False
         self._executor: ThreadPoolExecutor | None = None
         self._face_reader = FaceObservationReader()
+        self._identity_matcher: FaceMatchDetector | None = None
         self._voice_clients: dict[str, VoiceWorkerClient] = {}
 
     def _default_detector(self, module: Module) -> Detector:
@@ -99,12 +101,17 @@ class Orchestrator:
                 if module == Module.VOICE_CHALLENGE
                 else None,
             )
-        if module == Module.FACE_MATCH and self.settings.identity_lab_url:
+        if (
+            module == Module.FACE_MATCH
+            and self.settings.identity_lab_url
+            or module == Module.FACE_CONTINUITY
+            and self.settings.identity_voice_continuity
+        ):
             # Identity opt-in is deliberately hybrid: OCR and face matching are real,
             # even when the remaining API detectors are mocked for the demo.
             artifact = self.settings.identity_face_calibration
-            if self.settings.identity_face_from_video:
-                return VideoFaceMatchDetector(
+            if self._identity_matcher is None and self.settings.identity_face_from_video:
+                self._identity_matcher = VideoFaceMatchDetector(
                     reader=self._face_reader,
                     calibration_path=Path(artifact) if artifact else None,
                     with_consistency=self.settings.identity_consistency_required,
@@ -112,7 +119,19 @@ class Orchestrator:
                     if self.settings.identity_consistency_calibration
                     else None,
                 )
-            return FaceMatchDetector(calibration_path=Path(artifact) if artifact else None)
+            if self._identity_matcher is None:
+                self._identity_matcher = FaceMatchDetector(
+                    calibration_path=Path(artifact) if artifact else None
+                )
+            if module == Module.FACE_MATCH:
+                return self._identity_matcher
+            return FaceContinuityDetector(
+                self._identity_matcher,
+                self._face_reader,
+                calibration_path=Path(self.settings.identity_voice_calibration)
+                if self.settings.identity_voice_calibration
+                else None,
+            )
         if self.settings.session_face_checks:
             if module == Module.GAZE_TRACKING:
                 return GazeDetector(self._face_reader)
@@ -148,6 +167,8 @@ class Orchestrator:
             modules = list(self.router.profile.modules)
             if self.settings.identity_lab_url:
                 modules.append(Module.FACE_MATCH)
+            if self.settings.identity_voice_continuity:
+                modules.append(Module.FACE_CONTINUITY)
             if self.settings.session_face_checks:
                 modules.extend((Module.GAZE_TRACKING, Module.HEAD_TURN))
             for module in dict.fromkeys(modules):
@@ -180,6 +201,7 @@ class Orchestrator:
                                 FaceDeepfakeDetector,
                                 QualityDetector,
                                 FaceMatchDetector,
+                                FaceContinuityDetector,
                                 SessionAttackDetector,
                             ),
                         ):
@@ -328,6 +350,7 @@ class Orchestrator:
         scenario: str,
         images: list[Path] | None = None,
         reference_image: Path | None = None,
+        reference_video: Path | None = None,
         image_roles: list[Literal["front", "left", "right"]] | None = None,
         video: Path | None = None,
         audio: Path | None = None,
@@ -342,7 +365,9 @@ class Orchestrator:
             started
             + (
                 self.settings.session_model_timeout_seconds
-                if self.settings.session_face_models or self.settings.session_voice_models
+                if self.settings.session_face_models
+                or self.settings.session_voice_models
+                or self.settings.identity_voice_continuity
                 else self.settings.detector_timeout_seconds
             ),
             deadline if deadline is not None else float("inf"),
@@ -351,6 +376,7 @@ class Orchestrator:
             session_id=session_id,
             images=images or [],
             reference_image=reference_image,
+            reference_video=reference_video,
             image_roles=image_roles or [],
             video=video,
             audio=audio,
@@ -365,6 +391,8 @@ class Orchestrator:
                 if module not in self.router.profile.modules and not (
                     module == Module.FACE_MATCH
                     and self.settings.identity_lab_url
+                    or module == Module.FACE_CONTINUITY
+                    and self.settings.identity_voice_continuity
                     or module in {Module.GAZE_TRACKING, Module.HEAD_TURN}
                     and self.settings.session_face_checks
                 ):

@@ -10,6 +10,7 @@
     "images": {"type": "array", "items": {"type": "string"}},
     "image_roles": {"type": "array", "items": {"type": "string", "enum": ["front", "left", "right"]}},
     "reference_image": {"type": ["string", "null"], "description": "Ảnh chân dung tham chiếu do server kiểm soát; không phải toàn ảnh CCCD chưa cắt."},
+    "reference_video": {"type": ["string", "null"], "description": "Video phần mặt do server giữ cho face_continuity; video là bản ghi đọc câu. Không lấy đường dẫn từ HTTP/signals."},
     "video": {"type": ["string", "null"]},
     "audio": {"type": ["string", "null"]},
     "signals": {"type": "object"},

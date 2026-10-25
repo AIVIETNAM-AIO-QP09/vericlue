@@ -123,7 +123,9 @@ def get_state(request: Request) -> Iterator[AppState]:
     root = request.app.state.vericlue
     budget = (
         root.settings.session_model_timeout_seconds + 0.8
-        if root.settings.session_face_models or root.settings.session_voice_models
+        if root.settings.session_face_models
+        or root.settings.session_voice_models
+        or root.settings.identity_voice_continuity
         else root.settings.inference_budget_seconds
     )
     inference_deadline = perf_counter() + budget

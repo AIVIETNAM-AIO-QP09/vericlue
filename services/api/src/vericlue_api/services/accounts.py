@@ -1,8 +1,8 @@
 """Encrypted account persistence for FLOW-05; no public enrollment route yet.
 
 The caller owns a locked onboarding session and validated face/voice evidence.
-No current detector issues FACE_VOICE_VERSION: until that integration exists,
-an ordinary session (including a mock pass) cannot create an account here.
+Continuity requires its own calibrated protocol. No mock/mixed session can
+create an account here; the public enrollment flow is still disabled.
 """
 
 from __future__ import annotations
@@ -26,11 +26,10 @@ from vericlue_api.services.media_proof import public_key, require_consumed
 from vericlue_api.services.session_privacy import SessionPrivacy
 from vericlue_api.services.session_store import Session
 from vericlue_ml.common.result import Gate, Module, ModuleResult, Status
+from vericlue_ml.face.continuity import FACE_VOICE_VERSION
 from vericlue_ml.face.template import FaceTemplate
 from vericlue_ml.face.video_match import VIDEO_MATCH_VERSION
 
-# Reserved for the separate front-to-voice protocol, never CCCD or three-view thresholds.
-FACE_VOICE_VERSION = VIDEO_MATCH_VERSION + "+face-voice-v1"
 ACCOUNT_TTL = timedelta(hours=24)
 _GATES = {
     Module.QUALITY,
@@ -142,6 +141,7 @@ class AccountStore:
             or not s.session_face_checks
             or not s.session_face_models
             or not s.session_voice_models
+            or not s.identity_voice_continuity
             or len(s.id_hmac_key.get_secret_value().encode("utf-8")) < 32
         ):
             raise unavailable()
@@ -208,7 +208,7 @@ class AccountStore:
         }
         if (
             continuity is None
-            or continuity.module != Module.FACE_MATCH
+            or continuity.module != Module.FACE_CONTINUITY
             or continuity.model_version != FACE_VOICE_VERSION
             or continuity.status != Status.OK
             or continuity.error_code is not None
@@ -232,6 +232,8 @@ class AccountStore:
     ) -> AccountReceipt:
         """Atomic internal enrollment; requires server-owned validated inputs, not HTTP data."""
         master = self._master()
+        if continuity is None:
+            continuity = session.results.get(Module.FACE_CONTINUITY)
         try:
             # Revalidate even internally copied instances (model_copy skips validators).
             template = FaceTemplate.model_validate_json(template.model_dump_json())

@@ -102,6 +102,8 @@ class Settings(BaseSettings):
     session_face_models: bool = False
     identity_consistency_required: bool = False
     identity_consistency_calibration: str | None = None
+    identity_voice_continuity: bool = False
+    identity_voice_calibration: str | None = None
     session_voice_models: bool = False
     voice_runtime_python: str | None = None
     voice_spoof_python: str | None = None
@@ -111,6 +113,12 @@ class Settings(BaseSettings):
     def consistency_requires_video(self):
         if self.identity_consistency_required and not self.identity_face_from_video:
             raise ValueError("IDENTITY_CONSISTENCY_REQUIRED requires IDENTITY_FACE_FROM_VIDEO")
+        if self.identity_voice_continuity and (
+            not self.identity_face_from_video or not self.identity_lab_url
+        ):
+            raise ValueError(
+                "IDENTITY_VOICE_CONTINUITY requires video identity and IDENTITY_LAB_URL"
+            )
         return self
 
     max_retries: int = Field(default=2, ge=0, le=2)

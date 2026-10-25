@@ -32,6 +32,8 @@ class Session:
     images: list[Path] = field(default_factory=list)
     video: Path | None = None
     audio: Path | None = None
+    voice_video: Path | None = None
+    voice_audio_offset_ms: int | None = None
     signals: dict = field(default_factory=dict)
     results: dict[Module, ModuleResult] = field(default_factory=dict)
     retries_used: int = 0
@@ -132,7 +134,7 @@ class SessionStore:
             data[key] = datetime.fromisoformat(data[key]) if data.get(key) else None
         data["challenge"] = Challenge.model_validate(data["challenge"])
         data["images"] = [Path(p) for p in data["images"]]
-        for key in ("video", "audio", "id_front", "id_back"):
+        for key in ("video", "audio", "voice_video", "id_front", "id_back"):
             data[key] = Path(data[key]) if data.get(key) else None
         data["results"] = {
             Module(k): ModuleResult.model_validate(v) for k, v in data["results"].items()

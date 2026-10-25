@@ -65,6 +65,11 @@ def select_frontal_frame(video: Path, target_ms: float) -> SelectedFrame:
     return _select_frames(video, {"front": target_ms})["front"]
 
 
+def select_timed_frames(video: Path, targets: dict[str, float]) -> dict[str, SelectedFrame]:
+    """Select one or three named temporal samples; labels are not head-pose roles."""
+    return _select_frames(video, targets)
+
+
 def _select_frames(video: Path, targets: dict[str, float]) -> dict[str, SelectedFrame]:
     if (
         len(targets) not in (1, 3)

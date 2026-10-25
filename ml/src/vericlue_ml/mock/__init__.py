@@ -6,6 +6,7 @@ from vericlue_ml.mock.scenarios import SCENARIOS
 __all__ = ["MOCK_DETECTORS", "MOCK_VERSION", "SCENARIOS", "MockDetector"]
 
 from vericlue_ml.common.result import Module
+from vericlue_ml.mock.face_continuity import MockFaceContinuityDetector
 from vericlue_ml.mock.face_match import MockFaceMatchDetector
 from vericlue_ml.mock.gaze import MockGazeDetector
 from vericlue_ml.mock.head_turn import MockHeadTurnDetector
@@ -15,3 +16,4 @@ MOCK_DETECTORS[Module.VOICE_CHALLENGE] = MockVoiceChallengeDetector()
 MOCK_DETECTORS[Module.GAZE_TRACKING] = MockGazeDetector()
 MOCK_DETECTORS[Module.HEAD_TURN] = MockHeadTurnDetector()
 MOCK_DETECTORS[Module.FACE_MATCH] = MockFaceMatchDetector()
+MOCK_DETECTORS[Module.FACE_CONTINUITY] = MockFaceContinuityDetector()
