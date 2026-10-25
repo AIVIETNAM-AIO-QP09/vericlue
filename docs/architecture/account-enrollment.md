@@ -7,8 +7,9 @@ Migration `0005_accounts` thêm bảng tài khoản; `AppState.accounts` cấp s
 trong transaction. Chưa có endpoint hay lời gọi tự động sau `pass`, chưa đổi UI
 hoặc client, chưa mở luồng thật/mixed. FLOW-05 và SEC-02 giữ `doing`.
 
-Còn thiếu: detector so cùng người giữa video mặt và video đọc câu, tích hợp ghi
-danh sau quyết định, ngưỡng được kiểm chứng, L0 reauth và khôi phục/thu hồi khóa.
+Còn thiếu: tích hợp ghi danh sau quyết định, ngưỡng được kiểm chứng, L0 reauth và
+khôi phục/thu hồi khóa. Đã có opt-in [so cùng người mặt–giọng](face-voice-continuity.md),
+dùng LVFace chung và protocol/ngưỡng riêng; chưa có ngưỡng thực cho phép đạt.
 
 ## Mẫu mặt của server
 
@@ -38,9 +39,9 @@ hàng phiên. Không truyền thẳng dữ liệu HTTP vào service. Service ki�
   có xác suất hiệu chỉnh; lỗi/degraded/mock/thiếu mô-đun bị chặn.
 - Mẫu đúng phiên/lượt/version/hash pixel/hash video và consistency ba góc.
 - Kết quả so cùng người giữa mặt và đọc câu phải đúng protocol riêng, `ok/pass`,
-  ràng buộc mã hai lượt/hash video mặt. `FACE_VOICE_VERSION` dành trước cho
-  protocol này; **hiện chưa có detector sinh ra**. Không tái dùng ngưỡng CCCD
-  hoặc ba góc. Thiếu bằng chứng này trả 503.
+  ràng buộc mã hai lượt/hash video mặt. Kết quả riêng `face_continuity` dùng
+  `FACE_VOICE_VERSION`, bật bằng `IDENTITY_VOICE_CONTINUITY`. Không tái dùng
+  ngưỡng CCCD hoặc ba góc. Thiếu bằng chứng này trả 503.
 - Hai bước đã tiêu thụ nonce chữ ký hiện hành, cùng public key P-256.
 
 Fixture thành công dùng verdict/vector tổng hợp ở server để kiểm lưu trữ;

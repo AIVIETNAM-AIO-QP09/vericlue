@@ -183,7 +183,11 @@ class SessionPrivacy:
         if not self.enabled or not session_id or not session_id.startswith("ses_"):
             return kwargs, None
         paths = [*kwargs.get("images", [])]
-        paths.extend(kwargs[k] for k in ("reference_image", "video", "audio") if kwargs.get(k))
+        paths.extend(
+            kwargs[k]
+            for k in ("reference_image", "reference_video", "video", "audio")
+            if kwargs.get(k)
+        )
         if not paths:
             return kwargs, None
         root = Path(self.settings.media_dir).resolve()
@@ -218,7 +222,7 @@ class SessionPrivacy:
             updated = dict(kwargs)
             if "images" in updated:
                 updated["images"] = [remap[Path(p)] for p in updated["images"]]
-            for role in ("reference_image", "video", "audio"):
+            for role in ("reference_image", "reference_video", "video", "audio"):
                 if updated.get(role):
                     updated[role] = remap[Path(updated[role])]
             return updated, lease

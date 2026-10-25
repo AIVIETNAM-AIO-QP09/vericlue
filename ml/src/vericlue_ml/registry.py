@@ -31,6 +31,7 @@ REAL_TASK: dict[Module, str] = {
     Module.GAZE_TRACKING: "LIVE-02",
     Module.HEAD_TURN: "FLOW-04",
     Module.FACE_MATCH: "FLOW-05",
+    Module.FACE_CONTINUITY: "FLOW-05",
 }
 
 
@@ -54,6 +55,13 @@ def _face_match() -> Detector:
     from vericlue_ml.face.match import FaceMatchDetector
 
     return FaceMatchDetector()
+
+
+@lru_cache(maxsize=1)
+def _face_continuity() -> Detector:
+    from vericlue_ml.face.continuity import FaceContinuityDetector
+
+    return FaceContinuityDetector(matcher=_face_match())
 
 
 @lru_cache(maxsize=1)
@@ -116,6 +124,7 @@ _REAL_FACTORIES: dict[Module, Callable[[], Detector]] = {
     Module.GAZE_TRACKING: _gaze_tracking,
     Module.HEAD_TURN: _head_turn,
     Module.FACE_MATCH: _face_match,
+    Module.FACE_CONTINUITY: _face_continuity,
     Module.VOICE_CHALLENGE: _voice_challenge,
     Module.VOICE_SPOOF: _voice_spoof,
     Module.FACE_PAD: _face_pad,

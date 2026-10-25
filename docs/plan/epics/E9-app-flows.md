@@ -137,6 +137,7 @@ Xem [`head-and-match.md`](../../architecture/head-and-match.md).
 - [x] API opt-in chọn khung chính diện theo lịch server, kiểm tư thế trên pixel video; không fallback selfie khi thiếu/sai video. Mắt/quay đầu có cổng API riêng, reader dùng chung.
 - [x] Thiếu ngưỡng/ảnh, nhiều mặt hoặc artifact sai phiên bản không được đạt; không đưa embedding vào ModuleResult/HTTP.
 - [x] Nền lưu mẫu/tài khoản mã hóa, DEK độc lập phiên, unique HMAC CCCD/phiên nguồn, gắn public key đã ký, TTL 24 giờ và cleanup có test tổng hợp.
+- [x] `face_continuity` mặt–giọng dùng chung LVFace, ba mẫu theo PTS/offset/WAV thật; protocol/ngưỡng riêng, API opt-in fail-closed, mock/CLI/test tổng hợp. Chưa hiệu chỉnh/đánh giá người thật.
 - [ ] Đo VRAM khi chạy cùng bộ mô hình MVP.
 - [ ] Số liệu ngưỡng chạy ra từ code trong repo.
 - [ ] Nối FLOW-03/API và vòng đời mẫu mã hóa/xóa 24 giờ.
@@ -147,8 +148,9 @@ Version `front-reference-v2` tách so CCCD–front khỏi cosine giữa các gó
 chặn artifact/kết quả AdaFace hoặc protocol cũ. `IDENTITY_FACE_FROM_VIDEO` đã
 chọn/kiểm chính diện từ video trong API; chưa có ngưỡng thật, mặc định không đạt.
 Nền ghi danh `AccountStore` có migration 0005 và contract template nội bộ, chưa
-có endpoint/lời gọi tự động. Thiếu so cùng người giữa mặt–giọng thì không ghi
-danh; không cho mock/mixed tạo tài khoản. Xem
+có endpoint/lời gọi tự động. Đã có `face_continuity` opt-in kiểm ba mẫu video
+giọng với khung chính diện; cần artifact riêng, thiếu thì không được đạt/ghi
+danh. Không cho mock/mixed tạo tài khoản. Xem
 [`account-enrollment.md`](../../architecture/account-enrollment.md).
 
 **Lát cắt backend 24/10:** diagnostic offline qua `eval.face_match`.

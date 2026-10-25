@@ -50,6 +50,7 @@ from vericlue_api.services.session_privacy import SessionPrivacy
 from vericlue_api.services.session_store import Session, SessionStore
 from vericlue_api.services.uploads import save_upload
 from vericlue_ml.common.result import Gate, Module, Status
+from vericlue_ml.face.continuity import FACE_VOICE_VERSION
 from vericlue_ml.face.match import MATCH_VERSION
 from vericlue_ml.face.video_match import VIDEO_MATCH_VERSION
 from vericlue_ml.router.flows import route_face, route_voice
@@ -85,9 +86,12 @@ class SessionFlow:
     def create(
         self, scenario: str, request: CreateSessionRequest | None = None
     ) -> CreateSessionResponse:
-        if self.settings.require_media_proof and (
-            request is None or not request.device_public_key_spki
-        ):
+        if (
+            self.settings.require_media_proof
+            or self.settings.identity_voice_continuity
+            and request is not None
+            and request.purpose in {"onboarding", "recovery"}
+        ) and (request is None or not request.device_public_key_spki):
             raise rejected()
         if request and request.device_public_key_spki and request.purpose == "reauth":
             # A newly supplied public key cannot become a trusted registered device.
@@ -163,6 +167,8 @@ class SessionFlow:
         session.images = []
         session.video = None
         session.audio = None
+        session.voice_video = None
+        session.voice_audio_offset_ms = None
         session.signals = {}
         session.results = {}
         session.accepted_steps = []
@@ -195,6 +201,12 @@ class SessionFlow:
         if session.purpose is not None and self.settings.use_mock_models is not True:
             raise ApiError(503, "flow_unavailable", "Luồng xác minh này chưa sẵn sàng.")
 
+    def _requires_proof(self, session: Session) -> bool:
+        return self.settings.require_media_proof or (
+            self.settings.identity_voice_continuity
+            and session.purpose in {"onboarding", "recovery"}
+        )
+
     # --- tải lên ---------------------------------------------------------
     def accept_media(
         self,
@@ -217,7 +229,7 @@ class SessionFlow:
             "face",
             media_signature,
             files,
-            required=self.settings.require_media_proof,
+            required=self._requires_proof(session),
         )
         session.images = [
             save_upload(
@@ -265,7 +277,7 @@ class SessionFlow:
             "voice",
             media_signature,
             files,
-            required=self.settings.require_media_proof,
+            required=self._requires_proof(session),
             audio_offset_ms=audio_offset_ms,
         )
         session.audio = save_upload(
@@ -349,9 +361,7 @@ class SessionFlow:
     def finalize(self, session: Session, challenge_id: str | None = None) -> FinalizeResponse:
         self.ensure_binding(session, challenge_id)
         self.ensure_face_step_allowed(session, "finalize")
-        require_consumed(
-            self.sessions.db, session, "face", required=self.settings.require_media_proof
-        )
+        require_consumed(self.sessions.db, session, "face", required=self._requires_proof(session))
         if session.purpose is not None and not {"media", "signals"}.issubset(
             session.accepted_steps
         ):
@@ -462,6 +472,8 @@ class SessionFlow:
             session.images = []
             session.video = None
             session.audio = None
+            session.voice_video = None
+            session.voice_audio_offset_ms = None
             session.signals = {}
             session.results = {}
             session.accepted_steps = []
@@ -499,21 +511,52 @@ class SessionFlow:
         audio_offset_ms: int | None = None,
     ) -> VoiceResponse:
         self.ensure_voice_allowed(session)
+        continuity_enabled = self.settings.identity_voice_continuity and session.purpose in {
+            "onboarding",
+            "recovery",
+        }
         require_consumed(
-            self.sessions.db, session, "voice", required=self.settings.require_media_proof
+            self.sessions.db,
+            session,
+            "voice",
+            required=self.settings.require_media_proof or continuity_enabled,
         )
+        if continuity_enabled:
+            require_consumed(self.sessions.db, session, "face", required=True)
+        session.voice_video = voice_video
+        session.voice_audio_offset_ms = audio_offset_ms
+        session.results.pop(Module.FACE_CONTINUITY, None)
         session.accepted_steps.append("voice")
         session_valid = self._valid_time(session, voice_challenge=True)
         results = (
             self._run(
-                self.router.profile.voice_step_modules,
+                [
+                    *self.router.profile.voice_step_modules,
+                    *((Module.FACE_CONTINUITY,) if continuity_enabled else ()),
+                ],
                 session_id=session.session_id,
                 scenario=session.scenario,
                 images=session.images,
                 video=voice_video,
                 audio=session.audio,
+                **({"reference_video": session.video} if continuity_enabled else {}),
                 extra_metadata={
                     "prompt": session.voice_prompt,
+                    **(
+                        {
+                            "expected_challenge": session.challenge.model_dump(
+                                mode="json", exclude_none=True
+                            ),
+                            "expected_voice_challenge_id": session.voice_challenge_id,
+                            "face_reference_result": session.results[
+                                Module.FACE_MATCH
+                            ].to_contract()
+                            if Module.FACE_MATCH in session.results
+                            else None,
+                        }
+                        if continuity_enabled
+                        else {}
+                    ),
                     # Khi WAV bắt đầu, tính từ khung hình đầu của video (app Android).
                     **({"audio_offset_ms": audio_offset_ms} if audio_offset_ms is not None else {}),
                     **(
@@ -539,6 +582,8 @@ class SessionFlow:
         outcome = route_voice(outcome, session.purpose)
         if self.settings.identity_lab_url and session.purpose != "reauth":
             outcome = self._identity_gate(session, outcome)
+        if continuity_enabled:
+            outcome = self._continuity_gate(session, outcome)
         if outcome.status != "voice_challenge":
             session.voice_owed = False
         session.results.update(outcome.results)
@@ -577,6 +622,9 @@ class SessionFlow:
         return session.voice_prompt
 
     def _new_prompt(self, session: Session) -> str:
+        session.results.pop(Module.FACE_CONTINUITY, None)
+        session.voice_video = None
+        session.voice_audio_offset_ms = None
         session.voice_prompt = (
             new_dynamic_voice_prompt(session.voice_prompt)
             if session.purpose is not None
@@ -618,6 +666,37 @@ class SessionFlow:
                 outcome, status="review", reason="identity requires review", thresholds=thresholds
             )
         return replace(outcome, thresholds=thresholds)
+
+    @staticmethod
+    def _continuity_gate(session: Session, outcome):
+        result = session.results.get(Module.FACE_CONTINUITY)
+        reference = session.results.get(Module.FACE_MATCH)
+        source = (
+            [e.value for e in reference.evidence if e.name == "source_video_sha256"]
+            if reference
+            else []
+        )
+        expected = {
+            "challenge_id": [session.challenge.challenge_id],
+            "voice_challenge_id": [session.voice_challenge_id],
+            "source_video_sha256": source,
+        }
+        allowed = (
+            result is not None
+            and result.module == Module.FACE_CONTINUITY
+            and result.model_version == FACE_VOICE_VERSION
+            and result.status == Status.OK
+            and result.error_code is None
+            and result.gate == Gate.PASS
+            and len(source) == 1
+            and all(
+                [e.value for e in result.evidence if e.name == name] == values
+                for name, values in expected.items()
+            )
+        )
+        if not allowed and outcome.status in {"pass", "voice_challenge"}:
+            return replace(outcome, status="review", reason="voice identity requires review")
+        return outcome
 
     @staticmethod
     def _case_notes(session: Session) -> list[str]:

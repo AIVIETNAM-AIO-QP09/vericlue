@@ -8,9 +8,25 @@ import pytest
 
 from vericlue_ml.common.result import ErrorCode, Status
 from vericlue_ml.presence.landmarks import LandmarkError
-from vericlue_ml.presence.views import select_frontal_frame, select_video_frames, video_sha256
+from vericlue_ml.presence.views import (
+    select_frontal_frame,
+    select_timed_frames,
+    select_video_frames,
+    video_sha256,
+)
 
 TARGETS = {"front": 100.0, "left": 400.0, "right": 700.0}
+
+
+def test_temporal_samples_use_decoder_pts_without_head_role_labels(monkeypatch, tmp_path):
+    path, handles = decoder(monkeypatch, tmp_path, [0, 80, 120, 380, 420, 680, 720, 900])
+    picked = select_timed_frames(path, {"early": 100, "middle": 400, "late": 700})
+    assert {name: frame.at_ms for name, frame in picked.items()} == {
+        "early": 80,
+        "middle": 380,
+        "late": 680,
+    }
+    assert all(h.released for h in handles)
 
 
 def test_single_frontal_frame_uses_same_vfr_tie_and_bounds(monkeypatch, tmp_path):

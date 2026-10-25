@@ -60,6 +60,7 @@ def real_settings(state):
             "session_face_checks": True,
             "session_face_models": True,
             "session_voice_models": True,
+            "identity_voice_continuity": True,
             "id_hmac_key": SecretStr("synthetic-test-key-at-least-32-bytes"),
         }
     )
@@ -143,7 +144,7 @@ def prepared(state, *, id_hmac="a" * 64):
         ],
     )
     continuity = verdict(
-        Module.FACE_MATCH,
+        Module.FACE_CONTINUITY,
         FACE_VOICE_VERSION,
         evidence=[
             Evidence(type="text", name=name, value=value)
@@ -194,7 +195,9 @@ def test_encrypted_roundtrip_idempotency_and_session_key_independence(private_cl
         assert AccountStore(settings, db).get(receipt.account_id).template == template
 
 
-@pytest.mark.parametrize("fault", ["mock", "mixed", "privacy_off", "missing_master", "short_hmac"])
+@pytest.mark.parametrize(
+    "fault", ["mock", "mixed", "privacy_off", "missing_master", "short_hmac", "continuity_off"]
+)
 def test_unsafe_configuration_cannot_enroll(private_client, fault):
     with private_client.app.state.vericlue.transaction() as state:
         session, template, continuity = prepared(state)
@@ -205,6 +208,7 @@ def test_unsafe_configuration_cannot_enroll(private_client, fault):
             "privacy_off": {"session_privacy": False},
             "missing_master": {"session_master_key": None},
             "short_hmac": {"id_hmac_key": SecretStr("short")},
+            "continuity_off": {"identity_voice_continuity": False},
         }[fault]
         with pytest.raises(ApiError) as error:
             AccountStore(settings.model_copy(update=changes), state.db).create(

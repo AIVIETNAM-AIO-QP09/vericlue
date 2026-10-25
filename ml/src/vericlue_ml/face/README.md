@@ -1,5 +1,12 @@
 # face/ — mô-đun khuôn mặt
 
+## Cùng người mặt–giọng: `continuity.py` (FLOW-05, opt-in)
+
+`face_continuity` dùng chung LVFace/SCRFD với `face_match`, so khung chính diện
+đã kiểm với ba khung ở 10/50/90% WAV, có xét offset và PTS thật. Ngưỡng protocol
+riêng, thiếu thì `degraded/unclear`; không thay ngưỡng CCCD/ba góc hay profile
+mặc định. [Spec, API và CLI](../../../../docs/architecture/face-voice-continuity.md).
+
 ## So mặt: `match.py` (FLOW-05, diagnostic)
 
 `FaceMatchDetector` dùng session SCRFD chung + LVFace-B ONNX gốc, căn 5 điểm
