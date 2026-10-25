@@ -98,9 +98,11 @@ Mô-đun này dùng gate thử nghiệm, chưa ở profile full/MVP và chưa th
 Ngưỡng/chiều tọa độ chưa nghiệm thu trên điện thoại; không bỏ chốt real/mixed.
 
 FLOW-04/FLOW-05 thêm `head_turn` (kiểm thứ tự/thời gian, chưa kiểm chiều sâu)
-và `face_match` (SCRFD + LVFace-B, so tham chiếu và các ảnh giữa bước).
-Cả ba module nằm trong `DIAGNOSTIC_MODULES`, bị loại khỏi full/MVP; chưa được
-orchestrator HTTP nạp/chạy. Đầu vào so mặt bổ sung hợp đồng nội bộ
+và `face_match` (SCRFD + LVFace-B, so tham chiếu với ảnh chính diện; evidence
+nhất quán ba góc riêng). Cả ba vẫn bị loại khỏi profile full/MVP mặc định.
+Khi bật `IDENTITY_LAB_URL`, orchestrator HTTP nạp/chạy riêng LVFace-B thật để
+so CCCD–selfie, có chung deadline/hàng đợi và báo preload lỗi qua health.
+Runtime identity bên ngoài chỉ còn được API gọi để đọc QR/OCR. Đầu vào so mặt dùng hợp đồng nội bộ
 `detector_input.schema.json` cho `image_roles` và `reference_image` do server
 quản lý. Thiếu ngưỡng hiệu chỉnh đúng version luôn `degraded/unclear`. Xem
 [`head-and-match.md`](head-and-match.md).
