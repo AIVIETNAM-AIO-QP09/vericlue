@@ -1,0 +1,10 @@
+{
+  "case_id": "case_synthetic",
+  "masked": true,
+  "full_name": "Synthetic Person",
+  "id_number": "*********345",
+  "date_of_birth": "1995",
+  "sex": "Nam",
+  "address": "Synthetic address",
+  "edited_fields": []
+}

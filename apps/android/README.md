@@ -4,6 +4,12 @@
 
 ## Trạng thái
 
+SEC-02 opt-in: build thêm `-Pvericlue.signedMedia=true` để `LiveFlow` dùng khóa
+Android Keystore ký media mặt/giọng và gửi public key lúc tạo phiên. Không đổi
+giao diện. API cần migration 0004; nonce/manifest và giới hạn xem
+[`media-proof.md`](../../docs/architecture/media-proof.md). Đây chưa phải ghi danh
+thiết bị với tài khoản; chưa nghiệm thu Keystore trên điện thoại thật.
+
 - **Giao diện (APP-01):** đủ các màn theo Figma "VeriClue eKYC App"; điều hướng 3 luồng (đăng ký, đăng nhập lại, khôi phục).
 - **Bản dựng khung camera, micro, API** (nhánh `feat/APP-02-camera-mic-scaffold`): đã chạy hết luồng trên máy ảo với API mock. **Chưa thử trên điện thoại thật.**
 - **Việc cần trưởng nhóm duyệt/chốt:** [`docs/can-chot.md`](docs/can-chot.md) (13 mục, có cột trả lời).

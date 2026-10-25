@@ -30,8 +30,10 @@ from vericlue_ml.presence.head_turn import HeadTurnDetector
 from vericlue_ml.presence.landmarks import FaceObservationReader
 from vericlue_ml.registry import get_detector
 from vericlue_ml.router.policy import TrustRouter
+from vericlue_ml.runtime.voice_client import VoiceWorkerClient
 from vericlue_ml.voice.antispoof import AntiDeepfakeDetector
 from vericlue_ml.voice.challenge import VoiceChallengeDetector
+from vericlue_ml.voice.session import SessionVoiceDetector
 from vericlue_ml.voice.syncnet import SyncNetDetector
 
 logger = logging.getLogger(__name__)
@@ -63,8 +65,40 @@ class Orchestrator:
         self._started = self._closed = False
         self._executor: ThreadPoolExecutor | None = None
         self._face_reader = FaceObservationReader()
+        self._voice_clients: dict[str, VoiceWorkerClient] = {}
 
     def _default_detector(self, module: Module) -> Detector:
+        if self.settings.session_voice_models and module in {
+            Module.VOICE_CHALLENGE,
+            Module.VOICE_SPOOF,
+            Module.LIPSYNC,
+        }:
+            group = "spoof" if module == Module.VOICE_SPOOF else "voice"
+            python = (
+                self.settings.voice_spoof_python
+                if group == "spoof"
+                else self.settings.voice_runtime_python
+            )
+            if not python:
+                raise ValueError("Configure compatible local voice runtimes")
+            if group not in self._voice_clients:
+                self._voice_clients[group] = VoiceWorkerClient(
+                    Path(python),
+                    Path(self.settings.models_dir),
+                    Path(self.settings.media_dir),
+                    timeout=self.settings.session_model_timeout_seconds,
+                )
+            return SessionVoiceDetector(
+                self._voice_clients[group],
+                {
+                    Module.VOICE_CHALLENGE: "content",
+                    Module.VOICE_SPOOF: "spoof",
+                    Module.LIPSYNC: "lipsync",
+                }[module],
+                match_config=self.settings.router_config.voice
+                if module == Module.VOICE_CHALLENGE
+                else None,
+            )
         if module == Module.FACE_MATCH and self.settings.identity_lab_url:
             # Identity opt-in is deliberately hybrid: OCR and face matching are real,
             # even when the remaining API detectors are mocked for the demo.
@@ -201,6 +235,8 @@ class Orchestrator:
                         reader.close()
 
                     Thread(target=release_reader, name="vericlue-face-cleanup", daemon=True).start()
+            for client in self._voice_clients.values():
+                client.close()
 
     def _error(
         self, module: Module, code: ErrorCode, latency_ms: float, *, reason: str | None = None
@@ -298,11 +334,17 @@ class Orchestrator:
         signals: dict[str, Any] | None = None,
         extra_metadata: dict[str, Any] | None = None,
         deadline: float | None = None,
+        media_lease=None,
     ) -> dict[Module, ModuleResult]:
         """Use a common submission deadline; discard late results without state writes."""
         started = perf_counter()
         deadline = min(
-            started + self.settings.detector_timeout_seconds,
+            started
+            + (
+                self.settings.session_model_timeout_seconds
+                if self.settings.session_face_models or self.settings.session_voice_models
+                else self.settings.detector_timeout_seconds
+            ),
             deadline if deadline is not None else float("inf"),
         )
         inp = DetectorInput(
@@ -359,6 +401,8 @@ class Orchestrator:
                     )
                     continue
                 job = _Job(module, inp.model_copy(deep=True), started, deadline)
+                if media_lease is not None:
+                    media_lease.retain(job.result)
                 futures[module] = job.result
                 if module in self._running:
                     self._queues[module].append(job)

@@ -34,11 +34,19 @@ from vericlue_api.services.dynamic_challenge import (
     new_dynamic_voice_prompt,
     new_voice_prompt,
 )
+from vericlue_api.services.media_proof import (
+    bind_key,
+    rejected,
+    renew_nonce,
+    require_consumed,
+    verify_and_consume,
+)
 from vericlue_api.services.provisional_decision import (
     MAX_VOICE_REREADS,
     Outcome,
 )
 from vericlue_api.services.review_store import ReviewStore
+from vericlue_api.services.session_privacy import SessionPrivacy
 from vericlue_api.services.session_store import Session, SessionStore
 from vericlue_api.services.uploads import save_upload
 from vericlue_ml.common.result import Gate, Module, Status
@@ -60,6 +68,7 @@ class SessionFlow:
         *,
         runner: Callable = run_detectors,
         router: TrustRouter | None = None,
+        privacy: SessionPrivacy | None = None,
     ) -> None:
         self.router = (
             router
@@ -70,11 +79,19 @@ class SessionFlow:
         self._run = runner
         self.sessions = sessions
         self.reviews = reviews
+        self.privacy = privacy
 
     # --- tạo phiên -------------------------------------------------------
     def create(
         self, scenario: str, request: CreateSessionRequest | None = None
     ) -> CreateSessionResponse:
+        if self.settings.require_media_proof and (
+            request is None or not request.device_public_key_spki
+        ):
+            raise rejected()
+        if request and request.device_public_key_spki and request.purpose == "reauth":
+            # A newly supplied public key cannot become a trusted registered device.
+            raise ApiError(503, "flow_unavailable", "Luồng xác minh này chưa sẵn sàng.")
         # These flows need gaze/head/match/device verification before real deployment.
         # No environment switch can accidentally enable an incomplete acceptance path.
         if request is not None and self.settings.use_mock_models is not True:
@@ -95,6 +112,8 @@ class SessionFlow:
                 )
                 session.voice_prompt = session.challenge.dynamic.voice_prompt
                 session.voice_challenge_id = session.challenge.dynamic.voice_challenge_id
+            if request.device_public_key_spki:
+                bind_key(session, request.device_public_key_spki)
         return CreateSessionResponse(
             session_id=session.session_id,
             token=session.token,
@@ -133,6 +152,7 @@ class SessionFlow:
             else generate_challenge(self.settings)
         )
         # The token carries its own signed expiry (PLAT-06): extending means issuing a new one.
+        renew_nonce(session)
         session.token_expires_at = min(
             now + timedelta(seconds=self.settings.session_ttl_seconds), end
         )
@@ -184,17 +204,39 @@ class SessionFlow:
         image_filename: str | None,
         video: bytes | None = None,
         video_filename: str | None = None,
+        media_signature: str | None = None,
     ) -> None:
         """Lưu media sau khi toàn bộ phần tải lên đã được kiểm kích thước."""
         self.ensure_face_step_allowed(session, "media")
+        files = {"image": (image_filename, image)}
+        if video is not None:
+            files["video"] = (video_filename, video)
+        verify_and_consume(
+            self.sessions.db,
+            session,
+            "face",
+            media_signature,
+            files,
+            required=self.settings.require_media_proof,
+        )
         session.images = [
             save_upload(
-                self.settings.media_dir, session.session_id, "face_image", image_filename, image
+                self.settings.media_dir,
+                session.session_id,
+                "face_image",
+                image_filename,
+                image,
+                privacy=self.privacy,
             )
         ]
         session.video = (
             save_upload(
-                self.settings.media_dir, session.session_id, "face_video", video_filename, video
+                self.settings.media_dir,
+                session.session_id,
+                "face_video",
+                video_filename,
+                video,
+                privacy=self.privacy,
             )
             if video is not None
             else None
@@ -209,15 +251,39 @@ class SessionFlow:
         audio_filename: str | None,
         video: bytes | None = None,
         video_filename: str | None = None,
+        media_signature: str | None = None,
+        audio_offset_ms: int | None = None,
     ) -> Path | None:
         """Chỉ lưu bản ghi của lần đọc được server cho phép."""
         self.ensure_voice_allowed(session)
+        files = {"audio": (audio_filename, audio)}
+        if video is not None:
+            files["video"] = (video_filename, video)
+        verify_and_consume(
+            self.sessions.db,
+            session,
+            "voice",
+            media_signature,
+            files,
+            required=self.settings.require_media_proof,
+            audio_offset_ms=audio_offset_ms,
+        )
         session.audio = save_upload(
-            self.settings.media_dir, session.session_id, "voice_audio", audio_filename, audio
+            self.settings.media_dir,
+            session.session_id,
+            "voice_audio",
+            audio_filename,
+            audio,
+            privacy=self.privacy,
         )
         return (
             save_upload(
-                self.settings.media_dir, session.session_id, "voice_video", video_filename, video
+                self.settings.media_dir,
+                session.session_id,
+                "voice_video",
+                video_filename,
+                video,
+                privacy=self.privacy,
             )
             if video is not None
             else None
@@ -283,6 +349,9 @@ class SessionFlow:
     def finalize(self, session: Session, challenge_id: str | None = None) -> FinalizeResponse:
         self.ensure_binding(session, challenge_id)
         self.ensure_face_step_allowed(session, "finalize")
+        require_consumed(
+            self.sessions.db, session, "face", required=self.settings.require_media_proof
+        )
         if session.purpose is not None and not {"media", "signals"}.issubset(
             session.accepted_steps
         ):
@@ -389,6 +458,7 @@ class SessionFlow:
                 else generate_challenge(s)
             )
             # A retry must never reuse evidence/results from the previous capture.
+            renew_nonce(session)
             session.images = []
             session.video = None
             session.audio = None
@@ -429,6 +499,9 @@ class SessionFlow:
         audio_offset_ms: int | None = None,
     ) -> VoiceResponse:
         self.ensure_voice_allowed(session)
+        require_consumed(
+            self.sessions.db, session, "voice", required=self.settings.require_media_proof
+        )
         session.accepted_steps.append("voice")
         session_valid = self._valid_time(session, voice_challenge=True)
         results = (

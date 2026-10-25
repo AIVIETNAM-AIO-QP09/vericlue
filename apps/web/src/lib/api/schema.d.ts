@@ -177,6 +177,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/review/cases/{case_id}/identity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Identity */
+        get: operations["get_identity_v1_review_cases__case_id__identity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/review/cases/{case_id}/identity/reveal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reveal Identity
+         * @description Explicit staff action; an access event is committed before any full fields are sent.
+         */
+        post: operations["reveal_identity_v1_review_cases__case_id__identity_reveal_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/review/cases/{case_id}/initial": {
         parameters: {
             query?: never;
@@ -449,6 +486,11 @@ export interface components {
              */
             image: string;
             /**
+             * Media Signature
+             * @description SEC-02: chữ ký DER ECDSA P-256/SHA-256 base64 của manifest media
+             */
+            media_signature?: string | null;
+            /**
              * Video
              * @description Đoạn video lúc phát màu
              */
@@ -466,6 +508,11 @@ export interface components {
              * @description Thời điểm WAV bắt đầu, tính bằng ms từ khung hình đầu của video (dương = WAV bắt đầu sau). Dùng để căn khớp môi; chỉ có khi gửi video.
              */
             audio_offset_ms?: number | null;
+            /**
+             * Media Signature
+             * @description SEC-02: chữ ký manifest gồm audio/video và audio_offset_ms
+             */
+            media_signature?: string | null;
             /**
              * Video
              * @description Video lúc đọc câu
@@ -508,6 +555,8 @@ export interface components {
             dynamic?: components["schemas"]["DynamicChallenge"] | null;
             /** Expires At */
             expires_at?: string | null;
+            /** Media Nonce */
+            media_nonce?: string | null;
         };
         /** ChallengeResponse */
         ChallengeResponse: {
@@ -539,6 +588,8 @@ export interface components {
         };
         /** CreateSessionRequest */
         CreateSessionRequest: {
+            /** Device Public Key Spki */
+            device_public_key_spki?: string | null;
             /** Nonce */
             nonce: string;
             /**
@@ -991,6 +1042,25 @@ export interface components {
             /** Reason Code */
             reason_code?: string | null;
         };
+        /** ReviewIdentity */
+        ReviewIdentity: {
+            /** Address */
+            address?: string | null;
+            /** Case Id */
+            case_id: string;
+            /** Date Of Birth */
+            date_of_birth?: string | null;
+            /** Edited Fields */
+            edited_fields: string[];
+            /** Full Name */
+            full_name?: string | null;
+            /** Id Number */
+            id_number?: string | null;
+            /** Masked */
+            masked: boolean;
+            /** Sex */
+            sex?: string | null;
+        };
         /** SegmentSignal */
         SegmentSignal: {
             /** Applicable */
@@ -1320,6 +1390,24 @@ export interface operations {
                     "application/json": components["schemas"]["ReviewCaseList"];
                 };
             };
+            /** @description Thiếu hoặc sai credential nhân viên khi bật riêng tư */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Dữ liệu hết thời hạn lưu trữ */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -1327,6 +1415,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -1351,8 +1448,26 @@ export interface operations {
                     "application/json": components["schemas"]["ReviewCase"];
                 };
             };
+            /** @description Thiếu hoặc sai credential nhân viên khi bật riêng tư */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Không có ca này */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Dữ liệu hết thời hạn lưu trữ */
+            410: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1367,6 +1482,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -1391,6 +1515,15 @@ export interface operations {
                     "application/json": components["schemas"]["ReviewAiOpinion"];
                 };
             };
+            /** @description Thiếu hoặc sai credential nhân viên khi bật riêng tư */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Không có ca này */
             404: {
                 headers: {
@@ -1409,6 +1542,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Dữ liệu hết thời hạn lưu trữ */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -1416,6 +1558,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -1440,8 +1591,26 @@ export interface operations {
                     "application/json": components["schemas"]["AuditVerification"];
                 };
             };
+            /** @description Thiếu hoặc sai credential nhân viên khi bật riêng tư */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Không có ca này */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Dữ liệu hết thời hạn lưu trữ */
+            410: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1456,6 +1625,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -1484,6 +1662,15 @@ export interface operations {
                     "application/json": components["schemas"]["DecisionResponse"];
                 };
             };
+            /** @description Thiếu hoặc sai credential nhân viên khi bật riêng tư */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Không có ca này */
             404: {
                 headers: {
@@ -1502,8 +1689,160 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Dữ liệu hết thời hạn lưu trữ */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description invalid_reason_code */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_identity_v1_review_cases__case_id__identity_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewIdentity"];
+                };
+            };
+            /** @description Thiếu hoặc sai credential nhân viên khi bật riêng tư */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Không có ca này */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Dữ liệu hết thời hạn lưu trữ */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    reveal_identity_v1_review_cases__case_id__identity_reveal_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewIdentity"];
+                };
+            };
+            /** @description Thiếu hoặc sai credential nhân viên khi bật riêng tư */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Không có ca này */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Dữ liệu hết thời hạn lưu trữ */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1537,6 +1876,15 @@ export interface operations {
                     "application/json": components["schemas"]["DecisionResponse"];
                 };
             };
+            /** @description Thiếu hoặc sai credential nhân viên khi bật riêng tư */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Không có ca này */
             404: {
                 headers: {
@@ -1555,6 +1903,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Dữ liệu hết thời hạn lưu trữ */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -1562,6 +1919,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -1582,6 +1948,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReasonCodeList"];
+                };
+            };
+            /** @description Thiếu hoặc sai credential nhân viên khi bật riêng tư */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Dữ liệu hết thời hạn lưu trữ */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

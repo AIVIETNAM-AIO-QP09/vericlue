@@ -4,6 +4,22 @@
   "title": "Review API",
   "description": "Bàn duyệt của nhân viên. DRAFT v1: chỉ cho phép THÊM trường tùy chọn. ReviewCase (hồ sơ bằng chứng) KHÔNG chứa điểm AI; ý kiến AI nằm riêng ở ReviewAiOpinion và chỉ xem được sau khi nhân viên ghi quyết định ban đầu (GET .../ai trả 409 nếu chưa có).",
   "$defs": {
+    "ReviewIdentity": {
+      "type": "object",
+      "description": "SEC-01: GET che CCCD còn ba số cuối và ngày sinh chỉ còn năm; POST reveal trả đầy đủ và ghi nhật ký truy cập. Chỉ có khi bật riêng tư và xác thực nhân viên.",
+      "required": ["case_id", "masked", "edited_fields"],
+      "additionalProperties": false,
+      "properties": {
+        "case_id": { "type": "string" },
+        "masked": { "type": "boolean" },
+        "full_name": { "type": ["string", "null"] },
+        "id_number": { "type": ["string", "null"] },
+        "date_of_birth": { "type": ["string", "null"] },
+        "sex": { "type": ["string", "null"] },
+        "address": { "type": ["string", "null"] },
+        "edited_fields": { "type": "array", "items": { "type": "string" } }
+      }
+    },
     "CaseStatus": { "type": "string", "enum": ["open", "initial_decided", "closed"] },
     "Priority": { "type": "string", "enum": ["normal", "high"] },
     "Decision": { "type": "string", "enum": ["accept", "reject", "request_retry"] },

@@ -12,6 +12,17 @@ Priority = Literal["normal", "high"]
 Decision = Literal["accept", "reject", "request_retry"]
 
 
+class ReviewIdentity(BaseModel):
+    case_id: str
+    masked: bool
+    full_name: str | None = None
+    id_number: str | None = None
+    date_of_birth: str | None = None
+    sex: str | None = None
+    address: str | None = None
+    edited_fields: list[str]
+
+
 class MediaRef(BaseModel):
     kind: Literal["face_image", "face_video", "voice_audio"]
     url: str

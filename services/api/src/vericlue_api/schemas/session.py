@@ -23,6 +23,7 @@ class CreateSessionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     purpose: SessionPurpose
+    device_public_key_spki: str | None = Field(default=None, max_length=256)
     nonce: str = Field(pattern=r"^[A-Za-z0-9_-]{16,128}$")
     reference_image_id: str | None = Field(default=None, pattern=r"^ref_[A-Za-z0-9_-]{1,120}$")
 
@@ -64,6 +65,7 @@ class ColorStep(BaseModel):
 
 
 class Challenge(BaseModel):
+    media_nonce: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     challenge_id: str
     baseline_ms: int = 1000
     color_sequence: list[ColorStep] = Field(min_length=8, max_length=8)

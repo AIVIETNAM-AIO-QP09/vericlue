@@ -115,6 +115,19 @@
             "title": "Image",
             "type": "string"
           },
+          "media_signature": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SEC-02: chữ ký DER ECDSA P-256/SHA-256 base64 của manifest media",
+            "title": "Media Signature"
+          },
           "video": {
             "anyOf": [
               {
@@ -156,6 +169,19 @@
             ],
             "description": "Thời điểm WAV bắt đầu, tính bằng ms từ khung hình đầu của video (dương = WAV bắt đầu sau). Dùng để căn khớp môi; chỉ có khi gửi video.",
             "title": "Audio Offset Ms"
+          },
+          "media_signature": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SEC-02: chữ ký manifest gồm audio/video và audio_offset_ms",
+            "title": "Media Signature"
           },
           "video": {
             "anyOf": [
@@ -316,6 +342,18 @@
               }
             ],
             "title": "Expires At"
+          },
+          "media_nonce": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Media Nonce"
           }
         },
         "required": [
@@ -380,6 +418,18 @@
       "CreateSessionRequest": {
         "additionalProperties": false,
         "properties": {
+          "device_public_key_spki": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Public Key Spki"
+          },
           "nonce": {
             "pattern": "^[A-Za-z0-9_-]{16,128}$",
             "title": "Nonce",
@@ -1793,6 +1843,87 @@
         "title": "ReviewEvent",
         "type": "object"
       },
+      "ReviewIdentity": {
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "case_id": {
+            "title": "Case Id",
+            "type": "string"
+          },
+          "date_of_birth": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date Of Birth"
+          },
+          "edited_fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Edited Fields",
+            "type": "array"
+          },
+          "full_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Name"
+          },
+          "id_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id Number"
+          },
+          "masked": {
+            "title": "Masked",
+            "type": "boolean"
+          },
+          "sex": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sex"
+          }
+        },
+        "required": [
+          "case_id",
+          "masked",
+          "edited_fields"
+        ],
+        "title": "ReviewIdentity",
+        "type": "object"
+      },
       "SegmentSignal": {
         "properties": {
           "applicable": {
@@ -2146,6 +2277,11 @@
         "description": "Token theo phiên, nhận từ POST /v1/sessions (ADR-0011). Sai hoặc thiếu → 401.",
         "scheme": "bearer",
         "type": "http"
+      },
+      "StaffBearer": {
+        "description": "Credential nhân viên cấu hình riêng khi SESSION_PRIVACY=true; không dùng token người dân.",
+        "scheme": "bearer",
+        "type": "http"
       }
     }
   },
@@ -2459,6 +2595,26 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai credential nhân viên khi bật riêng tư"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Dữ liệu hết thời hạn lưu trữ"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -2468,8 +2624,23 @@
               }
             },
             "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
           }
         },
+        "security": [
+          {
+            "StaffBearer": []
+          }
+        ],
         "summary": "List Cases",
         "tags": [
           "review"
@@ -2501,6 +2672,16 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai credential nhân viên khi bật riêng tư"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -2511,6 +2692,16 @@
             },
             "description": "Không có ca này"
           },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Dữ liệu hết thời hạn lưu trữ"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -2520,8 +2711,23 @@
               }
             },
             "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
           }
         },
+        "security": [
+          {
+            "StaffBearer": []
+          }
+        ],
         "summary": "Get Case",
         "tags": [
           "review"
@@ -2553,6 +2759,16 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai credential nhân viên khi bật riêng tư"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -2573,6 +2789,16 @@
             },
             "description": "Chưa có quyết định ban đầu"
           },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Dữ liệu hết thời hạn lưu trữ"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -2582,8 +2808,23 @@
               }
             },
             "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
           }
         },
+        "security": [
+          {
+            "StaffBearer": []
+          }
+        ],
         "summary": "Get Ai Opinion",
         "tags": [
           "review"
@@ -2616,6 +2857,16 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai credential nhân viên khi bật riêng tư"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -2626,6 +2877,16 @@
             },
             "description": "Không có ca này"
           },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Dữ liệu hết thời hạn lưu trữ"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -2635,8 +2896,23 @@
               }
             },
             "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
           }
         },
+        "security": [
+          {
+            "StaffBearer": []
+          }
+        ],
         "summary": "Verify Audit",
         "tags": [
           "review"
@@ -2678,6 +2954,16 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai credential nhân viên khi bật riêng tư"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -2698,6 +2984,16 @@
             },
             "description": "initial_decision_required, decision_already_recorded hoặc review_conflict (ghi đồng thời, tải lại rồi thử lại)"
           },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Dữ liệu hết thời hạn lưu trữ"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -2707,9 +3003,199 @@
               }
             },
             "description": "invalid_reason_code"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
           }
         },
+        "security": [
+          {
+            "StaffBearer": []
+          }
+        ],
         "summary": "Post Decision",
+        "tags": [
+          "review"
+        ]
+      }
+    },
+    "/v1/review/cases/{case_id}/identity": {
+      "get": {
+        "operationId": "get_identity_v1_review_cases__case_id__identity_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "title": "Case Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewIdentity"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai credential nhân viên khi bật riêng tư"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Không có ca này"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Dữ liệu hết thời hạn lưu trữ"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
+          }
+        },
+        "security": [
+          {
+            "StaffBearer": []
+          }
+        ],
+        "summary": "Get Identity",
+        "tags": [
+          "review"
+        ]
+      }
+    },
+    "/v1/review/cases/{case_id}/identity/reveal": {
+      "post": {
+        "description": "Explicit staff action; an access event is committed before any full fields are sent.",
+        "operationId": "reveal_identity_v1_review_cases__case_id__identity_reveal_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "title": "Case Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewIdentity"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai credential nhân viên khi bật riêng tư"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Không có ca này"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Dữ liệu hết thời hạn lưu trữ"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
+          }
+        },
+        "security": [
+          {
+            "StaffBearer": []
+          }
+        ],
+        "summary": "Reveal Identity",
         "tags": [
           "review"
         ]
@@ -2750,6 +3236,16 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai credential nhân viên khi bật riêng tư"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -2770,6 +3266,16 @@
             },
             "description": "initial_already_recorded (đã có quyết định ban đầu) hoặc review_conflict (ghi đồng thời, tải lại rồi thử lại)"
           },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Dữ liệu hết thời hạn lưu trữ"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -2779,8 +3285,23 @@
               }
             },
             "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
           }
         },
+        "security": [
+          {
+            "StaffBearer": []
+          }
+        ],
         "summary": "Post Initial",
         "tags": [
           "review"
@@ -2801,8 +3322,43 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai credential nhân viên khi bật riêng tư"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Dữ liệu hết thời hạn lưu trữ"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
           }
         },
+        "security": [
+          {
+            "StaffBearer": []
+          }
+        ],
         "summary": "List Reason Codes",
         "tags": [
           "review"

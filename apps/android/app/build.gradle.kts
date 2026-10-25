@@ -9,6 +9,7 @@ plugins {
 // API address. Emulator → host machine is 10.0.2.2. Override with
 // ./gradlew assembleRelease -Pvericlue.apiBaseUrl=https://<tunnel>/  (never hard-code the tunnel)
 val apiBaseUrl = (project.findProperty("vericlue.apiBaseUrl") as String?) ?: "http://10.0.2.2:8000/"
+val signedMedia = (project.findProperty("vericlue.signedMedia") as String?)?.toBooleanStrict() ?: false
 
 // A release build only talks HTTPS: stop it when the address is not https:// (debug may use http).
 val checkReleaseApiUrl by tasks.registering {
@@ -33,6 +34,7 @@ android {
         versionName = "0.2.0-scaffold"
 
         buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
+        buildConfigField("boolean", "SIGNED_MEDIA", signedMedia.toString())
     }
 
     buildTypes {

@@ -42,6 +42,7 @@ data class Challenge(
     @SerialName("expires_at") val expiresAt: String? = null,
     /** FLOW-01/LIVE-01 schedule; only for sessions created with purpose onboarding or recovery. */
     val dynamic: DynamicChallenge? = null,
+    @SerialName("media_nonce") val mediaNonce: String? = null,
 )
 
 /** One mark of the dot path: x/y as a fraction of the display area, time from the recording's start. */
@@ -66,7 +67,10 @@ data class DynamicChallenge(
 )
 
 @Serializable
-data class CreateSessionRequest(val purpose: String, val nonce: String)
+data class CreateSessionRequest(
+    val purpose: String, val nonce: String,
+    @SerialName("device_public_key_spki") val devicePublicKeySpki: String? = null,
+)
 
 @Serializable
 data class CreateSessionResponse(
@@ -196,11 +200,12 @@ class SessionApi(
         return call(post(url("v1", "sessions"), body.toRequestBody(JSON), null, mockScenario))
     }
 
-    suspend fun uploadMedia(sessionId: String, token: String, imageJpeg: ByteArray, video: File?, challengeId: String? = null): ApiResult<StepAck> {
+    suspend fun uploadMedia(sessionId: String, token: String, imageJpeg: ByteArray, video: File?, challengeId: String? = null, mediaSignature: String? = null): ApiResult<StepAck> {
         val body = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart("image", "face.jpg", imageJpeg.toRequestBody(JPEG))
             .apply { if (video != null) addFormDataPart("video", video.name, video.asRequestBody(MP4)) }
             .apply { if (challengeId != null) addFormDataPart("challenge_id", challengeId) }
+            .apply { if (mediaSignature != null) addFormDataPart("media_signature", mediaSignature) }
             .build()
         return call(post(url("v1", "sessions", sessionId, "media"), body, token))
     }
@@ -221,6 +226,7 @@ class SessionApi(
         video: File?,
         audioOffsetMs: Int? = null,
         voiceChallengeId: String? = null,
+        mediaSignature: String? = null,
     ): ApiResult<VoiceResponse> {
         val body = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart("audio", "voice.wav", wav.toRequestBody(WAV))
@@ -230,6 +236,7 @@ class SessionApi(
                     audioOffsetMs?.let { addFormDataPart("audio_offset_ms", it.coerceIn(-5000, 5000).toString()) }
                 }
                 if (voiceChallengeId != null) addFormDataPart("voice_challenge_id", voiceChallengeId)
+                if (mediaSignature != null) addFormDataPart("media_signature", mediaSignature)
             }
             .build()
         return call(post(url("v1", "sessions", sessionId, "voice"), body, token))

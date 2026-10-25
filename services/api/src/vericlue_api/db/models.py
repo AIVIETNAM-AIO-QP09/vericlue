@@ -34,6 +34,36 @@ class SessionRow(Base):
     payload: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
+class SessionKeyRow(Base):
+    __tablename__ = "session_keys"
+    session_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    wrapped_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    destroyed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class MediaProofUseRow(Base):
+    __tablename__ = "media_proof_uses"
+    nonce_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    session_id: Mapped[str] = mapped_column(String(80), index=True)
+    attempt_id: Mapped[str] = mapped_column(String(80))
+    stage: Mapped[str] = mapped_column(String(10))
+    manifest_sha256: Mapped[str] = mapped_column(String(64))
+    key_fingerprint: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AccessEventRow(Base):
+    __tablename__ = "access_events"
+    __table_args__ = (Index("uq_access_events_scope_prev", "scope", "prev_hash", unique=True),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    scope: Mapped[str] = mapped_column(String(100), index=True)
+    actor: Mapped[str] = mapped_column(String(100))
+    action: Mapped[str] = mapped_column(String(40))
+    prev_hash: Mapped[str] = mapped_column(String(64))
+    hash: Mapped[str] = mapped_column(String(64), unique=True)
+    payload: Mapped[dict] = mapped_column(JSON)
+
+
 class ModuleResultRow(Base):
     __tablename__ = "module_results"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

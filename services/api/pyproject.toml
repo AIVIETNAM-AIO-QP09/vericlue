@@ -13,6 +13,7 @@ dependencies = [
   "sqlalchemy>=2.0,<3",
   "alembic>=1.13,<2",
   "psycopg[binary]>=3.2,<4",
+  "cryptography>=50.0.2,<51",
 ]
 
 [tool.uv.sources]

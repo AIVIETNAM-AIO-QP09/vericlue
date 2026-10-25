@@ -180,6 +180,18 @@ def get_video_face_match(*, mock: bool = False) -> Detector:
     return VideoFaceMatchDetector()
 
 
+def get_session_voice(kind: str, *, client=None, mock: bool = False) -> Detector:
+    if mock:
+        from vericlue_ml.mock.session_voice import MockSessionVoiceDetector
+
+        return MockSessionVoiceDetector(kind)
+    if client is None:
+        raise ValueError("Session voice requires an explicitly configured local runtime")
+    from vericlue_ml.voice.session import SessionVoiceDetector
+
+    return SessionVoiceDetector(client, kind)
+
+
 @lru_cache(maxsize=2)
 def get_fsvfm_pad(*, mock: bool = False) -> Detector:
     """Explicit diagnostic alternative; leave get_detector('face_pad') unchanged."""

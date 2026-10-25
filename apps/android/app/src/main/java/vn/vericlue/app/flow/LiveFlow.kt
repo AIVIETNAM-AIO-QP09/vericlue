@@ -3,6 +3,12 @@ package vn.vericlue.app.flow
 import java.io.File
 import java.security.SecureRandom
 import java.util.Base64
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import vn.vericlue.app.security.MediaSigner
+import vn.vericlue.app.security.MediaProof
+import vn.vericlue.app.security.AndroidMediaSigner
+import vn.vericlue.app.BuildConfig
 import vn.vericlue.app.capture.CamProbe
 import vn.vericlue.app.capture.RegionFrame
 import vn.vericlue.app.data.api.ApiError
@@ -27,7 +33,10 @@ sealed interface Next {
  * create session → media → signals → finalize → (voice). The server decides; this class only
  * carries data and maps statuses to screens. Anything unexpected becomes [Next.Fail].
  */
-class LiveFlow(private val api: SessionApi) {
+class LiveFlow(
+    private val api: SessionApi,
+    private val mediaSigner: MediaSigner? = if (BuildConfig.SIGNED_MEDIA) AndroidMediaSigner() else null,
+) {
     var session: CreateSessionResponse? = null
         private set
     var challenge: Challenge? = null
@@ -98,9 +107,15 @@ class LiveFlow(private val api: SessionApi) {
      */
     suspend fun ensureSession(mockScenario: String?, purpose: String? = null): ApiError? {
         if (session != null) return null
-        val request = purpose?.let { CreateSessionRequest(it, newNonce()) }
+        if (mediaSigner != null && purpose !in setOf("onboarding", "recovery")) return ApiError.BadResponse
+        val spki = mediaSigner?.let { signer -> withContext(Dispatchers.IO) {
+            runCatching { signer.publicKeySpki }.getOrNull()
+        } }
+        if (mediaSigner != null && spki == null) return ApiError.Server
+        val request = purpose?.let { CreateSessionRequest(it, newNonce(), spki) }
         return when (val r = api.createSession(mockScenario, request)) {
             is ApiResult.Ok -> {
+                if (mediaSigner != null && r.value.challenge.mediaNonce == null) return ApiError.BadResponse
                 session = r.value
                 challenge = r.value.challenge
                 null
@@ -118,6 +133,7 @@ class LiveFlow(private val api: SessionApi) {
         return when (val r = api.refreshChallenge(s.sessionId, s.token)) {
             is ApiResult.Ok -> {
                 // The old token stops working (PLAT-06): carry on with the new one.
+                if (mediaSigner != null && r.value.challenge.mediaNonce == null) return ApiError.BadResponse
                 session = s.copy(token = r.value.token, expiresAt = r.value.expiresAt)
                 challenge = r.value.challenge
                 colorEvents.clear()
@@ -203,7 +219,16 @@ class LiveFlow(private val api: SessionApi) {
         val jpeg = frontalJpeg ?: return Next.Fail(ApiError.BadResponse)
         val challengeId = challenge?.challengeId
         if (!mediaAcked) {
-            api.uploadMedia(s.sessionId, s.token, jpeg, video, challengeId).ackOrFail()?.let { return it }
+            val proof = withContext(Dispatchers.IO) { runCatching {
+                mediaSigner?.let { signer ->
+                    val c = requireNotNull(challenge)
+                    val files = mutableMapOf("image" to MediaProof.digest("face.jpg", jpeg))
+                    video?.let { files["video"] = MediaProof.digest(it) }
+                    signer.sign(MediaProof.manifest(s, c, "face", c.challengeId, files))
+                }
+            } }
+            if (proof.isFailure) return Next.Fail(ApiError.Server)
+            api.uploadMedia(s.sessionId, s.token, jpeg, video, challengeId, proof.getOrNull()).ackOrFail()?.let { return it }
             mediaAcked = true
             onMediaAcked() // the server has the video: the local copy can go
         }
@@ -243,7 +268,17 @@ class LiveFlow(private val api: SessionApi) {
     suspend fun submitVoice(wav: ByteArray, video: File? = null, audioOffsetMs: Int? = null, onAccepted: () -> Unit = {}): Next {
         val s = session ?: return Next.Fail(ApiError.Expired)
         if (wav.isEmpty()) return Next.To(Routes.NoVoice)
-        return when (val r = api.sendVoice(s.sessionId, s.token, wav, video, audioOffsetMs, voiceChallengeId)) {
+        val proof = withContext(Dispatchers.IO) { runCatching {
+            mediaSigner?.let { signer ->
+                val files = mutableMapOf("audio" to MediaProof.digest("voice.wav", wav))
+                video?.let { files["video"] = MediaProof.digest(it) }
+                signer.sign(MediaProof.manifest(s, requireNotNull(challenge), "voice",
+                    requireNotNull(voiceChallengeId), files,
+                    if (video != null) audioOffsetMs?.coerceIn(-5000, 5000) else null))
+            }
+        } }
+        if (proof.isFailure) return Next.Fail(ApiError.Server)
+        return when (val r = api.sendVoice(s.sessionId, s.token, wav, video, audioOffsetMs, voiceChallengeId, proof.getOrNull())) {
             is ApiResult.Err -> Next.Fail(r.error)
             is ApiResult.Ok -> {
                 pendingWav = null

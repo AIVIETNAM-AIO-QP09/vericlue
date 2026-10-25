@@ -340,3 +340,28 @@ diagnostic mới, không gắn số benchmark của recipe 4 giây đầu cho to
 
 Đánh giá accuracy/parity/calibration để sau theo yêu cầu người dùng. Độ phủ
 thời gian không phải độ chính xác phát hiện hay bằng chứng toàn bản thu thật.
+
+---
+
+### VOICE-14 · Nối Qwen, CTC, NES2Net và SyncNet vào API phiên
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M4 | 1 | S2 | P0 | VOICE-13 |
+
+**Mục tiêu:** tiếp tục hoàn thiện tính năng theo yêu cầu người dùng; dùng các lõi
+lab trong API với runtime tương thích, không sửa UI hay tạo số liệu/ngưỡng.
+
+**Tiêu chí kỹ thuật:**
+- [x] Cờ opt-in tạo worker Qwen/CTC/SyncNet và NES2Net riêng, offline/CPU, nạp
+      lười/cache; CTC dùng chung giữa nhịp đọc và khớp môi; lỗi không về mock.
+- [x] IPC có giới hạn, timeout gồm thời gian chờ, dọn worker; request/reply gắn
+      mã lượt/hash/version và media trong kho server không đổi trước/sau inference.
+- [x] Qwen nhận dạng độc lập với câu đề bài; CTC có trạng thái/evidence riêng;
+      NES2Net/CTC/SyncNet chưa hiệu chỉnh không cấp đạt/xác suất.
+- [x] SyncNet dùng đúng `audio_offset_ms` trên timestamp decoder; version mới
+      không nhận calibrator cũ; không tuyên bố đồng bộ phần cứng đã kiểm chứng.
+- [x] Mock/registry/config, test giả lập, tài liệu runtime, lint/bàn giao/plan_check.
+
+Phần kỹ thuật này không hoàn tất calibration, kiểm thử sinh trắc tiếng Việt,
+nguồn thu đã ký hoặc SLO 5 giây. Luồng real/mixed chưa tự mở.

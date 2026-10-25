@@ -88,6 +88,13 @@ async def upload_media(
     session: SessionDep,
     state: StateDep,
     image: Annotated[UploadFile, File(description="Ảnh mặt chất lượng cao")],
+    media_signature: Annotated[
+        str | None,
+        Form(
+            max_length=160,
+            description="SEC-02: chữ ký DER ECDSA P-256/SHA-256 base64 của manifest media",
+        ),
+    ] = None,
     video: Annotated[UploadFile | None, File(description="Đoạn video lúc phát màu")] = None,
     challenge_id: Annotated[
         str | None, Form(description="Mã thử thách; bắt buộc khi có purpose")
@@ -103,6 +110,7 @@ async def upload_media(
         image_filename=image.filename,
         video=video_bytes,
         video_filename=video.filename if video else None,
+        media_signature=media_signature,
     )
     return StepAck(step="media")
 
@@ -142,6 +150,12 @@ async def voice(
     session: SessionDep,
     state: StateDep,
     audio: Annotated[UploadFile, File(description="Âm thanh lúc đọc câu")],
+    media_signature: Annotated[
+        str | None,
+        Form(
+            max_length=160, description="SEC-02: chữ ký manifest gồm audio/video và audio_offset_ms"
+        ),
+    ] = None,
     video: Annotated[UploadFile | None, File(description="Video lúc đọc câu")] = None,
     audio_offset_ms: Annotated[
         int | None,
@@ -168,6 +182,8 @@ async def voice(
         audio_filename=audio.filename,
         video=video_bytes,
         video_filename=video.filename if video else None,
+        media_signature=media_signature,
+        audio_offset_ms=audio_offset_ms,
     )
     return await run_in_threadpool(
         state.flow.voice, session, voice_video=voice_video, audio_offset_ms=audio_offset_ms
