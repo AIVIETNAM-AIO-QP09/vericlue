@@ -34,6 +34,25 @@ class SessionRow(Base):
     payload: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
+class SessionKeyRow(Base):
+    __tablename__ = "session_keys"
+    session_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    wrapped_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    destroyed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class AccessEventRow(Base):
+    __tablename__ = "access_events"
+    __table_args__ = (Index("uq_access_events_scope_prev", "scope", "prev_hash", unique=True),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    scope: Mapped[str] = mapped_column(String(100), index=True)
+    actor: Mapped[str] = mapped_column(String(100))
+    action: Mapped[str] = mapped_column(String(40))
+    prev_hash: Mapped[str] = mapped_column(String(64))
+    hash: Mapped[str] = mapped_column(String(64), unique=True)
+    payload: Mapped[dict] = mapped_column(JSON)
+
+
 class ModuleResultRow(Base):
     __tablename__ = "module_results"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

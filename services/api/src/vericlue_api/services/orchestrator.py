@@ -334,6 +334,7 @@ class Orchestrator:
         signals: dict[str, Any] | None = None,
         extra_metadata: dict[str, Any] | None = None,
         deadline: float | None = None,
+        media_lease=None,
     ) -> dict[Module, ModuleResult]:
         """Use a common submission deadline; discard late results without state writes."""
         started = perf_counter()
@@ -400,6 +401,8 @@ class Orchestrator:
                     )
                     continue
                 job = _Job(module, inp.model_copy(deep=True), started, deadline)
+                if media_lease is not None:
+                    media_lease.retain(job.result)
                 futures[module] = job.result
                 if module in self._running:
                     self._queues[module].append(job)

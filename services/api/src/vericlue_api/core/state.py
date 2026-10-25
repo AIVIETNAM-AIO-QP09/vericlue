@@ -20,6 +20,7 @@ from vericlue_api.services.identity_steps import IdentitySteps
 from vericlue_api.services.orchestrator import Orchestrator
 from vericlue_api.services.review_store import ReviewStore
 from vericlue_api.services.session_flow import SessionFlow
+from vericlue_api.services.session_privacy import SessionPrivacy
 from vericlue_api.services.session_store import SessionStore
 
 
@@ -34,11 +35,22 @@ class AppState:
     forensic: ForensicStore = field(init=False)
     flow: SessionFlow = field(init=False)
     identity: IdentitySteps = field(init=False)
+    privacy: SessionPrivacy = field(init=False)
 
     def __post_init__(self) -> None:
-        runner = partial(self.orchestrator.run, deadline=self.inference_deadline)
-        self.sessions = SessionStore(self.db)
-        self.reviews = ReviewStore(self.db, runner=runner)
+        self.privacy = SessionPrivacy(self.settings, self.db)
+        base_runner = partial(self.orchestrator.run, deadline=self.inference_deadline)
+
+        def runner(modules, *, session_id, **kwargs):
+            prepared, lease = self.privacy.prepare(session_id, kwargs)
+            try:
+                return base_runner(modules, session_id=session_id, **prepared, media_lease=lease)
+            finally:
+                if lease is not None:
+                    lease.release()
+
+        self.sessions = SessionStore(self.db, privacy=self.privacy)
+        self.reviews = ReviewStore(self.db, runner=runner, privacy=self.privacy)
         self.forensic = ForensicStore(
             self.settings.router_config.face.b,
             self.settings.router_config.face.a,
@@ -54,8 +66,9 @@ class AppState:
             self.reviews,
             runner=runner,
             router=self.orchestrator.router,
+            privacy=self.privacy,
         )
-        self.identity = IdentitySteps(self.settings)
+        self.identity = IdentitySteps(self.settings, privacy=self.privacy)
 
 
 class ApplicationState:
@@ -121,4 +134,5 @@ def get_state(request: Request) -> Iterator[AppState]:
     with root.transaction(
         lock_timeout_seconds=timeout, inference_deadline=inference_deadline if guarded else None
     ) as state:
+        state.reviews.actor = getattr(request.state, "staff_actor", "staff-unverified")
         yield state

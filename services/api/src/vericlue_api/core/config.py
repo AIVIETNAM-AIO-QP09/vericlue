@@ -62,6 +62,12 @@ class Settings(BaseSettings):
     media_ttl_incomplete_hours: int = Field(default=24, gt=0)
     forensic_ttl_days: int | None = Field(default=None, gt=0)
     media_cleanup_interval_seconds: float = Field(default=300, gt=0)
+    # Opt-in encrypted session storage. A random base64-encoded 32-byte master key
+    # is mandatory; never fall back to the token/HMAC key or a development constant.
+    session_privacy: bool = False
+    session_master_key: SecretStr | None = None
+    # Demo staff credentials: JSON object {random_token: actor_id}. No client actor header.
+    staff_access_tokens: SecretStr | None = None
 
     @field_validator("use_mock_models", mode="before")
     @classmethod
