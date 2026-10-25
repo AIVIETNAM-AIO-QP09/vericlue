@@ -21,6 +21,11 @@
 
 ## Quy ước bắt buộc
 
+VOICE-13 thêm `Nes2NetTimelineDetector` opt-in: lab micro/A/V chấm các đoạn phủ
+hết bản thu, giữ raw margin từng đoạn, thống kê hợp các khoảng đã đo, không
+gộp thành điểm toàn câu. CLI bật bằng `--whole-utterance`, mặc định first4s cũ
+vẫn giữ. Không đổi API/ngưỡng; xem [hướng dẫn](../docs/architecture/nes2net-timeline-lab.md).
+
 VOICE-12 thêm `eval.av_lab` (Windows): một nguồn thu camera+micro, preview và
 tab Khớp môi; cùng audio cho Qwen/NES2Net/CTC/SyncNet. Media chỉ trong RAM,
 raw lipsync luôn unclear; runtime CPU riêng, không thay UI/API sản phẩm. Xem

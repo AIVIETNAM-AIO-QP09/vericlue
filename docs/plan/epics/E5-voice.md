@@ -313,3 +313,30 @@ lab nội bộ bằng camera và micro của cùng một nguồn A/V, dùng lạ
 
 Không nghiệm thu timestamp phần cứng/độ chính xác tiếng Việt/khả năng phát hiện
 deepfake, không gán lệch thiết bị thành tấn công; chưa dùng kết quả cho xác minh.
+
+---
+
+### VOICE-13 · NES2Net theo đoạn phủ toàn bản thu
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M4 | 1 | S2 | P0 | VOICE-12 |
+
+**Mục tiêu:** tiếp tục tính năng sau PR #67: bỏ giới hạn chỉ xem 4 giây đầu
+trong lab micro/A/V, dùng lại NES2Net worker/model nạp một lần. Đây là protocol
+diagnostic mới, không gắn số benchmark của recipe 4 giây đầu cho toàn câu.
+
+**Tiêu chí kỹ thuật:**
+- [x] Chia cửa sổ 4 giây có giới hạn, neo cửa sổ cuối ở cuối bản thu; phủ toàn
+      input, không bỏ đuôi ngắn hoặc nối các vùng tiếng; version riêng.
+- [x] Mỗi đoạn có vị trí trên bản thu, logits/margin hoặc trạng thái thiếu tiếng/lỗi;
+      tính độ phủ bằng hợp các đoạn đo được, không cộng trùng vùng chồng lấn.
+- [x] Không gộp điểm thô thành xác suất/đạt; mọi kết quả luôn unclear, lỗi một
+      đoạn không xóa các đoạn khác hoặc giả thành đã chấm.
+- [x] Worker/client kiểm version và timeline gắn đúng hash/số mẫu; timeout/hủy
+      vẫn dọn worker; giữ CLI first4s mặc định, opt-in CLI toàn câu và lab cập nhật.
+- [x] Mock/factory/config, test không thiết bị/trọng số, smoke CPU tổng hợp,
+      hướng dẫn/bàn giao/lint/plan_check; không thay API/ngưỡng/UI sản phẩm.
+
+Đánh giá accuracy/parity/calibration để sau theo yêu cầu người dùng. Độ phủ
+thời gian không phải độ chính xác phát hiện hay bằng chứng toàn bản thu thật.

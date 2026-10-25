@@ -83,7 +83,8 @@
 | VOICE-09 | NES2Net-X: backend + CLI raw diagnostic CPU riêng | M4 | Codex | 1 | S2 | P0 | PLAT-03 | review |
 | VOICE-10 | Ghép NES2Net vào công cụ micro qua worker RAM riêng | M4 | Codex | 1 | S2 | P0 | VOICE-08, VOICE-09 | done |
 | VOICE-11 | Nhịp đọc/CTC trong lab micro, mốc âm tiết RAM và CLI | M4 | Codex | 1 | S2 | P0 | VOICE-10 | done |
-| VOICE-12 | Lab thu A/V một nguồn và khớp môi SyncNet trong RAM | M4 | Codex | 1,5 | S2 | P0 | VOICE-11 | review |
+| VOICE-12 | Lab thu A/V một nguồn và khớp môi SyncNet trong RAM | M4 | Codex | 1,5 | S2 | P0 | VOICE-11 | done |
+| VOICE-13 | NES2Net theo đoạn phủ toàn bản thu trong lab | M4 | Codex | 1 | S2 | P0 | VOICE-12 | review |
 
 ## E6 — TrustRouter · `epics/E6-router.md`
 

@@ -37,6 +37,12 @@ ram_lipsync:
   version_suffix: voice12-v1-single-container-mjpeg
   source: voice/syncnet.py
 
+nes2net_timeline:
+  model_id: nes2net-x-xlsr
+  version_suffix: timeline4s-tail-v1
+  source: voice/nes2net.py
+  aggregation: none
+
 # VOICE-04: VAD has no checkpoint; matching constants live in voice/challenge.py.
 voice:
   model_subdir: phowhisper

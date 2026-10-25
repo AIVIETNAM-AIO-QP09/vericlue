@@ -1,4 +1,4 @@
-"""Offline NES2Net first-four-seconds raw diagnostic; no mic or authentication decision."""
+"""Offline NES2Net raw diagnostic; optional timeline, no mic/authentication decision."""
 
 from __future__ import annotations
 
@@ -39,6 +39,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--audio", required=True, type=Path)
     parser.add_argument("--models-dir", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--whole-utterance", action="store_true", help="Raw per-window timeline")
     args = parser.parse_args(argv)
     if args.output.resolve() == args.audio.resolve() or args.output.resolve().is_relative_to(
         args.models_dir.resolve()
@@ -47,7 +48,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.output.exists():
         parser.error("Output must be a new file")
     checksum = audio_hash(args.audio)
-    detector = Nes2NetDetector(args.models_dir)
+    if args.whole_utterance:
+        from vericlue_ml.voice.nes2net_timeline import Nes2NetTimelineDetector
+
+        detector = Nes2NetTimelineDetector(args.models_dir)
+    else:
+        detector = Nes2NetDetector(args.models_dir)
     result = detector.predict(DetectorInput(audio=args.audio))
     try:
         unchanged = audio_hash(args.audio) == checksum
@@ -75,7 +81,11 @@ def main(argv: list[str] | None = None) -> int:
         "dataset": "local_nes2net_diagnostic_not_accuracy_evaluation",
         "sample_count": 1,
         "audio_sha256": checksum,
-        "protocol": "first_64000_samples_repeat_if_short_no_normalization_no_trim",
+        "protocol": (
+            "timeline_4s_end_anchored_tail_no_aggregation_v1"
+            if args.whole_utterance
+            else "first_64000_samples_repeat_if_short_no_normalization_no_trim"
+        ),
         "frontend_parity_verified": False,
         "calibrated": False,
         "runtime": runtime_versions(),

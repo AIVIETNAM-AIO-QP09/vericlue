@@ -35,7 +35,8 @@ tmp/av-lab-runtime/Scripts/python.exe -m vericlue_ml.eval.av_lab --models-dir mo
 ```
 
 Nếu editable trỏ checkout cũ, đặt PYTHONPATH tới `ml/src` của checkout/worktree
-mới. Bỏ `--nes2net-python` thì không bật chấm giọng AI. Lab micro cũ không đổi.
+mới. Bỏ `--nes2net-python` thì không bật chấm giọng AI. Cách thu micro giữ nguyên;
+VOICE-13 cập nhật cách chấm theo đoạn trong cả hai lab.
 
 ## Sử dụng
 
@@ -47,7 +48,9 @@ mới. Bỏ `--nes2net-python` thì không bật chấm giọng AI. Lab micro c�
 3. Bấm **Dừng & kiểm**. FFmpeg đóng hai track trước khi các model xử lý. Tối đa
    20 giây, RAM encoded 64 MiB, video ≤640×480/MJPEG, tối đa 1200 frame, audio
    mono PCM16/16 kHz. Hình/tiếng không lưu ra file. Nén MJPEG là recipe lab mới.
-4. Xem riêng **Câu đọc**, **Giọng AI · 4 giây đầu**, **Nhịp đọc**, **Khớp môi**.
+4. Xem riêng **Câu đọc**, **Giọng AI · theo đoạn**, **Nhịp đọc**, **Khớp môi**.
+   VOICE-13 thêm [NES2Net toàn bản thu](nes2net-timeline-lab.md), giữ điểm từng
+   đoạn và độ phủ riêng, không gộp thành kết luận thật/giả.
    Cùng audio được dùng cho cả bốn bước; không có kết luận tổng hợp. Khi xong,
    tab camera tự chuyển sang khớp môi nếu người dùng vẫn đang ở tab camera.
 5. **Hủy/Esc** bỏ toàn lượt. FFmpeg được yêu cầu kết thúc; không đáp ứng sau
