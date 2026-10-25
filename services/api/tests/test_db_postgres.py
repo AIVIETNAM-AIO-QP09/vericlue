@@ -32,14 +32,16 @@ from vericlue_api.services import storage
 
 def test_account_duplicate_identity_race(postgres, monkeypatch):
     """Two different locked sessions must not enroll the same live identity."""
+    from pydantic import SecretStr
     from test_accounts import prepared, real_settings
 
     from vericlue_api.core.errors import ApiError
     from vericlue_api.db.models import AccountRow
     from vericlue_api.services.accounts import AccountStore
 
-    monkeypatch.setenv("SESSION_PRIVACY", "true")
-    monkeypatch.setenv("SESSION_MASTER_KEY", base64.b64encode(secrets.token_bytes(32)).decode())
+    # This fixture shares PostgreSQL's demo review rows with other test modules.
+    # Keep those synthetic rows plaintext; only the account under test is encrypted.
+    monkeypatch.setenv("SESSION_PRIVACY", "false")
     get_settings.cache_clear()
     identity_hmac = secrets.token_hex(32)
     with TestClient(create_app()) as client:
@@ -47,7 +49,14 @@ def test_account_duplicate_identity_race(postgres, monkeypatch):
         with root.transaction() as state:
             first = prepared(state, id_hmac=identity_hmac)
             second = prepared(state, id_hmac=identity_hmac)
-            settings = real_settings(state)
+            settings = real_settings(state).model_copy(
+                update={
+                    "session_privacy": True,
+                    "session_master_key": SecretStr(
+                        base64.b64encode(secrets.token_bytes(32)).decode()
+                    ),
+                }
+            )
         ready = Barrier(2)
 
         def enroll(record):

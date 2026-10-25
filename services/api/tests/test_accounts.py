@@ -297,6 +297,9 @@ def test_missing_or_mismatched_verification_never_writes_account(private_client,
             AccountStore(real_settings(state), state.db).create(
                 session, template, continuity=continuity
             )
+        if fault == "nonfinite_probability":
+            # Restore the deliberately corrupted fixture before SessionStore saves it.
+            session.results[Module.FACE_PAD].prob_attack = 0.01
         assert state.db.scalar(select(func.count()).select_from(AccountRow)) == 0
 
 
