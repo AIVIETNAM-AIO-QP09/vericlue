@@ -11,6 +11,7 @@ from vericlue_ml.common.detector import DetectorInput
 from vericlue_ml.common.result import ErrorCode, Evidence, Gate, Module, ModuleResult, Status
 from vericlue_ml.face.match import MATCH_VERSION, FaceMatchDetector, MatchError
 from vericlue_ml.face.pad import PadError
+from vericlue_ml.face.template import FaceTemplate
 from vericlue_ml.presence.challenge import expected_dynamic
 from vericlue_ml.presence.head_turn import CENTER_MAX_DEG, MAX_PITCH_ROLL_DEG
 from vericlue_ml.presence.landmarks import FaceObservationReader, LandmarkError
@@ -39,6 +40,56 @@ class VideoFaceMatchDetector(FaceMatchDetector):
     def preload(self, *, models_dir: Path | str | None = None, device: str | None = None) -> None:
         super().preload(models_dir=models_dir, device=device)
         self.reader.preload(models_dir=Path(models_dir) if models_dir is not None else None)
+
+    def enrollment_template(self, inp: DetectorInput, approved: ModuleResult) -> FaceTemplate:
+        """Extract only the frontal pixels of a matching, freshly rechecked server result.
+
+        Internal worker call, never a detector response. The caller must retain its
+        plaintext lease until this work finishes and enforce its inference deadline.
+        This artifact alone does not authorize account enrollment.
+        """
+        with self._lock:
+            if (
+                approved.module != Module.FACE_MATCH
+                or approved.model_version != self.version
+                or approved.status != Status.OK
+                or approved.error_code is not None
+                or approved.gate != Gate.PASS
+            ):
+                raise MatchError(ErrorCode.E_INTEGRITY)
+            fresh = self.predict(inp)
+            if fresh.status != Status.OK or fresh.gate != Gate.PASS or fresh.error_code is not None:
+                raise MatchError(ErrorCode.E_INTEGRITY)
+
+            def provenance(result):
+                names = ("source_video_sha256", "selected_frontal_frame")
+                selected = {e.name: e.value for e in result.evidence if e.name in names}
+                if len(selected) != 2 or any(
+                    sum(e.name == name for e in result.evidence) != 1 for name in names
+                ):
+                    raise MatchError(ErrorCode.E_INTEGRITY)
+                return selected
+
+            source = provenance(fresh)
+            if provenance(approved) != source:
+                raise MatchError(ErrorCode.E_INTEGRITY)
+            selected = source["selected_frontal_frame"]
+            frame = select_frontal_frame(inp.video, selected["target_ms"])
+            vector, pixels_hash = self._embedding(frame.bgr)
+            if (
+                pixels_hash != selected["pixels_sha256"]
+                or video_sha256(inp.video) != source["source_video_sha256"]
+            ):
+                raise MatchError(ErrorCode.E_INTEGRITY)
+            return FaceTemplate(
+                session_id=inp.session_id,
+                challenge_id=inp.metadata["expected_challenge"]["challenge_id"],
+                model_version=self.version,
+                preprocessing="arcface112-rgb-minus1to1-v1",
+                source_video_sha256=source["source_video_sha256"],
+                pixels_sha256=pixels_hash,
+                embedding=tuple(float(v) for v in vector),
+            )
 
     def predict(self, inp: DetectorInput) -> ModuleResult:
         started = perf_counter()

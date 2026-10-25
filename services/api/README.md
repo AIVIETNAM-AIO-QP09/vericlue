@@ -5,6 +5,11 @@
 
 ## Trách nhiệm
 
+FLOW-05 có nền lưu mẫu mặt/tài khoản mã hóa, gắn public key và dọn sau 24 giờ
+(migration 0005): [`account-enrollment.md`](../../docs/architecture/account-enrollment.md).
+Chưa có endpoint ghi danh hay tích hợp sau `pass`; còn thiếu so cùng người
+giữa mặt–giọng và L0. Không mở luồng thật/mixed.
+
 SEC-02 có chữ ký media mặt/giọng theo phiên, nonce dùng một lần và client Android
 opt-in: [`media-proof.md`](../../docs/architecture/media-proof.md). Cần migration
 0004; chưa đăng ký khóa tài khoản hoặc mở luồng reauth thật.

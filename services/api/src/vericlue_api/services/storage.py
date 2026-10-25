@@ -23,6 +23,7 @@ from vericlue_api.db.models import (
     aware,
     utcnow,
 )
+from vericlue_api.services.accounts import AccountStore
 from vericlue_api.services.session_privacy import SessionPrivacy
 
 logger = logging.getLogger(__name__)
@@ -230,7 +231,13 @@ def cleanup_expired(
                     job.media_deleted_at = now
                 except (OSError, ValueError) as exc:
                     errors.append({"id": job.job_id, "error": str(exc)})
-            details = {"deleted": deleted, "protected_forensic": protected, "errors": errors}
+            expired_accounts = AccountStore(settings, db).expire(now=now)
+            details = {
+                "deleted": deleted,
+                "protected_forensic": protected,
+                "errors": errors,
+                "expired_accounts": expired_accounts,
+            }
             db.add(
                 CleanupAuditRow(
                     created_at=now,

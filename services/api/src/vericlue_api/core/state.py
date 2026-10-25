@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from vericlue_api.core.config import Settings
 from vericlue_api.db.database import Database
+from vericlue_api.services.accounts import AccountStore
 from vericlue_api.services.forensic_service import ForensicStore
 from vericlue_api.services.identity_steps import IdentitySteps
 from vericlue_api.services.orchestrator import Orchestrator
@@ -36,9 +37,11 @@ class AppState:
     flow: SessionFlow = field(init=False)
     identity: IdentitySteps = field(init=False)
     privacy: SessionPrivacy = field(init=False)
+    accounts: AccountStore = field(init=False)
 
     def __post_init__(self) -> None:
         self.privacy = SessionPrivacy(self.settings, self.db)
+        self.accounts = AccountStore(self.settings, self.db)
         base_runner = partial(self.orchestrator.run, deadline=self.inference_deadline)
 
         def runner(modules, *, session_id, **kwargs):

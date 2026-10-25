@@ -227,7 +227,7 @@ class SessionPrivacy:
             raise unavailable() from exc
 
     def audit(self, scope: str, *, actor: str, action: str) -> None:
-        """Append a PII-free access event; caller must hold the session row lock."""
+        """Append a PII-free event; caller holds the scope's session/account row lock."""
         previous = self.db.scalar(
             select(AccessEventRow)
             .where(AccessEventRow.scope == scope)
