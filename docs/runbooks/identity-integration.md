@@ -20,6 +20,20 @@ Paddle/Torch vào API chỉ để chạy cầu nối. Không đổi module LVFac
    Không phải 40% xác suất. Lỗi/thiếu mặt/điểm không hợp lệ không được coi là đạt.
 6. Kết quả PAD, liveness, voice và policy vẫn có hiệu lực. Người dân không nhận điểm.
 
+### Bảo toàn ảnh và phạm vi luồng (bản sửa review PR #65)
+
+- Kiểm trạng thái trước khi đọc ảnh/gọi runtime; sau khi nhận media/signals hoặc chấm mặt,
+  đổi CCCD trả 409 và không ghi file mới.
+- Chỉ lưu ảnh sau khi runtime trả kết quả hợp lệ. Mỗi lần quét dùng một cặp tên file mới;
+  chỉ đổi tham chiếu phiên khi cả hai file được ghi. OCR lỗi/response lỗi (503), ghi file
+  lỗi hoặc commit DB lỗi giữ nguyên thông tin, xác nhận và byte ảnh của thẻ trước.
+- Lần quét hoàn thành trả `ok` **hoặc** `retry` đều thay cặp ảnh và hủy xác nhận/kết quả
+  so mặt cũ. File cũ, hoặc file không được DB tham chiếu sau lỗi, theo TTL của phiên.
+- Cầu nối CCCD–selfie áp dụng cho luồng cũ, onboarding và recovery. `reauth` giữ policy
+  thiết bị của FLOW-01: không gọi cầu nối này, không yêu cầu quét lại thẻ và không tạo
+  ca duyệt CCCD. Đối chiếu mẫu danh tính đã đăng ký vẫn thuộc FLOW-05/SEC-02; bản sửa này
+  không bổ sung xác minh thiết bị thật, không gỡ chặn real/mixed.
+
 QR/OCR chỉ trích xuất nội dung, không xác minh thẻ thật. Dữ liệu đã sửa cần duyệt;
 việc sửa số CCCD không thay ảnh tham chiếu. Không cho đổi thẻ/thông tin sau khi
 bắt đầu nhận media của lượt xác minh.

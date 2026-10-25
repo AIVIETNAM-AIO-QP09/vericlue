@@ -23,6 +23,7 @@ from vericlue_api.schemas.session import (
 )
 from vericlue_api.services.identity_runtime import IdentityRuntime
 from vericlue_api.services.session_store import Session
+from vericlue_api.services.storage import save_upload
 from vericlue_ml.common.result import Module
 
 
@@ -89,12 +90,45 @@ class IdentitySteps:
         return OtpVerifyResponse(status="retry", attempts_left=session.otp_attempts_left)
 
     # --- CCCD --------------------------------------------------------------
-    def accept_images(
-        self, session: Session, front: bytes, back: bytes, client_qr: str | None
-    ) -> IdCardResponse:
+    @staticmethod
+    def ensure_card_upload_allowed(session: Session) -> None:
+        """Reject card changes before reading, scanning or storing new images."""
         if session.accepted_steps or session.face_scored:
             raise ApiError(409, "step_not_allowed", "Hãy bắt đầu lại phiên trước khi đổi ảnh thẻ.")
-        # Invalidate the prior card and confirmation even if this rescan fails.
+
+    def accept_images(
+        self,
+        session: Session,
+        front: bytes,
+        back: bytes,
+        client_qr: str | None,
+        *,
+        front_filename: str | None = None,
+        back_filename: str | None = None,
+    ) -> IdCardResponse:
+        self.ensure_card_upload_allowed(session)
+        response = self._scan_images(session, front, back, client_qr)
+        # Never overwrite a committed reference: DB rollback cannot undo file writes.
+        # Unreferenced files from a failed write/commit are left to the session TTL cleanup.
+        scan_id = secrets.token_hex(16)
+        front_path = save_upload(
+            self.settings.media_dir,
+            session.session_id,
+            f"id_front_{scan_id}",
+            front_filename,
+            front,
+        )
+        back_path = save_upload(
+            self.settings.media_dir, session.session_id, f"id_back_{scan_id}", back_filename, back
+        )
+        session.id_front, session.id_back = front_path, back_path
+        return response
+
+    def _scan_images(
+        self, session: Session, front: bytes, back: bytes, client_qr: str | None
+    ) -> IdCardResponse:
+        # A completed rescan, including a retry response, invalidates prior confirmation.
+        # Exceptions roll the request transaction back, preserving the previous card.
         session.id_fields = None
         session.id_number_hmac = None
         session.id_edited = []

@@ -72,6 +72,14 @@ Chi tiết: `docs/architecture/dynamic-session-api.md`.
 **Tiêu chí hoàn thành:**
 - [ ] Test với ảnh thẻ tổng hợp. Không commit ảnh CCCD thật.
 - [ ] Phát hiện thẻ giả nằm **ngoài phạm vi**; ghi rõ là giới hạn.
+- [x] Bản sửa review PR #65: từ chối đổi thẻ sau media/signals/chấm mặt trước mọi ghi file;
+  lỗi OCR/ghi file/commit DB không đổi ảnh hoặc thông tin đã xác nhận. Quét hoàn thành
+  dùng tên file mới và hủy xác nhận cũ, kể cả trả `retry`.
+
+**Cập nhật 25/10 — sửa review PR #65:** giữ cầu nối CCCD–selfie ngoài `reauth` để không
+đổi policy FLOW-01; test cả mặt và giọng với runtime bật/tắt. Chưa hoàn thành nhận dạng
+theo mẫu đăng ký/SEC-02 hoặc nghiệm thu Android. Chi tiết vận hành tại
+[`identity-integration.md`](../../runbooks/identity-integration.md).
 
 ---
 

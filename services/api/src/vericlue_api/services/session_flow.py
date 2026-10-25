@@ -324,7 +324,9 @@ class SessionFlow:
             session_valid=session_valid and self._valid_time(session, color_challenge=True),
         )
         outcome = route_face(outcome, session.purpose, device_verified=session.device_verified)
-        if s.identity_lab_url:
+        # This bridge compares a newly scanned card. Reauth uses enrolled identity/device
+        # context (FLOW-05/SEC-02), not a fresh CCCD or the staff-review card gate.
+        if s.identity_lab_url and session.purpose != "reauth":
             if session_valid:
                 session.results[Module.FACE_MATCH] = IdentityRuntime(s).match(
                     session.id_front, session.images
@@ -431,7 +433,7 @@ class SessionFlow:
             session_valid=session_valid and self._valid_time(session, voice_challenge=True),
         )
         outcome = route_voice(outcome, session.purpose)
-        if self.settings.identity_lab_url:
+        if self.settings.identity_lab_url and session.purpose != "reauth":
             outcome = self._identity_gate(session, outcome)
         if outcome.status != "voice_challenge":
             session.voice_owed = False

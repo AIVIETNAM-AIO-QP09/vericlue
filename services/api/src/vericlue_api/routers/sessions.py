@@ -29,7 +29,7 @@ from vericlue_api.schemas.session import (
     VoiceResponse,
 )
 from vericlue_api.services.session_store import Session
-from vericlue_api.services.uploads import read_limited, save_upload
+from vericlue_api.services.uploads import read_limited
 from vericlue_ml.mock import SCENARIOS
 
 router = APIRouter(prefix="/v1/sessions", tags=["sessions"])
@@ -225,18 +225,18 @@ async def upload_id_card(
     ] = None,
 ) -> IdCardResponse:
     state.flow.ensure_open(session)
+    state.identity.ensure_card_upload_allowed(session)
     limit = state.settings.max_upload_mb
     front_bytes = await read_limited(front, limit)
     back_bytes = await read_limited(back, limit)
-    media_dir = state.settings.media_dir
-    session.id_front = save_upload(
-        media_dir, session.session_id, "id_front", front.filename, front_bytes
-    )
-    session.id_back = save_upload(
-        media_dir, session.session_id, "id_back", back.filename, back_bytes
-    )
     return await run_in_threadpool(
-        state.identity.accept_images, session, front_bytes, back_bytes, qr
+        state.identity.accept_images,
+        session,
+        front_bytes,
+        back_bytes,
+        qr,
+        front_filename=front.filename,
+        back_filename=back.filename,
     )
 
 
