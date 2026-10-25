@@ -4,6 +4,9 @@ struct RouteScreen: View {
     let route: Route
     @EnvironmentObject private var navigation: AppNavigation
     @EnvironmentObject private var flow: DemoFlow
+    @EnvironmentObject private var identity: IdentityFlow
+
+    private var usesLiveIdentity: Bool { flow.useLiveAPI && !flow.previewMode }
 
     var body: some View {
         switch route {
@@ -21,9 +24,9 @@ struct RouteScreen: View {
             SplashScreen(onDone: { navigation.replaceTop(with: .auth) }, autoAdvance: !flow.previewMode)
         case .auth:
             AuthScreen(
-                onRegister: { flow.purpose = .onboarding; navigation.go(.terms) },
-                onLogin: { flow.purpose = .reauth; navigation.go(.phone) },
-                onRecover: { flow.purpose = .recovery; navigation.go(.phone) }
+                onRegister: { beginIdentity(.onboarding); navigation.go(.terms) },
+                onLogin: { beginIdentity(.reauth); navigation.go(.phone) },
+                onRecover: { beginIdentity(.recovery); navigation.go(.phone) }
             )
         case .terms:
             TermsScreen(onAccept: { navigation.go(.consent) })
@@ -32,29 +35,42 @@ struct RouteScreen: View {
         case .intro:
             IntroScreen(onStart: { navigation.go(.permission) })
         case .permission:
-            PermissionScreen(onAllow: { navigation.go(.phone) })
+            if usesLiveIdentity { IdentityPermissionScreen(onNext: followIdentity) }
+            else { PermissionScreen(onAllow: { navigation.go(.phone) }) }
         case .phone:
-            PhoneScreen { _ in navigation.go(.otp) }
+            if usesLiveIdentity { IdentityPhoneScreen(onNext: followIdentity) }
+            else { PhoneScreen { _ in navigation.go(.otp) } }
         case .otp:
-            OTPDemoScreen { navigation.go(flow.afterOTP()) }
+            if usesLiveIdentity { IdentityOTPScreen(onNext: followIdentity) }
+            else { OTPDemoScreen { navigation.go(flow.afterOTP()) } }
         case .otpError:
             OTPDemoScreen(startsWithError: true) { navigation.go(flow.afterOTP()) }
         case .idFront:
-            IDCaptureScreen(isBack: false, onCapture: { navigation.go(.idFrontReview) })
+            if usesLiveIdentity { IdentityCaptureScreen(isBack: false, onNext: followIdentity) }
+            else { IDCaptureScreen(isBack: false, onCapture: { navigation.go(.idFrontReview) }) }
         case .idFrontGlare:
             IDCaptureScreen(isBack: false, glare: true, onCapture: { navigation.replaceTop(with: .idFront) })
         case .idFrontReview:
-            IDReviewScreen(isBack: false, onConfirm: { navigation.go(.idBack) }, onRetake: navigation.back)
+            if usesLiveIdentity { IdentityReviewScreen(isBack: false, onNext: followIdentity) }
+            else { IDReviewScreen(isBack: false, onConfirm: { navigation.go(.idBack) }, onRetake: navigation.back) }
         case .idBack:
-            IDCaptureScreen(isBack: true, onCapture: { navigation.go(.idBackReview) })
+            if usesLiveIdentity { IdentityCaptureScreen(isBack: true, onNext: followIdentity) }
+            else { IDCaptureScreen(isBack: true, onCapture: { navigation.go(.idBackReview) }) }
         case .idBackReview:
-            IDReviewScreen(isBack: true, onConfirm: { navigation.go(.confirm) }, onRetake: navigation.back)
+            if usesLiveIdentity { IdentityReviewScreen(isBack: true, onNext: followIdentity) }
+            else { IDReviewScreen(isBack: true, onConfirm: { navigation.go(.confirm) }, onRetake: navigation.back) }
         case .confirm:
-            ConfirmInfoScreen(onCorrect: { navigation.go(.faceReady) }, onEdit: { navigation.go(.editInfo) })
+            if usesLiveIdentity { IdentityConfirmScreen(onNext: followIdentity) }
+            else { ConfirmInfoScreen(onCorrect: { navigation.go(.faceReady) }, onEdit: { navigation.go(.editInfo) }) }
         case .editInfo:
-            EditInfoScreen(onSave: { navigation.go(.faceReady) }, onRetake: { navigation.go(.idFront) })
+            if usesLiveIdentity { IdentityEditScreen(onNext: followIdentity) }
+            else { EditInfoScreen(onSave: { navigation.go(.faceReady) }, onRetake: { navigation.go(.idFront) }) }
         case .faceReady:
-            FaceReadyScreen(onReady: { navigation.go(.framing) }, onSkipFlash: { navigation.go(.flashSkipped) })
+            if usesLiveIdentity {
+                IdentityStageCompleteScreen(purpose: flow.purpose, onBank: finishAtBank)
+            } else {
+                FaceReadyScreen(onReady: { navigation.go(.framing) }, onSkipFlash: { navigation.go(.flashSkipped) })
+            }
         case .framing:
             FramingScreen(onCaptured: { navigation.go(.holdStill) })
         case .holdStill:
@@ -116,7 +132,11 @@ struct RouteScreen: View {
     private func primaryMessageAction() {
         switch route {
         case .errorCamera, .errorDevice:
-            navigation.go(.permission)
+            if usesLiveIdentity {
+                openCameraSettings()
+                navigation.returnTo(.permission)
+            }
+            else { navigation.go(.permission) }
         case .errorMic, .noVoice:
             navigation.go(.voice)
         case .errorNetwork, .slow, .uploadFailed:
@@ -138,8 +158,21 @@ struct RouteScreen: View {
     }
 
     private func finishAtBank() {
+        identity.reset()
         flow.resetForBank()
         navigation.toBank()
+    }
+
+    private func beginIdentity(_ purpose: Purpose) {
+        flow.purpose = purpose
+        if usesLiveIdentity { identity.begin(purpose: purpose, scenario: flow.mockScenario) }
+    }
+
+    private func followIdentity(_ route: Route) {
+        switch route {
+        case .idFront, .idBack, .confirm: navigation.returnTo(route)
+        default: navigation.go(route)
+        }
     }
 }
 

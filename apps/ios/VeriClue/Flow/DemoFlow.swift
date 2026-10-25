@@ -52,7 +52,11 @@ final class DemoFlow: ObservableObject {
     @Published var purpose: Purpose = .onboarding
     @Published var outcome: DemoOutcome = .pass
     @Published var mockScenario = "genuine"
+    #if DEBUG
     @Published var useLiveAPI = false
+    #else
+    @Published var useLiveAPI = true
+    #endif
     @Published var previewMode = false
 
     let mockScenarios = ["genuine", "low_quality", "print", "replay", "virtual_cam", "faceswap", "voice_clone", "error"]

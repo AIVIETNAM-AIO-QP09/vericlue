@@ -403,7 +403,7 @@ Toàn bộ phần mặt (nền xám → màu → chấm → quay đầu) nằm t
 3. `Capture/CameraSession.swift` (phần camera sau): mở camera sau, preview trong khung tỉ lệ thẻ 1,586:1, nút chụp.
 4. `Capture/IdCard.swift`:
    - **Độ nét:** chuyển ảnh xám, chạy Laplacian (vImage), tính phương sai. Ngưỡng ban đầu lấy từ `IdCard.kt`, chỉnh lại theo số đo trên iPhone.
-   - **Lóa:** tỉ lệ điểm ảnh gần trắng (> 245) trong vùng thẻ, ngưỡng như Android.
+   - **Lóa:** tỉ lệ điểm ảnh gần trắng (luma ≥250) trong vùng thẻ; chặn khi tỉ lệ >0.02, theo `IdCard.kt` Android. Đây là ngưỡng khởi đầu, chưa hiệu chỉnh bằng tập đo iPhone.
    - **QR:** `VNDetectBarcodesRequest`, `symbologies = [.qr]`, lấy `payloadStringValue`.
 5. Màn xem lại: hiện ảnh vừa chụp và 3 dòng kiểm (nét / không lóa / đọc được QR, riêng mặt sau), câu nhắc đúng lỗi.
 6. Mặt sau "Ảnh rõ, tiếp tục" → `sendIdCard(front:back:qr:)`; `retry` → về chụp mặt sau; `ok` → màn Kiểm tra thông tin với dữ liệu server.

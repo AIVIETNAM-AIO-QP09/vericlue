@@ -25,17 +25,25 @@ final class AppNavigation: ObservableObject {
     func toBank() {
         path.removeAll()
     }
+
+    func returnTo(_ route: Route) {
+        if let index = path.lastIndex(of: route) {
+            path.removeSubrange(path.index(after: index)..<path.endIndex)
+        } else { go(route) }
+    }
 }
 
 struct AppNavigationView: View {
     @StateObject private var navigation = AppNavigation()
     @StateObject private var flow = DemoFlow()
+    @StateObject private var identity = IdentityFlow()
 
     var body: some View {
         NavigationStack(path: $navigation.path) {
             BankStartScreen(
                 onOpenAccount: {
                     flow.previewMode = false
+                    identity.reset()
                     navigation.go(.splash)
                 },
                 onGallery: { navigation.go(.gallery) }
@@ -44,9 +52,11 @@ struct AppNavigationView: View {
                 RouteScreen(route: route)
                     .environmentObject(navigation)
                     .environmentObject(flow)
+                    .environmentObject(identity)
             }
         }
         .environmentObject(navigation)
         .environmentObject(flow)
+        .environmentObject(identity)
     }
 }

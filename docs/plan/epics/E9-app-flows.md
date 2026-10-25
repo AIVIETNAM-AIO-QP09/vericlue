@@ -309,7 +309,9 @@ Kế hoạch chi tiết từng bước: [`apps/ios/docs/plan-ios.md`](../../../a
 - Màn số điện thoại, OTP (SMS mô phỏng), camera sau chụp hai mặt, xem lại, xác nhận/sửa thông tin.
 
 **Tiêu chí hoàn thành:**
-- [ ] Trên iPhone thật với API mock: OTP sai/đúng đúng câu; server nhận 2 ảnh CCCD và trả thông tin từ QR.
+- [x] Trên iPhone thật với API mock: OTP sai/đúng đúng câu; server nhận 2 ảnh CCCD và trả thông tin từ QR.
+
+Nghiệm thu thao tác do Lý Anh Quân xác nhận ngày 25/10/2026; Codex kiểm tra thêm hai JPEG và `id_edited` ở server local. Chi tiết, kết quả test và giới hạn nằm trong [bàn giao IOS-03](../../status/handoffs/2026-10-25-1004-ios-03-l-anh-qu-n-codex.md). Chưa commit/push/merge PR; không coi checkbox nghiệm thu là đã tích hợp vào main.
 
 ---
 
