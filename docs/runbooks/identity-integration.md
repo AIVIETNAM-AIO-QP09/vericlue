@@ -20,8 +20,9 @@ trong API. Không thay môi trường CUDA đang dùng chỉ để cài extra CP
    điểm cao nhất. Orchestrator nạp một LVFace-B + SCRFD từ `MODELS_DIR` khi khởi động,
    kiểm revision/SHA và dùng lại qua hàng đợi/deadline hiện có. SCRFD tìm mặt trên
    ảnh thẻ, căn 5 điểm về 112×112 rồi LVFace so với selfie; không dùng context fallback.
-   Ảnh đầu tiên hiện chưa được kiểm tư thế chính diện tự động hoặc chọn từ video.
-   Việc chọn/kiểm khung từ video là bước tích hợp tiếp theo.
+   Mặc định ảnh đầu tiên chưa được kiểm tư thế tự động. Bật `IDENTITY_FACE_FROM_VIDEO`
+   để lấy khung chính diện từ video theo lịch server, kiểm tư thế bằng MediaPipe
+   rồi so với CCCD; xem [hướng dẫn các cổng phiên](../architecture/session-verification.md).
 6. Kết quả PAD, liveness, voice và policy vẫn có hiệu lực. Người dân không nhận điểm.
 
 ### Ngưỡng và điểm so mặt

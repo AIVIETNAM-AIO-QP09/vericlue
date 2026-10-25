@@ -192,10 +192,13 @@ class FaceMatchDetector:
         finder: FaceFinder | None = None,
         embedder: Embedder | None = None,
         calibration_path: Path | None = None,
+        consistency_path: Path | None = None,
     ) -> None:
         self.finder = finder
         self.embedder = embedder if embedder is not None else LVFaceEmbedder()
         self.calibration_path = calibration_path
+        self.consistency_path = consistency_path
+        self._consistency_threshold: MatchThreshold | None = None
         self._threshold: MatchThreshold | None = None
         self._loaded = self._failed = False
         self._lock = RLock()
@@ -220,6 +223,15 @@ class FaceMatchDetector:
                         Path(artifact).read_text(encoding="utf-8")
                     )
                     if self._threshold.model_version != self.version:
+                        raise MatchError(ErrorCode.E_INTEGRITY)
+                if self.consistency_path is not None:
+                    self._consistency_threshold = MatchThreshold.model_validate_json(
+                        self.consistency_path.read_text(encoding="utf-8")
+                    )
+                    if (
+                        self._consistency_threshold.model_version
+                        != self.version + "+view-consistency-v1"
+                    ):
                         raise MatchError(ErrorCode.E_INTEGRITY)
                 self._loaded = True
             except Exception:
@@ -322,7 +334,16 @@ class FaceMatchDetector:
                         "comparisons": len(similarities),
                         "threshold_cosine": self._threshold.threshold if available else None,
                         "consistency_comparisons": len(view_similarities),
-                        "consistency_verified": False,
+                        "consistency_verified": bool(
+                            len(view_similarities) == 3
+                            and self._consistency_threshold is not None
+                            and min(view_similarities.values())
+                            >= self._consistency_threshold.threshold
+                        ),
+                        "consistency_threshold_available": self._consistency_threshold is not None,
+                        "consistency_threshold_cosine": self._consistency_threshold.threshold
+                        if self._consistency_threshold is not None
+                        else None,
                     },
                     evidence=[
                         Evidence(

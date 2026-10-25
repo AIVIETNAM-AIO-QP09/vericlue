@@ -90,6 +90,18 @@ class Settings(BaseSettings):
     identity_lab_url: str | None = None
     identity_lab_timeout_seconds: float = Field(default=90, gt=0, le=180)
     identity_face_calibration: str | None = None
+    identity_face_from_video: bool = False
+    session_face_checks: bool = False
+    session_face_models: bool = False
+    identity_consistency_required: bool = False
+    identity_consistency_calibration: str | None = None
+
+    @model_validator(mode="after")
+    def consistency_requires_video(self):
+        if self.identity_consistency_required and not self.identity_face_from_video:
+            raise ValueError("IDENTITY_CONSISTENCY_REQUIRED requires IDENTITY_FACE_FROM_VIDEO")
+        return self
+
     max_retries: int = Field(default=2, ge=0, le=2)
     max_upload_mb: int = 50
     # Để trống = dùng bảng màu trong packages/contracts/chromapulse.json (nguồn chung với web).

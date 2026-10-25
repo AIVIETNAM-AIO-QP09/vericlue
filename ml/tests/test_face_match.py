@@ -190,6 +190,29 @@ def test_old_six_pair_calibration_is_rejected_after_protocol_change(tmp_path):
     assert result.status == Status.ERROR and result.gate == Gate.UNCLEAR
 
 
+@pytest.mark.parametrize("sides,verified", [(True, True), (False, False)])
+def test_consistency_requires_separate_artifact_and_all_three_cross_view_pairs(
+    tmp_path, sides, verified
+):
+    a, b = 0.8 * vector() + 0.6 * vector(1), 0.8 * vector() - 0.6 * vector(1)
+    values = [vector()] * 4 if sides else [vector(), vector(), a, b]
+    detector, inp = setup_detector(tmp_path, vectors=values, threshold=True)
+    detector.consistency_path = artifact(
+        tmp_path, model_version=MATCH_VERSION + "+view-consistency-v1"
+    )
+    # artifact helper writes a shared filename: keep the frontal artifact independent.
+    detector.calibration_path = tmp_path / "frontal.json"
+    detector.calibration_path.write_text(
+        detector.consistency_path.read_text().replace(
+            MATCH_VERSION + "+view-consistency-v1", MATCH_VERSION
+        )
+    )
+    result = detector.predict(inp)
+    assert result.gate == Gate.PASS  # Identity/front gate is independent.
+    assert result.quality["consistency_verified"] is verified
+    assert result.quality["consistency_threshold_available"]
+
+
 def test_identical_reference_and_selfie_pixels_cannot_pass(tmp_path):
     detector, inp = setup_detector(tmp_path, threshold=True)
     inp.images, inp.image_roles = [inp.reference_image], ["front"]

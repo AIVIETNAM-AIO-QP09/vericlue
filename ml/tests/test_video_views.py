@@ -8,9 +8,22 @@ import pytest
 
 from vericlue_ml.common.result import ErrorCode, Status
 from vericlue_ml.presence.landmarks import LandmarkError
-from vericlue_ml.presence.views import select_video_frames, video_sha256
+from vericlue_ml.presence.views import select_frontal_frame, select_video_frames, video_sha256
 
 TARGETS = {"front": 100.0, "left": 400.0, "right": 700.0}
+
+
+def test_single_frontal_frame_uses_same_vfr_tie_and_bounds(monkeypatch, tmp_path):
+    path, handles = decoder(monkeypatch, tmp_path, [0, 80, 120, 300])
+    picked = select_frontal_frame(path, 100)
+    assert picked.at_ms == 80 and picked.target_ms == 100
+    assert all(h.released for h in handles)
+
+
+@pytest.mark.parametrize("target", [True, -1, float("nan"), 31000])
+def test_invalid_single_frontal_target_does_not_open_video(tmp_path, target):
+    with pytest.raises(LandmarkError):
+        select_frontal_frame(tmp_path / "not-opened.mp4", target)
 
 
 def decoder(monkeypatch, tmp_path, times, *, shape=(24, 32, 3), opened=True):

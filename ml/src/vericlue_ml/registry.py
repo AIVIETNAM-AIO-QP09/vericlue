@@ -169,6 +169,17 @@ def register(module: Module, factory: Callable[[], Detector]) -> None:
     _REAL_FACTORIES[Module(module)] = factory
 
 
+def get_video_face_match(*, mock: bool = False) -> Detector:
+    """Explicit server-video identity variant; leave the standard registry selection intact."""
+    if mock:
+        from vericlue_ml.mock.video_match import MockVideoFaceMatchDetector
+
+        return MockVideoFaceMatchDetector()
+    from vericlue_ml.face.video_match import VideoFaceMatchDetector
+
+    return VideoFaceMatchDetector()
+
+
 @lru_cache(maxsize=2)
 def get_fsvfm_pad(*, mock: bool = False) -> Detector:
     """Explicit diagnostic alternative; leave get_detector('face_pad') unchanged."""

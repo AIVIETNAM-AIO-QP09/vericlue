@@ -9,17 +9,25 @@ from concurrent.futures import Future, ThreadPoolExecutor, wait
 from copy import copy
 from dataclasses import dataclass, field
 from pathlib import Path
-from threading import Lock
+from threading import Lock, Thread
 from time import perf_counter
 from typing import Any, Literal
 
 from vericlue_api.core.config import Settings
 from vericlue_ml.common.detector import Detector, DetectorInput
 from vericlue_ml.common.result import ErrorCode, Evidence, Module, ModuleResult, Status
+from vericlue_ml.face.fsvfm import FsvfmPadDetector
 from vericlue_ml.face.gend import FaceDeepfakeDetector
 from vericlue_ml.face.match import FaceMatchDetector
 from vericlue_ml.face.pad import FacePadDetector
 from vericlue_ml.face.quality import QualityDetector
+from vericlue_ml.face.session_attack import SessionAttackDetector
+from vericlue_ml.face.video_match import VideoFaceMatchDetector
+from vericlue_ml.presence.chromapulse import ChromaPulseDetector
+from vericlue_ml.presence.color_regions import ColorObservationReader
+from vericlue_ml.presence.gaze import GazeDetector
+from vericlue_ml.presence.head_turn import HeadTurnDetector
+from vericlue_ml.presence.landmarks import FaceObservationReader
 from vericlue_ml.registry import get_detector
 from vericlue_ml.router.policy import TrustRouter
 from vericlue_ml.voice.antispoof import AntiDeepfakeDetector
@@ -54,13 +62,35 @@ class Orchestrator:
         self._lifecycle = Lock()
         self._started = self._closed = False
         self._executor: ThreadPoolExecutor | None = None
+        self._face_reader = FaceObservationReader()
 
     def _default_detector(self, module: Module) -> Detector:
         if module == Module.FACE_MATCH and self.settings.identity_lab_url:
             # Identity opt-in is deliberately hybrid: OCR and face matching are real,
             # even when the remaining API detectors are mocked for the demo.
             artifact = self.settings.identity_face_calibration
+            if self.settings.identity_face_from_video:
+                return VideoFaceMatchDetector(
+                    reader=self._face_reader,
+                    calibration_path=Path(artifact) if artifact else None,
+                    with_consistency=self.settings.identity_consistency_required,
+                    consistency_path=Path(self.settings.identity_consistency_calibration)
+                    if self.settings.identity_consistency_calibration
+                    else None,
+                )
             return FaceMatchDetector(calibration_path=Path(artifact) if artifact else None)
+        if self.settings.session_face_checks:
+            if module == Module.GAZE_TRACKING:
+                return GazeDetector(self._face_reader)
+            if module == Module.HEAD_TURN:
+                return HeadTurnDetector(self._face_reader)
+        if self.settings.session_face_models:
+            if module == Module.FACE_PAD:
+                return SessionAttackDetector(FsvfmPadDetector(), self._face_reader)
+            if module == Module.FACE_DEEPFAKE:
+                return SessionAttackDetector(FaceDeepfakeDetector(), self._face_reader)
+            if module == Module.CHROMAPULSE:
+                return ChromaPulseDetector(ColorObservationReader(self._face_reader))
         return get_detector(module, mock=self.settings.use_mock_models)
 
     def loaded_detector(self, module: Module) -> Detector | None:
@@ -84,6 +114,8 @@ class Orchestrator:
             modules = list(self.router.profile.modules)
             if self.settings.identity_lab_url:
                 modules.append(Module.FACE_MATCH)
+            if self.settings.session_face_checks:
+                modules.extend((Module.GAZE_TRACKING, Module.HEAD_TURN))
             for module in dict.fromkeys(modules):
                 try:
                     detector = self._factory(module)
@@ -100,6 +132,10 @@ class Orchestrator:
                             models_dir=Path(self.settings.models_dir),
                             device=self.settings.lipsync_device,
                         )
+                    elif isinstance(
+                        detector, (GazeDetector, HeadTurnDetector, ChromaPulseDetector)
+                    ):
+                        preload(models_dir=Path(self.settings.models_dir))
                     elif preload is not None:
                         if isinstance(
                             detector,
@@ -110,6 +146,7 @@ class Orchestrator:
                                 FaceDeepfakeDetector,
                                 QualityDetector,
                                 FaceMatchDetector,
+                                SessionAttackDetector,
                             ),
                         ):
                             preload(
@@ -130,6 +167,8 @@ class Orchestrator:
     def close(self) -> None:
         """Stop accepting work; running inference cannot be safely killed in a thread."""
         with self._lifecycle:
+            if self._closed:
+                return
             self._closed = True
             for queue in self._queues.values():
                 while queue:
@@ -148,6 +187,20 @@ class Orchestrator:
                     )
             if self._executor is not None:
                 self._executor.shutdown(wait=False, cancel_futures=True)
+                if (
+                    self.settings.identity_face_from_video
+                    or self.settings.session_face_checks
+                    or self.settings.session_face_models
+                ):
+                    executor, reader = self._executor, self._face_reader
+
+                    def release_reader() -> None:
+                        # Wait outside the request/shutdown path; no task may reopen the
+                        # shared reader between close and its last native inference.
+                        executor.shutdown(wait=True)
+                        reader.close()
+
+                    Thread(target=release_reader, name="vericlue-face-cleanup", daemon=True).start()
 
     def _error(
         self, module: Module, code: ErrorCode, latency_ms: float, *, reason: str | None = None
@@ -268,7 +321,10 @@ class Orchestrator:
             for value in dict.fromkeys(modules):
                 module = Module(value)
                 if module not in self.router.profile.modules and not (
-                    module == Module.FACE_MATCH and self.settings.identity_lab_url
+                    module == Module.FACE_MATCH
+                    and self.settings.identity_lab_url
+                    or module in {Module.GAZE_TRACKING, Module.HEAD_TURN}
+                    and self.settings.session_face_checks
                 ):
                     out[module] = self._error(
                         module,

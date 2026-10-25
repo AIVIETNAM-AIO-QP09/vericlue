@@ -107,6 +107,11 @@ Runtime identity bên ngoài chỉ còn được API gọi để đọc QR/OCR. 
 quản lý. Thiếu ngưỡng hiệu chỉnh đúng version luôn `degraded/unclear`. Xem
 [`head-and-match.md`](head-and-match.md).
 
+FLOW-05/LIVE-02 thêm opt-in chọn/kiểm khung chính diện từ video và hai cổng
+mắt/quay đầu trong orchestrator, cùng task MediaPipe và deadline hiện hành. Xem
+[`session-verification.md`](session-verification.md). Đây chưa phải toàn bộ các lớp
+xác minh thật; không gỡ chặn dynamic real/mixed.
+
 Mọi bộ phát hiện (kể cả cổng chất lượng `quality`) đều trả một `ModuleResult` (schema: `packages/contracts/schemas/module_result.schema.json`):
 
 ```python

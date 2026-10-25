@@ -134,6 +134,7 @@ Xem [`head-and-match.md`](../../architecture/head-and-match.md).
 **Tiêu chí hoàn thành:**
 - [x] Wrapper, mock, registry và hợp đồng; chuẩn hóa RGB/112/[-1,1], so tham chiếu–chính diện; cosine giữa ba góc riêng.
 - [x] API opt-in dùng LVFace-B thật qua orchestrator, preload/cache/deadline chung; không gọi AdaFace hoặc dùng ngưỡng cũ.
+- [x] API opt-in chọn khung chính diện theo lịch server, kiểm tư thế trên pixel video; không fallback selfie khi thiếu/sai video. Mắt/quay đầu có cổng API riêng, reader dùng chung.
 - [x] Thiếu ngưỡng/ảnh, nhiều mặt hoặc artifact sai phiên bản không được đạt; không lưu embedding.
 - [ ] Đo VRAM khi chạy cùng bộ mô hình MVP.
 - [ ] Số liệu ngưỡng chạy ra từ code trong repo.
