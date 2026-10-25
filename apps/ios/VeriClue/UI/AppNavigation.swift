@@ -37,6 +37,7 @@ struct AppNavigationView: View {
     @StateObject private var navigation = AppNavigation()
     @StateObject private var flow = DemoFlow()
     @StateObject private var identity = IdentityFlow()
+    @StateObject private var face = FaceCaptureFlow()
 
     var body: some View {
         NavigationStack(path: $navigation.path) {
@@ -53,10 +54,12 @@ struct AppNavigationView: View {
                     .environmentObject(navigation)
                     .environmentObject(flow)
                     .environmentObject(identity)
+                    .environmentObject(face)
             }
         }
         .environmentObject(navigation)
         .environmentObject(flow)
         .environmentObject(identity)
+        .environmentObject(face)
     }
 }

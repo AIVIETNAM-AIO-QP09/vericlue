@@ -448,7 +448,7 @@ Toàn bộ phần mặt (nền xám → màu → chấm → quay đầu) nằm t
    - `ios:debugger`: `sysctl` với `KERN_PROC_PID`, kiểm cờ `P_TRACED`. Chỉ bật ở Release; Debug luôn có debugger nên **bỏ cờ này ở Debug**, ghi chú vào `client_quality`;
    - `device_label`: `UIDevice.current.model` + mã máy (`utsname.machine`);
    - `duplicate_frame_ratio`: tỉ lệ khung trùng hệt khung trước (so hash nhỏ của ảnh thu nhỏ), như `DuplicateFrameMeter` của Android.
-10. `Regions.swift`: 5 vùng da + nền theo tỉ lệ hộp mặt, như `Regions.kt` (làm sau cùng, cắt được).
+10. `Regions.swift`: đủ 5 vùng da + nền theo tỉ lệ hộp mặt, như `Regions.kt` (bắt buộc theo yêu cầu Cổng 5; không cắt).
 11. Hết pha quay đầu: `finish()` video (chờ xong) → màn "Đang gửi" → `submitFace`. Kết quả `voice_challenge` → màn Đọc câu với `voice_prompt`; `retry`, `review`, `deny` hay lỗi → màn tương ứng (bảng 7.5).
 
 **Xong khi:** trên iPhone, kịch bản `genuine`: server nhận JPEG, MP4 (mở được bằng QuickTime, không lật, dài khoảng 19 giây), `color_events` 8 phần tử, `frame_times` khoảng 30 khung/giây; `low_quality` ra "Chụp lại" với câu nhắc, lượt sau dùng challenge mới.
@@ -564,11 +564,12 @@ Sau mỗi phiên làm việc, ghi bàn giao (`scripts/new_handoff.py`), gồm: �
 
 ## 14. Nếu không kịp thì cắt gì (theo thứ tự)
 
-1. `region_means` (IOS-04, bước 10).
-2. `camprobe` chỉ giữ cờ `ios:simulator`.
+**Cập nhật yêu cầu Cổng 5:** sếp yêu cầu làm đủ IOS-04; `region_means` và full
+`camprobe` là bắt buộc, không áp dụng hai phương án cắt trước đây cho task này.
+
 3. CCCD thật: dùng thông tin mẫu ở chế độ demo, giữ OTP.
 4. Luồng `recovery`.
-5. **Tối thiểu để demo:** IOS-01, IOS-02, IOS-04 (bỏ bước 9, 10), IOS-05.
+5. **Tối thiểu để demo:** IOS-01, IOS-02, IOS-04 (đủ bước 9, 10 theo yêu cầu mới), IOS-05.
 
 Bản dự phòng cuối cùng trên iPhone: mở web `/verify` bằng Safari.
 

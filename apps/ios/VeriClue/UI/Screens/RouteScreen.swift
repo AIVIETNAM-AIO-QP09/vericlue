@@ -5,6 +5,7 @@ struct RouteScreen: View {
     @EnvironmentObject private var navigation: AppNavigation
     @EnvironmentObject private var flow: DemoFlow
     @EnvironmentObject private var identity: IdentityFlow
+    @EnvironmentObject private var face: FaceCaptureFlow
 
     private var usesLiveIdentity: Bool { flow.useLiveAPI && !flow.previewMode }
 
@@ -67,34 +68,40 @@ struct RouteScreen: View {
             else { EditInfoScreen(onSave: { navigation.go(.faceReady) }, onRetake: { navigation.go(.idFront) }) }
         case .faceReady:
             if usesLiveIdentity {
-                IdentityStageCompleteScreen(purpose: flow.purpose, onBank: finishAtBank)
+                FaceLiveScreen(live: identity.liveFlow, purpose: flow.purpose,
+                               onRoute: { navigation.go($0) }, onClose: finishAtBank)
             } else {
                 FaceReadyScreen(onReady: { navigation.go(.framing) }, onSkipFlash: { navigation.go(.flashSkipped) })
             }
         case .framing:
-            FramingScreen(onCaptured: { navigation.go(.holdStill) })
+            if usesLiveIdentity { liveFaceScreen }
+            else { FramingScreen(onCaptured: { navigation.go(.holdStill) }) }
         case .holdStill:
-            FaceTimelineDemoScreen(onStop: { navigation.go(.exitConfirm) }, onDone: { navigation.go(.turnHead) })
+            if usesLiveIdentity { liveFaceScreen }
+            else { FaceTimelineDemoScreen(onStop: { navigation.go(.exitConfirm) }, onDone: { navigation.go(.turnHead) }) }
         case .turnHead:
-            TurnHeadScreen(onDone: { navigation.go(flow.afterHeadTurn()) })
+            if usesLiveIdentity { liveFaceScreen }
+            else { TurnHeadScreen(onDone: { navigation.go(flow.afterHeadTurn()) }) }
         case .voice:
-            VoiceScreen(onFinished: { navigation.go(.uploading) })
+            if usesLiveIdentity { liveVoiceScreen }
+            else { VoiceScreen(onFinished: { navigation.go(.uploading) }) }
         case .voiceAgain:
-            VoiceScreen(again: true) {
+            if usesLiveIdentity { liveVoiceScreen }
+            else { VoiceScreen(again: true) {
                 flow.outcome = .pass
                 navigation.go(.uploading)
-            }
+            } }
         case .uploading:
             UploadingScreen(
                 onStop: { navigation.go(.exitConfirm) },
                 onDone: { navigation.replaceTop(with: .checking) },
-                autoAdvance: !flow.previewMode
+                autoAdvance: !flow.previewMode && !usesLiveIdentity
             )
         case .checking:
             CheckingScreen(
                 purpose: flow.purpose,
                 onDone: { navigation.replaceTop(with: flow.outcome.destination) },
-                autoAdvance: !flow.previewMode
+                autoAdvance: !flow.previewMode && !usesLiveIdentity
             )
         case .success:
             SuccessScreen(purpose: flow.purpose) {
@@ -104,14 +111,30 @@ struct RouteScreen: View {
         case .review:
             ReviewScreen(onBank: finishAtBank)
         case .retryQuality:
-            RetryQualityScreen { flow.outcome = .pass; navigation.go(.faceReady) }
+            if usesLiveIdentity, let live = identity.liveFlow {
+                LiveFaceRetryScreen(live: live, onRetry: { navigation.returnTo(.faceReady) }, quality: true)
+            } else { RetryQualityScreen { flow.outcome = .pass; navigation.go(.faceReady) } }
         case .retryChallenge:
-            RetryChallengeScreen { flow.outcome = .pass; navigation.go(.faceReady) }
+            if usesLiveIdentity, let live = identity.liveFlow {
+                LiveFaceRetryScreen(live: live, onRetry: { navigation.returnTo(.faceReady) }, quality: false)
+            } else { RetryChallengeScreen { flow.outcome = .pass; navigation.go(.faceReady) } }
         case .uploadFailed, .slow, .errorCamera, .errorMic, .errorNetwork, .errorSession,
              .errorService, .errorDevice, .interrupted, .noVoice, .exitConfirm, .stopped,
              .flashSkipped, .deny, .recoveryRequired:
             messageRoute
         }
+    }
+
+    private var liveFaceScreen: some View {
+        FaceLiveScreen(live: identity.liveFlow, purpose: flow.purpose,
+                       onRoute: { navigation.go($0) }, onClose: finishAtBank)
+    }
+
+    @ViewBuilder private var liveVoiceScreen: some View {
+        if let live = identity.liveFlow { LiveVoicePendingScreen(live: live, onClose: finishAtBank) }
+        else { MessageScreen(systemImage: "wifi.exclamationmark", title: "Chưa thể tiếp tục",
+                             bodyText: "Chưa kết nối được phiên xác minh. Hãy bắt đầu lại.",
+                             primary: ("Quay lại ứng dụng ngân hàng", finishAtBank)) }
     }
 
     @ViewBuilder private var messageRoute: some View {
@@ -158,6 +181,7 @@ struct RouteScreen: View {
     }
 
     private func finishAtBank() {
+        face.cancel()
         identity.reset()
         flow.resetForBank()
         navigation.toBank()
@@ -186,7 +210,9 @@ private struct GalleryGroup: Identifiable {
 struct GalleryScreen: View {
     @EnvironmentObject private var navigation: AppNavigation
     @EnvironmentObject private var flow: DemoFlow
+    @EnvironmentObject private var face: FaceCaptureFlow
     @Environment(\.vcColors) private var colors
+    @State private var showFrontCameraCheckpoint = false
 
     private let groups = [
         GalleryGroup(title: "Bắt đầu", items: [("Màn chào", .splash), ("Đăng nhập / Đăng ký", .auth), ("Điều khoản", .terms), ("Đồng ý từng mục", .consent)]),
@@ -219,6 +245,9 @@ struct GalleryScreen: View {
                 .font(VcType.titleMedium)
                 .foregroundStyle(colors.ink)
                 .accessibilityIdentifier("debug-gallery-title")
+            Button("Kiểm tra camera trước · IOS-04 (5.1–5.4)") { showFrontCameraCheckpoint = true }
+                .font(VcType.label)
+                .accessibilityIdentifier("debug-front-camera-checkpoint")
             VStack(alignment: .leading, spacing: 8) {
                 Text("Luồng").font(VcType.label).foregroundStyle(colors.muted)
                 Picker("Luồng", selection: $flow.purpose) {
@@ -270,6 +299,9 @@ struct GalleryScreen: View {
             }
         }
         .navigationTitle("Xem tất cả màn")
+        .sheet(isPresented: $showFrontCameraCheckpoint) {
+            FaceCameraCheckpointScreen(camera: face.camera, onClose: { showFrontCameraCheckpoint = false })
+        }
     }
 }
 #endif

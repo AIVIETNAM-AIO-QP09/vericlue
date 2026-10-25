@@ -15,13 +15,13 @@ enum SessionJSON {
     }
 }
 
-struct ColorStep: Codable, Equatable {
+struct ColorStep: Codable, Equatable, Sendable {
     let rgb: String
     let holdMs: Int
     let transitionMs: Int
 }
 
-struct Challenge: Codable, Equatable {
+struct Challenge: Codable, Equatable, Sendable {
     let challengeId: String
     let colorSequence: [ColorStep]
     var baselineMs: Int? = nil
@@ -30,13 +30,13 @@ struct Challenge: Codable, Equatable {
     var dynamic: DynamicChallenge? = nil
 }
 
-struct GazePoint: Codable, Equatable {
+struct GazePoint: Codable, Equatable, Sendable {
     let x: Double
     let y: Double
     let atMs: Int
 }
 
-struct DynamicChallenge: Codable, Equatable {
+struct DynamicChallenge: Codable, Equatable, Sendable {
     let version: Int
     let sessionId: String
     let nonce: String
@@ -102,19 +102,19 @@ struct StepAck: Codable, Equatable {
     let step: String
     let received: Bool
 }
-struct ColorEvent: Codable, Equatable {
+struct ColorEvent: Codable, Equatable, Sendable {
     let index: Int
     let rgb: String
     let paintedAt: Double
 }
-struct FrameTime: Codable, Equatable {
+struct FrameTime: Codable, Equatable, Sendable {
     var captureTime: Double? = nil
     var presentedFrames: Int? = nil
     var mediaTime: Double? = nil
 }
 
 // The schema leaves these diagnostic dictionaries open, including numeric/bool values.
-enum JSONValue: Codable, Equatable {
+enum JSONValue: Codable, Equatable, Sendable {
     case string(String), number(Double), bool(Bool), object([String: JSONValue]), array([JSONValue]), null
 
     init(from decoder: Decoder) throws {
@@ -140,7 +140,7 @@ enum JSONValue: Codable, Equatable {
     }
 }
 
-struct CamProbe: Codable, Equatable {
+struct CamProbe: Codable, Equatable, Sendable {
     var apiTamperFlags: [String]? = nil
     var constraintProbes: [[String: JSONValue]]? = nil
     var deviceLabel: String? = nil
@@ -149,7 +149,7 @@ struct CamProbe: Codable, Equatable {
     var duplicateFrameRatio: Double? = nil
 }
 
-struct Signals: Codable, Equatable {
+struct Signals: Codable, Equatable, Sendable {
     let colorEvents: [ColorEvent]
     let frameTimes: [FrameTime]
     var clientQuality: [String: JSONValue]? = nil

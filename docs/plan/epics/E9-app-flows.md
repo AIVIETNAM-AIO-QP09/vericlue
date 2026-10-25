@@ -326,8 +326,17 @@ Nghiệm thu thao tác do Lý Anh Quân xác nhận ngày 25/10/2026; Codex ki�
 **Đầu ra:**
 - AVCaptureSession + AVAssetWriter (MP4 không lật), Vision dò mặt, khóa AE/AWB, `color_events`, `frame_times`, `camprobe` iOS.
 
+**Bàn giao review (25/10/2026):** đã triển khai 5.1–5.11, gồm full camprobe và năm vùng da + nền. Checkpoint camera/quality/writer được sếp nghiệm thu; yaw thẳng gần 0°, trái −20°, phải +20° trên máy thử, không phải quy ước chung mọi thiết bị. Chi tiết [checkpoints IOS-04](../../../apps/ios/docs/ios04-device-checkpoints.md) và [checklist Cổng 5](../../../apps/ios/docs/ios04-live-checklist.md).
+
+**Nghiệm thu cập nhật:** sếp cung cấp phiên `ses_339f14675babe6e8` có 8 màu,
+585 frame, 282 mẫu vùng, app 30 FPS/JPEG 226.288 byte, AE/AWB 1/1;
+video 19.501,667ms so với lịch 19.460ms. Sếp xác nhận JPEG/MP4/câu đọc,
+low_quality/gián đoạn/mất kết nối đạt. Bản cuối sau sửa stop re-entry đạt 78/78 unit
+và 4/4 lượt UI test trên Simulator. Review mã không phát hiện lỗi chặn bàn giao;
+chuyển `review`, chưa commit/push/merge PR. Thu giọng thật thuộc IOS-05.
+
 **Tiêu chí hoàn thành:**
-- [ ] Trên iPhone thật: `genuine` gửi đủ JPEG, MP4 (dài bằng lịch) và signals; `low_quality` ra chụp lại.
+- [x] Trên iPhone thật: `genuine` gửi đủ JPEG, MP4 (dài bằng lịch) và signals; `low_quality` ra chụp lại. (Output genuine và xác nhận nghiệm thu của sếp trong chat.)
 
 ---
 
