@@ -35,19 +35,18 @@ object Routes {
 
     const val Splash = "splash"
     const val Auth = "auth"
+    /** Terms and per-item consent on one screen (short flow, 24/10). */
     const val Terms = "terms"
-    const val Consent = "consent"
 
-    const val Intro = "intro"
-    const val Permission = "permission"
     const val Phone = "phone"
     const val Otp = "otp"
     const val OtpError = "otp_error"
     const val IdFront = "id_front"
     const val IdFrontGlare = "id_front_glare"
-    const val IdFrontReview = "id_front_review"
     const val IdBack = "id_back"
-    const val IdBackReview = "id_back_review"
+
+    /** One review of both ID photos, after the back side. */
+    const val IdReview = "id_review"
     const val Confirm = "confirm"
     const val EditInfo = "edit_info"
 
@@ -91,6 +90,25 @@ object FlowRules {
     /** After the head turn: re-auth has no voice step unless escalated (ADR-0013, L3). */
     fun afterTurnHead(purpose: Purpose): String =
         if (purpose == Purpose.Reauth) Routes.Checking else Routes.Voice
+
+    /**
+     * After the ID review: the face part, or straight back to the confirm screen when the face was
+     * already captured (the user retook the card from the edit screen).
+     */
+    fun afterIdReview(faceCaptured: Boolean): String = if (faceCaptured) Routes.Confirm else Routes.FaceReady
+
+    /**
+     * After the face recording. The confirm screen comes here, not in stage A, so the user reads the
+     * card while the video uploads. Re-auth has no card; a retry skips what was already confirmed.
+     */
+    fun afterFace(purpose: Purpose, idConfirmed: Boolean, live: Boolean): String = when {
+        purpose != Purpose.Reauth && !idConfirmed -> Routes.Confirm
+        live -> Routes.Uploading
+        else -> afterTurnHead(purpose)
+    }
+
+    /** After the confirm screen: live sends the rest (finalize must come after the confirm, see can-chot.md H30). */
+    fun afterConfirm(purpose: Purpose, live: Boolean): String = if (live) Routes.Uploading else afterTurnHead(purpose)
 
     fun afterChecking(outcome: DemoOutcome): String = when (outcome) {
         DemoOutcome.Pass -> Routes.Success
@@ -206,8 +224,8 @@ object FlowRules {
         if (voiceChecked) listOf("Khuôn mặt", "Giọng nói") else listOf("Khuôn mặt")
 
     fun stepOf(route: String): Int? = when (route) {
-        Routes.Intro, Routes.Permission, Routes.Phone, Routes.Otp, Routes.OtpError,
-        Routes.IdFront, Routes.IdFrontGlare, Routes.IdFrontReview, Routes.IdBack, Routes.IdBackReview,
+        Routes.Phone, Routes.Otp, Routes.OtpError,
+        Routes.IdFront, Routes.IdFrontGlare, Routes.IdBack, Routes.IdReview,
         Routes.Confirm, Routes.EditInfo -> 1
         Routes.FaceReady, Routes.Framing, Routes.HoldStill, Routes.TurnHead,
         Routes.RetryQuality, Routes.RetryChallenge -> 2
@@ -240,6 +258,10 @@ object OtpRules {
         if (digit.isDigit() && current.length < LENGTH) current + digit else current
 
     fun isComplete(code: String): Boolean = code.length == LENGTH
+
+    /** The 6-digit code in an SMS text (simulated SMS, or one read with the user's consent). */
+    fun codeIn(text: String?): String? =
+        text?.let { Regex("(?<!\\d)\\d{$LENGTH}(?!\\d)").find(it)?.value }
 }
 
 /**
@@ -252,4 +274,7 @@ data class Agreement(val readToEnd: Boolean = false, val accepted: Boolean = fal
     fun toggle(): Agreement = if (readToEnd) copy(accepted = !accepted) else this
 
     val canContinue: Boolean get() = readToEnd && accepted
+
+    /** Terms and consent share one screen: the button also needs every required consent item. */
+    fun canContinueWith(consented: Set<Int>, required: Set<Int>): Boolean = canContinue && consented.containsAll(required)
 }

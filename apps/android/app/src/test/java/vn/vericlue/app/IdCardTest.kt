@@ -1,10 +1,12 @@
 package vn.vericlue.app
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import vn.vericlue.app.capture.CccdQr
+import vn.vericlue.app.capture.IdAutoCapture
 import vn.vericlue.app.capture.IdQuality
 import vn.vericlue.app.capture.ImageChecks
 import vn.vericlue.app.ui.screens.idRetakeHint
@@ -56,5 +58,19 @@ class IdCardTest {
         assertTrue(idRetakeHint(true, IdQuality(500.0, 0.0, null))!!.contains("mã QR"))
         assertNull(idRetakeHint(true, IdQuality(500.0, 0.0, qr)))
         assertNull(idRetakeHint(false, null))
+    }
+
+    @Test
+    fun autoCaptureNeedsTwoGoodFramesInARow() {
+        val sharp = IdQuality(500.0, 0.0, null)
+        val auto = IdAutoCapture()
+        assertFalse(auto.offer(sharp))
+        assertFalse(auto.offer(IdQuality(10.0, 0.0, null))) // blurry frame breaks the run
+        assertFalse(auto.offer(sharp))
+        assertFalse(auto.offer(IdQuality(500.0, 0.5, null))) // glare too
+        assertFalse(auto.offer(sharp))
+        assertTrue(auto.offer(sharp))
+        auto.reset()
+        assertFalse(auto.offer(sharp))
     }
 }

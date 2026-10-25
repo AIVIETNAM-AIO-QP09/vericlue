@@ -29,6 +29,7 @@ import androidx.navigation.compose.rememberNavController
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.CompositionLocalProvider
@@ -51,6 +52,7 @@ import vn.vericlue.app.BuildConfig
 import vn.vericlue.app.capture.CameraSession
 import vn.vericlue.app.capture.CccdInfo
 import vn.vericlue.app.capture.CccdQr
+import vn.vericlue.app.capture.IdAutoCapture
 import vn.vericlue.app.capture.IdQuality
 import vn.vericlue.app.ui.screens.idFields
 import vn.vericlue.app.capture.ColorSchedule
@@ -60,6 +62,7 @@ import vn.vericlue.app.data.api.ColorEvent
 import vn.vericlue.app.capture.FaceTimeline
 import vn.vericlue.app.data.api.SessionApi
 import vn.vericlue.app.flow.FramingState
+import vn.vericlue.app.flow.OtpRules
 import vn.vericlue.app.flow.LiveFlow
 import vn.vericlue.app.flow.Next
 import vn.vericlue.app.flow.errorRoute
@@ -77,17 +80,14 @@ import vn.vericlue.app.ui.screens.BankStartScreen
 import vn.vericlue.app.ui.screens.CheckingScreen
 import vn.vericlue.app.ui.screens.FaceTimelineScreen
 import vn.vericlue.app.ui.screens.ConfirmInfoScreen
-import vn.vericlue.app.ui.screens.ConsentScreen
 import vn.vericlue.app.ui.screens.EditInfoScreen
 import vn.vericlue.app.ui.screens.FaceReadyScreen
 import vn.vericlue.app.ui.screens.FramingScreen
 import vn.vericlue.app.ui.screens.HoldStillScreen
 import vn.vericlue.app.ui.screens.IdCaptureScreen
 import vn.vericlue.app.ui.screens.IdReviewScreen
-import vn.vericlue.app.ui.screens.IntroScreen
 import vn.vericlue.app.ui.screens.Messages
 import vn.vericlue.app.ui.screens.OtpScreen
-import vn.vericlue.app.ui.screens.PermissionScreen
 import vn.vericlue.app.ui.screens.PhoneScreen
 import vn.vericlue.app.ui.screens.RetryChallengeScreen
 import vn.vericlue.app.ui.screens.RetryQualityScreen
@@ -146,10 +146,10 @@ fun VeriClueApp() {
     val recorder = remember { WavRecorder() }
     var hasCamera by remember { mutableStateOf(granted(context, Manifest.permission.CAMERA)) }
     var hasMic by remember { mutableStateOf(granted(context, Manifest.permission.RECORD_AUDIO)) }
+    // Asked when first needed (short flow): the camera when it opens, the mic at the reading step.
     val askPermissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
-        hasCamera = result[Manifest.permission.CAMERA] ?: hasCamera
-        hasMic = result[Manifest.permission.RECORD_AUDIO] ?: hasMic
-        if (!hasCamera) nav.go(Routes.ErrorCamera)
+        result[Manifest.permission.CAMERA]?.let { hasCamera = it; if (!it) nav.go(Routes.ErrorCamera) }
+        result[Manifest.permission.RECORD_AUDIO]?.let { hasMic = it; if (!it) nav.go(Routes.ErrorMic) }
     }
     val exit = { nav.go(Routes.ExitConfirm) }
 
@@ -161,6 +161,11 @@ fun VeriClueApp() {
     var phone by remember { mutableStateOf("") }
     var otpError by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+
+    // Short flow: the confirm screen comes after the face recording. Nothing of the face part is sent
+    // before the confirm: the server refuses a confirm or a new card once it has media (FLOW-05 runbook).
+    var faceCaptured by remember { mutableStateOf(false) }
+    var idConfirmed by remember { mutableStateOf(false) }
 
     /** Runs one server call at a time from a button; a second tap while it runs is ignored. */
     fun once(block: suspend () -> Unit) {
@@ -175,30 +180,76 @@ fun VeriClueApp() {
         }
     }
 
+    /** Back to the one review screen, replacing an older copy of it in the back stack. */
+    fun toIdReview() = nav.navigate(Routes.IdReview) {
+        popUpTo(Routes.IdReview) { inclusive = true }
+        launchSingleTop = true
+    }
+
+    /**
+     * One side of the card: the app takes the photo when it is sharp and glare-free (the shutter
+     * stays), keeps it on screen for one beat with "Chụp lại", then calls [onDone].
+     */
     @Composable
-    fun IdCaptureRoute(back: Boolean, onCaptured: () -> Unit) {
+    fun IdCaptureRoute(back: Boolean, onDone: () -> Unit) {
         LaunchedEffect(Unit) {
-            if (!hasCamera) askPermissions.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
+            if (!hasCamera) askPermissions.launch(arrayOf(Manifest.permission.CAMERA))
         }
         LaunchedEffect(hasCamera) {
             if (hasCamera && !camera.start(lifecycleOwner, back = true)) nav.go(Routes.ErrorDevice)
         }
-        IdCaptureScreen(back = back, glare = false, onBack = { nav.popBackStack() }, onCapture = {
-            if (!hasCamera) {
-                onCaptured()
+        var shot by remember { mutableStateOf<Pair<ByteArray, IdQuality>?>(null) }
+        var captured by remember { mutableStateOf(false) }
+        var glare by remember { mutableStateOf(false) }
+        fun keep(s: Pair<ByteArray, IdQuality>) {
+            if (back) {
+                idBack = s
+                cccd = CccdQr.parse(s.second.qr)
             } else {
-                scope.launch {
-                    val shot = withTimeoutOrNull(3000) { camera.captureId() }
-                    if (back) {
-                        idBack = shot
-                        cccd = CccdQr.parse(shot?.second?.qr)
-                    } else {
-                        idFront = shot
-                    }
-                    onCaptured()
-                }
+                idFront = s
             }
-        })
+            shot = s
+            captured = true
+        }
+        LaunchedEffect(hasCamera, captured) {
+            if (!hasCamera || captured) return@LaunchedEffect
+            val auto = IdAutoCapture()
+            delay(IdAutoCapture.START_DELAY_MS)
+            while (true) {
+                val s = withTimeoutOrNull(3000) { camera.captureId() }
+                if (s != null) {
+                    glare = !s.second.noGlare
+                    if (auto.offer(s.second)) {
+                        keep(s)
+                        break
+                    }
+                }
+                delay(IdAutoCapture.SAMPLE_MS)
+            }
+        }
+        LaunchedEffect(captured) {
+            if (!captured) return@LaunchedEffect
+            delay(IdAutoCapture.PAUSE_MS)
+            onDone()
+        }
+        IdCaptureScreen(
+            back = back,
+            glare = glare,
+            onBack = { nav.popBackStack() },
+            onCapture = {
+                if (!hasCamera) {
+                    captured = true // demo without a camera: the placeholder card
+                } else {
+                    scope.launch { withTimeoutOrNull(3000) { camera.captureId() }?.let(::keep) }
+                }
+            },
+            captured = captured,
+            photo = shot?.first,
+            onRetake = {
+                shot = null
+                captured = false
+            },
+        )
     }
 
     fun startFace() {
@@ -213,6 +264,11 @@ fun VeriClueApp() {
         camera.deleteVideo()
         recorder.stop()
         live.reset()
+        idFront = null
+        idBack = null
+        cccd = null
+        faceCaptured = false
+        idConfirmed = false
         nav.toBank()
     }
 
@@ -228,6 +284,9 @@ fun VeriClueApp() {
     @Composable
     fun VoiceRoute(again: Boolean) {
         val level by recorder.level.collectAsState()
+        LaunchedEffect(Unit) {
+            if (!hasMic) askPermissions.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
+        }
         VoiceScreen(
             onBack = exit,
             again = again,
@@ -314,17 +373,10 @@ fun VeriClueApp() {
                 onRecover = { flow.purpose = Purpose.Recovery; nav.go(Routes.Phone) },
             )
         }
-        composable(Routes.Terms) { TermsScreen(onBack = { nav.popBackStack() }, onAccept = { nav.go(Routes.Consent) }) }
-        composable(Routes.Consent) { ConsentScreen(onBack = { nav.popBackStack() }, onContinue = { nav.go(Routes.Intro) }) }
+        // Terms and consent on one screen; no intro or permission screen (short flow, 24/10).
+        composable(Routes.Terms) { TermsScreen(onBack = { nav.popBackStack() }, onAccept = { nav.go(Routes.Phone) }) }
 
         // Stage A: identity
-        composable(Routes.Intro) { IntroScreen(onBack = { nav.popBackStack() }, onStart = { nav.go(Routes.Permission) }) }
-        composable(Routes.Permission) {
-            PermissionScreen(onBack = { nav.popBackStack() }, onAllow = {
-                askPermissions.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
-                nav.go(Routes.Phone)
-            })
-        }
         composable(Routes.Phone) {
             PhoneScreen(onBack = { nav.popBackStack() }, onSend = { number ->
                 phone = number
@@ -341,9 +393,13 @@ fun VeriClueApp() {
             if (!flow.live) {
                 OtpScreen(onBack = { nav.popBackStack() }, onVerified = { nav.go(FlowRules.afterOtp(flow.purpose)) })
             } else {
+                // The code fills itself from the simulated SMS, or from a real one the user lets the app read.
+                var smsCode by remember { mutableStateOf(OtpRules.codeIn(live.otpSms)) }
+                SmsCodeListener(enabled = true) { smsCode = it }
                 OtpScreen(
                     onBack = { nav.popBackStack() },
                     onVerified = {},
+                    autoCode = smsCode,
                     sms = live.otpSms,
                     serverError = otpError,
                     onCode = { code ->
@@ -357,7 +413,10 @@ fun VeriClueApp() {
                     },
                     onResend = {
                         otpError = null
-                        once { live.sendOtp(phone, flow.mockScenario, FlowRules.purposeCode(flow.purpose))?.let { nav.go(errorRoute(it)) } }
+                        once {
+                            live.sendOtp(phone, flow.mockScenario, FlowRules.purposeCode(flow.purpose))?.let { nav.go(errorRoute(it)) }
+                                ?: run { smsCode = OtpRules.codeIn(live.otpSms) }
+                        }
                     },
                 )
             }
@@ -365,61 +424,62 @@ fun VeriClueApp() {
         composable(Routes.OtpError) {
             OtpScreen(onBack = { nav.popBackStack() }, onVerified = { nav.go(FlowRules.afterOtp(flow.purpose)) }, startWithError = true)
         }
-        composable(Routes.IdFront) { IdCaptureRoute(back = false) { nav.go(Routes.IdFrontReview) } }
-        composable(Routes.IdFrontReview) {
-            IdReviewScreen(
-                back = false,
-                onBack = { nav.popBackStack() },
-                onRetake = { nav.popBackStack() },
-                onConfirm = { nav.go(Routes.IdBack) },
-                photo = idFront?.first,
-                quality = idFront?.second,
-            )
-        }
+        // A retake from the review screen goes back to it; the first pass goes front → back → review.
+        composable(Routes.IdFront) { IdCaptureRoute(back = false) { if (idBack != null) toIdReview() else nav.go(Routes.IdBack) } }
         composable(Routes.IdFrontGlare) { IdCaptureScreen(back = false, glare = true, onBack = { nav.popBackStack() }, onCapture = { nav.go(Routes.IdFront) }) }
-        composable(Routes.IdBack) { IdCaptureRoute(back = true) { nav.go(Routes.IdBackReview) } }
-        composable(Routes.IdBackReview) {
+        composable(Routes.IdBack) { IdCaptureRoute(back = true) { toIdReview() } }
+        composable(Routes.IdReview) {
             IdReviewScreen(
-                back = true,
                 onBack = { nav.popBackStack() },
-                onRetake = { nav.popBackStack() },
-                onConfirm = {
+                onRetakeFront = { nav.go(Routes.IdFront) },
+                onRetakeBack = { nav.go(Routes.IdBack) },
+                onContinue = {
                     val front = idFront?.first
                     val backPhoto = idBack?.first
                     if (!flow.live || front == null || backPhoto == null) {
-                        nav.go(Routes.Confirm)
+                        nav.go(FlowRules.afterIdReview(faceCaptured))
                     } else {
                         once {
                             val (hint, error) = live.sendIdCard(front, backPhoto, idBack?.second?.qr)
                             when {
                                 error != null -> nav.go(errorRoute(error))
                                 // QR unreadable or not a CCCD: take the back side again.
-                                hint != null -> nav.popBackStack()
+                                hint != null -> nav.go(Routes.IdBack)
                                 else -> {
                                     live.idFields?.let { cccd = FlowRules.cccdFrom(it) }
-                                    nav.go(Routes.Confirm)
+                                    idConfirmed = false
+                                    nav.go(FlowRules.afterIdReview(faceCaptured))
                                 }
                             }
                         }
                     }
                 },
-                photo = idBack?.first,
-                quality = idBack?.second,
+                front = idFront,
+                back = idBack,
             )
         }
         composable(Routes.Confirm) {
+            // After the face part, going back would restart the recording: ask whether to stop instead.
+            BackHandler(enabled = faceCaptured, onBack = exit)
             ConfirmInfoScreen(
-                onBack = { nav.popBackStack() },
+                onBack = { if (faceCaptured) exit() else nav.popBackStack() },
                 onCorrect = {
                     val fields = live.idFields
                     if (!flow.live || fields == null) {
-                        nav.go(Routes.FaceReady)
+                        idConfirmed = true
+                        nav.go(FlowRules.afterConfirm(flow.purpose, flow.live))
                     } else {
-                        once { live.confirmIdCard(fields)?.let { nav.go(errorRoute(it)) } ?: nav.go(Routes.FaceReady) }
+                        once {
+                            live.confirmIdCard(fields)?.let { nav.go(errorRoute(it)) } ?: run {
+                                idConfirmed = true
+                                nav.go(FlowRules.afterConfirm(flow.purpose, flow.live))
+                            }
+                        }
                     }
                 },
                 onEdit = { nav.go(Routes.EditInfo) },
                 fields = idFields(cccd),
+                afterFace = faceCaptured,
             )
         }
         composable(Routes.EditInfo) {
@@ -428,14 +488,24 @@ fun VeriClueApp() {
                 onSave = { edited ->
                     val fields = live.idFields
                     if (!flow.live || fields == null) {
-                        nav.go(Routes.FaceReady)
+                        idConfirmed = true
+                        nav.go(FlowRules.afterConfirm(flow.purpose, flow.live))
                     } else {
                         // Fields left as shown keep the QR value; edited ones are noted for the reviewer.
                         val confirmed = FlowRules.confirmedFields(fields, idFields(cccd).map { it.second }, edited)
-                        once { live.confirmIdCard(confirmed)?.let { nav.go(errorRoute(it)) } ?: nav.go(Routes.FaceReady) }
+                        once {
+                            live.confirmIdCard(confirmed)?.let { nav.go(errorRoute(it)) } ?: run {
+                                idConfirmed = true
+                                nav.go(FlowRules.afterConfirm(flow.purpose, flow.live))
+                            }
+                        }
                     }
                 },
-                onRetake = { nav.go(Routes.IdFront) },
+                onRetake = {
+                    idFront = null
+                    idBack = null
+                    nav.go(Routes.IdFront)
+                },
                 fields = idFields(cccd),
             )
         }
@@ -452,7 +522,7 @@ fun VeriClueApp() {
         composable(Routes.Framing) {
             val face by camera.face.collectAsState()
             LaunchedEffect(Unit) {
-                if (!hasCamera || !hasMic) askPermissions.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
+                if (!hasCamera) askPermissions.launch(arrayOf(Manifest.permission.CAMERA))
             }
             LaunchedEffect(hasCamera) {
                 if (hasCamera && !camera.start(lifecycleOwner, back = false)) nav.go(Routes.ErrorDevice)
@@ -515,7 +585,10 @@ fun VeriClueApp() {
                         onColorsDone = { camera.lockAeAwb(false) },
                         onDone = {
                             camera.stopRecording()
-                            nav.go(Routes.Uploading)
+                            faceCaptured = true
+                            val next = FlowRules.afterFace(flow.purpose, idConfirmed, live = true)
+                            // The video waits on the phone until the confirm; the upload screen sends it.
+                            nav.navigate(next) { if (next == Routes.Confirm) popUpTo(Routes.FaceReady) { inclusive = true } }
                         },
                         onNoRecording = { nav.go(Routes.ErrorDevice) },
                     )
@@ -538,10 +611,10 @@ fun VeriClueApp() {
             TurnHeadScreen(
                 flow.turnOrder,
                 onExit = exit,
-                onDone = { nav.go(if (flow.live) Routes.Uploading else FlowRules.afterTurnHead(flow.purpose)) },
+                onDone = { faceCaptured = true; nav.go(FlowRules.afterFace(flow.purpose, idConfirmed, flow.live)) },
                 yaw = if (hasCamera) face?.yaw else null,
                 onDebugSkip = if (BuildConfig.DEBUG && hasCamera) {
-                    { nav.go(if (flow.live) Routes.Uploading else FlowRules.afterTurnHead(flow.purpose)) }
+                    { faceCaptured = true; nav.go(FlowRules.afterFace(flow.purpose, idConfirmed, flow.live)) }
                 } else {
                     null
                 },
@@ -620,7 +693,10 @@ fun VeriClueApp() {
         composable(Routes.ErrorSession) { Messages.SessionExpired(onBank = { leave() }) }
         composable(Routes.ErrorService) { Messages.ServiceDown(onBank = { leave() }) }
         composable(Routes.ErrorDevice) {
-            Messages.DeviceNotReady(onCheck = { nav.go(Routes.Permission) }, onBank = { leave() }, onBack = exit)
+            Messages.DeviceNotReady(onCheck = {
+                askPermissions.launch(arrayOf(Manifest.permission.CAMERA))
+                nav.popBackStack()
+            }, onBank = { leave() }, onBack = exit)
         }
         composable(Routes.Interrupted) { Messages.Interrupted(onRedo = { nav.go(Routes.FaceReady) }, onStop = { nav.go(Routes.Stopped) }) }
         composable(Routes.NoVoice) { Messages.NoVoice(onRetry = { nav.go(Routes.Voice) }, onStop = exit) }
@@ -668,13 +744,11 @@ fun VeriClueApp() {
 private fun GalleryScreen(nav: NavHostController, flow: FlowState) {
     val c = Vc.colors
     val groups = listOf(
-        "Bắt đầu" to listOf("Màn chào" to Routes.Splash, "Đăng nhập / Đăng ký" to Routes.Auth, "Điều khoản" to Routes.Terms, "Đồng ý từng mục" to Routes.Consent),
+        "Bắt đầu" to listOf("Màn chào" to Routes.Splash, "Đăng nhập / Đăng ký" to Routes.Auth, "Điều khoản và đồng ý" to Routes.Terms),
         "Danh tính" to listOf(
-            "Giới thiệu" to Routes.Intro, "Quyền camera, micro" to Routes.Permission, "Số điện thoại" to Routes.Phone,
-            "OTP" to Routes.Otp, "OTP nhập sai" to Routes.OtpError, "CCCD mặt trước" to Routes.IdFront,
-            "CCCD bị lóa" to Routes.IdFrontGlare, "Xem lại ảnh mặt trước" to Routes.IdFrontReview,
-            "CCCD mặt sau" to Routes.IdBack, "Xem lại ảnh mặt sau" to Routes.IdBackReview, "Kiểm tra thông tin" to Routes.Confirm,
-            "Sửa thông tin" to Routes.EditInfo,
+            "Số điện thoại" to Routes.Phone, "OTP" to Routes.Otp, "OTP nhập sai" to Routes.OtpError,
+            "CCCD mặt trước" to Routes.IdFront, "CCCD bị lóa" to Routes.IdFrontGlare, "CCCD mặt sau" to Routes.IdBack,
+            "Xem lại 2 mặt CCCD" to Routes.IdReview, "Kiểm tra thông tin" to Routes.Confirm, "Sửa thông tin" to Routes.EditInfo,
         ),
         "Khuôn mặt" to listOf("Chuẩn bị" to Routes.FaceReady, "Căn mặt" to Routes.Framing, "Giữ yên + nháy màu + chấm sáng" to Routes.HoldStill, "Quay đầu" to Routes.TurnHead),
         "Giọng nói" to listOf("Đọc câu" to Routes.Voice, "Đọc lại câu mới" to Routes.VoiceAgain),

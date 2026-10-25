@@ -15,6 +15,34 @@ data class IdQuality(val sharpness: Double, val glareFraction: Double, val qr: S
     }
 }
 
+/**
+ * Takes the ID photo by itself once [needed] frames in a row are sharp and glare-free, so the user
+ * does not have to hold the phone still and tap. The shutter button stays as a fallback. A wrong
+ * shot is caught by the pause after each side and the review screen, not here.
+ */
+class IdAutoCapture(private val needed: Int = 2) {
+    private var good = 0
+
+    /** True when this frame completes the run: take it. */
+    fun offer(q: IdQuality): Boolean {
+        good = if (q.sharp && q.noGlare) good + 1 else 0
+        return good >= needed
+    }
+
+    fun reset() {
+        good = 0
+    }
+
+    companion object {
+        /** Time to bring the card into the frame before sampling starts, and between samples. */
+        const val START_DELAY_MS = 1500L
+        const val SAMPLE_MS = 500L
+
+        /** The photo stays on screen this long before the next side (one beat to look at it). */
+        const val PAUSE_MS = 1500L
+    }
+}
+
 object ImageChecks {
     /**
      * Variance of a 4-neighbour Laplacian over a luma plane, sampled every [step] pixels.
