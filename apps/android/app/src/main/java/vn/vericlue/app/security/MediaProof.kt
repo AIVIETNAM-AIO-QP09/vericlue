@@ -22,7 +22,7 @@ object MediaProof {
 
     data class FileDigest(val sha256: String, val size: Long, val suffix: String)
 
-    private fun hex(bytes: ByteArray) = bytes.joinToString("") { "%02x".format(it.toInt() and 255) }
+    private fun hex(bytes: ByteArray) = bytes.joinToString("") { (it.toInt() and 255).toString(16).padStart(2, '0') }
     private fun sha(bytes: ByteArray) = hex(MessageDigest.getInstance("SHA-256").digest(bytes))
     private fun suffix(name: String): String {
         val value = "." + name.substringAfterLast('.', "").lowercase(Locale.ROOT)
