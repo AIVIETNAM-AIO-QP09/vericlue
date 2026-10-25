@@ -268,6 +268,8 @@ class LiveFlow(private val api: SessionApi) {
     private fun <T> ApiResult<T>.ackOrFail(): Next? {
         val err = this as? ApiResult.Err ?: return null
         if (err.error == ApiError.Conflict && err.code == "step_already_received") return null
+        // Nothing of this attempt reached the server yet: a fresh challenge and a new recording fix it.
+        if (err.error == ApiError.Conflict && err.code == "challenge_expired" && !mediaAcked) return Next.To(Routes.FaceExpired)
         return Next.Fail(err.error)
     }
 

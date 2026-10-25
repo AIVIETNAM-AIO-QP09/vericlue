@@ -86,6 +86,14 @@ class LiveFlowRetryTest {
     }
 
     @Test
+    fun expiredChallengeBeforeAnyUploadRedoesOnlyTheFacePart() = runTest {
+        startAndCapture()
+        server.enqueue(error(409, "challenge_expired"))
+        assertEquals(Next.To(Routes.FaceExpired), submit())
+        assertFalse(flow.mediaAcked)
+    }
+
+    @Test
     fun networkErrorOnSignalsResendsOnlySignals() = runTest {
         startAndCapture()
         server.enqueue(json(mediaAck))

@@ -731,6 +731,13 @@ fun VeriClueApp() {
                 nav.popBackStack()
             }, onBank = { leave() }, onBack = exit)
         }
+        composable(Routes.FaceExpired) {
+            Messages.FaceExpired(onRedo = {
+                camera.deleteVideo()
+                live.dropFaceAttempt()
+                nav.go(Routes.FaceReady)
+            }, onStop = { nav.go(Routes.Stopped) })
+        }
         composable(Routes.Interrupted) { Messages.Interrupted(onRedo = { nav.go(Routes.FaceReady) }, onStop = { nav.go(Routes.Stopped) }) }
         composable(Routes.NoVoice) { Messages.NoVoice(onRetry = { nav.go(Routes.Voice) }, onStop = exit) }
         composable(Routes.UploadFailed) { Messages.UploadFailed(onResend = { nav.go(Routes.Uploading) }, onStop = exit) }
@@ -792,7 +799,7 @@ private fun GalleryScreen(nav: NavHostController, flow: FlowState) {
         "Lỗi và gián đoạn" to listOf(
             "Chưa cho camera" to Routes.ErrorCamera, "Chưa cho micro" to Routes.ErrorMic, "Mất mạng" to Routes.ErrorNetwork,
             "Hết phiên" to Routes.ErrorSession, "Dịch vụ không đáp ứng" to Routes.ErrorService, "Thiết bị chưa đáp ứng" to Routes.ErrorDevice,
-            "Bị gián đoạn" to Routes.Interrupted, "Không thu được giọng" to Routes.NoVoice, "Gửi thất bại" to Routes.UploadFailed,
+            "Bị gián đoạn" to Routes.Interrupted, "Lượt quay hết hạn" to Routes.FaceExpired, "Không thu được giọng" to Routes.NoVoice, "Gửi thất bại" to Routes.UploadFailed,
             "Kiểm tra lâu" to Routes.Slow, "Xác nhận dừng" to Routes.ExitConfirm, "Đã dừng" to Routes.Stopped,
             "Bỏ qua nháy màu" to Routes.FlashSkipped, "Không thành công" to Routes.Deny,
             "Cần khôi phục" to Routes.RecoveryRequired,

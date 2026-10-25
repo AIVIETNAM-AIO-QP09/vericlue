@@ -23,7 +23,6 @@ import androidx.lifecycle.LifecycleOwner
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
-import com.google.android.gms.tasks.Tasks
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
@@ -57,8 +56,12 @@ class CameraSession(private val context: Context) {
             .build(),
     )
 
-    // Text on the sampled ID frames only: tells a card from a sharp room before auto-capture.
+    // Text read in the background on the rear camera, like the QR code: tells a card from a sharp
+    // room before auto-capture. A capture never waits for it (OCR can take seconds on slow devices).
     private val textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+    @Volatile private var textBusy = false
+    @Volatile private var lastTextAt = 0L
+    @Volatile private var cardSeenAt = 0L
 
     private val qrScanner = BarcodeScanning.getClient(
         BarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build(),
@@ -412,25 +415,51 @@ class CameraSession(private val context: Context) {
     @androidx.annotation.OptIn(ExperimentalGetImage::class)
     private fun analyzeIdFrame(proxy: ImageProxy, media: android.media.Image, rotation: Int) {
         val request = synchronized(this) { idRequest.also { idRequest = null } }
+        val now = SystemClock.elapsedRealtime()
+        if (request != null) {
+            val plane = proxy.planes[0]
+            val buf = plane.buffer.duplicate()
+            val luma = ByteArray(buf.remaining()).also { buf.get(it) }
+            val quality = IdQuality(
+                sharpness = ImageChecks.laplacianVariance(luma, proxy.width, proxy.height, plane.rowStride),
+                glareFraction = ImageChecks.glareFraction(luma, proxy.width, proxy.height, plane.rowStride),
+                qr = _qr.value,
+                looksLikeCard = cardSeenAt > 0 && now - cardSeenAt <= CARD_SEEN_MS,
+            )
+            request.complete(toJpeg(proxy, rotation) to quality)
+        }
         val image = InputImage.fromMediaImage(media, rotation)
         val qrTask = qrScanner.process(image)
             .addOnSuccessListener { codes -> codes.firstNotNullOfOrNull { it.rawValue }?.let { _qr.value = it } }
-        if (request == null) {
-            qrTask.addOnCompleteListener { proxy.close() }
-            return
-        }
-        val plane = proxy.planes[0]
-        val buf = plane.buffer.duplicate()
-        val luma = ByteArray(buf.remaining()).also { buf.get(it) }
-        val sharpness = ImageChecks.laplacianVariance(luma, proxy.width, proxy.height, plane.rowStride)
-        val glare = ImageChecks.glareFraction(luma, proxy.width, proxy.height, plane.rowStride)
-        val jpeg = toJpeg(proxy, rotation)
-        val textTask = textRecognizer.process(image)
-        Tasks.whenAllComplete(qrTask, textTask).addOnCompleteListener {
-            val text = if (textTask.isSuccessful) textTask.result.text else null
-            request.complete(jpeg to IdQuality(sharpness, glare, _qr.value, text?.let(CardText::looksLikeCard)))
-            proxy.close()
-        }
+        // OCR can take seconds on a slow phone: read a small copy so the camera frame goes back at once.
+        val readText = (!textBusy || now - lastTextAt > TEXT_STUCK_MS) && now - lastTextAt >= TEXT_EVERY_MS
+        val copy = if (readText) runCatching { scaled(proxy.toBitmap()) }.getOrNull() else null
+        qrTask.addOnCompleteListener { proxy.close() }
+        if (copy == null) return
+        textBusy = true
+        lastTextAt = now
+        textRecognizer.process(InputImage.fromBitmap(copy, rotation))
+            .addOnSuccessListener { if (CardText.looksLikeCard(it.text)) cardSeenAt = SystemClock.elapsedRealtime() }
+            .addOnCompleteListener { textBusy = false }
+    }
+
+    private companion object {
+        /** How often the rear camera reads text, and how long a card stays "seen" after that. */
+        const val TEXT_EVERY_MS = 700L
+        const val CARD_SEEN_MS = 1500L
+
+        /** A read that never finishes must not stop the next ones for good. */
+        const val TEXT_STUCK_MS = 15_000L
+
+        /** Longest side of the copy given to OCR: enough for the printed headings. */
+        const val TEXT_MAX_SIDE = 960
+    }
+
+    private fun scaled(b: Bitmap): Bitmap {
+        val side = maxOf(b.width, b.height)
+        if (side <= TEXT_MAX_SIDE) return b
+        val k = TEXT_MAX_SIDE.toFloat() / side
+        return Bitmap.createScaledBitmap(b, (b.width * k).toInt(), (b.height * k).toInt(), true)
     }
 
     private fun meanLuma(proxy: ImageProxy): Float {

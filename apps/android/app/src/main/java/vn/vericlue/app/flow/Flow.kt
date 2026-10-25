@@ -74,6 +74,9 @@ object Routes {
     const val ErrorService = "error_service"
     const val ErrorDevice = "error_device"
     const val Interrupted = "interrupted"
+
+    /** The face recording waited too long (confirm screen) and its challenge expired before upload. */
+    const val FaceExpired = "face_expired"
     const val NoVoice = "no_voice"
     const val ExitConfirm = "exit_confirm"
     const val Stopped = "stopped"

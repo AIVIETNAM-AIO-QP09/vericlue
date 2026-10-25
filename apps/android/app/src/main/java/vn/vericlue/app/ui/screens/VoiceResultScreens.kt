@@ -410,6 +410,12 @@ object Messages {
         "Quay lại chuẩn bị" to onRedo, "Dừng xác minh" to onStop, onBack = onStop,
     )
 
+    @Composable fun FaceExpired(onRedo: () -> Unit, onStop: () -> Unit) = MessageScreen(
+        Icons.Outlined.VideocamOff, "Lượt quay đã hết thời gian",
+        "Lượt quay khuôn mặt chỉ có hiệu lực trong ít phút. Thông tin giấy tờ vẫn được giữ; bạn chỉ cần quay lại phần khuôn mặt.",
+        "Quay lại phần khuôn mặt" to onRedo, "Dừng xác minh" to onStop, onBack = onStop,
+    )
+
     @Composable fun NoVoice(onRetry: () -> Unit, onStop: () -> Unit) = MessageScreen(
         Icons.Outlined.MicOff, "Chưa thu được giọng nói",
         "Bản ghi chưa dùng được hoặc micro đã bị ngắt. Hãy kiểm tra micro và chọn nơi yên tĩnh trước khi chuẩn bị đọc lại.",

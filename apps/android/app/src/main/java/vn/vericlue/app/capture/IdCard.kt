@@ -8,7 +8,7 @@ data class IdQuality(
     val sharpness: Double,
     val glareFraction: Double,
     val qr: String?,
-    /** Card words found in the frame ([CardText]); null when the text was not read. */
+    /** Card words read on the rear camera in the last moment ([CardText]); null = not checked. */
     val looksLikeCard: Boolean? = null,
 ) {
     val sharp: Boolean get() = sharpness >= MIN_SHARPNESS
