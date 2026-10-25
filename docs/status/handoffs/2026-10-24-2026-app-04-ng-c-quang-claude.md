@@ -22,13 +22,15 @@
 - `apps/android/docs/can-chot.md` thêm nhóm H (câu 27–30). `apps/android/README.md` và `apps/ios/docs/plan-ios.md` ghi luồng mới.
 
 ## Đang dở
-- Chưa thử trên điện thoại thật; chưa chạy với runtime identity lab thật (`IDENTITY_LAB_URL`, cần file `best.pt` trên Drive, Quang chưa đồng ý tải).
+- Chưa thử trên điện thoại thật.
+- **So mặt CCCD–selfie (LVFace-B) chưa chạy được trên máy này:** `scripts/download_models.py --only lvface-b` từ chối tải vì chuỗi `license` của mục này ("nghiên cứu phi thương mại (trọng số); MIT (code)") không nằm trong danh sách DATA-02 cho phép. Không tải tay để lách; cần trưởng nhóm/M3 sửa manifest hoặc chép model sang. Script này cũng tự viết lại định dạng `models/manifest.yaml` khi chạy (đã trả lại bản gốc).
 - **Tự chụp chưa kiểm được trên máy ảo:** cảnh ảo không có thẻ nên chỉ kiểm được là nó *không* chụp nhầm. Từ khóa trong `CardText` và ngưỡng `MIN_SHARPNESS`/`MAX_GLARE` phải chỉnh trên thẻ thật.
 
 ## Bước tiếp theo
-1. Push 3 commit mới lên PR #69 (chưa push, chờ Quang bảo) và xem CI.
-2. Trên điện thoại thật: chỉnh `MIN_SHARPNESS`/`MAX_GLARE` cho tự chụp, kiểm **mã QR nằm ở mặt nào** của CCCD gắn chip (thẻ thật có QR ở mặt trước; app đang nhắc "đọc QR" ở mặt sau, nhưng chuỗi QR quét được ở mặt nào cũng được giữ và gửi).
-3. Chờ trưởng nhóm trả lời can-chot câu 27–29 rồi mới bỏ số điện thoại/OTP, gộp màn "Chuẩn bị", hay đổi luật đọc câu.
+1. Push commit nút QR mẫu dùng ảnh (chưa push, chờ Quang bảo) và xem CI.
+2. Khi có LVFace-B trong `MODELS_DIR`: chạy lại luồng với identity lab để thấy nhánh so mặt (với ảnh giả thì so mặt sẽ không khớp; cần ảnh thật mới ra đạt).
+3. Trên điện thoại thật: chỉnh `MIN_SHARPNESS`/`MAX_GLARE` cho tự chụp, kiểm **mã QR nằm ở mặt nào** của CCCD gắn chip (thẻ thật có QR ở mặt trước; app đang nhắc "đọc QR" ở mặt sau, nhưng chuỗi QR quét được ở mặt nào cũng được giữ và gửi).
+4. Chờ trưởng nhóm trả lời can-chot câu 27–29 rồi mới bỏ số điện thoại/OTP, gộp màn "Chuẩn bị", hay đổi luật đọc câu.
 
 ## Quyết định, lưu ý, bẫy
 - **Thứ tự bắt buộc:** `id-card/confirm` → media → signals → `finalize`. Trên `main`, `finalize` có thể mở ca duyệt và đóng phiên (xác nhận sau đó bị `session_closed`, ca mất ghi chú "sửa khác QR"). Trên nhánh FLOW-05, xác nhận hoặc gửi lại ảnh CCCD sau media đều bị 409; `_identity_gate` cũng cần `id_confirmed` trước `finalize` mới cho đạt.
@@ -43,7 +45,7 @@
 ## Test đã chạy
 ```
 cd apps/android && ./gradlew --no-daemon testDebugUnitTest assembleDebug
-BUILD SUCCESSFUL — 77 test, 0 lỗi (Windows 11, JDK 17, 25/10, sau khi gộp main #65); test mới:
+BUILD SUCCESSFUL — 77 test, 0 lỗi (Windows 11, JDK 17, 25/10, chạy lại sau khi thêm ảnh QR mẫu); test mới:
   FlowRulesTest (afterFace/afterConfirm/afterIdReview, OtpRules.codeIn, Agreement.canContinueWith, confirmErrorText),
   IdCardTest (autoCaptureNeedsTwoGoodFramesInARow, cardWordsAreFoundWithOrWithoutDiacritics),
   LiveFlowRetryTest.expiredChallengeBeforeAnyUploadRedoesOnlyTheFacePart, IdentityCorrectionTest (từ FLOW-05)
@@ -58,5 +60,12 @@ Máy ảo Pixel x86_64, API mock của `main` sau #65 (`USE_MOCK_MODELS=true`, k
 | `low_quality` | Chụp lại 2 lần (lần sau không hiện lại màn xác nhận) → hết lượt → "Hồ sơ đang được xác minh thêm" | … confirm → media → signals → finalize → challenge → media → signals → finalize → challenge → … |
 | `voice_clone` | Đọc câu → "Hồ sơ đang được xác minh thêm" | như `genuine` |
 | `genuine`, chờ 110 s ở màn xác nhận | "Lượt quay đã hết thời gian" → làm lại phần mặt → đọc câu → thành công | … confirm → media **409** → challenge → media → signals → finalize → voice |
+
+**Với identity lab thật (25/10, theo `docs/runbooks/identity-integration.md` sau #71):**
+- Runtime OCR: venv Python 3.10 ở `D:\output\vericlue_identity_lab\.venv` (`requirements-lock.txt`, `--no-deps`), VietOCR từ `prepare_vietocr.py`, `models/cccd_detector/best.pt` tải từ Drive (SHA-256 ZIP và `best.pt` đều khớp HANDOFF). Chạy `127.0.0.1:8010`.
+- API: `IDENTITY_LAB_URL=http://127.0.0.1:8010`, `USE_MOCK_MODELS=true`, `MODELS_DIR=models/selected-2026-10-24` (chỉ có SCRFD; thiếu LVFace-B, xem "Đang dở"), extra `face`. `/healthz` → `degraded`, `failed_modules: ["face_match"]`.
+- Gọi thẳng runtime với ảnh QR mẫu: trả `qr_values` đúng; lần đầu 48 s (nạp model).
+- Máy ảo, ảnh cảnh phòng (không thẻ): API gọi runtime (~13 s), không đọc được → `retry` → app hiện "Chưa đọc được mã QR trên thẻ…".
+- Máy ảo, nút "Dùng mã QR mẫu (debug)" (thay cả ảnh mặt sau bằng `src/debug/res/raw/sample_cccd_qr.jpg`, dữ liệu giả, vì server không tin chuỗi QR của app): server đọc QR từ ảnh, trả đủ 5 trường; id-card → challenge → id-card/confirm → media → signals → finalize → **"Hồ sơ đang được xác minh thêm"**, vì `face_match` = `error` (thiếu model) nên `_identity_gate` không cho tự đạt. Đúng luật: lỗi không bao giờ là đạt.
 
 Cũng thấy đúng: điều khoản phải kéo hết và tích mục bắt buộc mới bật nút; OTP tự điền từ SMS mô phỏng; hộp xin quyền camera hiện lúc mở camera CCCD, micro lúc đọc câu; màn xem lại viền cam khi ảnh lóa; không tự chụp nhầm cảnh không có thẻ sau khi thêm `CardText`.

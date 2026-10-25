@@ -78,7 +78,7 @@ uv run --frozen uvicorn vericlue_api.main:app --app-dir services/api/src --host 
 
 Trong app (bản debug): màn ngân hàng mẫu → **"Xem tất cả màn (bản demo giao diện)"** → chọn **"API thật"** và một kịch bản mock (`genuine`, `low_quality`, `voice_clone`, `error`…) → mở **"Chuẩn bị"** → "Tôi đã sẵn sàng".
 
-Máy ảo không có mặt người trước camera nên bản debug có nút **"Chụp ngay (debug)"** ở màn căn mặt và **"Bỏ qua (debug)"** ở màn quay đầu. Camera máy ảo cũng không đọc được QR, nên màn xem lại CCCD có nút **"Dùng mã QR mẫu (debug)"** (dữ liệu giả). Các nút này không có trong bản release. Mở máy ảo với `-camera-back virtualscene` để camera sau có hình.
+Máy ảo không có mặt người trước camera nên bản debug có nút **"Chụp ngay (debug)"** ở màn căn mặt và **"Bỏ qua (debug)"** ở màn quay đầu. Camera máy ảo cũng không đọc được QR, nên màn xem lại CCCD có nút **"Dùng mã QR mẫu (debug)"**: thay chuỗi QR và ảnh mặt sau bằng ảnh QR mẫu (dữ liệu giả, `src/debug/res/raw/sample_cccd_qr.jpg`), dùng được cả khi server bật identity lab. Các nút này không có trong bản release. Mở máy ảo với `-camera-back virtualscene` để camera sau có hình.
 
 Kết quả đã thử trên máy ảo (23–24/10): `genuine` → thành công; `voice_clone` → đọc câu → chờ duyệt; `low_quality` → chụp lại (câu nhắc và số lần còn lại lấy từ server); `error`, `print` → chờ duyệt. Server nhận được ảnh JPEG, video MP4 và tín hiệu.
 

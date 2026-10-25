@@ -480,7 +480,12 @@ fun VeriClueApp() {
                 front = idFront,
                 back = idBack,
                 onDebugQr = if (BuildConfig.DEBUG) {
-                    { idBack?.let { (photo, q) -> idBack = photo to q.copy(qr = DEBUG_SAMPLE_QR); cccd = CccdQr.parse(DEBUG_SAMPLE_QR) } }
+                    {
+                        // The photo too: with the FLOW-05 identity bridge the server reads the QR from the image.
+                        val sample = context.resources.getIdentifier("sample_cccd_qr", "raw", context.packageName)
+                            .takeIf { it != 0 }?.let { id -> context.resources.openRawResource(id).use { it.readBytes() } }
+                        idBack?.let { (photo, q) -> idBack = (sample ?: photo) to q.copy(qr = DEBUG_SAMPLE_QR); cccd = CccdQr.parse(DEBUG_SAMPLE_QR) }
+                    }
                 } else {
                     null
                 },
