@@ -249,6 +249,8 @@ fun IdCaptureScreen(
     captured: Boolean = false,
     photo: ByteArray? = null,
     onRetake: () -> Unit = {},
+    capturedOk: Boolean = true,
+    hint: String? = null,
 ) {
     VcTheme(dark = true) {
         val c = Vc.colors
@@ -298,7 +300,9 @@ fun IdCaptureScreen(
                     }
                 }
                 when {
-                    captured -> Banner(if (back) "Ảnh rõ. Đang mở màn xem lại" else "Ảnh rõ. Tự sang mặt sau", tone = Tone.Ok)
+                    captured && capturedOk -> Banner(if (back) "Ảnh rõ. Đang mở màn xem lại" else "Ảnh rõ. Tự sang mặt sau", tone = Tone.Ok)
+                    captured -> Banner("Ảnh có thể bị mờ hoặc lóa. Bấm \"Chụp lại\" nếu chữ trên thẻ chưa rõ.", tone = Tone.Warn)
+                    hint != null -> Banner(hint, tone = Tone.Warn)
                     glare -> Banner("Ảnh bị lóa, hãy nghiêng thẻ một chút", tone = Tone.Warn, icon = Icons.Outlined.WbSunny)
                     else -> Banner("Giữ thẻ gọn trong khung. Ứng dụng tự chụp khi đủ nét", tone = Tone.Ok)
                 }
@@ -337,6 +341,7 @@ fun IdReviewScreen(
     onContinue: () -> Unit,
     front: Pair<ByteArray, IdQuality>? = null,
     back: Pair<ByteArray, IdQuality>? = null,
+    onDebugQr: (() -> Unit)? = null,
 ) {
     val c = Vc.colors
     val hint = idRetakeHint(false, front?.second) ?: idRetakeHint(true, back?.second)
@@ -362,6 +367,8 @@ fun IdReviewScreen(
             }
         }
         hint?.let { Banner(it, tone = Tone.Warn) }
+        // Debug builds only: the emulator camera cannot show a QR code.
+        onDebugQr?.let { LinkButton("Dùng mã QR mẫu (debug)", it) }
     }
 }
 

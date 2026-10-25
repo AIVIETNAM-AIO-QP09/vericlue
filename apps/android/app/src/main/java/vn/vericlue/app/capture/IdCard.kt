@@ -4,9 +4,16 @@ package vn.vericlue.app.capture
  * ID card capture checks (APP-04). Local quality gate only: it helps the user retake a bad photo
  * before sending; it never judges whether the card is genuine.
  */
-data class IdQuality(val sharpness: Double, val glareFraction: Double, val qr: String?) {
+data class IdQuality(
+    val sharpness: Double,
+    val glareFraction: Double,
+    val qr: String?,
+    /** Card words found in the frame ([CardText]); null when the text was not read. */
+    val looksLikeCard: Boolean? = null,
+) {
     val sharp: Boolean get() = sharpness >= MIN_SHARPNESS
     val noGlare: Boolean get() = glareFraction <= MAX_GLARE
+    val good: Boolean get() = sharp && noGlare
 
     companion object {
         // Starting values; tune on real phones and cards (plan, phase 9).
@@ -16,16 +23,34 @@ data class IdQuality(val sharpness: Double, val glareFraction: Double, val qr: S
 }
 
 /**
- * Takes the ID photo by itself once [needed] frames in a row are sharp and glare-free, so the user
- * does not have to hold the phone still and tap. The shutter button stays as a fallback. A wrong
- * shot is caught by the pause after each side and the review screen, not here.
+ * Words printed on either side of a CCCD (chip card 2021 and the 2024 "Căn cước"), compared without
+ * diacritics. Only used to hold auto-capture until a card is in view: a sharp room is not a card.
+ * It never judges whether the card is genuine.
+ */
+object CardText {
+    private val words = listOf(
+        "CAN CUOC", "CONG DAN", "CITIZEN", "IDENTITY", "IDVNM", "CONG HOA", "SOCIALIST REPUBLIC",
+        "QUOC TICH", "NATIONALITY", "DAC DIEM NHAN DANG", "PERSONAL IDENTIFICATION", "NGAY CAP", "DATE OF ISSUE",
+    )
+
+    fun looksLikeCard(text: String): Boolean {
+        val plain = java.text.Normalizer.normalize(text.uppercase(), java.text.Normalizer.Form.NFD)
+            .replace(Regex("\\p{M}+"), "").replace('Đ', 'D').replace(Regex("\\s+"), " ")
+        return words.any { it in plain }
+    }
+}
+
+/**
+ * Takes the ID photo by itself once [needed] frames in a row are sharp, glare-free and show card
+ * words, so the user does not have to hold the phone still and tap. The shutter button stays as a
+ * fallback. A wrong shot is caught by the pause after each side and the review screen, not here.
  */
 class IdAutoCapture(private val needed: Int = 2) {
     private var good = 0
 
     /** True when this frame completes the run: take it. */
     fun offer(q: IdQuality): Boolean {
-        good = if (q.sharp && q.noGlare) good + 1 else 0
+        good = if (q.good && q.looksLikeCard == true) good + 1 else 0
         return good >= needed
     }
 

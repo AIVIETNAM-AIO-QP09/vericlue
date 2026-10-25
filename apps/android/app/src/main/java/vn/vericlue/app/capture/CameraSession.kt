@@ -23,9 +23,12 @@ import androidx.lifecycle.LifecycleOwner
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
+import com.google.android.gms.tasks.Tasks
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.concurrent.Executors
@@ -53,6 +56,9 @@ class CameraSession(private val context: Context) {
             .setMinFaceSize(0.15f)
             .build(),
     )
+
+    // Text on the sampled ID frames only: tells a card from a sharp room before auto-capture.
+    private val textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 
     private val qrScanner = BarcodeScanning.getClient(
         BarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build(),
@@ -138,10 +144,15 @@ class CameraSession(private val context: Context) {
         )
     }
 
-    /** Photo of the card plus local quality checks, from the next analysed rear-camera frame. */
+    /**
+     * Photo of the card plus local quality checks, from the next analysed rear-camera frame.
+     * Callers waiting at the same time share that frame: the auto-capture loop must not swallow
+     * a tap on the shutter.
+     */
     suspend fun captureId(): Pair<ByteArray, IdQuality> {
-        val req = CompletableDeferred<Pair<ByteArray, IdQuality>>()
-        idRequest = req
+        val req = synchronized(this) {
+            idRequest ?: CompletableDeferred<Pair<ByteArray, IdQuality>>().also { idRequest = it }
+        }
         return req.await()
     }
 
@@ -400,22 +411,26 @@ class CameraSession(private val context: Context) {
 
     @androidx.annotation.OptIn(ExperimentalGetImage::class)
     private fun analyzeIdFrame(proxy: ImageProxy, media: android.media.Image, rotation: Int) {
-        val request = idRequest
-        if (request != null) {
-            idRequest = null
-            val plane = proxy.planes[0]
-            val buf = plane.buffer.duplicate()
-            val luma = ByteArray(buf.remaining()).also { buf.get(it) }
-            val quality = IdQuality(
-                sharpness = ImageChecks.laplacianVariance(luma, proxy.width, proxy.height, plane.rowStride),
-                glareFraction = ImageChecks.glareFraction(luma, proxy.width, proxy.height, plane.rowStride),
-                qr = _qr.value,
-            )
-            request.complete(toJpeg(proxy, rotation) to quality)
-        }
-        qrScanner.process(InputImage.fromMediaImage(media, rotation))
+        val request = synchronized(this) { idRequest.also { idRequest = null } }
+        val image = InputImage.fromMediaImage(media, rotation)
+        val qrTask = qrScanner.process(image)
             .addOnSuccessListener { codes -> codes.firstNotNullOfOrNull { it.rawValue }?.let { _qr.value = it } }
-            .addOnCompleteListener { proxy.close() }
+        if (request == null) {
+            qrTask.addOnCompleteListener { proxy.close() }
+            return
+        }
+        val plane = proxy.planes[0]
+        val buf = plane.buffer.duplicate()
+        val luma = ByteArray(buf.remaining()).also { buf.get(it) }
+        val sharpness = ImageChecks.laplacianVariance(luma, proxy.width, proxy.height, plane.rowStride)
+        val glare = ImageChecks.glareFraction(luma, proxy.width, proxy.height, plane.rowStride)
+        val jpeg = toJpeg(proxy, rotation)
+        val textTask = textRecognizer.process(image)
+        Tasks.whenAllComplete(qrTask, textTask).addOnCompleteListener {
+            val text = if (textTask.isSuccessful) textTask.result.text else null
+            request.complete(jpeg to IdQuality(sharpness, glare, _qr.value, text?.let(CardText::looksLikeCard)))
+            proxy.close()
+        }
     }
 
     private fun meanLuma(proxy: ImageProxy): Float {

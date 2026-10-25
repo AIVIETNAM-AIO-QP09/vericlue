@@ -124,6 +124,9 @@ class FlowState {
     private fun newTurnOrder() = listOf(TurnDir.Left, TurnDir.Right).shuffled()
 }
 
+/** Made-up card data in the CCCD QR layout (same as IdCardTest); debug builds only, for the emulator. */
+private const val DEBUG_SAMPLE_QR = "001095012345|123456789|Nguyễn Văn A|01011995|Nam|Số 1 Đại Cồ Việt, Hai Bà Trưng, Hà Nội|15072021"
+
 private fun NavHostController.go(route: String) = navigate(route) { launchSingleTop = true }
 
 /** Leaves the VeriClue flow and returns to the mock bank app. */
@@ -165,6 +168,8 @@ fun VeriClueApp() {
     // Short flow: the confirm screen comes after the face recording. Nothing of the face part is sent
     // before the confirm: the server refuses a confirm or a new card once it has media (FLOW-05 runbook).
     var faceCaptured by remember { mutableStateOf(false) }
+    // Why the server asked for the card again; shown on the camera until the next shot.
+    var idHint by remember { mutableStateOf<String?>(null) }
     var idConfirmed by remember { mutableStateOf(false) }
 
     /** Runs one server call at a time from a button; a second tap while it runs is ignored. */
@@ -210,6 +215,7 @@ fun VeriClueApp() {
             }
             shot = s
             captured = true
+            idHint = null
         }
         LaunchedEffect(hasCamera, captured) {
             if (!hasCamera || captured) return@LaunchedEffect
@@ -245,6 +251,8 @@ fun VeriClueApp() {
             },
             captured = captured,
             photo = shot?.first,
+            capturedOk = shot?.second?.good ?: true,
+            hint = idHint,
             onRetake = {
                 shot = null
                 captured = false
@@ -443,8 +451,11 @@ fun VeriClueApp() {
                             val (hint, error) = live.sendIdCard(front, backPhoto, idBack?.second?.qr)
                             when {
                                 error != null -> nav.go(errorRoute(error))
-                                // QR unreadable or not a CCCD: take the back side again.
-                                hint != null -> nav.go(Routes.IdBack)
+                                // QR unreadable or not a CCCD: take the back side again, saying why.
+                                hint != null -> {
+                                    idHint = "Chưa đọc được mã QR trên thẻ. Hãy đưa thẻ lại gần hơn rồi chụp lại."
+                                    nav.go(Routes.IdBack)
+                                }
                                 else -> {
                                     live.idFields?.let { cccd = FlowRules.cccdFrom(it) }
                                     idConfirmed = false
@@ -456,6 +467,11 @@ fun VeriClueApp() {
                 },
                 front = idFront,
                 back = idBack,
+                onDebugQr = if (BuildConfig.DEBUG) {
+                    { idBack?.let { (photo, q) -> idBack = photo to q.copy(qr = DEBUG_SAMPLE_QR); cccd = CccdQr.parse(DEBUG_SAMPLE_QR) } }
+                } else {
+                    null
+                },
             )
         }
         composable(Routes.Confirm) {
