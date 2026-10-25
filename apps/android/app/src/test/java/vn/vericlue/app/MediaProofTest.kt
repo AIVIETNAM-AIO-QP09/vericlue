@@ -27,11 +27,11 @@ class MediaProofTest {
         assertEquals(vector["canonical"]!!.jsonPrimitive.content, payload.toString(Charsets.US_ASCII))
         val key = KeyFactory.getInstance("EC").generatePublic(X509EncodedKeySpec(Base64.getDecoder().decode(vector["public_key_spki"]!!.jsonPrimitive.content)))
         val signature = Base64.getDecoder().decode(vector["signature"]!!.jsonPrimitive.content)
-        fun verify(data: ByteArray) = Signature.getInstance("SHA256withECDSA").run {
-            initVerify(key); update(data); verify(signature)
+        fun verifyPayload(data: ByteArray): Boolean = Signature.getInstance("SHA256withECDSA").run {
+            initVerify(key); update(data); this.verify(signature)
         }
-        assertTrue(verify(payload))
-        assertFalse(verify(payload + byteArrayOf(0)))
+        assertTrue(verifyPayload(payload))
+        assertFalse(verifyPayload(payload + byteArrayOf(0)))
     }
 
     @Test

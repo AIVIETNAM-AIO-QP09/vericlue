@@ -250,3 +250,53 @@ def test_key_validation_rejects_unsupported_or_noncanonical_keys(client, kind):
         },
     )
     assert response.status_code == 409
+
+
+def test_signature_is_verified_before_exif_removal_and_encryption(client, monkeypatch):
+    import io
+    import secrets
+
+    from PIL import Image
+    from pydantic import SecretStr
+
+    root = client.app.state.vericlue
+    monkeypatch.setattr(root.settings, "session_privacy", True)
+    monkeypatch.setattr(
+        root.settings,
+        "session_master_key",
+        SecretStr(base64.b64encode(secrets.token_bytes(32)).decode()),
+    )
+    output = io.BytesIO()
+    exif = Image.Exif()
+    exif[0x010F] = "Synthetic device"
+    Image.new("RGB", (64, 64)).save(output, format="JPEG", exif=exif)
+    image = ("face.jpg", output.getvalue())
+    created, auth, key = create(client)
+    proof = sign(client, created, key, files={"image": image, "video": VIDEO})
+    assert send_face(client, created, auth, proof, image=image).status_code == 200
+    with root.transaction() as state:
+        session = state.sessions.get(created["session_id"])
+        assert session.images[0].read_bytes().startswith(b"VCL1")
+        prepared, lease = state.privacy.prepare(session.session_id, {"images": session.images})
+        try:
+            with Image.open(prepared["images"][0]) as decoded:
+                assert not decoded.getexif()
+        finally:
+            lease.release()
+    assert face_outcome(client, created, auth)["status"] == "voice_challenge"
+
+
+def test_enabling_required_mode_does_not_accept_already_uploaded_unsigned_session(
+    client, monkeypatch
+):
+    created = client.post("/v1/sessions").json()
+    auth = {"Authorization": "Bearer " + created["token"]}
+    assert (
+        client.post(
+            f"/v1/sessions/{created['session_id']}/media", headers=auth, files={"image": IMAGE}
+        ).status_code
+        == 200
+    )
+    monkeypatch.setattr(client.app.state.vericlue.settings, "require_media_proof", True)
+    response = client.post(f"/v1/sessions/{created['session_id']}/finalize", headers=auth)
+    assert response.status_code == 409 and response.json()["error_code"] == "media_not_accepted"
