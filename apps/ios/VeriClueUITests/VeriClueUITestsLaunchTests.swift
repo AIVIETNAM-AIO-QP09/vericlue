@@ -22,13 +22,10 @@ final class VeriClueUITestsLaunchTests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        let galleryButton = app.buttons["debug-gallery-button"]
-        XCTAssertTrue(galleryButton.waitForExistence(timeout: 15))
-        galleryButton.tap()
-        XCTAssertTrue(app.staticTexts["debug-gallery-title"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["Ngân hàng Mẫu"].waitForExistence(timeout: 15))
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
-        attachment.name = "IOS-01 Debug Gallery"
+        attachment.name = "IOS-01 Launch"
         attachment.lifetime = .keepAlways
         add(attachment)
     }

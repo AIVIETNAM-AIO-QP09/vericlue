@@ -276,7 +276,7 @@ Kế hoạch chi tiết từng bước: [`apps/ios/docs/plan-ios.md`](../../../a
 - Đủ route như Android, thêm `deny`, `recovery_required`; màn "Xem tất cả màn" chỉ ở Debug.
 
 **Tiêu chí hoàn thành:**
-- [ ] Đi hết luồng demo của 3 `purpose` trên Simulator.
+- [x] Đi hết luồng demo của 3 `purpose` trên Simulator.
 
 ---
 

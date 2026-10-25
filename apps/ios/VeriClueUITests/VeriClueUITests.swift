@@ -39,5 +39,10 @@ final class VeriClueUITests: XCTestCase {
         galleryButton.tap()
         XCTAssertTrue(app.staticTexts["debug-gallery-title"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.staticTexts["Lỗi và gián đoạn"].exists)
+
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "IOS-01 Debug Gallery"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 }
