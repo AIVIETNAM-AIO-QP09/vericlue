@@ -4,6 +4,10 @@ Công cụ **nội bộ cho người phát triển**, nằm trong `ml/eval`, kh�
 diện web/Android/iOS. Chạy model thật tại máy, không gọi API và không xác minh
 đăng ký tài khoản. Không cần CCCD để thử các chức năng này.
 
+PRES-05 thêm [lượt thử mặt liên tục](presence-lab.md): một nút cho ánh sáng →
+mắt → quay đầu, dùng chung camera và lịch đo. Chạy `eval.presence_lab` để dùng;
+`eval.webcam_lab` bên dưới vẫn giữ hai lượt riêng.
+
 ## Mở cửa sổ
 
 Tại gốc repo, dùng môi trường CPU đã cài theo
