@@ -1,0 +1,963 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "VeriClue Identity Lab (developer only)",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/internal/id-card": {
+      "post": {
+        "summary": "Scan Id Card",
+        "operationId": "scan_id_card_internal_id_card_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_scan_id_card_internal_id_card_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/face-match": {
+      "post": {
+        "summary": "Integration Match",
+        "operationId": "integration_match_internal_face_match_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_integration_match_internal_face_match_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacePairResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dev/v1/ocr": {
+      "post": {
+        "summary": "Ocr",
+        "operationId": "ocr_dev_v1_ocr_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_ocr_dev_v1_ocr_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OCRResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dev/v1/face-match": {
+      "post": {
+        "summary": "Match",
+        "operationId": "match_dev_v1_face_match_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_match_dev_v1_face_match_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dev/v2/face-match": {
+      "post": {
+        "summary": "Match V2",
+        "operationId": "match_v2_dev_v2_face_match_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_match_v2_dev_v2_face_match_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacePairResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Body_integration_match_internal_face_match_post": {
+        "properties": {
+          "reference": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Reference"
+          },
+          "selfie": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Selfie"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reference",
+          "selfie"
+        ],
+        "title": "Body_integration_match_internal_face_match_post"
+      },
+      "Body_match_dev_v1_face_match_post": {
+        "properties": {
+          "reference": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Reference"
+          },
+          "selfie": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Selfie"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reference",
+          "selfie"
+        ],
+        "title": "Body_match_dev_v1_face_match_post"
+      },
+      "Body_match_v2_dev_v2_face_match_post": {
+        "properties": {
+          "reference": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Reference"
+          },
+          "selfie": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Selfie"
+          },
+          "reference_roi": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Roi",
+            "description": "Optional JSON [x1,y1,x2,y2] portrait region after EXIF correction"
+          },
+          "embedding_mode": {
+            "type": "string",
+            "enum": [
+              "single",
+              "flip_mean"
+            ],
+            "title": "Embedding Mode",
+            "default": "single"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reference",
+          "selfie"
+        ],
+        "title": "Body_match_v2_dev_v2_face_match_post"
+      },
+      "Body_ocr_dev_v1_ocr_post": {
+        "properties": {
+          "image": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Image"
+          }
+        },
+        "type": "object",
+        "required": [
+          "image"
+        ],
+        "title": "Body_ocr_dev_v1_ocr_post"
+      },
+      "Body_scan_id_card_internal_id_card_post": {
+        "properties": {
+          "front": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Front"
+          },
+          "back": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Back"
+          }
+        },
+        "type": "object",
+        "required": [
+          "front",
+          "back"
+        ],
+        "title": "Body_scan_id_card_internal_id_card_post"
+      },
+      "ExtractedField": {
+        "properties": {
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "missing",
+              "consistent",
+              "review"
+            ],
+            "title": "Status"
+          },
+          "source_line_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Source Line Ids"
+          },
+          "candidates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Candidates"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons"
+          },
+          "original_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Original Value"
+          },
+          "rereads": {
+            "items": {
+              "$ref": "#/components/schemas/Reread"
+            },
+            "type": "array",
+            "title": "Rereads"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value",
+          "status",
+          "source_line_ids",
+          "candidates",
+          "reasons"
+        ],
+        "title": "ExtractedField"
+      },
+      "FaceEvidence": {
+        "properties": {
+          "bbox": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Bbox"
+          },
+          "landmarks": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Landmarks"
+          },
+          "detection_score": {
+            "type": "number",
+            "title": "Detection Score"
+          },
+          "quality": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Quality"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "bbox",
+          "landmarks",
+          "detection_score",
+          "quality",
+          "warnings"
+        ],
+        "title": "FaceEvidence"
+      },
+      "FacePairResult": {
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "face-pair-lab/v2",
+            "title": "Schema Version"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "retry"
+            ],
+            "title": "Status"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "review",
+              "retry"
+            ],
+            "title": "Decision"
+          },
+          "identity_verified": {
+            "type": "boolean",
+            "const": false,
+            "title": "Identity Verified"
+          },
+          "cosine_similarity": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": -1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cosine Similarity"
+          },
+          "threshold": {
+            "type": "null",
+            "title": "Threshold"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "embedding_mode": {
+            "type": "string",
+            "enum": [
+              "single",
+              "flip_mean"
+            ],
+            "title": "Embedding Mode",
+            "default": "single"
+          },
+          "reference_roi": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Roi"
+          },
+          "coordinate_space": {
+            "type": "string",
+            "const": "exif_corrected_input_pixels",
+            "title": "Coordinate Space",
+            "default": "exif_corrected_input_pixels"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FaceEvidence"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "selfie": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FaceEvidence"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "identical_pixels": {
+            "type": "boolean",
+            "title": "Identical Pixels"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "elapsed_ms": {
+            "type": "number",
+            "title": "Elapsed Ms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "schema_version",
+          "status",
+          "reason",
+          "decision",
+          "identity_verified",
+          "model",
+          "identical_pixels",
+          "warnings",
+          "elapsed_ms"
+        ],
+        "title": "FacePairResult"
+      },
+      "FieldCandidates": {
+        "properties": {
+          "id_number_candidates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Id Number Candidates"
+          },
+          "date_candidates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Date Candidates"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id_number_candidates",
+          "date_candidates"
+        ],
+        "title": "FieldCandidates"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "MatchResult": {
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "identity-lab/v1",
+            "title": "Schema Version"
+          },
+          "status": {
+            "type": "string",
+            "const": "ok",
+            "title": "Status"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "cosine_similarity": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": -1.0,
+            "title": "Cosine Similarity"
+          },
+          "decision": {
+            "type": "string",
+            "const": "not_calibrated",
+            "title": "Decision"
+          },
+          "threshold": {
+            "type": "null",
+            "title": "Threshold"
+          },
+          "reference_bbox": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Reference Bbox"
+          },
+          "selfie_bbox": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Selfie Bbox"
+          },
+          "identical_files": {
+            "type": "boolean",
+            "title": "Identical Files"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "elapsed_ms": {
+            "type": "number",
+            "title": "Elapsed Ms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "schema_version",
+          "status",
+          "model",
+          "cosine_similarity",
+          "decision",
+          "threshold",
+          "reference_bbox",
+          "selfie_bbox",
+          "identical_files",
+          "warnings",
+          "elapsed_ms"
+        ],
+        "title": "MatchResult"
+      },
+      "OCRLine": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence"
+          },
+          "polygon": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Polygon"
+          },
+          "alternate_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alternate Text"
+          },
+          "alternate_confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alternate Confidence"
+          },
+          "words": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Words"
+          },
+          "word_regions": {
+            "items": {
+              "items": {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Word Regions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "confidence",
+          "polygon"
+        ],
+        "title": "OCRLine"
+      },
+      "OCRResult": {
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "identity-lab/v2",
+            "title": "Schema Version"
+          },
+          "fields": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ExtractedField"
+            },
+            "type": "object",
+            "title": "Fields"
+          },
+          "document_status": {
+            "type": "string",
+            "enum": [
+              "review",
+              "retry"
+            ],
+            "title": "Document Status"
+          },
+          "coordinate_space": {
+            "type": "string",
+            "const": "exif_corrected_input_pixels",
+            "title": "Coordinate Space"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "retry"
+            ],
+            "title": "Status"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/OCRLine"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "candidates": {
+            "$ref": "#/components/schemas/FieldCandidates"
+          },
+          "alternate_candidates": {
+            "$ref": "#/components/schemas/FieldCandidates"
+          },
+          "qr_payloads": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Qr Payloads"
+          },
+          "identity_verified": {
+            "type": "boolean",
+            "const": false,
+            "title": "Identity Verified"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "elapsed_ms": {
+            "type": "number",
+            "title": "Elapsed Ms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "schema_version",
+          "fields",
+          "document_status",
+          "coordinate_space",
+          "status",
+          "reason",
+          "model",
+          "lines",
+          "candidates",
+          "alternate_candidates",
+          "qr_payloads",
+          "identity_verified",
+          "warnings",
+          "elapsed_ms"
+        ],
+        "title": "OCRResult"
+      },
+      "Reread": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence"
+          },
+          "padding_ratio": {
+            "type": "number",
+            "title": "Padding Ratio"
+          },
+          "polygon": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Polygon"
+          },
+          "source_line_id": {
+            "type": "integer",
+            "title": "Source Line Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "confidence",
+          "padding_ratio",
+          "polygon",
+          "source_line_id"
+        ],
+        "title": "Reread"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

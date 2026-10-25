@@ -5,6 +5,12 @@
 
 ## Trách nhiệm
 
+OCR/QR và AdaFace opt-in cho UI Android: xem
+[identity-integration.md](../../docs/runbooks/identity-integration.md).
+`IDENTITY_LAB_URL` bật cầu nối runtime cục bộ; `IDENTITY_FACE_THRESHOLD=0.40`
+là cosine thử nghiệm, không phải xác suất danh tính. Luồng đầy đủ vẫn có giới hạn
+mock/real nêu dưới đây.
+
 FLOW-01/LIVE-01 đã có nền backend opt-in bằng body `purpose`/`nonce`, gói thử thách
 động, kiểm mã lượt và chính sách theo luồng. **Hiện chỉ chạy mock**; real/mixed trả
 503 cho luồng mới tới khi đủ detector và xác minh danh tính/thiết bị. API cũ không

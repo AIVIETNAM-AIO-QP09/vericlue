@@ -204,7 +204,19 @@ def test_voice_cannot_clear_face_review(client, scenario):
     assert submit_voice(client, created, auth, created["challenge"]["dynamic"]).status_code == 409
 
 
-def test_unverified_reauth_requires_recovery_without_staff_case(client):
+@pytest.mark.parametrize("identity_runtime", [False, True])
+def test_unverified_reauth_requires_recovery_without_staff_case(
+    client, identity_runtime, monkeypatch
+):
+    if identity_runtime:
+        client.app.state.vericlue.settings.identity_lab_url = "http://127.0.0.1:8010"
+
+    def unexpected_match(*_):
+        pytest.fail("Reauth must not use the card/selfie runtime")
+
+    monkeypatch.setattr(
+        "vericlue_api.services.identity_runtime.IdentityRuntime.match", unexpected_match
+    )
     created, auth = create(client, purpose="reauth")
     assert "dynamic" not in created["challenge"]
     result = submit_face(client, created, auth)
@@ -230,7 +242,19 @@ def test_unverified_reauth_requires_recovery_without_staff_case(client):
     "scenario,expected",
     [("genuine", "pass"), ("print", "deny"), ("error", "deny"), ("voice_clone", "voice_challenge")],
 )
-def test_reauth_with_server_verified_context_has_no_review_case(client, scenario, expected):
+@pytest.mark.parametrize("identity_runtime", [False, True])
+def test_reauth_with_server_verified_context_has_no_review_case(
+    client, scenario, expected, identity_runtime, monkeypatch
+):
+    if identity_runtime:
+        client.app.state.vericlue.settings.identity_lab_url = "http://127.0.0.1:8010"
+
+    def unexpected_match(*_):
+        pytest.fail("Reauth must not use the card/selfie runtime")
+
+    monkeypatch.setattr(
+        "vericlue_api.services.identity_runtime.IdentityRuntime.match", unexpected_match
+    )
     created, auth = create(client, purpose="reauth", scenario=scenario)
     # Until SEC-02 exists, only a server-owned test fixture can grant this context.
     edit_session(client, created, device_verified=True)
@@ -238,6 +262,27 @@ def test_reauth_with_server_verified_context_has_no_review_case(client, scenario
     assert result["status"] == expected
     if expected == "voice_challenge":
         assert submit_voice(client, created, auth, result).json() == {"status": "deny"}
+    with client.app.state.vericlue.database.sessions() as db:
+        assert (
+            db.scalar(
+                select(ReviewCaseRow).where(ReviewCaseRow.session_id == created["session_id"])
+            )
+            is None
+        )
+
+
+@pytest.mark.parametrize("identity_runtime", [False, True])
+def test_reauth_genuine_voice_after_escalation_does_not_require_a_card(client, identity_runtime):
+    if identity_runtime:
+        client.app.state.vericlue.settings.identity_lab_url = "http://127.0.0.1:8010"
+    created, auth = create(client, purpose="reauth", scenario="voice_clone")
+    edit_session(client, created, device_verified=True)
+    result = submit_face(client, created, auth)
+    assert result["status"] == "voice_challenge"
+    # Server-owned fixture: ambiguous face, followed by genuine voice model results.
+    edit_session(client, created, scenario="genuine")
+    response = submit_voice(client, created, auth, result)
+    assert response.json() == {"status": "pass"}
     with client.app.state.vericlue.database.sessions() as db:
         assert (
             db.scalar(

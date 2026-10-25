@@ -86,6 +86,10 @@ class Settings(BaseSettings):
     otp_max_sends: int = 3  # số lần gửi mã mỗi phiên
     # Khóa HMAC cho số điện thoại và số CCCD (FLOW-03). Mặc định chỉ để chạy dev; máy demo đặt ID_HMAC_KEY.
     id_hmac_key: SecretStr = SecretStr("dev-only-not-secret")
+    # Opt-in bridge to the local OCR/AdaFace runtime. Other detectors keep their own mode.
+    identity_lab_url: str | None = None
+    identity_lab_timeout_seconds: float = Field(default=90, gt=0, le=180)
+    identity_face_threshold: float = Field(default=0.40, ge=-1, le=1, allow_inf_nan=False)
     max_retries: int = Field(default=2, ge=0, le=2)
     max_upload_mb: int = 50
     # Để trống = dùng bảng màu trong packages/contracts/chromapulse.json (nguồn chung với web).
