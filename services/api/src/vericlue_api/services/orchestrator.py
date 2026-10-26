@@ -14,6 +14,7 @@ from time import perf_counter
 from typing import Any, Literal
 
 from vericlue_api.core.config import Settings
+from vericlue_api.core.errors import ApiError
 from vericlue_ml.common.detector import Detector, DetectorInput
 from vericlue_ml.common.result import ErrorCode, Evidence, Module, ModuleResult, Status
 from vericlue_ml.face.continuity import FaceContinuityDetector
@@ -23,6 +24,7 @@ from vericlue_ml.face.match import FaceMatchDetector
 from vericlue_ml.face.pad import FacePadDetector
 from vericlue_ml.face.quality import QualityDetector
 from vericlue_ml.face.session_attack import SessionAttackDetector
+from vericlue_ml.face.template import FaceTemplate
 from vericlue_ml.face.video_match import VideoFaceMatchDetector
 from vericlue_ml.presence.chromapulse import ChromaPulseDetector
 from vericlue_ml.presence.color_regions import ColorObservationReader
@@ -47,6 +49,7 @@ class _Job:
     submitted: float
     deadline: float
     result: Future = field(default_factory=Future)
+    approved: ModuleResult | None = None
 
 
 class Orchestrator:
@@ -285,14 +288,27 @@ class Orchestrator:
         )
 
     def _predict(
-        self, module: Module, inp: DetectorInput, submitted: float, deadline: float
-    ) -> tuple[ModuleResult, float]:
+        self,
+        module: Module,
+        inp: DetectorInput,
+        submitted: float,
+        deadline: float,
+        approved: ModuleResult | None = None,
+    ) -> tuple[ModuleResult | FaceTemplate, float]:
         if perf_counter() >= deadline:
             finished = perf_counter()
             return self._error(
                 module, ErrorCode.E_TIMEOUT, (finished - submitted) * 1000, reason="timeout"
             ), finished
         try:
+            if approved is not None:
+                detector = self._detectors[module]
+                if module != Module.FACE_MATCH or not isinstance(detector, VideoFaceMatchDetector):
+                    raise ValueError("Video identity detector required")
+                template = detector.enrollment_template(inp, approved)
+                # Private artifact: never place it in ModuleResult or detector logs.
+                template = FaceTemplate.model_validate_json(template.model_dump_json())
+                return template, perf_counter()
             result = self._detectors[module].predict(inp)
             if not isinstance(result, ModuleResult) or Module(result.module) != module:
                 raise ValueError("Invalid detector result")
@@ -306,7 +322,7 @@ class Orchestrator:
         # Only one executor worker per module; queued requests do not occupy pool threads.
         module = job.module
         while True:
-            result = self._predict(module, job.inp, job.submitted, job.deadline)
+            result = self._predict(module, job.inp, job.submitted, job.deadline, job.approved)
             with self._lifecycle:
                 queue = self._queues[module]
                 next_job = queue.popleft() if queue else None
@@ -341,6 +357,75 @@ class Orchestrator:
             else:
                 remaining.append(job)
         self._queues[module] = remaining
+
+    def _enqueue_locked(self, job: _Job, media_lease=None) -> Future:
+        """Admit ordinary and private jobs to the same bounded per-module queue."""
+        module = job.module
+        now = perf_counter()
+        self._prune(module)
+        if (
+            not self._started
+            or self._closed
+            or module not in self._detectors
+            or module in self._failed
+            or now >= job.deadline
+            or module in self._running
+            and len(self._queues[module]) >= self.settings.detector_queue_size
+        ):
+            job.result.set_result(
+                (self._error(module, ErrorCode.E_TIMEOUT, (now - job.submitted) * 1000), now)
+            )
+            return job.result
+        if media_lease is not None:
+            media_lease.retain(job.result)
+        if module in self._running:
+            self._queues[module].append(job)
+        else:
+            self._running.add(module)
+            try:
+                self._executor.submit(self._drain, job)
+            except Exception:
+                self._running.remove(module)
+                job.result.set_result(
+                    (
+                        self._error(module, ErrorCode.E_INTERNAL, (now - job.submitted) * 1000),
+                        perf_counter(),
+                    )
+                )
+        return job.result
+
+    def extract_template(
+        self,
+        inp: DetectorInput,
+        approved: ModuleResult,
+        *,
+        deadline: float | None = None,
+        media_lease=None,
+    ) -> FaceTemplate:
+        """Private bounded worker operation on the already loaded LVFace instance."""
+        if self.settings.use_mock_models is not False or not self.settings.identity_face_from_video:
+            raise ApiError(503, "enrollment_unavailable", "Chưa thể hoàn tất ghi danh lúc này.")
+        started = perf_counter()
+        deadline = min(
+            started + self.settings.session_model_timeout_seconds,
+            deadline if deadline is not None else float("inf"),
+        )
+        job = _Job(
+            Module.FACE_MATCH,
+            inp.model_copy(deep=True),
+            started,
+            deadline,
+            approved=approved.model_copy(deep=True),
+        )
+        with self._lifecycle:
+            future = self._enqueue_locked(job, media_lease)
+        wait([future], timeout=max(0.0, deadline - perf_counter()))
+        if future.done() and not future.cancelled():
+            result, finished = future.result()
+            if finished <= deadline and isinstance(result, FaceTemplate):
+                return result
+        # Native work may still be running; its future owns the lease, never the DB.
+        raise ApiError(503, "enrollment_unavailable", "Chưa thể hoàn tất ghi danh lúc này.")
 
     def run(
         self,
@@ -429,25 +514,7 @@ class Orchestrator:
                     )
                     continue
                 job = _Job(module, inp.model_copy(deep=True), started, deadline)
-                if media_lease is not None:
-                    media_lease.retain(job.result)
-                futures[module] = job.result
-                if module in self._running:
-                    self._queues[module].append(job)
-                else:
-                    self._running.add(module)
-                    try:
-                        self._executor.submit(self._drain, job)
-                    except Exception:
-                        self._running.remove(module)
-                        job.result.set_result(
-                            (
-                                self._error(
-                                    module, ErrorCode.E_INTERNAL, (perf_counter() - started) * 1000
-                                ),
-                                perf_counter(),
-                            )
-                        )
+                futures[module] = self._enqueue_locked(job, media_lease)
         if futures:
             wait(futures.values(), timeout=max(0.0, deadline - perf_counter()))
         for module, future in futures.items():

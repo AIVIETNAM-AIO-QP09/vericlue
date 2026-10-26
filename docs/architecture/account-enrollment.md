@@ -2,12 +2,14 @@
 
 ## Phạm vi
 
-Đây là **nền lưu trữ nội bộ**, chưa phải luồng ghi danh hoàn chỉnh.
+Đây là **luồng ghi danh nội bộ opt-in**, chưa phải luồng eKYC thật đã nghiệm thu.
 Migration `0005_accounts` thêm bảng tài khoản; `AppState.accounts` cấp service
-trong transaction. Chưa có endpoint hay lời gọi tự động sau `pass`, chưa đổi UI
-hoặc client, chưa mở luồng thật/mixed. FLOW-05 và SEC-02 giữ `doing`.
+trong transaction. `ACCOUNT_ENROLLMENT=true` nối lời gọi sau `pass` của bước giọng
+onboarding, cùng transaction với quyết định. Không đổi UI/client/hợp đồng HTTP;
+không có endpoint ghi danh hoặc lookup tài khoản. Chốt real/mixed vẫn giữ nguyên,
+không cờ nào trong thay đổi này mở được luồng đó. FLOW-05 và SEC-02 giữ `doing`.
 
-Còn thiếu: tích hợp ghi danh sau quyết định, ngưỡng được kiểm chứng, L0 reauth và
+Còn thiếu: nghiệm thu luồng thật, ngưỡng được kiểm chứng, L0 reauth và
 khôi phục/thu hồi khóa. Đã có opt-in [so cùng người mặt–giọng](face-voice-continuity.md),
 dùng LVFace chung và protocol/ngưỡng riêng; chưa có ngưỡng thực cho phép đạt.
 
@@ -17,9 +19,22 @@ dùng LVFace chung và protocol/ngưỡng riêng; chưa có ngưỡng thực cho
 SCRFD và khóa của detector đã nạp. Chỉ nhận kết quả đúng version, `ok/pass`;
 chấm lại đầu vào, đối chiếu hash video/pixel với kết quả trước, rồi trích vector
 từ đúng khung chính diện. Không nhận embedding/nhãn góc từ client hoặc fallback
-selfie. Caller tương lai phải chạy trong worker có deadline/hàng đợi giới hạn,
-giữ `PlaintextLease` đến lúc native inference kết thúc kể cả HTTP timeout.
-Hiện chưa có lời gọi này trong request; không gọi trực tiếp trên luồng request.
+selfie. `Orchestrator.extract_template` đã nối phương thức này vào worker dùng
+chung instance, slot và hàng đợi `face_match`; không nạp thêm LVFace, không tạo
+executor riêng. Deadline tính cả chờ, dùng phần ngân sách request còn lại.
+`PlaintextLease` được giữ tới khi future thực sự xong, kể cả HTTP đã timeout.
+
+`EnrollmentService.complete` kiểm điều kiện trước, chỉ giải mã video mặt và ảnh
+CCCD từ đường dẫn server, tạo `DetectorInput` với thử thách server rồi gọi worker.
+Mẫu chỉ trả về RAM của service; tài khoản được mã hóa sau khi kiểm lại nguồn,
+phiên/lượt, điều kiện và hạn dùng. Timeout/model lỗi/nguồn đổi/ghi DB lỗi không
+trả `pass` thành công: ngoại lệ rollback quyết định, bước giọng và tài khoản trong
+cùng transaction. Worker không có DB hoặc callback tạo tài khoản; kết quả trả
+muộn không thể tự ghi danh. Không gia hạn token hay deadline để cứu lượt lỗi.
+
+Cờ mặc định tắt và phải giữ tắt khi thử luồng mock thông thường. Bật cờ không cho
+mock/mixed tạo tài khoản: service từ chối trước khi trích mẫu. `recovery`, `reauth`
+và API cũ không có `purpose` không đi vào hook tạo tài khoản onboarding.
 
 `FaceTemplate` theo schema nội bộ `face_template.schema.json` chứa phiên/lượt,
 version/tiền xử lý, hash video/pixel, 512 số hữu hạn có chuẩn L2 bằng 1. Vector
@@ -84,7 +99,8 @@ xoay khóa hoặc hardware attestation. Chữ ký không chứng minh nguồn ca
 
 ## Kiểm tra
 
-`pytest services/api/tests/test_accounts.py ml/tests/test_face_template.py` kiểm
+`pytest services/api/tests/test_enrollment_pipeline.py services/api/tests/test_accounts.py ml/tests/test_face_template.py` kiểm
 contract/chuẩn vector/nguồn pixel, roundtrip, các cổng, idempotency, trùng CCCD,
-tamper ciphertext/metadata/master, TTL và cleanup độc lập khóa phiên. Không dùng
+tamper ciphertext/metadata/master, TTL và cleanup độc lập khóa phiên; worker dùng
+chung, quá tải, deadline/lease, lỗi sau trích mẫu và rollback quyết định. Không dùng
 người thật, camera/micro, dữ liệu CCCD hoặc trọng số mô hình.

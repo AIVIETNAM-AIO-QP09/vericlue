@@ -65,6 +65,12 @@ Data4Life/
 
 ## 3. Giao diện chung của mô-đun AI
 
+FLOW-05 thêm hook ghi danh onboarding opt-in `ACCOUNT_ENROLLMENT`: trích mẫu qua
+worker/hàng đợi `face_match` đã nạp, giữ lease tới khi native xong, ghi mẫu mã hóa
+trong cùng transaction với quyết định. Vector không vào ModuleResult/snapshot/HTTP;
+lỗi rollback thay vì trả pass dở dang. Không mở chốt luồng thật/mixed. Xem
+[ghi danh tài khoản](account-enrollment.md).
+
 FLOW-05 thêm `face_continuity` opt-in: `reference_video` nội bộ giữ video bước
 mặt, `video` là bản ghi đọc câu. Dùng chung backend LVFace, protocol ba mẫu
 theo WAV/PTS/offset và ngưỡng riêng, không ghi đè `face_match`. Xem
