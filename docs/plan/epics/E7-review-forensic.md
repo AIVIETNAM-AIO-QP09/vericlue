@@ -184,7 +184,14 @@ rẽ nhánh. Cùng bảo vệ bước quyết định cuối, không đổi hợ
 - **Trang xác minh** `/forensic/verify`: dán JSON hoặc tải PDF + chữ ký → hợp lệ hay không.
 
 **Tiêu chí hoàn thành:**
-- [ ] Sửa 1 ký tự trong báo cáo → xác minh thất bại.
+- [x] Gói PDF/JSON: sửa byte PDF hoặc JSON → xác minh thất bại, có CLI với key đã pin (test).
 - [ ] (Từ REV-01) Neo **hash cuối chuỗi** `review_events` của ca liên quan vào báo cáo đã ký, để phát hiện việc cắt bớt đuôi nhật ký (`verify_chain()` chỉ bắt được sửa/xóa giữa chuỗi).
 - [ ] Bảng thang lời được kiểm tra lại với tài liệu ENFSI 2015 trước khi dùng.
-- [ ] Mục giới hạn luôn có mặt (test).
+- [x] Mục giới hạn luôn có mặt trong HTML/PDF và manifest không được trống (test, PDF tổng hợp đã render kiểm trực quan).
+
+**Lát cắt xuất artifact 26/10 (doing):** Đã có endpoint StaffBearer xuất ZIP
+PDF/JSON/signature, Node/Chromium opt-in, protocol domain riêng dùng khóa report
+PLAT-06 và CLI kiểm offline. Chỉ done/real, mock không được ký; không thêm LR
+hoặc thang lời từ điểm MVP. PDF có nhãn thử nghiệm. Phần này độc lập với các phụ
+thuộc hiệu chỉnh chưa xong; không mở chốt mô hình. Còn neo audit/ảnh/phổ/calib/LR/
+ENFSI và UI do thành viên khác làm. Xem `docs/architecture/forensic-pdf-bundle.md`.

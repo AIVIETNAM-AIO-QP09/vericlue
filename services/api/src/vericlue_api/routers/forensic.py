@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Header, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Header, Request, Response, UploadFile
 from fastapi.responses import HTMLResponse
 
 from vericlue_api.core.errors import ApiError
@@ -17,6 +17,8 @@ from vericlue_api.schemas.result import SigningKey
 from vericlue_api.schemas.session import ErrorResponse
 from vericlue_api.services.forensic_runner import release_slot, reserve_slot, run_forensic_job
 from vericlue_api.services.forensic_service import MOCK_SIGNATURE_PREFIX
+from vericlue_api.services.pdf_renderer import PdfRenderer
+from vericlue_api.services.pdf_report_bundle import export_pdf_bundle
 from vericlue_api.services.uploads import read_limited
 
 router = APIRouter(
@@ -118,3 +120,27 @@ def get_report(job_id: str, state: StateDep) -> HTMLResponse:
 def verify_report(body: VerifyRequest, request: Request) -> VerifyResponse:
     signer = request.app.state.vericlue.settings.report_signer
     return VerifyResponse(valid=signer.verify(body.report_sha256, body.signature))
+
+
+@router.get(
+    "/jobs/{job_id}/report-bundle",
+    response_class=Response,
+    responses={
+        **NOT_FOUND,
+        200: {
+            "description": "ZIP gồm report.pdf, report.json chuẩn hóa và report.sig Ed25519 tách rời; không phải PAdES/ENFSI",
+            "content": {"application/zip": {"schema": {"type": "string", "format": "binary"}}},
+        },
+        409: {"model": ErrorResponse, "description": "Job chưa xong hoặc chỉ là bản mô phỏng"},
+    },
+)
+def download_report_bundle(job_id: str, state: StateDep) -> Response:
+    bundle = export_pdf_bundle(state.forensic, PdfRenderer(state.settings), job_id)
+    return Response(
+        bundle,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{job_id}-report.zip"',
+            "Cache-Control": "no-store",
+        },
+    )

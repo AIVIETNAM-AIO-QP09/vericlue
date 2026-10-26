@@ -76,6 +76,9 @@ class Settings(BaseSettings):
     require_media_proof: bool = False
     account_enrollment: bool = False
     report_signing_key_path: str | None = None
+    forensic_pdf_node: str | None = None
+    forensic_pdf_playwright_dir: str | None = None
+    forensic_pdf_timeout_seconds: float = Field(default=30, ge=1, le=60)
     result_signing_key_file: str | None = None
     result_issuer: str | None = Field(default=None, pattern=r"^[A-Za-z0-9:/._-]{1,200}$")
     result_audience: str | None = Field(default=None, pattern=r"^[A-Za-z0-9:/._-]{1,200}$")

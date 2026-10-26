@@ -74,5 +74,6 @@ Khóa cũ vẫn kiểm offline được sau rotation nếu được tin cậy; e
 kiểm khóa đang cấu hình. Không có hết hạn/thu hồi trực tuyến hoặc dấu thời gian
 của bên thứ ba. Người đọc phải đối chiếu job ID và hash vật chứng mong muốn.
 
-FOR-04 vẫn còn JSON chuẩn hóa + hash PDF, neo hash cuối nhật ký review, ảnh/phổ,
-LR/thang lời và kiểm ENFSI gốc. Không đánh dấu FOR-04 hoàn thành bằng tính năng này.
+FOR-04 đã có protocol gói JSON + hash PDF riêng:
+[`forensic-pdf-bundle.md`](forensic-pdf-bundle.md). Chữ ký HTML không dùng thay chữ
+ký gói. Còn neo hash cuối review, ảnh/phổ, LR/thang lời và kiểm ENFSI gốc; task chưa xong.

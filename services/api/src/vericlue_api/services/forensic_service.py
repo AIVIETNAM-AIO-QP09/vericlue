@@ -361,7 +361,9 @@ class ForensicStore:
         )
 
     @staticmethod
-    def _report_real(job: ForensicJob, payload: dict[str, Any], key_id: str) -> str:
+    def _report_real(
+        job: ForensicJob, payload: dict[str, Any], key_id: str, *, pdf_bundle: bool = False
+    ) -> str:
         """HTML with a pinned-key identifier; signature covers exact rendered bytes."""
         e = escape
 
@@ -410,24 +412,58 @@ class ForensicStore:
                 + (f"<p>C2PA: {e(str(c2pa))}</p>" if c2pa else "")
                 + "".join(f"<p><em>{e(n)}</em></p>" for n in prov.notes)
             )
+        signature_note = (
+            "Chữ ký Ed25519 tách rời trên JSON và hash PDF; không phải chữ ký nhúng PAdES."
+            if pdf_bundle
+            else "Chữ ký: Ed25519 - ký toàn vẹn báo cáo HTML, không chứng nhận kết luận mô hình."
+        )
+        pdf_style = (
+            """<style>body{font-family:Arial,'DejaVu Sans',sans-serif;font-size:10pt;line-height:1.5;color:#202d3d}h1{font-size:20pt;color:#142f4d;margin:0 0 12px}h2{font-size:12pt;color:#142f4d;margin:18px 0 6px;break-after:avoid}p{margin:6px 0;overflow-wrap:anywhere}ul{padding-left:20px}li{margin:4px 0;overflow-wrap:anywhere}table{width:100%;border-collapse:collapse;margin-top:8px;font-size:8.5pt;table-layout:fixed}td,th{border:1px solid #cbd5e1;padding:4px;vertical-align:top;overflow-wrap:anywhere}td:first-child,th:first-child{width:12%}th{background:#eaf0f6;text-align:left}thead{display:table-header-group}tr{break-inside:avoid}strong{color:#92400e}.report-limitations{break-inside:avoid}</style>"""
+            if pdf_bundle
+            else ""
+        )
+        report_context = payload.get("pdf_report_context", {}) if pdf_bundle else {}
+        context_html = (
+            f"<p>Thời điểm tạo job: {e(str(report_context['job_created_at']))}<br>"
+            f"Phiên bản VeriClue: {e(str(report_context['tool_version']))}</p>"
+            if report_context
+            else ""
+        )
         return (
             '<!doctype html><html lang="vi"><meta charset="utf-8"><title>Báo cáo giám định</title>'
+            f"{pdf_style}"
             "<h1>Báo cáo giám định</h1>"
-            "<p><strong>Chữ ký: Ed25519</strong> — ký toàn vẹn báo cáo HTML, không chứng nhận kết luận mô hình.</p>"
-            f"<p>Dấu vân tay khóa (SHA-256 SPKI): {e(key_id)}</p>"
+            f"<p><strong>{signature_note}</strong></p>"
+            + (
+                "<p><strong>BẢN THỬ NGHIỆM - chưa có hiệu chỉnh giám định và thang lời ENFSI.</strong></p>"
+                if pdf_bundle
+                else ""
+            )
+            + "<p>Chữ ký không chứng nhận kết luận mô hình.</p>"
+            + f"<p>Dấu vân tay khóa (SHA-256 SPKI): {e(key_id)}</p>"
+            f"{context_html}"
             f"<p>Mã: {e(job.job_id)}</p><p>Tên file: {e(str(payload.get('filename', '')))}</p>"
             f"<p>SHA-256 file (byte gốc): {job.file_sha256}</p>"
             f"<h2>Thông số file</h2><ul>{media_rows}</ul>"
             f"<h2>Kết luận</h2><p>Kết luận: {job.verdict}</p>"
             f"<p>{e(_VERDICT_LABELS_VI.get(job.verdict or '', ''))}. {e(job.verdict_reason or '')}</p>"
             f"<h2>Khoảng nghi giả (±1 giây)</h2>{'<ul>' + intervals + '</ul>' if intervals else '<p>Không có.</p>'}"
-            f"<h2>Kết quả theo đoạn</h2><table>{rows}</table>"
-            f"{prov_html}"
+            "<h2>Kết quả theo đoạn</h2><table>"
+            + (
+                (
+                    "<thead><tr><th>Thời gian</th>"
+                    + f'<th colspan="{max((len(s.signals) for s in job.segments), default=1)}">Tín hiệu mô hình (chưa phải LR đã hiệu chỉnh)</th></tr></thead>'
+                )
+                if pdf_bundle
+                else ""
+            )
+            + f"{rows}</table>"
+            + f"{prov_html}"
             f"<h2>Bước không chạy</h2>{'<ul>' + unavailable + '</ul>' if unavailable else '<p>Không có.</p>'}"
             f"<h2>Phiên bản mô hình</h2><ul>{versions}</ul>"
-            "<h2>Giới hạn</h2><ul>"
+            '<section class="report-limitations"><h2>Giới hạn</h2><ul>'
             + "".join(f"<li>{e(item)}</li>" for item in LIMITATIONS_VI)
-            + "</ul></html>"
+            + "</ul></section></html>"
         )
 
     def report_signer(self) -> ReportSigner:

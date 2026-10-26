@@ -1,5 +1,11 @@
 # Contracts — hợp đồng giữa các phần
 
+FOR-04 thêm `PdfReportManifest` trong forensic.schema.json và endpoint ZIP
+`/v1/forensic/jobs/{id}/report-bundle`. Artifact có PDF, JSON chuẩn hóa và chữ ký
+tách rời; schema định nghĩa snapshot job, key ID, hash PDF và giới hạn bắt buộc.
+Producer và CLI dùng cùng model/kiểm contract. Xem
+[`forensic-pdf-bundle.md`](../../docs/architecture/forensic-pdf-bundle.md).
+
 PLAT-06 ký HTML giám định: `/v1/forensic/signing-key` dùng lại `SigningKey`,
 verify giữ shape body và giới hạn chữ ký 160 ký tự. MOCK không được verify là
 chữ ký thật; header mới chỉ thuật toán/fingerprint. Xem
