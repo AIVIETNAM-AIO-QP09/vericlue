@@ -22,8 +22,15 @@ FOR-04 đã có phần xuất gói PDF/JSON ký Ed25519, Node/Chromium opt-in:
 [`forensic-pdf-bundle.md`](../../docs/architecture/forensic-pdf-bundle.md).
 `GET /v1/forensic/jobs/{id}/report-bundle` chỉ cho staff, job done/real, có khóa
 report và runtime. Thiếu runtime trả 503; HTML ký vẫn dùng độc lập. CLI xác minh
-đúng ba tệp bằng public key đã pin, không giải nén/render. Chưa có neo audit,
-LR/thang lời ENFSI hoặc UI mới.
+đúng ba tệp bằng public key đã pin, không giải nén/render. Chưa có LR/thang lời
+ENFSI hoặc UI mới.
+
+`POST /v1/forensic/jobs` thêm review_case_id tùy chọn; thiếu mã ca giữ file độc lập.
+Gắn ca phải có quyết định ban đầu và file khớp byte media đang lưu, gồm SEC-01.
+Checkpoint được ký trong báo cáo, chống ký lại đuôi đã cắt và không hạ mốc mới.
+`POST /v1/forensic/review-audit/verify` kiểm JSON đã ký trước DB, phân biệt intact/
+extended/truncated; scope không gồm byte PDF. Không khởi tạo mô hình khi verify.
+Xem [liên kết và nhật ký](../../docs/architecture/forensic-review-audit.md).
 
 Ảnh/phổ minh họa opt-in cho cả HTML và PDF:
 [`forensic-report-evidence.md`](../../docs/architecture/forensic-report-evidence.md).

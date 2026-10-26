@@ -37,7 +37,25 @@ jobs:
       - name: openapi.json khớp code (chạy lại gen_openapi không được tạo khác biệt)
         run: uv run python scripts/gen_openapi.py && git diff --exit-code -- packages/contracts/openapi.json
       - name: FFmpeg cho kiểm tra ảnh/phổ báo cáo (công cụ CI, không đóng gói sản phẩm)
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+        timeout-minutes: 6
+        run: |
+          if ! /usr/bin/ffmpeg -version >/dev/null 2>&1; then
+            # Avoid the runner's mirror redirector: slow archive downloads can exceed the budget.
+            # A job-local source list keeps the runner configuration intact; APT verifies Ubuntu signatures.
+            . /etc/os-release
+            apt_sources="$RUNNER_TEMP/vericlue-ubuntu.list"
+            printf 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://archive.ubuntu.com/ubuntu %s main universe\n' \
+              "$VERSION_CODENAME" "${VERSION_CODENAME}-updates" "${VERSION_CODENAME}-security" > "$apt_sources"
+            apt_options=(
+              -o "Dir::Etc::sourcelist=$apt_sources" -o Dir::Etc::sourceparts=-
+              -o Acquire::Languages=none -o Acquire::Retries=1
+              -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20
+              -o Dpkg::Lock::Timeout=30
+            )
+            sudo apt-get "${apt_options[@]}" update
+            sudo apt-get "${apt_options[@]}" install -y --no-install-recommends ffmpeg
+          fi
+          /usr/bin/ffmpeg -version
       - name: Test (mô-đun giả lập, CPU)
         env:
           USE_MOCK_MODELS: "true"

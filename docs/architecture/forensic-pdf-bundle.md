@@ -85,5 +85,7 @@ Không chép code SDK; dùng dependency Playwright đã có trong web.
 
 Ảnh/phổ opt-in dùng chung HTML/PDF: [forensic-report-evidence.md](forensic-report-evidence.md).
 
-FOR-04 còn neo hash cuối review_events, LR/calibrator riêng, thang lời và
+Gắn ca và neo review_events tùy chọn: [forensic-review-audit.md](forensic-review-audit.md).
+
+FOR-04 còn LR/calibrator riêng, thang lời và
 kiểm ENFSI 2015. Không đánh dấu hoàn thành toàn task bằng phần xuất này.

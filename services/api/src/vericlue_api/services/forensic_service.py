@@ -24,9 +24,16 @@ from sqlalchemy.orm import Session as DBSession
 from vericlue_api.core.errors import ApiError
 from vericlue_api.core.report_signing import ReportSigner
 from vericlue_api.db.models import ForensicJobRow, ForensicSegmentRow
-from vericlue_api.schemas.forensic import ForensicJob, ForensicSegment, SegmentSignal, Verdict
+from vericlue_api.schemas.forensic import (
+    ForensicJob,
+    ForensicSegment,
+    ReviewAuditAnchor,
+    SegmentSignal,
+    Verdict,
+)
 from vericlue_api.services.detection import run_detectors
 from vericlue_api.services.report_evidence import ReportEvidence
+from vericlue_api.services.review_audit_link import ReviewAuditLinker
 from vericlue_api.services.storage import save_generated, save_upload
 from vericlue_ml.common.result import Module, ModuleResult, Status
 
@@ -74,6 +81,7 @@ class ForensicStore:
         runner: Callable = run_detectors,
         mock: bool = True,
         report_signer: Callable[[], ReportSigner] | None = None,
+        review_links: ReviewAuditLinker | None = None,
         evidence_builder: Callable[[ForensicJob, ForensicJobRow], ReportEvidence | None]
         | None = None,
     ) -> None:
@@ -82,15 +90,31 @@ class ForensicStore:
         self.mock = mock
         self.db, self.media_dir = db, media_dir
         self._report_signer = report_signer
+        self._review_links = review_links
         self._evidence_builder = evidence_builder
 
     # --- tạo job ------------------------------------------------------------
-    def create(self, data: bytes, filename: str | None, scenario: str) -> ForensicJob:
+    def create(
+        self, data: bytes, filename: str | None, scenario: str, *, review_case_id: str | None = None
+    ) -> ForensicJob:
+        anchor = None
+        if review_case_id is not None:
+            if self.mock:
+                raise ApiError(
+                    409,
+                    "review_link_unavailable",
+                    "Bản mô phỏng không cấp liên kết vật chứng đã kiểm.",
+                )
+            if self._review_links is None:
+                raise ApiError(503, "review_link_unavailable", "Chưa thể liên kết hồ sơ.")
+            anchor = self._review_links.bind(review_case_id, data)
         if not self.mock:
-            return self._create_queued(data, filename)
+            return self._create_queued(data, filename, review_audit=anchor)
         return self._create_mock(data, filename, scenario)
 
-    def _create_queued(self, data: bytes, filename: str | None) -> ForensicJob:
+    def _create_queued(
+        self, data: bytes, filename: str | None, *, review_audit: ReviewAuditAnchor | None = None
+    ) -> ForensicJob:
         """Tiếp nhận: hash TRÊN BYTE GỐC, lưu file nguyên vẹn, xếp hàng. Chưa đọc/giải mã gì cả."""
         job = ForensicJob(
             job_id=f"job_{secrets.token_hex(6)}",
@@ -98,6 +122,7 @@ class ForensicStore:
             file_sha256=hashlib.sha256(data).hexdigest(),
             verdict=None,
             segments=[],
+            review_audit=review_audit,
         )
         path = save_upload(self.media_dir, "forensic/" + job.job_id, "source", filename, data)
         self.db.add(
@@ -302,7 +327,7 @@ class ForensicStore:
 
     def report(self, job_id: str) -> tuple[str, str, str] | None:
         """HTML, SHA-256 of exact UTF-8 bytes and detached signature (MOCK for mock jobs)."""
-        job = self.get(job_id)
+        job = self.report_job(job_id)
         if job is None:
             return None
         if job.status != "done":
@@ -440,6 +465,18 @@ class ForensicStore:
             if report_context
             else ""
         )
+        anchor = job.review_audit
+        link_html = (
+            "<h2>Hồ sơ liên kết và mốc nhật ký</h2>"
+            f"<p>Ca: {e(anchor.case_id)}; phiên: {e(anchor.session_id)}; bản ghi: {e(anchor.source_role)}.</p>"
+            f"<p>SHA-256 bản ghi đã đối chiếu: {anchor.source_sha256}</p>"
+            f"<p>Mốc gồm {anchor.event_count} sự kiện; ID cuối: {anchor.tail_event_id}.<br>"
+            f"Hash cuối: {anchor.tail_hash}<br>Ghi nhận mốc: {e(anchor.captured_at.isoformat())}</p>"
+            "<p>Mốc được ký cùng báo cáo để đối chiếu phần nhật ký đã có. Sự kiện thêm sau mốc "
+            "không làm mất hiệu lực phần đã neo; chữ ký không chứng nhận danh tính hoặc kết luận AI.</p>"
+            if anchor is not None
+            else "<h2>Liên kết hồ sơ</h2><p>Giám định file độc lập.</p>"
+        )
         evidence_html = (
             "<style>.report-illustration{margin:12px 0;break-inside:avoid}"
             ".report-illustration img{display:block;max-width:100%;height:auto}"
@@ -465,6 +502,7 @@ class ForensicStore:
             f"{context_html}"
             f"<p>Mã: {e(job.job_id)}</p><p>Tên file: {e(str(payload.get('filename', '')))}</p>"
             f"<p>SHA-256 file (byte gốc): {job.file_sha256}</p>"
+            f"{link_html}"
             f"<h2>Thông số file</h2><ul>{media_rows}</ul>"
             f"<h2>Kết luận</h2><p>Kết luận: {job.verdict}</p>"
             f"<p>{e(_VERDICT_LABELS_VI.get(job.verdict or '', ''))}. {e(job.verdict_reason or '')}</p>"
@@ -487,6 +525,15 @@ class ForensicStore:
             + "".join(f"<li>{e(item)}</li>" for item in LIMITATIONS_VI)
             + "</ul></section></html>"
         )
+
+    def report_job(self, job_id: str) -> ForensicJob | None:
+        """Refresh linked checkpoints only through prefix validation, before signing either format."""
+        job = self.get(job_id)
+        if job is None or job.status != "done" or job.review_audit is None:
+            return job
+        if self._review_links is None:
+            raise ApiError(503, "review_link_unavailable", "Chưa thể đối chiếu nhật ký hồ sơ.")
+        return self._review_links.refresh(job, self.db.get(ForensicJobRow, job_id))
 
     def report_evidence(self, job: ForensicJob, row: ForensicJobRow) -> ReportEvidence | None:
         """Server-generated illustrations only; disabled unless explicitly configured."""

@@ -75,6 +75,14 @@ không được lấy trực tiếp từ JSON/signals của client. Chưa có en
 
 ## Token, lượt và thử thách (ADR-0011)
 
+FOR-04 thêm `review_case_id` tùy chọn trong multipart tạo job; `review_audit`
+tùy chọn trong ForensicJob (và JSON đã ký) gồm case/session/role/hash nguồn và
+count/ID/hash cuối nhật ký. Job độc lập không có mốc. Source hash phải khớp
+file_sha256, server kiểm lại khi chuẩn hóa ký/xác minh. Thêm request/response
+`ReviewAuditVerify*` cho `/v1/forensic/review-audit/verify`: chỉ scope JSON có chữ
+ký và nhật ký, không xác minh byte PDF. Kiểm PDF đầy đủ vẫn dùng verifier gói.
+Xem [thiết kế](../../docs/architecture/forensic-review-audit.md).
+
 **FLOW-01/LIVE-01 (24/10):** Tạo phiên có body `CreateSessionRequest` là opt-in
 cho `purpose`/`nonce`; chưa gửi body vẫn giữ MVP. Gói `challenge.dynamic` chứa
 lịch ánh mắt, quay đầu và câu đọc từ trước. Luồng mới cần mã lượt ở media,

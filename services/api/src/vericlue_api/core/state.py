@@ -21,6 +21,7 @@ from vericlue_api.services.forensic_service import ForensicStore
 from vericlue_api.services.identity_steps import IdentitySteps
 from vericlue_api.services.orchestrator import Orchestrator
 from vericlue_api.services.report_evidence import ReportEvidenceBuilder
+from vericlue_api.services.review_audit_link import ReviewAuditLinker
 from vericlue_api.services.review_store import ReviewStore
 from vericlue_api.services.session_flow import SessionFlow
 from vericlue_api.services.session_privacy import SessionPrivacy
@@ -43,6 +44,7 @@ class AppState:
     accounts: AccountStore = field(init=False)
     enrollment: EnrollmentService = field(init=False)
     signed_results: SignedResultService = field(init=False)
+    review_audit: ReviewAuditLinker = field(init=False)
 
     def __post_init__(self) -> None:
         self.privacy = SessionPrivacy(self.settings, self.db)
@@ -66,6 +68,7 @@ class AppState:
 
         self.sessions = SessionStore(self.db, privacy=self.privacy)
         self.reviews = ReviewStore(self.db, runner=runner, privacy=self.privacy)
+        self.review_audit = ReviewAuditLinker(self.settings, self.db, self.privacy)
         self.forensic = ForensicStore(
             self.settings.router_config.face.b,
             self.settings.router_config.face.a,
@@ -75,6 +78,7 @@ class AppState:
             # true → bản mock; false/mixed → phân tích thật
             mock=self.settings.use_mock_models is True,
             report_signer=lambda: self.settings.report_signer,
+            review_links=self.review_audit,
             evidence_builder=ReportEvidenceBuilder(self.settings).build,
         )
         self.flow = SessionFlow(
@@ -156,4 +160,5 @@ def get_state(request: Request) -> Iterator[AppState]:
         lock_timeout_seconds=timeout, inference_deadline=inference_deadline if guarded else None
     ) as state:
         state.reviews.actor = getattr(request.state, "staff_actor", "staff-unverified")
+        state.review_audit.actor = state.reviews.actor
         yield state

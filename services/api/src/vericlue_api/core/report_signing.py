@@ -74,3 +74,9 @@ class ReportSigner:
             "ascii"
         )
         return raw, signature
+
+    def verify_manifest(self, raw: bytes, signature: str) -> PdfReportManifest:
+        """Verify signed canonical report JSON only, without verifying PDF bytes."""
+        from vericlue_api.core.pdf_bundle import verify_manifest
+
+        return verify_manifest(raw, signature, self._key.public_key())

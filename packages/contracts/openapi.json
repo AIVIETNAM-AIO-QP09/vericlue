@@ -80,6 +80,19 @@
             "description": "Video hoặc âm thanh cần giám định",
             "title": "File",
             "type": "string"
+          },
+          "review_case_id": {
+            "anyOf": [
+              {
+                "pattern": "^case_[A-Za-z0-9_-]{1,64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tùy chọn: ca đã có quyết định ban đầu; server đối chiếu byte media",
+            "title": "Review Case Id"
           }
         },
         "required": [
@@ -960,6 +973,16 @@
               }
             ]
           },
+          "review_audit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewAuditAnchor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "segments": {
             "items": {
               "$ref": "#/components/schemas/ForensicSegment"
@@ -1734,6 +1757,173 @@
           "modules"
         ],
         "title": "ReviewAiOpinion",
+        "type": "object"
+      },
+      "ReviewAuditAnchor": {
+        "additionalProperties": false,
+        "description": "Server-verified media binding and append-only review checkpoint, signed in reports.",
+        "properties": {
+          "captured_at": {
+            "format": "date-time",
+            "title": "Captured At",
+            "type": "string"
+          },
+          "case_id": {
+            "pattern": "^case_[A-Za-z0-9_-]{1,64}$",
+            "title": "Case Id",
+            "type": "string"
+          },
+          "event_count": {
+            "maximum": 4096.0,
+            "minimum": 1.0,
+            "title": "Event Count",
+            "type": "integer"
+          },
+          "session_id": {
+            "pattern": "^ses_[A-Za-z0-9_-]{1,72}$",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "source_role": {
+            "enum": [
+              "face_video",
+              "voice_audio",
+              "voice_video"
+            ],
+            "title": "Source Role",
+            "type": "string"
+          },
+          "source_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Source Sha256",
+            "type": "string"
+          },
+          "tail_event_id": {
+            "minimum": 1.0,
+            "title": "Tail Event Id",
+            "type": "integer"
+          },
+          "tail_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Tail Hash",
+            "type": "string"
+          },
+          "version": {
+            "const": 1,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "case_id",
+          "session_id",
+          "source_role",
+          "source_sha256",
+          "captured_at",
+          "event_count",
+          "tail_event_id",
+          "tail_hash"
+        ],
+        "title": "ReviewAuditAnchor",
+        "type": "object"
+      },
+      "ReviewAuditVerifyRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "report_json": {
+            "maxLength": 4194304,
+            "minLength": 1,
+            "title": "Report Json",
+            "type": "string"
+          },
+          "signature": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Signature",
+            "type": "string"
+          }
+        },
+        "required": [
+          "report_json",
+          "signature"
+        ],
+        "title": "ReviewAuditVerifyRequest",
+        "type": "object"
+      },
+      "ReviewAuditVerifyResponse": {
+        "properties": {
+          "anchored_count": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchored Count"
+          },
+          "appended_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Appended Count"
+          },
+          "current_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Count"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "scope": {
+            "const": "signed_json_review_audit",
+            "default": "signed_json_review_audit",
+            "title": "Scope",
+            "type": "string"
+          },
+          "signature_valid": {
+            "title": "Signature Valid",
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "intact",
+              "extended",
+              "invalid_signature",
+              "unlinked",
+              "case_unavailable",
+              "chain_invalid",
+              "tail_truncated",
+              "anchor_mismatch"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "signature_valid",
+          "ok",
+          "status"
+        ],
+        "title": "ReviewAuditVerifyResponse",
         "type": "object"
       },
       "ReviewCase": {
@@ -2555,6 +2745,36 @@
             },
             "description": "Thiếu hoặc sai credential nhân viên"
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Không tìm thấy ca cần liên kết"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Ca chưa có quyết định ban đầu, file không khớp hoặc nhật ký không hợp lệ"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Media của hồ sơ đã hết thời hạn lưu trữ"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -2844,6 +3064,73 @@
           }
         ],
         "summary": "Download Report Bundle",
+        "tags": [
+          "forensic"
+        ]
+      }
+    },
+    "/v1/forensic/review-audit/verify": {
+      "post": {
+        "description": "Verify signed JSON first, then compare its checkpoint with DB; does not verify PDF bytes.",
+        "operationId": "verify_signed_review_audit_v1_forensic_review_audit_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewAuditVerifyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewAuditVerifyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai credential nhân viên"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Credential nhân viên, khóa report hoặc kho dữ liệu chưa sẵn sàng"
+          }
+        },
+        "security": [
+          {
+            "StaffBearer": []
+          }
+        ],
+        "summary": "Verify Signed Review Audit",
         "tags": [
           "forensic"
         ]

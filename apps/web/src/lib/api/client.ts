@@ -155,6 +155,36 @@ export function createApiClient(options: ApiClientOptions = {}) {
         { json: { decision, note }, signal },
       );
     },
+    createForensicJob(
+      file: Blob,
+      fileName: string,
+      opts: { reviewCaseId?: string; signal?: AbortSignal } = {},
+    ) {
+      const form = new FormData();
+      form.append("file", file, fileName);
+      if (opts.reviewCaseId !== undefined) form.append("review_case_id", opts.reviewCaseId);
+      return staffRequest<Schemas["JobCreated"]>("POST", "/v1/forensic/jobs", {
+        form,
+        signal: opts.signal,
+      });
+    },
+    getForensicJob(jobId: string, signal?: AbortSignal) {
+      return staffRequest<Schemas["ForensicJob"]>(
+        "GET",
+        `/v1/forensic/jobs/${encodeURIComponent(jobId)}`,
+        { signal },
+      );
+    },
+    verifyForensicReviewAudit(reportJson: string, signature: string, signal?: AbortSignal) {
+      return staffRequest<Schemas["ReviewAuditVerifyResponse"]>(
+        "POST",
+        "/v1/forensic/review-audit/verify",
+        {
+          json: { report_json: reportJson, signature },
+          signal,
+        },
+      );
+    },
     getAiOpinion(caseId: string, signal?: AbortSignal) {
       return staffRequest<ReviewAiOpinion>(
         "GET",

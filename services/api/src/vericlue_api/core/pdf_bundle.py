@@ -77,24 +77,19 @@ def _unique_object(pairs):
     return result
 
 
-def verify_parts(
-    pdf: bytes,
+def verify_manifest(
     raw: bytes,
     signature: str,
     key: Ed25519PublicKey,
     *,
     expected_job_id: str | None = None,
 ) -> PdfReportManifest:
-    """Check signature before parsing JSON, then exact PDF hash and requested job."""
+    """Verify signed canonical JSON only; does not verify the accompanying PDF bytes."""
     try:
         if not isinstance(key, Ed25519PublicKey) or not 0 < len(raw) <= MAX_JSON_BYTES:
             raise ValueError("Invalid input bounds")
-        if (
-            not pdf.startswith(b"%PDF-")
-            or not 0 < len(pdf) <= MAX_PDF_BYTES
-            or len(signature) != 88
-        ):
-            raise ValueError("Invalid PDF/signature")
+        if len(signature) != 88:
+            raise ValueError("Invalid signature")
         decoded = base64.b64decode(signature, validate=True)
         if len(decoded) != 64 or base64.b64encode(decoded).decode("ascii") != signature:
             raise ValueError("Invalid signature encoding")
@@ -105,10 +100,28 @@ def verify_parts(
         manifest = PdfReportManifest.model_validate(parsed)
         if canonical_manifest(manifest) != raw or manifest.key_id != fingerprint:
             raise ValueError("Invalid manifest encoding/key")
-        if manifest.pdf_sha256 != hashlib.sha256(pdf).hexdigest():
-            raise ValueError("PDF changed")
         if expected_job_id is not None and manifest.job.job_id != expected_job_id:
             raise ValueError("Wrong report subject")
+        return manifest
+    except Exception as exc:
+        raise ValueError("Bundle not verified") from exc
+
+
+def verify_parts(
+    pdf: bytes,
+    raw: bytes,
+    signature: str,
+    key: Ed25519PublicKey,
+    *,
+    expected_job_id: str | None = None,
+) -> PdfReportManifest:
+    """Verify signed JSON and the exact PDF bytes; never render untrusted PDF content."""
+    try:
+        if not pdf.startswith(b"%PDF-") or not 0 < len(pdf) <= MAX_PDF_BYTES:
+            raise ValueError("Invalid PDF")
+        manifest = verify_manifest(raw, signature, key, expected_job_id=expected_job_id)
+        if manifest.pdf_sha256 != hashlib.sha256(pdf).hexdigest():
+            raise ValueError("PDF changed")
         return manifest
     except Exception as exc:
         raise ValueError("Bundle not verified") from exc
