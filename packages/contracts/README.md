@@ -1,5 +1,11 @@
 # Contracts — hợp đồng giữa các phần
 
+FLOW-05/SEC-02 bổ sung account_id/device_id cho tạo phiên, device_challenge,
+device-proof và receipt theo bearer phiên. VoiceResponse có account sau hoàn
+tất ghi danh/khôi phục; không trả template hoặc public key. ACK L0 chỉ xác nhận
+khóa, không phải verdict sinh trắc. Chi tiết:
+[`account-authentication.md`](../../docs/architecture/account-authentication.md).
+
 Đây là **nguồn sự thật** cho dữ liệu đi qua lại giữa web, API và bộ não AI. Nhờ có hợp đồng cố định, 5 người (và nhiều AI) làm song song mà không lệch nhau.
 
 | File | Dùng cho |

@@ -14,6 +14,11 @@ import vn.vericlue.app.data.api.Challenge
 import vn.vericlue.app.data.api.ColorEvent
 import vn.vericlue.app.data.api.ColorStep
 import vn.vericlue.app.data.api.CreateSessionResponse
+import vn.vericlue.app.data.api.CreateSessionRequest
+import vn.vericlue.app.data.api.AccountReceipt
+import vn.vericlue.app.data.api.DeviceChallenge
+import vn.vericlue.app.data.api.DeviceProofRequest
+import vn.vericlue.app.data.api.DeviceProofResponse
 import vn.vericlue.app.data.api.FinalizeResponse
 import vn.vericlue.app.data.api.FrameTime
 import vn.vericlue.app.data.api.Signals
@@ -63,6 +68,11 @@ class ContractTest {
         checkResponse("StepAck", StepAck.serializer())
         checkResponse("FinalizeResponse", FinalizeResponse.serializer())
         checkResponse("VoiceResponse", VoiceResponse.serializer())
+        checkResponse("AccountReceipt", AccountReceipt.serializer())
+        checkResponse("DeviceChallenge", DeviceChallenge.serializer())
+        checkResponse("DeviceProofResponse", DeviceProofResponse.serializer())
+        checkRequest(defs["CreateSessionRequest"]!!.jsonObject, "CreateSessionRequest", CreateSessionRequest.serializer())
+        checkRequest(defs["DeviceProofRequest"]!!.jsonObject, "DeviceProofRequest", DeviceProofRequest.serializer())
     }
 
     @Test

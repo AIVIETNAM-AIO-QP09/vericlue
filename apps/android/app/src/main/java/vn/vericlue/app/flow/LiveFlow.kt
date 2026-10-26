@@ -8,11 +8,13 @@ import kotlinx.coroutines.withContext
 import vn.vericlue.app.security.MediaSigner
 import vn.vericlue.app.security.MediaProof
 import vn.vericlue.app.security.AndroidMediaSigner
+import vn.vericlue.app.security.DeviceProof
 import vn.vericlue.app.BuildConfig
 import vn.vericlue.app.capture.CamProbe
 import vn.vericlue.app.capture.RegionFrame
 import vn.vericlue.app.data.api.ApiError
 import vn.vericlue.app.data.api.ApiResult
+import vn.vericlue.app.data.api.AccountReceipt
 import vn.vericlue.app.data.api.Challenge
 import vn.vericlue.app.data.api.ColorEvent
 import vn.vericlue.app.data.api.CreateSessionResponse
@@ -40,6 +42,8 @@ class LiveFlow(
     var session: CreateSessionResponse? = null
         private set
     var challenge: Challenge? = null
+        private set
+    var accountReceipt: AccountReceipt? = null
         private set
     var frontalJpeg: ByteArray? = null
     val colorEvents = mutableListOf<ColorEvent>()
@@ -73,6 +77,7 @@ class LiveFlow(
     fun reset() {
         session = null
         challenge = null
+        accountReceipt = null
         frontalJpeg = null
         colorEvents.clear()
         otpSms = null
@@ -105,22 +110,44 @@ class LiveFlow(
      * flow: a `dynamic` schedule for onboarding/recovery, purpose rules on the server. Null keeps the
      * old MVP session.
      */
-    suspend fun ensureSession(mockScenario: String?, purpose: String? = null): ApiError? {
+    suspend fun ensureSession(mockScenario: String?, purpose: String? = null, account: AccountReceipt? = null): ApiError? {
         if (session != null) return null
-        if (mediaSigner != null && purpose !in setOf("onboarding", "recovery")) return ApiError.BadResponse
-        val spki = mediaSigner?.let { signer -> withContext(Dispatchers.IO) {
+        if (mediaSigner != null && purpose !in setOf("onboarding", "recovery", "reauth")) return ApiError.BadResponse
+        if (purpose == "reauth" && (account == null || mediaSigner == null)) return ApiError.BadResponse
+        if (account != null && purpose !in setOf("reauth", "recovery")) return ApiError.BadResponse
+        if (account != null && mediaSigner == null) return ApiError.BadResponse
+        val spki = if (purpose == "reauth") null else mediaSigner?.let { signer -> withContext(Dispatchers.IO) {
             runCatching { signer.publicKeySpki }.getOrNull()
         } }
-        if (mediaSigner != null && spki == null) return ApiError.Server
-        val request = purpose?.let { CreateSessionRequest(it, newNonce(), spki) }
+        if (mediaSigner != null && spki == null && purpose != "reauth") return ApiError.Server
+        val nonce = newNonce()
+        val request = purpose?.let { CreateSessionRequest(it, nonce, spki, account?.accountId, account?.deviceId?.takeIf { purpose == "reauth" }) }
         return when (val r = api.createSession(mockScenario, request)) {
             is ApiResult.Ok -> {
                 if (mediaSigner != null && r.value.challenge.mediaNonce == null) return ApiError.BadResponse
+                if (purpose == "reauth") {
+                    val signature = withContext(Dispatchers.IO) {
+                        runCatching { requireNotNull(mediaSigner).sign(DeviceProof.payload(r.value, requireNotNull(account), nonce)) }.getOrNull()
+                    } ?: return ApiError.BadResponse
+                    when (val proof = api.proveDevice(r.value.sessionId, r.value.token, signature)) {
+                        is ApiResult.Err -> return proof.error
+                        is ApiResult.Ok -> if (!proof.value.received) return ApiError.BadResponse
+                    }
+                } else if (r.value.deviceChallenge != null) return ApiError.BadResponse
                 session = r.value
                 challenge = r.value.challenge
                 null
             }
             is ApiResult.Err -> r.error
+        }
+    }
+
+    /** Recover a committed receipt after the voice HTTP response was lost. No biometrics returned. */
+    suspend fun fetchAccountReceipt(): ApiError? {
+        val current = session ?: return ApiError.BadResponse
+        return when (val result = api.accountReceipt(current.sessionId, current.token)) {
+            is ApiResult.Err -> result.error
+            is ApiResult.Ok -> { accountReceipt = result.value; null }
         }
     }
 
@@ -283,6 +310,7 @@ class LiveFlow(
             is ApiResult.Ok -> {
                 pendingWav = null
                 voiceChecked = true
+                if (r.value.status == "pass") accountReceipt = r.value.account
                 onAccepted()
                 if (r.value.status == "voice_challenge") {
                     // A re-read has a new sentence and a new id; the old recording cannot be resent.

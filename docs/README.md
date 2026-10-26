@@ -9,6 +9,8 @@
 | Đang dùng AI (Codex, Claude) | `ai/working-with-ai.md` và `../AGENTS.md` |
 | Cần biết thiết kế | `architecture/architecture.md`, `adr/` |
 
+Ghi danh, L0 và khôi phục tài khoản: [account-authentication.md](architecture/account-authentication.md).
+
 ## Cấu trúc
 
 ```

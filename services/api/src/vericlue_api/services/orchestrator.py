@@ -18,6 +18,7 @@ from vericlue_api.core.errors import ApiError
 from vericlue_ml.common.detector import Detector, DetectorInput
 from vericlue_ml.common.result import ErrorCode, Evidence, Module, ModuleResult, Status
 from vericlue_ml.face.continuity import FaceContinuityDetector
+from vericlue_ml.face.enrolled import match_enrolled
 from vericlue_ml.face.fsvfm import FsvfmPadDetector
 from vericlue_ml.face.gend import FaceDeepfakeDetector
 from vericlue_ml.face.match import FaceMatchDetector
@@ -50,6 +51,7 @@ class _Job:
     deadline: float
     result: Future = field(default_factory=Future)
     approved: ModuleResult | None = None
+    reference_template: FaceTemplate | None = field(default=None, repr=False)
 
 
 class Orchestrator:
@@ -294,6 +296,7 @@ class Orchestrator:
         submitted: float,
         deadline: float,
         approved: ModuleResult | None = None,
+        reference_template: FaceTemplate | None = None,
     ) -> tuple[ModuleResult | FaceTemplate, float]:
         if perf_counter() >= deadline:
             finished = perf_counter()
@@ -301,7 +304,21 @@ class Orchestrator:
                 module, ErrorCode.E_TIMEOUT, (finished - submitted) * 1000, reason="timeout"
             ), finished
         try:
-            if approved is not None:
+            if reference_template is not None:
+                if self.settings.use_mock_models is not False:
+                    raise ValueError("Enrolled matching requires real model mode")
+                detector = self._detectors[module]
+                if module != Module.FACE_MATCH or not isinstance(detector, VideoFaceMatchDetector):
+                    raise ValueError("Video identity detector required")
+                artifact = (
+                    self.settings.identity_recovery_calibration
+                    if inp.metadata.get("purpose") == "recovery"
+                    else self.settings.identity_account_calibration
+                )
+                result = match_enrolled(
+                    detector, inp, reference_template, Path(artifact) if artifact else None
+                )
+            elif approved is not None:
                 detector = self._detectors[module]
                 if module != Module.FACE_MATCH or not isinstance(detector, VideoFaceMatchDetector):
                     raise ValueError("Video identity detector required")
@@ -309,7 +326,8 @@ class Orchestrator:
                 # Private artifact: never place it in ModuleResult or detector logs.
                 template = FaceTemplate.model_validate_json(template.model_dump_json())
                 return template, perf_counter()
-            result = self._detectors[module].predict(inp)
+            else:
+                result = self._detectors[module].predict(inp)
             if not isinstance(result, ModuleResult) or Module(result.module) != module:
                 raise ValueError("Invalid detector result")
             result = ModuleResult.model_validate(result.model_dump())
@@ -322,7 +340,9 @@ class Orchestrator:
         # Only one executor worker per module; queued requests do not occupy pool threads.
         module = job.module
         while True:
-            result = self._predict(module, job.inp, job.submitted, job.deadline, job.approved)
+            result = self._predict(
+                module, job.inp, job.submitted, job.deadline, job.approved, job.reference_template
+            )
             with self._lifecycle:
                 queue = self._queues[module]
                 next_job = queue.popleft() if queue else None
@@ -443,6 +463,7 @@ class Orchestrator:
         extra_metadata: dict[str, Any] | None = None,
         deadline: float | None = None,
         media_lease=None,
+        reference_template: FaceTemplate | None = None,
     ) -> dict[Module, ModuleResult]:
         """Use a common submission deadline; discard late results without state writes."""
         started = perf_counter()
@@ -513,7 +534,15 @@ class Orchestrator:
                         reason="busy",
                     )
                     continue
-                job = _Job(module, inp.model_copy(deep=True), started, deadline)
+                job = _Job(
+                    module,
+                    inp.model_copy(deep=True),
+                    started,
+                    deadline,
+                    reference_template=reference_template.model_copy(deep=True)
+                    if module == Module.FACE_MATCH and reference_template is not None
+                    else None,
+                )
                 futures[module] = self._enqueue_locked(job, media_lease)
         if futures:
             wait(futures.values(), timeout=max(0.0, deadline - perf_counter()))

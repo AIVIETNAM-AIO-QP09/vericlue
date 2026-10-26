@@ -21,12 +21,13 @@ from sqlalchemy.orm import Session as DBSession
 
 from vericlue_api.core.config import Settings
 from vericlue_api.core.errors import ApiError
-from vericlue_api.db.models import AccountRow, SessionRow, aware, utcnow
+from vericlue_api.db.models import AccountRecoveryRow, AccountRow, SessionRow, aware, utcnow
 from vericlue_api.services.media_proof import public_key, require_consumed
 from vericlue_api.services.session_privacy import SessionPrivacy
 from vericlue_api.services.session_store import Session
 from vericlue_ml.common.result import Gate, Module, ModuleResult, Status
 from vericlue_ml.face.continuity import FACE_VOICE_VERSION
+from vericlue_ml.face.enrolled import RECOVERY_MATCH_VERSION
 from vericlue_ml.face.template import FaceTemplate
 from vericlue_ml.face.video_match import VIDEO_MATCH_VERSION
 
@@ -88,14 +89,14 @@ class AccountStore:
             raise unavailable() from exc
 
     @staticmethod
-    def _aad(row: AccountRow, purpose: str) -> bytes:
+    def _aad(row: AccountRow, purpose: str, *, device_id: str | None = None) -> bytes:
         # Authenticate lookup metadata as well as the encrypted identity/device/template.
         return json.dumps(
             [
                 "vericlue-account-v1",
                 row.account_id,
                 row.source_session_id,
-                row.device_id,
+                device_id or row.device_id,
                 row.id_number_hmac,
                 row.phone_hmac,
                 aware(row.created_at).isoformat(),
@@ -133,6 +134,11 @@ class AccountStore:
         self, session: Session, *, continuity: ModuleResult | None = None
     ) -> None:
         """Reject ineligible sessions before scheduling any private template extraction."""
+        self._validate_biometrics(session, continuity=continuity)
+
+    def _validate_biometrics(
+        self, session: Session, *, continuity: ModuleResult | None = None, recovery: bool = False
+    ) -> None:
         self._master()
         if continuity is None:
             continuity = session.results.get(Module.FACE_CONTINUITY)
@@ -157,16 +163,19 @@ class AccountStore:
             or row.status != "pass"
             or row.ever_review
             or row.media_deleted_at is not None
-            or session.purpose != "onboarding"
+            or session.purpose != ("recovery" if recovery else "onboarding")
             or not session.completed
             or session.case_id is not None
             or not session.otp_verified
             or not session.phone_hmac
-            or not session.id_confirmed
-            or session.id_edited
-            or session.id_source not in {"server_qr", "ocr"}
-            or not session.id_number_hmac
-            or session.id_number_hmac != session.id_confirmed_number_hmac
+            or not recovery
+            and (
+                not session.id_confirmed
+                or session.id_edited
+                or session.id_source not in {"server_qr", "ocr"}
+                or not session.id_number_hmac
+                or session.id_number_hmac != session.id_confirmed_number_hmac
+            )
             or not {"media", "signals", "finalize", "voice"}.issubset(session.accepted_steps)
             or session.voice_requested
             or session.voice_owed
@@ -188,8 +197,14 @@ class AccountStore:
                 raise not_eligible()
         match = session.results[Module.FACE_MATCH]
         if (
-            match.model_version != VIDEO_MATCH_VERSION
+            match.model_version != (RECOVERY_MATCH_VERSION if recovery else VIDEO_MATCH_VERSION)
             or match.quality.get("consistency_verified") is not True
+            or recovery
+            and (
+                match.quality.get("enrolled_reference") is not True
+                or [e.value for e in match.evidence if e.name == "reference_account_id"]
+                != [session.account_id]
+            )
         ):
             raise not_eligible()
         hashes = [e.value for e in match.evidence if e.name == "source_video_sha256"]
@@ -223,6 +238,86 @@ class AccountStore:
         require_consumed(self.db, session, "face", required=True)
         require_consumed(self.db, session, "voice", required=True)
         public_key(session.media_public_key_spki)
+
+    def phone_hmac(self, account_id: str) -> str | None:
+        """Server-only registered phone lookup; caller must authenticate the live envelope."""
+        row = self.db.get(AccountRow, account_id)
+        return row.phone_hmac if row is not None else None
+
+    def receipt_for_session(self, session: Session) -> AccountReceipt:
+        """A session bearer can retrieve only its own successful completion receipt."""
+        record = self.db.get(SessionRow, session.session_id)
+        if record is None or record.status != "pass" or record.ever_review or not session.completed:
+            raise not_eligible()
+        recovery = self.db.get(AccountRecoveryRow, session.session_id)
+        row = self.db.scalar(
+            select(AccountRow)
+            .where(
+                AccountRow.account_id == recovery.account_id
+                if recovery is not None
+                else AccountRow.source_session_id == session.session_id
+            )
+            .with_for_update()
+        )
+        if row is None:
+            raise not_eligible()
+        identity = self.get(row.account_id)
+        if identity.public_key_spki != session.media_public_key_spki:
+            raise not_eligible()
+        if recovery is not None and recovery.device_id != identity.receipt.device_id:
+            raise not_eligible()
+        return identity.receipt
+
+    def recover(self, session: Session) -> AccountReceipt:
+        """Replace the enrolled key only after full recovery gates, in the caller's transaction."""
+        self._validate_biometrics(session, recovery=True)
+        identity = self.get(session.account_id or "")
+        row = self.db.get(AccountRow, identity.receipt.account_id)
+        previous = self.db.get(AccountRecoveryRow, session.session_id)
+        if previous is not None:
+            if (
+                previous.device_id != row.device_id
+                or identity.public_key_spki != session.media_public_key_spki
+            ):
+                raise not_eligible()
+            return identity.receipt
+        if (
+            session.registered_device_id != row.device_id
+            or session.phone_hmac != row.phone_hmac
+            or session.media_public_key_spki == identity.public_key_spki
+        ):
+            raise not_eligible()
+        # AAD authenticates device_id: re-seal both envelopes with a fresh DEK on rotation.
+        old_device = row.device_id
+        device_id = "dev_" + secrets.token_hex(16)
+        dek = AESGCM.generate_key(bit_length=256)
+        wrapped_key = self._seal(self._master(), dek, self._aad(row, "dek", device_id=device_id))
+        payload = {
+            "template": identity.template.model_dump(mode="json"),
+            "public_key_spki": session.media_public_key_spki,
+            "key_fingerprint": hashlib.sha256(
+                base64.b64decode(session.media_public_key_spki, validate=True)
+            ).hexdigest(),
+        }
+        encrypted_payload = self._seal(
+            dek,
+            json.dumps(payload, separators=(",", ":"), allow_nan=False).encode(),
+            self._aad(row, "identity", device_id=device_id),
+        )
+        with self.db.begin_nested():
+            row.device_id = device_id
+            row.wrapped_key, row.encrypted_payload = wrapped_key, encrypted_payload
+            self.db.add(
+                AccountRecoveryRow(
+                    session_id=session.session_id,
+                    account_id=row.account_id,
+                    previous_device_id=old_device,
+                    device_id=row.device_id,
+                )
+            )
+            self.db.flush()
+            self._audit(row, actor="system-recovery", action="device_replaced")
+        return self._receipt(row)
 
     def _eligible(
         self, session: Session, template: FaceTemplate, continuity: ModuleResult | None

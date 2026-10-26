@@ -1,6 +1,33 @@
 {
   "components": {
     "schemas": {
+      "AccountReceipt": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "pattern": "^acct_[0-9a-f]{32}$",
+            "title": "Account Id",
+            "type": "string"
+          },
+          "device_id": {
+            "pattern": "^dev_[0-9a-f]{32}$",
+            "title": "Device Id",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id",
+          "device_id",
+          "expires_at"
+        ],
+        "title": "AccountReceipt",
+        "type": "object"
+      },
       "AuditVerification": {
         "properties": {
           "bad_index": {
@@ -418,6 +445,30 @@
       "CreateSessionRequest": {
         "additionalProperties": false,
         "properties": {
+          "account_id": {
+            "anyOf": [
+              {
+                "pattern": "^acct_[0-9a-f]{32}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          },
+          "device_id": {
+            "anyOf": [
+              {
+                "pattern": "^dev_[0-9a-f]{32}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Id"
+          },
           "device_public_key_spki": {
             "anyOf": [
               {
@@ -468,6 +519,16 @@
         "properties": {
           "challenge": {
             "$ref": "#/components/schemas/Challenge"
+          },
+          "device_challenge": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeviceChallenge"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "expires_at": {
             "description": "Hạn của token (~5 phút)",
@@ -542,6 +603,56 @@
           "status"
         ],
         "title": "DecisionResponse",
+        "type": "object"
+      },
+      "DeviceChallenge": {
+        "additionalProperties": false,
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "message": {
+            "maxLength": 2048,
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message",
+          "expires_at"
+        ],
+        "title": "DeviceChallenge",
+        "type": "object"
+      },
+      "DeviceProofRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "signature": {
+            "maxLength": 160,
+            "minLength": 8,
+            "title": "Signature",
+            "type": "string"
+          }
+        },
+        "required": [
+          "signature"
+        ],
+        "title": "DeviceProofRequest",
+        "type": "object"
+      },
+      "DeviceProofResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "received": {
+            "const": true,
+            "default": true,
+            "title": "Received",
+            "type": "boolean"
+          }
+        },
+        "title": "DeviceProofResponse",
         "type": "object"
       },
       "DynamicChallenge": {
@@ -2188,6 +2299,16 @@
       },
       "VoiceResponse": {
         "properties": {
+          "account": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AccountReceipt"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "attempts_left": {
             "anyOf": [
               {
@@ -3443,6 +3564,83 @@
         ]
       }
     },
+    "/v1/sessions/{session_id}/account": {
+      "get": {
+        "operationId": "account_receipt_v1_sessions__session_id__account_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountReceipt"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai token phiên"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sai trạng thái, phiên đã kết thúc, thiếu bước hoặc sai/hết hạn mã thử thách; bước gửi trùng cũng trả 409."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Kho dữ liệu hoặc luồng xác minh chưa sẵn sàng"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Account Receipt",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
     "/v1/sessions/{session_id}/challenge": {
       "post": {
         "description": "Thử thách mới cho phần khuôn mặt và gia hạn token (ADR-0017 §2, giới hạn tổng 15 phút).",
@@ -3506,6 +3704,93 @@
           }
         ],
         "summary": "Refresh Challenge",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/v1/sessions/{session_id}/device-proof": {
+      "post": {
+        "operationId": "device_proof_v1_sessions__session_id__device_proof_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceProofRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceProofResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai token phiên"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sai trạng thái, phiên đã kết thúc, thiếu bước hoặc sai/hết hạn mã thử thách; bước gửi trùng cũng trả 409."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Kho dữ liệu hoặc luồng xác minh chưa sẵn sàng"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Device Proof",
         "tags": [
           "sessions"
         ]

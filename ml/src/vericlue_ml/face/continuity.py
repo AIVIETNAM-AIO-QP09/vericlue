@@ -19,6 +19,7 @@ import numpy as np
 
 from vericlue_ml.common.detector import DetectorInput
 from vericlue_ml.common.result import ErrorCode, Evidence, Gate, Module, ModuleResult, Status
+from vericlue_ml.face.enrolled import RECOVERY_MATCH_VERSION
 from vericlue_ml.face.match import FaceMatchDetector, MatchThreshold
 from vericlue_ml.face.pad import PadError
 from vericlue_ml.face.video_match import VIDEO_MATCH_VERSION
@@ -155,7 +156,12 @@ class FaceContinuityDetector:
         if inp.reference_video is None or inp.video is None or inp.audio is None:
             raise LandmarkError(ErrorCode.E_DECODE, Status.DEGRADED)
         approved = ModuleResult.model_validate(inp.metadata.get("face_reference_result"))
-        if approved.module != Module.FACE_MATCH or approved.model_version != VIDEO_MATCH_VERSION:
+        expected_version = (
+            RECOVERY_MATCH_VERSION
+            if inp.metadata.get("purpose") == "recovery" and inp.metadata.get("account_id")
+            else VIDEO_MATCH_VERSION
+        )
+        if approved.module != Module.FACE_MATCH or approved.model_version != expected_version:
             raise LandmarkError(ErrorCode.E_INTEGRITY)
         reference_hash = video_sha256(inp.reference_video)
         voice_hash = video_sha256(inp.video)

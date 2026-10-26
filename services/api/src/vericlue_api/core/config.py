@@ -98,6 +98,8 @@ class Settings(BaseSettings):
     identity_lab_url: str | None = None
     identity_lab_timeout_seconds: float = Field(default=90, gt=0, le=180)
     identity_face_calibration: str | None = None
+    identity_account_calibration: str | None = None
+    identity_recovery_calibration: str | None = None
     identity_face_from_video: bool = False
     session_face_checks: bool = False
     session_face_models: bool = False

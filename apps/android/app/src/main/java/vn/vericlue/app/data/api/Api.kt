@@ -70,7 +70,25 @@ data class DynamicChallenge(
 data class CreateSessionRequest(
     val purpose: String, val nonce: String,
     @SerialName("device_public_key_spki") val devicePublicKeySpki: String? = null,
+    @SerialName("account_id") val accountId: String? = null,
+    @SerialName("device_id") val deviceId: String? = null,
 )
+
+@Serializable
+data class AccountReceipt(
+    @SerialName("account_id") val accountId: String,
+    @SerialName("device_id") val deviceId: String,
+    @SerialName("expires_at") val expiresAt: String,
+)
+
+@Serializable
+data class DeviceChallenge(val message: String, @SerialName("expires_at") val expiresAt: String)
+
+@Serializable
+data class DeviceProofRequest(val signature: String)
+
+@Serializable
+data class DeviceProofResponse(val received: Boolean = false)
 
 @Serializable
 data class CreateSessionResponse(
@@ -80,6 +98,7 @@ data class CreateSessionResponse(
     val challenge: Challenge,
     val purpose: String? = null,
     val nonce: String? = null,
+    @SerialName("device_challenge") val deviceChallenge: DeviceChallenge? = null,
 )
 
 @Serializable
@@ -122,6 +141,7 @@ data class VoiceResponse(
     @SerialName("voice_prompt") val voicePrompt: String? = null,
     @SerialName("attempts_left") val attemptsLeft: Int? = null,
     @SerialName("voice_challenge_id") val voiceChallengeId: String? = null,
+    val account: AccountReceipt? = null,
 )
 
 @Serializable
@@ -199,6 +219,14 @@ class SessionApi(
         val body = request?.let { json.encodeToString(CreateSessionRequest.serializer(), it) } ?: "{}"
         return call(post(url("v1", "sessions"), body.toRequestBody(JSON), null, mockScenario))
     }
+
+    suspend fun proveDevice(sessionId: String, token: String, signature: String): ApiResult<DeviceProofResponse> =
+        call(post(url("v1", "sessions", sessionId, "device-proof"),
+            json.encodeToString(DeviceProofRequest.serializer(), DeviceProofRequest(signature)).toRequestBody(JSON), token))
+
+    suspend fun accountReceipt(sessionId: String, token: String): ApiResult<AccountReceipt> =
+        call(Request.Builder().url(url("v1", "sessions", sessionId, "account"))
+            .header("Authorization", "Bearer $token").header("Cache-Control", "no-store").get().build())
 
     suspend fun uploadMedia(sessionId: String, token: String, imageJpeg: ByteArray, video: File?, challengeId: String? = null, mediaSignature: String? = null): ApiResult<StepAck> {
         val body = MultipartBody.Builder().setType(MultipartBody.FORM)

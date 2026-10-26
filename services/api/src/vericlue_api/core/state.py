@@ -79,6 +79,7 @@ class AppState:
             router=self.orchestrator.router,
             privacy=self.privacy,
             enroll=self.enrollment.complete,
+            accounts=self.accounts,
         )
         self.identity = IdentitySteps(self.settings, privacy=self.privacy)
 

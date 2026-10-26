@@ -8,8 +8,10 @@
 FLOW-05 có nền lưu mẫu mặt/tài khoản mã hóa, gắn public key và dọn sau 24 giờ
 (migration 0005): [`account-enrollment.md`](../../docs/architecture/account-enrollment.md).
 `ACCOUNT_ENROLLMENT=true` nối worker trích mẫu và ghi danh sau `pass` onboarding
-trong cùng transaction; mặc định tắt, lỗi rollback cả quyết định. Chưa có endpoint
-lookup tài khoản hoặc L0, chốt real/mixed vẫn giữ nguyên. So cùng người
+trong cùng transaction; mặc định tắt, lỗi rollback cả quyết định. Đã có receipt
+theo bearer phiên, L0 và service khôi phục/thu hồi khóa (migration 0006), xem
+[`account-authentication.md`](../../docs/architecture/account-authentication.md).
+Chốt sinh trắc real/mixed và account-bound mock vẫn giữ. So cùng người
 giữa mặt–giọng đã có opt-in riêng: [`face-voice-continuity.md`](../../docs/architecture/face-voice-continuity.md).
 Thiếu ngưỡng riêng không được đạt. Không mở luồng thật/mixed.
 

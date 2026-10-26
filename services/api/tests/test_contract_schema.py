@@ -48,3 +48,16 @@ def test_review_case_rejects_score_fields():
     for extra in ("score", "prob_attack", "modules"):
         with pytest.raises(ValidationError):
             validate({**base, extra: 0.5}, "review", "ReviewCase")
+
+
+@pytest.mark.parametrize("extra", ["embedding", "public_key_spki", "phone", "score"])
+def test_account_receipt_cannot_expose_private_fields(extra):
+    receipt = {
+        "account_id": "acct_" + "a" * 32,
+        "device_id": "dev_" + "b" * 32,
+        "expires_at": "2026-10-27T00:00:00Z",
+    }
+    validate(receipt, "session", "AccountReceipt")
+    validate({"status": "pass", "account": receipt}, "session", "VoiceResponse")
+    with pytest.raises(ValidationError):
+        validate({**receipt, extra: "private"}, "session", "AccountReceipt")

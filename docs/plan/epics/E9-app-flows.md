@@ -139,9 +139,10 @@ Xem [`head-and-match.md`](../../architecture/head-and-match.md).
 - [x] Nền lưu mẫu/tài khoản mã hóa, DEK độc lập phiên, unique HMAC CCCD/phiên nguồn, gắn public key đã ký, TTL 24 giờ và cleanup có test tổng hợp.
 - [x] `face_continuity` mặt–giọng dùng chung LVFace, ba mẫu theo PTS/offset/WAV thật; protocol/ngưỡng riêng, API opt-in fail-closed, mock/CLI/test tổng hợp. Chưa hiệu chỉnh/đánh giá người thật.
 - [x] Worker trích mẫu dùng chung slot/hàng đợi LVFace và lease, hook ghi danh onboarding opt-in cùng transaction quyết định; quá hạn/lỗi rollback, không mở real/mixed.
+- [x] Receipt theo bearer phiên, client Android và worker so mẫu đã lưu cho reauth/recovery; protocol/ngưỡng riêng, không mở sinh trắc account-bound mock/real/mixed.
 - [ ] Đo VRAM khi chạy cùng bộ mô hình MVP.
 - [ ] Số liệu ngưỡng chạy ra từ code trong repo.
-- [ ] Nối FLOW-03/API và vòng đời mẫu mã hóa/xóa 24 giờ.
+- [ ] Nghiệm thu toàn luồng FLOW-03/API và vòng đời mẫu mã hóa/xóa 24 giờ trên thiết bị thật.
 
 **Cập nhật 25/10 (Codex, doing):** API opt-in `IDENTITY_LAB_URL` dùng LVFace-B
 thật cho một selfie đầu tiên với ảnh mặt trước CCCD; OCR giữ runtime riêng.
@@ -150,7 +151,7 @@ chặn artifact/kết quả AdaFace hoặc protocol cũ. `IDENTITY_FACE_FROM_VID
 chọn/kiểm chính diện từ video trong API; chưa có ngưỡng thật, mặc định không đạt.
 Nền ghi danh `AccountStore` có migration 0005 và contract template nội bộ;
 `ACCOUNT_ENROLLMENT` đã nối worker và lời gọi sau pass onboarding, mặc định tắt.
-Chưa có endpoint lookup/client hoặc nghiệm thu toàn luồng. Đã có `face_continuity` opt-in kiểm ba mẫu video
+Đã có receipt theo phiên và client; chưa nghiệm thu toàn luồng. Đã có `face_continuity` opt-in kiểm ba mẫu video
 giọng với khung chính diện; cần artifact riêng, thiếu thì không được đạt/ghi
 danh. Không cho mock/mixed tạo tài khoản. Xem
 [`account-enrollment.md`](../../architecture/account-enrollment.md).
@@ -211,15 +212,20 @@ UI nhân viên, backup/KMS/crash cleanup hay vận hành production; không ch�
 - Server kiểm chữ ký và đánh dấu nonce đã dùng (nullifier).
 
 **Tiêu chí hoàn thành:**
-- [ ] Test: dùng lại nonce, chữ ký sai, media bị đổi sau khi ký.
+- [x] Test: dùng lại nonce, chữ ký sai, media bị đổi sau khi ký.
+- [x] L0: khóa đã ghi danh, thử thách mới, claim DB một lần; sai khóa/phiên/hạn/replay không cấp device_verified.
+- [x] Service khôi phục kiểm đúng số điện thoại/mẫu mặt đã lưu; thay khóa/thu hồi phiên cũ cùng transaction, test tổng hợp và cạnh tranh PostgreSQL.
+- [ ] Nghiệm thu Keystore/account context/khôi phục toàn luồng trên điện thoại thật; kết quả có chữ ký cho bên tích hợp.
 
 **Cập nhật 25/10 (Codex, doing):** Đã có ràng buộc public key P-256 theo phiên,
 nonce server theo stage/lượt, ký hash byte/format/offset ở Android LiveFlow và
 kiểm trước lưu file, claim nullifier bằng PK DB (migration 0004). Test giả lập
 khóa thật: sửa byte, sai khóa/phiên/suffix/offset, replay, refresh/retry; mẫu
 canonical/signature chung Python–Kotlin. Cờ mặc định tắt, không sửa UI.
-Chưa ghi danh khóa với tài khoản, L0 reauth/thu hồi thiết bị hoặc nghiệm thu
-Keystore phần cứng; không cấp `device_verified` cho khóa tự khai. Xem `media-proof.md`.
+**Bổ sung 26/10:** Đã có L0/receipt, service khôi phục/thu hồi và lớp API/flow
+Android; không đổi UI, không cấp device_verified cho khóa tự khai. Chốt sinh
+trắc thật/mixed và account-bound mock còn giữ, chưa nghiệm thu Keystore phần
+cứng. Xem `media-proof.md` và `account-authentication.md`.
 
 ---
 

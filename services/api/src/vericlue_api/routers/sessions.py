@@ -4,16 +4,19 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, Header, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Header, Response, UploadFile
 from starlette.concurrency import run_in_threadpool
 
 from vericlue_api.core.errors import ApiError
 from vericlue_api.core.security import bearer_scheme, require_session
 from vericlue_api.core.state import AppState, get_state
 from vericlue_api.schemas.session import (
+    AccountReceipt,
     ChallengeResponse,
     CreateSessionRequest,
     CreateSessionResponse,
+    DeviceProofRequest,
+    DeviceProofResponse,
     ErrorResponse,
     FinalizeRequest,
     FinalizeResponse,
@@ -76,6 +79,32 @@ def create_session(
     ] = None,
 ) -> CreateSessionResponse:
     return state.flow.create(resolve_scenario(x_mock_scenario, state), request)
+
+
+@router.get(
+    "/{session_id}/account",
+    response_model=AccountReceipt,
+    responses=SESSION_ERRORS,
+)
+def account_receipt(session: SessionDep, state: StateDep, response: Response) -> AccountReceipt:
+    response.headers["Cache-Control"] = "no-store"
+    return AccountReceipt.model_validate(state.accounts.receipt_for_session(session))
+
+
+@router.post(
+    "/{session_id}/device-proof",
+    response_model=DeviceProofResponse,
+    responses=SESSION_ERRORS,
+)
+def device_proof(
+    session: SessionDep,
+    state: StateDep,
+    body: DeviceProofRequest,
+    response: Response,
+) -> DeviceProofResponse:
+    response.headers["Cache-Control"] = "no-store"
+    state.flow.account_auth.verify(session, body.signature)
+    return DeviceProofResponse()
 
 
 @router.post(
@@ -210,6 +239,10 @@ STAGE_A_ERRORS: dict[int | str, dict] = {
 def send_otp(session: SessionDep, state: StateDep, body: OtpRequest) -> OtpSent:
     """Gửi mã 6 số (hạn 2 phút, sai 5 lần thì khóa). Gọi lại = mã mới, mã cũ hết hiệu lực."""
     state.flow.ensure_open(session)
+    if session.account_id:
+        if session.purpose != "recovery":
+            raise ApiError(409, "step_not_allowed", "Bước này chưa phù hợp.")
+        state.flow.account_auth.check_phone(session, body.phone)
     return state.identity.send_otp(session, body.phone)
 
 
@@ -221,6 +254,10 @@ def send_otp(session: SessionDep, state: StateDep, body: OtpRequest) -> OtpSent:
 )
 def verify_otp(session: SessionDep, state: StateDep, body: OtpVerifyRequest) -> OtpVerifyResponse:
     state.flow.ensure_open(session)
+    if session.account_id:
+        if session.purpose != "recovery":
+            raise ApiError(409, "step_not_allowed", "Bước này chưa phù hợp.")
+        state.flow.account_auth.current(session)
     return state.identity.verify_otp(session, body.code)
 
 

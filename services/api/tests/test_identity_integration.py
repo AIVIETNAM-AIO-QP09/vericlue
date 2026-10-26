@@ -98,6 +98,7 @@ def test_identity_gate_cannot_bypass_confirmation_or_errors(
     flow.settings = Settings()
     session = SimpleNamespace(
         id_confirmed=confirmed,
+        account_id=None,
         id_edited=edited,
         id_source="ocr",
         results={
@@ -152,6 +153,7 @@ def test_saved_adaface_result_cannot_authorize_a_voice_step_after_migration():
     flow.settings = Settings()
     session = SimpleNamespace(
         id_confirmed=True,
+        account_id=None,
         id_edited=[],
         id_source="server_qr",
         results={

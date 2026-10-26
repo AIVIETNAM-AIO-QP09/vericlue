@@ -98,6 +98,35 @@ def test_private_operation_uses_loaded_worker_and_does_not_log_vectors(caplog):
         instance.close()
 
 
+def test_enrolled_matching_uses_loaded_face_worker_and_keeps_vector_outside_metadata(monkeypatch):
+    from vericlue_api.services import orchestrator
+    from vericlue_ml.face.enrolled import REAUTH_MATCH_VERSION
+
+    calls = []
+    instance, detector = scheduler(lambda *_: template())
+
+    def compare(loaded, inp, reference, artifact):
+        assert loaded is detector and reference == template()
+        assert "embedding" not in repr(inp) and "embedding" not in inp.model_dump_json()
+        calls.append(threading.get_ident())
+        return verdict(Module.FACE_MATCH, REAUTH_MATCH_VERSION)
+
+    monkeypatch.setattr(orchestrator, "match_enrolled", compare)
+    try:
+        result = instance.run(
+            [Module.FACE_MATCH],
+            session_id="ses_current",
+            scenario="genuine",
+            reference_template=template(),
+            extra_metadata={"purpose": "reauth"},
+        )
+        assert result[Module.FACE_MATCH].model_version == REAUTH_MATCH_VERSION
+        assert calls and calls[0] != threading.get_ident()
+        assert extract(instance) == template()  # Same cached instance still serves enrollment.
+    finally:
+        instance.close()
+
+
 def test_timeout_keeps_plaintext_until_native_finishes_and_rejects_overflow(tmp_path):
     ready, release = threading.Event(), threading.Event()
     directory = tempfile.TemporaryDirectory(dir=tmp_path)
@@ -297,7 +326,9 @@ def voice_ready(state, session=None):
     return session
 
 
-def test_voice_pass_calls_enrollment_after_completion_without_exposing_receipt(private_client):
+def test_voice_pass_returns_only_public_receipt_after_atomic_enrollment(private_client):
+    from vericlue_api.services.accounts import AccountReceipt
+
     with private_client.app.state.vericlue.transaction() as state:
         session = voice_ready(state)
         seen = []
@@ -306,11 +337,13 @@ def test_voice_pass_calls_enrollment_after_completion_without_exposing_receipt(p
             assert s.completed and not s.voice_requested and not s.voice_owed
             assert state.db.get(SessionRow, s.session_id).status == "pass"
             seen.append(s.session_id)
-            return {"account_id": "must-not-be-in-response", "embedding": "private"}
+            return AccountReceipt("acct_" + "a" * 32, "dev_" + "b" * 32, utcnow())
 
         state.flow._enroll = enroll
         response = state.flow.voice(session)
-        assert response.model_dump(exclude_none=True) == {"status": "pass"}
+        assert response.status == "pass"
+        assert response.account.account_id == "acct_" + "a" * 32
+        assert set(response.account.model_dump()) == {"account_id", "device_id", "expires_at"}
         assert seen == [session.session_id]
 
 
