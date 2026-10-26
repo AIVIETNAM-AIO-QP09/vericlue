@@ -129,34 +129,3 @@ struct LiveFaceRetryScreen: View {
         }
     }
 }
-
-// IOS-04 hands off the real server prompt and keeps the same camera controller.
-// Never let the IOS-01 demo microphone/auto-success act on a live API session.
-struct LiveVoicePendingScreen: View {
-    @ObservedObject var live: LiveFlow
-    @EnvironmentObject private var face: FaceCaptureFlow
-    @EnvironmentObject private var navigation: AppNavigation
-    @Environment(\.scenePhase) private var scenePhase
-    let onClose: () -> Void
-    var body: some View {
-        VcScreen(step: 3) {
-            VcTitleBlock(title: "Đọc to câu sau")
-            Text(live.voicePrompt ?? "Chưa nhận được câu đọc.").font(VcType.titleMedium)
-            FaceSmallPreview(camera: face.camera).frame(width: 96, height: 128)
-            #if DEBUG
-            Text("IOS-04: \(face.lastFrameCount) frame · \(face.lastEvents.count) màu · \(face.lastRegionCount) mẫu vùng")
-                .font(VcType.caption)
-            Text("JPEG: \(live.frontalJpeg?.count ?? 0) bytes · AE/AWB đã khóa: \(face.lastQuality["ae_awb_locked"] == .bool(true) ? "có" : "không")")
-                .font(VcType.caption)
-            if case .number(let fps) = face.lastQuality["fps"] {
-                Text("FPS: \(fps.formatted(.number.precision(.fractionLength(1))))").font(VcType.caption)
-            }
-            #endif
-            VcBanner(text: "Bước thu giọng chưa được triển khai. Chưa gửi bản ghi âm và chưa có kết quả xác minh.", tone: .warning)
-            VcSecondaryButton(title: "Quay lại ứng dụng ngân hàng") { face.cancel(); onClose() }
-        }
-        .onChange(of: scenePhase) { phase in
-            if phase != .active { face.interrupt(); navigation.replaceTop(with: .interrupted) }
-        }
-    }
-}

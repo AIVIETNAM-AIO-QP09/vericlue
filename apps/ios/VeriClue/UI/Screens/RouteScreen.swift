@@ -6,6 +6,7 @@ struct RouteScreen: View {
     @EnvironmentObject private var flow: DemoFlow
     @EnvironmentObject private var identity: IdentityFlow
     @EnvironmentObject private var face: FaceCaptureFlow
+    @EnvironmentObject private var voice: VoiceCaptureFlow
 
     private var usesLiveIdentity: Bool { flow.useLiveAPI && !flow.previewMode }
 
@@ -131,7 +132,9 @@ struct RouteScreen: View {
     }
 
     @ViewBuilder private var liveVoiceScreen: some View {
-        if let live = identity.liveFlow { LiveVoicePendingScreen(live: live, onClose: finishAtBank) }
+        if let live = identity.liveFlow {
+            VoiceLiveScreen(live: live, onRoute: { navigation.replaceTop(with: $0) }, onClose: finishAtBank)
+        }
         else { MessageScreen(systemImage: "wifi.exclamationmark", title: "Chưa thể tiếp tục",
                              bodyText: "Chưa kết nối được phiên xác minh. Hãy bắt đầu lại.",
                              primary: ("Quay lại ứng dụng ngân hàng", finishAtBank)) }
@@ -181,6 +184,7 @@ struct RouteScreen: View {
     }
 
     private func finishAtBank() {
+        voice.cancel()
         face.cancel()
         identity.reset()
         flow.resetForBank()
@@ -211,6 +215,7 @@ struct GalleryScreen: View {
     @EnvironmentObject private var navigation: AppNavigation
     @EnvironmentObject private var flow: DemoFlow
     @EnvironmentObject private var face: FaceCaptureFlow
+    @EnvironmentObject private var voice: VoiceCaptureFlow
     @Environment(\.vcColors) private var colors
     @State private var showFrontCameraCheckpoint = false
 
@@ -248,6 +253,13 @@ struct GalleryScreen: View {
             Button("Kiểm tra camera trước · IOS-04 (5.1–5.4)") { showFrontCameraCheckpoint = true }
                 .font(VcType.label)
                 .accessibilityIdentifier("debug-front-camera-checkpoint")
+            if !voice.measurements.isEmpty {
+                Text("Ba bản ghi giọng gần nhất · IOS-05").font(VcType.label)
+                ForEach(Array(voice.measurements.enumerated()), id: \.offset) { index, item in
+                    Text("\(index + 1). \(item.sessionID) · WAV \(item.wavSeconds.formatted(.number.precision(.fractionLength(3))))s · MP4 \(item.videoSeconds.formatted(.number.precision(.fractionLength(3))))s · offset \(item.offsetMs)ms · \(item.wavBytes)/\(item.videoBytes) bytes")
+                        .font(VcType.caption).textSelection(.enabled)
+                }
+            }
             VStack(alignment: .leading, spacing: 8) {
                 Text("Luồng").font(VcType.label).foregroundStyle(colors.muted)
                 Picker("Luồng", selection: $flow.purpose) {

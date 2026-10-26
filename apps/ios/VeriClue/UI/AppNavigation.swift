@@ -33,11 +33,25 @@ final class AppNavigation: ObservableObject {
     }
 }
 
+@MainActor
+final class CaptureFlows: ObservableObject {
+    let face: FaceCaptureFlow
+    let voice: VoiceCaptureFlow
+
+    init() {
+        let face = FaceCaptureFlow()
+        self.face = face
+        voice = VoiceCaptureFlow(camera: face.camera)
+    }
+}
+
 struct AppNavigationView: View {
     @StateObject private var navigation = AppNavigation()
     @StateObject private var flow = DemoFlow()
     @StateObject private var identity = IdentityFlow()
-    @StateObject private var face = FaceCaptureFlow()
+    @StateObject private var captures = CaptureFlows()
+    private var face: FaceCaptureFlow { captures.face }
+    private var voice: VoiceCaptureFlow { captures.voice }
 
     var body: some View {
         NavigationStack(path: $navigation.path) {
@@ -55,11 +69,13 @@ struct AppNavigationView: View {
                     .environmentObject(flow)
                     .environmentObject(identity)
                     .environmentObject(face)
+                    .environmentObject(voice)
             }
         }
         .environmentObject(navigation)
         .environmentObject(flow)
         .environmentObject(identity)
         .environmentObject(face)
+        .environmentObject(voice)
     }
 }

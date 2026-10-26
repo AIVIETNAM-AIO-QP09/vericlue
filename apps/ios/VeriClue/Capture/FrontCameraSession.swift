@@ -67,6 +67,7 @@ struct FrontCameraSnapshot: Sendable {
     let recording: VideoRecordingSnapshot
     let firstHostSeconds: Double?
     let clockDeltaMs: Double?
+    var recordingID: UUID? = nil
 }
 
 // This queue owns the session graph and all sample callbacks. No graph mutations on UI.
@@ -102,6 +103,7 @@ private final class FrontCameraWorker: NSObject, AVCaptureVideoDataOutputSampleB
     nonisolated(unsafe) private var exposureUnlockedAtMs: Double?
     nonisolated(unsafe) private var autoRestored = false
     nonisolated(unsafe) private var firstReceiptHostSeconds: Double?
+    nonisolated(unsafe) private var recordingID: UUID?
 
     override init() {
         let queue = DispatchQueue(label: "vn.vericlue.front-camera", qos: .userInitiated)
@@ -149,6 +151,8 @@ private final class FrontCameraWorker: NSObject, AVCaptureVideoDataOutputSampleB
             session.commitConfiguration()
         }
         session.sessionPreset = .hd1280x720
+        // Audio belongs to AVAudioEngine in IOS-05, not this video-only graph.
+        session.automaticallyConfiguresApplicationAudioSession = false
         output.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
         output.alwaysDiscardsLateVideoFrames = true
         output.setSampleBufferDelegate(self, queue: queue)
@@ -183,14 +187,16 @@ private final class FrontCameraWorker: NSObject, AVCaptureVideoDataOutputSampleB
         }
     }
 
-    nonisolated func startRecording(runID: Int, timeline: FaceTimeline?) async throws {
+    nonisolated func startRecording(runID: Int, timeline: FaceTimeline?, forVoice: Bool, attemptID: UUID) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             queue.async {
                 do {
-                    guard self.runID == runID, self.session.isRunning, self.quality.ready,
+                    guard self.runID == runID, self.session.isRunning, (forVoice || self.quality.ready),
                           let format = self.latestFormat else { throw VideoWriterError.qualityLost }
-                    let url = FileManager.default.temporaryDirectory.appendingPathComponent("vericlue-face-\(UUID().uuidString).mp4")
+                    let prefix = forVoice ? "voice" : "face"
+                    let url = FileManager.default.temporaryDirectory.appendingPathComponent("vericlue-\(prefix)-\(UUID().uuidString).mp4")
                     self.clearEvidence()
+                    self.recordingID = attemptID
                     self.restoreAutoExposure()
                     self.timeline = timeline
                     try self.videoWriter.start(url: url, format: format)
@@ -232,6 +238,7 @@ private final class FrontCameraWorker: NSObject, AVCaptureVideoDataOutputSampleB
 
     nonisolated private func clearEvidence() {
         frontalTask?.cancel(); frontalTask = nil
+        recordingID = nil
         timeline = nil; firstHostSeconds = nil; clockDeltaMs = nil; frontalAtMs = nil
         hostFrameTimes = []; regions = []; duplicates = DuplicateFrameMeter()
         baselineDone = false; colorsDone = false; aeAwbLocked = false; captureComplete = false
@@ -283,7 +290,7 @@ private final class FrontCameraWorker: NSObject, AVCaptureVideoDataOutputSampleB
         // PTS here is only for diagnostics, NOT the future AVAssetWriter t0.
         let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds
         let accepted = videoWriter.snapshot.frames > previousFrames
-        if accepted, let timeline {
+        if accepted {
             // Convert the session clock to host time rather than assuming identical epochs.
             guard let sourceClock = session.synchronizationClock else {
                 videoWriter.cancel(preserveCompleted: false); restoreAutoExposure(); return
@@ -295,9 +302,11 @@ private final class FrontCameraWorker: NSObject, AVCaptureVideoDataOutputSampleB
                 firstHostSeconds = host; clockDeltaMs = (host - pts) * 1000
                 firstReceiptHostSeconds = CACurrentMediaTime()
             }
-            let elapsed = videoWriter.snapshot.elapsed * 1000
             hostFrameTimes.append(FrameTime(captureTime: host * 1000, presentedFrames: videoWriter.snapshot.frames,
                                             mediaTime: videoWriter.snapshot.elapsed))
+        }
+        if accepted, let timeline {
+            let elapsed = videoWriter.snapshot.elapsed * 1000
             if duplicates.pairs < 30, let thumb = DuplicateFrameMeter.thumbnail(pixelBuffer) { duplicates.add(thumb) }
             if frontalTask == nil, elapsed >= Double(timeline.frontalAtMs),
                elapsed < Double(timeline.baselineMs), let owned = FrontalPixels.copy(pixelBuffer) {
@@ -331,7 +340,7 @@ private final class FrontCameraWorker: NSObject, AVCaptureVideoDataOutputSampleB
             inputs: session.inputs.count, outputs: session.outputs.count, meter: meter,
             mirrored: connection.isVideoMirrored, portrait: connection.videoOrientation == .portrait,
             tracking: tracking, quality: quality, recording: videoWriter.snapshot,
-            firstHostSeconds: firstHostSeconds, clockDeltaMs: clockDeltaMs))
+            firstHostSeconds: firstHostSeconds, clockDeltaMs: clockDeltaMs, recordingID: recordingID))
     }
 
     nonisolated func captureOutput(_ output: AVCaptureOutput, didDrop sampleBuffer: CMSampleBuffer,
@@ -355,6 +364,7 @@ final class FrontCameraSession: ObservableObject {
     @Published private(set) var recordedVideo: RecordedVideo?
     @Published private(set) var inspection: VideoInspection?
     @Published private(set) var recordingError: VideoWriterError?
+    private(set) var recordingAttemptID: UUID?
     private var generation = 0
     private var stopping = false
     private var firstFrameDeadline: Task<Void, Never>?
@@ -425,6 +435,7 @@ final class FrontCameraSession: ObservableObject {
 
     private func receive(_ value: FrontCameraSnapshot) {
         guard value.runID == generation, value.meter.frames > lastReceivedFrame else { return }
+        if recording || finishing, value.recordingID != recordingAttemptID { return }
         lastReceivedFrame = value.meter.frames
         lastFrameReceipt = ProcessInfo.processInfo.systemUptime
         snapshot = value
@@ -464,15 +475,17 @@ final class FrontCameraSession: ObservableObject {
         if wasActive, recordingError == nil { recordingError = .cancelled }
     }
 
-    func startRecording(timeline: FaceTimeline? = nil) async {
-        guard running, receivingFrames, snapshot?.quality.ready == true, !recording, !finishing else { return }
+    func startRecording(timeline: FaceTimeline? = nil, forVoice: Bool = false) async {
+        guard running, receivingFrames, (forVoice || snapshot?.quality.ready == true), !recording, !finishing else { return }
         let current = generation
+        let attemptID = UUID()
+        recordingAttemptID = attemptID
         recording = true
         recordedVideo = nil
         inspection = nil
         recordingError = nil
         do {
-            try await worker.startRecording(runID: current, timeline: timeline)
+            try await worker.startRecording(runID: current, timeline: timeline, forVoice: forVoice, attemptID: attemptID)
             guard current == generation else { return }
         } catch {
             if current == generation {

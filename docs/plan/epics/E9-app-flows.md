@@ -351,8 +351,21 @@ chuyển `review`, chưa commit/push/merge PR. Thu giọng thật thuộc IOS-05
 **Đầu ra:**
 - `WavRecorder.swift` (AVAudioEngine → 16 kHz mono), video cùng lúc, `voice_challenge_id`, `audio_offset_ms`.
 
+**Cập nhật 26/10/2026 (`review`):** đã nối thu WAV/MP4 thật dùng chung camera IOS-04,
+chờ frame video đầu rồi bật AVAudioEngine; offset lấy từ host timestamp của mẫu âm
+đầu, không lấy lúc bấm nút. Header WAV PCM 44 byte, mono 16 kHz Int16, RMS,
+giới hạn 8 giây, chờ đóng cả hai trước `/voice`. Giữ payload khi mất mạng; câu
+đọc lại dùng ID mới từ server, tối đa một lần. Một lượt toàn bộ test sau yêu cầu
+của sếp: 89/89 unit và 4/4 lượt UI đạt trên Simulator. Đã kiểm file/DB `voice_clone`
+ra review; đủ ba lượt WAV 8,000s/MP4 8,200s, offset app 113/107/114ms. Sếp xác
+nhận ca lỗi đạt và chấp thuận bỏ qua tiếng WAV nhỏ trong lần bàn giao này
+(chưa sửa gain, không coi mock review là chứng minh giọng rõ/ASR thật đạt).
+Codex review cuối chưa thấy lỗi chặn bàn giao; chờ commit/PR/merge, chưa ghi done.
+Theo [checklist IOS-05](../../../apps/ios/docs/ios05-device-checklist.md) và
+[bàn giao IOS-05](../../status/handoffs/2026-10-26-0018-ios-05-l-anh-qu-n-codex.md).
+
 **Tiêu chí hoàn thành:**
-- [ ] `voice_clone` → đọc câu → chờ duyệt; server lưu WAV và MP4.
+- [x] `voice_clone` → đọc câu → chờ duyệt; server lưu WAV và MP4. (Kiểm file/DB local và nghiệm thu của sếp; giới hạn tiếng nhỏ được chấp thuận như trên.)
 
 ---
 

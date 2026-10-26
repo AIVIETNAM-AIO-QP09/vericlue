@@ -30,6 +30,7 @@ final class LiveFlow: ObservableObject {
     private var pendingSignals: Signals?
     private var pendingFaceImage: Data?
     private var voicePayloadPrepared = false
+    private var voiceRereads = 0
     private var requestedPurpose: Purpose?
     private var readyRetryChallenge = false
     private var busy = false
@@ -58,6 +59,7 @@ final class LiveFlow: ObservableObject {
         pendingWav = nil
         pendingVoiceVideo = nil
         voicePayloadPrepared = false
+        voiceRereads = 0
         audioOffsetMs = nil
         voicePrompt = nil
         voiceChallengeId = nil
@@ -262,6 +264,11 @@ final class LiveFlow: ObservableObject {
             if value.status == "voice_challenge" {
                 guard let prompt = value.voicePrompt, !prompt.isEmpty,
                       (current.purpose == nil && requestedPurpose == nil) || !(value.voiceChallengeId ?? "").isEmpty else { return .fail(.badResponse) }
+                // attempts_left counts further re-reads AFTER this newly issued prompt;
+                // zero still permits this last read. The contract caps re-reads at one.
+                guard voiceRereads < 1, (value.attemptsLeft ?? 0) >= 0 else { return .fail(.badResponse) }
+                if let nextId = value.voiceChallengeId, nextId == voiceChallengeId { return .fail(.badResponse) }
+                voiceRereads += 1
                 voicePrompt = prompt
                 voiceChallengeId = value.voiceChallengeId
             }
