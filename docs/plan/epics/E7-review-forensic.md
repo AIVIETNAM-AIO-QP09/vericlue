@@ -195,3 +195,11 @@ PLAT-06 và CLI kiểm offline. Chỉ done/real, mock không được ký; khôn
 hoặc thang lời từ điểm MVP. PDF có nhãn thử nghiệm. Phần này độc lập với các phụ
 thuộc hiệu chỉnh chưa xong; không mở chốt mô hình. Còn neo audit/ảnh/phổ/calib/LR/
 ENFSI và UI do thành viên khác làm. Xem `docs/architecture/forensic-pdf-bundle.md`.
+
+**Bổ sung ảnh/phổ 26/10 (doing):** HTML/PDF có minh họa opt-in từ snapshot nguồn
+khớp SHA-256; tối đa ba khoảng/ba giây mỗi khoảng, frame và phổ Hann/mono 16 kHz,
+giới hạn subprocess và format/protocol FFmpeg. Caption ghi giới hạn thời gian,
+không gọi là heatmap hay xác suất AI. Thiếu nguồn/runtime ghi rõ bỏ minh họa,
+không đổi verdict/chữ ký. Test native dùng test-pattern/sóng sin, chặn playlist
+mạng; PDF tổng hợp đã kiểm bố cục. Không đổi schema/UI. Còn neo audit/calib/LR/
+ENFSI và nghiệm thu toàn luồng; xem `docs/architecture/forensic-report-evidence.md`.
