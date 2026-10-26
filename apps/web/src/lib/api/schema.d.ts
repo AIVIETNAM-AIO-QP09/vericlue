@@ -89,6 +89,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/forensic/review-audit/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Signed Review Audit
+         * @description Verify signed JSON first, then compare its checkpoint with DB; does not verify PDF bytes.
+         */
+        post: operations["verify_signed_review_audit_v1_forensic_review_audit_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/forensic/signing-key": {
         parameters: {
             query?: never;
@@ -571,6 +591,11 @@ export interface components {
              * @description Video hoặc âm thanh cần giám định
              */
             file: string;
+            /**
+             * Review Case Id
+             * @description Tùy chọn: ca đã có quyết định ban đầu; server đối chiếu byte media
+             */
+            review_case_id?: string | null;
         };
         /** Body_upload_id_card_v1_sessions__session_id__id_card_post */
         Body_upload_id_card_v1_sessions__session_id__id_card_post: {
@@ -867,6 +892,7 @@ export interface components {
             media?: components["schemas"]["ForensicMedia"] | null;
             progress?: components["schemas"]["ForensicProgress"] | null;
             provenance?: components["schemas"]["ForensicProvenance"] | null;
+            review_audit?: components["schemas"]["ReviewAuditAnchor"] | null;
             /** Segments */
             segments: components["schemas"]["ForensicSegment"][];
             /**
@@ -1098,6 +1124,70 @@ export interface components {
              * @enum {string}
              */
             suggestion: "pass" | "review" | "retry";
+        };
+        /**
+         * ReviewAuditAnchor
+         * @description Server-verified media binding and append-only review checkpoint, signed in reports.
+         */
+        ReviewAuditAnchor: {
+            /**
+             * Captured At
+             * Format: date-time
+             */
+            captured_at: string;
+            /** Case Id */
+            case_id: string;
+            /** Event Count */
+            event_count: number;
+            /** Session Id */
+            session_id: string;
+            /**
+             * Source Role
+             * @enum {string}
+             */
+            source_role: "face_video" | "voice_audio" | "voice_video";
+            /** Source Sha256 */
+            source_sha256: string;
+            /** Tail Event Id */
+            tail_event_id: number;
+            /** Tail Hash */
+            tail_hash: string;
+            /**
+             * Version
+             * @constant
+             */
+            version: 1;
+        };
+        /** ReviewAuditVerifyRequest */
+        ReviewAuditVerifyRequest: {
+            /** Report Json */
+            report_json: string;
+            /** Signature */
+            signature: string;
+        };
+        /** ReviewAuditVerifyResponse */
+        ReviewAuditVerifyResponse: {
+            /** Anchored Count */
+            anchored_count?: number | null;
+            /** Appended Count */
+            appended_count?: number | null;
+            /** Current Count */
+            current_count?: number | null;
+            /** Ok */
+            ok: boolean;
+            /**
+             * Scope
+             * @default signed_json_review_audit
+             * @constant
+             */
+            scope: "signed_json_review_audit";
+            /** Signature Valid */
+            signature_valid: boolean;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "intact" | "extended" | "invalid_signature" | "unlinked" | "case_unavailable" | "chain_invalid" | "tail_truncated" | "anchor_mismatch";
         };
         /** ReviewCase */
         ReviewCase: {
@@ -1413,6 +1503,33 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Không tìm thấy ca cần liên kết */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Ca chưa có quyết định ban đầu, file không khớp hoặc nhật ký không hợp lệ */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Media của hồ sơ đã hết thời hạn lưu trữ */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -1607,6 +1724,57 @@ export interface operations {
             };
             /** @description Job chưa xong hoặc chỉ là bản mô phỏng */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Credential nhân viên, khóa report hoặc kho dữ liệu chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    verify_signed_review_audit_v1_forensic_review_audit_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewAuditVerifyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewAuditVerifyResponse"];
+                };
+            };
+            /** @description Thiếu hoặc sai credential nhân viên */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -35,6 +35,49 @@ const SESSION = {
 };
 
 describe("api client", () => {
+  it("gửi giám định độc lập hoặc gắn ca bằng credential nhân viên và giữ nguyên JSON đã ký", async () => {
+    const { impl, calls } = fakeFetch([
+      { body: { job_id: "job_1", status: "queued" } },
+      { body: { job_id: "job_2", status: "queued" } },
+      {
+        body: {
+          ok: false,
+          signature_valid: false,
+          status: "invalid_signature",
+          scope: "signed_json_review_audit",
+        },
+      },
+      { body: { job_id: "a/b?c", status: "done", segments: [] } },
+    ]);
+    const api = createApiClient({
+      baseUrl: "http://api.test",
+      fetchImpl: impl,
+      getStaffToken: () => "staff-test",
+    });
+    const signal = new AbortController().signal;
+    await api.createForensicJob(new Blob(["synthetic"]), "material.mp4", { signal });
+    await api.createForensicJob(new Blob(["synthetic"]), "material.mp4", {
+      reviewCaseId: "case_1",
+      signal,
+    });
+    expect((calls[0].init.body as FormData).has("review_case_id")).toBe(false);
+    expect((calls[1].init.body as FormData).get("review_case_id")).toBe("case_1");
+    for (const call of calls) {
+      expect(call.init.headers).toMatchObject({ Authorization: "Bearer staff-test" });
+      expect((call.init.headers as Record<string, string>)["Content-Type"]).toBeUndefined();
+      expect(call.init.cache).toBe("no-store");
+      expect(call.init.signal).toBe(signal);
+    }
+    const raw = '{"filename":"\\u0111","job":{}}';
+    await api.verifyForensicReviewAudit(raw, "synthetic-signature");
+    expect(JSON.parse(calls[2].init.body as string)).toEqual({
+      report_json: raw,
+      signature: "synthetic-signature",
+    });
+    expect(calls[2].url).toBe("http://api.test/v1/forensic/review-audit/verify");
+    await api.getForensicJob("a/b?c");
+    expect(calls[3].url).toBe("http://api.test/v1/forensic/jobs/a%2Fb%3Fc");
+  });
   it("chỉ gửi credential nhân viên cho bàn duyệt, không lẫn với token phiên", async () => {
     const { impl, calls } = fakeFetch([
       { body: SESSION },

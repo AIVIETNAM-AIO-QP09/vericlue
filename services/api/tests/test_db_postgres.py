@@ -30,6 +30,69 @@ from vericlue_api.main import create_app
 from vericlue_api.services import storage
 
 
+def test_postgres_linked_report_checkpoint_rollback_and_parallel_exports(postgres, monkeypatch):
+    """Native PostgreSQL JSON CAS/row locking, fake media analysis and real signatures."""
+    from test_forensic_real import FakeSource, _face, _pipeline, _voice
+    from test_review_audit_link import finalize_review, prepare_case, submit
+
+    from vericlue_api.db.models import ForensicJobRow
+    from vericlue_api.services import forensic_runner
+    from vericlue_ml.common.result import Module
+
+    monkeypatch.setenv("SESSION_PRIVACY", "false")
+    get_settings.cache_clear()
+    monkeypatch.setattr(forensic_runner, "FileMediaSource", FakeSource)
+    monkeypatch.setattr(
+        forensic_runner,
+        "build_pipeline",
+        lambda root: _pipeline(
+            {
+                Module.FACE_DEEPFAKE: _face(),
+                Module.VOICE_SPOOF: _voice(),
+            }
+        ),
+    )
+    with staff_test_client(create_app()) as client:
+        cid, _ = prepare_case(client)
+        root = client.app.state.vericlue
+        monkeypatch.setattr(root.settings, "use_mock_models", False)
+        response = submit(client, cid)
+        assert response.status_code == 200, response.text
+        jid = response.json()["job_id"]
+        finalize_review(client, cid)
+        with pytest.raises(RuntimeError), root.transaction() as state:
+            assert state.forensic.report_job(jid).review_audit.event_count == 2
+            raise RuntimeError("synthetic failed export transaction")
+        with root.database.sessions() as db:
+            assert db.get(ForensicJobRow, jid).payload["job"]["review_audit"]["event_count"] == 1
+        ready = Barrier(2)
+
+        def export(_):
+            ready.wait(timeout=10)
+            return client.get(f"/v1/forensic/jobs/{jid}/report")
+
+        with ThreadPoolExecutor(2) as pool:
+            reports = list(pool.map(export, range(2)))
+        signer = root.settings.report_signer
+        for report in reports:
+            assert report.status_code == 200, report.text
+            import hashlib
+
+            assert signer.verify(
+                hashlib.sha256(report.content).hexdigest(), report.headers["X-VeriClue-Signature"]
+            )
+        with root.database.sessions() as db:
+            assert db.get(ForensicJobRow, jid).payload["job"]["review_audit"]["event_count"] == 2
+            assert (
+                db.scalar(
+                    select(func.count())
+                    .select_from(ReviewEventRow)
+                    .where(ReviewEventRow.case_id == cid)
+                )
+                == 2
+            )
+
+
 def test_account_l0_claim_and_recovery_races(postgres, monkeypatch):
     """Two L0 requests consume one challenge; two recoveries replace one old key once."""
     from pydantic import SecretStr

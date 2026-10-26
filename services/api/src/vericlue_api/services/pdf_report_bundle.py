@@ -14,7 +14,7 @@ from vericlue_api.services.pdf_renderer import PdfRenderer
 
 def export_pdf_bundle(store: ForensicStore, renderer: PdfRenderer, job_id: str) -> bytes:
     """Only done real jobs; PDF/JSON/signature share one snapshot and one ZIP response."""
-    job = store.get(job_id)
+    job = store.report_job(job_id)
     if job is None:
         raise ApiError(404, "job_not_found", "Không tìm thấy job giám định.")
     if job.status != "done":
