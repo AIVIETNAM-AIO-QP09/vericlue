@@ -37,7 +37,13 @@ jobs:
       - name: openapi.json khớp code (chạy lại gen_openapi không được tạo khác biệt)
         run: uv run python scripts/gen_openapi.py && git diff --exit-code -- packages/contracts/openapi.json
       - name: FFmpeg cho kiểm tra ảnh/phổ báo cáo (công cụ CI, không đóng gói sản phẩm)
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+        timeout-minutes: 4
+        run: |
+          if ! /usr/bin/ffmpeg -version >/dev/null 2>&1; then
+            sudo apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 -o Dpkg::Lock::Timeout=30 update
+            sudo apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 -o Dpkg::Lock::Timeout=30 install -y --no-install-recommends ffmpeg
+          fi
+          /usr/bin/ffmpeg -version
       - name: Test (mô-đun giả lập, CPU)
         env:
           USE_MOCK_MODELS: "true"
