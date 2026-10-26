@@ -436,13 +436,14 @@ fun TurnHeadScreen(
         onDone()
     }
     val dir = order[index]
-    val nudge = rememberInfiniteTransition(label = "nudge")
-    val shift by nudge.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(700, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "shift",
-    )
+    val shift = if (Vc.motion.enabled) {
+        val nudge = rememberInfiniteTransition(label = "nudge")
+        val value by nudge.animateFloat(
+            initialValue = 0f, targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(700, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "shift",
+        )
+        value
+    } else 0f
     CameraScaffold(onExit) {
         Box(Modifier.fillMaxSize()) {
             FullCamera()

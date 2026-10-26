@@ -2,7 +2,10 @@ package vn.vericlue.app.ui
 
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -362,15 +365,32 @@ fun VeriClueApp() {
 
     val cameraFeed: (@Composable (Modifier) -> Unit)? =
         if (hasCamera) { m -> CameraXPreview(camera, m) } else null
+    val motion = Vc.motion
 
     CompositionLocalProvider(LocalCameraFeed provides cameraFeed) {
     NavHost(
         navController = nav,
         startDestination = Routes.BankStart,
-        enterTransition = { fadeIn(tween(220)) },
-        exitTransition = { fadeOut(tween(180)) },
-        popEnterTransition = { fadeIn(tween(220)) },
-        popExitTransition = { fadeOut(tween(180)) },
+        enterTransition = {
+            if (motion.screenTransition(initialState.destination.route, targetState.destination.route))
+                fadeIn(motion.tween(250)) + slideInHorizontally(motion.tween(250)) { it / 16 }
+            else EnterTransition.None
+        },
+        exitTransition = {
+            if (motion.screenTransition(initialState.destination.route, targetState.destination.route))
+                fadeOut(motion.tween(250)) + slideOutHorizontally(motion.tween(250)) { -it / 24 }
+            else ExitTransition.None
+        },
+        popEnterTransition = {
+            if (motion.screenTransition(initialState.destination.route, targetState.destination.route))
+                fadeIn(motion.tween(250)) + slideInHorizontally(motion.tween(250)) { -it / 16 }
+            else EnterTransition.None
+        },
+        popExitTransition = {
+            if (motion.screenTransition(initialState.destination.route, targetState.destination.route))
+                fadeOut(motion.tween(250)) + slideOutHorizontally(motion.tween(250)) { it / 24 }
+            else ExitTransition.None
+        },
     ) {
         composable(Routes.BankStart) {
             BankStartScreen(onOpenAccount = { nav.go(Routes.Splash) }, onGallery = { nav.go(Routes.Gallery) })

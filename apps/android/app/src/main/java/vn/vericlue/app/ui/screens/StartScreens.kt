@@ -1,8 +1,8 @@
 package vn.vericlue.app.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -81,6 +81,7 @@ import vn.vericlue.app.flow.Agreement
 import vn.vericlue.app.ui.components.ChecklistCard
 import vn.vericlue.app.ui.components.LinkButton
 import vn.vericlue.app.ui.components.PrimaryButton
+import vn.vericlue.app.ui.components.SecondaryButton
 import vn.vericlue.app.ui.components.SystemBarIcons
 import vn.vericlue.app.ui.components.TitleBlock
 import vn.vericlue.app.ui.components.Tone
@@ -100,7 +101,7 @@ private fun BankHeader() {
             Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)).background(Palette.BankGreen),
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Outlined.AccountBalance, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp)) }
-        Text("Ngân hàng Mẫu", style = VcType.label, color = Palette.BankGreen)
+        Text("Ngân hàng Mẫu", style = VcType.label, color = Vc.colors.bankAccent)
     }
 }
 
@@ -174,13 +175,14 @@ private fun Rings(color: Color, modifier: Modifier = Modifier) {
 
 @Composable
 fun SplashScreen(onDone: () -> Unit) {
-    val appear = remember { Animatable(0f) }
-    LaunchedEffect(Unit) {
-        appear.animateTo(1f, tween(700, easing = FastOutSlowInEasing))
+    val motion = Vc.motion
+    val appear = remember { Animatable(if (motion.enabled) 0f else 1f) }
+    LaunchedEffect(motion.enabled) {
+        appear.animateTo(1f, motion.tween(700))
         delay(900)
         onDone()
     }
-    val bg = Brush.verticalGradient(listOf(Palette.Primary, Color(0xFF0B4F8A), Palette.LogoNavy))
+    val bg = Brush.verticalGradient(listOf(Palette.Primary, Palette.SplashBlue, Palette.LogoNavy))
     SystemBarIcons(Palette.LogoNavy)
     Box(Modifier.fillMaxSize().background(bg), contentAlignment = Alignment.Center) {
         Rings(Color.White.copy(alpha = 0.18f * appear.value), Modifier.fillMaxSize())
@@ -197,7 +199,10 @@ fun SplashScreen(onDone: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            LinearProgressIndicator(
+            if (!motion.enabled) LinearProgressIndicator(
+                progress = { 0.6f }, modifier = Modifier.width(120.dp).height(3.dp).clip(RoundedCornerShape(2.dp)),
+                color = Color.White, trackColor = Color.White.copy(alpha = 0.25f),
+            ) else LinearProgressIndicator(
                 modifier = Modifier.width(120.dp).height(3.dp).clip(RoundedCornerShape(2.dp)),
                 color = Color.White,
                 trackColor = Color.White.copy(alpha = 0.25f),
@@ -226,13 +231,14 @@ private fun FloatingChip(text: String, icon: ImageVector, modifier: Modifier, ph
 @Composable
 fun AuthScreen(onRegister: () -> Unit, onLogin: () -> Unit, onRecover: () -> Unit) {
     val c = Vc.colors
-    val float = rememberInfiniteTransition(label = "float")
-    val phase by float.animateFloat(
-        initialValue = -1f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(2400, easing = LinearEasing), RepeatMode.Reverse),
-        label = "phase",
-    )
+    val phase = if (Vc.motion.enabled) {
+        val float = rememberInfiniteTransition(label = "float")
+        val value by float.animateFloat(
+            initialValue = -1f, targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(2400, easing = LinearEasing), RepeatMode.Reverse), label = "phase",
+        )
+        value
+    } else 0f
     SystemBarIcons(c.background)
     Column(Modifier.fillMaxSize().background(c.background).statusBarsPadding()) {
         Box(
@@ -262,11 +268,7 @@ fun AuthScreen(onRegister: () -> Unit, onLogin: () -> Unit, onRecover: () -> Uni
             )
             Spacer(Modifier.weight(1f))
             PrimaryButton("Đăng ký", onRegister)
-            Box(
-                Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(12.dp)).background(c.surfaceInfo)
-                    .clickable(role = Role.Button, onClick = onLogin),
-                contentAlignment = Alignment.Center,
-            ) { Text("Đăng nhập", style = VcType.button, color = c.accent) }
+            SecondaryButton("Đăng nhập", onLogin)
             Text(
                 buildAnnotatedString {
                     append("Mất tài khoản? ")
@@ -310,6 +312,7 @@ private val termsSections = listOf(
 @Composable
 fun TermsScreen(onBack: () -> Unit, onAccept: () -> Unit) {
     val c = Vc.colors
+    val motion = Vc.motion
     val scroll = rememberScrollState()
     var agreement by remember { mutableStateOf(Agreement()) }
     var checked by remember { mutableStateOf(setOf<Int>()) }
@@ -324,6 +327,7 @@ fun TermsScreen(onBack: () -> Unit, onAccept: () -> Unit) {
     }
     val fraction by animateFloatAsState(
         if (readToEnd) 1f else if (scroll.maxValue == 0) 0f else scroll.value.toFloat() / scroll.maxValue,
+        animationSpec = motion.tween(),
         label = "read",
     )
 
@@ -368,7 +372,7 @@ fun TermsScreen(onBack: () -> Unit, onAccept: () -> Unit) {
                             Text(b, style = VcType.caption, color = c.muted)
                         }
                     }
-                    AnimatedVisibility(readToEnd, enter = fadeIn()) {
+                    AnimatedVisibility(readToEnd, enter = fadeIn(motion.tween()), exit = fadeOut(motion.tween())) {
                         Row(
                             Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.okBg).padding(10.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -380,8 +384,8 @@ fun TermsScreen(onBack: () -> Unit, onAccept: () -> Unit) {
                 }
                 androidx.compose.animation.AnimatedVisibility(
                     !readToEnd,
-                    enter = fadeIn(),
-                    exit = fadeOut(),
+                    enter = fadeIn(motion.tween()),
+                    exit = fadeOut(motion.tween()),
                     modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp),
                 ) {
                     Row(
@@ -404,7 +408,7 @@ fun TermsScreen(onBack: () -> Unit, onAccept: () -> Unit) {
                     checked = accepted,
                     onCheckedChange = { agreement = agreement.toggle() },
                     enabled = readToEnd,
-                    colors = CheckboxDefaults.colors(checkedColor = c.primary),
+                    colors = CheckboxDefaults.colors(checkedColor = c.primary, checkmarkColor = c.onPrimary, uncheckedColor = c.muted, disabledUncheckedColor = c.muted),
                 )
                 Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
@@ -460,14 +464,17 @@ private fun ConsentTag(required: Boolean) {
 @Composable
 private fun ConsentList(checked: Set<Int>, onToggle: (Int) -> Unit) {
     val c = Vc.colors
+    val motion = Vc.motion
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("Đồng ý xử lý dữ liệu · dữ liệu không dùng để huấn luyện AI", style = VcType.labelSmall, color = c.ink)
         consentItems.forEachIndexed { i, item ->
             val on = i in checked
+            val bg by animateColorAsState(if (on) c.surfaceInfo else c.surface, motion.tween(), label = "consent-background")
+            val border by animateColorAsState(if (on) c.accent else c.border, motion.tween(), label = "consent-border")
             Row(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                    .background(if (on) c.surfaceInfo else c.surfaceSubtle)
-                    .border(if (on) 1.5.dp else 1.dp, if (on) c.accent else c.border, RoundedCornerShape(14.dp))
+                    .background(bg)
+                    .border(if (on) 1.5.dp else 1.dp, border, RoundedCornerShape(14.dp))
                     .clickable(role = Role.Checkbox) { onToggle(i) }
                     .padding(horizontal = 14.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -482,7 +489,7 @@ private fun ConsentList(checked: Set<Int>, onToggle: (Int) -> Unit) {
                 Checkbox(
                     checked = on,
                     onCheckedChange = { onToggle(i) },
-                    colors = CheckboxDefaults.colors(checkedColor = c.primary),
+                    colors = CheckboxDefaults.colors(checkedColor = c.primary, checkmarkColor = c.onPrimary, uncheckedColor = c.muted),
                     modifier = Modifier.size(24.dp),
                 )
             }

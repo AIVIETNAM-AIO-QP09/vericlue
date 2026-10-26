@@ -214,6 +214,8 @@ chân dung tham chiếu đã cắt do server quản lý. Xem
 
 **Tiêu chí hoàn thành:**
 - [x] Build được APK bằng Gradle trên máy Windows; README có các bước cài Android Studio/SDK.
+- [x] Trau chuốt UI 26/10: giữ Be Vietnam Pro; thang chữ, màu sáng/tối, phản hồi nút/OTP/CCCD/thành công, chuyển màn và rung nhẹ; có chính sách tắt chuyển động trang trí theo cài đặt máy.
+- [x] So ảnh Paparazzi cho 10 màn yêu cầu ở cả sáng/tối; test tương phản (kể cả lúc nút chuyển màu), giảm chuyển động và `CitizenCopyTest`.
 - [ ] Tạo phiên và nhận kết quả từ API thật trên điện thoại thật.
 - [ ] CI không bắt buộc build Android ở bước này; ghi rõ trong PR.
 

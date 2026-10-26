@@ -1,6 +1,7 @@
 package vn.vericlue.app.ui.screens
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -41,6 +42,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -56,6 +59,7 @@ import vn.vericlue.app.capture.CccdInfo
 import vn.vericlue.app.capture.CccdQr
 import vn.vericlue.app.capture.IdQuality
 import vn.vericlue.app.ui.components.CameraFeed
+import vn.vericlue.app.ui.components.CompletionHaptic
 import vn.vericlue.app.ui.components.LocalCameraFeed
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.asImageBitmap
@@ -78,6 +82,7 @@ import vn.vericlue.app.ui.components.stepLabel
 import vn.vericlue.app.ui.theme.Vc
 import vn.vericlue.app.ui.theme.VcTheme
 import vn.vericlue.app.ui.theme.VcType
+import vn.vericlue.app.ui.theme.Palette
 
 @Composable
 fun PhoneScreen(onBack: () -> Unit, onSend: (String) -> Unit) {
@@ -193,16 +198,16 @@ fun OtpScreen(
 @Composable
 private fun CardPlaceholder(back: Boolean) {
     Canvas(Modifier.fillMaxSize()) {
-        drawRoundRect(Color(0xFFDDEDEA), cornerRadius = androidx.compose.ui.geometry.CornerRadius(16f, 16f))
-        val line = Color(0xFF9DB7B2)
+        drawRoundRect(Palette.CardBackground, cornerRadius = androidx.compose.ui.geometry.CornerRadius(16f, 16f))
+        val line = Palette.CardLine
         if (!back) {
-            drawRoundRect(Color(0xFFB8CCC9), topLeft = Offset(size.width * 0.06f, size.height * 0.3f), size = Size(size.width * 0.24f, size.height * 0.5f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f))
+            drawRoundRect(Palette.CardPortrait, topLeft = Offset(size.width * 0.06f, size.height * 0.3f), size = Size(size.width * 0.24f, size.height * 0.5f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f))
             for (i in 0 until 6) {
                 drawRoundRect(line, topLeft = Offset(size.width * 0.36f, size.height * (0.3f + i * 0.09f)), size = Size(size.width * (0.5f - (i % 3) * 0.08f), size.height * 0.035f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f))
             }
-            drawRoundRect(Color(0xFFC79A3B), topLeft = Offset(size.width * 0.06f, size.height * 0.1f), size = Size(size.width * 0.12f, size.height * 0.12f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f))
+            drawRoundRect(Palette.CardChip, topLeft = Offset(size.width * 0.06f, size.height * 0.1f), size = Size(size.width * 0.12f, size.height * 0.12f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f))
         } else {
-            drawRect(Color(0xFF6C807C), topLeft = Offset(size.width * 0.72f, size.height * 0.12f), size = Size(size.width * 0.2f, size.width * 0.2f), style = Stroke(6f))
+            drawRect(Palette.CardQr, topLeft = Offset(size.width * 0.72f, size.height * 0.12f), size = Size(size.width * 0.2f, size.width * 0.2f), style = Stroke(6f))
             for (i in 0 until 3) {
                 drawRoundRect(line, topLeft = Offset(size.width * 0.06f, size.height * (0.72f + i * 0.08f)), size = Size(size.width * 0.88f, size.height * 0.035f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f))
             }
@@ -256,6 +261,12 @@ fun IdCaptureScreen(
     VcTheme(dark = true) {
         val c = Vc.colors
         val side = if (back) "mặt sau" else "mặt trước"
+        val motion = Vc.motion
+        val reveal = remember(back) { Animatable(if (captured && !motion.enabled) 1f else 0f) }
+        LaunchedEffect(captured, back, motion.enabled) {
+            if (captured) reveal.animateTo(1f, motion.tween(240)) else reveal.snapTo(0f)
+        }
+        CompletionHaptic(captured, back)
         SystemBarIcons(c.background)
         Column(Modifier.fillMaxSize().background(c.background).statusBarsPadding()) {
             TopBar(onBack)
@@ -288,12 +299,13 @@ fun IdCaptureScreen(
                         }
                     }
                     if (captured) {
-                        Box(Modifier.fillMaxSize().padding(10.dp).border(3.dp, c.ok, RoundedCornerShape(12.dp)))
+                        val shown = if (motion.enabled) reveal.value else 1f
+                        Box(Modifier.fillMaxSize().padding(10.dp).alpha(shown).scale(0.98f + 0.02f * shown).border(3.dp, c.ok, RoundedCornerShape(12.dp)))
                         Text(
                             "✓  Đã chụp $side",
                             style = VcType.label,
-                            color = Color.White,
-                            modifier = Modifier.align(Alignment.Center).clip(RoundedCornerShape(50)).background(c.ok)
+                            color = c.onOk,
+                            modifier = Modifier.align(Alignment.Center).alpha(shown).scale(0.92f + 0.08f * shown).clip(RoundedCornerShape(50)).background(c.ok)
                                 .padding(horizontal = 14.dp, vertical = 8.dp),
                         )
                     } else {
@@ -498,6 +510,8 @@ fun EditInfoScreen(
                         disabledContainerColor = c.surfaceSubtle,
                         focusedTextColor = c.ink,
                         unfocusedTextColor = c.ink,
+                        focusedLabelColor = c.accent,
+                        unfocusedLabelColor = c.muted,
                     ),
                     textStyle = VcType.bodyStrong,
                     modifier = Modifier.fillMaxWidth(),

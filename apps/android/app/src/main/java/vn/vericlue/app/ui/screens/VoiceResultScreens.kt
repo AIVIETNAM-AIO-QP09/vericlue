@@ -66,6 +66,8 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import vn.vericlue.app.flow.Purpose
 import vn.vericlue.app.ui.components.ChecklistCard
+import vn.vericlue.app.ui.components.CompletionHaptic
+import vn.vericlue.app.ui.components.SuccessBadge
 import vn.vericlue.app.ui.components.CameraFeed
 import vn.vericlue.app.ui.components.PrimaryButton
 import vn.vericlue.app.ui.components.RowState
@@ -98,8 +100,12 @@ private fun CameraStillOn() {
 @Composable
 private fun Waveform(level: Float? = null) {
     val c = Vc.colors
-    val t = rememberInfiniteTransition(label = "wave")
-    val p by t.animateFloat(0f, 1f, infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "p")
+    val motion = Vc.motion
+    val p = if (motion.enabled) {
+        val t = rememberInfiniteTransition(label = "wave")
+        val value by t.animateFloat(0f, 1f, infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "p")
+        value
+    } else 0.5f
     Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.height(28.dp)) {
         val base = listOf(0.3f, 0.7f, 0.45f, 1f, 0.6f, 0.85f, 0.4f, 0.75f, 0.5f, 0.9f, 0.35f)
         base.forEachIndexed { i, b ->
@@ -213,6 +219,7 @@ fun CheckingScreen(purpose: Purpose, onDone: () -> Unit, auto: Boolean = true) {
 
 @Composable
 fun SuccessScreen(purpose: Purpose, onContinue: () -> Unit, auto: Boolean = true, checked: List<String>? = null) {
+    CompletionHaptic(true)
     LaunchedEffect(auto) {
         if (auto) {
             delay(2600)
@@ -220,7 +227,7 @@ fun SuccessScreen(purpose: Purpose, onContinue: () -> Unit, auto: Boolean = true
         }
     }
     VcScreen(centered = true) {
-        StatusBadge(Icons.Outlined.CheckCircle, Tone.Ok)
+        SuccessBadge()
         when (purpose) {
             Purpose.Onboarding -> {
                 TitleBlock("Xác minh thành công", "Đang quay lại ứng dụng ngân hàng…", centered = true)
