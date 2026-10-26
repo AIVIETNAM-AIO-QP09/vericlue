@@ -2331,6 +2331,7 @@
         "type": "object"
       },
       "VerifyRequest": {
+        "additionalProperties": false,
         "properties": {
           "report_sha256": {
             "pattern": "^[0-9a-f]{64}$",
@@ -2338,6 +2339,8 @@
             "type": "string"
           },
           "signature": {
+            "description": "Chữ ký Ed25519 base64 chuẩn cho hash HTML; MOCK không hợp lệ",
+            "maxLength": 160,
             "title": "Signature",
             "type": "string"
           }
@@ -2580,7 +2583,7 @@
                 }
               }
             },
-            "description": "Credential nhân viên hoặc kho dữ liệu chưa sẵn sàng"
+            "description": "Credential nhân viên, khóa report hoặc kho dữ liệu chưa sẵn sàng"
           }
         },
         "security": [
@@ -2657,7 +2660,7 @@
                 }
               }
             },
-            "description": "Credential nhân viên hoặc kho dữ liệu chưa sẵn sàng"
+            "description": "Credential nhân viên, khóa report hoặc kho dữ liệu chưa sẵn sàng"
           }
         },
         "security": [
@@ -2694,7 +2697,7 @@
                 }
               }
             },
-            "description": "Báo cáo HTML; chữ ký trong header X-VeriClue-Signature"
+            "description": "HTML; job real ký Ed25519, mock không có chữ ký hợp lệ; metadata trong X-VeriClue-Signature/Signature-Algorithm/Key-Id/Report-SHA256"
           },
           "401": {
             "content": {
@@ -2744,7 +2747,7 @@
                 }
               }
             },
-            "description": "Credential nhân viên hoặc kho dữ liệu chưa sẵn sàng"
+            "description": "Credential nhân viên, khóa report hoặc kho dữ liệu chưa sẵn sàng"
           }
         },
         "security": [
@@ -2753,6 +2756,53 @@
           }
         ],
         "summary": "Get Report",
+        "tags": [
+          "forensic"
+        ]
+      }
+    },
+    "/v1/forensic/signing-key": {
+      "get": {
+        "description": "Staff-only public key; does not connect to DB or start any model.",
+        "operationId": "signing_key_v1_forensic_signing_key_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SigningKey"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai credential nhân viên"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Credential nhân viên, khóa report hoặc kho dữ liệu chưa sẵn sàng"
+          }
+        },
+        "security": [
+          {
+            "StaffBearer": []
+          }
+        ],
+        "summary": "Signing Key",
         "tags": [
           "forensic"
         ]
@@ -2810,7 +2860,7 @@
                 }
               }
             },
-            "description": "Credential nhân viên hoặc kho dữ liệu chưa sẵn sàng"
+            "description": "Credential nhân viên, khóa report hoặc kho dữ liệu chưa sẵn sàng"
           }
         },
         "security": [

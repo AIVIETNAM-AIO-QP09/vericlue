@@ -290,7 +290,7 @@ def test_forensic_flow_requires_staff_for_upload_result_report_and_verify(anonym
     }
     assert anonymous.post("/v1/forensic/verify", json=payload).status_code == 401
     assert anonymous.post("/v1/forensic/verify", json=payload, headers=headers).json() == {
-        "valid": True
+        "valid": False
     }
     missing = anonymous.get("/v1/forensic/jobs/unknown", headers=headers)
     assert missing.status_code == 404 and missing.headers["Cache-Control"] == "no-store"

@@ -183,8 +183,10 @@ Quota RAM chỉ bảo vệ một worker demo, mất sau restart; không coi là 
 phân tán. StaffBearer đã bắt buộc cho cả review và forensic ở mọi chế độ; actor
 review từ cấu hình server, SDK web có callback credential riêng và không sửa UI.
 Còn nghiệm thu media cũ/chữ ký trên máy thật; chưa coi là xong toàn bảo mật.
-Gia hạn sau gián đoạn thuộc LIVE-06 theo ADR-0017. Ký báo cáo FOR-04
-chưa nối; xem `docs/architecture/signed-session-results.md`.
+Gia hạn sau gián đoạn thuộc LIVE-06 theo ADR-0017. HTML giám định đã có chữ ký
+Ed25519 riêng và CLI kiểm byte tệp; MOCK không được coi là chữ ký thật. Gói
+JSON/PDF/ENFSI của FOR-04 còn lại; xem `docs/architecture/forensic-report-signing.md`
+và `docs/architecture/signed-session-results.md`.
 
 ---
 

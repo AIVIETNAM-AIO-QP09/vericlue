@@ -72,6 +72,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/forensic/signing-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Signing Key
+         * @description Staff-only public key; does not connect to DB or start any model.
+         */
+        get: operations["signing_key_v1_forensic_signing_key_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/forensic/verify": {
         parameters: {
             query?: never;
@@ -1278,7 +1298,10 @@ export interface components {
         VerifyRequest: {
             /** Report Sha256 */
             report_sha256: string;
-            /** Signature */
+            /**
+             * Signature
+             * @description Chữ ký Ed25519 base64 chuẩn cho hash HTML; MOCK không hợp lệ
+             */
             signature: string;
         };
         /** VerifyResponse */
@@ -1391,7 +1414,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Credential nhân viên hoặc kho dữ liệu chưa sẵn sàng */
+            /** @description Credential nhân viên, khóa report hoặc kho dữ liệu chưa sẵn sàng */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -1449,7 +1472,7 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
-            /** @description Credential nhân viên hoặc kho dữ liệu chưa sẵn sàng */
+            /** @description Credential nhân viên, khóa report hoặc kho dữ liệu chưa sẵn sàng */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -1471,7 +1494,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Báo cáo HTML; chữ ký trong header X-VeriClue-Signature */
+            /** @description HTML; job real ký Ed25519, mock không có chữ ký hợp lệ; metadata trong X-VeriClue-Signature/Signature-Algorithm/Key-Id/Report-SHA256 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1516,13 +1539,51 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
-            /** @description Credential nhân viên hoặc kho dữ liệu chưa sẵn sàng */
+            /** @description Credential nhân viên, khóa report hoặc kho dữ liệu chưa sẵn sàng */
             503: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "text/html": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    signing_key_v1_forensic_signing_key_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SigningKey"];
+                };
+            };
+            /** @description Thiếu hoặc sai credential nhân viên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Credential nhân viên, khóa report hoặc kho dữ liệu chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -1567,7 +1628,7 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
-            /** @description Credential nhân viên hoặc kho dữ liệu chưa sẵn sàng */
+            /** @description Credential nhân viên, khóa report hoặc kho dữ liệu chưa sẵn sàng */
             503: {
                 headers: {
                     [name: string]: unknown;

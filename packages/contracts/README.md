@@ -1,5 +1,10 @@
 # Contracts — hợp đồng giữa các phần
 
+PLAT-06 ký HTML giám định: `/v1/forensic/signing-key` dùng lại `SigningKey`,
+verify giữ shape body và giới hạn chữ ký 160 ký tự. MOCK không được verify là
+chữ ký thật; header mới chỉ thuật toán/fingerprint. Xem
+[`forensic-report-signing.md`](../../docs/architecture/forensic-report-signing.md).
+
 PLAT-06 đánh dấu `StaffBearer` cho mọi operation review/forensic trong OpenAPI,
 kèm lỗi 401/503. Yêu cầu bearer độc lập với cờ riêng tư và mock; token phiên
 không thay credential nhân viên. Không đổi body schema. Chi tiết:

@@ -13,6 +13,7 @@
 | `smoke_voice_lipsync.py` | Thử tay một clip local: căn câu, nối audio, SyncNet và tiếng trễ 500 ms; không đánh giá dữ liệu | VOICE-05 |
 | `compress_variants.py` | Tạo 3 mức nén kiểu mạng xã hội bằng ffmpeg | DATA-05 |
 | `gen_keys.py` | Sinh khóa token và cặp Ed25519 cục bộ cho kết quả ký | PLAT-06 |
+| `verify_forensic_report.py` | Hash đúng byte HTML và kiểm chữ ký Ed25519 tách rời bằng khóa public đã pin | PLAT-06 |
 
 **Quy tắc:**
 
@@ -20,6 +21,9 @@
 hoặc tự áp dụng/ghi đè bí mật. `verify_session_result.py` kiểm envelope bằng public
 key đã pin và ngữ cảnh bên tích hợp; không dùng chữ ký đúng để đổi deny thành pass.
 Xem [`signed-session-results.md`](../docs/architecture/signed-session-results.md).
+`verify_forensic_report.py` kiểm HTML tải xuống, không phân tích/thực thi HTML và không
+gọi mạng. Chữ ký đúng không chứng nhận kết luận mô hình; MOCK luôn bị từ chối.
+Xem [`forensic-report-signing.md`](../docs/architecture/forensic-report-signing.md).
 - Script phải chạy được trên cả Windows và Linux. Ưu tiên viết bằng Python, chạy bằng `uv run python scripts/...`.
 - Có `--help`.
 - Chạy lại nhiều lần không hỏng gì (idempotent).

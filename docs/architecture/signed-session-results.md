@@ -43,7 +43,8 @@ cần khởi động lại API và tạo phiên mới. Signer nạp một lần;
 
 Khóa token phiên vẫn độc lập. Không tự đổi SESSION_SIGNING_SECRET khi kích hoạt
 kết quả ký: đổi khóa đó thu hồi bearer phiên đang có. REPORT_SIGNING_KEY_PATH
-trong .env.example là cấu hình dự kiến của FOR-04, chưa nối vào tính năng này.
+đã nối riêng vào chữ ký báo cáo HTML, không dùng signer kết quả phiên:
+[`forensic-report-signing.md`](forensic-report-signing.md). PDF/JSON ENFSI còn lại ở FOR-04.
 
 ## API và quyền
 

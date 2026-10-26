@@ -167,7 +167,7 @@
       "additionalProperties": false,
       "properties": {
         "report_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-        "signature": { "type": "string", "description": "Chữ ký Ed25519 (base64)" }
+        "signature": { "type": "string", "maxLength": 160, "description": "Chữ ký Ed25519 base64 chuẩn cho hash HTML; MOCK không hợp lệ" }
       }
     },
     "VerifyResponse": {

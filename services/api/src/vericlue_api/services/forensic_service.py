@@ -5,7 +5,8 @@
   chồng lấn 50% và chạy bộ phát hiện THẬT; `GET /jobs/{id}` trả tiến độ. Module chưa có mô hình thật
   hiện là `unavailable`, không bao giờ được giả lập; thiếu bước bắt buộc → `inconclusive`.
 
-Chữ ký báo cáo vẫn là MOCK (Ed25519 là việc PLAT-06/FOR-04). SHA-256 tính trên byte gốc trước mọi bước
+PLAT-06 ký HTML của job real bằng Ed25519, mock không được xác minh là chữ ký thật.
+Đây chưa phải gói PDF/JSON ENFSI của FOR-04. SHA-256 tính trên byte gốc trước mọi bước
 đọc/chuyển mã (AGENTS.md, ADR-0008).
 """
 
@@ -20,6 +21,8 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
+from vericlue_api.core.errors import ApiError
+from vericlue_api.core.report_signing import ReportSigner
 from vericlue_api.db.models import ForensicJobRow, ForensicSegmentRow
 from vericlue_api.schemas.forensic import ForensicJob, ForensicSegment, SegmentSignal, Verdict
 from vericlue_api.services.detection import run_detectors
@@ -29,7 +32,7 @@ from vericlue_ml.common.result import Module, ModuleResult, Status
 FORENSIC_MODULES = (Module.FACE_DEEPFAKE, Module.VOICE_SPOOF, Module.LIPSYNC, Module.PROVENANCE)
 SEGMENT_SECONDS = 5.0  # chỉ cho bản mock
 SEGMENTS = 2  # chỉ cho bản mock
-MOCK_SIGNATURE_PREFIX = "MOCK-"  # TẠM — chữ ký thật là Ed25519
+MOCK_SIGNATURE_PREFIX = "MOCK-"  # Checksum mô phỏng, không phải chữ ký được tin cậy.
 
 _STATUS_LABELS_VI = {
     "not_applicable": "không áp dụng",
@@ -69,11 +72,13 @@ class ForensicStore:
         *,
         runner: Callable = run_detectors,
         mock: bool = True,
+        report_signer: Callable[[], ReportSigner] | None = None,
     ) -> None:
         self._b, self._a = b, a
         self._run = runner
         self.mock = mock
         self.db, self.media_dir = db, media_dir
+        self._report_signer = report_signer
 
     # --- tạo job ------------------------------------------------------------
     def create(self, data: bytes, filename: str | None, scenario: str) -> ForensicJob:
@@ -292,18 +297,26 @@ class ForensicStore:
         return ForensicJob.model_validate(record.payload["job"]) if record else None
 
     def report(self, job_id: str) -> tuple[str, str, str] | None:
-        """(html, sha256 của html, chữ ký mock)."""
+        """HTML, SHA-256 of exact UTF-8 bytes and detached signature (MOCK for mock jobs)."""
         job = self.get(job_id)
         if job is None:
             return None
+        if job.status != "done":
+            raise ApiError(
+                409, "job_not_ready", "Job chưa hoàn tất hoặc đã thất bại; chưa có báo cáo."
+            )
         record = self.db.get(ForensicJobRow, job_id)
         if record.payload.get("mode") == "real":
-            html = self._report_real(job, record.payload)
+            signer = self.report_signer()
+            html = self._report_real(job, record.payload, signer.key_id)
         else:
+            signer = None
             html = self._report_mock(job, record)
         digest = hashlib.sha256(html.encode("utf-8")).hexdigest()
         row = self.db.get(ForensicJobRow, job_id)
-        row.signature = f"{MOCK_SIGNATURE_PREFIX}{digest}"
+        row.signature = (
+            signer.sign(digest) if signer is not None else f"{MOCK_SIGNATURE_PREFIX}{digest}"
+        )
         row.media_deleted_at = None
         row.report_path = str(
             save_generated(
@@ -341,12 +354,15 @@ class ForensicStore:
             '<!doctype html><html lang="vi"><meta charset="utf-8"><title>Báo cáo giám định</title>'
             f"<h1>Báo cáo giám định (bản mock)</h1><p>Mã: {escape(job.job_id)}</p>"
             f"<p>SHA-256 file: {job.file_sha256}</p><p>Kết luận: {job.verdict}</p>"
-            f"<table>{rows}</table></html>"
+            f"<table>{rows}</table><h2>Giới hạn</h2>"
+            "<p>Dữ liệu mô phỏng, không phải kết quả giám định.</p><ul>"
+            + "".join(f"<li>{escape(item)}</li>" for item in LIMITATIONS_VI)
+            + "</ul></html>"
         )
 
     @staticmethod
-    def _report_real(job: ForensicJob, payload: dict[str, Any]) -> str:
-        """Khung báo cáo giữ nguyên nhãn MOCK cho chữ ký; phần dữ liệu là kết quả thật."""
+    def _report_real(job: ForensicJob, payload: dict[str, Any], key_id: str) -> str:
+        """HTML with a pinned-key identifier; signature covers exact rendered bytes."""
         e = escape
 
         def cell(sig: SegmentSignal) -> str:
@@ -397,7 +413,8 @@ class ForensicStore:
         return (
             '<!doctype html><html lang="vi"><meta charset="utf-8"><title>Báo cáo giám định</title>'
             "<h1>Báo cáo giám định</h1>"
-            "<p><strong>Chữ ký: MOCK</strong> — chưa ký Ed25519 thật (PLAT-06/FOR-04).</p>"
+            "<p><strong>Chữ ký: Ed25519</strong> — ký toàn vẹn báo cáo HTML, không chứng nhận kết luận mô hình.</p>"
+            f"<p>Dấu vân tay khóa (SHA-256 SPKI): {e(key_id)}</p>"
             f"<p>Mã: {e(job.job_id)}</p><p>Tên file: {e(str(payload.get('filename', '')))}</p>"
             f"<p>SHA-256 file (byte gốc): {job.file_sha256}</p>"
             f"<h2>Thông số file</h2><ul>{media_rows}</ul>"
@@ -413,6 +430,10 @@ class ForensicStore:
             + "</ul></html>"
         )
 
-    @staticmethod
-    def verify(report_sha256: str, signature: str) -> bool:
-        return signature == f"{MOCK_SIGNATURE_PREFIX}{report_sha256}"
+    def report_signer(self) -> ReportSigner:
+        """Require a configured report key independently of mock/real model startup."""
+        if self._report_signer is None:
+            raise ApiError(
+                503, "report_signing_unavailable", "Chưa thể ký hoặc kiểm tra báo cáo lúc này."
+            )
+        return self._report_signer()

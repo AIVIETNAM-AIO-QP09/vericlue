@@ -73,6 +73,7 @@ class AppState:
             runner=runner,
             # true → bản mock; false/mixed → phân tích thật
             mock=self.settings.use_mock_models is True,
+            report_signer=lambda: self.settings.report_signer,
         )
         self.flow = SessionFlow(
             self.settings,

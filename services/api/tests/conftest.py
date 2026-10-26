@@ -8,6 +8,8 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi.testclient import TestClient
 
 from vericlue_api.core.config import get_settings
@@ -35,6 +37,16 @@ def _mock_env(monkeypatch, tmp_path, db_template):
     monkeypatch.setenv("SESSION_SIGNING_SECRET", secrets.token_urlsafe(32))
     token = secrets.token_urlsafe(32)
     monkeypatch.setenv("STAFF_ACCESS_TOKENS", json.dumps({token: "staff-test"}))
+    # Ephemeral real key for report crypto tests, independent of biometric/mock verdicts.
+    report_key = tmp_path / "report-signing.pem"
+    report_key.write_bytes(
+        Ed25519PrivateKey.generate().private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        )
+    )
+    monkeypatch.setenv("REPORT_SIGNING_KEY_PATH", str(report_key))
     monkeypatch.setenv("MEDIA_DIR", str(tmp_path / "media"))
     get_settings.cache_clear()
     yield

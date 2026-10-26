@@ -1,5 +1,5 @@
 """Giám định — /v1/forensic. Phân tích thật theo đoạn (FOR-01) khi USE_MOCK_MODELS khác true;
-chữ ký báo cáo vẫn MOCK (FOR-04/PLAT-06 cấp khóa Ed25519)."""
+PLAT-06 ký báo cáo HTML thật bằng Ed25519, PDF/JSON ENFSI thuộc FOR-04."""
 
 from __future__ import annotations
 
@@ -13,8 +13,10 @@ from vericlue_api.core.staff_access import staff_bearer
 from vericlue_api.core.state import AppState, get_state
 from vericlue_api.routers.sessions import resolve_scenario
 from vericlue_api.schemas.forensic import ForensicJob, JobCreated, VerifyRequest, VerifyResponse
+from vericlue_api.schemas.result import SigningKey
 from vericlue_api.schemas.session import ErrorResponse
 from vericlue_api.services.forensic_runner import release_slot, reserve_slot, run_forensic_job
+from vericlue_api.services.forensic_service import MOCK_SIGNATURE_PREFIX
 from vericlue_api.services.uploads import read_limited
 
 router = APIRouter(
@@ -25,13 +27,19 @@ router = APIRouter(
         401: {"model": ErrorResponse, "description": "Thiếu hoặc sai credential nhân viên"},
         503: {
             "model": ErrorResponse,
-            "description": "Credential nhân viên hoặc kho dữ liệu chưa sẵn sàng",
+            "description": "Credential nhân viên, khóa report hoặc kho dữ liệu chưa sẵn sàng",
         },
     },
 )
 
 StateDep = Annotated[AppState, Depends(get_state, scope="function")]
 NOT_FOUND = {404: {"model": ErrorResponse, "description": "Không có job này"}}
+
+
+@router.get("/signing-key", response_model=SigningKey)
+def signing_key(request: Request) -> SigningKey:
+    """Staff-only public key; does not connect to DB or start any model."""
+    return request.app.state.vericlue.settings.report_signer.public_key()
 
 
 @router.post(
@@ -83,7 +91,9 @@ def get_job(job_id: str, state: StateDep) -> ForensicJob:
             "model": ErrorResponse,
             "description": "job_not_ready: job chưa xong hoặc đã thất bại nên chưa có báo cáo",
         },
-        200: {"description": "Báo cáo HTML; chữ ký trong header X-VeriClue-Signature"},
+        200: {
+            "description": "HTML; job real ký Ed25519, mock không có chữ ký hợp lệ; metadata trong X-VeriClue-Signature/Signature-Algorithm/Key-Id/Report-SHA256"
+        },
     },
 )
 def get_report(job_id: str, state: StateDep) -> HTMLResponse:
@@ -95,11 +105,16 @@ def get_report(job_id: str, state: StateDep) -> HTMLResponse:
     if report is None:
         raise ApiError(404, "job_not_found", "Không tìm thấy job giám định.")
     html, digest, signature = report
-    return HTMLResponse(
-        html, headers={"X-VeriClue-Report-SHA256": digest, "X-VeriClue-Signature": signature}
-    )
+    headers = {"X-VeriClue-Report-SHA256": digest, "X-VeriClue-Signature": signature}
+    if signature.startswith(MOCK_SIGNATURE_PREFIX):
+        headers["X-VeriClue-Signature-Algorithm"] = "MOCK"
+    else:
+        headers["X-VeriClue-Signature-Algorithm"] = "Ed25519"
+        headers["X-VeriClue-Key-Id"] = state.forensic.report_signer().key_id
+    return HTMLResponse(html, headers=headers)
 
 
 @router.post("/verify", response_model=VerifyResponse)
-def verify_report(body: VerifyRequest, state: StateDep) -> VerifyResponse:
-    return VerifyResponse(valid=state.forensic.verify(body.report_sha256, body.signature))
+def verify_report(body: VerifyRequest, request: Request) -> VerifyResponse:
+    signer = request.app.state.vericlue.settings.report_signer
+    return VerifyResponse(valid=signer.verify(body.report_sha256, body.signature))

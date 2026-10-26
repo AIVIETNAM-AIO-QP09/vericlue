@@ -317,7 +317,7 @@ def test_bao_cao_that_day_du_va_verify(real_client):
     assert res.headers["content-type"].startswith("text/html")
     html = res.text
     for needle in (
-        "Chữ ký: MOCK",
+        "Chữ ký: Ed25519",
         "Giới hạn",
         job["file_sha256"],
         "Kết luận: suspect",

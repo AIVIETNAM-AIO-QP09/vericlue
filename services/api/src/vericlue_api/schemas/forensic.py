@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 JobStatus = Literal["queued", "running", "done", "failed"]
 Verdict = Literal["authentic", "suspect", "inconclusive"]
@@ -111,8 +111,11 @@ class ForensicJob(BaseModel):
 
 
 class VerifyRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     report_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
-    signature: str
+    signature: str = Field(
+        max_length=160, description="Chữ ký Ed25519 base64 chuẩn cho hash HTML; MOCK không hợp lệ"
+    )
 
 
 class VerifyResponse(BaseModel):
