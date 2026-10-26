@@ -58,7 +58,11 @@ hoặc offset làm signature không hợp lệ. Không nhận hash/manifest do c
 thay cho việc hash byte thật.
 
 Sau kiểm signature, server claim `media_proof_uses.nonce_hash` bằng ràng buộc PK
-trong DB. Claim và nhận media cùng transaction, rollback nếu ghi thất bại. Finalize/
+trong DB. Claim và nhận media cùng transaction, rollback nếu ghi thất bại. Claim
+dùng INSERT/flush trực tiếp trong transaction request, không mở savepoint riêng:
+SQLite ở chế độ transaction cũ có thể commit savepoint đầu tiên trước SQL BEGIN,
+khiến nonce bị giữ dù request lỗi. Lỗi claim phải thoát transaction để rollback;
+không bắt lỗi rồi tiếp tục ghi snapshot trên cùng transaction đã thất bại. Finalize/
 voice kiểm lại đã có claim đúng lượt/khóa, để phiên cũ hoặc thay đổi cấu hình
 không bỏ qua kiểm upload. Lặp endpoint vẫn giữ lỗi `step_already_received` để
 client xử lý trường hợp mất phản hồi, không chạy lại hoặc ghi đè media.
@@ -70,9 +74,25 @@ hash, public key và signature bằng khóa tạm **đã bỏ**, không có priv
 người thật. Python/Kotlin cùng kiểm byte và signature này. Test API dùng khóa
 sinh trong RAM và media tổng hợp; không tấn công hệ thống bên ngoài.
 
+Kiểm tra API bổ sung: hết hạn đúng ranh giới trước/trong lúc đọc file; proof cũ
+sau retry/refresh hoặc đọc lại câu (kể cả đổi nhãn sang ID mới); gửi trùng sau
+restart; lỗi lưu mặt/giọng không tiêu thụ nonce và cho gửi lại cùng proof. Test
+PostgreSQL kiểm rollback và hai transaction tranh cùng nonce, chỉ một claim đạt.
+Đây là kiểm tra toàn vẹn/giao dịch, không phải số liệu nhận diện sinh trắc.
+Lệnh chạy và phần nghiệm thu thiết bị còn lại:
+[`media-proof-acceptance.md`](../runbooks/media-proof-acceptance.md).
+
 Chữ ký chỉ chứng minh người giữ khóa phiên đã ký đúng byte; chưa chứng minh camera
 thật, thiết bị không root/hook, hardware-backed key hay người ký đúng danh tính.
 Android Keystore thật chưa được nghiệm thu trên điện thoại. Chưa ký CCCD/signals
-hoặc kết quả trả bên tích hợp. Đăng ký khóa gắn tài khoản, L0 reauth, thu hồi/đổi
-thiết bị và mẫu mặt mã hóa còn phần tiếp theo của SEC-02/FLOW-05. Không coi lát cắt
-này là hoàn tất toàn bộ xác thực thiết bị hoặc hệ thống chống phát lại.
+theo protocol media này. Kết quả phiên có protocol ký riêng ở
+[`signed-session-results.md`](signed-session-results.md); nền khóa gắn tài khoản,
+L0, khôi phục/thu hồi và mẫu mã hóa xem
+[`account-authentication.md`](account-authentication.md). Chốt sinh trắc thật/mixed
+và account-bound mock vẫn giữ. Không coi các kiểm tra này là nghiệm thu thiết bị.
+
+Client cũ không gửi khóa và server không bật REQUIRE_MEDIA_PROOF vẫn được dùng
+đường unsigned tương thích; không được tuyên bố đường đó kiểm được tuổi của byte
+media. Ngay cả đường signed, người giữ khóa có thể ký lại byte cũ theo nonce mới;
+kiểm phản hồi thử thách/camera và mô hình mới đánh giá được nội dung đó. Ký chỉ
+chặn dùng lại proof cũ hoặc đổi byte/context sau khi ký, không chứng thực lúc quay.
