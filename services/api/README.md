@@ -59,6 +59,46 @@ gửi body giữ nguyên. Hướng dẫn cho người tích hợp (không sửa 
 - Mọi lỗi trả về theo một định dạng `{error_code, message}` (`ErrorResponse`).
 - Phản hồi cho người dân (`/v1/sessions/*`) **không bao giờ** có điểm số hay chữ "giả mạo" — có test; đừng xóa.
 
+## Giới hạn request (PLAT-06)
+
+- `POST /v1/sessions`: mặc định **3 lần gọi/IP trong cửa sổ trượt 3600 giây**.
+  `SESSION_CREATE_LIMIT` và `SESSION_CREATE_WINDOW_SECONDS` cấu hình số lượt và
+  khoảng thời gian. Mỗi lần được nhận vào xử lý đều tính lượt, kể cả lỗi body hoặc
+  nghiệp vụ sau đó; không hoàn lượt để tránh gọi lỗi nhằm vượt giới hạn.
+  Vượt lượt trả **429 `session_rate_limited`**, `Retry-After` (giây), `Cache-Control:
+  no-store`; không khóa các bước của phiên đã tạo. CORS cho phép đọc `Retry-After`.
+- Bộ đếm nguyên tử ở RAM, dành cho **một worker của demo**; restart làm mất lượt,
+  nhiều worker có bộ đếm riêng. Không coi đây là quota bền vững hoặc chống DDoS.
+  Khóa bucket là HMAC của địa chỉ peer với khóa ngẫu nhiên của app, không giữ IP
+  thô trong bộ đếm. Tối đa `SESSION_RATE_MAX_CLIENTS=10000` bucket; hết chỗ chưa
+  có bucket hết hạn thì trả **503 `rate_limit_unavailable`**, không đẩy bucket
+  còn hiệu lực ra để tạo lỗ vượt quota. Thiếu peer ASGI cũng trả 503.
+- Chỉ lấy `scope.client` do ASGI server cung cấp, **không tự tin** `X-Forwarded-For`,
+  `Forwarded` hoặc `CF-Connecting-IP`. Nếu dùng proxy/tunnel, chỉ cấu hình server
+  tin proxy được kiểm soát và không mở đường đi trực tiếp giả header. Nếu chưa
+  cấu hình, mọi người qua cùng proxy/NAT có thể dùng chung quota; cần thử cấu hình
+  trên máy demo. Không dùng `forwarded-allow-ips=*` cho listener công khai.
+- `MAX_UPLOAD_MB=50` vẫn giới hạn **từng file**. `MAX_REQUEST_MB=128` giới hạn
+  **tổng body** (mọi file, JSON, phần bao multipart). Header `Content-Length` quá
+  lớn bị chặn trước khi đọc body/khởi tạo nghiệp vụ; header trùng, sai hoặc đồng
+  thời với `Transfer-Encoding` trả **400 `invalid_content_length`**. Body thiếu
+  length hoặc khai length thấp vẫn bị đếm byte thực tế tại ASGI `receive`, trả
+  **413 `request_too_large`** trước khi chuyển chunk vượt mức cho parser. Multipart
+  đang dở đóng file tạm khi lỗi; chưa ghi media hoặc tiêu thụ bước phiên.
+- Không đệm thêm bản sao toàn body hoặc ghi thêm file tạm ở middleware. Parser
+  có thể đã nhận các chunk dưới mức giới hạn; đây không phải giới hạn RAM của
+  toàn server hay băng thông mạng. Giới hạn kết nối/thời gian đọc/body ở proxy
+  vẫn cần thiết khi triển khai ngoài demo. API không giải nén body.
+
+Khi test nội bộ cần tạo nhiều phiên, đặt `SESSION_CREATE_LIMIT` phù hợp trước khi
+khởi động lại API; không sửa mặc định hoặc dùng cờ mock để tự bỏ bảo vệ. Bộ test
+nghiệp vụ cấu hình quota riêng; `test_request_limits.py` kiểm quota 3 và đồng thời.
+Không đổi schema request/response; lỗi vẫn là `{error_code, message}` hiện có.
+
+Tham chiếu giao thức: [ASGI HTTP request/receive](https://asgi.readthedocs.io/en/latest/specs/www.html#request-receive-event)
+và [Starlette multipart parser](https://github.com/Kludex/starlette/blob/main/starlette/formparsers.py)
+(kiểm thêm phiên bản đã cài bằng test đóng file tạm).
+
 ## Lệnh
 
 ```bash
@@ -112,14 +152,14 @@ Chạy mock (`USE_MOCK_MODELS=true`, mặc định) chọn kịch bản bằng h
 
 | Phần | Hiện nay | Thay bằng |
 |---|---|---|
-| Phiên | HMAC, hash token trong DB, TTL và chặn nhận lặp đã có; thử thách khuôn mặt/câu đọc có hạn riêng | **PLAT-06** còn 429 (3 phiên/giờ/IP), khóa ký báo cáo, auth nhân viên, giới hạn body trước multipart; LIVE-03/SEC-02 ràng buộc media với thử thách; LIVE-06 gia hạn phiên |
+| Phiên | HMAC/hash token/TTL/chặn lặp; Ed25519 opt-in; quota tạo phiên 429 và giới hạn body ASGI đã có | **PLAT-06** còn nghiệm thu media cũ/auth nhân viên; FOR-04 nối ký báo cáo; LIVE-03/SEC-02 ràng buộc media và LIVE-06 gia hạn |
 | Lưu trữ | **PLAT-05**: PostgreSQL, migration Alembic, transaction theo request | Đã có persistence; nghiệp vụ tiếp tục ở các task tương ứng |
 | Chạy detector | **PLAT-08**: executor chung, preload lifespan, deadline/timeout và latency thực | Đã có; detector thật được bổ sung bởi các task mô hình |
 | Luật quyết định | **ROUT-02**: ML TrustRouter, snapshot `ml/configs/thresholds.yaml`, provisional max-fusion | **ROUT-03**: ngưỡng LTT trên calib_ltt; logistic học trên calib_fit khi có dữ liệu thật |
 | Giám định, chữ ký | **FOR-01 lõi (MVP):** `USE_MOCK_MODELS` khác `true` → tác vụ nền chia đoạn 3 s chồng 50%, chạy detector THẬT từng đoạn (`face_deepfake`, `voice_spoof`; `lipsync` chưa hỗ trợ), quét nguồn gốc cả file (AudioSeal, C2PA), `GET /jobs/{id}` trả tiến độ; module chưa có mô hình thật là `unavailable` và kết luận ra `inconclusive`. Chữ ký vẫn `MOCK-<sha256>`; `USE_MOCK_MODELS=true` giữ bản mock cũ | **FOR-01** hiệu chỉnh riêng (calibrator `forensic`, DATA-05), **FOR-04** khóa Ed25519 ở PLAT-06 |
 | Bàn duyệt | **REV-01**: DB, nhật ký băm nối chuỗi, `verify_chain`, mã lý do cố định; URL media vẫn là chỗ giữ chỗ | **REV-02** (giao diện, phục vụ media) |
-| Giới hạn upload | `MAX_UPLOAD_MB` chỉ kiểm **sau khi** Starlette đã nhận multipart (và trước khi xác thực token vẫn nhận được body) | **PLAT-06** / reverse proxy: giới hạn cứng ở lớp trước ứng dụng |
-| Xác thực nhân viên | `/v1/review/*` và `/v1/forensic/*` chưa có xác thực; nhật ký ghi `actor` cố định `staff-unverified` | **PLAT-06** / REV-02 |
+| Giới hạn upload | `MAX_REQUEST_MB` kiểm header/tổng byte trước parser; `MAX_UPLOAD_MB` kiểm riêng từng file | Reverse proxy: giới hạn kết nối, thời gian đọc và body ở lớp mạng |
+| Xác thực nhân viên | Privacy mode đã xác thực bearer cho `/v1/review/*`; forensic chưa có xác thực nhân viên | **PLAT-06** / REV-02: nghiệm thu và bảo vệ forensic |
 
 Chính sách ROUT-02, thứ tự cổng: phiên/thời gian hợp lệ → quality (chụp lại tối đa 2 lần rồi `review`) → chromapulse/camprobe (fail → `review` ưu tiên cao; unclear → chụp lại; gate rỗng/không xác định → `review`) → ngưỡng trên **max `prob_attack`** của `face_pad` và `face_deepfake` (≤ B `pass`; trên B đến dưới A `voice_challenge`; ≥ A `review`). `error`/`degraded`/thiếu ở bước bắt buộc → `review`, không bao giờ `pass`.
 
