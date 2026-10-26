@@ -214,7 +214,8 @@ Review/forensic bắt buộc StaffBearer ở mọi chế độ, độc lập v�
 thiếu credential trả 401, thiếu/sai cấu hình trả 503 trước đọc upload. Actor quyết
 định review lấy từ cấu hình server; dữ liệu `staff-unverified` cũ không tự viết
 lại. HTML forensic đã có chữ ký Ed25519 với khóa report riêng; gói PDF/JSON ký
-đã có ở FOR-04, thêm [ảnh/phổ minh họa opt-in](forensic-report-evidence.md), còn neo audit/LR/ENFSI. Xem
+đã có ở FOR-04, thêm [ảnh/phổ minh họa opt-in](forensic-report-evidence.md) và
+[gắn hồ sơ/neo nhật ký](forensic-review-audit.md), còn LR/ENFSI. Xem
 [gói PDF/JSON](forensic-pdf-bundle.md), [giao thức HTML](forensic-report-signing.md) và
 [`services/api/README.md`](../../services/api/README.md#truy-cập-nhân-viên-plat-06).
 

@@ -69,4 +69,5 @@ PDF QA render bằng Chromium/Poppler và xem đủ trang, xác minh gói có ch
 
 Tham chiếu: [showspectrumpic](https://ffmpeg.org/ffmpeg-filters.html#showspectrumpic),
 [protocol whitelist](https://ffmpeg.org/ffmpeg-protocols.html#Protocol-Options).
-FOR-04 còn liên kết/neo audit, LR/calibration/thang lời ENFSI và UI nghiệm thu.
+Liên kết/neo audit xem [forensic-review-audit.md](forensic-review-audit.md).
+FOR-04 còn LR/calibration/thang lời ENFSI và UI nghiệm thu.

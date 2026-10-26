@@ -108,7 +108,7 @@
 | FOR-01 | API giám định: chia đoạn, chạy bộ não | M5 | | 1,5 | S2 | P0 | PLAT-05, FACE-02, VOICE-01 | todo |
 | FOR-02 | Giao diện giám định | M2 | | 1,5 | S2 | P0 | FOR-01 | todo |
 | FOR-03 | Quét nguồn gốc (AudioSeal, Perth, C2PA) | M3 | | 1 | S2 | P0 | PLAT-03 | todo |
-| FOR-04 | PDF/JSON ký và ảnh/phổ opt-in; còn neo audit/LR và ENFSI | M2 (+M5) | Codex | 1,5 | S2 | P0 | FOR-01, FOR-03, PLAT-06, ROUT-01 | doing |
+| FOR-04 | PDF/JSON ký, ảnh/phổ, liên kết/neo nhật ký ca; còn calib/LR và ENFSI | M2 (+M5) | Codex | 1,5 | S2 | P0 | FOR-01, FOR-03, PLAT-06, ROUT-01 | doing |
 
 ## E8 — Red-team, đánh giá, demo · `epics/E8-eval-demo.md`
 

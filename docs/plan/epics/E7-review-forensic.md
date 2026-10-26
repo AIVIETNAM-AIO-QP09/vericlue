@@ -185,7 +185,7 @@ rẽ nhánh. Cùng bảo vệ bước quyết định cuối, không đổi hợ
 
 **Tiêu chí hoàn thành:**
 - [x] Gói PDF/JSON: sửa byte PDF hoặc JSON → xác minh thất bại, có CLI với key đã pin (test).
-- [ ] (Từ REV-01) Neo **hash cuối chuỗi** `review_events` của ca liên quan vào báo cáo đã ký, để phát hiện việc cắt bớt đuôi nhật ký (`verify_chain()` chỉ bắt được sửa/xóa giữa chuỗi).
+- [x] (Từ REV-01) Neo **hash cuối chuỗi** `review_events` của ca gắn vật chứng vào HTML/JSON/PDF đã ký; verifier phát hiện cắt đuôi ngay cả khi verify_chain còn đạt. Kiểm byte nguồn, duyệt trước AI, append hợp lệ và chống hạ mốc (test tổng hợp).
 - [ ] Bảng thang lời được kiểm tra lại với tài liệu ENFSI 2015 trước khi dùng.
 - [x] Mục giới hạn luôn có mặt trong HTML/PDF và manifest không được trống (test, PDF tổng hợp đã render kiểm trực quan).
 
@@ -203,3 +203,12 @@ không gọi là heatmap hay xác suất AI. Thiếu nguồn/runtime ghi rõ b�
 không đổi verdict/chữ ký. Test native dùng test-pattern/sóng sin, chặn playlist
 mạng; PDF tổng hợp đã kiểm bố cục. Không đổi schema/UI. Còn neo audit/calib/LR/
 ENFSI và nghiệm thu toàn luồng; xem `docs/architecture/forensic-report-evidence.md`.
+
+**Liên kết và neo nhật ký 26/10 (doing):** `review_case_id` multipart tùy chọn;
+không gửi giữ giám định độc lập. Gửi mã ca phải có quyết định ban đầu và file
+khớp byte role video/audio lưu trong phiên, hỗ trợ SEC-01 encrypted lease. Mốc
+case/session/role/hash/count/tail đi vào chữ ký. Xuất lại chỉ tiến mốc sau kiểm
+prefix, không ký lại nhật ký bị cắt. `/review-audit/verify` xác minh JSON đã ký
+trước DB, phân biệt intact/extended/truncated; không thay kiểm byte PDF. Không
+UPDATE/DELETE review_events trong sản phẩm. Còn calib/LR/ENFSI và nghiệm thu UI/
+vật chứng thật; xem `docs/architecture/forensic-review-audit.md`.

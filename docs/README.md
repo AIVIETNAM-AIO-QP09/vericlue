@@ -17,6 +17,7 @@ Chữ ký và kiểm tệp báo cáo HTML: [forensic-report-signing.md](architec
 
 Gói PDF/JSON đã ký và runtime xuất: [forensic-pdf-bundle.md](architecture/forensic-pdf-bundle.md).
 Ảnh/phổ minh họa từ vật chứng: [forensic-report-evidence.md](architecture/forensic-report-evidence.md).
+Giám định độc lập/gắn hồ sơ và kiểm mốc nhật ký: [forensic-review-audit.md](architecture/forensic-review-audit.md).
 
 ## Cấu trúc
 
