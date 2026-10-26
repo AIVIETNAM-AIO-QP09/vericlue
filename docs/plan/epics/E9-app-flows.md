@@ -24,6 +24,7 @@
 **Tiêu chí hoàn thành:**
 - [x] Test cho từng `purpose`. Không có đường nào ra `pass` khi module bắt buộc lỗi.
 - [x] Hợp đồng, API và type web khớp nhau (`gen_openapi --check`).
+- [x] Kết quả Ed25519 opt-in theo quyết định đã commit: phiên/nonce/purpose/bên nhận/hạn gắn server; mock/phiên cũ/thiếu bằng chứng không được ký. Client Android và verifier/CLI đã có; chưa nghiệm thu thật.
 
 **Cập nhật 24/10 — nền backend (`doing`):** Có body opt-in `purpose`/`nonce`/
 `reference_image_id`, chính sách theo luồng và mock xuyên suốt. Tham chiếu mới chỉ

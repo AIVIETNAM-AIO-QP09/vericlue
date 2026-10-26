@@ -73,7 +73,13 @@ def create_app() -> FastAPI:
             response.headers["Cache-Control"] = "no-store"
         return response
 
-    for router in (health.router, sessions.router, review.router, forensic.router):
+    for router in (
+        health.router,
+        sessions.router,
+        sessions.keys_router,
+        review.router,
+        forensic.router,
+    ):
         app.include_router(router)
     return app
 

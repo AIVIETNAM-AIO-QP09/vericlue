@@ -1,5 +1,10 @@
 # Contracts — hợp đồng giữa các phần
 
+PLAT-06/FLOW-01 thêm `result.schema.json`: envelope Ed25519/claims và khóa công
+khai cho bên tích hợp. Dùng bearer của phiên để đọc kết quả đã commit, không
+nhận payload client để ký. Xem
+[`signed-session-results.md`](../../docs/architecture/signed-session-results.md).
+
 FLOW-05/SEC-02 bổ sung account_id/device_id cho tạo phiên, device_challenge,
 device-proof và receipt theo bearer phiên. VoiceResponse có account sau hoàn
 tất ghi danh/khôi phục; không trả template hoặc public key. ACK L0 chỉ xác nhận

@@ -385,8 +385,17 @@ def test_cleanup_shreds_account_without_master_key_and_is_idempotent(private_cli
         assert row.wrapped_key is row.encrypted_payload is None
         assert row.id_number_hmac is row.phone_hmac is None
         assert db.get(SessionRow, sid).media_deleted_at is None
-        counts = [r.details["expired_accounts"] for r in db.scalars(select(CleanupAuditRow))]
-        assert counts[-2:] == [1, 0]
+        # The lifespan cleanup can append its own real-clock audit between these
+        # two explicit future-clock runs. Select those runs instead of tail rows.
+        counts = [
+            r.details["expired_accounts"]
+            for r in db.scalars(
+                select(CleanupAuditRow)
+                .where(CleanupAuditRow.created_at == receipt.expires_at)
+                .order_by(CleanupAuditRow.id)
+            )
+        ]
+        assert counts == [1, 0]
 
 
 def test_lookup_checks_ttl_even_before_cleanup(private_client, monkeypatch):

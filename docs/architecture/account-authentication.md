@@ -86,7 +86,8 @@ mã hóa lại cả envelope/payload vì AAD có device_id. Giữ nguyên accoun
 template gốc, phiên nguồn và hạn 24 giờ; không tạo tài khoản thứ hai. Thay khóa,
 receipt khôi phục, audit và quyết định nằm trong cùng transaction. Constraint
 chặn thay cùng thiết bị cũ hai lần; rollback giữ khóa cũ. Không gửi thông báo
-cho bên tích hợp. Kết quả tích hợp có chữ ký theo ADR-0013 chưa nằm trong receipt.
+cho bên tích hợp. Kết quả ký theo ADR-0013 tách khỏi receipt; xem
+[signed-session-results.md](signed-session-results.md). Chốt luồng thật còn giữ.
 
 ## Còn phải nghiệm thu
 
@@ -94,7 +95,7 @@ cho bên tích hợp. Kết quả tích hợp có chữ ký theo ADR-0013 chưa 
   giọng/khớp môi. Không dùng test để chọn ngưỡng hoặc mở chốt thật cho demo.
 - Bên làm UI nối receipt/account context, lưu mã tham chiếu cùng đúng alias
   Keystore; thử trên thiết bị thật. Không cần xuất/lưu private key ra ngoài.
-- Kết quả có chữ ký cho bên tích hợp; receipt/ACK không thay thế kết quả đã ký.
+- Nghiệm thu kết quả ký với backend tích hợp; receipt/ACK không thay thế kết quả đã ký.
 
 Test dùng khóa P-256 thật/HTTP/DB và verdict/vector/ảnh tổng hợp. PostgreSQL CI
 kiểm claim đồng thời và hai phiên khôi phục tranh cùng khóa. Đây là kiểm chứng

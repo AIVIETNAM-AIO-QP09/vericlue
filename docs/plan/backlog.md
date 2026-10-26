@@ -20,7 +20,7 @@
 | PLAT-03 ★ | FastAPI + vericlue_ml + ModuleResult + mock | M5 | Claude | 1 | S0 | P0 | PLAT-01 | done |
 | PLAT-04 ★ | Chốt API v1, hợp đồng, sinh type cho web | M5 (+M1) | Claude | 1 | S0 | P0 | PLAT-02, PLAT-03 | done |
 | PLAT-05 ★ | DB, Alembic, Docker Compose | M5 | Codex | 1 | S1 | P0 | PLAT-04 | done |
-| PLAT-06 | Token phiên, giới hạn lượt, khóa Ed25519 | M2 | Codex | 1 | S1 | P0 | PLAT-05 | doing |
+| PLAT-06 | Token phiên; Ed25519/gen_keys và kết quả ký opt-in; còn 429/body limit | M2 | Codex | 1 | S1 | P0 | PLAT-05 | doing |
 | PLAT-07 | CI xanh, branch protection, CODEOWNERS | M2 | | 0,5 | S0 | P0 | PLAT-01, PLAT-02 | todo |
 | PLAT-08 ★ | Orchestrator chạy song song detector | M5 | Codex | 1 | S1 | P0 | PLAT-05 | done |
 | PLAT-09 ★ | Kiểm thử đầu–cuối theo kịch bản (mock) | M1 | | 1 | S2 | P0 | PLAT-08, ROUT-02, CAP-06 | todo |
@@ -127,7 +127,7 @@
 
 | Mã | Task | Vai trò | Người | Ngày công | Sprint | Ưu tiên | Phụ thuộc | Trạng thái |
 |---|---|---|---|---|---|---|---|---|
-| FLOW-01 | Tham số purpose + luật theo luồng | M5 | Codex | 1 | S1 | P0 | ROUT-02, PLAT-08 | doing |
+| FLOW-01 | Purpose/luật theo luồng; kết quả Ed25519 opt-in, chờ nghiệm thu thật | M5 | Codex | 1 | S1 | P0 | ROUT-02, PLAT-08 | doing |
 | FLOW-02 | OTP mô phỏng | M2 | Ngọc Quang+Claude | 0,5 | S1 | P0 | PLAT-05 | doing |
 | FLOW-03 | Chụp CCCD, QR, chân dung, kiểm đã đăng ký; bảo toàn ảnh khi lỗi | M1 | Ngọc Quang+Claude | 1,5 | S1 | P0 | PLAT-05, FACE-01 | doing |
 | FLOW-04 | Quay đầu, chọn khung RAM, GenD và FS-VFM-L PAD — diagnostic | M1 (+M3) | Codex | 1 | S1 | P0 | CAP-06 | doing |

@@ -12,9 +12,14 @@
 | `synth_vn_deepfakes.py` | Tạo deepfake mặt và giọng người Việt từ nguồn công khai | DATA-04 |
 | `smoke_voice_lipsync.py` | Thử tay một clip local: căn câu, nối audio, SyncNet và tiếng trễ 500 ms; không đánh giá dữ liệu | VOICE-05 |
 | `compress_variants.py` | Tạo 3 mức nén kiểu mạng xã hội bằng ffmpeg | DATA-05 |
-| `gen_keys.py` | Sinh khóa ký token và khóa Ed25519 ký báo cáo | PLAT-06 |
+| `gen_keys.py` | Sinh khóa token và cặp Ed25519 cục bộ cho kết quả ký | PLAT-06 |
 
 **Quy tắc:**
+
+`gen_keys.py` đã có: tạo/kiểm lại bundle trong `secrets/server-signing`, không in
+hoặc tự áp dụng/ghi đè bí mật. `verify_session_result.py` kiểm envelope bằng public
+key đã pin và ngữ cảnh bên tích hợp; không dùng chữ ký đúng để đổi deny thành pass.
+Xem [`signed-session-results.md`](../docs/architecture/signed-session-results.md).
 - Script phải chạy được trên cả Windows và Linux. Ưu tiên viết bằng Python, chạy bằng `uv run python scripts/...`.
 - Có `--help`.
 - Chạy lại nhiều lần không hỏng gì (idempotent).
