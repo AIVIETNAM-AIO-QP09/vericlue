@@ -5,12 +5,13 @@
 Đây là **luồng ghi danh nội bộ opt-in**, chưa phải luồng eKYC thật đã nghiệm thu.
 Migration `0005_accounts` thêm bảng tài khoản; `AppState.accounts` cấp service
 trong transaction. `ACCOUNT_ENROLLMENT=true` nối lời gọi sau `pass` của bước giọng
-onboarding, cùng transaction với quyết định. Không đổi UI/client/hợp đồng HTTP;
-không có endpoint ghi danh hoặc lookup tài khoản. Chốt real/mixed vẫn giữ nguyên,
-không cờ nào trong thay đổi này mở được luồng đó. FLOW-05 và SEC-02 giữ `doing`.
+onboarding, cùng transaction với quyết định. Đã có receipt công khai theo bearer
+của phiên và client Android; không có HTTP nhận/trả template. Chốt real/mixed
+vẫn giữ nguyên. FLOW-05 và SEC-02 giữ `doing`.
 
-Còn thiếu: nghiệm thu luồng thật, ngưỡng được kiểm chứng, L0 reauth và
-khôi phục/thu hồi khóa. Đã có opt-in [so cùng người mặt–giọng](face-voice-continuity.md),
+Còn thiếu: nghiệm thu luồng thật và ngưỡng được kiểm chứng. L0, so mẫu đã lưu,
+khôi phục/thu hồi khóa xem [account-authentication.md](account-authentication.md).
+Đã có opt-in [so cùng người mặt–giọng](face-voice-continuity.md),
 dùng LVFace chung và protocol/ngưỡng riêng; chưa có ngưỡng thực cho phép đạt.
 
 ## Mẫu mặt của server
@@ -74,8 +75,8 @@ public key. DB không lưu số CCCD/điện thoại/private key/ảnh/video tro
 Unique constraint trên HMAC CCCD chặn trùng tài khoản đang hiệu lực; unique trên
 phiên nguồn chặn tạo lại từ một phiên, kể cả sau hết hạn. Retry cùng phiên trả
 cùng receipt, không xoay khóa. Insert dùng savepoint; xung đột trả 409 trung tính.
-Receipt chỉ có account_id/device_id/expires_at. Lookup template chỉ là nội bộ;
-chưa có HTTP trả receipt/template.
+Receipt chỉ có account_id/device_id/expires_at, được trả qua HTTP theo quyền
+của phiên đã hoàn tất. Lookup template chỉ là nội bộ; không có HTTP trả template.
 
 Tạo tài khoản, đọc template và hủy khóa ghi chuỗi `access_events` riêng theo
 account_id, khóa hàng tài khoản để tuần tự hóa. Nhật ký chỉ chứa actor hệ thống,
@@ -94,8 +95,9 @@ khoản, nhưng sau 24 giờ khóa tài khoản vẫn bị dọn riêng. Backup 
 phục hồi khóa đã xóa; chưa có hủy backup/KMS. Python không bảo đảm xóa ngay RAM.
 
 Gắn public key đã ký hai bản ghi với device_id không cấp `device_verified`.
-Cờ này phải chờ L0 xác minh khóa đã đăng ký trên nonce mới. Chưa có L0/thu hồi/
-xoay khóa hoặc hardware attestation. Chữ ký không chứng minh nguồn camera.
+Cờ này chỉ được đặt sau L0 xác minh khóa đã đăng ký trên nonce mới và claim DB.
+Đã có service xoay khóa/thu hồi; chưa có hardware attestation. Chữ ký không chứng
+minh nguồn camera. Chi tiết xem account-authentication.md.
 
 ## Kiểm tra
 

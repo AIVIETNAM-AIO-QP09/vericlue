@@ -268,6 +268,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/sessions/{session_id}/account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Account Receipt */
+        get: operations["account_receipt_v1_sessions__session_id__account_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/sessions/{session_id}/challenge": {
         parameters: {
             query?: never;
@@ -282,6 +299,23 @@ export interface paths {
          * @description Thử thách mới cho phần khuôn mặt và gia hạn token (ADR-0017 §2, giới hạn tổng 15 phút).
          */
         post: operations["refresh_challenge_v1_sessions__session_id__challenge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sessions/{session_id}/device-proof": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Device Proof */
+        post: operations["device_proof_v1_sessions__session_id__device_proof_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -434,6 +468,18 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AccountReceipt */
+        AccountReceipt: {
+            /** Account Id */
+            account_id: string;
+            /** Device Id */
+            device_id: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
         /** AuditVerification */
         AuditVerification: {
             /** Bad Index */
@@ -588,6 +634,10 @@ export interface components {
         };
         /** CreateSessionRequest */
         CreateSessionRequest: {
+            /** Account Id */
+            account_id?: string | null;
+            /** Device Id */
+            device_id?: string | null;
             /** Device Public Key Spki */
             device_public_key_spki?: string | null;
             /** Nonce */
@@ -603,6 +653,7 @@ export interface components {
         /** CreateSessionResponse */
         CreateSessionResponse: {
             challenge: components["schemas"]["Challenge"];
+            device_challenge?: components["schemas"]["DeviceChallenge"] | null;
             /**
              * Expires At
              * Format: date-time
@@ -630,6 +681,30 @@ export interface components {
              * @enum {string}
              */
             status: "open" | "initial_decided" | "closed";
+        };
+        /** DeviceChallenge */
+        DeviceChallenge: {
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Message */
+            message: string;
+        };
+        /** DeviceProofRequest */
+        DeviceProofRequest: {
+            /** Signature */
+            signature: string;
+        };
+        /** DeviceProofResponse */
+        DeviceProofResponse: {
+            /**
+             * Received
+             * @default true
+             * @constant
+             */
+            received: true;
         };
         /** DynamicChallenge */
         DynamicChallenge: {
@@ -1152,6 +1227,7 @@ export interface components {
         };
         /** VoiceResponse */
         VoiceResponse: {
+            account?: components["schemas"]["AccountReceipt"] | null;
             /** Attempts Left */
             attempts_left?: number | null;
             /**
@@ -2024,6 +2100,64 @@ export interface operations {
             };
         };
     };
+    account_receipt_v1_sessions__session_id__account_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountReceipt"];
+                };
+            };
+            /** @description Thiếu hoặc sai token phiên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sai trạng thái, phiên đã kết thúc, thiếu bước hoặc sai/hết hạn mã thử thách; bước gửi trùng cũng trả 409. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Kho dữ liệu hoặc luồng xác minh chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     refresh_challenge_v1_sessions__session_id__challenge_post: {
         parameters: {
             query?: never;
@@ -2069,6 +2203,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    device_proof_v1_sessions__session_id__device_proof_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeviceProofRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceProofResponse"];
+                };
+            };
+            /** @description Thiếu hoặc sai token phiên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sai trạng thái, phiên đã kết thúc, thiếu bước hoặc sai/hết hạn mã thử thách; bước gửi trùng cũng trả 409. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Kho dữ liệu hoặc luồng xác minh chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

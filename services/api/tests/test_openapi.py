@@ -12,6 +12,8 @@ EXPECTED = {
     ("post", f"{S}/signals"),
     ("post", f"{S}/finalize"),
     ("post", f"{S}/voice"),
+    ("post", f"{S}/device-proof"),
+    ("get", f"{S}/account"),
     ("post", f"{S}/otp"),
     ("post", f"{S}/otp/verify"),
     ("post", f"{S}/id-card"),

@@ -18,6 +18,7 @@ from vericlue_api.core.errors import ApiError
 from vericlue_api.core.session_tokens import token_digest
 from vericlue_api.schemas.review import MediaRef
 from vericlue_api.schemas.session import (
+    AccountReceipt,
     ChallengeResponse,
     CreateSessionRequest,
     CreateSessionResponse,
@@ -26,6 +27,8 @@ from vericlue_api.schemas.session import (
     Signals,
     VoiceResponse,
 )
+from vericlue_api.services.account_auth import AccountAuth
+from vericlue_api.services.accounts import AccountStore
 from vericlue_api.services.challenge import generate_challenge
 from vericlue_api.services.detection import run_detectors
 from vericlue_api.services.dynamic_challenge import (
@@ -51,6 +54,7 @@ from vericlue_api.services.session_store import Session, SessionStore
 from vericlue_api.services.uploads import save_upload
 from vericlue_ml.common.result import Gate, Module, Status
 from vericlue_ml.face.continuity import FACE_VOICE_VERSION
+from vericlue_ml.face.enrolled import REAUTH_MATCH_VERSION, RECOVERY_MATCH_VERSION
 from vericlue_ml.face.match import MATCH_VERSION
 from vericlue_ml.face.video_match import VIDEO_MATCH_VERSION
 from vericlue_ml.router.flows import route_face, route_voice
@@ -71,6 +75,7 @@ class SessionFlow:
         router: TrustRouter | None = None,
         privacy: SessionPrivacy | None = None,
         enroll: Callable[[Session], object] | None = None,
+        accounts: AccountStore | None = None,
     ) -> None:
         self.router = (
             router
@@ -83,24 +88,43 @@ class SessionFlow:
         self.reviews = reviews
         self.privacy = privacy
         self._enroll = enroll
+        self.accounts = accounts or AccountStore(settings, sessions.db)
+        self.account_auth = AccountAuth(self.accounts)
 
     # --- tạo phiên -------------------------------------------------------
     def create(
         self, scenario: str, request: CreateSessionRequest | None = None
     ) -> CreateSessionResponse:
+        account_bound = bool(request and request.account_id)
+        if request and (
+            request.account_id
+            and request.purpose == "onboarding"
+            or request.device_id
+            and (request.purpose != "reauth" or not account_bound)
+            or account_bound
+            and request.reference_image_id
+            or account_bound
+            and request.purpose == "recovery"
+            and not request.device_public_key_spki
+        ):
+            raise ApiError(422, "invalid_account_context", "Thông tin phiên chưa phù hợp.")
         if (
-            self.settings.require_media_proof
-            or self.settings.identity_voice_continuity
-            and request is not None
-            and request.purpose in {"onboarding", "recovery"}
-        ) and (request is None or not request.device_public_key_spki):
+            (
+                self.settings.require_media_proof
+                or self.settings.identity_voice_continuity
+                and request is not None
+                and request.purpose in {"onboarding", "recovery"}
+            )
+            and (request is None or not request.device_public_key_spki)
+            and not (account_bound and request.purpose == "reauth")
+        ):
             raise rejected()
         if request and request.device_public_key_spki and request.purpose == "reauth":
             # A newly supplied public key cannot become a trusted registered device.
             raise ApiError(503, "flow_unavailable", "Luồng xác minh này chưa sẵn sàng.")
         # These flows need gaze/head/match/device verification before real deployment.
         # No environment switch can accidentally enable an incomplete acceptance path.
-        if request is not None and self.settings.use_mock_models is not True:
+        if request is not None and self.settings.use_mock_models is not True and not account_bound:
             raise ApiError(503, "flow_unavailable", "Luồng xác minh này chưa sẵn sàng.")
         session = self.sessions.create(
             scenario=scenario,
@@ -108,6 +132,7 @@ class SessionFlow:
             ttl_seconds=self.settings.session_ttl_seconds,
             signer=self.settings.session_token_signer,
         )
+        device_challenge = None
         if request is not None:
             session.purpose = request.purpose
             session.nonce = request.nonce
@@ -120,6 +145,10 @@ class SessionFlow:
                 session.voice_challenge_id = session.challenge.dynamic.voice_challenge_id
             if request.device_public_key_spki:
                 bind_key(session, request.device_public_key_spki)
+            if account_bound:
+                device_challenge = self.account_auth.bind(
+                    session, request.account_id, request.device_id
+                )
         return CreateSessionResponse(
             session_id=session.session_id,
             token=session.token,
@@ -127,6 +156,7 @@ class SessionFlow:
             challenge=session.challenge,
             purpose=session.purpose,
             nonce=session.nonce,
+            device_challenge=device_challenge,
         )
 
     def refresh_challenge(self, session: Session) -> ChallengeResponse:
@@ -136,6 +166,11 @@ class SessionFlow:
         gián đoạn. Dữ liệu khuôn mặt và giọng của lượt cũ bị bỏ; số lần chụp lại đã dùng vẫn giữ.
         """
         self.ensure_open(session)
+        if session.account_id:
+            if session.purpose == "reauth":
+                self.account_auth.require_verified(session)
+            else:
+                self.account_auth.current(session)
         now = datetime.now(UTC)
         started = session.created_at or now
         if started.tzinfo is None:
@@ -200,13 +235,25 @@ class SessionFlow:
 
     def ensure_flow_available(self, session: Session) -> None:
         """A saved mock session must not become usable after switching the server to real."""
+        if session.account_id:
+            if session.purpose == "reauth":
+                self.account_auth.require_verified(session)
+            else:
+                self.account_auth.current(session)
+            # L0 is usable independently. Do not accept mock account biometrics or
+            # enable the unvalidated real dynamic flow through this new entry point.
+            raise ApiError(503, "flow_unavailable", "Luồng xác minh này chưa sẵn sàng.")
         if session.purpose is not None and self.settings.use_mock_models is not True:
             raise ApiError(503, "flow_unavailable", "Luồng xác minh này chưa sẵn sàng.")
 
     def _requires_proof(self, session: Session) -> bool:
-        return self.settings.require_media_proof or (
-            self.settings.identity_voice_continuity
-            and session.purpose in {"onboarding", "recovery"}
+        return (
+            bool(session.account_id)
+            or self.settings.require_media_proof
+            or (
+                self.settings.identity_voice_continuity
+                and session.purpose in {"onboarding", "recovery"}
+            )
         )
 
     # --- tải lên ---------------------------------------------------------
@@ -415,8 +462,9 @@ class SessionFlow:
         outcome = route_face(outcome, session.purpose, device_verified=session.device_verified)
         # This bridge compares a newly scanned card. Reauth uses enrolled identity/device
         # context (FLOW-05/SEC-02), not a fresh CCCD or the staff-review card gate.
-        if s.identity_lab_url and session.purpose != "reauth":
+        if session.account_id or s.identity_lab_url and session.purpose != "reauth":
             if session_valid:
+                identity = self.account_auth.current(session) if session.account_id else None
                 session.results.update(
                     self._run(
                         [Module.FACE_MATCH],
@@ -426,7 +474,10 @@ class SessionFlow:
                         images=session.images[:1],
                         image_roles=["front"],
                         video=session.video,
+                        **({"reference_template": identity.template} if identity else {}),
                         extra_metadata={
+                            "purpose": session.purpose,
+                            "account_id": session.account_id,
                             "challenge_id": session.challenge.challenge_id,
                             "expected_challenge": session.challenge.model_dump(
                                 mode="json", exclude_none=True
@@ -550,6 +601,7 @@ class SessionFlow:
                                 mode="json", exclude_none=True
                             ),
                             "expected_voice_challenge_id": session.voice_challenge_id,
+                            "account_id": session.account_id,
                             "face_reference_result": session.results[
                                 Module.FACE_MATCH
                             ].to_contract()
@@ -582,7 +634,7 @@ class SessionFlow:
             session_valid=session_valid and self._valid_time(session, voice_challenge=True),
         )
         outcome = route_voice(outcome, session.purpose)
-        if self.settings.identity_lab_url and session.purpose != "reauth":
+        if session.account_id or self.settings.identity_lab_url and session.purpose != "reauth":
             outcome = self._identity_gate(session, outcome)
         if continuity_enabled:
             outcome = self._continuity_gate(session, outcome)
@@ -609,6 +661,7 @@ class SessionFlow:
         if outcome.status == "review":
             self._open_case(session, outcome)
             return VoiceResponse(status="review")
+        receipt = None
         if (
             outcome.status == "pass"
             and session.purpose == "onboarding"
@@ -616,8 +669,13 @@ class SessionFlow:
         ):
             if self._enroll is None:
                 raise ApiError(503, "enrollment_unavailable", "Chưa thể hoàn tất ghi danh lúc này.")
-            self._enroll(session)
-        return VoiceResponse(status=outcome.status)
+            receipt = self._enroll(session)
+        if outcome.status == "pass" and session.purpose == "recovery" and session.account_id:
+            receipt = self.accounts.recover(session)
+        return VoiceResponse(
+            status=outcome.status,
+            account=AccountReceipt.model_validate(receipt) if receipt is not None else None,
+        )
 
     # --- nội bộ ----------------------------------------------------------
     def _start_voice(self, session: Session) -> str:
@@ -652,22 +710,42 @@ class SessionFlow:
         match = session.results.get(Module.FACE_MATCH)
         thresholds = dict(outcome.thresholds)
         expected_version = (
-            VIDEO_MATCH_VERSION if self.settings.identity_face_from_video else MATCH_VERSION
+            (RECOVERY_MATCH_VERSION if session.purpose == "recovery" else REAUTH_MATCH_VERSION)
+            if session.account_id
+            else VIDEO_MATCH_VERSION
+            if self.settings.identity_face_from_video
+            else MATCH_VERSION
         )
         if match is not None and match.model_version == expected_version:
             threshold = match.quality.get("threshold_cosine")
             if type(threshold) in (int, float) and -1 <= threshold <= 1:
                 thresholds["identity_face_cosine"] = threshold
         allowed = (
-            session.id_confirmed
-            and not session.id_edited
-            and session.id_source in {"server_qr", "ocr"}
+            (
+                bool(session.account_id)
+                or (
+                    session.id_confirmed
+                    and not session.id_edited
+                    and session.id_source in {"server_qr", "ocr"}
+                )
+            )
             and match is not None
             and match.model_version == expected_version
             and match.status == Status.OK
+            and match.error_code is None
             and match.gate == Gate.PASS
             and (
+                not session.account_id
+                or (
+                    match.quality.get("enrolled_reference") is True
+                    and [e.value for e in match.evidence if e.name == "reference_account_id"]
+                    == [session.account_id]
+                )
+            )
+            and (
                 not self.settings.identity_consistency_required
+                or session.purpose == "reauth"
+                and bool(session.account_id)
                 or match.quality.get("consistency_verified") is True
             )
         )

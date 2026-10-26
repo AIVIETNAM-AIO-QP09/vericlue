@@ -30,6 +30,96 @@ from vericlue_api.main import create_app
 from vericlue_api.services import storage
 
 
+def test_account_l0_claim_and_recovery_races(postgres, monkeypatch):
+    """Two L0 requests consume one challenge; two recoveries replace one old key once."""
+    from pydantic import SecretStr
+    from test_account_auth import new_key, recovery_ready, signed
+    from test_accounts import prepared, real_settings
+
+    from vericlue_api.core.errors import ApiError
+    from vericlue_api.db.models import AccountRecoveryRow, DeviceProofUseRow
+    from vericlue_api.schemas.session import CreateSessionRequest
+    from vericlue_api.services.account_auth import AccountAuth, message
+    from vericlue_api.services.accounts import AccountStore
+
+    monkeypatch.setenv("SESSION_PRIVACY", "false")
+    get_settings.cache_clear()
+    with TestClient(create_app()) as client:
+        root = client.app.state.vericlue
+        with root.transaction() as state:
+            record, template, continuity = prepared(state, id_hmac=secrets.token_hex(32))
+            settings = real_settings(state).model_copy(
+                update={
+                    "session_privacy": True,
+                    "session_master_key": SecretStr(
+                        base64.b64encode(secrets.token_bytes(32)).decode()
+                    ),
+                }
+            )
+            store = AccountStore(settings, state.db)
+            receipt = store.create(record, template, continuity=continuity)
+            # Use a known real P-256 key, enrolled via the fully gated recovery fixture.
+            key = new_key()
+            receipt = store.recover(recovery_ready(state, receipt, key))
+            created = state.flow.create(
+                "genuine",
+                CreateSessionRequest(
+                    purpose="reauth",
+                    nonce="postgres_race_synthetic_nonce",
+                ),
+            )
+            session = state.sessions.get(created.session_id)
+            AccountAuth(store).bind(session, receipt.account_id, receipt.device_id)
+            signature = signed(key, message(session))
+            sid = session.session_id
+
+        ready = Barrier(2)
+
+        def prove(_):
+            ready.wait(timeout=10)
+            try:
+                with root.transaction() as state:
+                    loaded = state.sessions.get(sid)
+                    AccountAuth(AccountStore(settings, state.db)).verify(loaded, signature)
+                return "accepted"
+            except ApiError as exc:
+                return exc.error_code
+
+        with ThreadPoolExecutor(2) as pool:
+            assert sorted(pool.map(prove, range(2))) == ["accepted", "recovery_required"]
+        with root.transaction() as state:
+            assert state.db.get(DeviceProofUseRow, sid) is not None
+            first = recovery_ready(state, receipt, new_key()).session_id
+            second = recovery_ready(state, receipt, new_key()).session_id
+        ready = Barrier(2)
+
+        def recover(recovery_sid):
+            ready.wait(timeout=10)
+            try:
+                with root.transaction() as state:
+                    loaded = state.sessions.get(recovery_sid)
+                    AccountStore(settings, state.db).recover(loaded)
+                return "accepted"
+            except ApiError as exc:
+                return exc.error_code
+
+        with ThreadPoolExecutor(2) as pool:
+            assert sorted(pool.map(recover, [first, second])) == [
+                "accepted",
+                "enrollment_not_available",
+            ]
+        with root.transaction() as state:
+            rows = list(
+                state.db.scalars(
+                    select(AccountRecoveryRow).where(
+                        AccountRecoveryRow.previous_device_id == receipt.device_id,
+                    )
+                )
+            )
+            assert len(rows) == 1
+            assert state.db.get(SessionRow, sid).status == "incomplete"
+
+
 def test_account_duplicate_identity_race(postgres, monkeypatch):
     """Two different locked sessions must not enroll the same live identity."""
     from pydantic import SecretStr

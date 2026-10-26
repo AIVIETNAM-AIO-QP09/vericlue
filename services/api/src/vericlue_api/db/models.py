@@ -67,6 +67,22 @@ class MediaProofUseRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class DeviceProofUseRow(Base):
+    __tablename__ = "device_proof_uses"
+    session_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    message_sha256: Mapped[str] = mapped_column(String(64), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AccountRecoveryRow(Base):
+    __tablename__ = "account_recoveries"
+    session_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    account_id: Mapped[str] = mapped_column(String(80), index=True)
+    previous_device_id: Mapped[str] = mapped_column(String(80), unique=True)
+    device_id: Mapped[str] = mapped_column(String(80), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class AccessEventRow(Base):
     __tablename__ = "access_events"
     __table_args__ = (Index("uq_access_events_scope_prev", "scope", "prev_hash", unique=True),)

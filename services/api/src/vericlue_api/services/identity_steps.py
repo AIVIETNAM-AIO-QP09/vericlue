@@ -102,6 +102,8 @@ class IdentitySteps:
     @staticmethod
     def ensure_card_upload_allowed(session: Session) -> None:
         """Reject card changes before reading, scanning or storing new images."""
+        if session.account_id:
+            raise ApiError(409, "step_not_allowed", "Bước này chưa phù hợp.")
         if session.accepted_steps or session.face_scored:
             raise ApiError(409, "step_not_allowed", "Hãy bắt đầu lại phiên trước khi đổi ảnh thẻ.")
 

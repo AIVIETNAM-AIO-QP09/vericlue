@@ -69,6 +69,10 @@ class Session:
     nonce: str | None = None
     reference_image_id: str | None = None
     device_verified: bool = False  # Never populated from request JSON; SEC-02 owns verification.
+    account_id: str | None = None
+    registered_device_id: str | None = None
+    device_auth_nonce: str | None = field(default=None, repr=False)
+    device_auth_expires_ms: int | None = None
     media_public_key_spki: str | None = field(default=None, repr=False)
     voice_challenge_id: str | None = None
 

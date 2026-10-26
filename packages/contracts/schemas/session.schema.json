@@ -69,7 +69,10 @@
           "$ref": "#/$defs/DynamicChallenge"
         },
         "media_nonce": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "pattern": "^[0-9a-f]{64}$",
           "description": "SEC-02: seed ngẫu nhiên của server cho chữ ký media. Chỉ có khi phiên ràng buộc public key; nonce từng lần gửi suy ra theo stage/attempt."
         }
@@ -105,6 +108,9 @@
         },
         "nonce": {
           "type": "string"
+        },
+        "device_challenge": {
+          "$ref": "#/$defs/DeviceChallenge"
         }
       }
     },
@@ -324,6 +330,9 @@
             "null"
           ],
           "description": "Mã lần đọc, phải gửi lại trong form /voice của phiên có purpose."
+        },
+        "account": {
+          "$ref": "#/$defs/AccountReceipt"
         }
       }
     },
@@ -537,7 +546,10 @@
       "additionalProperties": false,
       "properties": {
         "device_public_key_spki": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "maxLength": 256,
           "description": "SEC-02 opt-in: base64 chuẩn DER SubjectPublicKeyInfo EC P-256. Ràng buộc khóa cho cả phiên, chưa phải thiết bị đã ghi danh."
         },
@@ -556,6 +568,20 @@
           ],
           "pattern": "^ref_[A-Za-z0-9_-]{1,120}$",
           "description": "Mã ảnh do server quản lý; không nhận đường dẫn hoặc URL. Hiện chỉ là điểm nối cho FLOW-03/05, chưa xác minh danh tính."
+        },
+        "account_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^acct_[0-9a-f]{32}$"
+        },
+        "device_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^dev_[0-9a-f]{32}$"
         }
       },
       "description": "Gửi body để dùng luồng theo purpose (hiện chỉ hỗ trợ mock). Không gửi body giữ nguyên luồng MVP. Real/mixed trả 503 cho body mới tới khi đủ bộ kiểm chứng."
@@ -670,6 +696,77 @@
         }
       },
       "description": "Bắt buộc với phiên có purpose; không gửi body cho MVP cũ."
+    },
+    "AccountReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "account_id",
+        "device_id",
+        "expires_at"
+      ],
+      "properties": {
+        "account_id": {
+          "type": "string",
+          "pattern": "^acct_[0-9a-f]{32}$"
+        },
+        "device_id": {
+          "type": "string",
+          "pattern": "^dev_[0-9a-f]{32}$"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "description": "Mã tham chiếu sau ghi danh/khôi phục; không phải thông tin xác thực, không chứa mẫu sinh trắc."
+    },
+    "DeviceChallenge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "message",
+        "expires_at"
+      ],
+      "properties": {
+        "message": {
+          "type": "string",
+          "maxLength": 2048,
+          "description": "Base64 của đúng các byte JSON ASCII server yêu cầu ký SHA256withECDSA/P-256; không parse rồi tuần tự hóa lại."
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "DeviceProofRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "signature"
+      ],
+      "properties": {
+        "signature": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 160
+        }
+      }
+    },
+    "DeviceProofResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "received"
+      ],
+      "properties": {
+        "received": {
+          "type": "boolean",
+          "const": true
+        }
+      },
+      "description": "Chỉ xác nhận quyền giữ khóa đã ghi danh; không phải kết quả xác minh sinh trắc."
     }
   }
 }
