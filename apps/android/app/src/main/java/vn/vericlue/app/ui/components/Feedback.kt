@@ -48,10 +48,9 @@ fun SuccessBadge() {
         })
     }
     LaunchedEffect(motion.enabled) { check.animateTo(1f, motion.tween(320, 70)) }
-    Box(Modifier.size(96.dp).scale(if (motion.enabled) scale.value else 1f).clip(CircleShape).background(c.okBg), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.size(44.dp)) {
+    Box(Modifier.size(104.dp).scale(if (motion.enabled) scale.value else 1f).clip(CircleShape).background(c.okBg), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.size(58.dp)) {
             val stroke = 3.dp.toPx()
-            drawCircle(c.ok, radius = (size.minDimension - stroke) / 2f, style = Stroke(stroke))
             val path = Path().apply {
                 moveTo(size.width * 0.26f, size.height * 0.51f)
                 lineTo(size.width * 0.43f, size.height * 0.67f)
@@ -60,7 +59,7 @@ fun SuccessBadge() {
             val measure = PathMeasure().apply { setPath(path, false) }
             val segment = Path()
             measure.getSegment(0f, measure.length * if (motion.enabled) check.value else 1f, segment, true)
-            drawPath(segment, c.ok, style = Stroke(stroke, cap = StrokeCap.Round))
+            drawPath(segment, c.success, style = Stroke(stroke, cap = StrokeCap.Round))
         }
     }
 }

@@ -17,7 +17,7 @@ class ThemeAccessibilityTest {
             listOf(c.primary, Palette.BankGreen).forEach { container ->
                 val pressed = c.buttonPressed(container)
                 for (i in 0..10) {
-                    val bg = Color.White.copy(alpha = i / 100f).compositeOver(pressed)
+                    val bg = c.onPrimary.copy(alpha = i / 100f).compositeOver(pressed)
                     val fg = c.buttonForeground(pressed)
                     val contrast = (maxOf(fg.luminance(), bg.luminance()) + 0.05f) /
                         (minOf(fg.luminance(), bg.luminance()) + 0.05f)
@@ -49,11 +49,13 @@ class ThemeAccessibilityTest {
                 }
                 add(Triple("success banner", c.ok, c.okBg))
                 add(Triple("warning", c.warn, c.warnBg))
-                add(Triple("primary button", Color.White, c.primary))
+                add(Triple("primary button", c.onPrimary, c.primary))
                 add(Triple("pressed button", c.onPrimary, c.primaryPressed))
                 add(Triple("success badge", c.onOk, c.ok))
                 add(Triple("disabled button", c.onDisabled, c.disabled))
                 add(Triple("bank label", c.bankAccent, c.background))
+                add(Triple("warm step number", c.onWarmAccent, c.warmAccent))
+                add(Triple("camera step", c.warmAccent, Palette.CameraBg))
             }
             pairs.forEach { (name, fg, bg) ->
                 val contrast = (maxOf(fg.luminance(), bg.luminance()) + 0.05f) /
@@ -64,10 +66,13 @@ class ThemeAccessibilityTest {
     }
 
     @Test fun vietnameseTextHasRoomForDiacritics() {
-        listOf(VcType.titleLarge, VcType.titleMedium, VcType.section, VcType.body,
+        // Style A deliberately uses tighter headings; paragraphs keep their full leading.
+        assertTrue(VcType.titleLarge.lineHeight.value >= VcType.titleLarge.fontSize.value * 1.18f)
+        listOf(VcType.titleMedium, VcType.section, VcType.body,
             VcType.bodyStrong, VcType.bodySmall, VcType.caption, VcType.footnote,
             VcType.button, VcType.label, VcType.labelSmall, VcType.labelXs).forEach {
             assertTrue("Line height clips accented text: $it", it.lineHeight.value >= it.fontSize.value * 1.4f)
         }
+        assertTrue(VcType.body.lineHeight.value >= VcType.body.fontSize.value * 1.5f)
     }
 }

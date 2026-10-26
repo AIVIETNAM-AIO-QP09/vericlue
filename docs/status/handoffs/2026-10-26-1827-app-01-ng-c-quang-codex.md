@@ -52,3 +52,34 @@ uv run python scripts/plan_check.py
 git diff --check
 # Không lỗi khoảng trắng.
 ```
+
+## Bổ sung · Phong cách A · Tối giản ấm (26/10/2026)
+
+### Phạm vi và kết quả
+- Làm tiếp trên `feat/APP-01-ui-polish`, sau `969d397`, theo `tmp/design/codex-APP-01-style-A.md` và hàng trên của `tmp/design/phong-cach-A-B.png`.
+- Nền sáng `#FAF8F5`, chữ `#14202B`, nút navy `#0C2345` dạng pill cao 56 dp; nút phụ chỉ chữ. Điểm nhấn cam `#E8743B` cho số cuối/nhãn camera/góc khung; theme tối dùng màu nút navy sáng và chữ tối có tương phản.
+- Giữ Be Vietnam Pro và đặt đủ mọi vai trò chữ Material về phông này. Tiêu đề 32 sp/Bold, dòng 1,2 theo chỉ dẫn A; thân chữ 15 sp, dòng 1,5. Test chiều cao dòng phân biệt tiêu đề với thân chữ, không còn áp quy tắc cũ 1,4 cho tiêu đề mới.
+- Bỏ hộp thụ động ở thông báo, xem lại/xác nhận thông tin và danh sách kết quả; dùng khoảng trắng/đường kẻ. Giữ khung cho ô nhập, checkbox đồng ý và camera. Nút đáy nằm trong tấm có góc trên 24 dp.
+- Màn chào dùng minh họa CCCD nghiêng/mặt tròn/vòng cam nét đứt bằng Canvas, danh sách đánh số và tiêu đề được duyệt `Mở tài khoản\ntrong 2 phút`. Không dùng thêm ảnh, phông hay thư viện.
+- CCCD theo A2: nền camera `#0D1620`, nhãn bước cam viết hoa, góc khung cam bo tròn, gợi ý trên nền trắng trong suốt với chấm trạng thái, nút chụp vòng trắng. Dấu tích dùng Path; bỏ ký tự tick trong chữ.
+- Thành công đăng ký dùng `Tài khoản\nđã sẵn sàng`, giữ dấu tích vẽ/nảy và rung cũ. Tấm đáy có số `0123 4567 8901` ở 26 sp/Bold và nhãn **Dữ liệu mẫu**. Danh sách xác minh lấy đúng từ `checked` hiện tại; `Ảnh giấy tờ` được trình bày thành nhãn `Giấy tờ` theo mục 4 của brief. Không tự coi mọi bước đều đã đạt.
+- Giữ nguyên `Motion.kt`, `MotionPolicyTest`, chuyển màn trong `App.kt`, điều kiện giảm chuyển động và haptic. Không thay `flow/`, `data/api/`, `capture/`, hợp đồng, ADR, ngưỡng hoặc `STATUS.md`.
+
+### Các điểm giữ riêng để không đổi màn camera
+- `Palette.Primary` gốc vẫn giữ màu xanh cho chấm sáng; chỉ nút dùng token navy mới. Tất cả `Flash*` và lịch thử thách giữ nguyên.
+- Căn mặt/nháy màu/quay đầu/đọc câu giữ cỡ chữ/bố cục cũ: `cameraTitle` 28 sp, `cameraButton` 15 sp, `bodySmall` 14 sp. Hai thông báo trong HoldStill/TimelineColour dùng `Banner(cameraLayout = true)` để giữ padding 12 dp, viền và caption 13 sp cũ.
+- Agent review chỉ đọc đã tìm hai chỗ lan thay đổi qua component dùng chung (Banner và chữ nút Dừng); đã sửa. Không có vấn đề chặn còn lại sau rà soát.
+- Xanh `#1E8A5A` dùng cho nét minh họa; chữ xanh dùng `#176940`. Chữ trên số nền cam dùng màu tối. Các biến thể này cần để đạt 4,5:1, không dùng chữ trắng trên cam hoặc xanh sáng trên nền nhạt.
+
+### Kiểm tra và ảnh
+- `testDebugUnitTest assembleDebug lintDebug`: qua; 84 test, 0 lỗi test, gồm `CitizenCopyTest`, `ThemeAccessibilityTest`, `MotionPolicyTest`. Android Lint: 0 lỗi, 44 cảnh báo (có thêm `logo_mark` hiện không dùng sau thay hero bằng Canvas).
+- `recordPaparazziDebug --tests '*ScreensSnapshotTest*'`: qua. Snapshot mở rộng để mỗi trạng thái đang test có cả sáng/tối, tổng 92 biến thể duy nhất; ảnh trùng/ảnh cũ không nằm trong danh sách đang test bị loại khỏi báo cáo so ảnh.
+- Bộ so ảnh: `D:/vericlue/tmp/android-ui-polish-A/comparison.html`, ảnh gốc `before/images/`, ảnh sau `after/`; `A1-A2-A3.png` ghép thiết kế với app, `overview*.png` để rà bố cục. Toàn bộ nằm trong thư mục ignore, không commit.
+- Đã xem ảnh sáng/tối và đối chiếu A1/A2/A3; bố cục giữ các nội dung dài bằng cuộn ở các màn nhập/đồng ý. Khác chữ trong ảnh mẫu do giữ các câu chữ cũ theo brief; chỉ hai tiêu đề và các nhãn được cho phép mới thay.
+- `uv run python scripts/plan_check.py`: 0 lỗi, 10 cảnh báo tải/đường găng hiện có. `git diff --check`: không lỗi khoảng trắng.
+- Không chạy lại máy ảo trong phần phong cách A; haptic vật lý và nghiệm thu điện thoại/API thật vẫn thuộc phần còn lại của APP-01. Task tổng vẫn `doing`.
+
+### Bước tiếp theo
+1. Quang xem ảnh ghép A1/A2/A3 và bộ trước/sau trong thư mục trên; APK debug ở đường dẫn cũ.
+2. Thử chữ lớn, thao tác và rung trên điện thoại thật. Giữ số tài khoản là mẫu cho tới khi có tích hợp ngân hàng trả số thật.
+3. Không push, không mở PR cho tới khi Quang yêu cầu.

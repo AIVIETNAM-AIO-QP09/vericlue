@@ -68,6 +68,7 @@ import vn.vericlue.app.flow.Purpose
 import vn.vericlue.app.ui.components.ChecklistCard
 import vn.vericlue.app.ui.components.CompletionHaptic
 import vn.vericlue.app.ui.components.SuccessBadge
+import vn.vericlue.app.ui.components.SampleAccount
 import vn.vericlue.app.ui.components.CameraFeed
 import vn.vericlue.app.ui.components.PrimaryButton
 import vn.vericlue.app.ui.components.RowState
@@ -135,9 +136,9 @@ fun VoiceScreen(
     VcScreen(onBack = onBack, step = 3) {
         CameraStillOn()
         if (again) {
-            TitleBlock("Hãy đọc lại", "Chuyển đến nơi yên tĩnh hơn và đọc to, rõ ràng câu mới bên dưới.")
+            TitleBlock("Hãy đọc lại", "Chuyển đến nơi yên tĩnh hơn và đọc to, rõ ràng câu mới bên dưới.", titleStyle = VcType.cameraTitle)
         } else {
-            Text("Đọc to câu sau", style = VcType.titleLarge, color = c.ink)
+            Text("Đọc to câu sau", style = VcType.cameraTitle, color = c.ink)
         }
         Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surfaceInfo).padding(18.dp),
@@ -173,7 +174,7 @@ fun VoiceScreen(
                 Icon(
                     if (recording) Icons.Outlined.Stop else Icons.Outlined.Mic,
                     contentDescription = if (recording) "Dừng ghi âm" else "Bắt đầu ghi âm",
-                    tint = Color.White,
+                    tint = if (recording) Color.White else c.onPrimary,
                     modifier = Modifier.size(34.dp),
                 )
             }
@@ -226,14 +227,15 @@ fun SuccessScreen(purpose: Purpose, onContinue: () -> Unit, auto: Boolean = true
             onContinue()
         }
     }
-    VcScreen(centered = true) {
+    val rows = checked ?: listOf("Ảnh giấy tờ", "Khuôn mặt", "Giọng nói")
+    VcScreen(centered = purpose != Purpose.Onboarding, actions = if (purpose == Purpose.Onboarding) {
+        { SampleAccount(rows); PrimaryButton("Vào ứng dụng", onContinue) }
+    } else null) {
+        if (purpose == Purpose.Onboarding) Spacer(Modifier.height(96.dp))
         SuccessBadge()
         when (purpose) {
             Purpose.Onboarding -> {
-                TitleBlock("Xác minh thành công", "Đang quay lại ứng dụng ngân hàng…", centered = true)
-                // Live runs pass `checked`: only what the server has really checked.
-                val rows = checked ?: listOf("Ảnh giấy tờ", "Khuôn mặt", "Giọng nói")
-                ChecklistCard("Đã hoàn tất", rows.map { Triple(null, it, RowState.Done) }, trailing = rows.map { "" })
+                TitleBlock("Tài khoản\nđã sẵn sàng", "Đang quay lại ứng dụng ngân hàng…")
             }
             Purpose.Reauth -> {
                 TitleBlock("Đăng nhập thành công", "Danh tính của bạn đã được xác nhận. Thiết bị này đã được liên kết với tài khoản.", centered = true)

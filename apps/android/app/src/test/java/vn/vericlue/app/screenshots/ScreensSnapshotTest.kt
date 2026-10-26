@@ -40,8 +40,10 @@ class ScreensSnapshotTest {
     @get:Rule
     val paparazzi = Paparazzi(deviceConfig = DeviceConfig.PIXEL_5, maxPercentDifference = 0.1)
 
-    private fun shot(name: String, dark: Boolean = false, content: @Composable () -> Unit) =
+    private fun shot(name: String, dark: Boolean = false, content: @Composable () -> Unit) {
         paparazzi.snapshot(name) { VcTheme(dark = dark, motionEnabled = false) { content() } }
+        if (!dark) paparazzi.snapshot(name + "_dark") { VcTheme(dark = true, motionEnabled = false) { content() } }
+    }
 
     private val n: () -> Unit = {}
 
