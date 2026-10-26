@@ -42,6 +42,26 @@ Màn ngân hàng mẫu → Chào → Đăng nhập/Đăng ký → Điều khoả
 
 **Luồng gọn (24/10):** không còn màn Giới thiệu và Xin quyền; xin camera lúc mở camera, xin micro ở bước đọc câu. Màn Kiểm tra thông tin nằm sau phần mặt. Video giữ trên máy; phải gửi `id-card/confirm` **trước** media và `finalize`: sau `finalize` phiên có thể đã đóng, và server có identity lab (FLOW-05) trả 409 khi xác nhận sau media. Bản tham chiếu: Android, nhánh `feat/APP-04-short-onboarding` (`FlowRules.afterFace`, `afterConfirm`, `afterIdReview`; `IdAutoCapture`). Figma: trang "Đề xuất · Luồng gọn".
 
+**Đọc câu chỉ khi cần (26/10, trưởng nhóm duyệt khi họp):** với `purpose = onboarding`, server chỉ đòi đọc câu khi điểm mặt lưng chừng. `finalize` trả `pass` thì **xong luôn** (không có màn Đọc câu); trả `voice_challenge` thì sang màn Đọc câu như cũ. `recovery` vẫn luôn đọc câu, `reauth` không đổi. App không cần tự quyết: chỉ đi theo `status` (bảng 7.5). Tài khoản được ghi danh ngay ở `finalize`; lấy biên nhận bằng `GET /v1/sessions/{id}/account`. Chữ hiển thị: màn chào ghi bước 3 là "Đọc một câu · Chỉ khi cần". Server: nhánh `feat/FLOW-01-voice-on-suspicion`.
+
+**Phong cách giao diện (26/10): hướng A · Tối giản ấm.** Figma file `kKEiRjXMCNDPVeupHsUn1H`, trang "Đề xuất · Phong cách", hàng A (A1 chào, A2 chụp CCCD, A3 thành công). Bản Android tham chiếu: nhánh `feat/APP-01-ui-polish`, `apps/android/app/src/main/java/vn/vericlue/app/ui/theme/Theme.kt`.
+
+| Thành phần | Giá trị |
+|---|---|
+| Nền màn sáng | `#FAF8F5` (trắng ngà); bề mặt `#FFFFFF` |
+| Chữ chính / phụ | `#14202B` / `#5B6670` |
+| Nút chính | navy `#0C2345`, dạng viên thuốc (bo tròn hết), cao ~56 pt, chữ 16 SemiBold; nút phụ chỉ chữ navy |
+| Nhấn phụ | cam `#E8743B`, chỉ cho điểm nhỏ: số bước cuối, nhãn bước trên camera, góc khung CCCD |
+| Đạt | `#1E8A5A` trên nền `#E4F2EA` |
+| Đường kẻ | `#ECE7E0`, thay cho viền hộp |
+| Camera | nền `#0D1620`, không hiệu ứng trang trí |
+| Chữ | chỉ Be Vietnam Pro; tiêu đề 32–34 Bold, giãn chữ âm nhẹ; mỗi màn tối đa một dòng phụ |
+
+- Ít hộp viền: tách nhóm bằng khoảng trắng và đường kẻ mảnh; chỉ giữ khung cho thứ bấm được và khung camera.
+- Danh sách bước đánh số tròn (số trắng trên navy, bước cuối nền cam) thay icon trong ô vuông.
+- Màn chào: hình thẻ CCCD nghiêng cạnh vòng tròn navy có **dấu VC trắng** (logo `logo_mark`), vòng nét đứt cam. Màn thành công: dấu VC lớn trên navy kèm huy hiệu tích xanh nhỏ, số tài khoản to trong tấm trắng ở đáy màn.
+- Không đổi màu nháy của thử thách ánh sáng. Tôn trọng "Reduce Motion" của iOS (tắt animation trang trí).
+
 Thêm hai luồng ngắn hơn (ADR-0013):
 - **Đăng nhập lại (`reauth`):** số điện thoại → OTP → quay mặt **thụ động** (không nháy màu, không chấm sáng, không quay đầu). Hiện server luôn trả `recovery_required`, vì chưa có khóa thiết bị (SEC-02).
 - **Khôi phục (`recovery`):** giống đăng ký, nhưng bỏ bước CCCD.
@@ -273,7 +293,7 @@ Nhận về (rút gọn; bản đầy đủ ở `packages/contracts/examples/ses
 
 | `status` | Làm gì |
 |---|---|
-| `pass` | (luồng có `purpose` hầu như không ra `pass` ở đây vì luôn phải đọc câu) → Thành công |
+| `pass` | Thành công. Từ 26/10 `onboarding` ra `pass` ở đây khi mặt rõ (không đọc câu); `recovery` thì không, vì luôn đọc câu |
 | `voice_challenge` | Lưu `voice_prompt`, `voice_challenge_id` → màn Đọc câu |
 | `retry` | Có `retry_hint` → màn "Chụp lại" (câu nhắc theo mục 10); không có → màn "Làm lại thử thách". Thay `challenge` bằng `challenge` trong phản hồi. `attempts_left` hiện "Còn N lần chụp lại" |
 | `review` | Màn "Hồ sơ đang được xác minh thêm" |
@@ -317,7 +337,7 @@ Toàn bộ phần mặt (nền xám → màu → chấm → quay đầu) nằm t
 | Nháy màu | `baseline_ms` | `baseline_ms + Σ(hold_ms + transition_ms)` | Mỗi bước: chuyển màu trong `transition_ms`, giữ `hold_ms`. Ghi `color_events` lúc màu **thật sự lên màn**. Hết pha thì **mở khóa AE/AWB** |
 | Chấm sáng | `gaze_points[0].at_ms` | `gaze_points[7].at_ms` | Chấm ở `gaze_points[0]`; đi **thẳng, đều** tới điểm sau, tới đúng `at_ms` của điểm đó. Chữ "Giữ đầu yên, chỉ đưa mắt theo chấm sáng" |
 | Quay đầu | `head_start_at_ms` | `+ head_duration_ms` (6000) | 3 đoạn, mỗi đoạn 2000 ms: `head_turns[0]`, `head_turns[1]`, `center`. Hiện mũi tên và chữ "Quay sang trái/phải", "Nhìn thẳng" |
-| Dừng quay | `head_start_at_ms + 6000` | — | Dừng ghi video, **chờ ghi file xong**, sang màn "Đang gửi" → gửi phần mặt → `finalize` trả `voice_challenge` → màn Đọc câu (giống Android) |
+| Dừng quay | `head_start_at_ms + 6000` | — | Dừng ghi video, **chờ ghi file xong**, sang màn "Đang gửi" → gửi phần mặt → `finalize` trả `pass` (xong) hoặc `voice_challenge` → màn Đọc câu (giống Android) |
 
 ### 8.2 Đồng hồ
 
@@ -546,7 +566,7 @@ Chữ cho 2 route mới:
 
 ### 13.1 Checklist trên iPhone thật với server mock
 
-- [ ] `genuine`, onboarding: đi hết luồng → đọc câu → "Xác minh thành công", chỉ tích phần server đã kiểm.
+- [ ] `genuine`, onboarding: đi hết luồng → **không** đọc câu → "Xác minh thành công" (từ 26/10), chỉ tích phần server đã kiểm.
 - [ ] `low_quality`: "Chụp lại" với câu nhắc và "Còn N lần chụp lại" lấy từ server; lượt sau dùng challenge mới.
 - [ ] `voice_clone`: đọc câu → "Hồ sơ đang được xác minh thêm".
 - [ ] Tắt Wi-Fi lúc gửi → "Không kết nối được"; "Thử lại" khi vẫn mất mạng → vẫn báo lỗi; bật lại → đi tiếp đúng.
