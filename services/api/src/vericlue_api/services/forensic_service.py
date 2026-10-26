@@ -32,6 +32,7 @@ from vericlue_api.schemas.forensic import (
     Verdict,
 )
 from vericlue_api.services.detection import run_detectors
+from vericlue_api.services.report_evidence import ReportEvidence
 from vericlue_api.services.review_audit_link import ReviewAuditLinker
 from vericlue_api.services.storage import save_generated, save_upload
 from vericlue_ml.common.result import Module, ModuleResult, Status
@@ -81,6 +82,8 @@ class ForensicStore:
         mock: bool = True,
         report_signer: Callable[[], ReportSigner] | None = None,
         review_links: ReviewAuditLinker | None = None,
+        evidence_builder: Callable[[ForensicJob, ForensicJobRow], ReportEvidence | None]
+        | None = None,
     ) -> None:
         self._b, self._a = b, a
         self._run = runner
@@ -88,6 +91,7 @@ class ForensicStore:
         self.db, self.media_dir = db, media_dir
         self._report_signer = report_signer
         self._review_links = review_links
+        self._evidence_builder = evidence_builder
 
     # --- tạo job ------------------------------------------------------------
     def create(
@@ -333,7 +337,9 @@ class ForensicStore:
         record = self.db.get(ForensicJobRow, job_id)
         if record.payload.get("mode") == "real":
             signer = self.report_signer()
-            html = self._report_real(job, record.payload, signer.key_id)
+            html = self._report_real(
+                job, record.payload, signer.key_id, evidence=self.report_evidence(job, record)
+            )
         else:
             signer = None
             html = self._report_mock(job, record)
@@ -387,7 +393,12 @@ class ForensicStore:
 
     @staticmethod
     def _report_real(
-        job: ForensicJob, payload: dict[str, Any], key_id: str, *, pdf_bundle: bool = False
+        job: ForensicJob,
+        payload: dict[str, Any],
+        key_id: str,
+        *,
+        pdf_bundle: bool = False,
+        evidence: ReportEvidence | None = None,
     ) -> str:
         """HTML with a pinned-key identifier; signature covers exact rendered bytes."""
         e = escape
@@ -466,6 +477,16 @@ class ForensicStore:
             if anchor is not None
             else "<h2>Liên kết hồ sơ</h2><p>Giám định file độc lập.</p>"
         )
+        evidence_html = (
+            "<style>.report-illustration{margin:12px 0;break-inside:avoid}"
+            ".report-illustration img{display:block;max-width:100%;height:auto}"
+            ".report-frame img{max-height:55mm;width:auto}"
+            ".report-spectrum img{width:100%}"
+            ".report-illustration figcaption{font-size:9pt;margin-top:5px;overflow-wrap:anywhere}</style>"
+            + evidence.html()
+            if evidence is not None
+            else ""
+        )
         return (
             '<!doctype html><html lang="vi"><meta charset="utf-8"><title>Báo cáo giám định</title>'
             f"{pdf_style}"
@@ -496,9 +517,10 @@ class ForensicStore:
                 else ""
             )
             + f"{rows}</table>"
+            + evidence_html
             + f"{prov_html}"
             f"<h2>Bước không chạy</h2>{'<ul>' + unavailable + '</ul>' if unavailable else '<p>Không có.</p>'}"
-            f"<h2>Phiên bản mô hình</h2><ul>{versions}</ul>"
+            f"<h2>Phiên bản mô hình</h2>{'<ul>' + versions + '</ul>' if versions else '<p>Không có dữ liệu phiên bản mô hình.</p>'}"
             '<section class="report-limitations"><h2>Giới hạn</h2><ul>'
             + "".join(f"<li>{e(item)}</li>" for item in LIMITATIONS_VI)
             + "</ul></section></html>"
@@ -512,6 +534,10 @@ class ForensicStore:
         if self._review_links is None:
             raise ApiError(503, "review_link_unavailable", "Chưa thể đối chiếu nhật ký hồ sơ.")
         return self._review_links.refresh(job, self.db.get(ForensicJobRow, job_id))
+
+    def report_evidence(self, job: ForensicJob, row: ForensicJobRow) -> ReportEvidence | None:
+        """Server-generated illustrations only; disabled unless explicitly configured."""
+        return self._evidence_builder(job, row) if self._evidence_builder else None
 
     def report_signer(self) -> ReportSigner:
         """Require a configured report key independently of mock/real model startup."""
