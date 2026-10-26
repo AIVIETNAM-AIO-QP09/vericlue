@@ -11,6 +11,13 @@ PLAT-06/FLOW-01 có khóa Ed25519 opt-in và kết quả phiên ký cho bên tí
 Thiếu cấu hình trả 503, mock/phiên cũ/thiếu ràng buộc không được ký. Không mở chốt
 sinh trắc, không ký báo cáo forensic hoặc thay ML-DSA; không sửa UI.
 
+PLAT-06 ký báo cáo HTML giám định bằng khóa `REPORT_SIGNING_KEY_PATH` riêng:
+[`forensic-report-signing.md`](../../docs/architecture/forensic-report-signing.md).
+Job real thiếu khóa trả 503, không hạ về MOCK. `/v1/forensic/signing-key` và
+`/verify` dùng StaffBearer, không cần DB/model; CLI kiểm đúng byte tệp bằng public
+key đã pin. Checksum MOCK không còn được coi là chữ ký hợp lệ. Đây chưa phải gói
+JSON/PDF và thang lời ENFSI của FOR-04.
+
 FLOW-05 có nền lưu mẫu mặt/tài khoản mã hóa, gắn public key và dọn sau 24 giờ
 (migration 0005): [`account-enrollment.md`](../../docs/architecture/account-enrollment.md).
 `ACCOUNT_ENROLLMENT=true` nối worker trích mẫu và ghi danh sau `pass` onboarding
@@ -122,7 +129,7 @@ Mọi endpoint `/v1/review/*` và `/v1/forensic/*` yêu cầu credential nhân v
 - Nhật ký quyết định review dùng actor đã xác thực; nhật ký truy cập/che/mở PII
   vẫn thuộc SEC-01 khi bật riêng tư. Giám định chưa có nhật ký truy cập/owner từng
   job hoặc vault mã hóa eKYC; credential hiện có cùng quyền demo, chưa SSO/RBAC/MFA.
-  Chữ ký báo cáo vẫn thuộc FOR-04, không được nâng thành chữ ký thật chỉ bởi auth.
+  Auth không chứng nhận chữ ký; HTML ký Ed25519 bằng cấu hình riêng, JSON/PDF vẫn thuộc FOR-04.
 - Giữ credential trong cấu hình máy, không Git, log hoặc biến frontend
   `NEXT_PUBLIC_*`. Compose đã chuyển `STAFF_ACCESS_TOKENS` vào API. Đổi cấu hình
   cần khởi động lại; xóa token khỏi cấu hình thu hồi quyền gọi mới, không thu hồi
@@ -195,7 +202,7 @@ Chạy mock (`USE_MOCK_MODELS=true`, mặc định) chọn kịch bản bằng h
 | Lưu trữ | **PLAT-05**: PostgreSQL, migration Alembic, transaction theo request | Đã có persistence; nghiệp vụ tiếp tục ở các task tương ứng |
 | Chạy detector | **PLAT-08**: executor chung, preload lifespan, deadline/timeout và latency thực | Đã có; detector thật được bổ sung bởi các task mô hình |
 | Luật quyết định | **ROUT-02**: ML TrustRouter, snapshot `ml/configs/thresholds.yaml`, provisional max-fusion | **ROUT-03**: ngưỡng LTT trên calib_ltt; logistic học trên calib_fit khi có dữ liệu thật |
-| Giám định, chữ ký | **FOR-01 lõi (MVP):** `USE_MOCK_MODELS` khác `true` → tác vụ nền chia đoạn 3 s chồng 50%, chạy detector THẬT từng đoạn (`face_deepfake`, `voice_spoof`; `lipsync` chưa hỗ trợ), quét nguồn gốc cả file (AudioSeal, C2PA), `GET /jobs/{id}` trả tiến độ; module chưa có mô hình thật là `unavailable` và kết luận ra `inconclusive`. Chữ ký vẫn `MOCK-<sha256>`; `USE_MOCK_MODELS=true` giữ bản mock cũ | **FOR-01** hiệu chỉnh riêng (calibrator `forensic`, DATA-05), **FOR-04** khóa Ed25519 ở PLAT-06 |
+| Giám định, chữ ký | **FOR-01 lõi (MVP)** chạy detector thật theo đoạn, thiếu bước → inconclusive. HTML job real đã ký Ed25519 với khóa report riêng; mock ghi rõ mô phỏng, checksum không verify được | **FOR-01** hiệu chỉnh riêng; **FOR-04** JSON/PDF/neo audit/LR/thang lời ENFSI |
 | Bàn duyệt | **REV-01**: DB, nhật ký băm nối chuỗi, `verify_chain`, mã lý do cố định; URL media vẫn là chỗ giữ chỗ | **REV-02** (giao diện, phục vụ media) |
 | Giới hạn upload | `MAX_REQUEST_MB` kiểm header/tổng byte trước parser; `MAX_UPLOAD_MB` kiểm riêng từng file | Reverse proxy: giới hạn kết nối, thời gian đọc và body ở lớp mạng |
 | Xác thực nhân viên | StaffBearer bắt buộc cho review/forensic ở mọi chế độ; thiếu cấu hình chặn 503; actor từ server | **REV-02/FOR-02** nối credential vào UI; SSO/RBAC/owner job ngoài phạm vi demo |

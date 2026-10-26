@@ -15,6 +15,7 @@ from vericlue_api.core.chromapulse_config import load_chromapulse_config
 from vericlue_api.core.session_tokens import SessionTokenSigner
 
 if TYPE_CHECKING:
+    from vericlue_api.core.report_signing import ReportSigner
     from vericlue_api.core.signing import ResultSigner
 
 
@@ -74,10 +75,32 @@ class Settings(BaseSettings):
     staff_access_tokens: SecretStr | None = None
     require_media_proof: bool = False
     account_enrollment: bool = False
+    report_signing_key_path: str | None = None
     result_signing_key_file: str | None = None
     result_issuer: str | None = Field(default=None, pattern=r"^[A-Za-z0-9:/._-]{1,200}$")
     result_audience: str | None = Field(default=None, pattern=r"^[A-Za-z0-9:/._-]{1,200}$")
     result_ttl_seconds: int = Field(default=60, ge=1, le=60)
+
+    @field_validator("report_signing_key_path", mode="before")
+    @classmethod
+    def blank_disables_report_signing(cls, value):
+        return None if isinstance(value, str) and not value.strip() else value
+
+    @cached_property
+    def report_signer(self) -> ReportSigner:
+        """Load an explicit report key once; never use session keys or generate a fallback."""
+        from vericlue_api.core.errors import ApiError
+        from vericlue_api.core.report_signing import ReportSigner
+        from vericlue_api.core.signing import load_private_key
+
+        try:
+            if not self.report_signing_key_path:
+                raise ValueError("Report signing key required")
+            return ReportSigner(load_private_key(Path(self.report_signing_key_path)))
+        except Exception as exc:
+            raise ApiError(
+                503, "report_signing_unavailable", "Chưa thể ký hoặc kiểm tra báo cáo lúc này."
+            ) from exc
 
     @field_validator("result_signing_key_file", "result_issuer", "result_audience", mode="before")
     @classmethod

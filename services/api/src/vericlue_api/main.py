@@ -79,6 +79,8 @@ def create_app() -> FastAPI:
             "X-VeriClue-Report-SHA256",
             "Retry-After",
             "WWW-Authenticate",
+            "X-VeriClue-Key-Id",
+            "X-VeriClue-Signature-Algorithm",
         ],
     )
 

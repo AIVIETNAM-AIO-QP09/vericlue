@@ -13,6 +13,8 @@ Ghi danh, L0 và khôi phục tài khoản: [account-authentication.md](architec
 
 Kết quả có chữ ký cho bên tích hợp: [signed-session-results.md](architecture/signed-session-results.md).
 
+Chữ ký và kiểm tệp báo cáo HTML: [forensic-report-signing.md](architecture/forensic-report-signing.md).
+
 ## Cấu trúc
 
 ```
