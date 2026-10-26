@@ -24,7 +24,10 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import vn.vericlue.app.R
 import vn.vericlue.app.ui.theme.Palette
 import vn.vericlue.app.ui.theme.Vc
 import vn.vericlue.app.ui.theme.VcType
@@ -33,6 +36,7 @@ import vn.vericlue.app.ui.theme.VcType
 @Composable
 fun IdentityIllustration(modifier: Modifier = Modifier, phase: Float = 0f) {
     val c = Vc.colors
+    val mark = painterResource(R.drawable.logo_mark)
     Canvas(modifier.fillMaxWidth().height(168.dp)) {
         val unit = size.height / 180f
         val center = Offset(size.width / 2f, size.height / 2f)
@@ -48,6 +52,11 @@ fun IdentityIllustration(modifier: Modifier = Modifier, phase: Float = 0f) {
         }
         val face = Offset(center.x + 56f * unit, center.y + 18f * unit)
         drawCircle(Palette.LogoNavy, 34f * unit, face)
+        // The VeriClue mark scanning the card: the brand stays the first thing people see.
+        val markSize = Size(42f * unit, 28f * unit)
+        translate(face.x - markSize.width / 2f, face.y - markSize.height / 2f) {
+            with(mark) { draw(markSize) }
+        }
         drawCircle(c.warmAccent, 41f * unit, face, style = Stroke(2f * unit, pathEffect = PathEffect.dashPathEffect(floatArrayOf(7f * unit, 6f * unit))))
     }
 }

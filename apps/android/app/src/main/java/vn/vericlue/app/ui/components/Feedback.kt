@@ -4,9 +4,13 @@ import android.view.HapticFeedbackConstants
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.keyframes
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -20,7 +24,10 @@ import androidx.compose.ui.graphics.PathMeasure
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import vn.vericlue.app.R
+import vn.vericlue.app.ui.theme.Palette
 import vn.vericlue.app.ui.theme.Vc
 
 /** Uses Android's haptic setting; no vibration permission or custom waveform. */
@@ -32,7 +39,10 @@ fun CompletionHaptic(completed: Boolean, eventKey: Any = Unit) {
     }
 }
 
-/** A single settling motion and a drawn check, never an indefinite celebration. */
+/**
+ * The VeriClue mark on navy with a drawn check in a small badge: success keeps the brand.
+ * A single settling motion, never an indefinite celebration.
+ */
 @Composable
 fun SuccessBadge() {
     val c = Vc.colors
@@ -48,18 +58,27 @@ fun SuccessBadge() {
         })
     }
     LaunchedEffect(motion.enabled) { check.animateTo(1f, motion.tween(320, 70)) }
-    Box(Modifier.size(104.dp).scale(if (motion.enabled) scale.value else 1f).clip(CircleShape).background(c.okBg), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.size(58.dp)) {
-            val stroke = 3.dp.toPx()
-            val path = Path().apply {
-                moveTo(size.width * 0.26f, size.height * 0.51f)
-                lineTo(size.width * 0.43f, size.height * 0.67f)
-                lineTo(size.width * 0.75f, size.height * 0.34f)
+    Box(Modifier.size(112.dp).scale(if (motion.enabled) scale.value else 1f)) {
+        Box(Modifier.size(104.dp).clip(CircleShape).background(Palette.LogoNavy), contentAlignment = Alignment.Center) {
+            Image(painterResource(R.drawable.logo_mark), contentDescription = null, modifier = Modifier.width(56.dp))
+        }
+        Box(
+            Modifier.align(Alignment.BottomEnd).offset(x = (-2).dp, y = (-2).dp).size(40.dp).clip(CircleShape)
+                .background(c.okBg).border(3.dp, c.background, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Canvas(Modifier.size(24.dp)) {
+                val stroke = 2.5.dp.toPx()
+                val path = Path().apply {
+                    moveTo(size.width * 0.26f, size.height * 0.51f)
+                    lineTo(size.width * 0.43f, size.height * 0.67f)
+                    lineTo(size.width * 0.75f, size.height * 0.34f)
+                }
+                val measure = PathMeasure().apply { setPath(path, false) }
+                val segment = Path()
+                measure.getSegment(0f, measure.length * if (motion.enabled) check.value else 1f, segment, true)
+                drawPath(segment, c.success, style = Stroke(stroke, cap = StrokeCap.Round))
             }
-            val measure = PathMeasure().apply { setPath(path, false) }
-            val segment = Path()
-            measure.getSegment(0f, measure.length * if (motion.enabled) check.value else 1f, segment, true)
-            drawPath(segment, c.success, style = Stroke(stroke, cap = StrokeCap.Round))
         }
     }
 }
