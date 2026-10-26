@@ -8,6 +8,8 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from vericlue_api.core.request_limits import RequestLimitError
+
 
 class ApiError(Exception):
     def __init__(self, status_code: int, error_code: str, message: str) -> None:
@@ -39,6 +41,10 @@ def install_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(StarletteHTTPException)
     async def _http_error(_: Request, exc: StarletteHTTPException) -> JSONResponse:
+        if isinstance(exc, RequestLimitError):
+            response = _json(413, "request_too_large", str(exc.detail))
+            response.headers["Cache-Control"] = "no-store"
+            return response
         return _json(exc.status_code, f"http_{exc.status_code}", str(exc.detail))
 
     @app.exception_handler(RequestValidationError)

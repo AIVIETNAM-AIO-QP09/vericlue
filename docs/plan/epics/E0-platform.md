@@ -168,17 +168,20 @@
 - [x] Token sai chữ ký hoặc hết hạn → 401 (test).
 - [x] Gọi lại một bước đã nhận trong cùng lượt → 409 (test).
 - [ ] Media gắn thử thách quá 120 giây hoặc thử thách cũ → bị từ chối (test).
-- [ ] Vượt giới hạn lượt → 429 (test).
+- [x] Vượt giới hạn lượt → 429 (test); cửa sổ trượt 3 lần/giờ/IP, RAM một worker demo, giới hạn nêu rõ trong API README.
 - [x] Quá 2 lần chụp lại → `review` (test).
 - [x] Ký và xác minh chữ ký Ed25519 (test); gen_keys không in/ghi đè bí mật, signer không có khóa mock mặc định.
+- [x] Body HTTP giới hạn tổng tại ASGI trước parser; chặn header quá lớn/sai và đếm byte thực tế của stream (kể cả thiếu/khai sai length), đóng file multipart dở khi lỗi (test).
 - [ ] Gọi `/v1/review/*`, `/v1/forensic/*` không có xác thực nhân viên → 401 (test).
 
 **Phần bảo vệ phiên 24/10 (PLAT-06 vẫn doing):** đã có HMAC-SHA256, chỉ lưu hash token,
 chặn nhận lặp và đóng phiên sau pass/review, hết hạn thử thách khuôn mặt/câu đọc,
 xóa tham chiếu bằng chứng khi retry. Chưa hoàn thành tiêu chí media cũ: cần ràng buộc
 media với challenge_id/chữ ký ở LIVE-03/SEC-02. Đã có Ed25519/gen_keys và kết quả
-phiên ký opt-in (26/10); còn 429, nghiệm thu auth nhân viên và giới hạn body trước
-multipart. Gia hạn sau gián đoạn thuộc LIVE-06 theo ADR-0017. Ký báo cáo FOR-04
+phiên ký opt-in (26/10); thêm quota tạo phiên 429 và giới hạn body trước parser.
+Quota RAM chỉ bảo vệ một worker demo, mất sau restart; không coi là giới hạn
+phân tán. Còn nghiệm thu media cũ/auth nhân viên, forensic chưa được xác thực.
+Gia hạn sau gián đoạn thuộc LIVE-06 theo ADR-0017. Ký báo cáo FOR-04
 chưa nối; xem `docs/architecture/signed-session-results.md`.
 
 ---

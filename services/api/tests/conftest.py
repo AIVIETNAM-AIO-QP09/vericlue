@@ -29,6 +29,8 @@ def _mock_env(monkeypatch, tmp_path, db_template):
     monkeypatch.setenv("DATABASE_URL", "sqlite:///" + path.as_posix())
     monkeypatch.setenv("FORENSIC_TTL_DAYS", "")
     monkeypatch.setenv("USE_MOCK_MODELS", "true")
+    # General scenario tests create many sessions. Rate-limit tests use the real default.
+    monkeypatch.setenv("SESSION_CREATE_LIMIT", "1000")
     monkeypatch.setenv("SESSION_SIGNING_SECRET", secrets.token_urlsafe(32))
     monkeypatch.setenv("MEDIA_DIR", str(tmp_path / "media"))
     get_settings.cache_clear()

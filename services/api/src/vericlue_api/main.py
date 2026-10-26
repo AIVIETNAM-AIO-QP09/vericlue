@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from vericlue_api import __version__
 from vericlue_api.core.config import get_settings
 from vericlue_api.core.errors import install_error_handlers
+from vericlue_api.core.request_limits import RequestLimitsMiddleware
 from vericlue_api.core.staff_access import authenticate_staff
 from vericlue_api.core.state import ApplicationState
 from vericlue_api.routers import forensic, health, review, sessions
@@ -55,12 +56,13 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(title=settings.app_name, version=__version__, lifespan=lifespan)
+    app.add_middleware(RequestLimitsMiddleware, settings=settings)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_methods=["*"],
         allow_headers=["*"],
-        expose_headers=["X-VeriClue-Signature", "X-VeriClue-Report-SHA256"],
+        expose_headers=["X-VeriClue-Signature", "X-VeriClue-Report-SHA256", "Retry-After"],
     )
     install_error_handlers(app)
     app.state.vericlue = ApplicationState(settings=settings)

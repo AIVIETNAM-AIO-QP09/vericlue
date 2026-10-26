@@ -157,7 +157,12 @@ class Settings(BaseSettings):
         return self
 
     max_retries: int = Field(default=2, ge=0, le=2)
-    max_upload_mb: int = 50
+    max_upload_mb: int = Field(default=50, ge=1)
+    # Total HTTP body, including all files and multipart framing (PLAT-06).
+    max_request_mb: int = Field(default=128, ge=1)
+    session_create_limit: int = Field(default=3, ge=1, le=1000)
+    session_create_window_seconds: int = Field(default=3600, ge=1)
+    session_rate_max_clients: int = Field(default=10000, ge=1, le=100000)
     # Để trống = dùng bảng màu trong packages/contracts/chromapulse.json (nguồn chung với web).
     challenge_palette: str = ""
 
