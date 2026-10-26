@@ -14,6 +14,7 @@
 | `compress_variants.py` | Tạo 3 mức nén kiểu mạng xã hội bằng ffmpeg | DATA-05 |
 | `gen_keys.py` | Sinh khóa token và cặp Ed25519 cục bộ cho kết quả ký | PLAT-06 |
 | `verify_forensic_report.py` | Hash đúng byte HTML và kiểm chữ ký Ed25519 tách rời bằng khóa public đã pin | PLAT-06 |
+| `verify_pdf_bundle.py` | Kiểm gói PDF/JSON/signature bằng key đã pin, có thể ràng buộc job ID, không giải nén/render | FOR-04 |
 
 **Quy tắc:**
 

@@ -77,6 +77,24 @@ jobs:
       - if: steps.has_web.outputs.yes == 'true'
         run: npm run build
 
+  pdf:
+    name: PDF (Chromium Windows, offline resources)
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npx playwright install chromium
+      - name: Worker Chromium thật, chặn tài nguyên mạng và gói lỗi
+        run: node --test ../../services/api/tests/pdf_worker.test.cjs
+
   guard:
     name: Guard (no data/secrets)
     runs-on: ubuntu-latest

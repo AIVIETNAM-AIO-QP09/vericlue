@@ -18,6 +18,13 @@ Job real thiếu khóa trả 503, không hạ về MOCK. `/v1/forensic/signing-k
 key đã pin. Checksum MOCK không còn được coi là chữ ký hợp lệ. Đây chưa phải gói
 JSON/PDF và thang lời ENFSI của FOR-04.
 
+FOR-04 đã có phần xuất gói PDF/JSON ký Ed25519, Node/Chromium opt-in:
+[`forensic-pdf-bundle.md`](../../docs/architecture/forensic-pdf-bundle.md).
+`GET /v1/forensic/jobs/{id}/report-bundle` chỉ cho staff, job done/real, có khóa
+report và runtime. Thiếu runtime trả 503; HTML ký vẫn dùng độc lập. CLI xác minh
+đúng ba tệp bằng public key đã pin, không giải nén/render. Chưa có neo audit,
+ảnh/phổ, LR/thang lời ENFSI hoặc UI mới.
+
 FLOW-05 có nền lưu mẫu mặt/tài khoản mã hóa, gắn public key và dọn sau 24 giờ
 (migration 0005): [`account-enrollment.md`](../../docs/architecture/account-enrollment.md).
 `ACCOUNT_ENROLLMENT=true` nối worker trích mẫu và ghi danh sau `pass` onboarding

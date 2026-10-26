@@ -9,6 +9,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 
 from vericlue_api.core.signing import public_key_fingerprint, sign, verify
+from vericlue_api.schemas.forensic import PdfReportManifest
 from vericlue_api.schemas.result import SigningKey
 
 DOMAIN = b"vericlue-forensic-html-report-v1\x00"
@@ -61,3 +62,15 @@ class ReportSigner:
     def verify(self, digest: str, signature: str) -> bool:
         """Verify with the current configured key; signing does not certify model quality."""
         return verify_report_digest(digest, signature, self._key.public_key())
+
+    def sign_bundle(self, manifest: PdfReportManifest) -> tuple[bytes, str]:
+        """Canonical JSON signs the exact PDF hash in a separate protocol."""
+        from vericlue_api.core.pdf_bundle import canonical_manifest, signing_message
+
+        if manifest.key_id != self.key_id:
+            raise ValueError("Wrong report key")
+        raw = canonical_manifest(manifest)
+        signature = base64.b64encode(sign(signing_message(raw, self.key_id), self._key)).decode(
+            "ascii"
+        )
+        return raw, signature

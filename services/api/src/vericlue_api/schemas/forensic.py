@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 JobStatus = Literal["queued", "running", "done", "failed"]
 Verdict = Literal["authentic", "suspect", "inconclusive"]
@@ -115,6 +115,26 @@ class VerifyRequest(BaseModel):
     report_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     signature: str = Field(
         max_length=160, description="Chữ ký Ed25519 base64 chuẩn cho hash HTML; MOCK không hợp lệ"
+    )
+
+
+class PdfReportManifest(BaseModel):
+    """Canonical JSON accompanying the exact PDF, not an ENFSI assessment."""
+
+    model_config = ConfigDict(extra="forbid")
+    version: Literal[1]
+    protocol: Literal["vericlue-forensic-pdf-bundle-v1"]
+    algorithm: Literal["Ed25519"]
+    data_mode: Literal["real"]
+    key_id: str = Field(pattern=r"^[0-9a-f]{64}$")
+    job: ForensicJob
+    filename: str = Field(max_length=4096)
+    job_created_at: AwareDatetime
+    tool_version: str = Field(min_length=1, max_length=100)
+    model_versions: dict[str, str] = Field(max_length=256)
+    pdf_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    limitations: list[Annotated[str, Field(min_length=1, max_length=2000)]] = Field(
+        min_length=1, max_length=32
     )
 
 

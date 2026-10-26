@@ -213,8 +213,9 @@ PLAT-06 đã có HMAC/TTL, chặn lặp bước, quota tạo phiên và giới h
 Review/forensic bắt buộc StaffBearer ở mọi chế độ, độc lập với SESSION_PRIVACY;
 thiếu credential trả 401, thiếu/sai cấu hình trả 503 trước đọc upload. Actor quyết
 định review lấy từ cấu hình server; dữ liệu `staff-unverified` cũ không tự viết
-lại. HTML forensic đã có chữ ký Ed25519 với khóa report riêng; JSON/PDF/ENFSI
-chưa hoàn thành FOR-04. Xem [giao thức HTML](forensic-report-signing.md) và
+lại. HTML forensic đã có chữ ký Ed25519 với khóa report riêng; gói PDF/JSON ký
+đã có ở FOR-04, còn neo audit/ảnh phổ/LR/ENFSI. Xem
+[gói PDF/JSON](forensic-pdf-bundle.md), [giao thức HTML](forensic-report-signing.md) và
 [`services/api/README.md`](../../services/api/README.md#truy-cập-nhân-viên-plat-06).
 
 ## 6. Luồng một phiên eKYC
