@@ -16,6 +16,7 @@ Kết quả có chữ ký cho bên tích hợp: [signed-session-results.md](arch
 Chữ ký và kiểm tệp báo cáo HTML: [forensic-report-signing.md](architecture/forensic-report-signing.md).
 
 Gói PDF/JSON đã ký và runtime xuất: [forensic-pdf-bundle.md](architecture/forensic-pdf-bundle.md).
+Ảnh/phổ minh họa từ vật chứng: [forensic-report-evidence.md](architecture/forensic-report-evidence.md).
 
 ## Cấu trúc
 

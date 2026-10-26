@@ -34,7 +34,13 @@ def export_pdf_bundle(store: ForensicStore, renderer: PdfRenderer, job_id: str) 
                 "tool_version": __version__,
             },
         }
-        html = store._report_real(job, render_payload, signer.key_id, pdf_bundle=True)
+        html = store._report_real(
+            job,
+            render_payload,
+            signer.key_id,
+            pdf_bundle=True,
+            evidence=store.report_evidence(job, row),
+        )
         html = html.replace("\u2013", "-").replace("\u2014", "-").replace("\u2011", "-")
         pdf = renderer.render(html)
         manifest = PdfReportManifest(

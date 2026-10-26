@@ -76,4 +76,5 @@ của bên thứ ba. Người đọc phải đối chiếu job ID và hash vật
 
 FOR-04 đã có protocol gói JSON + hash PDF riêng:
 [`forensic-pdf-bundle.md`](forensic-pdf-bundle.md). Chữ ký HTML không dùng thay chữ
-ký gói. Còn neo hash cuối review, ảnh/phổ, LR/thang lời và kiểm ENFSI gốc; task chưa xong.
+ký gói. Ảnh/phổ opt-in xem [forensic-report-evidence.md](forensic-report-evidence.md).
+Còn neo hash cuối review, LR/thang lời và kiểm ENFSI gốc; task chưa xong.

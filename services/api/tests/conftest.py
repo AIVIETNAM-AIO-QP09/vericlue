@@ -34,6 +34,7 @@ def _mock_env(monkeypatch, tmp_path, db_template):
     monkeypatch.setenv("USE_MOCK_MODELS", "true")
     monkeypatch.setenv("FORENSIC_PDF_NODE", "")
     monkeypatch.setenv("FORENSIC_PDF_PLAYWRIGHT_DIR", "")
+    monkeypatch.setenv("FORENSIC_REPORT_EVIDENCE", "false")
     # General scenario tests create many sessions. Rate-limit tests use the real default.
     monkeypatch.setenv("SESSION_CREATE_LIMIT", "1000")
     monkeypatch.setenv("SESSION_SIGNING_SECRET", secrets.token_urlsafe(32))

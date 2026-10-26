@@ -20,6 +20,7 @@ from vericlue_api.services.enrollment import EnrollmentService
 from vericlue_api.services.forensic_service import ForensicStore
 from vericlue_api.services.identity_steps import IdentitySteps
 from vericlue_api.services.orchestrator import Orchestrator
+from vericlue_api.services.report_evidence import ReportEvidenceBuilder
 from vericlue_api.services.review_store import ReviewStore
 from vericlue_api.services.session_flow import SessionFlow
 from vericlue_api.services.session_privacy import SessionPrivacy
@@ -74,6 +75,7 @@ class AppState:
             # true → bản mock; false/mixed → phân tích thật
             mock=self.settings.use_mock_models is True,
             report_signer=lambda: self.settings.report_signer,
+            evidence_builder=ReportEvidenceBuilder(self.settings).build,
         )
         self.flow = SessionFlow(
             self.settings,

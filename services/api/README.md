@@ -23,7 +23,14 @@ FOR-04 đã có phần xuất gói PDF/JSON ký Ed25519, Node/Chromium opt-in:
 `GET /v1/forensic/jobs/{id}/report-bundle` chỉ cho staff, job done/real, có khóa
 report và runtime. Thiếu runtime trả 503; HTML ký vẫn dùng độc lập. CLI xác minh
 đúng ba tệp bằng public key đã pin, không giải nén/render. Chưa có neo audit,
-ảnh/phổ, LR/thang lời ENFSI hoặc UI mới.
+LR/thang lời ENFSI hoặc UI mới.
+
+Ảnh/phổ minh họa opt-in cho cả HTML và PDF:
+[`forensic-report-evidence.md`](../../docs/architecture/forensic-report-evidence.md).
+FORENSIC_REPORT_EVIDENCE=true cùng FORENSIC_REPORT_FFMPEG tuyệt đối; snapshot nguồn
+kiểm SHA-256 trước trích, tối đa ba khoảng, giới hạn runtime/file/PNG. Thiếu nguồn/
+runtime ghi rõ bỏ minh họa, không đổi verdict hoặc hạ chữ ký. Không phải heatmap
+hay chứng nhận nội dung, không sửa UI. FFmpeg do người vận hành cài riêng.
 
 FLOW-05 có nền lưu mẫu mặt/tài khoản mã hóa, gắn public key và dọn sau 24 giờ
 (migration 0005): [`account-enrollment.md`](../../docs/architecture/account-enrollment.md).
