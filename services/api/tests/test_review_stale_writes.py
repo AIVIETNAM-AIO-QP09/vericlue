@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier, Event
 
 import pytest
-from fastapi.testclient import TestClient
+from conftest import staff_test_client
 from sqlalchemy import func, select
 
 from vericlue_api.core.errors import ApiError
@@ -63,7 +63,7 @@ def test_stale_request_after_other_app_commit_cannot_append_duplicate(
 
     monkeypatch.setattr(ReviewStore, "record_event", hold_stale)
     # Independent app/connection: an application-local mutex cannot provide DB semantics.
-    with TestClient(create_app()) as other, ThreadPoolExecutor(max_workers=1) as pool:
+    with staff_test_client(create_app()) as other, ThreadPoolExecutor(max_workers=1) as pool:
         loser = pool.submit(
             submit, client, cid, action, stale_decision, "Yêu cầu đọc trạng thái cũ"
         )

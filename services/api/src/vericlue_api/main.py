@@ -16,7 +16,7 @@ from vericlue_api import __version__
 from vericlue_api.core.config import get_settings
 from vericlue_api.core.errors import install_error_handlers
 from vericlue_api.core.request_limits import RequestLimitsMiddleware
-from vericlue_api.core.staff_access import authenticate_staff
+from vericlue_api.core.staff_access import authenticate_staff, is_staff_path
 from vericlue_api.core.state import ApplicationState
 from vericlue_api.routers import forensic, health, review, sessions
 from vericlue_api.services.storage import cleanup_expired
@@ -57,13 +57,6 @@ def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(title=settings.app_name, version=__version__, lifespan=lifespan)
     app.add_middleware(RequestLimitsMiddleware, settings=settings)
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.cors_origins,
-        allow_methods=["*"],
-        allow_headers=["*"],
-        expose_headers=["X-VeriClue-Signature", "X-VeriClue-Report-SHA256", "Retry-After"],
-    )
     install_error_handlers(app)
     app.state.vericlue = ApplicationState(settings=settings)
 
@@ -71,9 +64,23 @@ def create_app() -> FastAPI:
     async def staff_access(request, call_next):
         rejected = authenticate_staff(request, settings)
         response = rejected if rejected is not None else await call_next(request)
-        if settings.session_privacy and request.scope["path"].startswith("/v1/review/"):
+        if is_staff_path(request.scope):
             response.headers["Cache-Control"] = "no-store"
         return response
+
+    # CORS must wrap auth rejections as well as successful staff responses.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=[
+            "X-VeriClue-Signature",
+            "X-VeriClue-Report-SHA256",
+            "Retry-After",
+            "WWW-Authenticate",
+        ],
+    )
 
     for router in (
         health.router,

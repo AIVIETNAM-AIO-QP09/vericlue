@@ -9,6 +9,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, Header, Request, 
 from fastapi.responses import HTMLResponse
 
 from vericlue_api.core.errors import ApiError
+from vericlue_api.core.staff_access import staff_bearer
 from vericlue_api.core.state import AppState, get_state
 from vericlue_api.routers.sessions import resolve_scenario
 from vericlue_api.schemas.forensic import ForensicJob, JobCreated, VerifyRequest, VerifyResponse
@@ -16,7 +17,18 @@ from vericlue_api.schemas.session import ErrorResponse
 from vericlue_api.services.forensic_runner import release_slot, reserve_slot, run_forensic_job
 from vericlue_api.services.uploads import read_limited
 
-router = APIRouter(prefix="/v1/forensic", tags=["forensic"])
+router = APIRouter(
+    prefix="/v1/forensic",
+    tags=["forensic"],
+    dependencies=[Depends(staff_bearer)],
+    responses={
+        401: {"model": ErrorResponse, "description": "Thiếu hoặc sai credential nhân viên"},
+        503: {
+            "model": ErrorResponse,
+            "description": "Credential nhân viên hoặc kho dữ liệu chưa sẵn sàng",
+        },
+    },
+)
 
 StateDep = Annotated[AppState, Depends(get_state, scope="function")]
 NOT_FOUND = {404: {"model": ErrorResponse, "description": "Không có job này"}}

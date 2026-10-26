@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import secrets
 import shutil
 from pathlib import Path
@@ -32,6 +33,8 @@ def _mock_env(monkeypatch, tmp_path, db_template):
     # General scenario tests create many sessions. Rate-limit tests use the real default.
     monkeypatch.setenv("SESSION_CREATE_LIMIT", "1000")
     monkeypatch.setenv("SESSION_SIGNING_SECRET", secrets.token_urlsafe(32))
+    token = secrets.token_urlsafe(32)
+    monkeypatch.setenv("STAFF_ACCESS_TOKENS", json.dumps({token: "staff-test"}))
     monkeypatch.setenv("MEDIA_DIR", str(tmp_path / "media"))
     get_settings.cache_clear()
     yield
@@ -40,9 +43,20 @@ def _mock_env(monkeypatch, tmp_path, db_template):
 
 @pytest.fixture
 def client() -> TestClient:
-    """Mỗi test có một ứng dụng (và database SQLite) riêng."""
-    with TestClient(create_app()) as instance:
+    """Business tests use a configured staff credential; citizen tokens remain separate.
+
+    Authentication tests explicitly create an anonymous TestClient instead.
+    """
+    with staff_test_client(create_app()) as instance:
         yield instance
+
+
+def staff_test_client(app) -> TestClient:
+    """Use real authentication in integration tests, never patch the guard off."""
+    token = next(
+        iter(json.loads(app.state.vericlue.settings.staff_access_tokens.get_secret_value()))
+    )
+    return TestClient(app, headers={"Authorization": "Bearer " + token})
 
 
 def start_session(client: TestClient, scenario: str = "genuine") -> tuple[dict, dict]:

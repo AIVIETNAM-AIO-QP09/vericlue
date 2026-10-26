@@ -1,7 +1,8 @@
 # Riêng tư dữ liệu phiên — SEC-01
 
-Opt-in mã hóa dữ liệu phiên eKYC và giới hạn truy cập bàn duyệt. Mặc định tắt để
-giữ tương thích kho demo hiện có; không tự đổi hoặc xóa dữ liệu cũ.
+Opt-in mã hóa dữ liệu phiên eKYC. Mặc định tắt để giữ tương thích kho demo hiện có;
+không tự đổi hoặc xóa dữ liệu cũ. Xác thực nhân viên review/forensic nay luôn bắt
+buộc theo PLAT-06, độc lập với cờ mã hóa.
 
 ## Bật cho kho demo mới
 
@@ -52,10 +53,11 @@ worker. Chưa có quản lý temp qua crash giữa nhiều worker hoặc chống
 
 ## Nhân viên và nhật ký
 
-Khi bật riêng tư, mọi route review yêu cầu credential nhân viên. Token sai/thiếu
-trả 401; cấu hình credential chưa có trả 503. Không nhận actor từ header client.
-Đây là credential demo cấu hình theo người, chưa phải SSO/RBAC/MFA. Chế độ mặc
-định tắt giữ hành vi bàn duyệt cũ chưa xác thực.
+Mọi route review và forensic yêu cầu credential nhân viên, kể cả khi tắt riêng
+tư hoặc chạy mock. Token sai/thiếu trả 401; cấu hình credential chưa có/sai trả
+503. Không nhận actor từ header client. Đây là credential demo cấu hình theo
+người, chưa phải SSO/RBAC/MFA. Chi tiết giới hạn/cấu hình:
+[`services/api/README.md`](../../services/api/README.md#truy-cập-nhân-viên-plat-06).
 
 Hồ sơ `/cases/{id}` vẫn không có điểm AI; ý kiến AI vẫn cần quyết định ban đầu.
 Hai endpoint thêm cho người làm UI, không thay UI trong PR:

@@ -1,6 +1,6 @@
 """Bàn duyệt — /v1/review. Ca lưu trong DB; quyết định ghi vào nhật ký băm nối chuỗi (REV-01).
 
-Nhân viên chưa xác thực (PLAT-06): actor cố định `staff-unverified`.
+PLAT-06: credential nhân viên bắt buộc, actor lấy từ cấu hình server.
 
 Hồ sơ `GET /cases/{id}` KHÔNG có điểm AI; ý kiến AI ở `/cases/{id}/ai` và chỉ xem được sau khi
 nhân viên ghi quyết định ban đầu (nếu chưa → 409).
@@ -41,12 +41,12 @@ router = APIRouter(
     responses={
         401: {
             "model": ErrorResponse,
-            "description": "Thiếu hoặc sai credential nhân viên khi bật riêng tư",
+            "description": "Thiếu hoặc sai credential nhân viên",
         },
         410: {"model": ErrorResponse, "description": "Dữ liệu hết thời hạn lưu trữ"},
         503: {
             "model": ErrorResponse,
-            "description": "Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng",
+            "description": "Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng",
         },
     },
 )

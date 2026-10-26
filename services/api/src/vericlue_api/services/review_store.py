@@ -396,6 +396,10 @@ class ReviewStore:
                 DecisionRow(
                     session_id=record.session_id,
                     action=decision,
-                    config_version="staff-unverified@PLAT-04",
+                    config_version=(
+                        "staff-authenticated@PLAT-06"
+                        if self.actor != "staff-unverified"
+                        else "staff-unverified@PLAT-04"
+                    ),
                 )
             )

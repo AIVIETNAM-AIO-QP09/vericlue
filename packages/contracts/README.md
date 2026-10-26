@@ -1,5 +1,10 @@
 # Contracts — hợp đồng giữa các phần
 
+PLAT-06 đánh dấu `StaffBearer` cho mọi operation review/forensic trong OpenAPI,
+kèm lỗi 401/503. Yêu cầu bearer độc lập với cờ riêng tư và mock; token phiên
+không thay credential nhân viên. Không đổi body schema. Chi tiết:
+[`services/api/README.md`](../../services/api/README.md#truy-cập-nhân-viên-plat-06).
+
 PLAT-06/FLOW-01 thêm `result.schema.json`: envelope Ed25519/claims và khóa công
 khai cho bên tích hợp. Dùng bearer của phiên để đọc kết quả đã commit, không
 nhận payload client để ký. Xem

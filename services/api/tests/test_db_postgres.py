@@ -12,7 +12,7 @@ from uuid import uuid4
 import pytest
 from alembic import command
 from alembic.config import Config
-from fastapi.testclient import TestClient
+from conftest import staff_test_client
 from sqlalchemy import func, inspect, select, text
 from sqlalchemy.exc import DBAPIError
 
@@ -44,7 +44,7 @@ def test_account_l0_claim_and_recovery_races(postgres, monkeypatch):
 
     monkeypatch.setenv("SESSION_PRIVACY", "false")
     get_settings.cache_clear()
-    with TestClient(create_app()) as client:
+    with staff_test_client(create_app()) as client:
         root = client.app.state.vericlue
         with root.transaction() as state:
             record, template, continuity = prepared(state, id_hmac=secrets.token_hex(32))
@@ -134,7 +134,7 @@ def test_account_duplicate_identity_race(postgres, monkeypatch):
     monkeypatch.setenv("SESSION_PRIVACY", "false")
     get_settings.cache_clear()
     identity_hmac = secrets.token_hex(32)
-    with TestClient(create_app()) as client:
+    with staff_test_client(create_app()) as client:
         root = client.app.state.vericlue
         with root.transaction() as state:
             first = prepared(state, id_hmac=identity_hmac)
@@ -197,7 +197,7 @@ def test_postgres_migration_mock_flow_and_restart(postgres):
     assert {"sessions", "module_results", "decisions", "review_events", "forensic_jobs"} <= set(
         inspect(postgres.engine).get_table_names()
     )
-    with TestClient(create_app()) as client:
+    with staff_test_client(create_app()) as client:
         response = client.post("/v1/sessions")
         assert response.status_code == 200
         body = response.json()
@@ -231,7 +231,7 @@ def test_postgres_migration_mock_flow_and_restart(postgres):
             )
             == 1
         )
-    with TestClient(create_app()) as restarted:
+    with staff_test_client(create_app()) as restarted:
         with restarted.app.state.vericlue.transaction() as state:
             assert state.sessions.get(sid).results
             assert state.sessions.get(sid).token == ""
@@ -247,7 +247,7 @@ def test_postgres_migration_mock_flow_and_restart(postgres):
 
 
 def test_postgres_review_events_are_append_only(postgres):
-    with TestClient(create_app()) as client:
+    with staff_test_client(create_app()) as client:
         created = client.post("/v1/sessions", headers={"X-Mock-Scenario": "print"}).json()
         auth = {"Authorization": "Bearer " + created["token"]}
         sid = created["session_id"]
@@ -294,7 +294,7 @@ def test_postgres_review_events_are_append_only(postgres):
 
 
 def test_postgres_concurrent_finalize_creates_exactly_one_review_case(postgres):
-    with TestClient(create_app()) as client:
+    with staff_test_client(create_app()) as client:
         created = client.post("/v1/sessions", headers={"X-Mock-Scenario": "print"}).json()
         sid = created["session_id"]
         barrier = Barrier(2)
@@ -400,7 +400,7 @@ def test_postgres_cleanup_skips_locked_expired_and_does_not_lock_fresh_or_open(
 
 
 def test_postgres_review_list_does_not_lock_cases(postgres):
-    with TestClient(create_app()) as client:
+    with staff_test_client(create_app()) as client:
         cases = client.get("/v1/review/cases").json()["items"]
         assert cases
         with postgres.sessions.begin() as locked:
