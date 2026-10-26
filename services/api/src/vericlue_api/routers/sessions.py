@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, Header, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Header, Request, Response, UploadFile
 from starlette.concurrency import run_in_threadpool
 
 from vericlue_api.core.errors import ApiError
 from vericlue_api.core.security import bearer_scheme, require_session
 from vericlue_api.core.state import AppState, get_state
+from vericlue_api.schemas.result import SignedResult, SigningKey
 from vericlue_api.schemas.session import (
     AccountReceipt,
     ChallengeResponse,
@@ -36,6 +37,7 @@ from vericlue_api.services.uploads import read_limited
 from vericlue_ml.mock import SCENARIOS
 
 router = APIRouter(prefix="/v1/sessions", tags=["sessions"])
+keys_router = APIRouter(prefix="/v1", tags=["integration"])
 
 # 401: thiếu/sai/hết hạn token. 409: sai trạng thái, bước đã nhận hoặc thử thách hết hạn.
 SESSION_ERRORS: dict[int | str, dict] = {
@@ -49,6 +51,20 @@ SESSION_ERRORS: dict[int | str, dict] = {
 
 SessionDep = Annotated[Session, Depends(require_session)]
 StateDep = Annotated[AppState, Depends(get_state, scope="function")]
+
+
+@keys_router.get(
+    "/result-signing-key", response_model=SigningKey, responses={503: {"model": ErrorResponse}}
+)
+def result_key(request: Request, response: Response) -> SigningKey:
+    response.headers["Cache-Control"] = "no-store"
+    return request.app.state.vericlue.settings.result_signer.public_key()
+
+
+@router.get("/{session_id}/result", response_model=SignedResult, responses=SESSION_ERRORS)
+def signed_result(session: SessionDep, state: StateDep, response: Response) -> SignedResult:
+    response.headers["Cache-Control"] = "no-store"
+    return state.signed_results.issue(session)
 
 
 def resolve_scenario(header: str | None, state: AppState) -> str:

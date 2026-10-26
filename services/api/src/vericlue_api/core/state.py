@@ -24,6 +24,7 @@ from vericlue_api.services.review_store import ReviewStore
 from vericlue_api.services.session_flow import SessionFlow
 from vericlue_api.services.session_privacy import SessionPrivacy
 from vericlue_api.services.session_store import SessionStore
+from vericlue_api.services.signed_results import SignedResultService
 
 
 @dataclass
@@ -40,10 +41,12 @@ class AppState:
     privacy: SessionPrivacy = field(init=False)
     accounts: AccountStore = field(init=False)
     enrollment: EnrollmentService = field(init=False)
+    signed_results: SignedResultService = field(init=False)
 
     def __post_init__(self) -> None:
         self.privacy = SessionPrivacy(self.settings, self.db)
         self.accounts = AccountStore(self.settings, self.db)
+        self.signed_results = SignedResultService(self.settings, self.db, self.accounts)
         self.enrollment = EnrollmentService(
             self.accounts,
             self.privacy,

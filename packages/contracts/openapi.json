@@ -2134,6 +2134,71 @@
         "title": "Signals",
         "type": "object"
       },
+      "SignedResult": {
+        "additionalProperties": false,
+        "properties": {
+          "algorithm": {
+            "const": "Ed25519",
+            "title": "Algorithm",
+            "type": "string"
+          },
+          "key_id": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Key Id",
+            "type": "string"
+          },
+          "payload": {
+            "maxLength": 4096,
+            "minLength": 16,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Payload",
+            "type": "string"
+          },
+          "signature": {
+            "maxLength": 86,
+            "minLength": 86,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Signature",
+            "type": "string"
+          }
+        },
+        "required": [
+          "algorithm",
+          "key_id",
+          "payload",
+          "signature"
+        ],
+        "title": "SignedResult",
+        "type": "object"
+      },
+      "SigningKey": {
+        "additionalProperties": false,
+        "properties": {
+          "algorithm": {
+            "const": "Ed25519",
+            "default": "Ed25519",
+            "title": "Algorithm",
+            "type": "string"
+          },
+          "key_id": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Key Id",
+            "type": "string"
+          },
+          "public_key_spki": {
+            "maxLength": 128,
+            "minLength": 40,
+            "title": "Public Key Spki",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key_id",
+          "public_key_spki"
+        ],
+        "title": "SigningKey",
+        "type": "object"
+      },
       "StepAck": {
         "properties": {
           "received": {
@@ -2656,6 +2721,37 @@
         "summary": "Verify Report",
         "tags": [
           "forensic"
+        ]
+      }
+    },
+    "/v1/result-signing-key": {
+      "get": {
+        "operationId": "result_key_v1_result_signing_key_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SigningKey"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Result Key",
+        "tags": [
+          "integration"
         ]
       }
     },
@@ -4282,6 +4378,83 @@
           }
         ],
         "summary": "Verify Otp",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/v1/sessions/{session_id}/result": {
+      "get": {
+        "operationId": "signed_result_v1_sessions__session_id__result_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignedResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai token phiên"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sai trạng thái, phiên đã kết thúc, thiếu bước hoặc sai/hết hạn mã thử thách; bước gửi trùng cũng trả 409."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Kho dữ liệu hoặc luồng xác minh chưa sẵn sàng"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Signed Result",
         "tags": [
           "sessions"
         ]

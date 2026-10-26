@@ -170,14 +170,16 @@
 - [ ] Media gắn thử thách quá 120 giây hoặc thử thách cũ → bị từ chối (test).
 - [ ] Vượt giới hạn lượt → 429 (test).
 - [x] Quá 2 lần chụp lại → `review` (test).
-- [ ] Ký và xác minh chữ ký Ed25519 (test).
+- [x] Ký và xác minh chữ ký Ed25519 (test); gen_keys không in/ghi đè bí mật, signer không có khóa mock mặc định.
 - [ ] Gọi `/v1/review/*`, `/v1/forensic/*` không có xác thực nhân viên → 401 (test).
 
 **Phần bảo vệ phiên 24/10 (PLAT-06 vẫn doing):** đã có HMAC-SHA256, chỉ lưu hash token,
 chặn nhận lặp và đóng phiên sau pass/review, hết hạn thử thách khuôn mặt/câu đọc,
 xóa tham chiếu bằng chứng khi retry. Chưa hoàn thành tiêu chí media cũ: cần ràng buộc
-media với challenge_id/chữ ký ở LIVE-03/SEC-02. Còn 429, Ed25519/gen_keys, auth nhân viên
-và giới hạn body trước multipart. Gia hạn sau gián đoạn thuộc LIVE-06 theo ADR-0017.
+media với challenge_id/chữ ký ở LIVE-03/SEC-02. Đã có Ed25519/gen_keys và kết quả
+phiên ký opt-in (26/10); còn 429, nghiệm thu auth nhân viên và giới hạn body trước
+multipart. Gia hạn sau gián đoạn thuộc LIVE-06 theo ADR-0017. Ký báo cáo FOR-04
+chưa nối; xem `docs/architecture/signed-session-results.md`.
 
 ---
 

@@ -239,6 +239,10 @@ class AccountStore:
         require_consumed(self.db, session, "voice", required=True)
         public_key(session.media_public_key_spki)
 
+    def validate_recovery(self, session: Session) -> None:
+        """Recheck trusted recovery evidence without replacing a device again."""
+        self._validate_biometrics(session, recovery=True)
+
     def phone_hmac(self, account_id: str) -> str | None:
         """Server-only registered phone lookup; caller must authenticate the live envelope."""
         row = self.db.get(AccountRow, account_id)

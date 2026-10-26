@@ -5,6 +5,12 @@
 
 ## Trách nhiệm
 
+PLAT-06/FLOW-01 có khóa Ed25519 opt-in và kết quả phiên ký cho bên tích hợp:
+[`signed-session-results.md`](../../docs/architecture/signed-session-results.md).
+`GET /v1/result-signing-key` trả khóa công khai; bearer đúng phiên đọc `/result`.
+Thiếu cấu hình trả 503, mock/phiên cũ/thiếu ràng buộc không được ký. Không mở chốt
+sinh trắc, không ký báo cáo forensic hoặc thay ML-DSA; không sửa UI.
+
 FLOW-05 có nền lưu mẫu mặt/tài khoản mã hóa, gắn public key và dọn sau 24 giờ
 (migration 0005): [`account-enrollment.md`](../../docs/architecture/account-enrollment.md).
 `ACCOUNT_ENROLLMENT=true` nối worker trích mẫu và ghi danh sau `pass` onboarding
@@ -17,7 +23,7 @@ Thiếu ngưỡng riêng không được đạt. Không mở luồng thật/mixe
 
 SEC-02 có chữ ký media mặt/giọng theo phiên, nonce dùng một lần và client Android
 opt-in: [`media-proof.md`](../../docs/architecture/media-proof.md). Cần migration
-0004; chưa đăng ký khóa tài khoản hoặc mở luồng reauth thật.
+0004; khóa đã gắn tài khoản qua AccountStore, chưa mở luồng reauth thật.
 
 SEC-01 opt-in mã hóa snapshot/media phiên, hủy khóa theo TTL, che/mở thông tin và
 credential/nhật ký truy cập nhân viên: [`session-privacy.md`](../../docs/architecture/session-privacy.md).

@@ -132,6 +132,15 @@ class SessionFlow:
             ttl_seconds=self.settings.session_ttl_seconds,
             signer=self.settings.session_token_signer,
         )
+        session.created_model_mode = (
+            "mock"
+            if self.settings.use_mock_models is True
+            else "real"
+            if self.settings.use_mock_models is False
+            else "mixed"
+        )
+        session.result_issuer = self.settings.result_issuer
+        session.result_audience = self.settings.result_audience
         device_challenge = None
         if request is not None:
             session.purpose = request.purpose

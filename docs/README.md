@@ -11,6 +11,8 @@
 
 Ghi danh, L0 và khôi phục tài khoản: [account-authentication.md](architecture/account-authentication.md).
 
+Kết quả có chữ ký cho bên tích hợp: [signed-session-results.md](architecture/signed-session-results.md).
+
 ## Cấu trúc
 
 ```

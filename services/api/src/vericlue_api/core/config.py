@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import secrets
 from functools import cached_property, lru_cache
-from typing import Literal
+from pathlib import Path
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import Field, PrivateAttr, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -12,6 +13,9 @@ from sqlalchemy.engine import URL
 
 from vericlue_api.core.chromapulse_config import load_chromapulse_config
 from vericlue_api.core.session_tokens import SessionTokenSigner
+
+if TYPE_CHECKING:
+    from vericlue_api.core.signing import ResultSigner
 
 
 class Settings(BaseSettings):
@@ -70,6 +74,34 @@ class Settings(BaseSettings):
     staff_access_tokens: SecretStr | None = None
     require_media_proof: bool = False
     account_enrollment: bool = False
+    result_signing_key_file: str | None = None
+    result_issuer: str | None = Field(default=None, pattern=r"^[A-Za-z0-9:/._-]{1,200}$")
+    result_audience: str | None = Field(default=None, pattern=r"^[A-Za-z0-9:/._-]{1,200}$")
+    result_ttl_seconds: int = Field(default=60, ge=1, le=60)
+
+    @field_validator("result_signing_key_file", "result_issuer", "result_audience", mode="before")
+    @classmethod
+    def blank_disables_result_signing(cls, value):
+        return None if isinstance(value, str) and not value.strip() else value
+
+    @cached_property
+    def result_signer(self) -> ResultSigner:
+        """Load one configured key per application; no generated/fallback development key."""
+        from vericlue_api.core.errors import ApiError
+        from vericlue_api.core.signing import ResultSigner, load_private_key
+
+        try:
+            if (
+                not self.result_signing_key_file
+                or not self.result_issuer
+                or not self.result_audience
+            ):
+                raise ValueError("Signing configuration required")
+            return ResultSigner(load_private_key(Path(self.result_signing_key_file)))
+        except Exception as exc:
+            raise ApiError(
+                503, "result_signing_unavailable", "Chưa thể cấp kết quả lúc này."
+            ) from exc
 
     @field_validator("use_mock_models", mode="before")
     @classmethod

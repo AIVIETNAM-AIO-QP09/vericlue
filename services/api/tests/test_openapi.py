@@ -14,6 +14,8 @@ EXPECTED = {
     ("post", f"{S}/voice"),
     ("post", f"{S}/device-proof"),
     ("get", f"{S}/account"),
+    ("get", f"{S}/result"),
+    ("get", "/v1/result-signing-key"),
     ("post", f"{S}/otp"),
     ("post", f"{S}/otp/verify"),
     ("post", f"{S}/id-card"),

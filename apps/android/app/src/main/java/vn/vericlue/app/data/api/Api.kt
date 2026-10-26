@@ -90,6 +90,15 @@ data class DeviceProofRequest(val signature: String)
 @Serializable
 data class DeviceProofResponse(val received: Boolean = false)
 
+/** Opaque signed result for the integrator; signature validity is not a pass decision. */
+@Serializable
+data class SignedResult(val algorithm: String, @SerialName("key_id") val keyId: String,
+    val payload: String, val signature: String)
+
+@Serializable
+data class SigningKey(val algorithm: String, @SerialName("key_id") val keyId: String,
+    @SerialName("public_key_spki") val publicKeySpki: String)
+
 @Serializable
 data class CreateSessionResponse(
     @SerialName("session_id") val sessionId: String,
@@ -226,6 +235,11 @@ class SessionApi(
 
     suspend fun accountReceipt(sessionId: String, token: String): ApiResult<AccountReceipt> =
         call(Request.Builder().url(url("v1", "sessions", sessionId, "account"))
+            .header("Authorization", "Bearer $token").header("Cache-Control", "no-store").get().build())
+
+    /** Forward to the integrator backend; do not decode and authorize based on payload alone. */
+    suspend fun signedResult(sessionId: String, token: String): ApiResult<SignedResult> =
+        call(Request.Builder().url(url("v1", "sessions", sessionId, "result"))
             .header("Authorization", "Bearer $token").header("Cache-Control", "no-store").get().build())
 
     suspend fun uploadMedia(sessionId: String, token: String, imageJpeg: ByteArray, video: File?, challengeId: String? = null, mediaSignature: String? = null): ApiResult<StepAck> {
