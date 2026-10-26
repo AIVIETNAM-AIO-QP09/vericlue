@@ -153,7 +153,7 @@ def verify_and_consume(
     required: bool = False,
     audio_offset_ms: int | None = None,
 ) -> None:
-    """Verify before filesystem writes; caller's session row lock serializes normal requests."""
+    """Claim in the request transaction; any rejection must roll back that transaction."""
     if session.media_public_key_spki is None and not required:
         if signature is not None:
             raise rejected()  # Never silently ignore a proof or an unbound signer.
@@ -181,9 +181,11 @@ def verify_and_consume(
         key_fingerprint=hashlib.sha256(base64.b64decode(session.media_public_key_spki)).hexdigest(),
     )
     try:
-        with db.begin_nested():
-            db.add(record)
-            db.flush()
+        # No savepoint here: SQLite's legacy transaction mode may release its
+        # first SAVEPOINT before an outer SQL BEGIN, persisting a failed upload's
+        # claim. A normal INSERT starts the transaction on both SQLite/Postgres.
+        db.add(record)
+        db.flush()
     except IntegrityError as exc:
         raise rejected() from exc
 

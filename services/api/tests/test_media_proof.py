@@ -1,6 +1,7 @@
 """SEC-02 real ephemeral ECDSA keys and synthetic files; never hardware/biometric data."""
 
 import base64
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -137,10 +138,9 @@ def test_proof_cannot_be_replayed_after_client_reconnect(client):
     created, auth, key = create(client)
     proof = sign(client, created, key)
     assert send_face(client, created, auth, proof).status_code == 200
-    with client.app.state.vericlue.transaction() as state:
+    with pytest.raises(ApiError), client.app.state.vericlue.transaction() as state:
         session = state.sessions.get(created["session_id"])
-        with pytest.raises(ApiError):
-            verify_and_consume(state.db, session, "face", proof, {"image": IMAGE, "video": VIDEO})
+        verify_and_consume(state.db, session, "face", proof, {"image": IMAGE, "video": VIDEO})
 
 
 def test_refresh_rotates_nonce_and_rejects_old_signature(client):
@@ -300,3 +300,270 @@ def test_enabling_required_mode_does_not_accept_already_uploaded_unsigned_sessio
     monkeypatch.setattr(client.app.state.vericlue.settings, "require_media_proof", True)
     response = client.post(f"/v1/sessions/{created['session_id']}/finalize", headers=auth)
     assert response.status_code == 409 and response.json()["error_code"] == "media_not_accepted"
+
+
+@pytest.mark.parametrize("stage", ["face", "voice"])
+def test_storage_failure_rolls_back_nonce_and_allows_exact_signed_retry(client, monkeypatch, stage):
+    """A proof must not be consumed if the request fails before media is stored."""
+    from vericlue_api.services import session_flow
+
+    created, auth, key = create(client)
+    if stage == "voice":
+        assert send_face(client, created, auth, sign(client, created, key)).status_code == 200
+        voice = face_outcome(client, created, auth)
+        proof = sign(client, created, key, "voice", {"audio": AUDIO})
+
+        def send():
+            return client.post(
+                f"/v1/sessions/{created['session_id']}/voice",
+                headers=auth,
+                data={"voice_challenge_id": voice["voice_challenge_id"], "media_signature": proof},
+                files={"audio": AUDIO},
+            )
+    else:
+        proof = sign(client, created, key)
+
+        def send():
+            return send_face(client, created, auth, proof)
+
+    original = session_flow.save_upload
+
+    def fail_storage(*args, **kwargs):
+        raise ApiError(503, "storage_unavailable", "Chưa thể lưu bản ghi.")
+
+    monkeypatch.setattr(session_flow, "save_upload", fail_storage)
+    response = send()
+    assert response.status_code == 503, response.text
+    root = client.app.state.vericlue
+    with root.database.sessions() as db:
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(MediaProofUseRow)
+                .where(MediaProofUseRow.stage == stage)
+            )
+            == 0
+        )
+    with root.transaction() as state:
+        session = state.sessions.get(created["session_id"])
+        assert ("media" if stage == "face" else "voice") not in session.accepted_steps
+    monkeypatch.setattr(session_flow, "save_upload", original)
+    assert send().status_code == 200
+
+
+@pytest.mark.parametrize("stage", ["face", "voice"])
+@pytest.mark.parametrize("expire_during_read", [False, True])
+def test_signed_upload_expiry_rejected_without_writes_or_consumption(
+    client, monkeypatch, stage, expire_during_read
+):
+    """Exercise HTTP guards before and after reading multipart file contents, with no sleep."""
+    from vericlue_api.routers import sessions as routes
+    from vericlue_api.services import session_flow
+
+    created, auth, key = create(client)
+    if stage == "voice":
+        assert send_face(client, created, auth, sign(client, created, key)).status_code == 200
+        voice = face_outcome(client, created, auth)
+        proof = sign(client, created, key, "voice", {"audio": AUDIO})
+    else:
+        proof = sign(client, created, key)
+    root = client.app.state.vericlue
+    with root.transaction() as state:
+        session = state.sessions.get(created["session_id"])
+        expires = session.voice_expires_at if stage == "voice" else session.challenge.expires_at
+    directory = Path(root.settings.media_dir) / created["session_id"]
+    before = {p.name: p.read_bytes() for p in directory.iterdir()} if directory.exists() else {}
+
+    class Clock(datetime):
+        expired = not expire_during_read
+
+        @classmethod
+        def now(cls, tz=None):
+            return expires if cls.expired else datetime.now(tz)
+
+    monkeypatch.setattr(session_flow, "datetime", Clock)
+    original = routes.read_limited
+
+    async def expire_read(*args, **kwargs):
+        data = await original(*args, **kwargs)
+        Clock.expired = True
+        return data
+
+    monkeypatch.setattr(routes, "read_limited", expire_read)
+    if stage == "face":
+        response = send_face(client, created, auth, proof)
+    else:
+        response = client.post(
+            f"/v1/sessions/{created['session_id']}/voice",
+            headers=auth,
+            data={"voice_challenge_id": voice["voice_challenge_id"], "media_signature": proof},
+            files={"audio": AUDIO},
+        )
+    assert response.status_code == 409 and response.json()["error_code"] == "challenge_expired"
+    after = {p.name: p.read_bytes() for p in directory.iterdir()} if directory.exists() else {}
+    assert after == before
+    with root.database.sessions() as db:
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(MediaProofUseRow)
+                .where(MediaProofUseRow.stage == stage)
+            )
+            == 0
+        )
+
+
+def test_retry_rejects_previous_proof_even_when_relabelled_as_current_attempt(client):
+    created, auth, key = create(client, scenario="low_quality")
+    old_proof = sign(client, created, key)
+    assert send_face(client, created, auth, old_proof).status_code == 200
+    result = face_outcome(client, created, auth)
+    assert result["status"] == "retry"
+    updated = {**created, "challenge": result["challenge"]}
+    assert send_face(client, updated, auth, old_proof).json()["error_code"] == "media_not_accepted"
+    assert send_face(client, updated, auth, sign(client, updated, key)).status_code == 200
+
+
+def test_voice_reread_rejects_old_id_and_old_proof_with_new_id(client):
+    from vericlue_ml.common.result import Gate, Module, ModuleResult, Status
+
+    created, auth, key = create(client)
+    assert send_face(client, created, auth, sign(client, created, key)).status_code == 200
+    voice = face_outcome(client, created, auth)
+    old_proof = sign(client, created, key, "voice", {"audio": AUDIO})
+    root = client.app.state.vericlue
+
+    class WrongPhraseDetector:
+        def predict(self, inp):
+            return ModuleResult(
+                module=Module.VOICE_CHALLENGE,
+                model_version="mock@wrong-phrase",
+                status=Status.OK,
+                gate=Gate.FAIL,
+                latency_ms=0,
+            )
+
+    original = root.orchestrator._detectors[Module.VOICE_CHALLENGE]
+    root.orchestrator._detectors[Module.VOICE_CHALLENGE] = WrongPhraseDetector()
+
+    def send(attempt, proof):
+        return client.post(
+            f"/v1/sessions/{created['session_id']}/voice",
+            headers=auth,
+            data={"voice_challenge_id": attempt, "media_signature": proof},
+            files={"audio": AUDIO},
+        )
+
+    response = send(voice["voice_challenge_id"], old_proof)
+    assert response.status_code == 200, response.text
+    reread = response.json()
+    assert reread["status"] == "voice_challenge"
+    assert reread["voice_challenge_id"] != voice["voice_challenge_id"]
+    assert send(voice["voice_challenge_id"], old_proof).json()["error_code"] == "challenge_mismatch"
+    assert (
+        send(reread["voice_challenge_id"], old_proof).json()["error_code"] == "media_not_accepted"
+    )
+    root.orchestrator._detectors[Module.VOICE_CHALLENGE] = original
+    new_proof = sign(client, created, key, "voice", {"audio": AUDIO})
+    response = send(reread["voice_challenge_id"], new_proof)
+    assert response.status_code == 200 and response.json() == {"status": "pass"}
+
+
+def test_signed_upload_replay_guard_survives_application_restart(client):
+    from fastapi.testclient import TestClient
+
+    from vericlue_api.main import create_app
+
+    created, auth, key = create(client)
+    proof = sign(client, created, key)
+    assert send_face(client, created, auth, proof).status_code == 200
+    with TestClient(create_app()) as restarted:
+        response = send_face(restarted, created, auth, proof)
+        assert response.status_code == 409
+        assert response.json()["error_code"] == "step_already_received"
+    with client.app.state.vericlue.database.sessions() as db:
+        assert db.scalar(select(func.count()).select_from(MediaProofUseRow)) == 1
+
+
+@pytest.mark.parametrize(
+    "scenario,expected",
+    [
+        ("genuine", "pass"),
+        ("low_quality", "review"),
+        ("print", "review"),
+        ("replay", "review"),
+        ("virtual_cam", "review"),
+        ("faceswap", "review"),
+        ("voice_clone", "review"),
+        ("error", "review"),
+    ],
+)
+def test_signed_mock_scenarios_close_once_and_keep_all_nonce_claims(client, scenario, expected):
+    """Full API transactions, real crypto and mock detectors; never biometric accuracy evidence."""
+    from vericlue_api.db.models import DecisionRow
+
+    created, auth, key = create(client, scenario=scenario)
+    root = f"/v1/sessions/{created['session_id']}"
+    face_attempts = 0
+    while True:
+        proof = sign(client, created, key)
+        assert send_face(client, created, auth, proof).status_code == 200
+        face_attempts += 1
+        outcome = face_outcome(client, created, auth)
+        if outcome["status"] != "retry":
+            break
+        assert face_attempts <= 2
+        created = {**created, "challenge": outcome["challenge"]}
+    voice_attempts = 0
+    if outcome["status"] == "voice_challenge":
+        voice_attempts = 1
+        proof = sign(client, created, key, "voice", {"audio": AUDIO})
+        response = client.post(
+            root + "/voice",
+            headers=auth,
+            data={"voice_challenge_id": outcome["voice_challenge_id"], "media_signature": proof},
+            files={"audio": AUDIO},
+        )
+        assert response.status_code == 200, response.text
+        outcome = response.json()
+    assert outcome == {"status": expected}
+    assert face_attempts == (3 if scenario == "low_quality" else 1)
+    assert voice_attempts == (1 if scenario in {"genuine", "voice_clone"} else 0)
+    with client.app.state.vericlue.transaction() as state:
+        session = state.sessions.get(created["session_id"])
+        assert session.completed
+        assert not session.device_verified
+        claims = list(
+            state.db.scalars(
+                select(MediaProofUseRow).where(MediaProofUseRow.session_id == session.session_id)
+            )
+        )
+        assert len(claims) == face_attempts + voice_attempts
+        decision_count = state.db.scalar(
+            select(func.count())
+            .select_from(DecisionRow)
+            .where(DecisionRow.session_id == session.session_id)
+        )
+    for step, kwargs in [
+        ("media", {"files": {"image": IMAGE}}),
+        ("finalize", {"json": {"challenge_id": created["challenge"]["challenge_id"]}}),
+        ("voice", {"files": {"audio": AUDIO}}),
+    ]:
+        # Include the current IDs so the state guard, rather than the binding guard, rejects.
+        if step == "media":
+            kwargs["data"] = {"challenge_id": created["challenge"]["challenge_id"]}
+        if step == "voice":
+            with client.app.state.vericlue.transaction() as state:
+                current = state.sessions.get(created["session_id"])
+                kwargs["data"] = {"voice_challenge_id": current.voice_challenge_id}
+        response = client.post(root + "/" + step, headers=auth, **kwargs)
+        assert response.status_code == 409, response.text
+    with client.app.state.vericlue.database.sessions() as db:
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(DecisionRow)
+                .where(DecisionRow.session_id == created["session_id"])
+            )
+            == decision_count
+        )

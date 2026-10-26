@@ -30,6 +30,72 @@ from vericlue_api.main import create_app
 from vericlue_api.services import storage
 
 
+def test_signed_media_claim_rolls_back_with_failed_outer_request(postgres):
+    from test_media_proof import IMAGE, VIDEO, create, send_face, sign
+
+    from vericlue_api.db.models import MediaProofUseRow
+    from vericlue_api.services.media_proof import verify_and_consume
+
+    with staff_test_client(create_app()) as client:
+        created, auth, key = create(client)
+        proof = sign(client, created, key)
+        root = client.app.state.vericlue
+        with pytest.raises(RuntimeError), root.transaction() as state:
+            session = state.sessions.get(created["session_id"])
+            verify_and_consume(state.db, session, "face", proof, {"image": IMAGE, "video": VIDEO})
+            raise RuntimeError("synthetic failed request after media claim")
+        with root.database.sessions() as db:
+            assert (
+                db.scalar(
+                    select(func.count())
+                    .select_from(MediaProofUseRow)
+                    .where(MediaProofUseRow.session_id == created["session_id"])
+                )
+                == 0
+            )
+        assert send_face(client, created, auth, proof).status_code == 200
+
+
+def test_media_nonce_unique_constraint_serializes_competing_claims(postgres):
+    """Even stale readers outside SessionStore's row lock cannot claim a nonce twice."""
+    from test_media_proof import IMAGE, VIDEO, create, sign
+
+    from vericlue_api.core.errors import ApiError
+    from vericlue_api.db.models import MediaProofUseRow
+    from vericlue_api.services.media_proof import verify_and_consume
+
+    with staff_test_client(create_app()) as client:
+        created, _, key = create(client)
+        proof = sign(client, created, key)
+        root = client.app.state.vericlue
+        with root.transaction() as state:
+            snapshot = state.sessions.get(created["session_id"])
+        ready = Barrier(2)
+
+        def claim(_):
+            ready.wait(timeout=10)
+            try:
+                with root.transaction() as state:
+                    verify_and_consume(
+                        state.db, snapshot, "face", proof, {"image": IMAGE, "video": VIDEO}
+                    )
+                return "accepted"
+            except ApiError as exc:
+                return exc.error_code
+
+        with ThreadPoolExecutor(2) as pool:
+            assert sorted(pool.map(claim, range(2))) == ["accepted", "media_not_accepted"]
+        with root.database.sessions() as db:
+            assert (
+                db.scalar(
+                    select(func.count())
+                    .select_from(MediaProofUseRow)
+                    .where(MediaProofUseRow.session_id == created["session_id"])
+                )
+                == 1
+            )
+
+
 def test_account_l0_claim_and_recovery_races(postgres, monkeypatch):
     """Two L0 requests consume one challenge; two recoveries replace one old key once."""
     from pydantic import SecretStr
