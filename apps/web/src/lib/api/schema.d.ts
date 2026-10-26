@@ -1364,6 +1364,15 @@ export interface operations {
                     "application/json": components["schemas"]["JobCreated"];
                 };
             };
+            /** @description Thiếu hoặc sai credential nhân viên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -1375,6 +1384,15 @@ export interface operations {
             };
             /** @description forensic_busy: hàng đợi giám định đang đầy */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Credential nhân viên hoặc kho dữ liệu chưa sẵn sàng */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1404,6 +1422,15 @@ export interface operations {
                     "application/json": components["schemas"]["ForensicJob"];
                 };
             };
+            /** @description Thiếu hoặc sai credential nhân viên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Không có job này */
             404: {
                 headers: {
@@ -1420,6 +1447,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Credential nhân viên hoặc kho dữ liệu chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -1442,6 +1478,15 @@ export interface operations {
                 };
                 content: {
                     "text/html": string;
+                };
+            };
+            /** @description Thiếu hoặc sai credential nhân viên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/html": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Không có job này */
@@ -1471,6 +1516,15 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
+            /** @description Credential nhân viên hoặc kho dữ liệu chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/html": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     verify_report_v1_forensic_verify_post: {
@@ -1495,6 +1549,15 @@ export interface operations {
                     "application/json": components["schemas"]["VerifyResponse"];
                 };
             };
+            /** @description Thiếu hoặc sai credential nhân viên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -1502,6 +1565,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Credential nhân viên hoặc kho dữ liệu chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -1556,7 +1628,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReviewCaseList"];
                 };
             };
-            /** @description Thiếu hoặc sai credential nhân viên khi bật riêng tư */
+            /** @description Thiếu hoặc sai credential nhân viên */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -1583,7 +1655,7 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
-            /** @description Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
+            /** @description Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -1614,7 +1686,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReviewCase"];
                 };
             };
-            /** @description Thiếu hoặc sai credential nhân viên khi bật riêng tư */
+            /** @description Thiếu hoặc sai credential nhân viên */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -1650,7 +1722,7 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
-            /** @description Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
+            /** @description Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -1681,7 +1753,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReviewAiOpinion"];
                 };
             };
-            /** @description Thiếu hoặc sai credential nhân viên khi bật riêng tư */
+            /** @description Thiếu hoặc sai credential nhân viên */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -1726,7 +1798,7 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
-            /** @description Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
+            /** @description Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -1757,7 +1829,7 @@ export interface operations {
                     "application/json": components["schemas"]["AuditVerification"];
                 };
             };
-            /** @description Thiếu hoặc sai credential nhân viên khi bật riêng tư */
+            /** @description Thiếu hoặc sai credential nhân viên */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -1793,7 +1865,7 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
-            /** @description Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
+            /** @description Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -1828,7 +1900,7 @@ export interface operations {
                     "application/json": components["schemas"]["DecisionResponse"];
                 };
             };
-            /** @description Thiếu hoặc sai credential nhân viên khi bật riêng tư */
+            /** @description Thiếu hoặc sai credential nhân viên */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -1873,7 +1945,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
+            /** @description Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -1904,7 +1976,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReviewIdentity"];
                 };
             };
-            /** @description Thiếu hoặc sai credential nhân viên khi bật riêng tư */
+            /** @description Thiếu hoặc sai credential nhân viên */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -1940,7 +2012,7 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
-            /** @description Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
+            /** @description Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -1971,7 +2043,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReviewIdentity"];
                 };
             };
-            /** @description Thiếu hoặc sai credential nhân viên khi bật riêng tư */
+            /** @description Thiếu hoặc sai credential nhân viên */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -2007,7 +2079,7 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
-            /** @description Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
+            /** @description Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -2042,7 +2114,7 @@ export interface operations {
                     "application/json": components["schemas"]["DecisionResponse"];
                 };
             };
-            /** @description Thiếu hoặc sai credential nhân viên khi bật riêng tư */
+            /** @description Thiếu hoặc sai credential nhân viên */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -2087,7 +2159,7 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
-            /** @description Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
+            /** @description Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -2116,7 +2188,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReasonCodeList"];
                 };
             };
-            /** @description Thiếu hoặc sai credential nhân viên khi bật riêng tư */
+            /** @description Thiếu hoặc sai credential nhân viên */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -2134,7 +2206,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
+            /** @description Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
             503: {
                 headers: {
                     [name: string]: unknown;

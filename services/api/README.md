@@ -99,6 +99,45 @@ Tham chiếu giao thức: [ASGI HTTP request/receive](https://asgi.readthedocs.i
 và [Starlette multipart parser](https://github.com/Kludex/starlette/blob/main/starlette/formparsers.py)
 (kiểm thêm phiên bản đã cài bằng test đóng file tạm).
 
+## Truy cập nhân viên (PLAT-06)
+
+Mọi endpoint `/v1/review/*` và `/v1/forensic/*` yêu cầu credential nhân viên,
+**kể cả mock và SESSION_PRIVACY=false**. Khi nâng cấp từ bản cũ, cấu hình
+`STAFF_ACCESS_TOKENS` trước khi dùng bàn duyệt/giám định; không có chế độ bỏ qua.
+
+- Cấu hình server là JSON `{ "<token ngẫu nhiên>": "<mã nhân viên>" }`. Mỗi token
+  nên sinh bằng `secrets.token_urlsafe(32)`, dài 32–512 ký tự ASCII theo cú pháp
+  bearer; actor 1–100 ký tự in được, không chỉ khoảng trắng hoặc `staff-unverified`.
+  Tối đa 256 credential/64 KiB cấu hình; JSON trùng token, token ngắn hoặc sai
+  cấu trúc đều bị từ chối. Không có token mẫu mặc định hoặc token tự sinh fallback.
+- Gửi **một** header `Authorization: Bearer <token>` qua HTTPS. Token người dân
+  không dùng được cho nhân viên và ngược lại. Không nhận token từ URL, cookie,
+  `X-Staff-Actor` hoặc body; actor lấy từ cấu hình server. Thiếu/sai bearer trả
+  **401 `unauthorized`**, kèm `WWW-Authenticate: Bearer`. Thiếu/sai cấu hình trả
+  **503 `staff_unavailable`**, không làm endpoint trở thành công khai.
+- Guard chạy trước đọc body, transaction hoặc detector, kể cả upload forensic;
+  kiểm đường dẫn đã giải mã và `root_path`. CORS preflight vẫn hoạt động, lỗi auth
+  có CORS cho origin được phép. Phản hồi staff (kể cả báo cáo/lỗi) có
+  `Cache-Control: no-store`. `/healthz`, OpenAPI và API người dân giữ cơ chế riêng.
+- Nhật ký quyết định review dùng actor đã xác thực; nhật ký truy cập/che/mở PII
+  vẫn thuộc SEC-01 khi bật riêng tư. Giám định chưa có nhật ký truy cập/owner từng
+  job hoặc vault mã hóa eKYC; credential hiện có cùng quyền demo, chưa SSO/RBAC/MFA.
+  Chữ ký báo cáo vẫn thuộc FOR-04, không được nâng thành chữ ký thật chỉ bởi auth.
+- Giữ credential trong cấu hình máy, không Git, log hoặc biến frontend
+  `NEXT_PUBLIC_*`. Compose đã chuyển `STAFF_ACCESS_TOKENS` vào API. Đổi cấu hình
+  cần khởi động lại; xóa token khỏi cấu hình thu hồi quyền gọi mới, không thu hồi
+  dữ liệu người đó đã tải trước đây.
+
+SDK web có `createApiClient({ getStaffToken: () => tokenTrongBoNho })`: chỉ các
+method review đọc callback tại mỗi lần gọi và gửi request `cache: no-store`.
+Không tự lưu token hoặc thêm màn đăng nhập; người làm UI nối nguồn credential
+riêng. Chỉ cấu hình server chưa đủ để trình duyệt tự đăng nhập. Forensic client
+tích hợp trực tiếp dùng cùng header bearer. Không đặt token vào URL tải báo cáo.
+
+Tham chiếu cách truyền bearer và challenge 401:
+[RFC 6750 §2.1/§3](https://www.rfc-editor.org/rfc/rfc6750.html).
+Đây là credential demo, không triển khai authorization server OAuth.
+
 ## Lệnh
 
 ```bash
@@ -114,8 +153,8 @@ uv run python scripts/gen_openapi.py        # sinh lại packages/contracts/open
 |---|---|
 | Sức khỏe | `GET /healthz` |
 | Phiên (Bearer, trừ tạo phiên) | `POST /v1/sessions`, `POST /v1/sessions/{id}/{media,signals,finalize,voice}` |
-| Bàn duyệt | `GET /v1/review/cases`, `GET /v1/review/cases/{id}`, `POST …/initial`, `GET …/ai` (409 nếu chưa có quyết định ban đầu), `POST …/decision` (422 `invalid_reason_code`), `GET /v1/review/reason-codes`, `GET …/audit/verify` |
-| Giám định | `POST /v1/forensic/jobs`, `GET …/jobs/{id}`, `GET …/jobs/{id}/report`, `POST /v1/forensic/verify` |
+| Bàn duyệt (StaffBearer) | `GET /v1/review/cases`, `GET /v1/review/cases/{id}`, `POST …/initial`, `GET …/ai` (409 nếu chưa có quyết định ban đầu), `POST …/decision` (422 `invalid_reason_code`), `GET /v1/review/reason-codes`, `GET …/audit/verify` |
+| Giám định (StaffBearer) | `POST /v1/forensic/jobs`, `GET …/jobs/{id}`, `GET …/jobs/{id}/report`, `POST /v1/forensic/verify` |
 
 Chạy mock (`USE_MOCK_MODELS=true`, mặc định) chọn kịch bản bằng header **`X-Mock-Scenario`** khi tạo phiên hoặc giám định: `genuine`, `print`, `replay`, `virtual_cam`, `faceswap`, `voice_clone`, `low_quality`, `error`. Khi tắt mock, header bị bỏ qua. App mock có sẵn 2 ca duyệt mẫu.
 
@@ -152,14 +191,14 @@ Chạy mock (`USE_MOCK_MODELS=true`, mặc định) chọn kịch bản bằng h
 
 | Phần | Hiện nay | Thay bằng |
 |---|---|---|
-| Phiên | HMAC/hash token/TTL/chặn lặp; Ed25519 opt-in; quota tạo phiên 429 và giới hạn body ASGI đã có | **PLAT-06** còn nghiệm thu media cũ/auth nhân viên; FOR-04 nối ký báo cáo; LIVE-03/SEC-02 ràng buộc media và LIVE-06 gia hạn |
+| Phiên | HMAC/hash token/TTL/chặn lặp; Ed25519 opt-in; quota tạo phiên 429 và giới hạn body ASGI đã có | **PLAT-06** còn nghiệm thu media cũ; FOR-04 nối ký báo cáo; LIVE-03/SEC-02 ràng buộc media và LIVE-06 gia hạn |
 | Lưu trữ | **PLAT-05**: PostgreSQL, migration Alembic, transaction theo request | Đã có persistence; nghiệp vụ tiếp tục ở các task tương ứng |
 | Chạy detector | **PLAT-08**: executor chung, preload lifespan, deadline/timeout và latency thực | Đã có; detector thật được bổ sung bởi các task mô hình |
 | Luật quyết định | **ROUT-02**: ML TrustRouter, snapshot `ml/configs/thresholds.yaml`, provisional max-fusion | **ROUT-03**: ngưỡng LTT trên calib_ltt; logistic học trên calib_fit khi có dữ liệu thật |
 | Giám định, chữ ký | **FOR-01 lõi (MVP):** `USE_MOCK_MODELS` khác `true` → tác vụ nền chia đoạn 3 s chồng 50%, chạy detector THẬT từng đoạn (`face_deepfake`, `voice_spoof`; `lipsync` chưa hỗ trợ), quét nguồn gốc cả file (AudioSeal, C2PA), `GET /jobs/{id}` trả tiến độ; module chưa có mô hình thật là `unavailable` và kết luận ra `inconclusive`. Chữ ký vẫn `MOCK-<sha256>`; `USE_MOCK_MODELS=true` giữ bản mock cũ | **FOR-01** hiệu chỉnh riêng (calibrator `forensic`, DATA-05), **FOR-04** khóa Ed25519 ở PLAT-06 |
 | Bàn duyệt | **REV-01**: DB, nhật ký băm nối chuỗi, `verify_chain`, mã lý do cố định; URL media vẫn là chỗ giữ chỗ | **REV-02** (giao diện, phục vụ media) |
 | Giới hạn upload | `MAX_REQUEST_MB` kiểm header/tổng byte trước parser; `MAX_UPLOAD_MB` kiểm riêng từng file | Reverse proxy: giới hạn kết nối, thời gian đọc và body ở lớp mạng |
-| Xác thực nhân viên | Privacy mode đã xác thực bearer cho `/v1/review/*`; forensic chưa có xác thực nhân viên | **PLAT-06** / REV-02: nghiệm thu và bảo vệ forensic |
+| Xác thực nhân viên | StaffBearer bắt buộc cho review/forensic ở mọi chế độ; thiếu cấu hình chặn 503; actor từ server | **REV-02/FOR-02** nối credential vào UI; SSO/RBAC/owner job ngoài phạm vi demo |
 
 Chính sách ROUT-02, thứ tự cổng: phiên/thời gian hợp lệ → quality (chụp lại tối đa 2 lần rồi `review`) → chromapulse/camprobe (fail → `review` ưu tiên cao; unclear → chụp lại; gate rỗng/không xác định → `review`) → ngưỡng trên **max `prob_attack`** của `face_pad` và `face_deepfake` (≤ B `pass`; trên B đến dưới A `voice_challenge`; ≥ A `review`). `error`/`degraded`/thiếu ở bước bắt buộc → `review`, không bao giờ `pass`.
 
@@ -174,8 +213,8 @@ Chạy native: `uv run alembic -c services/api/alembic.ini upgrade head`.
 Các kho session/review/forensic dùng cùng transaction request và ghi snapshot
 JSON tường minh; nested signals/challenge/ModuleResult được phục hồi sau restart.
 Seed hai ca mock idempotent, có khóa PostgreSQL khi nhiều worker khởi động đồng thời.
-`review_events` bị trigger DB chặn UPDATE/DELETE, không cascade xóa; actor hiện là
-`staff-unverified`, xác thực nhân viên vẫn thuộc PLAT-06. Test dùng
+`review_events` bị trigger DB chặn UPDATE/DELETE, không cascade xóa. Actor
+`staff-unverified` chỉ thuộc dữ liệu cũ/nội bộ; HTTP mới dùng actor từ credential nhân viên. Test dùng
 `app.state.vericlue.transaction()` để setup/kiểm snapshot, không sửa object RAM toàn cục.
 
 - `MEDIA_DIR/<session_id>/`: file phiên; tên và đuôi do server kiểm soát.
@@ -308,7 +347,8 @@ SessionFlow tăng counters/cấp challenge hoặc câu mới; ML chỉ trả quy
 Token không khớp/hết hạn → 401; challenge hết hạn trước bước → 409, không chạy
 detector/ghi quyết định mới. Nếu hết hạn trong khi inference đang chạy, policy
 không cho pass. Voice có hạn câu đọc riêng, không dùng lại hạn challenge màu.
-429 vẫn thuộc phần còn lại của PLAT-06. Các chốt409/row lock/deadline/queue/503
+Quota tạo phiên 429 đã có ở PLAT-06 (test smoke 7 kịch bản cần cấu hình đủ lượt).
+Các chốt409/row lock/deadline/queue/503
 storage_busy của PLAT-04/05/08 giữ nguyên. Công dân chỉ nhận schema cũ, không nhận
 xác suất, Λ, hash cấu hình, ngưỡng, lý do nội bộ hay transcript.
 

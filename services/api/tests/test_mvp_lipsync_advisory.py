@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from threading import Event
 
 import pytest
-from fastapi.testclient import TestClient
+from conftest import staff_test_client
 from sqlalchemy import select
 
 from vericlue_api.core.config import get_settings
@@ -88,7 +88,7 @@ def advisory_client(monkeypatch):
             orchestration, "get_detector", lambda module, *, mock=None: AdvisoryDetector(module)
         )
         get_settings.cache_clear()
-        with TestClient(create_app()) as client:
+        with staff_test_client(create_app()) as client:
             predicted.clear()
             if mode == "absent":
                 engine = client.app.state.vericlue.orchestrator

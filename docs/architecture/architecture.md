@@ -209,8 +209,12 @@ Chính sách dọn (quyết định trưởng nhóm 15/10):
 - Giám định: `FORENSIC_TTL_DAYS` để trống mặc định = **không tự xóa**. Số ngày dương là opt-in; nhóm phải phê duyệt chính sách chứng cứ trước khi bật.
 - Job dọn chạy lúc API khởi động và mỗi `MEDIA_CLEANUP_INTERVAL_SECONDS=300`; mỗi lượt ghi audit DB và một dòng log, gồm cả lượt không xóa được file. Lỗi giữa chừng vẫn ghi các file đã xóa thành công. DB metadata/audit không bị dọn theo TTL media.
 
-Token hiện vẫn là token tạm PLAT-04, không thêm HMAC/TTL enforcement/409 mới/429 ở task này.
-Nhật ký ghi actor `staff-unverified` vì xác thực nhân viên thuộc PLAT-06; không coi đây là chữ ký giám định thật.
+PLAT-06 đã có HMAC/TTL, chặn lặp bước, quota tạo phiên và giới hạn tổng body.
+Review/forensic bắt buộc StaffBearer ở mọi chế độ, độc lập với SESSION_PRIVACY;
+thiếu credential trả 401, thiếu/sai cấu hình trả 503 trước đọc upload. Actor quyết
+định review lấy từ cấu hình server; dữ liệu `staff-unverified` cũ không tự viết
+lại. Chữ ký báo cáo forensic vẫn chưa hoàn thành FOR-04. Xem
+[`services/api/README.md`](../../services/api/README.md#truy-cập-nhân-viên-plat-06).
 
 ## 6. Luồng một phiên eKYC
 

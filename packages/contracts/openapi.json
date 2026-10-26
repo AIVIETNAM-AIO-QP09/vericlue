@@ -2465,7 +2465,7 @@
         "type": "http"
       },
       "StaffBearer": {
-        "description": "Credential nhân viên cấu hình riêng khi SESSION_PRIVACY=true; không dùng token người dân.",
+        "description": "Credential nhân viên bắt buộc cho bàn duyệt/giám định; không dùng token người dân.",
         "scheme": "bearer",
         "type": "http"
       }
@@ -2542,6 +2542,16 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai credential nhân viên"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -2561,8 +2571,23 @@
               }
             },
             "description": "forensic_busy: hàng đợi giám định đang đầy"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Credential nhân viên hoặc kho dữ liệu chưa sẵn sàng"
           }
         },
+        "security": [
+          {
+            "StaffBearer": []
+          }
+        ],
         "summary": "Create Job",
         "tags": [
           "forensic"
@@ -2594,6 +2619,16 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai credential nhân viên"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -2613,8 +2648,23 @@
               }
             },
             "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Credential nhân viên hoặc kho dữ liệu chưa sẵn sàng"
           }
         },
+        "security": [
+          {
+            "StaffBearer": []
+          }
+        ],
         "summary": "Get Job",
         "tags": [
           "forensic"
@@ -2646,6 +2696,16 @@
             },
             "description": "Báo cáo HTML; chữ ký trong header X-VeriClue-Signature"
           },
+          "401": {
+            "content": {
+              "text/html": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai credential nhân viên"
+          },
           "404": {
             "content": {
               "text/html": {
@@ -2675,8 +2735,23 @@
               }
             },
             "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "text/html": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Credential nhân viên hoặc kho dữ liệu chưa sẵn sàng"
           }
         },
+        "security": [
+          {
+            "StaffBearer": []
+          }
+        ],
         "summary": "Get Report",
         "tags": [
           "forensic"
@@ -2707,6 +2782,16 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai credential nhân viên"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -2716,8 +2801,23 @@
               }
             },
             "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Credential nhân viên hoặc kho dữ liệu chưa sẵn sàng"
           }
         },
+        "security": [
+          {
+            "StaffBearer": []
+          }
+        ],
         "summary": "Verify Report",
         "tags": [
           "forensic"
@@ -2820,7 +2920,7 @@
                 }
               }
             },
-            "description": "Thiếu hoặc sai credential nhân viên khi bật riêng tư"
+            "description": "Thiếu hoặc sai credential nhân viên"
           },
           "410": {
             "content": {
@@ -2850,7 +2950,7 @@
                 }
               }
             },
-            "description": "Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
+            "description": "Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
           }
         },
         "security": [
@@ -2897,7 +2997,7 @@
                 }
               }
             },
-            "description": "Thiếu hoặc sai credential nhân viên khi bật riêng tư"
+            "description": "Thiếu hoặc sai credential nhân viên"
           },
           "404": {
             "content": {
@@ -2937,7 +3037,7 @@
                 }
               }
             },
-            "description": "Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
+            "description": "Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
           }
         },
         "security": [
@@ -2984,7 +3084,7 @@
                 }
               }
             },
-            "description": "Thiếu hoặc sai credential nhân viên khi bật riêng tư"
+            "description": "Thiếu hoặc sai credential nhân viên"
           },
           "404": {
             "content": {
@@ -3034,7 +3134,7 @@
                 }
               }
             },
-            "description": "Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
+            "description": "Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
           }
         },
         "security": [
@@ -3082,7 +3182,7 @@
                 }
               }
             },
-            "description": "Thiếu hoặc sai credential nhân viên khi bật riêng tư"
+            "description": "Thiếu hoặc sai credential nhân viên"
           },
           "404": {
             "content": {
@@ -3122,7 +3222,7 @@
                 }
               }
             },
-            "description": "Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
+            "description": "Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
           }
         },
         "security": [
@@ -3179,7 +3279,7 @@
                 }
               }
             },
-            "description": "Thiếu hoặc sai credential nhân viên khi bật riêng tư"
+            "description": "Thiếu hoặc sai credential nhân viên"
           },
           "404": {
             "content": {
@@ -3229,7 +3329,7 @@
                 }
               }
             },
-            "description": "Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
+            "description": "Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
           }
         },
         "security": [
@@ -3276,7 +3376,7 @@
                 }
               }
             },
-            "description": "Thiếu hoặc sai credential nhân viên khi bật riêng tư"
+            "description": "Thiếu hoặc sai credential nhân viên"
           },
           "404": {
             "content": {
@@ -3316,7 +3416,7 @@
                 }
               }
             },
-            "description": "Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
+            "description": "Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
           }
         },
         "security": [
@@ -3364,7 +3464,7 @@
                 }
               }
             },
-            "description": "Thiếu hoặc sai credential nhân viên khi bật riêng tư"
+            "description": "Thiếu hoặc sai credential nhân viên"
           },
           "404": {
             "content": {
@@ -3404,7 +3504,7 @@
                 }
               }
             },
-            "description": "Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
+            "description": "Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
           }
         },
         "security": [
@@ -3461,7 +3561,7 @@
                 }
               }
             },
-            "description": "Thiếu hoặc sai credential nhân viên khi bật riêng tư"
+            "description": "Thiếu hoặc sai credential nhân viên"
           },
           "404": {
             "content": {
@@ -3511,7 +3611,7 @@
                 }
               }
             },
-            "description": "Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
+            "description": "Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
           }
         },
         "security": [
@@ -3548,7 +3648,7 @@
                 }
               }
             },
-            "description": "Thiếu hoặc sai credential nhân viên khi bật riêng tư"
+            "description": "Thiếu hoặc sai credential nhân viên"
           },
           "410": {
             "content": {
@@ -3568,7 +3668,7 @@
                 }
               }
             },
-            "description": "Kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
+            "description": "Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
           }
         },
         "security": [

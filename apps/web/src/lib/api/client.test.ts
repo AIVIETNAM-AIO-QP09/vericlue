@@ -35,6 +35,65 @@ const SESSION = {
 };
 
 describe("api client", () => {
+  it("chỉ gửi credential nhân viên cho bàn duyệt, không lẫn với token phiên", async () => {
+    const { impl, calls } = fakeFetch([
+      { body: SESSION },
+      { body: { status: "pass" } },
+      { body: { items: [] } },
+      { body: {} },
+      { body: {} },
+      { body: {} },
+    ]);
+    let staffLookups = 0;
+    const api = createApiClient({
+      baseUrl: "http://api.test",
+      fetchImpl: impl,
+      getStaffToken: () => {
+        staffLookups += 1;
+        return "staff-synthetic";
+      },
+    });
+    await api.createSession();
+    await api.finalize("ses_1", "citizen-synthetic");
+    expect(staffLookups).toBe(0);
+    await api.listReviewCases();
+    await api.getReviewCase("case_1");
+    await api.recordInitialDecision("case_1", "accept", "");
+    await api.getAiOpinion("case_1");
+    expect(staffLookups).toBe(4);
+    expect(calls[0].init.headers).not.toHaveProperty("Authorization");
+    expect(calls[1].init.headers).toMatchObject({ Authorization: "Bearer citizen-synthetic" });
+    for (const call of calls.slice(2)) {
+      expect(call.init.headers).toMatchObject({ Authorization: "Bearer staff-synthetic" });
+      expect(call.init.cache).toBe("no-store");
+      expect(call.url).not.toContain("staff-synthetic");
+    }
+  });
+
+  it("lấy lại credential mỗi lần gọi và không giữ token cũ sau đăng xuất", async () => {
+    const { impl, calls } = fakeFetch([
+      { body: { items: [] } },
+      { body: { items: [] } },
+      {
+        status: 401,
+        body: { error_code: "unauthorized", message: "Thiếu hoặc sai quyền truy cập." },
+      },
+    ]);
+    let token: string | undefined = "staff-first";
+    const api = createApiClient({ fetchImpl: impl, getStaffToken: () => token });
+    await api.listReviewCases();
+    token = "staff-second";
+    await api.listReviewCases();
+    token = undefined;
+    await expect(api.listReviewCases()).rejects.toMatchObject({
+      status: 401,
+      errorCode: "unauthorized",
+    });
+    expect(calls[0].init.headers).toMatchObject({ Authorization: "Bearer staff-first" });
+    expect(calls[1].init.headers).toMatchObject({ Authorization: "Bearer staff-second" });
+    expect(calls[2].init.headers).not.toHaveProperty("Authorization");
+  });
+
   it("POST /v1/sessions trả challenge 8 màu", async () => {
     const { impl, calls } = fakeFetch([{ body: SESSION }]);
     const api = createApiClient({ baseUrl: "http://api.test/", fetchImpl: impl });

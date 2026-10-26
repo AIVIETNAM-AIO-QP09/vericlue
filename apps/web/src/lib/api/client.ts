@@ -30,6 +30,8 @@ export class ApiError extends Error {
 export type ApiClientOptions = {
   baseUrl?: string;
   fetchImpl?: typeof fetch;
+  /** Credential nhân viên lấy từ bộ nhớ của bên gọi; không dùng public env hoặc URL. */
+  getStaffToken?: () => string | undefined;
 };
 
 type RequestOptions = {
@@ -39,6 +41,7 @@ type RequestOptions = {
   json?: unknown;
   form?: FormData;
   headers?: Record<string, string>;
+  cache?: RequestCache;
 };
 
 const DEFAULT_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -58,7 +61,13 @@ export function createApiClient(options: ApiClientOptions = {}) {
       body = opts.form; // trình duyệt tự đặt boundary
     }
 
-    const res = await doFetch(`${baseUrl}${path}`, { method, headers, body, signal: opts.signal });
+    const res = await doFetch(`${baseUrl}${path}`, {
+      method,
+      headers,
+      body,
+      signal: opts.signal,
+      cache: opts.cache,
+    });
     if (!res.ok) {
       const err = (await res.json().catch(() => null)) as Partial<ErrorResponse> | null;
       throw new ApiError(
@@ -73,6 +82,14 @@ export function createApiClient(options: ApiClientOptions = {}) {
       // 2xx nhưng thân không phải JSON hợp lệ: lỗi phía máy chủ, không phải lỗi mạng.
       throw new ApiError(res.status, "invalid_response", "Phản hồi của máy chủ không hợp lệ");
     }
+  }
+
+  function staffRequest<T>(method: string, path: string, opts: RequestOptions = {}) {
+    return request<T>(method, path, {
+      ...opts,
+      token: options.getStaffToken?.(),
+      cache: "no-store",
+    });
   }
 
   return {
@@ -119,10 +136,10 @@ export function createApiClient(options: ApiClientOptions = {}) {
     },
     // --- Bàn duyệt (chỉ trang thử nội bộ /lab/session dùng; người dân không bao giờ gọi) ---
     listReviewCases(signal?: AbortSignal) {
-      return request<ReviewCaseList>("GET", "/v1/review/cases", { signal });
+      return staffRequest<ReviewCaseList>("GET", "/v1/review/cases", { signal });
     },
     getReviewCase(caseId: string, signal?: AbortSignal) {
-      return request<ReviewCase>("GET", `/v1/review/cases/${encodeURIComponent(caseId)}`, {
+      return staffRequest<ReviewCase>("GET", `/v1/review/cases/${encodeURIComponent(caseId)}`, {
         signal,
       });
     },
@@ -132,16 +149,20 @@ export function createApiClient(options: ApiClientOptions = {}) {
       note: string,
       signal?: AbortSignal,
     ) {
-      return request<Schemas["DecisionResponse"]>(
+      return staffRequest<Schemas["DecisionResponse"]>(
         "POST",
         `/v1/review/cases/${encodeURIComponent(caseId)}/initial`,
         { json: { decision, note }, signal },
       );
     },
     getAiOpinion(caseId: string, signal?: AbortSignal) {
-      return request<ReviewAiOpinion>("GET", `/v1/review/cases/${encodeURIComponent(caseId)}/ai`, {
-        signal,
-      });
+      return staffRequest<ReviewAiOpinion>(
+        "GET",
+        `/v1/review/cases/${encodeURIComponent(caseId)}/ai`,
+        {
+          signal,
+        },
+      );
     },
   };
 }

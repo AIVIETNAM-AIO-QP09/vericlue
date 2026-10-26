@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from conftest import start_session
+from conftest import staff_test_client, start_session
 from fastapi.testclient import TestClient
 
 from vericlue_api.core.config import Settings, get_settings
@@ -22,7 +22,7 @@ def make_client(monkeypatch, tmp_path, mode: str) -> TestClient:
     monkeypatch.setenv("USE_MOCK_MODELS", mode)
     monkeypatch.setenv("MODELS_DIR", str(models))
     get_settings.cache_clear()
-    return TestClient(create_app())
+    return staff_test_client(create_app())
 
 
 @pytest.fixture
