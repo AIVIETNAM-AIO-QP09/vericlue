@@ -214,12 +214,12 @@ fun AuthScreen(onRegister: () -> Unit, onLogin: () -> Unit, onRecover: () -> Uni
             IdentityIllustration(Modifier.height(200.dp), phase)
             TitleBlock(
                 "Mở tài khoản\ntrong 2 phút",
-                "Xác minh danh tính bằng CCCD, khuôn mặt và giọng nói. Chỉ mất khoảng 2 phút. Cần: CCCD gắn chip, chỗ đủ sáng và yên tĩnh.",
+                "Xác minh danh tính bằng CCCD và khuôn mặt, chỉ đọc một câu ngắn khi cần. Chỉ mất khoảng 2 phút. Cần: CCCD gắn chip và chỗ đủ sáng.",
             )
             Column {
                 NumberedRow(1, "CCCD")
                 NumberedRow(2, "Khuôn mặt")
-                NumberedRow(3, "Giọng nói", last = true)
+                NumberedRow(3, "Đọc một câu", detail = "Chỉ khi cần", last = true)
             }
         }
     }
@@ -228,9 +228,9 @@ fun AuthScreen(onRegister: () -> Unit, onLogin: () -> Unit, onRecover: () -> Uni
 // ── Terms: must scroll to the end before ticking ─────────────────────────────
 
 private val termsSections = listOf(
-    "1. Mục đích xử lý dữ liệu" to "VeriClue xác minh danh tính của bạn khi mở tài khoản, đăng nhập trên thiết bị mới hoặc khôi phục tài khoản. Ứng dụng chụp ảnh và quay video ngắn khuôn mặt, đổi màu màn hình trong vài giây để kiểm tra camera, và có thể yêu cầu bạn đọc một câu.",
-    "2. Dữ liệu được thu thập" to "• Ảnh hai mặt CCCD và thông tin đọc từ mã QR trên thẻ.\n• Ảnh và video ngắn khuôn mặt.\n• Bản ghi giọng đọc một câu ngắn.\n• Số điện thoại để nhận mã xác nhận.",
-    "3. Thời gian lưu" to "Dữ liệu khuôn mặt và giọng nói tự xóa sau 24 giờ nếu xác minh thành công, hoặc sau 30 ngày nếu hồ sơ cần nhân viên xem xét. [chờ nhóm chốt]",
+    "1. Mục đích xử lý dữ liệu" to "VeriClue xác minh danh tính của bạn khi mở tài khoản, đăng nhập trên thiết bị mới hoặc khôi phục tài khoản. Ứng dụng chụp ảnh và quay video ngắn khuôn mặt, đổi màu màn hình trong vài giây để kiểm tra camera. Khi kết quả khuôn mặt chưa rõ, ứng dụng yêu cầu bạn đọc một câu ngắn.",
+    "2. Dữ liệu được thu thập" to "• Ảnh hai mặt CCCD và thông tin đọc từ mã QR trên thẻ.\n• Ảnh và video ngắn khuôn mặt.\n• Bản ghi giọng đọc một câu ngắn, chỉ khi cần.\n• Số điện thoại để nhận mã xác nhận.",
+    "3. Thời gian lưu" to "Dữ liệu khuôn mặt và giọng nói (nếu có) tự xóa sau 24 giờ nếu xác minh thành công, hoặc sau 30 ngày nếu hồ sơ cần nhân viên xem xét. [chờ nhóm chốt]",
     "4. Ai được xem dữ liệu" to "Chỉ nhân viên thẩm định được giao hồ sơ của bạn. Mọi lần xem đều được ghi nhật ký.",
     "5. Không dùng để huấn luyện AI" to "Dữ liệu của bạn không được dùng để huấn luyện mô hình AI.",
     "6. Quyền của bạn" to "Bạn có thể dừng xác minh bất cứ lúc nào. Bạn có quyền xem, rút lại sự đồng ý và yêu cầu xóa dữ liệu theo quy định pháp luật Việt Nam về bảo vệ dữ liệu cá nhân. Cách gửi yêu cầu: [chờ nhóm chốt].",
@@ -371,7 +371,7 @@ private data class ConsentItem(val icon: ImageVector, val title: String, val det
 private val consentItems = listOf(
     ConsentItem(
         Icons.Outlined.Face, "Xử lý khuôn mặt và giọng nói",
-        "Để xác minh bạn là người thật và đúng chủ CCCD. Tự xóa sau 24 giờ nếu thành công, hoặc sau 30 ngày nếu cần xem xét.",
+        "Để xác minh bạn là người thật và đúng chủ CCCD. Giọng nói chỉ được ghi khi cần đọc câu. Tự xóa sau 24 giờ nếu thành công, hoặc sau 30 ngày nếu cần xem xét.",
         true,
     ),
     ConsentItem(Icons.Outlined.Lock, "Lưu mẫu khuôn mặt đã mã hóa", "Để lần sau xác thực nhanh hơn.", false),
