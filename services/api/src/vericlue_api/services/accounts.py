@@ -21,7 +21,14 @@ from sqlalchemy.orm import Session as DBSession
 
 from vericlue_api.core.config import Settings
 from vericlue_api.core.errors import ApiError
-from vericlue_api.db.models import AccountRecoveryRow, AccountRow, SessionRow, aware, utcnow
+from vericlue_api.db.models import (
+    AccountRecoveryRow,
+    AccountRow,
+    DecisionRow,
+    SessionRow,
+    aware,
+    utcnow,
+)
 from vericlue_api.services.media_proof import public_key, require_consumed
 from vericlue_api.services.session_privacy import SessionPrivacy
 from vericlue_api.services.session_store import Session
@@ -43,6 +50,9 @@ _GATES = {
     Module.LIPSYNC,
 }
 _PROBABILITIES = {Module.FACE_PAD, Module.FACE_DEEPFAKE, Module.VOICE_SPOOF}
+# Evidence that only exists when the session read a sentence. Onboarding reads only when the face
+# is unclear (FLOW-01, 26/10); recovery always reads.
+_VOICE_MODULES = {Module.VOICE_CHALLENGE, Module.LIPSYNC, Module.VOICE_SPOOF}
 
 
 def unavailable() -> ApiError:
@@ -155,6 +165,16 @@ class AccountStore:
             or len(s.id_hmac_key.get_secret_value().encode("utf-8")) < 32
         ):
             raise unavailable()
+        # Once the server asked for a sentence (decision history, not client state), the voice step
+        # must be finished and checked in full. Only a clear face that was never asked may skip it.
+        asked = (
+            "voice_challenge"
+            in self.db.scalars(
+                select(DecisionRow.action).where(DecisionRow.session_id == session.session_id)
+            ).all()
+        )
+        voiced = recovery or asked or "voice" in session.accepted_steps
+        steps = {"media", "signals", "finalize"} | ({"voice"} if voiced else set())
         row = self.db.scalar(
             select(SessionRow).where(SessionRow.session_id == session.session_id).with_for_update()
         )
@@ -176,13 +196,15 @@ class AccountStore:
                 or not session.id_number_hmac
                 or session.id_number_hmac != session.id_confirmed_number_hmac
             )
-            or not {"media", "signals", "finalize", "voice"}.issubset(session.accepted_steps)
+            or not steps.issubset(session.accepted_steps)
             or session.voice_requested
             or session.voice_owed
             or aware(session.token_expires_at) <= utcnow()
         ):
             raise not_eligible()
         for module in _GATES | _PROBABILITIES:
+            if module in _VOICE_MODULES and not voiced:
+                continue
             result = session.results.get(module)
             if (
                 result is None
@@ -216,6 +238,11 @@ class AccountStore:
             or not isinstance(frames[0], dict)
         ):
             raise not_eligible()
+        if not voiced:
+            # No second stage to bind: the face evidence above is the whole session.
+            require_consumed(self.db, session, "face", required=True)
+            public_key(session.media_public_key_spki)
+            return
         # A successful CCCD match cannot substitute for the missing cross-stage check.
         expected = {
             "source_video_sha256": hashes[0],

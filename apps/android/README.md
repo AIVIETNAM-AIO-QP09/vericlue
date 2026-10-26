@@ -12,7 +12,8 @@ thiết bị thật. API/client đã có receipt tài khoản và L0 ký khóa
 đã ghi danh (migration 0006). Bên làm UI truyền receipt vào
 `LiveFlow.ensureSession(..., "reauth", account)`; flow tự kiểm/ký/gửi L0 và
 chỉ giữ session sau ACK. Receipt sau giọng nằm ở `LiveFlow.accountReceipt`, hoặc
-lấy lại bằng `fetchAccountReceipt()`. Cần lưu mapping mã tài khoản với đúng
+lấy lại bằng `fetchAccountReceipt()`; đăng ký đạt ngay ở `finalize` (không đọc câu, từ 26/10)
+thì chỉ có cách gọi `fetchAccountReceipt()`. Cần lưu mapping mã tài khoản với đúng
 alias Keystore ở bên tích hợp; chưa tự lưu mapping hoặc nghiệm thu thiết bị thật.
 Không có màn hình mới. Xem
 [`account-authentication.md`](../../docs/architecture/account-authentication.md).

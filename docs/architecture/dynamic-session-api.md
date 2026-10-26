@@ -99,7 +99,8 @@ upload `image` đơn lẻ là đủ để chấm toàn bộ Dynamic Liveness ở
 | Luồng | Luật |
 |---|---|
 | Không có body | Giữ nguyên MVP: mặt đạt có thể pass; vùng giữa mới đọc câu |
-| `onboarding` / `recovery` | Mặt đạt vẫn phải đọc câu; lỗi bắt buộc/nghi rõ chuyển review; giọng không thể xóa quyết định review của mặt |
+| `onboarding` | Mặt rõ đạt → pass (ghi danh tại `finalize`, biên nhận qua `GET .../account`); vùng giữa → đọc câu; lỗi bắt buộc/nghi rõ → review. Cập nhật 26/10, ADR-0016 |
+| `recovery` | Mặt đạt vẫn phải đọc câu; lỗi bắt buộc/nghi rõ chuyển review; giọng không thể xóa quyết định review của mặt |
 | `reauth` | Khóa chưa được server xác minh → `recovery_required`; khi có xác minh thật, mặt rõ đạt → pass, vùng giữa → đọc câu, nghi/lỗi → deny; không mở ca nhân viên |
 
 Hiện SEC-02 chưa có, nên reauth qua HTTP luôn `recovery_required`, **không giả vờ

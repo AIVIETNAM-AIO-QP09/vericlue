@@ -562,6 +562,12 @@ class SessionFlow:
         if status == "review":
             self._open_case(session, outcome)
         session.completed = True
+        if status == "pass" and session.purpose == "onboarding" and s.account_enrollment:
+            # A clear face finishes onboarding without a sentence: enroll here, as voice() does.
+            # The client reads the receipt from GET /account; a failure rolls the decision back.
+            if self._enroll is None:
+                raise ApiError(503, "enrollment_unavailable", "Chưa thể hoàn tất ghi danh lúc này.")
+            self._enroll(session)
         return FinalizeResponse(status=status)  # type: ignore[arg-type]
 
     # --- voice -----------------------------------------------------------

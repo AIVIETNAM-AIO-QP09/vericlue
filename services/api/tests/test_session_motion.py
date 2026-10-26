@@ -9,7 +9,7 @@ from vericlue_ml.common.result import Module, ModuleResult
 @pytest.mark.parametrize(
     "status,gate,expected",
     [
-        ("ok", "pass", "voice_challenge"),
+        ("ok", "pass", "pass"),  # onboarding with a clear face: no sentence
         ("degraded", "pass", "review"),
         ("error", "pass", "review"),
         ("ok", "fail", "review"),

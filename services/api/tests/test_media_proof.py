@@ -17,7 +17,7 @@ VIDEO = ("face.mp4", b"synthetic video")
 AUDIO = ("voice.wav", b"synthetic audio")
 
 
-def create(client, *, key=None, scenario="genuine"):
+def create(client, *, key=None, scenario="genuine", purpose="onboarding"):
     key = key or ec.generate_private_key(ec.SECP256R1())
     spki = base64.b64encode(
         key.public_key().public_bytes(
@@ -27,7 +27,7 @@ def create(client, *, key=None, scenario="genuine"):
     response = client.post(
         "/v1/sessions",
         json={
-            "purpose": "onboarding",
+            "purpose": purpose,
             "nonce": "synthetic_client_nonce_12345678",
             "device_public_key_spki": spki,
         },
@@ -75,7 +75,8 @@ def face_outcome(client, created, auth):
 
 
 def test_signed_face_voice_full_mock_flow_and_durable_nullifiers(client):
-    created, auth, key = create(client)
+    # Recovery always reads a sentence; onboarding only when the face is unclear.
+    created, auth, key = create(client, purpose="recovery")
     assert len(created["challenge"]["media_nonce"]) == 64
     assert send_face(client, created, auth, sign(client, created, key)).status_code == 200
     result = face_outcome(client, created, auth)
@@ -166,7 +167,7 @@ def test_retry_rotates_nonce(client):
 
 @pytest.mark.parametrize("fault", ["offset", "audio", "missing"])
 def test_voice_signature_binds_audio_and_offset(client, fault):
-    created, auth, key = create(client)
+    created, auth, key = create(client, purpose="recovery")
     assert send_face(client, created, auth, sign(client, created, key)).status_code == 200
     result = face_outcome(client, created, auth)
     proof = sign(client, created, key, "voice", {"audio": AUDIO, "video": VIDEO}, 600)
@@ -283,7 +284,7 @@ def test_signature_is_verified_before_exif_removal_and_encryption(client, monkey
                 assert not decoded.getexif()
         finally:
             lease.release()
-    assert face_outcome(client, created, auth)["status"] == "voice_challenge"
+    assert face_outcome(client, created, auth)["status"] == "pass"  # clear face: no sentence
 
 
 def test_enabling_required_mode_does_not_accept_already_uploaded_unsigned_session(

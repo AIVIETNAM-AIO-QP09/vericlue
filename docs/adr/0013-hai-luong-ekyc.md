@@ -48,7 +48,7 @@ Thêm **tải lên dần**: phần nào chụp xong thì gửi ngay để server
 |---|---|
 | **A. Danh tính** (không sinh trắc) | A1 đồng ý (tách: xử lý sinh trắc / lưu mẫu / lưu CCCD; nói rõ không dùng để huấn luyện) → A2 số điện thoại + **OTP mô phỏng** → A3 **chụp CCCD** mặt trước và mặt sau bằng camera sau; server đọc QR, kiểm định dạng, cắt ảnh chân dung, kiểm **"CCCD này đã đăng ký chưa"** (HMAC) → A4 hiện thông tin để người dùng xác nhận (nếu sửa khác với QR thì gắn cờ cho nhân viên duyệt) |
 | **B. Có mặt và đúng người** (camera trước, không tắt) | B1 căn khung → B2 chụp ảnh thẳng và quay 3 giây trung tính → B3 **quay đầu theo thứ tự ngẫu nhiên** → B4 nháy màu và CamProbe → server chốt phần mặt: chất lượng, CamProbe, PAD, GenD (cả khung nghiêng), kiểm thứ tự quay và mặt 3D, **so mặt với ảnh CCCD** |
-| **C. Ý chí** | C1 **đọc câu: luôn luôn**, vẫn trên camera trước; server kiểm cùng khuôn mặt với giai đoạn B |
+| **C. Ý chí** | C1 **đọc câu khi điểm mặt lưng chừng** (cập nhật 26/10, xem ADR-0016), vẫn trên camera trước; server kiểm cùng khuôn mặt với giai đoạn B |
 | **D. Ghi danh** (khi đạt) | Tạo tài khoản → lưu **mẫu khuôn mặt** (đã mã hóa) → tạo **khóa thiết bị** (Android Keystore) → bản demo tự xóa mọi thứ sau 24 giờ |
 
 **Quy tắc quyết định của luồng đăng ký:**

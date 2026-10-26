@@ -74,3 +74,10 @@ Giai đoạn B trước đây có 6 bước (~30 giây, 4 lần đổi lệnh). 
 - **Thay quy tắc ADR-0013 mục 3** ("điểm mặt ≥ A … dừng, chuyển xét duyệt, không cho đọc câu"): nay người dùng vẫn đọc câu, nhưng nghi rõ ở giai đoạn B thì **kết quả cuối vẫn là chuyển duyệt**. Lý do: người thật không phải chờ; kẻ gian chỉ mất thêm khoảng 10 giây. Cổng chặn vẫn giữ, chỉ dời thời điểm báo kết quả.
 - Đã cân nhắc gộp nhìn theo chấm sáng với quay đầu (một việc "đưa mặt theo chấm"): loại, vì đo mắt khi đầu chuyển động kém sạch và người dùng có thể chỉ liếc mắt nên không đủ góc nghiêng.
 - Tổng thời gian luồng mở tài khoản ước lượng còn ~1 phút 40 giây (chưa đo).
+
+## Cập nhật 26/10 — đăng ký chỉ đọc câu khi mặt bị nghi ngờ (trưởng nhóm duyệt khi họp, Quang chuyển lời)
+
+- **`onboarding`:** mặt rõ là người thật (điểm ≤ B, mọi cổng bắt buộc đạt) thì **đạt luôn, không đọc câu**. Điểm lưng chừng (B < điểm < A) thì đọc câu (giai đoạn C). Nghi rõ (≥ A) hoặc cổng bắt buộc lỗi thì chuyển duyệt như cũ. Thay cho "luôn đọc câu" ở cập nhật 22/10 và ADR-0013 mục 3.
+- **`recovery`:** giữ **luôn đọc câu**, vì đây là đường dễ bị chiếm tài khoản nhất. `reauth` không đổi.
+- **Ghi danh:** đăng ký đạt ngay ở `finalize` thì server ghi danh tại đó; client lấy biên nhận qua `GET /v1/sessions/{id}/account` (không đổi hợp đồng). Phiên **đã từng** được yêu cầu đọc câu (lịch sử quyết định có `voice_challenge`) vẫn phải đủ bằng chứng giọng và face–voice continuity mới ghi danh; phiên không đọc câu bỏ đúng các kiểm tra về giọng, giữ nguyên mọi kiểm tra mặt, CCCD, OTP, chữ ký media.
+- **Hệ quả:** người thật đi nhanh hơn khoảng 10–15 giây; lớp giọng nói không còn chặn kẻ gian có mặt giả qua được cả ba lớp động ở giai đoạn B. Chấp nhận cho bản demo; cần đo lại khi có số liệu thật.
