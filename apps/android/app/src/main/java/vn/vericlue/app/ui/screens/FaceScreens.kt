@@ -76,6 +76,7 @@ import vn.vericlue.app.ui.components.FullCamera
 import vn.vericlue.app.ui.components.GuidanceChip
 import vn.vericlue.app.ui.components.LinkButton
 import vn.vericlue.app.ui.components.PrimaryButton
+import vn.vericlue.app.ui.components.NumberedRow
 import vn.vericlue.app.ui.components.StepProgress
 import vn.vericlue.app.ui.components.SystemBarIcons
 import vn.vericlue.app.ui.components.TitleBlock
@@ -111,28 +112,13 @@ fun FaceReadyScreen(onBack: () -> Unit, onReady: () -> Unit, onSkipFlash: () -> 
     ) {
         TitleBlock("Tiếp theo: quay khuôn mặt", "Giữ điện thoại cách mặt khoảng 25 đến 40 cm, ở nơi đủ sáng.")
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            TaskCard(Icons.Outlined.CenterFocusWeak, "1 · Giữ đầu yên", "Nhìn thẳng. Màn hình sẽ đổi màu nhạt, rồi một chấm sáng chạy: chỉ đưa mắt theo.")
-            TaskCard(Icons.Outlined.SwapHoriz, "2 · Quay trái, quay phải", "Làm theo mũi tên.")
+            NumberedRow(1, "1 · Giữ đầu yên".substringAfter(" · "), "Nhìn thẳng. Màn hình sẽ đổi màu nhạt, rồi một chấm sáng chạy: chỉ đưa mắt theo.")
+            NumberedRow(2, "2 · Quay trái, quay phải".substringAfter(" · "), "Làm theo mũi tên.", last = true)
         }
         Banner(
             "Màn hình sẽ đổi màu nhạt trong vài giây. Người nhạy cảm với ánh sáng nhấp nháy không nên tiếp tục. Bạn có thể bấm Dừng bất cứ lúc nào.",
             tone = Tone.Warn,
         )
-    }
-}
-
-@Composable
-private fun TaskCard(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, body: String) {
-    val c = Vc.colors
-    Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.surfaceSubtle).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(icon, contentDescription = null, tint = c.accent, modifier = Modifier.size(20.dp))
-            Text(title, style = VcType.bodyStrong, color = c.ink)
-        }
-        Text(body, style = VcType.bodySmall, color = c.muted)
     }
 }
 
@@ -313,14 +299,14 @@ fun HoldStillScreen(
                         onFinished = { dotFinished = true },
                     )
                 }
-                Banner("Màn hình sẽ nhấp nháy màu nhạt vài giây. Người nhạy cảm với ánh sáng nhấp nháy không nên tiếp tục.")
+                Banner("Màn hình sẽ nhấp nháy màu nhạt vài giây. Người nhạy cảm với ánh sáng nhấp nháy không nên tiếp tục.", cameraLayout = true)
                 Spacer(Modifier.weight(1f))
                 Button(
                     onClick = onStop,
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Palette.Primary),
-                ) { Text("Dừng", style = VcType.button) }
+                ) { Text("Dừng", style = VcType.cameraButton) }
             }
             Spacer(Modifier.navigationBarsPadding())
         }
@@ -436,13 +422,14 @@ fun TurnHeadScreen(
         onDone()
     }
     val dir = order[index]
-    val nudge = rememberInfiniteTransition(label = "nudge")
-    val shift by nudge.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(700, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "shift",
-    )
+    val shift = if (Vc.motion.enabled) {
+        val nudge = rememberInfiniteTransition(label = "nudge")
+        val value by nudge.animateFloat(
+            initialValue = 0f, targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(700, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "shift",
+        )
+        value
+    } else 0f
     CameraScaffold(onExit) {
         Box(Modifier.fillMaxSize()) {
             FullCamera()
@@ -594,7 +581,7 @@ private fun TimelineColour(timeline: FaceTimeline, slot: Int, onStop: () -> Unit
         ) {
             Text(if (current?.index == null) "Giữ yên, nhìn thẳng" else "Giữ yên", style = VcType.titleMedium, color = Palette.Ink)
             Spacer(Modifier.weight(1f))
-            Banner("Màn hình sẽ nhấp nháy màu nhạt vài giây. Người nhạy cảm với ánh sáng nhấp nháy không nên tiếp tục.")
+            Banner("Màn hình sẽ nhấp nháy màu nhạt vài giây. Người nhạy cảm với ánh sáng nhấp nháy không nên tiếp tục.", cameraLayout = true)
         }
     }
 }
@@ -655,7 +642,7 @@ private fun TimelineHead(dir: TurnDir?, segment: Int, segments: Int, onStop: () 
                     TurnDir.Right -> "Quay sang phải"
                     null -> "Nhìn thẳng"
                 },
-                style = VcType.titleLarge,
+                style = VcType.cameraTitle,
                 color = Palette.Ink,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(top = 20.dp),

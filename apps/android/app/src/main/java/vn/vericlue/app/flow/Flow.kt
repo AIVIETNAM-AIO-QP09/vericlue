@@ -86,6 +86,10 @@ object Routes {
 }
 
 object FlowRules {
+    /** Prefer the back QR, falling back to the front on cards that print it there. */
+    fun cardQr(frontQr: String?, backQr: String?): String? =
+        backQr?.takeIf(String::isNotBlank) ?: frontQr?.takeIf(String::isNotBlank)
+
     /** After OTP: re-auth skips the ID card (ADR-0013). */
     fun afterOtp(purpose: Purpose): String =
         if (purpose == Purpose.Reauth) Routes.FaceReady else Routes.IdFront

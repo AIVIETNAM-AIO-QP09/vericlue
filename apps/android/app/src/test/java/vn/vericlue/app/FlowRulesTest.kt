@@ -14,6 +14,35 @@ import vn.vericlue.app.flow.Routes
 
 class FlowRulesTest {
     @Test
+    fun cardQrFallsBackToTheFront() {
+        assertEquals("front", FlowRules.cardQr("front", null))
+    }
+
+    @Test
+    fun cardQrUsesTheBackWhenItIsTheOnlyCode() {
+        assertEquals("back", FlowRules.cardQr(null, "back"))
+    }
+
+    @Test
+    fun cardQrPrefersTheBackWhenBothSidesHaveCodes() {
+        assertEquals("back", FlowRules.cardQr("front", "back"))
+    }
+
+    @Test
+    fun cardQrIsAbsentWhenNeitherSideHasACode() {
+        assertEquals(null, FlowRules.cardQr(null, null))
+        assertEquals(null, FlowRules.cardQr(" ", ""))
+        assertEquals("front", FlowRules.cardQr("front", " "))
+    }
+
+    @Test
+    fun retakenCardSideDoesNotKeepItsOldQr() {
+        assertEquals("old-back", FlowRules.cardQr("front", "old-back"))
+        assertEquals("front", FlowRules.cardQr("front", null))
+        assertEquals(null, FlowRules.cardQr(null, null))
+    }
+
+    @Test
     fun reauthSkipsIdCardAndVoice() {
         assertEquals(Routes.FaceReady, FlowRules.afterOtp(Purpose.Reauth))
         assertEquals(Routes.Checking, FlowRules.afterTurnHead(Purpose.Reauth))

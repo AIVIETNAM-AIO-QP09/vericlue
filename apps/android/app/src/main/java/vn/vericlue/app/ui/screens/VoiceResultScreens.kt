@@ -66,6 +66,9 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import vn.vericlue.app.flow.Purpose
 import vn.vericlue.app.ui.components.ChecklistCard
+import vn.vericlue.app.ui.components.CompletionHaptic
+import vn.vericlue.app.ui.components.SuccessBadge
+import vn.vericlue.app.ui.components.SampleAccount
 import vn.vericlue.app.ui.components.CameraFeed
 import vn.vericlue.app.ui.components.PrimaryButton
 import vn.vericlue.app.ui.components.RowState
@@ -98,8 +101,12 @@ private fun CameraStillOn() {
 @Composable
 private fun Waveform(level: Float? = null) {
     val c = Vc.colors
-    val t = rememberInfiniteTransition(label = "wave")
-    val p by t.animateFloat(0f, 1f, infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "p")
+    val motion = Vc.motion
+    val p = if (motion.enabled) {
+        val t = rememberInfiniteTransition(label = "wave")
+        val value by t.animateFloat(0f, 1f, infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "p")
+        value
+    } else 0.5f
     Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.height(28.dp)) {
         val base = listOf(0.3f, 0.7f, 0.45f, 1f, 0.6f, 0.85f, 0.4f, 0.75f, 0.5f, 0.9f, 0.35f)
         base.forEachIndexed { i, b ->
@@ -129,9 +136,9 @@ fun VoiceScreen(
     VcScreen(onBack = onBack, step = 3) {
         CameraStillOn()
         if (again) {
-            TitleBlock("Hãy đọc lại", "Chuyển đến nơi yên tĩnh hơn và đọc to, rõ ràng câu mới bên dưới.")
+            TitleBlock("Hãy đọc lại", "Chuyển đến nơi yên tĩnh hơn và đọc to, rõ ràng câu mới bên dưới.", titleStyle = VcType.cameraTitle)
         } else {
-            Text("Đọc to câu sau", style = VcType.titleLarge, color = c.ink)
+            Text("Đọc to câu sau", style = VcType.cameraTitle, color = c.ink)
         }
         Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surfaceInfo).padding(18.dp),
@@ -167,7 +174,7 @@ fun VoiceScreen(
                 Icon(
                     if (recording) Icons.Outlined.Stop else Icons.Outlined.Mic,
                     contentDescription = if (recording) "Dừng ghi âm" else "Bắt đầu ghi âm",
-                    tint = Color.White,
+                    tint = if (recording) Color.White else c.onPrimary,
                     modifier = Modifier.size(34.dp),
                 )
             }
@@ -213,20 +220,22 @@ fun CheckingScreen(purpose: Purpose, onDone: () -> Unit, auto: Boolean = true) {
 
 @Composable
 fun SuccessScreen(purpose: Purpose, onContinue: () -> Unit, auto: Boolean = true, checked: List<String>? = null) {
+    CompletionHaptic(true)
     LaunchedEffect(auto) {
         if (auto) {
             delay(2600)
             onContinue()
         }
     }
-    VcScreen(centered = true) {
-        StatusBadge(Icons.Outlined.CheckCircle, Tone.Ok)
+    val rows = checked ?: listOf("Ảnh giấy tờ", "Khuôn mặt", "Giọng nói")
+    VcScreen(centered = purpose != Purpose.Onboarding, actions = if (purpose == Purpose.Onboarding) {
+        { SampleAccount(rows); PrimaryButton("Vào ứng dụng", onContinue) }
+    } else null) {
+        if (purpose == Purpose.Onboarding) Spacer(Modifier.height(96.dp))
+        SuccessBadge()
         when (purpose) {
             Purpose.Onboarding -> {
-                TitleBlock("Xác minh thành công", "Đang quay lại ứng dụng ngân hàng…", centered = true)
-                // Live runs pass `checked`: only what the server has really checked.
-                val rows = checked ?: listOf("Ảnh giấy tờ", "Khuôn mặt", "Giọng nói")
-                ChecklistCard("Đã hoàn tất", rows.map { Triple(null, it, RowState.Done) }, trailing = rows.map { "" })
+                TitleBlock("Tài khoản\nđã sẵn sàng", "Đang quay lại ứng dụng ngân hàng…")
             }
             Purpose.Reauth -> {
                 TitleBlock("Đăng nhập thành công", "Danh tính của bạn đã được xác nhận. Thiết bị này đã được liên kết với tài khoản.", centered = true)
@@ -365,10 +374,11 @@ object Messages {
         )
     }
 
+    /** The MP4 is still being written on the phone; network errors use ErrorNetwork instead. */
     @Composable fun UploadFailed(onResend: () -> Unit, onStop: () -> Unit) = MessageScreen(
         Icons.Outlined.CloudOff, "Chưa gửi được dữ liệu",
-        "Hãy kiểm tra kết nối mạng rồi thử gửi lại. Dữ liệu chưa gửi xong chưa thể được kiểm tra.",
-        "Gửi lại" to onResend, "Dừng xác minh" to onStop, onBack = onStop,
+        "Video chưa sẵn sàng để gửi. Vui lòng thử lại sau một chút.",
+        "Thử lại" to onResend, "Dừng xác minh" to onStop, onBack = onStop,
     )
 
     @Composable fun Slow(onWait: () -> Unit, onStop: () -> Unit) = MessageScreen(

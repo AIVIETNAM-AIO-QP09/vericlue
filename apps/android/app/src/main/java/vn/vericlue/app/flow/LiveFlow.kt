@@ -23,6 +23,7 @@ import vn.vericlue.app.data.api.IdCardFields
 import vn.vericlue.app.data.api.FrameTime
 import vn.vericlue.app.data.api.SessionApi
 import vn.vericlue.app.data.api.Signals
+import vn.vericlue.app.capture.VideoResult
 
 /** Where the flow goes after a server call: a route, or an error screen. */
 sealed interface Next {
@@ -340,6 +341,13 @@ class LiveFlow(
         val bytes = ByteArray(18).also { SecureRandom().nextBytes(it) }
         return "app_" + Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
     }
+}
+
+/** Do not start any upload while the recording is still being finalized locally. */
+internal suspend fun submitWithVideo(video: VideoResult, submit: suspend (File?) -> Next): Next = when (video) {
+    is VideoResult.Ready -> submit(video.file)
+    VideoResult.NotRecorded -> submit(null)
+    VideoResult.Timeout -> Next.To(Routes.UploadFailed)
 }
 
 /** Error → screen. Every branch is an error screen; none is a pass (AGENTS.md §6 rule 4). */

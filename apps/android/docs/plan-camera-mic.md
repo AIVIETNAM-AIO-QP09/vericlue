@@ -198,9 +198,9 @@ Bản đầy đủ để trưởng nhóm trả lời (13 mục, gồm cả Q1–
 - **Trưởng nhóm:** chốt Q1–Q6; duyệt từng PR theo mục 8.
 - Mỗi PR kèm ảnh chụp màn hình trên máy ảo hoặc điện thoại thật.
 
-## 11. Đã làm tới đâu (cập nhật 24/10, nhánh `feat/APP-02-camera-mic-scaffold`)
+## 11. Đã làm tới đâu (cập nhật 27/10)
 
-Bản dựng khung do Ngọc Quang + Claude làm trước để anh Lý lấy về làm tiếp. Đã chạy hết luồng trên máy ảo với API mock. **Chưa thử trên điện thoại thật.**
+Bản dựng khung do Ngọc Quang + Claude làm trước để anh Lý lấy về làm tiếp. Đã chạy hết luồng trên máy ảo với API mock, và luồng đăng ký trên điện thoại thật (27/10).
 
 | Giai đoạn | Trạng thái | Ghi chú |
 |---|---|---|
@@ -211,9 +211,9 @@ Bản dựng khung do Ngọc Quang + Claude làm trước để anh Lý lấy v�
 | 4 · Quay đầu | Một phần | Dùng góc ML Kit; thứ tự chờ LIVE-01; chưa kiểm chiều dấu góc |
 | 5 · Chấm sáng | Chưa | Chờ hợp đồng đường đi (Q3) |
 | 6 · Ghi âm | Xong | WAV 16 kHz; câu từ `voice_prompt` |
-| 7 · CCCD, OTP | Một phần | Camera sau, QR, đo nét/lóa, điền từ QR; chưa gửi server (Q4) |
+| 7 · CCCD, OTP | Xong (27/10) | Tự chụp, QR, đo nét/lóa; gửi `id-card`, `id-card/confirm`; OTP qua server, tự điền |
 | 8 · Gián đoạn | Xong phần app | Phiên mới khi làm lại vì chưa có LIVE-06 |
-| 9 · Máy thật | Chưa | |
+| 9 · Máy thật | Một phần (27/10) | Galaxy S24 FE qua `adb reverse`, API mock: đi hết đăng ký 3 kịch bản. Còn HTTPS, bản release, chiều quay đầu, rung, gián đoạn |
 
 Cập nhật 24/10 (sáng):
 - Không còn văng app khi thiếu camera: tự chuyển camera khác, bỏ quay video nếu máy không hỗ trợ, hoặc hiện "Thiết bị chưa đáp ứng".
@@ -229,5 +229,10 @@ Cập nhật 24/10 (chiều, theo kết quả duyệt của trưởng nhóm):
 - "Bỏ qua nháy màu" không còn bỏ cả phần khuôn mặt: dừng ở màn "Cần xác minh theo cách khác" (câu 14 trong `can-chot.md`).
 - Bản release dừng build nếu `apiBaseUrl` không phải `https://`.
 - Đọc câu (API thật): quay MP4 cùng lúc với WAV và gửi kèm ở `/voice` cho VOICE-05. WAV chỉ bắt đầu khi video đã có khung hình đầu. Trên máy ảo, video vẫn bắt đầu trước WAV khoảng 0,6 s (câu 16 trong `can-chot.md`).
+
+Cập nhật 27/10 (nhánh `feat/APP-01-ui-polish`):
+- QR: xóa QR cũ mỗi lần chụp/chụp lại một mặt; gửi QR mặt sau, không có thì mặt trước (thẻ gắn chip 2021 in QR ở mặt trước).
+- Video: chỉ gửi MP4 sau sự kiện `VideoRecordEvent.Finalize` của CameraX; quá 3 giây thì không gửi, ra màn "Video chưa sẵn sàng" để thử lại.
+- Thử trên Galaxy S24 FE với API mock nhánh FLOW-01 (#86): `genuine` đạt không đọc câu, `low_quality` chụp lại 2 lần rồi chờ duyệt, `voice_clone` đọc câu rồi chờ duyệt.
 
 Cách chạy thử với API mock: xem `apps/android/README.md`, mục "Chạy thử với API mock".

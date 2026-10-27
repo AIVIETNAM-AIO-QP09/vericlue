@@ -1,6 +1,7 @@
 package vn.vericlue.app.ui.screens
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -41,9 +42,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -56,6 +61,9 @@ import vn.vericlue.app.capture.CccdInfo
 import vn.vericlue.app.capture.CccdQr
 import vn.vericlue.app.capture.IdQuality
 import vn.vericlue.app.ui.components.CameraFeed
+import vn.vericlue.app.ui.components.CompletionHaptic
+import vn.vericlue.app.ui.components.CheckMark
+import androidx.compose.material3.HorizontalDivider
 import vn.vericlue.app.ui.components.LocalCameraFeed
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.asImageBitmap
@@ -78,6 +86,7 @@ import vn.vericlue.app.ui.components.stepLabel
 import vn.vericlue.app.ui.theme.Vc
 import vn.vericlue.app.ui.theme.VcTheme
 import vn.vericlue.app.ui.theme.VcType
+import vn.vericlue.app.ui.theme.Palette
 
 @Composable
 fun PhoneScreen(onBack: () -> Unit, onSend: (String) -> Unit) {
@@ -113,7 +122,10 @@ fun PhoneScreen(onBack: () -> Unit, onSend: (String) -> Unit) {
                     color = if (phone.isEmpty()) c.muted else c.ink,
                 )
             }
-            if (valid) Text("✓ Số điện thoại hợp lệ", style = VcType.labelXs, color = c.ok)
+            if (valid) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                CheckMark()
+                Text("Số điện thoại hợp lệ", style = VcType.label, color = c.ok)
+            }
         }
     }
 }
@@ -193,16 +205,16 @@ fun OtpScreen(
 @Composable
 private fun CardPlaceholder(back: Boolean) {
     Canvas(Modifier.fillMaxSize()) {
-        drawRoundRect(Color(0xFFDDEDEA), cornerRadius = androidx.compose.ui.geometry.CornerRadius(16f, 16f))
-        val line = Color(0xFF9DB7B2)
+        drawRoundRect(Palette.CardBackground, cornerRadius = androidx.compose.ui.geometry.CornerRadius(16f, 16f))
+        val line = Palette.CardLine
         if (!back) {
-            drawRoundRect(Color(0xFFB8CCC9), topLeft = Offset(size.width * 0.06f, size.height * 0.3f), size = Size(size.width * 0.24f, size.height * 0.5f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f))
+            drawRoundRect(Palette.CardPortrait, topLeft = Offset(size.width * 0.06f, size.height * 0.3f), size = Size(size.width * 0.24f, size.height * 0.5f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f))
             for (i in 0 until 6) {
                 drawRoundRect(line, topLeft = Offset(size.width * 0.36f, size.height * (0.3f + i * 0.09f)), size = Size(size.width * (0.5f - (i % 3) * 0.08f), size.height * 0.035f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f))
             }
-            drawRoundRect(Color(0xFFC79A3B), topLeft = Offset(size.width * 0.06f, size.height * 0.1f), size = Size(size.width * 0.12f, size.height * 0.12f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f))
+            drawRoundRect(Palette.CardChip, topLeft = Offset(size.width * 0.06f, size.height * 0.1f), size = Size(size.width * 0.12f, size.height * 0.12f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f))
         } else {
-            drawRect(Color(0xFF6C807C), topLeft = Offset(size.width * 0.72f, size.height * 0.12f), size = Size(size.width * 0.2f, size.width * 0.2f), style = Stroke(6f))
+            drawRect(Palette.CardQr, topLeft = Offset(size.width * 0.72f, size.height * 0.12f), size = Size(size.width * 0.2f, size.width * 0.2f), style = Stroke(6f))
             for (i in 0 until 3) {
                 drawRoundRect(line, topLeft = Offset(size.width * 0.06f, size.height * (0.72f + i * 0.08f)), size = Size(size.width * 0.88f, size.height * 0.035f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f))
             }
@@ -212,14 +224,33 @@ private fun CardPlaceholder(back: Boolean) {
 
 @Composable
 private fun CornerFrame(modifier: Modifier) {
+    val color = Vc.colors.warmAccent
     Canvas(modifier) {
-        val l = 22.dp.toPx()
+        val l = 32.dp.toPx()
+        val r = 18.dp.toPx()
         val w = 3.dp.toPx()
         listOf(Offset(0f, 0f) to Pair(1, 1), Offset(size.width, 0f) to Pair(-1, 1), Offset(0f, size.height) to Pair(1, -1), Offset(size.width, size.height) to Pair(-1, -1))
             .forEach { (o, d) ->
-                drawLine(Color.White, o, Offset(o.x + l * d.first, o.y), strokeWidth = w)
-                drawLine(Color.White, o, Offset(o.x, o.y + l * d.second), strokeWidth = w)
+                val path = Path().apply {
+                    moveTo(o.x + l * d.first, o.y)
+                    lineTo(o.x + r * d.first, o.y)
+                    quadraticTo(o.x, o.y, o.x, o.y + r * d.second)
+                    lineTo(o.x, o.y + l * d.second)
+                }
+                drawPath(path, color, style = Stroke(w, cap = StrokeCap.Round))
             }
+    }
+}
+
+@Composable
+private fun CaptureHint(text: String, warning: Boolean = false) {
+    val c = Vc.colors
+    Row(
+        Modifier.clip(RoundedCornerShape(24.dp)).background(Palette.White.copy(alpha = 0.08f)).padding(horizontal = 14.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(6.dp).background(if (warning) c.warmAccent else c.success, CircleShape))
+        Text(text, style = VcType.bodySmall, color = Palette.White)
     }
 }
 
@@ -256,14 +287,19 @@ fun IdCaptureScreen(
     VcTheme(dark = true) {
         val c = Vc.colors
         val side = if (back) "mặt sau" else "mặt trước"
-        SystemBarIcons(c.background)
-        Column(Modifier.fillMaxSize().background(c.background).statusBarsPadding()) {
+        val motion = Vc.motion
+        val reveal = remember(back) { Animatable(if (captured && !motion.enabled) 1f else 0f) }
+        LaunchedEffect(captured, back, motion.enabled) {
+            if (captured) reveal.animateTo(1f, motion.tween(240)) else reveal.snapTo(0f)
+        }
+        CompletionHaptic(captured, back)
+        SystemBarIcons(Palette.CameraBg)
+        Column(Modifier.fillMaxSize().background(Palette.CameraBg).statusBarsPadding()) {
             TopBar(onBack)
             StepProgress(1, stepLabel(1))
             Column(Modifier.weight(1f).padding(horizontal = 20.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(Icons.Outlined.CameraAlt, contentDescription = null, tint = c.muted, modifier = Modifier.size(16.dp))
-                    Text("Camera sau", style = VcType.footnote, color = c.muted)
+                    Text("Camera sau".uppercase() + " · " + side.uppercase() + if (back) " · 2/2" else " · 1/2", style = VcType.cameraStep, color = c.warmAccent)
                 }
                 Text(if (captured) "Đã chụp $side" else "Đặt $side CCCD vào khung", style = VcType.titleLarge, color = c.ink)
                 Box(Modifier.fillMaxWidth().aspectRatio(1.586f).padding(4.dp)) {
@@ -288,24 +324,26 @@ fun IdCaptureScreen(
                         }
                     }
                     if (captured) {
-                        Box(Modifier.fillMaxSize().padding(10.dp).border(3.dp, c.ok, RoundedCornerShape(12.dp)))
-                        Text(
-                            "✓  Đã chụp $side",
-                            style = VcType.label,
-                            color = Color.White,
-                            modifier = Modifier.align(Alignment.Center).clip(RoundedCornerShape(50)).background(c.ok)
+                        val shown = if (motion.enabled) reveal.value else 1f
+                        Box(Modifier.fillMaxSize().padding(10.dp).alpha(shown).scale(0.98f + 0.02f * shown).border(3.dp, c.ok, RoundedCornerShape(12.dp)))
+                        Row(
+                            Modifier.align(Alignment.Center).alpha(shown).scale(0.92f + 0.08f * shown).clip(CircleShape).background(c.ok)
                                 .padding(horizontal = 14.dp, vertical = 8.dp),
-                        )
+                            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            CheckMark(color = c.onOk)
+                            Text("Đã chụp $side", style = VcType.label, color = c.onOk)
+                        }
                     } else {
                         CornerFrame(Modifier.fillMaxSize())
                     }
                 }
                 when {
-                    captured && capturedOk -> Banner(if (back) "Ảnh rõ. Đang mở màn xem lại" else "Ảnh rõ. Tự sang mặt sau", tone = Tone.Ok)
-                    captured -> Banner("Ảnh có thể bị mờ hoặc lóa. Bấm \"Chụp lại\" nếu chữ trên thẻ chưa rõ.", tone = Tone.Warn)
-                    hint != null -> Banner(hint, tone = Tone.Warn)
-                    glare -> Banner("Ảnh bị lóa, hãy nghiêng thẻ một chút", tone = Tone.Warn, icon = Icons.Outlined.WbSunny)
-                    else -> Banner("Giữ thẻ gọn trong khung. Ứng dụng tự chụp khi đủ nét", tone = Tone.Ok)
+                    captured && capturedOk -> CaptureHint(if (back) "Ảnh rõ. Đang mở màn xem lại" else "Ảnh rõ. Tự sang mặt sau")
+                    captured -> CaptureHint("Ảnh có thể bị mờ hoặc lóa. Bấm \"Chụp lại\" nếu chữ trên thẻ chưa rõ.", warning = true)
+                    hint != null -> CaptureHint(hint, warning = true)
+                    glare -> CaptureHint("Ảnh bị lóa, hãy nghiêng thẻ một chút", warning = true)
+                    else -> CaptureHint("Giữ thẻ gọn trong khung. Ứng dụng tự chụp khi đủ nét")
                 }
                 Spacer(Modifier.weight(1f))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)) {
@@ -318,8 +356,8 @@ fun IdCaptureScreen(
                 } else {
                     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                         Box(
-                            Modifier.size(72.dp).clip(CircleShape).border(4.dp, Color.White, CircleShape).padding(8.dp)
-                                .clip(CircleShape).background(Color.White).clickable(role = Role.Button, onClick = onCapture)
+                            Modifier.size(72.dp).clip(CircleShape).border(3.dp, Color.White, CircleShape)
+                                .clickable(role = Role.Button, onClick = onCapture)
                                 .semantics { contentDescription = "Chụp ảnh" },
                         )
                     }
@@ -349,16 +387,14 @@ fun IdReviewScreen(
     VcScreen(onBack = onBack, step = 1, actions = { PrimaryButton("Tiếp tục", onContinue) }) {
         TitleBlock("Xem lại ảnh CCCD", "Chữ và ảnh chân dung phải rõ, không bị lóa.")
         Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surfaceSubtle)
-                .border(1.dp, c.border, RoundedCornerShape(16.dp)).padding(16.dp),
+            Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             listOf(Triple(false, front, onRetakeFront), Triple(true, back, onRetakeBack)).forEach { (isBack, shot, retake) ->
-                val ok = idChecks(isBack, shot?.second).all { it.second }
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Box(
                         Modifier.fillMaxWidth().aspectRatio(1.586f).clip(RoundedCornerShape(12.dp))
-                            .border(2.dp, if (ok) c.ok else c.warn, RoundedCornerShape(12.dp)).padding(4.dp),
+                            .padding(4.dp),
                     ) { PhotoOrPlaceholder(shot?.first, isBack, if (isBack) "Ảnh mặt sau" else "Ảnh mặt trước") }
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text(if (isBack) "Mặt sau" else "Mặt trước", style = VcType.bodyStrong, color = c.ink, modifier = Modifier.weight(1f))
@@ -435,8 +471,7 @@ fun ConfirmInfoScreen(
         if (afterFace) Banner("Đã quay xong. Xem lại thông tin, rồi bấm \"Thông tin đúng\" để gửi.", tone = Tone.Ok)
         TitleBlock("Kiểm tra thông tin", "Thông tin đọc từ ảnh hoặc mã QR trên CCCD. Hãy kiểm tra và sửa những mục chưa đúng.")
         Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surfaceSubtle)
-                .border(1.dp, c.border, RoundedCornerShape(16.dp)).padding(16.dp),
+            Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             if (fields === sampleIdFields) {
@@ -447,9 +482,10 @@ fun ConfirmInfoScreen(
                     modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(c.warnBg).padding(horizontal = 8.dp, vertical = 3.dp),
                 )
             }
-            fields.forEach { (k, v) ->
+            fields.forEachIndexed { index, (k, v) ->
+                if (index > 0) HorizontalDivider(color = c.border)
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(k, style = VcType.footnote, color = c.muted)
+                    Text(k, style = VcType.bodySmall, color = c.muted)
                     Text(v, style = VcType.bodyStrong, color = c.ink)
                 }
             }
@@ -498,6 +534,8 @@ fun EditInfoScreen(
                         disabledContainerColor = c.surfaceSubtle,
                         focusedTextColor = c.ink,
                         unfocusedTextColor = c.ink,
+                        focusedLabelColor = c.accent,
+                        unfocusedLabelColor = c.muted,
                     ),
                     textStyle = VcType.bodyStrong,
                     modifier = Modifier.fillMaxWidth(),

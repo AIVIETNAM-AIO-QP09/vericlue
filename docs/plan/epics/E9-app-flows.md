@@ -248,7 +248,10 @@ cứng. Xem `media-proof.md` và `account-authentication.md`.
 
 **Tiêu chí hoàn thành:**
 - [x] Build được APK bằng Gradle trên máy Windows; README có các bước cài Android Studio/SDK.
-- [ ] Tạo phiên và nhận kết quả từ API thật trên điện thoại thật.
+- [x] Trau chuốt UI 26/10: giữ Be Vietnam Pro; thang chữ, màu sáng/tối, phản hồi nút/OTP/CCCD/thành công, chuyển màn và rung nhẹ; có chính sách tắt chuyển động trang trí theo cài đặt máy.
+- [x] So ảnh Paparazzi cho 10 màn yêu cầu ở cả sáng/tối; test tương phản (kể cả lúc nút chuyển màu), giảm chuyển động và `CitizenCopyTest`.
+- [x] Áp hướng A · Tối giản ấm: nền trắng ngà, pill navy, Canvas CCCD, nội dung không đóng hộp, tấm đáy/số tài khoản mẫu; so ảnh sáng/tối và A1–A3 với thiết kế.
+- [x] Tạo phiên và nhận kết quả từ API thật trên điện thoại thật. (27/10, Galaxy S24 FE, API mock qua `adb reverse`; bàn giao `2026-10-27-2000-app-01`)
 - [ ] CI không bắt buộc build Android ở bước này; ghi rõ trong PR.
 
 ---
@@ -304,7 +307,7 @@ cứng. Xem `media-proof.md` và `account-authentication.md`.
 - Màn hình xác nhận thông tin.
 
 **Tiêu chí hoàn thành:**
-- [ ] Đi hết giai đoạn A trên điện thoại thật.
+- [x] Đi hết giai đoạn A trên điện thoại thật. (27/10, Galaxy S24 FE, thẻ CCCD gắn chip; bàn giao `2026-10-27-2000-app-01`)
 
 ---
 

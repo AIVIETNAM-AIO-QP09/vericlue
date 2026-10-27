@@ -40,10 +40,23 @@ class ScreensSnapshotTest {
     @get:Rule
     val paparazzi = Paparazzi(deviceConfig = DeviceConfig.PIXEL_5, maxPercentDifference = 0.1)
 
-    private fun shot(name: String, dark: Boolean = false, content: @Composable () -> Unit) =
-        paparazzi.snapshot(name) { VcTheme(dark = dark) { content() } }
+    private fun shot(name: String, dark: Boolean = false, content: @Composable () -> Unit) {
+        paparazzi.snapshot(name) { VcTheme(dark = dark, motionEnabled = false) { content() } }
+        if (!dark) paparazzi.snapshot(name + "_dark") { VcTheme(dark = true, motionEnabled = false) { content() } }
+    }
 
     private val n: () -> Unit = {}
+
+    @Test fun polishDarkScreens() {
+        shot("12_phone_dark", dark = true) { PhoneScreen(n) {} }
+        shot("13_otp_dark", dark = true) { OtpScreen(n, n) }
+        shot("14_id_front_dark", dark = true) { IdCaptureScreen(false, false, n, n) }
+        shot("14_id_front_captured_dark", dark = true) { IdCaptureScreen(false, false, n, n, captured = true) }
+        shot("15_id_review_dark", dark = true) { IdReviewScreen(n, n, n, n) }
+        shot("16_confirm_after_face_dark", dark = true) { ConfirmInfoScreen(n, n, n, afterFace = true) }
+        shot("42_success_dark", dark = true) { SuccessScreen(Purpose.Onboarding, n, auto = false) }
+        shot("17_edit_dark", dark = true) { EditInfoScreen(n, {}, n) }
+    }
 
     @Test fun start() {
         shot("00_bank_start") { BankStartScreen(n, n) }

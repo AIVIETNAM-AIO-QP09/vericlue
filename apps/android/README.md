@@ -19,7 +19,8 @@ Không có màn hình mới. Xem
 [`account-authentication.md`](../../docs/architecture/account-authentication.md).
 
 - **Giao diện (APP-01):** đủ các màn theo Figma "VeriClue eKYC App"; điều hướng 3 luồng (đăng ký, đăng nhập lại, khôi phục).
-- **Bản dựng khung camera, micro, API** (nhánh `feat/APP-02-camera-mic-scaffold`): đã chạy hết luồng trên máy ảo với API mock. **Chưa thử trên điện thoại thật.**
+- **Bản dựng khung camera, micro, API** (nhánh `feat/APP-02-camera-mic-scaffold`): đã chạy hết luồng trên máy ảo với API mock.
+- **Điện thoại thật (27/10):** Galaxy S24 FE, bản debug qua `adb reverse`, API mock nhánh FLOW-01: đăng ký `genuine` → đạt không đọc câu, `low_quality` → chụp lại, `voice_clone` → đọc câu → chờ duyệt. Chưa thử qua HTTPS và bản release; chưa kiểm chiều quay đầu, rung, gián đoạn. Chi tiết: `docs/status/handoffs/2026-10-27-2000-app-01-ng-c-quang-claude.md`.
 - **Việc cần trưởng nhóm duyệt/chốt:** [`docs/can-chot.md`](docs/can-chot.md) (33 mục, có cột trả lời; nhóm H là luồng gọn, nhóm I là khi chạy identity lab).
 - **Luồng đăng ký gọn (24/10, Figma "Đề xuất · Luồng gọn"):** Điều khoản + đồng ý (1 màn) → Số điện thoại → OTP (tự điền, vẫn gõ tay được) → CCCD tự chụp mặt trước, dừng 1 nhịp → mặt sau → Xem lại 2 mặt → Chuẩn bị → Căn mặt → phần mặt (1 video) → **Kiểm tra thông tin** (bấm "Thông tin đúng" xong mới gửi video) → Đọc câu → Kết quả. Không còn màn Giới thiệu và Xin quyền: camera xin lúc mở camera, micro xin ở bước đọc câu. App gửi `id-card/confirm` trước media và `finalize` (server nhánh FLOW-05 không nhận xác nhận sau media).
 - **Kế hoạch đầy đủ:** [`docs/plan-camera-mic.md`](docs/plan-camera-mic.md) (giai đoạn, thư viện, đồng hồ thời gian, câu hỏi cần chốt). Mục 11 của file đó ghi đã làm tới đâu.
@@ -122,6 +123,15 @@ app/src/main/java/vn/vericlue/app/
 - Mọi mốc thời gian gửi server dùng `CaptureClock` (elapsedRealtime, ms). Xem mục 4 của kế hoạch.
 - Màn camera và màn nháy màu **không có hiệu ứng trang trí**; chỉ chấm sáng, mũi tên quay đầu và thanh tiến độ được chuyển động.
 - Màu và cỡ chữ lấy từ `ui/theme`, không viết mã màu trong màn.
-- Ảnh CCCD và dữ liệu QR hiện chỉ nằm trên máy, không gửi đi (chưa có endpoint).
+- Ảnh CCCD 2 mặt và chuỗi QR gửi ở `id-card` (QR mặt sau, không có thì QR mặt trước).
 - Phông Be Vietnam Pro (SIL OFL 1.1) đóng gói trong `res/font`, chạy offline. Giấy phép: `third_party/licenses/BeVietnamPro-OFL.txt`.
+- Phong cách **A · Tối giản ấm**: nền trắng ngà, nút navy dạng pill, điểm nhấn cam nhỏ; nội dung tách bằng khoảng trắng/đường kẻ, nút chính trong tấm đáy. Minh họa CCCD vẽ bằng Canvas, không thêm ảnh hay thư viện.
+- Kiểu chữ dùng `VcType`: tiêu đề 32 sp/Bold, dòng 1,2; thân chữ 15 sp, dòng 1,5. Các màn căn mặt/nháy màu/quay đầu/đọc câu giữ cỡ chữ và bố cục camera cũ (`cameraTitle`, `cameraButton`, `Banner(cameraLayout = true)`). Mọi kiểu chữ Material cũng dùng Be Vietnam Pro.
+- Màu chữ/nền và màu khi nhấn nút nằm trong `Theme.kt`. Chữ nút được chọn theo nền đang chuyển để giữ tương phản. Xanh đạt/cam minh họa có token chữ riêng đạt tương phản; không dùng cam làm màu chữ nhỏ trên nền sáng. Màu nháy và chấm sáng không đổi.
+- Số tài khoản trong tấm đáy thành công là **dữ liệu mẫu**, luôn có nhãn tương ứng; các nhãn đã xác minh chỉ hiện theo danh sách `checked` từ phiên hiện tại.
+- Hiệu ứng trang trí dùng `Vc.motion` (`ui/theme/Motion.kt`). Theme theo dõi `Settings.Global.ANIMATOR_DURATION_SCALE`; bằng 0 thì hiện trạng thái cuối ngay, kể cả khi đổi cài đặt lúc app đang mở. Chuyển màn tắt ở cả hai chiều khi đi vào/ra camera. Không dùng thời lượng này cho lịch màu/chấm sáng do server cấp.
+- Rung nhẹ sau khi chụp CCCD và khi thành công dùng phản hồi hệ thống (`CONTEXT_CLICK`), tôn trọng cài đặt rung của máy, không xin thêm quyền.
+- Ảnh Paparazzi đặt `motionEnabled = false` để so bố cục ở trạng thái tĩnh. Chạy `recordPaparazziDebug --tests '*ScreensSnapshotTest*'` trước/sau khi sửa; không commit ảnh trong `app/src/test/snapshots/`.
 - Chưa dùng lại code từ `AIVIETNAM-AIO-QP09/eKYC-system`; khi chép Keystore từ đó (SEC-02) phải giữ dòng giấy phép MIT và ghi vào `third_party/README.md`.
+
+Kiểm tra giảm chuyển động trên máy ảo: khi app đang ở màn đăng ký/đăng nhập, chạy `adb shell settings put global animator_duration_scale 0`, kiểm tra các thẻ đứng yên và nút/OTP đổi ngay. Đặt lại giá trị ban đầu sau khi thử (thường là `1`; nếu ban đầu chưa có giá trị thì dùng `adb shell settings delete global animator_duration_scale`). Vẫn phải thử cảm giác rung trên điện thoại thật.

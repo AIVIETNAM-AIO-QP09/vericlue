@@ -2,18 +2,21 @@ package vn.vericlue.app.ui.components
 
 import android.app.Activity
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,15 +49,19 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.luminance
@@ -63,6 +70,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -119,25 +127,20 @@ fun TopBar(onBack: (() -> Unit)?, showLogo: Boolean = true, title: (@Composable 
     }
 }
 
-/** Remembers the last step shown so the bar only animates when moving forward. */
-private object StepMemory {
-    var last = 0
-}
-
 @Composable
 fun StepProgress(step: Int, label: String, total: Int = 3) {
     val c = Vc.colors
-    val shownBefore = remember { StepMemory.last }
+    val motion = Vc.motion
     Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 4.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             for (i in 1..total) {
                 val target = if (i <= step) 1f else 0f
-                val fill = remember { Animatable(if (i <= step && i <= shownBefore) 1f else 0f) }
-                LaunchedEffect(target) { fill.animateTo(target, tween(500, easing = FastOutSlowInEasing)) }
+                val fill = remember { Animatable(if (!motion.enabled || i < step) target else 0f) }
+                LaunchedEffect(target, motion.enabled) { fill.animateTo(target, motion.tween(350)) }
                 Box(
                     Modifier.weight(1f).height(4.dp).clip(RoundedCornerShape(2.dp)).background(c.border),
                 ) {
-                    Box(Modifier.fillMaxHeight().fillMaxWidth(fill.value).background(c.accent))
+                    Box(Modifier.fillMaxHeight().fillMaxWidth(fill.value).background(if (i == total) c.warmAccent else c.accent))
                 }
             }
         }
@@ -151,7 +154,6 @@ fun StepProgress(step: Int, label: String, total: Int = 3) {
             modifier = Modifier.padding(top = 8.dp),
         )
     }
-    SideEffect { StepMemory.last = step }
 }
 
 fun stepLabel(step: Int): String = when (step) {
@@ -196,19 +198,27 @@ fun VcScreen(
             content = content,
         )
         if (actions != null) {
-            Column(
-                Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                content = actions,
-            )
+            ActionPanel(navigationInset = bottom == null, content = actions)
         }
         if (bottom != null) bottom()
-        Spacer(Modifier.navigationBarsPadding())
+        if (bottom != null || actions == null) Spacer(Modifier.navigationBarsPadding())
+    }
+}
+
+/** A quiet, fixed action area shared by the warm screens. */
+@Composable
+fun ActionPanel(navigationInset: Boolean = true, content: @Composable ColumnScope.() -> Unit) {
+    Surface(color = Vc.colors.surface, shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp), shadowElevation = 4.dp) {
+        Column(
+            Modifier.fillMaxWidth().then(if (navigationInset) Modifier.navigationBarsPadding() else Modifier)
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp), content = content,
+        )
     }
 }
 
 @Composable
-fun TitleBlock(title: String, body: String? = null, eyebrow: String? = null, centered: Boolean = false) {
+fun TitleBlock(title: String, body: String? = null, eyebrow: String? = null, centered: Boolean = false, titleStyle: TextStyle = VcType.titleLarge) {
     val c = Vc.colors
     val align = if (centered) TextAlign.Center else TextAlign.Start
     Column(
@@ -217,7 +227,7 @@ fun TitleBlock(title: String, body: String? = null, eyebrow: String? = null, cen
         horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start,
     ) {
         if (eyebrow != null) Text(eyebrow, style = VcType.labelXs, color = c.accent)
-        Text(title, style = VcType.titleLarge, color = c.ink, textAlign = align)
+        Text(title, style = titleStyle, color = c.ink, textAlign = align)
         if (body != null) Text(body, style = VcType.body, color = c.muted, textAlign = align)
     }
 }
@@ -231,16 +241,27 @@ fun PrimaryButton(
     container: Color = Vc.colors.primary,
 ) {
     val c = Vc.colors
+    val motion = Vc.motion
+    val interactions = remember { MutableInteractionSource() }
+    val pressed by interactions.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed && enabled) 0.97f else 1f, motion.tween(110), label = "button-press")
+    val bg by animateColorAsState(when {
+        !enabled -> c.disabled
+        pressed -> c.buttonPressed(container)
+        else -> container
+    }, motion.tween(), label = "button-color")
+    val fg = c.buttonForeground(bg)
     Button(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier.fillMaxWidth().height(52.dp),
-        shape = RoundedCornerShape(12.dp),
+        modifier = modifier.fillMaxWidth().height(56.dp).scale(if (motion.enabled) scale else 1f),
+        interactionSource = interactions,
+        shape = CircleShape,
         colors = ButtonDefaults.buttonColors(
-            containerColor = container,
-            contentColor = Color.White,
-            disabledContainerColor = c.disabled,
-            disabledContentColor = c.onDisabled,
+            containerColor = bg,
+            contentColor = fg,
+            disabledContainerColor = bg,
+            disabledContentColor = fg,
         ),
     ) { Text(text, style = VcType.button) }
 }
@@ -248,21 +269,26 @@ fun PrimaryButton(
 @Composable
 fun SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val c = Vc.colors
-    OutlinedButton(
+    val motion = Vc.motion
+    val interactions = remember { MutableInteractionSource() }
+    val pressed by interactions.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.97f else 1f, motion.tween(110), label = "secondary-press")
+    TextButton(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth().height(52.dp),
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, c.border),
-        colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = if (c.isDark) Color.Transparent else c.surfaceInfo,
-            contentColor = c.accent,
-        ),
+        modifier = modifier.fillMaxWidth().height(52.dp).scale(if (motion.enabled) scale else 1f),
+        interactionSource = interactions,
+        shape = CircleShape,
+        colors = ButtonDefaults.textButtonColors(contentColor = c.accent),
     ) { Text(text, style = VcType.button) }
 }
 
 @Composable
 fun LinkButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    TextButton(onClick = onClick, modifier = modifier.fillMaxWidth()) {
+    val motion = Vc.motion
+    val interactions = remember { MutableInteractionSource() }
+    val pressed by interactions.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.97f else 1f, motion.tween(110), label = "link-press")
+    TextButton(onClick = onClick, modifier = modifier.fillMaxWidth().scale(if (motion.enabled) scale else 1f), interactionSource = interactions) {
         Text(text, style = VcType.label, color = Vc.colors.accent, textAlign = TextAlign.Center)
     }
 }
@@ -270,25 +296,31 @@ fun LinkButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier)
 enum class Tone { Info, Warn, Ok }
 
 @Composable
-fun Banner(text: String, modifier: Modifier = Modifier, tone: Tone = Tone.Info, icon: ImageVector? = null) {
+fun Banner(text: String, modifier: Modifier = Modifier, tone: Tone = Tone.Info, icon: ImageVector? = null, cameraLayout: Boolean = false) {
     val c = Vc.colors
-    val (bg, border, fg) = when (tone) {
-        Tone.Info -> Triple(c.surfaceSubtle, c.border, c.muted)
-        Tone.Warn -> Triple(c.warnBg, c.warnBorder, c.warn)
-        Tone.Ok -> Triple(c.okBg, c.okBg, c.ok)
+    val fg = when (tone) {
+        Tone.Info -> c.ink
+        Tone.Warn -> c.warn
+        Tone.Ok -> c.ok
     }
     val glyph = icon ?: when (tone) {
         Tone.Info -> Icons.Outlined.Info
         Tone.Warn -> Icons.Outlined.WarningAmber
         Tone.Ok -> Icons.Outlined.CheckCircle
     }
+    val (bg, border) = when (tone) {
+        Tone.Info -> c.surfaceSubtle to c.border
+        Tone.Warn -> c.warnBg to c.warnBorder
+        Tone.Ok -> c.okBg to c.okBg
+    }
     Row(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(bg)
-            .border(1.dp, border, RoundedCornerShape(12.dp)).padding(12.dp),
+        modifier.fillMaxWidth().then(if (cameraLayout) {
+            Modifier.clip(RoundedCornerShape(12.dp)).background(bg).border(1.dp, border, RoundedCornerShape(12.dp)).padding(12.dp)
+        } else Modifier.padding(vertical = 8.dp)),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Icon(glyph, contentDescription = null, tint = fg, modifier = Modifier.size(18.dp))
-        Text(text, style = VcType.caption, color = fg)
+        Text(text, style = if (cameraLayout) VcType.caption else VcType.body, color = fg)
     }
 }
 
@@ -297,13 +329,13 @@ fun Banner(text: String, modifier: Modifier = Modifier, tone: Tone = Tone.Info, 
 fun InfoRow(icon: ImageVector, text: String, detail: String? = null) {
     val c = Vc.colors
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.surfaceSubtle).padding(16.dp),
+        Modifier.fillMaxWidth().padding(vertical = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Icon(icon, contentDescription = null, tint = c.accent, modifier = Modifier.size(20.dp))
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(text, style = if (detail != null) VcType.label else VcType.bodySmall, color = c.ink)
-            if (detail != null) Text(detail, style = VcType.caption, color = c.muted)
+            if (detail != null) Text(detail, style = VcType.bodySmall, color = c.ink)
         }
     }
 }
@@ -317,7 +349,9 @@ fun StatusBadge(icon: ImageVector?, tone: Tone? = null, spinning: Boolean = fals
         else -> c.surfaceInfo to c.accent
     }
     Box(Modifier.size(96.dp).clip(CircleShape).background(bg), contentAlignment = Alignment.Center) {
-        if (spinning) {
+        if (spinning && !Vc.motion.enabled) {
+            CircularProgressIndicator(progress = { 0.75f }, color = fg, trackColor = fg.copy(alpha = 0.15f), strokeWidth = 3.dp, modifier = Modifier.size(44.dp))
+        } else if (spinning) {
             CircularProgressIndicator(color = fg, trackColor = fg.copy(alpha = 0.15f), strokeWidth = 3.dp, modifier = Modifier.size(44.dp))
         } else if (icon != null) {
             Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(44.dp))
@@ -331,18 +365,20 @@ enum class RowState { Done, Doing, Waiting }
 @Composable
 fun ChecklistCard(title: String?, rows: List<Triple<ImageVector?, String, RowState?>>, trailing: List<String?> = emptyList()) {
     val c = Vc.colors
+    val motion = Vc.motion
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surfaceSubtle).padding(18.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        if (title != null) Text(title, style = VcType.labelSmall, color = c.muted)
+        if (title != null) Text(title, style = VcType.label, color = c.ink)
         rows.forEachIndexed { i, (icon, label, state) ->
+            if (i > 0) HorizontalDivider(color = c.border)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
                     if (state != null) {
                         AnimatedContent(
                             targetState = state,
-                            transitionSpec = { (fadeIn(tween(250)) + scaleIn(initialScale = 0.6f)) togetherWith fadeOut(tween(150)) },
+                            transitionSpec = { ((fadeIn(motion.tween(220)) + scaleIn(motion.tween(220), initialScale = 0.86f)) togetherWith fadeOut(motion.tween(120))).using(null) },
                             label = "row-state",
                         ) { s -> StateIcon(s) }
                     } else if (icon != null) {
@@ -358,7 +394,7 @@ fun ChecklistCard(title: String?, rows: List<Triple<ImageVector?, String, RowSta
                     }
                 }
                 if (trail != null) {
-                    Text(trail, style = VcType.caption, color = if (state == RowState.Done) c.ok else c.muted)
+                    Text(trail, style = VcType.bodySmall, color = if (state == RowState.Done) c.ok else c.ink)
                 }
             }
         }
@@ -370,9 +406,12 @@ private fun StateIcon(state: RowState) {
     val c = Vc.colors
     when (state) {
         RowState.Done -> Box(Modifier.size(24.dp).clip(CircleShape).background(c.ok), contentAlignment = Alignment.Center) {
-            Icon(Icons.Outlined.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+            Icon(Icons.Outlined.Check, contentDescription = null, tint = c.onOk, modifier = Modifier.size(16.dp))
         }
-        RowState.Doing -> CircularProgressIndicator(
+        RowState.Doing -> if (!Vc.motion.enabled) CircularProgressIndicator(
+            progress = { 0.75f }, color = c.accent, trackColor = c.accent.copy(alpha = 0.2f),
+            strokeWidth = 2.5.dp, modifier = Modifier.size(20.dp),
+        ) else CircularProgressIndicator(
             color = c.accent,
             trackColor = c.accent.copy(alpha = 0.2f),
             strokeWidth = 2.5.dp,
@@ -403,7 +442,7 @@ fun NumericKeypad(onDigit: (Char) -> Unit, onBackspace: () -> Unit, onDone: () -
             }
             Key(Modifier.weight(1f), c.key, { onDigit('0') }) { DigitLabel('0', letters['0']) }
             Key(Modifier.weight(1f), c.primary, onDone) {
-                Icon(Icons.Outlined.Check, contentDescription = "Xong", tint = Color.White)
+                Icon(Icons.Outlined.Check, contentDescription = "Xong", tint = c.onPrimary)
             }
         }
     }
@@ -411,9 +450,13 @@ fun NumericKeypad(onDigit: (Char) -> Unit, onBackspace: () -> Unit, onDone: () -
 
 @Composable
 private fun Key(modifier: Modifier, color: Color, onClick: () -> Unit, content: @Composable () -> Unit) {
+    val motion = Vc.motion
+    val interactions = remember { MutableInteractionSource() }
+    val pressed by interactions.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.97f else 1f, motion.tween(110), label = "key-press")
     Box(
-        modifier.height(50.dp).clip(RoundedCornerShape(8.dp)).background(color)
-            .clickable(role = Role.Button, onClick = onClick),
+        modifier.height(50.dp).scale(if (motion.enabled) scale else 1f).clip(RoundedCornerShape(8.dp)).background(color)
+            .clickable(interactionSource = interactions, indication = LocalIndication.current, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { content() }
 }
@@ -431,6 +474,7 @@ private fun DigitLabel(d: Char, sub: String?) {
 @Composable
 fun OtpBoxes(code: String, error: Boolean) {
     val c = Vc.colors
+    val motion = Vc.motion
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         for (i in 0 until 6) {
             val ch = code.getOrNull(i)
@@ -445,7 +489,17 @@ fun OtpBoxes(code: String, error: Boolean) {
                     .border(if (active && !error) 2.dp else 1.dp, border, RoundedCornerShape(10.dp)),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(ch?.toString() ?: "–", style = VcType.titleMedium, color = if (ch != null) c.ink else c.muted)
+                AnimatedContent(
+                    targetState = ch,
+                    transitionSpec = {
+                        ((fadeIn(motion.tween(160, motion.stagger(i))) +
+                            scaleIn(motion.tween(180, motion.stagger(i)), initialScale = 0.86f)) togetherWith
+                            fadeOut(motion.tween(80))).using(null)
+                    },
+                    label = "otp-digit",
+                ) { digit ->
+                    Text(digit?.toString() ?: "–", style = VcType.titleMedium, color = if (digit != null) c.ink else c.muted)
+                }
             }
         }
     }
@@ -455,7 +509,7 @@ fun OtpBoxes(code: String, error: Boolean) {
 @Composable
 fun GuidanceChip(text: String, icon: ImageVector? = null, tone: Tone? = null, modifier: Modifier = Modifier) {
     val (bg, fg) = when (tone) {
-        Tone.Ok -> Palette.Ok to Color.White
+        Tone.Ok -> Palette.OkText to Color.White
         Tone.Warn -> Palette.WarnBg to Palette.Warn
         else -> Color.White to Palette.Ink
     }
