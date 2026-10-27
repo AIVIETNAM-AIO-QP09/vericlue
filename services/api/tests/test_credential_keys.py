@@ -2,6 +2,7 @@
 
 import importlib.util
 import json
+import os
 import secrets
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -38,9 +39,22 @@ spec.loader.exec_module(cli)
 
 @pytest.fixture
 def registry_env(verifier_env, monkeypatch):
-    issuer = "https://issuer-" + secrets.token_hex(6) + ".example"
+    namespace = secrets.token_hex(6)
+    issuer = "https://issuer-" + namespace + ".example"
     monkeypatch.setenv("CREDENTIAL_KEY_REGISTRY", "true")
     monkeypatch.setenv("CREDENTIAL_VERIFIER_ISSUER", issuer)
+    # PostgreSQL tests share the DB. Revoked proof attempts deliberately leave
+    # their nonce unconsumed; do not fill another test's per-origin quota.
+    tokens = json.loads(os.environ["CREDENTIAL_VERIFIER_TOKENS"])
+    monkeypatch.setenv(
+        "CREDENTIAL_VERIFIER_TOKENS",
+        json.dumps(
+            {
+                token: f"https://service-{namespace}-{index}.example"
+                for index, token in enumerate(tokens)
+            }
+        ),
+    )
     get_settings.cache_clear()
     return {**verifier_env, "issuer": issuer}
 
