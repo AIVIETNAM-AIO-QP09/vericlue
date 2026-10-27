@@ -65,6 +65,12 @@ Data4Life/
 
 ## 3. Giao diện chung của mô-đun AI
 
+LIVE-05 có lab chứng nhận BBS độc lập trong `services/credentials`: blind issuance,
+holder binding, bí danh dịch vụ, verifier nonce một lần và đối chứng JWT/SD-JWT+KB.
+Chỉ persona tổng hợp với domain synthetic-demo, chưa nối HTTP/eKYC thật hoặc UI.
+Xem [ADR-0018](../adr/0018-chung-nhan-rieng-tu-bbs.md) và
+[README package](../../services/credentials/README.md). PQC là hướng riêng.
+
 FLOW-05 thêm hook ghi danh onboarding opt-in `ACCOUNT_ENROLLMENT`: trích mẫu qua
 worker/hàng đợi `face_match` đã nạp, giữ lease tới khi native xong, ghi mẫu mã hóa
 trong cùng transaction với quyết định. Vector không vào ModuleResult/snapshot/HTTP;

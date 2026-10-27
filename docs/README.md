@@ -13,6 +13,9 @@ Ghi danh, L0 và khôi phục tài khoản: [account-authentication.md](architec
 
 Kết quả có chữ ký cho bên tích hợp: [signed-session-results.md](architecture/signed-session-results.md).
 
+Thử nghiệm chứng nhận riêng tư BBS và đối chứng SD-JWT:
+[hướng dẫn chạy](../services/credentials/README.md), [ADR-0018](adr/0018-chung-nhan-rieng-tu-bbs.md).
+
 Chữ ký và kiểm tệp báo cáo HTML: [forensic-report-signing.md](architecture/forensic-report-signing.md).
 
 Gói PDF/JSON đã ký và runtime xuất: [forensic-pdf-bundle.md](architecture/forensic-pdf-bundle.md).

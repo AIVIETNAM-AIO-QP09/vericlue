@@ -526,18 +526,33 @@ không chứng minh chống phát lại video được gắn mã mới (LIVE-03/
 
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
 |---|---|---|---|---|
-| M5 | 2,5 | S3 | P1 | LIVE-04 |
+| M5 | 2,5 | S3 | P1 | PLAT-03 |
 
 **Mục tiêu:** bên tích hợp biết "đã xác minh, trên 18 tuổi" mà không nhận video, ảnh hay số CCCD.
 
-**Đầu ra:**
-- VeriClue cấp giấy chứng nhận: từng thuộc tính được cam kết bằng hàm băm, ký ML-DSA.
-- Bằng chứng zk-STARK cho câu "trên 18 tuổi" và "đã xác minh". Thư viện Apache/MIT (ví dụ RISC Zero, Winterfell); không dùng circom/snarkjs (GPL). Kiểm giấy phép trước khi chép.
-- Tạo bằng chứng trên laptop demo là chấp nhận được; ghi rõ giới hạn.
+**Cập nhật trưởng nhóm 27/10:** chọn BBS, holder binding và bí danh theo dịch vụ;
+SD-JWT+KB đối chứng. ADR-0018 thay lựa chọn zk-STARK/ML-DSA ở ADR-0016 mục 5.
+PQC là hướng riêng, không là phụ thuộc của lab này. Không mở cổng sinh trắc thật.
 
-**Tiêu chí hoàn thành:**
-- [ ] Test: bằng chứng đúng thì qua; người dưới 18 tuổi hoặc bằng chứng bị sửa thì không qua.
-- [ ] Nếu không kịp: đổi trạng thái `cut`, chuyển phần trình bày vào báo cáo như lộ trình.
+**Đầu ra:** `services/credentials` (Node CLI/library, persona tổng hợp, không UI).
+Blind issuance chỉ nhận commitment, holder giữ secret; verifier pin key, nonce/
+audience/policy/hạn và dùng lượt một lần. BBS proof không lộ signature/PII;
+JWT+PoP và SD-JWT+KB cùng policy để so sánh. `age_over_18` là boolean issuer ký,
+không nhận là range proof hoặc W3C VC hoàn chỉnh. Xem README package và ADR-0018.
+
+**Tiêu chí bản thử nghiệm:**
+- [x] Cấp/giữ/xuất trình/kiểm proof BBS bằng mật mã thật, trao đổi JSON theo schema.
+- [x] Test vector công khai upstream; khóa sai, sửa proof/claim/context, thiếu
+      holder secret hoặc minor không qua policy adult; replay/cạnh tranh bị chặn.
+- [x] Bí danh ổn định trong dịch vụ và đổi giữa dịch vụ; không đưa stable holder
+      public key vào proof. Đối chứng JWT+PoP/SD-JWT+KB; phép đo có từng mẫu.
+- [x] Secret chỉ RAM, output không credential/PII, header/claim synthetic-demo;
+      luật real/mixed/account-bound mock và UI giữ nguyên. Lint/test vào CI.
+
+**Còn để hoàn tất tính năng tích hợp (giữ doing):**
+- [ ] Ví/consent và cấp từ quyết định eKYC thật đã commit; không nhận verdict client.
+- [ ] Nonce durable/atomic nhiều worker, quản lý khóa/thu hồi/thời hạn và nghiệm thu
+      trên thiết bị thật. Không gọi secret RAM là khóa phần cứng hoặc BBS là PQC.
 
 ---
 

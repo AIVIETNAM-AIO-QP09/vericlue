@@ -1,5 +1,11 @@
 # Contracts — hợp đồng giữa các phần
 
+LIVE-05 thêm `private_credential.schema.json` cho trao đổi giữa ba vai trò trong
+lab BBS/SD-JWT độc lập, không thêm endpoint công dân. Assurance/header bắt buộc
+synthetic-demo; offer không có holder secret. Producer/consumer Node cùng kiểm
+schema trước crypto. Vector public BBS không chứa khóa bí mật; xem
+[`services/credentials`](../../services/credentials/README.md).
+
 FOR-04 thêm `PdfReportManifest` trong forensic.schema.json và endpoint ZIP
 `/v1/forensic/jobs/{id}/report-bundle`. Artifact có PDF, JSON chuẩn hóa và chữ ký
 tách rời; schema định nghĩa snapshot job, key ID, hash PDF và giới hạn bắt buộc.

@@ -2,6 +2,8 @@
 
 - **Trạng thái:** đã chấp nhận
 - **Ngày:** 2026-10-22
+- **Cập nhật 27/10:** mục 5 được thay bởi [ADR-0018](0018-chung-nhan-rieng-tu-bbs.md)
+  cho bản thử nghiệm BBS độc lập theo yêu cầu trưởng nhóm; các mục khác giữ nguyên.
 - **Người quyết định:** Trưởng nhóm (người dùng) cùng phiên điều phối
 - **Liên quan:** ADR-0007 (ChromaPulse, CamProbe), ADR-0011 (token, thử thách), ADR-0013 (ba luồng eKYC), ADR-0014 (app/web)
 
