@@ -31,6 +31,7 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run lint
       - run: npm run format:check
+      - run: npm run build:holder
       - run: npm test
       - name: CLI comparison, synthetic credentials only
         run: node cli.mjs demo --runs 2
@@ -133,7 +134,7 @@ jobs:
         run: npm run build
 
   pdf:
-    name: PDF (Chromium Windows, offline resources)
+    name: PDF + Holder (Chromium Windows, offline resources)
     runs-on: windows-latest
     defaults:
       run:
@@ -147,6 +148,15 @@ jobs:
           cache-dependency-path: apps/web/package-lock.json
       - run: npm ci
       - run: npx playwright install chromium
+      - name: Build browser holder with pinned dependencies
+        run: |
+          npm ci --ignore-scripts --prefix ../../services/credentials
+          npm run build:holder --prefix ../../services/credentials
+      - name: Actual browser holder, consent and crypto interoperability
+        run: npm run test:holder --prefix ../../services/credentials
+      - name: Holder TypeScript declarations
+        working-directory: services/credentials
+        run: node ../../apps/web/node_modules/typescript/bin/tsc --noEmit --strict --lib es2022,dom browser/holder.d.mts
       - name: Worker Chromium thật, chặn tài nguyên mạng và gói lỗi
         run: node --test ../../services/api/tests/pdf_worker.test.cjs
 

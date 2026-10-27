@@ -1,5 +1,11 @@
 # Chứng nhận riêng tư — LIVE-05
 
+Sau PR #100 có SDK holder trình duyệt không UI: kiểm nguồn Ed25519 và context
+trước khi ký P-256, ví RAM và BBS proof theo consent/origin. Build bằng
+`npm run build:holder`; kiểm Chromium bằng `npm run test:holder` (cần Playwright
+từ apps/web). Phân phối cả bundle, type và license trong dist. Xem
+[hướng dẫn SDK](../../docs/architecture/private-credential-holder.md).
+
 Sau PR #96 có thêm profile server-decision, `issuer-worker.mjs` nội bộ và
 `keygen.mjs --out ...` tạo khóa BBS riêng. Không dùng persona demo để cấp thật.
 Holder dùng `prepareHolder` rồi `presentVerification`; bên nhận pin key/issuer
@@ -54,7 +60,8 @@ sequenceDiagram
     V->>V: Kiểm schema/key/context/policy/hạn; tiêu thụ nonce
 ```
 
-Hợp đồng duy nhất: `packages/contracts/schemas/private_credential.schema.json`,
+Hợp đồng lab: `packages/contracts/schemas/private_credential.schema.json`;
+profile server-decision/holder dùng `credential.schema.json` và `result.schema.json`.
 AJV kiểm ở từng vai trò. Giao tiếp thử nghiệm được serialize JSON giữa vai trò;
 holder secrets không được serialize vào thông điệp gửi issuer/verifier.
 
