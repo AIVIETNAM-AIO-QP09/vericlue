@@ -7,6 +7,7 @@ struct RouteScreen: View {
     @EnvironmentObject private var identity: IdentityFlow
     @EnvironmentObject private var face: FaceCaptureFlow
     @EnvironmentObject private var voice: VoiceCaptureFlow
+    @EnvironmentObject private var captures: CaptureFlows
 
     private var usesLiveIdentity: Bool { flow.useLiveAPI && !flow.previewMode }
 
@@ -70,7 +71,7 @@ struct RouteScreen: View {
         case .faceReady:
             if usesLiveIdentity {
                 FaceLiveScreen(live: identity.liveFlow, purpose: flow.purpose,
-                               onRoute: { navigation.go($0) }, onClose: finishAtBank)
+                               onRoute: { navigation.go($0) }, onClose: requestCaptureExit)
             } else {
                 FaceReadyScreen(onReady: { navigation.go(.framing) }, onSkipFlash: { navigation.go(.flashSkipped) })
             }
@@ -105,7 +106,9 @@ struct RouteScreen: View {
                 autoAdvance: !flow.previewMode && !usesLiveIdentity
             )
         case .success:
-            SuccessScreen(purpose: flow.purpose) {
+            SuccessScreen(purpose: flow.purpose,
+                          voiceChecked: usesLiveIdentity ? identity.liveFlow?.voiceChecked == true : true,
+                          liveVerification: usesLiveIdentity) {
                 if flow.purpose == .onboarding { navigation.go(.bankOpened) }
                 else { finishAtBank() }
             }
@@ -128,12 +131,12 @@ struct RouteScreen: View {
 
     private var liveFaceScreen: some View {
         FaceLiveScreen(live: identity.liveFlow, purpose: flow.purpose,
-                       onRoute: { navigation.go($0) }, onClose: finishAtBank)
+                       onRoute: { navigation.go($0) }, onClose: requestCaptureExit)
     }
 
     @ViewBuilder private var liveVoiceScreen: some View {
         if let live = identity.liveFlow {
-            VoiceLiveScreen(live: live, onRoute: { navigation.replaceTop(with: $0) }, onClose: finishAtBank)
+            VoiceLiveScreen(live: live, onRoute: { navigation.replaceTop(with: $0) }, onClose: requestCaptureExit)
         }
         else { MessageScreen(systemImage: "wifi.exclamationmark", title: "Chưa thể tiếp tục",
                              bodyText: "Chưa kết nối được phiên xác minh. Hãy bắt đầu lại.",
@@ -160,21 +163,32 @@ struct RouteScreen: View {
         case .errorCamera, .errorDevice:
             if usesLiveIdentity {
                 openCameraSettings()
-                navigation.returnTo(.permission)
+                if navigation.path.contains(where: { FlowRules.confirmsCaptureExit($0) }) {
+                    captures.restartFace(live: identity.liveFlow)
+                    navigation.returnTo(.faceReady)
+                } else { navigation.returnTo(.permission) }
             }
             else { navigation.go(.permission) }
         case .errorMic, .noVoice:
-            navigation.go(.voice)
+            if usesLiveIdentity {
+                if route == .errorMic { openCameraSettings() }
+                captures.restartFace(live: identity.liveFlow)
+                navigation.returnTo(.faceReady)
+            } else { navigation.go(.voice) }
         case .errorNetwork, .slow, .uploadFailed:
             navigation.go(.uploading)
         case .interrupted, .exitConfirm:
-            navigation.go(.faceReady)
+            if usesLiveIdentity {
+                captures.restartFace(live: identity.liveFlow)
+                navigation.returnTo(.faceReady)
+            } else { navigation.go(.faceReady) }
         default:
             finishAtBank()
         }
     }
 
     private func secondaryMessageAction() {
+        if usesLiveIdentity { finishAtBank(); return }
         switch route {
         case .errorDevice:
             finishAtBank()
@@ -184,12 +198,13 @@ struct RouteScreen: View {
     }
 
     private func finishAtBank() {
-        voice.cancel()
-        face.cancel()
+        captures.leaveFlow(live: identity.liveFlow)
         identity.reset()
         flow.resetForBank()
         navigation.toBank()
     }
+
+    private func requestCaptureExit() { captures.showExitConfirmation = true }
 
     private func beginIdentity(_ purpose: Purpose) {
         flow.purpose = purpose
@@ -216,8 +231,10 @@ struct GalleryScreen: View {
     @EnvironmentObject private var flow: DemoFlow
     @EnvironmentObject private var face: FaceCaptureFlow
     @EnvironmentObject private var voice: VoiceCaptureFlow
+    @EnvironmentObject private var captures: CaptureFlows
     @Environment(\.vcColors) private var colors
     @State private var showFrontCameraCheckpoint = false
+    @State private var ownedCaptureFiles: Int?
 
     private let groups = [
         GalleryGroup(title: "Bắt đầu", items: [("Màn chào", .splash), ("Đăng nhập / Đăng ký", .auth), ("Điều khoản", .terms), ("Đồng ý từng mục", .consent)]),
@@ -253,6 +270,12 @@ struct GalleryScreen: View {
             Button("Kiểm tra camera trước · IOS-04 (5.1–5.4)") { showFrontCameraCheckpoint = true }
                 .font(VcType.label)
                 .accessibilityIdentifier("debug-front-camera-checkpoint")
+            Button("Kiểm tra file tạm · IOS-06") { ownedCaptureFiles = CaptureFileStore.ownedFileCount() }
+                .font(VcType.label)
+            if let count = ownedCaptureFiles {
+                Text("File thu còn trong app: \(count) · Đã dọn lúc mở app: \(captures.startupCleanupCount)")
+                    .font(VcType.caption)
+            }
             if !voice.measurements.isEmpty {
                 Text("Ba bản ghi giọng gần nhất · IOS-05").font(VcType.label)
                 ForEach(Array(voice.measurements.enumerated()), id: \.offset) { index, item in

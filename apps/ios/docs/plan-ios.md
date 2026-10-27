@@ -474,7 +474,10 @@ Toàn bộ phần mặt (nền xám → màu → chấm → quay đầu) nằm t
 1. Theo dõi `scenePhase`: sang `.background` khi đang ở `framing`, `hold_still`, `turn_head`, `voice`, `voice_again` thì dừng video và ghi âm, xóa file tạm, sang màn "Xác minh bị gián đoạn". "Quay lại chuẩn bị" → `face_ready`, lượt sau gọi `/challenge`.
 2. Lỗi mạng ở bất kỳ bước gửi nào → "Không kết nối được" → "Thử lại" gửi lại **chỉ phần chưa được nhận**, không bao giờ đi tắt ra kết quả.
 3. Nút thoát giữa chừng → hộp thoại "Bạn muốn dừng xác minh?": ở phần mặt hoặc giọng thì "Quay lại chuẩn bị"; ở chỗ khác thì "Tiếp tục".
-4. Xóa mọi `face_*.mp4`, `voice_*.mp4`, `*.wav` trong thư mục tạm khi server đã nhận, khi rời luồng, khi bị gián đoạn.
+4. Xóa file thu do app sở hữu khi server đã nhận, khi rời luồng hoặc bị gián đoạn.
+   IOS-06 đặt MP4 trong `tmp/vericlue-capture/` với tên face/voice + UUID; WAV ở RAM.
+   Lúc mở app dọn orphan trong namespace và file legacy `vericlue-face/voice-<UUID>`;
+   không xóa rộng mọi WAV/MP4 hoặc file do người dùng xuất sang Files/Photos.
 5. Màn thành công: chỉ tích những gì server đã kiểm ("Khuôn mặt", và "Giọng nói" nếu đã gửi giọng).
 
 **Xong khi:** đủ các mục ở checklist 13.1 liên quan.

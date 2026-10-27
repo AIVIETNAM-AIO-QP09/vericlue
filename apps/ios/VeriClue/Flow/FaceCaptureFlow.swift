@@ -12,7 +12,10 @@ private final class FaceDisplayTarget: NSObject {
 
 @MainActor
 final class FaceCaptureFlow: ObservableObject {
-    enum Stage { case intro, preparing, framing, recording, finishing, uploading, failed, interrupted, awaitingVoice, completed }
+    enum Stage {
+        case intro, preparing, framing, recording, finishing, uploading, failed, interrupted, awaitingVoice, completed
+        var restartsOnInterruption: Bool { [.preparing, .framing, .recording, .finishing, .awaitingVoice].contains(self) }
+    }
     let camera = FrontCameraSession()
     @Published private(set) var stage = Stage.intro
     @Published private(set) var phase = FaceTimeline.Phase.baseline
@@ -40,6 +43,7 @@ final class FaceCaptureFlow: ObservableObject {
     private var lastDisplay: Double?
     private var generation = 0
     private var payload: (Data, FaceEvidence, CamProbe, [String: JSONValue])?
+    private var screenID: UUID?
 
     init() {
         displayTarget.owner = self
@@ -52,10 +56,22 @@ final class FaceCaptureFlow: ObservableObject {
             guard let self, error != nil, self.stage == .recording else { return }
             self.captureFailed()
         }.store(in: &subscriptions)
+        camera.$failure.sink { [weak self] failure in
+            guard let self, let failure, [.preparing, .framing, .recording, .finishing].contains(self.stage) else { return }
+            self.interrupt(route: failure == .denied ? .errorCamera : .interrupted)
+        }.store(in: &subscriptions)
+        camera.$receivingFrames.dropFirst().sink { [weak self] receiving in
+            guard let self, !receiving, self.camera.running,
+                  [.framing, .recording].contains(self.stage) else { return }
+            self.interrupt()
+        }.store(in: &subscriptions)
     }
 
-    func configure(live: LiveFlow?, purpose: Purpose) {
+    func configure(live: LiveFlow?, purpose: Purpose, screenID: UUID? = nil) {
         generation += 1
+        self.screenID = screenID
+        stage = .intro
+        camera.stop(); camera.discardRecording()
         invalidateDisplay()
         self.live = live; self.purpose = purpose
         destination = nil; errorText = nil; retryUpload = false; payload = nil
@@ -209,12 +225,12 @@ final class FaceCaptureFlow: ObservableObject {
         live.frontalJpeg = payload.1.jpeg; live.colorEvents = events
         let next = await live.submitFace(video: payload.0, frameTimes: payload.1.frameTimes, clientQuality: payload.3,
                                         camprobe: payload.2, regionMeans: payload.1.regionMeans,
-                                        onMediaAcked: { self.camera.discardRecording() })
+                                        onMediaAcked: { if id == self.generation { self.camera.discardRecording() } })
         guard id == generation, !Task.isCancelled else { return }
         switch next {
         case .fail(.conflict(code: "challenge_expired")), .fail(.conflict(code: "challenge_mismatch")):
             self.payload = nil; stage = .failed; retryUpload = false
-            camera.discardRecording()
+            camera.stop(); camera.discardRecording(); live.abandonFaceAttempt()
             errorText = "Lượt quay đã hết hạn. Hãy căn mặt rồi thực hiện lại."
         case .fail(let error): apiFailed(error, canRetryUpload: error == .network)
         case .to(let route):
@@ -228,10 +244,14 @@ final class FaceCaptureFlow: ObservableObject {
 
     private func apiFailed(_ error: ApiError, canRetryUpload: Bool) {
         stage = .failed; retryUpload = canRetryUpload
+        camera.stop()
         if error == .network { errorText = "Không kết nối được. Kiểm tra kết nối mạng rồi thử lại." }
         else { errorText = error == .unauthorized || error == .expired ? "Phiên đã hết hạn. Hãy bắt đầu lại." : "Tạm thời chưa thể xác minh. Vui lòng thử lại sau." }
         // Expired/unknown failures never become an automatic recapture or success.
-        if error != .network { destination = FlowRules.errorRoute(error) }
+        if error != .network {
+            payload = nil; camera.discardRecording(); live?.abandonFaceAttempt()
+            destination = FlowRules.errorRoute(error)
+        }
     }
 
     private func captureFailed() {
@@ -241,14 +261,16 @@ final class FaceCaptureFlow: ObservableObject {
         invalidateDisplay()
         camera.stop(); camera.discardRecording()
         payload = nil; retryUpload = false
+        live?.abandonFaceAttempt()
         errorText = "Video bị gián đoạn hoặc chưa thu đủ dữ liệu. Hãy căn mặt rồi thực hiện lại."
     }
 
-    func interrupt() {
-        guard [.preparing, .framing, .recording, .finishing, .awaitingVoice].contains(stage) else { return }
+    func interrupt(route: Route = .interrupted) {
+        guard stage.restartsOnInterruption else { return }
         cancel()
         stage = .interrupted
         errorText = "Xác minh bị gián đoạn. Hãy quay lại chuẩn bị."
+        destination = route
     }
 
     func cancel() {
@@ -257,9 +279,12 @@ final class FaceCaptureFlow: ObservableObject {
         invalidateDisplay()
         camera.stop(); camera.discardRecording()
         payload = nil; destination = nil; retryUpload = false
+        live?.abandonFaceAttempt()
     }
 
-    func leaveFaceScreen() {
+    func leaveFaceScreen(_ id: UUID? = nil) {
+        guard id == screenID else { return }
+        guard destination == nil else { return } // Teardown already handled before navigation.
         if stage != .awaitingVoice && stage != .completed { cancel() }
     }
 

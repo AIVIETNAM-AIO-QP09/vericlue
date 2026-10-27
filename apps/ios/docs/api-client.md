@@ -40,6 +40,16 @@ receipt sai hoặc thiếu prompt/voice ID bắt buộc đều trả lỗi.
 giọng, offset và acknowledgment. Không gọi drop khi chỉ retry mạng vì sẽ mất
 thông tin bước đã nhận.
 
+IOS-06: `abandonFaceAttempt()` dành cho gián đoạn/Back/rời luồng, hủy request đang
+chờ, loại phản hồi trễ bằng operation UUID, xóa payload/ack và buộc `/challenge`
+trước upload mới. `reset()` cũng hủy request; defer của request cũ không được
+mở khóa operation mới. `cancelPendingRequests()` phục vụ Back giai đoạn OTP/CCCD,
+không tự xóa bản sửa. Retry mạng thông thường không gọi các hàm abandon/reset.
+
+Không thể biết chắc server đã xử lý finalize/voice nếu mất response. Nếu gửi lại
+nhận 409, app báo lỗi theo contract; không tự coi 409 là pass. Không đổi backend
+hoặc giả lập idempotency mới trong IOS-06.
+
 ## Timeout
 
 URLSession không cung cấp ba timeout connect/read/write riêng như OkHttp.

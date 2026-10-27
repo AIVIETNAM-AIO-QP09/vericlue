@@ -62,6 +62,7 @@ final class IdentityFlow: ObservableObject {
 
     func reset() {
         generation += 1
+        live?.reset()
         live = api.map { LiveFlow(api: $0) }
         phone = ""
         sessionPhone = nil
@@ -75,6 +76,12 @@ final class IdentityFlow: ObservableObject {
         otpVerified = false
         resendClock = OTPResendClock()
         clearPhotos()
+    }
+
+    func cancelPendingRequests() {
+        generation += 1
+        busy = false
+        live?.cancelPendingRequests()
     }
 
     func appendPhone(_ digit: Character) {
@@ -99,6 +106,7 @@ final class IdentityFlow: ObservableObject {
         if resend && resendClock.remaining(at: now) > 0 { return nil }
         if sessionPhone == phone && resendClock.remaining(at: now) > 0 { return .otp }
         if let sessionPhone, sessionPhone != phone {
+            live?.reset()
             live = api.map { LiveFlow(api: $0) }
             otpVerified = false
             otpSMS = nil

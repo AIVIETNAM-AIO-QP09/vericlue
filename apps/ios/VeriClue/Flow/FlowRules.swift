@@ -86,6 +86,18 @@ enum FlowRules {
     static func checkedByServer(voiceChecked: Bool) -> [String] {
         voiceChecked ? ["Khuôn mặt", "Giọng nói"] : ["Khuôn mặt"]
     }
+    static func confirmsCaptureExit(_ route: Route) -> Bool {
+        [.faceReady, .framing, .holdStill, .turnHead, .voice, .voiceAgain,
+         .uploading, .checking, .retryQuality, .retryChallenge].contains(route)
+    }
+    static func sessionExpired(_ expiresAt: String, now: Date = Date()) -> Bool {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let fractional = formatter.date(from: expiresAt)
+        formatter.formatOptions = [.withInternetDateTime]
+        guard let deadline = fractional ?? formatter.date(from: expiresAt) else { return false }
+        return now >= deadline // Unknown local date never substitutes for a server decision.
+    }
     static func resumeRedoesFace(_ route: Route?) -> Bool { route.map { [2, 3].contains(stepOf($0) ?? 0) } ?? false }
     static func isInterruptedBy(_ route: Route?) -> Bool {
         route.map { [.framing, .holdStill, .turnHead, .voice, .voiceAgain].contains($0) } ?? false

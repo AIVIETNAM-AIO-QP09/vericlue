@@ -36,7 +36,9 @@ final class VeriClueUITests: XCTestCase {
         app.launch()
         let galleryButton = app.buttons["debug-gallery-button"]
         XCTAssertTrue(galleryButton.waitForExistence(timeout: 15))
-        galleryButton.tap()
+        XCTAssertTrue(galleryButton.isHittable)
+        // The visible button padding must be tappable, not only its text glyphs.
+        galleryButton.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15)).tap()
         XCTAssertTrue(app.staticTexts["debug-gallery-title"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.staticTexts["Lỗi và gián đoạn"].exists)
 

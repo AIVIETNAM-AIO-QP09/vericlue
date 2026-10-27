@@ -140,7 +140,7 @@
 | IOS-03 | App iOS: OTP, chụp CCCD (nét, lóa, QR bằng Vision), xác nhận thông tin | M1 | Lý Anh Quân | 1,5 | S2 | P1 | IOS-01, IOS-02, FLOW-02, FLOW-03 | review |
 | IOS-04 | App iOS: camera trước, lịch phần mặt một video (màu, chấm, quay đầu), signals, camprobe | M1 | Lý Anh Quân | 3 | S2 | P1 | IOS-02, LIVE-01 | review |
 | IOS-05 | App iOS: đọc câu, WAV 16 kHz + MP4, audio_offset_ms | M1 | Lý Anh Quân | 1 | S2 | P1 | IOS-04 | review |
-| IOS-06 | App iOS: gián đoạn, thử lại khi mất mạng, xóa file tạm | M1 | Lý Anh Quân | 1 | S2 | P1 | IOS-04 | todo |
+| IOS-06 | App iOS: gián đoạn, thử lại khi mất mạng, xóa file tạm | M1 | Lý Anh Quân | 1 | S2 | P1 | IOS-04 | doing |
 | IOS-07 | App iOS: bản Release HTTPS, đo trên máy thật, README, bàn giao | M1 | Lý Anh Quân | 1 | S2 | P1 | IOS-03, IOS-05, IOS-06 | todo |
 | LIVE-01 | Gói thử thách động theo phiên (màu, chấm sáng, quay đầu, câu) [contract] | M5 | Codex | 1 | S2 | P0 | FLOW-01 | doing |
 | LIVE-02 | Dò mắt, chuỗi kiểm mặt và webcam lab — diagnostic | M3 (+M1) | Codex | 1,5 | S2 | P0 | LIVE-01 | doing |

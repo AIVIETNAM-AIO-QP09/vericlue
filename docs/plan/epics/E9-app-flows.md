@@ -380,6 +380,17 @@ Theo [checklist IOS-05](../../../apps/ios/docs/ios05-device-checklist.md) và
 **Đầu ra:**
 - Xuống nền khi đang quay → "Xác minh bị gián đoạn", lượt sau gọi `/challenge`; thử lại chỉ gửi phần chưa nhận; xóa file tạm.
 
+**Cập nhật 27/10/2026 (`doing`):** triển khai trên nền IOS-05 `58c36fd`, không
+gộp luồng/giao diện Android mới. Scene background, lỗi camera/audio và Back
+được xử lý có chủ sở hữu; bỏ lượt thu buộc về chuẩn bị mặt và lấy challenge mới.
+LiveFlow hủy request/bỏ reply cũ bằng operation UUID; retry mạng giữ ack/payload.
+File vào namespace riêng, dọn orphan lúc mở app và không quét rộng tmp.
+Cập nhật 28/10/2026: lượt mới nhất sau sửa Gallery/path binding toàn bộ scheme
+Passed, 105 test (122 lượt tính tham số), 0 lỗi/0 bỏ qua trên Simulator. Hai lượt
+104/105 trước sửa được giữ trong bàn giao. Sếp chấp nhận nghiệm thu mười ca với
+giới hạn bằng chứng và phục hồi phiên mới khi đổi quyền, ghi tại
+[checklist IOS-06](../../../apps/ios/docs/ios06-device-checklist.md).
+
 **Tiêu chí hoàn thành:**
 - [ ] Các mục tương ứng trong checklist mục 13 của `apps/ios/docs/plan-ios.md` đạt.
 

@@ -230,7 +230,10 @@ final class VideoWriter: @unchecked Sendable {
         if writer?.status == .writing { writer?.cancelWriting() }
         input = nil
         writer = nil
-        if ownsFile, let url { try? FileManager.default.removeItem(at: url) }
+        if ownsFile, let url {
+            try? FileManager.default.removeItem(at: url)
+            CaptureFileStore.release(url)
+        }
         ownsFile = false
         url = nil
         clock = VideoFrameClock()

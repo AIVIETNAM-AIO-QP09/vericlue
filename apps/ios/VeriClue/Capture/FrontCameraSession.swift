@@ -193,13 +193,13 @@ private final class FrontCameraWorker: NSObject, AVCaptureVideoDataOutputSampleB
                 do {
                     guard self.runID == runID, self.session.isRunning, (forVoice || self.quality.ready),
                           let format = self.latestFormat else { throw VideoWriterError.qualityLost }
-                    let prefix = forVoice ? "voice" : "face"
-                    let url = FileManager.default.temporaryDirectory.appendingPathComponent("vericlue-\(prefix)-\(UUID().uuidString).mp4")
+                    let url = try CaptureFileStore.makeVideoURL(voice: forVoice)
                     self.clearEvidence()
                     self.recordingID = attemptID
                     self.restoreAutoExposure()
                     self.timeline = timeline
-                    try self.videoWriter.start(url: url, format: format)
+                    do { try self.videoWriter.start(url: url, format: format) }
+                    catch { CaptureFileStore.release(url); throw error }
                     continuation.resume()
                 } catch { continuation.resume(throwing: error) }
             }
@@ -371,6 +371,7 @@ final class FrontCameraSession: ObservableObject {
     private var staleFrameWatchdog: Task<Void, Never>?
     private var lastFrameReceipt: TimeInterval?
     private var lastReceivedFrame = 0
+    private var sessionObservers = Set<AnyCancellable>()
 
     // All three instances live as long as this face-capture controller, not a phase view.
     init() {
@@ -378,6 +379,14 @@ final class FrontCameraSession: ObservableObject {
         self.worker = worker
         previewLayer = AVCaptureVideoPreviewLayer(session: worker.session)
         previewLayer.videoGravity = .resizeAspectFill
+        for name in [AVCaptureSession.wasInterruptedNotification, AVCaptureSession.runtimeErrorNotification] {
+            NotificationCenter.default.publisher(for: name, object: worker.session)
+                .receive(on: DispatchQueue.main).sink { [weak self] _ in
+                    guard let self, self.running || self.starting else { return }
+                    self.stop()
+                    self.failure = AVCaptureDevice.authorizationStatus(for: .video) == .authorized ? .unavailable : .denied
+                }.store(in: &sessionObservers)
+        }
     }
 
     var sessionID: String { String(describing: ObjectIdentifier(worker.session)) }
@@ -414,6 +423,9 @@ final class FrontCameraSession: ObservableObject {
                     guard !Task.isCancelled, let self, self.generation == current else { return }
                     if let last = self.lastFrameReceipt,
                        ProcessInfo.processInfo.systemUptime - last > QualityGate.maxSampleGap {
+                        if AVCaptureDevice.authorizationStatus(for: .video) != .authorized {
+                            self.stop(); self.failure = .denied; return
+                        }
                         self.snapshot = nil
                         self.receivingFrames = false
                     }

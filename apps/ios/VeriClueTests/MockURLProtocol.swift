@@ -5,6 +5,8 @@ import XCTest
 // Every URLSession in the API tests uses this protocol. Unscripted URLs fail closed:
 // they can never fall through to DNS, sockets or URLSession.shared.
 final class MockURLProtocol: URLProtocol, @unchecked Sendable {
+    nonisolated private let deliveryLock = NSLock()
+    nonisolated(unsafe) private var heldReply: MockReplyGate?
     private final class WeakServer: @unchecked Sendable {
         nonisolated(unsafe) weak var value: MockServer?
         nonisolated init(_ value: MockServer) { self.value = value }
@@ -48,20 +50,58 @@ final class MockURLProtocol: URLProtocol, @unchecked Sendable {
         switch reply {
         case .failure(let error): client?.urlProtocol(self, didFailWithError: error)
         case .response(let status, let data):
-            guard let url = request.url, let response = HTTPURLResponse(url: url, statusCode: status,
-                httpVersion: nil, headerFields: ["Content-Type": "application/json"]) else { return }
-            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-            client?.urlProtocol(self, didLoad: data)
-            client?.urlProtocolDidFinishLoading(self)
+            deliver(status: status, data: data)
+        case .held(let gate):
+            deliveryLock.lock(); heldReply = gate; deliveryLock.unlock()
+            gate.install { [weak self] status, data in self?.deliver(status: status, data: data) }
         }
     }
-    nonisolated override func stopLoading() {}
+    nonisolated private func deliver(status: Int, data: Data) {
+        guard let url = request.url, let response = HTTPURLResponse(url: url, statusCode: status,
+            httpVersion: nil, headerFields: ["Content-Type": "application/json"]) else { return }
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: data)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    nonisolated override func stopLoading() {
+        deliveryLock.lock(); let gate = heldReply; heldReply = nil; deliveryLock.unlock()
+        gate?.cancel()
+    }
+}
+
+// Deterministic request barrier, without DNS/sockets or a fixed timing sleep.
+final class MockReplyGate: @unchecked Sendable {
+    nonisolated private let lock = NSLock()
+    nonisolated(unsafe) private var reply: (@Sendable (Int, Data) -> Void)?
+    nonisolated(unsafe) private var cancelled = false
+    nonisolated(unsafe) private var pending: (Int, Data)?
+    nonisolated func install(_ reply: @escaping @Sendable (Int, Data) -> Void) {
+        lock.lock()
+        if cancelled { lock.unlock(); return }
+        let queued = pending
+        pending = nil
+        self.reply = queued == nil ? reply : nil
+        lock.unlock()
+        if let queued { reply(queued.0, queued.1) }
+    }
+    nonisolated func release(_ body: String, status: Int = 200) {
+        lock.lock()
+        guard !cancelled else { lock.unlock(); return }
+        let handler = reply
+        reply = nil
+        let data = Data(body.utf8)
+        if handler == nil { pending = (status, data) }
+        lock.unlock()
+        handler?(status, data)
+    }
+    nonisolated func cancel() { lock.lock(); cancelled = true; reply = nil; pending = nil; lock.unlock() }
 }
 
 final class MockServer: @unchecked Sendable {
     enum Reply: @unchecked Sendable {
         case response(Int, Data)
         case failure(URLError)
+        case held(MockReplyGate)
     }
     nonisolated let host = UUID().uuidString.lowercased() + ".invalid"
     nonisolated private let lock = NSLock()
@@ -85,6 +125,11 @@ final class MockServer: @unchecked Sendable {
     nonisolated func drop() {
         lock.lock(); defer { lock.unlock() }
         replies.append(.failure(URLError(.networkConnectionLost)))
+    }
+    nonisolated func hold() -> MockReplyGate {
+        let gate = MockReplyGate()
+        lock.lock(); replies.append(.held(gate)); lock.unlock()
+        return gate
     }
     nonisolated func error(_ status: Int, _ code: String) {
         enqueue("{\"error_code\":\"" + code + "\",\"message\":\"internal diagnostic\"}", status: status)

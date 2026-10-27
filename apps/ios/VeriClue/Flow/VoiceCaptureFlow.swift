@@ -15,7 +15,10 @@ struct VoiceCaptureMeasurement: Sendable {
 
 @MainActor
 final class VoiceCaptureFlow: ObservableObject {
-    enum Stage { case intro, preparing, recording, finishing, uploading, failed, noVoice, interrupted, completed }
+    enum Stage {
+        case intro, preparing, recording, finishing, uploading, failed, noVoice, interrupted, completed
+        var restartsOnInterruption: Bool { [.intro, .preparing, .recording, .finishing, .noVoice, .failed].contains(self) }
+    }
     let camera: FrontCameraSession
     let audio = WavRecorder()
     @Published private(set) var stage = Stage.intro
@@ -36,19 +39,24 @@ final class VoiceCaptureFlow: ObservableObject {
         self.camera = camera
         audio.$meter.sink { [weak self] meter in
             guard let self, self.stage == .recording else { return }
-            if meter.failure != nil { self.failCapture(.invalidClock) }
+            if meter.failure != nil { self.interrupt() }
             else if meter.limitReached { Task { await self.finish() } }
         }.store(in: &subscriptions)
         camera.$recordingError.sink { [weak self] error in
             guard let self, error != nil, [.preparing, .recording].contains(self.stage) else { return }
-            self.failCapture(.interrupted)
+            self.interrupt()
+        }.store(in: &subscriptions)
+        camera.$failure.sink { [weak self] failure in
+            guard let self, let failure, [.intro, .preparing, .recording, .finishing].contains(self.stage) else { return }
+            self.interrupt(route: failure == .denied ? .errorCamera : .interrupted)
         }.store(in: &subscriptions)
         for name in [AVAudioSession.interruptionNotification, AVAudioSession.routeChangeNotification,
                      AVAudioSession.mediaServicesWereResetNotification, .AVAudioEngineConfigurationChange] {
             NotificationCenter.default.publisher(for: name).receive(on: DispatchQueue.main).sink { [weak self] _ in
                 // Never silently restart a partial A/V recording after an interruption.
                 guard let self, self.stage == .recording else { return }
-                self.interrupt()
+                let permission = AVCaptureDevice.authorizationStatus(for: .audio)
+                self.interrupt(route: permission == .denied || permission == .restricted ? .errorMic : .interrupted)
             }.store(in: &subscriptions)
         }
     }
@@ -107,14 +115,15 @@ final class VoiceCaptureFlow: ObservableObject {
                         // finish cancels the watchdog; do not cancel its own task
                         // and then accidentally abandon the awaited file closure.
                         if now - first >= 8 { Task { await self.finish() }; return }
-                        if now - first - self.audio.meter.seconds > 0.3 { self.failCapture(.interrupted); return }
-                        if !self.camera.receivingFrames { self.failCapture(.interrupted); return }
+                        if now - first - self.audio.meter.seconds > 0.3 { self.interrupt(); return }
+                        if !self.camera.receivingFrames { self.interrupt(); return }
                     } else if now - armed >= 3 { self.failCapture(.empty); return }
                 }
             }
         } catch {
             guard id == generation else { return }
-            failCapture((error as? WavError) ?? .unavailable)
+            if error as? WavError == .denied { interrupt(route: .errorMic) }
+            else { interrupt() }
         }
     }
 
@@ -149,7 +158,12 @@ final class VoiceCaptureFlow: ObservableObject {
             payload = (wav.data, bytes, offset)
             restoreIdle()
             await submit()
-        } catch { if id == generation { failCapture((error as? WavError) ?? .interrupted) } }
+        } catch {
+            if id == generation {
+                if error as? WavError == .empty { failCapture(.empty) }
+                else { interrupt() }
+            }
+        }
     }
 
     func submit() async {
@@ -157,7 +171,7 @@ final class VoiceCaptureFlow: ObservableObject {
         let id = generation
         stage = .uploading; errorText = nil; retryUpload = false
         let next = await live.submitVoice(wav: payload.wav, video: payload.video, audioOffsetMs: payload.offset,
-                                          onAccepted: { self.camera.discardRecording() })
+                                          onAccepted: { if id == self.generation { self.camera.discardRecording() } })
         guard id == generation, !Task.isCancelled else { return }
         switch next {
         case .to(let route):
@@ -171,6 +185,7 @@ final class VoiceCaptureFlow: ObservableObject {
             errorText = "Không kết nối được. Kiểm tra kết nối mạng rồi thử gửi lại."
         case .fail(let error):
             stage = .failed; self.payload = nil; camera.stop(); camera.discardRecording()
+            live.abandonFaceAttempt()
             errorText = "Chưa gửi được bản ghi. Vui lòng bắt đầu lại."
             destination = FlowRules.errorRoute(error)
         }
@@ -189,11 +204,13 @@ final class VoiceCaptureFlow: ObservableObject {
         }
     }
 
-    func interrupt() {
+    func interrupt(route: Route = .interrupted) {
         if retryUpload { camera.stop(); return } // Preserve the sealed upload payload.
-        guard [.intro, .preparing, .recording, .finishing, .noVoice, .failed].contains(stage) else { return }
+        guard stage.restartsOnInterruption else { return }
         failCapture(.interrupted)
+        live?.abandonFaceAttempt()
         stage = .interrupted
+        destination = route
     }
 
     func cancel() {
@@ -208,7 +225,8 @@ final class VoiceCaptureFlow: ObservableObject {
 
     func leaveScreen(_ id: UUID) {
         guard screenID == id else { return }
-        if stage != .completed { cancel(); camera.stop(); camera.discardRecording() }
+        guard destination == nil else { return }
+        if stage != .completed { cancel(); camera.stop(); camera.discardRecording(); live?.abandonFaceAttempt() }
     }
 
     private func restoreIdle() {

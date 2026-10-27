@@ -50,13 +50,13 @@ struct DynamicChallenge: Codable, Equatable, Sendable {
     let frontalCaptureAtMs: Int
 }
 
-struct CreateSessionRequest: Codable, Equatable {
+struct CreateSessionRequest: Codable, Equatable, Sendable {
     let purpose: String
     let nonce: String
     var referenceImageId: String? = nil
 }
 
-struct CreateSessionResponse: Codable, Equatable {
+struct CreateSessionResponse: Codable, Equatable, Sendable {
     let sessionId: String
     var token: String
     var expiresAt: String
@@ -65,7 +65,7 @@ struct CreateSessionResponse: Codable, Equatable {
     var nonce: String? = nil
 }
 
-struct ChallengeResponse: Codable, Equatable {
+struct ChallengeResponse: Codable, Equatable, Sendable {
     let token: String
     let expiresAt: String
     let challenge: Challenge
@@ -73,17 +73,17 @@ struct ChallengeResponse: Codable, Equatable {
 
 struct OtpRequest: Codable, Equatable { let phone: String }
 struct OtpVerifyRequest: Codable, Equatable { let code: String }
-struct OtpSent: Codable, Equatable {
+struct OtpSent: Codable, Equatable, Sendable {
     let expiresAt: String
     let attemptsLeft: Int
     var simulatedSms: String? = nil
 }
-struct OtpVerifyResponse: Codable, Equatable {
+struct OtpVerifyResponse: Codable, Equatable, Sendable {
     let status: String
     let attemptsLeft: Int
 }
 
-struct IdCardFields: Codable, Equatable {
+struct IdCardFields: Codable, Equatable, Sendable {
     var fullName: String? = nil
     var idNumber: String? = nil
     var dateOfBirth: String? = nil
@@ -92,13 +92,13 @@ struct IdCardFields: Codable, Equatable {
     var issuedOn: String? = nil
 }
 
-struct IdCardResponse: Codable, Equatable {
+struct IdCardResponse: Codable, Equatable, Sendable {
     let status: String
     var fields: IdCardFields? = nil
     var retryHint: String? = nil
 }
-struct IdCardConfirmResponse: Codable, Equatable { let received: Bool }
-struct StepAck: Codable, Equatable {
+struct IdCardConfirmResponse: Codable, Equatable, Sendable { let received: Bool }
+struct StepAck: Codable, Equatable, Sendable {
     let step: String
     let received: Bool
 }
@@ -159,7 +159,7 @@ struct Signals: Codable, Equatable, Sendable {
 }
 
 struct FinalizeRequest: Codable, Equatable { let challengeId: String }
-struct FinalizeResponse: Codable, Equatable {
+struct FinalizeResponse: Codable, Equatable, Sendable {
     let status: String
     var retryHint: String? = nil
     var voicePrompt: String? = nil
@@ -167,7 +167,7 @@ struct FinalizeResponse: Codable, Equatable {
     var challenge: Challenge? = nil
     var voiceChallengeId: String? = nil
 }
-struct VoiceResponse: Codable, Equatable {
+struct VoiceResponse: Codable, Equatable, Sendable {
     let status: String
     var voicePrompt: String? = nil
     var attemptsLeft: Int? = nil
@@ -178,6 +178,6 @@ struct ErrorResponse: Codable, Equatable {
     let message: String
 }
 
-enum ApiError: Error, Equatable {
+enum ApiError: Error, Equatable, Sendable {
     case network, unauthorized, conflict(code: String?), expired, busy, badResponse, server
 }

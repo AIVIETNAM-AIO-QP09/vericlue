@@ -144,6 +144,8 @@ struct CheckingScreen: View {
 
 struct SuccessScreen: View {
     let purpose: Purpose
+    var voiceChecked = true
+    var liveVerification = false
     let onContinue: () -> Void
 
     var body: some View {
@@ -154,11 +156,17 @@ struct SuccessScreen: View {
                 VcTitleBlock(title: "Xác minh thành công", bodyText: "Đang quay lại ứng dụng ngân hàng…", centered: true)
                 VcChecklistCard(
                     title: "Đã hoàn tất",
-                    rows: ["Ảnh giấy tờ", "Khuôn mặt", "Giọng nói"].map { VcChecklistRow(systemImage: nil, label: $0, state: .done, trailing: "") }
+                    rows: (["Ảnh giấy tờ"] + FlowRules.checkedByServer(voiceChecked: voiceChecked))
+                        .map { VcChecklistRow(systemImage: nil, label: $0, state: .done, trailing: "") }
                 )
             case .reauth:
-                VcTitleBlock(title: "Đăng nhập thành công", bodyText: "Danh tính của bạn đã được xác nhận. Thiết bị này đã được liên kết với tài khoản.", centered: true)
-                VcChecklistCard(title: "Thiết bị đã liên kết", rows: [VcChecklistRow(systemImage: "iphone", label: "iPhone này", trailing: "Vừa xong")])
+                VcTitleBlock(title: "Đăng nhập thành công", bodyText: liveVerification ? "Danh tính của bạn đã được xác nhận." : "Danh tính của bạn đã được xác nhận. Thiết bị này đã được liên kết với tài khoản.", centered: true)
+                if liveVerification {
+                    VcChecklistCard(title: "Đã hoàn tất", rows: FlowRules.checkedByServer(voiceChecked: voiceChecked)
+                        .map { VcChecklistRow(systemImage: nil, label: $0, state: .done, trailing: "") })
+                } else {
+                    VcChecklistCard(title: "Thiết bị đã liên kết", rows: [VcChecklistRow(systemImage: "iphone", label: "iPhone này", trailing: "Vừa xong")])
+                }
             case .recovery:
                 VcTitleBlock(title: "Khôi phục thành công", bodyText: "Danh tính của bạn đã được xác nhận.", centered: true)
                 VcChecklistCard(title: "Bước tiếp theo", rows: [VcChecklistRow(systemImage: "key", label: "Đặt lại cách đăng nhập", trailing: "[chờ nhóm chốt]")])

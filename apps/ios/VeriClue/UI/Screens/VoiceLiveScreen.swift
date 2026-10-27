@@ -6,7 +6,7 @@ struct VoiceLiveScreen: View {
     @ObservedObject var live: LiveFlow
     @EnvironmentObject private var voice: VoiceCaptureFlow
     @EnvironmentObject private var face: FaceCaptureFlow
-    @Environment(\.scenePhase) private var scenePhase
+    @EnvironmentObject private var captures: CaptureFlows
     @Environment(\.vcColors) private var colors
     @State private var screenID = UUID()
     let onRoute: (Route) -> Void
@@ -62,9 +62,8 @@ struct VoiceLiveScreen: View {
             VcSecondaryButton(title: "Dừng xác minh", action: onClose)
         }
         .navigationBarBackButtonHidden(true)
-        .task { voice.configure(live: live, screenID: screenID) }
+        .task { voice.configure(live: live, screenID: screenID); captures.monitorExpiry(live: live, voice: true) }
         .onChange(of: voice.destination) { route in if let route { onRoute(route) } }
-        .onChange(of: scenePhase) { phase in if phase != .active { voice.interrupt() } }
         .onDisappear { voice.leaveScreen(screenID) }
     }
 

@@ -7,7 +7,8 @@ struct FaceLiveScreen: View {
     let onRoute: (Route) -> Void
     let onClose: () -> Void
     @EnvironmentObject private var face: FaceCaptureFlow
-    @Environment(\.scenePhase) private var scenePhase
+    @EnvironmentObject private var captures: CaptureFlows
+    @State private var screenID = UUID()
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -42,7 +43,7 @@ struct FaceLiveScreen: View {
                         .font(VcType.caption)
                 }
                 #endif
-                VcSecondaryButton(title: "Dừng xác minh") { face.cancel(); onClose() }
+                VcSecondaryButton(title: "Dừng xác minh", action: onClose)
             }
             .padding(20)
             .foregroundStyle(VcPalette.ink)
@@ -54,12 +55,14 @@ struct FaceLiveScreen: View {
         }
         .environment(\.vcColors, .light)
         .toolbar(.hidden, for: .navigationBar)
-        .task { face.configure(live: live, purpose: purpose) }
-        .onChange(of: scenePhase) { phase in if phase != .active { face.interrupt() } }
+        .task {
+            face.configure(live: live, purpose: purpose, screenID: screenID)
+            captures.monitorExpiry(live: live)
+        }
         // Observe changes, not the publisher's initial stored destination when
         // returning from Retry. Replaying it would loop straight back to Retry.
         .onChange(of: face.destination) { route in if let route { onRoute(route) } }
-        .onDisappear { face.leaveFaceScreen() }
+        .onDisappear { face.leaveFaceScreen(screenID) }
     }
 
     private var title: String {

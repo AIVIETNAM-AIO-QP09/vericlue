@@ -33,7 +33,9 @@ final class LiveFlow: ObservableObject {
     private var voiceRereads = 0
     private var requestedPurpose: Purpose?
     private var readyRetryChallenge = false
-    private var busy = false
+    private var activeOperation: UUID?
+    private var cancelRequest: (() -> Void)?
+    private(set) var requiresFreshChallenge = false
 
     init(api: SessionApi) { self.api = api }
 
@@ -41,6 +43,7 @@ final class LiveFlow: ObservableObject {
     enum IdResult: Equatable { case accepted, retry(String), fail(ApiError) }
 
     func reset() {
+        abandonOperation()
         session = nil
         challenge = nil
         otpSms = nil
@@ -48,6 +51,49 @@ final class LiveFlow: ObservableObject {
         readyRetryChallenge = false
         requestedPurpose = nil
         dropFaceAttempt()
+        requiresFreshChallenge = false
+    }
+
+    // Capture interruption is NOT a network retry. Revoke local ownership of any
+    // in-flight reply and require /challenge before another upload is permitted.
+    func abandonFaceAttempt() {
+        abandonOperation()
+        dropFaceAttempt()
+        requiresFreshChallenge = true
+    }
+
+    func cancelPendingRequests() { abandonOperation() }
+
+    private func abandonOperation() {
+        let cancel = cancelRequest
+        cancelRequest = nil
+        activeOperation = nil
+        cancel?()
+    }
+
+    private func beginOperation() -> UUID? {
+        guard activeOperation == nil else { return nil }
+        let id = UUID()
+        activeOperation = id
+        return id
+    }
+
+    private func endOperation(_ id: UUID) {
+        guard activeOperation == id else { return }
+        activeOperation = nil; cancelRequest = nil
+    }
+
+    private func request<Value: Sendable>(_ id: UUID,
+        _ work: @escaping @MainActor () async -> Result<Value, ApiError>) async -> Result<Value, ApiError> {
+        guard activeOperation == id, !Task.isCancelled else { return .failure(.network) }
+        let task = Task { await work() }
+        cancelRequest = { task.cancel() }
+        let result = await withTaskCancellationHandler(operation: { await task.value }, onCancel: { task.cancel() })
+        // A late success from an abandoned session/attempt must never set ack,
+        // rotate a new run's token, invoke cleanup callbacks, or produce success.
+        guard activeOperation == id, !Task.isCancelled else { return .failure(.network) }
+        cancelRequest = nil
+        return result
     }
 
     func dropFaceAttempt() {
@@ -72,13 +118,12 @@ final class LiveFlow: ObservableObject {
     }
 
     func createSession(purpose: Purpose? = nil, scenario: String? = nil) async -> ApiError? {
-        guard !busy else { return .busy }
-        busy = true
-        defer { busy = false }
-        return await ensureSession(purpose: purpose, scenario: scenario)
+        guard let operation = beginOperation() else { return .busy }
+        defer { endOperation(operation) }
+        return await ensureSession(purpose: purpose, scenario: scenario, operation: operation)
     }
 
-    private func ensureSession(purpose: Purpose?, scenario: String?) async -> ApiError? {
+    private func ensureSession(purpose: Purpose?, scenario: String?, operation: UUID) async -> ApiError? {
         if session != nil { return nil }
         var body: CreateSessionRequest?
         if let purpose {
@@ -89,13 +134,15 @@ final class LiveFlow: ObservableObject {
                 .replacingOccurrences(of: "=", with: "")
             body = CreateSessionRequest(purpose: purpose.rawValue, nonce: nonce)
         }
-        switch await api.createSession(request: body, mockScenario: scenario) {
+        let bodyToSend = body
+        switch await request(operation, { await self.api.createSession(request: bodyToSend, mockScenario: scenario) }) {
         case .failure(let error): return error
         case .success(let value):
             guard !value.sessionId.isEmpty, !value.token.isEmpty, !value.challenge.challengeId.isEmpty else { return .badResponse }
             session = value
             challenge = value.challenge
             requestedPurpose = purpose
+            requiresFreshChallenge = false
             return nil
         }
     }
@@ -103,12 +150,12 @@ final class LiveFlow: ObservableObject {
     // If no session exists, its first challenge is still fresh. Stage A sessions refresh here.
     // A finalize retry already supplied the next challenge, so it must not be refreshed again.
     func prepareFace(purpose: Purpose? = nil, scenario: String? = nil) async -> ApiError? {
-        guard !busy else { return .busy }
-        busy = true
-        defer { busy = false }
-        guard var current = session else { return await ensureSession(purpose: purpose, scenario: scenario) }
-        if readyRetryChallenge { readyRetryChallenge = false; return nil }
-        switch await api.refreshChallenge(sessionId: current.sessionId, token: current.token) {
+        guard let operation = beginOperation() else { return .busy }
+        defer { endOperation(operation) }
+        guard var current = session else { return await ensureSession(purpose: purpose, scenario: scenario, operation: operation) }
+        if readyRetryChallenge, !requiresFreshChallenge { readyRetryChallenge = false; return nil }
+        let sessionToRefresh = current
+        switch await request(operation, { await self.api.refreshChallenge(sessionId: sessionToRefresh.sessionId, token: sessionToRefresh.token) }) {
         case .failure(let error): return error
         case .success(let value):
             guard !value.token.isEmpty, !value.challenge.challengeId.isEmpty else { return .badResponse }
@@ -118,18 +165,18 @@ final class LiveFlow: ObservableObject {
             current.challenge = value.challenge
             session = current
             challenge = value.challenge
+            requiresFreshChallenge = false
             return nil
         }
     }
 
     func sendOtp(phone: String, purpose: Purpose? = nil, scenario: String? = nil) async -> ApiError? {
-        guard !busy else { return .busy }
-        busy = true
-        defer { busy = false }
+        guard let operation = beginOperation() else { return .busy }
+        defer { endOperation(operation) }
         guard PhoneRules.isValid(phone) else { return .badResponse }
-        if let error = await ensureSession(purpose: purpose, scenario: scenario) { return error }
+        if let error = await ensureSession(purpose: purpose, scenario: scenario, operation: operation) { return error }
         guard let current = session else { return .expired }
-        switch await api.sendOtp(sessionId: current.sessionId, token: current.token, phone: phone) {
+        switch await request(operation, { await self.api.sendOtp(sessionId: current.sessionId, token: current.token, phone: phone) }) {
         case .failure(let error): return error
         case .success(let value):
             otpSms = value.simulatedSms
@@ -139,12 +186,11 @@ final class LiveFlow: ObservableObject {
     }
 
     func verifyOtp(code: String) async -> OtpResult {
-        guard !busy else { return .fail(.busy) }
-        busy = true
-        defer { busy = false }
+        guard let operation = beginOperation() else { return .fail(.busy) }
+        defer { endOperation(operation) }
         guard let current = session else { return .fail(.expired) }
         guard OtpRules.isComplete(code) else { return .fail(.badResponse) }
-        switch await api.verifyOtp(sessionId: current.sessionId, token: current.token, code: code) {
+        switch await request(operation, { await self.api.verifyOtp(sessionId: current.sessionId, token: current.token, code: code) }) {
         case .failure(.conflict(code: "otp_already_verified")): return .pass
         case .failure(let error): return .fail(error)
         case .success(let value):
@@ -158,11 +204,10 @@ final class LiveFlow: ObservableObject {
     }
 
     func sendIdCard(front: Data, back: Data, qr: String?) async -> IdResult {
-        guard !busy else { return .fail(.busy) }
-        busy = true
-        defer { busy = false }
+        guard let operation = beginOperation() else { return .fail(.busy) }
+        defer { endOperation(operation) }
         guard let current = session else { return .fail(.expired) }
-        switch await api.sendIdCard(sessionId: current.sessionId, token: current.token, front: front, back: back, qr: qr) {
+        switch await request(operation, { await self.api.sendIdCard(sessionId: current.sessionId, token: current.token, front: front, back: back, qr: qr) }) {
         case .failure(let error): return .fail(error)
         case .success(let value):
             switch value.status {
@@ -177,11 +222,10 @@ final class LiveFlow: ObservableObject {
     }
 
     func confirmIdCard(fields: IdCardFields) async -> ApiError? {
-        guard !busy else { return .busy }
-        busy = true
-        defer { busy = false }
+        guard let operation = beginOperation() else { return .busy }
+        defer { endOperation(operation) }
         guard let current = session else { return .expired }
-        switch await api.confirmIdCard(sessionId: current.sessionId, token: current.token, fields: fields) {
+        switch await request(operation, { await self.api.confirmIdCard(sessionId: current.sessionId, token: current.token, fields: fields) }) {
         case .failure(let error): return error
         case .success(let value):
             guard value.received else { return .badResponse }
@@ -193,9 +237,9 @@ final class LiveFlow: ObservableObject {
     func submitFace(video: Data? = nil, frameTimes: [FrameTime] = [], clientQuality: [String: JSONValue] = [:],
                     camprobe: CamProbe? = nil, regionMeans: [[String: JSONValue]]? = nil,
                     onMediaAcked: () -> Void = {}) async -> Next {
-        guard !busy else { return .fail(.busy) }
-        busy = true
-        defer { busy = false }
+        guard let operation = beginOperation() else { return .fail(.busy) }
+        defer { endOperation(operation) }
+        guard !requiresFreshChallenge else { return .fail(.conflict(code: "challenge_expired")) }
         guard let current = session else { return .fail(.expired) }
         guard let active = challenge, let jpeg = frontalJpeg else { return .fail(.badResponse) }
         if pendingSignals == nil {
@@ -206,19 +250,22 @@ final class LiveFlow: ObservableObject {
         }
         guard let signals = pendingSignals else { return .fail(.badResponse) }
         if !mediaAcked {
-            let ack = await api.sendMedia(sessionId: current.sessionId, token: current.token, imageJpeg: pendingFaceImage ?? jpeg,
-                                          video: pendingFaceVideo, challengeId: active.challengeId)
+            let image = pendingFaceImage ?? jpeg, video = pendingFaceVideo
+            let ack = await request(operation) {
+                await self.api.sendMedia(sessionId: current.sessionId, token: current.token, imageJpeg: image,
+                                         video: video, challengeId: active.challengeId)
+            }
             if let error = acknowledgmentError(ack, step: "media") { return .fail(error) }
             mediaAcked = true
             pendingFaceVideo = nil
             onMediaAcked()
         }
         if !signalsAcked {
-            let ack = await api.sendSignals(sessionId: current.sessionId, token: current.token, signals: signals)
+            let ack = await request(operation) { await self.api.sendSignals(sessionId: current.sessionId, token: current.token, signals: signals) }
             if let error = acknowledgmentError(ack, step: "signals") { return .fail(error) }
             signalsAcked = true
         }
-        switch await api.finalize(sessionId: current.sessionId, token: current.token, challengeId: active.challengeId) {
+        switch await request(operation, { await self.api.finalize(sessionId: current.sessionId, token: current.token, challengeId: active.challengeId) }) {
         case .failure(let error): return .fail(error)
         case .success(let value):
             guard let route = FlowRules.routeForStatus(value.status, retryHint: value.retryHint) else { return .fail(.badResponse) }
@@ -242,9 +289,9 @@ final class LiveFlow: ObservableObject {
     }
 
     func submitVoice(wav: Data, video: Data? = nil, audioOffsetMs: Int? = nil, onAccepted: () -> Void = {}) async -> Next {
-        guard !busy else { return .fail(.busy) }
-        busy = true
-        defer { busy = false }
+        guard let operation = beginOperation() else { return .fail(.busy) }
+        defer { endOperation(operation) }
+        guard !requiresFreshChallenge else { return .fail(.conflict(code: "challenge_expired")) }
         guard let current = session else { return .fail(.expired) }
         if !voicePayloadPrepared {
             let recording = pendingWav ?? wav
@@ -256,8 +303,9 @@ final class LiveFlow: ObservableObject {
         }
         guard let recording = pendingWav, !recording.isEmpty else { return .to(.noVoice) }
         guard (current.purpose == nil && requestedPurpose == nil) || !(voiceChallengeId ?? "").isEmpty else { return .fail(.badResponse) }
-        switch await api.sendVoice(sessionId: current.sessionId, token: current.token, wav: recording,
-                                   video: pendingVoiceVideo, audioOffsetMs: self.audioOffsetMs, voiceChallengeId: voiceChallengeId) {
+        let video = pendingVoiceVideo, offset = self.audioOffsetMs, voiceID = voiceChallengeId
+        switch await request(operation, { await self.api.sendVoice(sessionId: current.sessionId, token: current.token, wav: recording,
+                                   video: video, audioOffsetMs: offset, voiceChallengeId: voiceID) }) {
         case .failure(let error): return .fail(error)
         case .success(let value):
             guard let route = FlowRules.routeForStatus(value.status, inVoiceStep: true) else { return .fail(.badResponse) }

@@ -163,11 +163,15 @@ struct VcPrimaryButton: View {
     @Environment(\.vcColors) private var colors
 
     var body: some View {
-        Button(title, action: action)
-            .font(VcType.button)
-            .foregroundStyle(enabled ? Color.white : colors.onDisabled)
-            .frame(maxWidth: .infinity, minHeight: 52)
-            .background(enabled ? colors.primary : colors.disabled, in: RoundedRectangle(cornerRadius: 12))
+        Button(action: action) {
+            Text(title)
+                .font(VcType.button)
+                .foregroundStyle(enabled ? Color.white : colors.onDisabled)
+                .frame(maxWidth: .infinity, minHeight: 52)
+                .background(enabled ? colors.primary : colors.disabled, in: RoundedRectangle(cornerRadius: 12))
+                .contentShape(Rectangle())
+        }
+            .buttonStyle(.plain)
             .disabled(!enabled)
     }
 }
@@ -178,12 +182,16 @@ struct VcSecondaryButton: View {
     @Environment(\.vcColors) private var colors
 
     var body: some View {
-        Button(title, action: action)
-            .font(VcType.button)
-            .foregroundStyle(colors.accent)
-            .frame(maxWidth: .infinity, minHeight: 52)
-            .background(colors.isDark ? Color.clear : colors.surfaceInfo, in: RoundedRectangle(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(colors.border))
+        Button(action: action) {
+            Text(title)
+                .font(VcType.button)
+                .foregroundStyle(colors.accent)
+                .frame(maxWidth: .infinity, minHeight: 52)
+                .background(colors.isDark ? Color.clear : colors.surfaceInfo, in: RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(colors.border))
+                .contentShape(Rectangle())
+        }
+            .buttonStyle(.plain)
     }
 }
 
