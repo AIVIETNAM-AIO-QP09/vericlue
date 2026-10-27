@@ -46,6 +46,9 @@ class LiveFlow(
         private set
     var accountReceipt: AccountReceipt? = null
         private set
+
+    /** Saved account this session is for (reauth/recovery); sent when the session is created. */
+    var boundAccount: AccountReceipt? = null
     var frontalJpeg: ByteArray? = null
     val colorEvents = mutableListOf<ColorEvent>()
     var voicePrompt: String? = null
@@ -79,6 +82,7 @@ class LiveFlow(
         session = null
         challenge = null
         accountReceipt = null
+        boundAccount = null
         frontalJpeg = null
         colorEvents.clear()
         otpSms = null
@@ -111,7 +115,7 @@ class LiveFlow(
      * flow: a `dynamic` schedule for onboarding/recovery, purpose rules on the server. Null keeps the
      * old MVP session.
      */
-    suspend fun ensureSession(mockScenario: String?, purpose: String? = null, account: AccountReceipt? = null): ApiError? {
+    suspend fun ensureSession(mockScenario: String?, purpose: String? = null, account: AccountReceipt? = boundAccount): ApiError? {
         if (session != null) return null
         if (mediaSigner != null && purpose !in setOf("onboarding", "recovery", "reauth")) return ApiError.BadResponse
         if (purpose == "reauth" && (account == null || mediaSigner == null)) return ApiError.BadResponse
@@ -150,6 +154,15 @@ class LiveFlow(
             is ApiResult.Err -> result.error
             is ApiResult.Ok -> { accountReceipt = result.value; null }
         }
+    }
+
+    /**
+     * The receipt to keep after a pass: from the voice step, or from GET /account when onboarding
+     * passed at finalize without a sentence (FLOW-01). Null when the server enrolled nothing.
+     */
+    suspend fun receiptAfterPass(): AccountReceipt? {
+        if (accountReceipt == null && session != null) fetchAccountReceipt()
+        return accountReceipt
     }
 
     /**

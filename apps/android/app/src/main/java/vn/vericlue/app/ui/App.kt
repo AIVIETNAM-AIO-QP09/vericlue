@@ -32,6 +32,8 @@ import androidx.navigation.compose.rememberNavController
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.util.Log
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -61,6 +63,8 @@ import vn.vericlue.app.ui.screens.idFields
 import vn.vericlue.app.capture.ColorSchedule
 import vn.vericlue.app.capture.QualityGate
 import vn.vericlue.app.capture.WavRecorder
+import vn.vericlue.app.data.AccountStore
+import vn.vericlue.app.data.PrefsStore
 import vn.vericlue.app.data.api.ColorEvent
 import vn.vericlue.app.capture.FaceTimeline
 import vn.vericlue.app.data.api.SessionApi
@@ -150,6 +154,9 @@ fun VeriClueApp() {
     val scope = rememberCoroutineScope()
     val camera = remember { CameraSession(context.applicationContext) }
     val live = remember { LiveFlow(SessionApi(BuildConfig.API_BASE_URL)) }
+    val accounts = remember {
+        AccountStore(PrefsStore(context.applicationContext.getSharedPreferences("vericlue.account", Context.MODE_PRIVATE)))
+    }
     val recorder = remember { WavRecorder() }
     var hasCamera by remember { mutableStateOf(granted(context, Manifest.permission.CAMERA)) }
     var hasMic by remember { mutableStateOf(granted(context, Manifest.permission.RECORD_AUDIO)) }
@@ -411,9 +418,26 @@ fun VeriClueApp() {
         }
         composable(Routes.Auth) {
             AuthScreen(
-                onRegister = { flow.purpose = Purpose.Onboarding; nav.go(Routes.Terms) },
-                onLogin = { flow.purpose = Purpose.Reauth; nav.go(Routes.Phone) },
-                onRecover = { flow.purpose = Purpose.Recovery; nav.go(Routes.Phone) },
+                onRegister = { flow.purpose = Purpose.Onboarding; live.boundAccount = null; nav.go(Routes.Terms) },
+                onLogin = {
+                    // Re-auth signs with the enrolled key; without a saved account (or signing off) register instead.
+                    val saved = if (flow.live) accounts.load() else null
+                    if (flow.live && (saved == null || !BuildConfig.SIGNED_MEDIA)) {
+                        Toast.makeText(context, "Chưa có tài khoản trên máy này. Vui lòng đăng ký.", Toast.LENGTH_LONG).show()
+                        flow.purpose = Purpose.Onboarding
+                        live.boundAccount = null
+                        nav.go(Routes.Terms)
+                    } else {
+                        flow.purpose = Purpose.Reauth
+                        live.boundAccount = saved
+                        nav.go(Routes.Phone)
+                    }
+                },
+                onRecover = {
+                    flow.purpose = Purpose.Recovery
+                    live.boundAccount = if (flow.live && BuildConfig.SIGNED_MEDIA) accounts.load() else null
+                    nav.go(Routes.Phone)
+                },
             )
         }
         // Terms and consent on one screen; no intro or permission screen (short flow, 24/10).
@@ -727,6 +751,10 @@ fun VeriClueApp() {
             })
         }
         composable(Routes.Success) {
+            // Keep the receipt of a new or recovered account; a missing one is logged, never shown.
+            if (flow.live && flow.purpose != Purpose.Reauth) LaunchedEffect(Unit) {
+                live.receiptAfterPass()?.let { accounts.save(it) } ?: Log.w("VeriClue", "no account receipt after pass")
+            }
             SuccessScreen(
                 flow.purpose,
                 onContinue = { if (flow.purpose == Purpose.Onboarding) nav.go(Routes.BankOpened) else leave() },
