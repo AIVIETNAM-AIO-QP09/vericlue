@@ -38,6 +38,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/credentials/challenges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Challenge */
+        post: operations["challenge_v1_credentials_challenges_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/credentials/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify */
+        post: operations["verify_v1_credentials_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/forensic/jobs": {
         parameters: {
             query?: never;
@@ -832,6 +866,8 @@ export interface components {
             /** Message */
             message: string;
         };
+        /** CredentialChallengeRequest */
+        CredentialChallengeRequest: Record<string, never>;
         /** CredentialIssueRequest */
         CredentialIssueRequest: {
             /** Commitment */
@@ -1500,6 +1536,49 @@ export interface components {
             /** Error Type */
             type: string;
         };
+        /** VerificationAccepted */
+        VerificationAccepted: {
+            /**
+             * Assurance
+             * @default server-decision
+             * @constant
+             */
+            assurance: "server-decision";
+            disclosed: components["schemas"]["VerificationDisclosed"];
+            /** Pseudonym */
+            pseudonym: string;
+            /**
+             * Valid
+             * @default true
+             * @constant
+             */
+            valid: true;
+        };
+        /** VerificationChallenge */
+        VerificationChallenge: {
+            /** Audience */
+            audience: string;
+            /** Expires At */
+            expires_at: number;
+            /**
+             * Format
+             * @default bbs-nym
+             * @constant
+             */
+            format: "bbs-nym";
+            /** Id */
+            id: string;
+            /** Issued At */
+            issued_at: number;
+            /** Nonce */
+            nonce: string;
+            /**
+             * Policy
+             * @default verified
+             * @constant
+             */
+            policy: "verified";
+        };
         /** VerificationClaims */
         VerificationClaims: {
             /** Account Id */
@@ -1553,6 +1632,59 @@ export interface components {
             signature: string;
             /** Signer Entropy */
             signer_entropy: string;
+        };
+        /** VerificationDisclosed */
+        VerificationDisclosed: {
+            /**
+             * Assurance
+             * @constant
+             */
+            assurance: "server-decision";
+            /** Issuer */
+            issuer: string;
+            /**
+             * Policy Version
+             * @constant
+             */
+            policy_version: "vericlue-session-result-v1";
+            /**
+             * Protocol
+             * @constant
+             */
+            protocol: "vericlue-private-verification-v1";
+            /** Valid From */
+            valid_from: number;
+            /** Valid Until */
+            valid_until: number;
+            /**
+             * Verification Completed
+             * @constant
+             */
+            verification_completed: true;
+        };
+        /** VerificationPresentation */
+        VerificationPresentation: {
+            /** Challenge Id */
+            challenge_id: string;
+            disclosed: components["schemas"]["VerificationDisclosed"];
+            /** Proof */
+            proof: string;
+            /**
+             * Protocol
+             * @constant
+             */
+            protocol: "vericlue-private-verification-v1";
+            /** Pseudonym */
+            pseudonym: string;
+        };
+        /** VerificationRejected */
+        VerificationRejected: {
+            /**
+             * Valid
+             * @default false
+             * @constant
+             */
+            valid: false;
         };
         /** VerifyRequest */
         VerifyRequest: {
@@ -1638,6 +1770,108 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CredentialKey"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    challenge_v1_credentials_challenges_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CredentialChallengeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerificationChallenge"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    verify_v1_credentials_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerificationPresentation"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerificationAccepted"] | components["schemas"]["VerificationRejected"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
             /** @description Service Unavailable */

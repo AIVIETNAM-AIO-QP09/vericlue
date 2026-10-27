@@ -76,6 +76,10 @@ thuận commitment, cache mã hóa và worker Node/key riêng. Profile `server-d
 tách khỏi lab, không thêm tuổi hoặc mở chốt sinh trắc thật. Xem
 [cấp chứng nhận BBS](private-credential-issuance.md).
 
+Sau PR #97 có [HTTP verifier BBS](private-credential-verifier.md): credential
+tích hợp → origin cố định, public-key-only worker, nonce DB dùng một lần qua
+nhiều worker/restart. Không lưu proof/nym; không thay chốt sinh trắc thật.
+
 FLOW-05 thêm hook ghi danh onboarding opt-in `ACCOUNT_ENROLLMENT`: trích mẫu qua
 worker/hàng đợi `face_match` đã nạp, giữ lease tới khi native xong, ghi mẫu mã hóa
 trong cùng transaction với quyết định. Vector không vào ModuleResult/snapshot/HTTP;

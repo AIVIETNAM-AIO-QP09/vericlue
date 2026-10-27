@@ -624,6 +624,12 @@
         "title": "CredentialAuthorization",
         "type": "object"
       },
+      "CredentialChallengeRequest": {
+        "additionalProperties": false,
+        "properties": {},
+        "title": "CredentialChallengeRequest",
+        "type": "object"
+      },
       "CredentialIssueRequest": {
         "additionalProperties": false,
         "properties": {
@@ -2625,6 +2631,91 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "VerificationAccepted": {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "server-decision",
+            "default": "server-decision",
+            "title": "Assurance",
+            "type": "string"
+          },
+          "disclosed": {
+            "$ref": "#/components/schemas/VerificationDisclosed"
+          },
+          "pseudonym": {
+            "pattern": "^[A-Za-z0-9_-]{64}$",
+            "title": "Pseudonym",
+            "type": "string"
+          },
+          "valid": {
+            "const": true,
+            "default": true,
+            "title": "Valid",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "disclosed",
+          "pseudonym"
+        ],
+        "title": "VerificationAccepted",
+        "type": "object"
+      },
+      "VerificationChallenge": {
+        "additionalProperties": false,
+        "properties": {
+          "audience": {
+            "maxLength": 200,
+            "minLength": 9,
+            "title": "Audience",
+            "type": "string"
+          },
+          "expires_at": {
+            "maximum": 9999999999.0,
+            "minimum": 0.0,
+            "title": "Expires At",
+            "type": "integer"
+          },
+          "format": {
+            "const": "bbs-nym",
+            "default": "bbs-nym",
+            "title": "Format",
+            "type": "string"
+          },
+          "id": {
+            "pattern": "^[A-Za-z0-9_-]{22}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "issued_at": {
+            "maximum": 9999999999.0,
+            "minimum": 0.0,
+            "title": "Issued At",
+            "type": "integer"
+          },
+          "nonce": {
+            "pattern": "^[A-Za-z0-9_-]{43}$",
+            "title": "Nonce",
+            "type": "string"
+          },
+          "policy": {
+            "const": "verified",
+            "default": "verified",
+            "title": "Policy",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "nonce",
+          "audience",
+          "issued_at",
+          "expires_at"
+        ],
+        "title": "VerificationChallenge",
+        "type": "object"
+      },
       "VerificationClaims": {
         "additionalProperties": false,
         "properties": {
@@ -2734,6 +2825,109 @@
           "key_id"
         ],
         "title": "VerificationCredential",
+        "type": "object"
+      },
+      "VerificationDisclosed": {
+        "additionalProperties": false,
+        "properties": {
+          "assurance": {
+            "const": "server-decision",
+            "title": "Assurance",
+            "type": "string"
+          },
+          "issuer": {
+            "pattern": "^[A-Za-z0-9:/._-]{1,200}$",
+            "title": "Issuer",
+            "type": "string"
+          },
+          "policy_version": {
+            "const": "vericlue-session-result-v1",
+            "title": "Policy Version",
+            "type": "string"
+          },
+          "protocol": {
+            "const": "vericlue-private-verification-v1",
+            "title": "Protocol",
+            "type": "string"
+          },
+          "valid_from": {
+            "maximum": 9999999999.0,
+            "minimum": 0.0,
+            "title": "Valid From",
+            "type": "integer"
+          },
+          "valid_until": {
+            "maximum": 9999999999.0,
+            "minimum": 0.0,
+            "title": "Valid Until",
+            "type": "integer"
+          },
+          "verification_completed": {
+            "const": true,
+            "title": "Verification Completed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "protocol",
+          "issuer",
+          "assurance",
+          "verification_completed",
+          "valid_from",
+          "valid_until",
+          "policy_version"
+        ],
+        "title": "VerificationDisclosed",
+        "type": "object"
+      },
+      "VerificationPresentation": {
+        "additionalProperties": false,
+        "properties": {
+          "challenge_id": {
+            "pattern": "^[A-Za-z0-9_-]{22}$",
+            "title": "Challenge Id",
+            "type": "string"
+          },
+          "disclosed": {
+            "$ref": "#/components/schemas/VerificationDisclosed"
+          },
+          "proof": {
+            "pattern": "^[A-Za-z0-9_-]{662}$",
+            "title": "Proof",
+            "type": "string"
+          },
+          "protocol": {
+            "const": "vericlue-private-verification-v1",
+            "title": "Protocol",
+            "type": "string"
+          },
+          "pseudonym": {
+            "pattern": "^[A-Za-z0-9_-]{64}$",
+            "title": "Pseudonym",
+            "type": "string"
+          }
+        },
+        "required": [
+          "protocol",
+          "challenge_id",
+          "disclosed",
+          "proof",
+          "pseudonym"
+        ],
+        "title": "VerificationPresentation",
+        "type": "object"
+      },
+      "VerificationRejected": {
+        "additionalProperties": false,
+        "properties": {
+          "valid": {
+            "const": false,
+            "default": false,
+            "title": "Valid",
+            "type": "boolean"
+          }
+        },
+        "title": "VerificationRejected",
         "type": "object"
       },
       "VerifyRequest": {
@@ -2868,6 +3062,11 @@
       }
     },
     "securitySchemes": {
+      "CredentialVerifierBearer": {
+        "description": "Credential tích hợp server-to-server; audience lấy từ cấu hình, không từ client.",
+        "scheme": "bearer",
+        "type": "http"
+      },
       "HTTPBearer": {
         "description": "Token theo phiên, nhận từ POST /v1/sessions (ADR-0011). Sai hoặc thiếu → 401.",
         "scheme": "bearer",
@@ -2935,6 +3134,146 @@
         "summary": "Credential Key",
         "tags": [
           "integration"
+        ]
+      }
+    },
+    "/v1/credentials/challenges": {
+      "post": {
+        "operationId": "challenge_v1_credentials_challenges_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CredentialChallengeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerificationChallenge"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "CredentialVerifierBearer": []
+          }
+        ],
+        "summary": "Challenge",
+        "tags": [
+          "credentials"
+        ]
+      }
+    },
+    "/v1/credentials/verify": {
+      "post": {
+        "operationId": "verify_v1_credentials_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerificationPresentation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/VerificationAccepted"
+                    },
+                    {
+                      "$ref": "#/components/schemas/VerificationRejected"
+                    }
+                  ],
+                  "title": "Response Verify V1 Credentials Verify Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "CredentialVerifierBearer": []
+          }
+        ],
+        "summary": "Verify",
+        "tags": [
+          "credentials"
         ]
       }
     },

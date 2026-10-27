@@ -557,10 +557,14 @@ không nhận là range proof hoặc W3C VC hoàn chỉnh. Xem README package v�
       cho commitment, cache mã hóa/unique session/rollback/retry; Node BBS thật và
       holder SDK profile riêng, không thêm tuổi hoặc mở chốt sinh trắc thật.
 - [ ] Ví/UI consent, client ký đúng context và nghiệm thu quyết định/thiết bị thật.
-- [ ] Nonce durable/atomic nhiều worker, quản lý khóa/thu hồi/thời hạn và nghiệm thu
-      trên thiết bị thật. Không gọi secret RAM là khóa phần cứng hoặc BBS là PQC.
+- [x] HTTP verifier dùng nonce DB qua nhiều worker/restart, origin theo credential
+      tích hợp riêng, worker chỉ có public pin; hạn kiểm trước/sau crypto và commit
+      trước response. PostgreSQL khóa hàng/advisory quota, SQLite BEGIN IMMEDIATE.
+- [ ] Quản lý nhiều khóa/thu hồi và nghiệm thu trên thiết bị thật. Không gọi secret
+      RAM là khóa phần cứng hoặc BBS là PQC.
 
 Chi tiết lát cắt API: `docs/architecture/private-credential-issuance.md`.
+API kiểm proof: `docs/architecture/private-credential-verifier.md`.
 
 ---
 

@@ -10,6 +10,7 @@ import {demoClaims} from '../lib/profile.mjs';
 import {
   issueVerification,
   presentVerification,
+  verifyVerification,
   VerificationVerifier,
 } from '../lib/verification.mjs';
 
@@ -38,6 +39,54 @@ const create = (options) =>
     clock: () => NOW,
     ...options,
   });
+
+test('stateless crypto requires the stored challenge and pinned issuer/audience/key', async () => {
+  const q = create().challenge();
+  const presentation = await presentVerification(keys.publicKey, credential, h.holder, q);
+  const options = {
+    publicKey: keys.publicKey,
+    issuer: claims.issuer,
+    audience: q.audience,
+    challenge: q,
+    presentation,
+    clock: () => NOW,
+  };
+  assert.equal((await verifyVerification(options)).valid, true);
+  for (const change of [
+    {issuer: 'wrong-issuer'},
+    {audience: 'https://other.example'},
+    {publicKey: (await issuerKeys()).publicKey},
+    {
+      challenge: {
+        ...q,
+        nonce: q.nonce.startsWith('A') ? 'B' + q.nonce.slice(1) : 'A' + q.nonce.slice(1),
+      },
+    },
+    {challenge: {...q, id: q.id.startsWith('A') ? 'B' + q.id.slice(1) : 'A' + q.id.slice(1)}},
+    {challenge: {...q, expires_at: NOW + 61}},
+    {challenge: {...q, policy: 'adult'}},
+  ])
+    assert.equal((await verifyVerification({...options, ...change})).valid, false);
+  let calls = 0;
+  assert.equal(
+    (await verifyVerification({...options, clock: () => NOW + (calls++ ? 60 : 0)})).valid,
+    false,
+  );
+  const early = {...q, issued_at: NOW - 10, expires_at: NOW + 50};
+  const proof = await presentVerification(keys.publicKey, credential, h.holder, early);
+  calls = 0;
+  assert.equal(
+    (
+      await verifyVerification({
+        ...options,
+        challenge: early,
+        presentation: proof,
+        clock: () => NOW - (calls++ ? 5 : 0),
+      })
+    ).valid,
+    false,
+  );
+});
 
 test('server proof hides source/account/device/purpose and rejects reuse', async () => {
   const v = create();
@@ -128,6 +177,17 @@ test('keygen preserves existing key; native pipe worker produces a verifiable cr
       });
     assert.equal(run('keygen.mjs', ['--out', path]).status, 0);
     const original = readFileSync(path);
+    const publicPath = join(dir, 'public.json');
+    assert.equal(run('export-public-key.mjs', ['--key-file', path, '--out', publicPath]).status, 0);
+    const publicFile = readFileSync(publicPath);
+    const pin = JSON.parse(publicFile);
+    assert.deepEqual(Object.keys(pin).sort(), ['algorithm', 'key_id', 'public_key']);
+    assert.equal(pin.public_key, JSON.parse(original).public_key);
+    assert.notEqual(
+      run('export-public-key.mjs', ['--key-file', path, '--out', publicPath]).status,
+      0,
+    );
+    assert.deepEqual(readFileSync(publicPath), publicFile);
     assert.equal(run('keygen.mjs', ['--out', path]).status, 0);
     assert.deepEqual(readFileSync(path), original);
     const issued = run(
@@ -155,6 +215,10 @@ test('keygen preserves existing key; native pipe worker produces a verifiable cr
       assert.notEqual(bad.status, 0);
       assert.equal(bad.stdout, '');
       assert.equal(bad.stderr, '');
+      const rejected = run('verifier-worker.mjs', [], input);
+      assert.notEqual(rejected.status, 0);
+      assert.equal(rejected.stdout, '');
+      assert.equal(rejected.stderr, '');
     }
   } finally {
     assert.ok(

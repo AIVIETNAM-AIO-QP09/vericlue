@@ -59,6 +59,15 @@ Cache mã hóa, unique session, retry idempotent, hạn không vượt kết qu�
 Không thêm tuổi, không mở chốt sinh trắc thật hoặc nhận verdict client. Chi tiết:
 [cấp chứng nhận](../architecture/private-credential-issuance.md).
 
+## Bổ sung 27/10 — verifier HTTP sau PR #97
+
+Tiếp tục tích hợp LIVE-05: HTTP verifier lưu challenge trong DB, lấy origin từ
+credential tích hợp riêng, khóa hàng qua lúc kiểm BBS và commit tiêu thụ trước
+response. Crypto stateless dùng chung với SDK; verifier chỉ cần public pin,
+không cần khóa bí mật issuer. Không đổi header/profile, không nhận nonce/key/
+policy từ người gửi proof. Không thêm tuổi, thu hồi hoặc mở chốt sinh trắc thật.
+Giới hạn vận hành và giao thức: [verifier API](../architecture/private-credential-verifier.md).
+
 ## Nguồn
 
 - [W3C BBS, bản 10/09/2026](https://www.w3.org/TR/2026/CRD-vc-di-bbs-20260910/).

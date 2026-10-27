@@ -27,6 +27,61 @@ def unavailable() -> ApiError:
     return ApiError(503, "credential_unavailable", "Chưa thể cấp chứng nhận lúc này.")
 
 
+def run_packet(settings: Settings, argv: list[str], packet: bytes) -> bytes:
+    """Run one bounded, offline credential child with a shared process slot."""
+    if len(packet) > 4096 or not _SLOT.acquire(blocking=False):
+        raise unavailable()
+    process = None
+    reader = None
+    output: list[bytes] = []
+    try:
+        process = subprocess.Popen(
+            argv,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            env={k: v for k, v in os.environ.items() if k.upper() in _ENV},
+            **({"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}),
+        )
+
+        def read() -> None:
+            chunk = process.stdout.read(8193)
+            output.append(chunk)
+            if len(chunk) > 8192 and process.poll() is None:
+                process.kill()
+
+        reader = Thread(target=read, name="vericlue-credential-output", daemon=True)
+        reader.start()
+        process.stdin.write(packet)
+        process.stdin.close()
+        process.wait(timeout=settings.credential_timeout_seconds)
+        reader.join(timeout=1)
+        if (
+            reader.is_alive()
+            or process.returncode != 0
+            or len(output) != 1
+            or len(output[0]) > 8192
+        ):
+            raise ValueError("Invalid worker response")
+        return output[0]
+    except Exception:
+        raise unavailable() from None
+    finally:
+        try:
+            with suppress(OSError, subprocess.SubprocessError):
+                if process is not None:
+                    if process.poll() is None:
+                        process.kill()
+                    process.wait(timeout=5)
+                    if reader is not None:
+                        reader.join(timeout=1)
+                    for pipe in (process.stdin, process.stdout):
+                        if pipe is not None:
+                            pipe.close()
+        finally:
+            _SLOT.release()
+
+
 class CredentialWorker:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
@@ -78,60 +133,15 @@ class CredentialWorker:
             {"commitment": commitment, "claims": claims.model_dump(mode="json")},
             separators=(",", ":"),
         ).encode("ascii")
-        if len(packet) > 4096 or not _SLOT.acquire(blocking=False):
-            raise unavailable()
-        process = None
-        reader = None
-        output: list[bytes] = []
         try:
-            process = subprocess.Popen(
-                [str(node), str(worker), "--key-file", str(key)],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
-                env={k: v for k, v in os.environ.items() if k.upper() in _ENV},
-                **({"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}),
+            raw = run_packet(
+                self.settings, [str(node), str(worker), "--key-file", str(key)], packet
             )
-
-            def read() -> None:
-                chunk = process.stdout.read(8193)
-                output.append(chunk)
-                if len(chunk) > 8192 and process.poll() is None:
-                    process.kill()
-
-            reader = Thread(target=read, name="vericlue-credential-output", daemon=True)
-            reader.start()
-            process.stdin.write(packet)
-            process.stdin.close()
-            process.wait(timeout=self.settings.credential_timeout_seconds)
-            reader.join(timeout=1)
-            if (
-                reader.is_alive()
-                or process.returncode != 0
-                or len(output) != 1
-                or len(output[0]) > 8192
-            ):
-                raise ValueError("Invalid worker response")
-            result = VerificationCredential.model_validate_json(output[0])
+            result = VerificationCredential.model_validate_json(raw)
             if result.claims != claims or result.key_id != expected.key_id:
                 raise ValueError("Invalid worker context")
-            # Strict canonical encodings as well as shape/size; holder checks BBS signature.
             if len(decode(result.signature)) != 80:
                 raise ValueError("Invalid signature")
             return result
         except Exception:
             raise unavailable() from None
-        finally:
-            try:
-                with suppress(OSError, subprocess.SubprocessError):
-                    if process is not None:
-                        if process.poll() is None:
-                            process.kill()
-                        process.wait(timeout=5)
-                        if reader is not None:
-                            reader.join(timeout=1)
-                        for pipe in (process.stdin, process.stdout):
-                            if pipe is not None:
-                                pipe.close()
-            finally:
-                _SLOT.release()

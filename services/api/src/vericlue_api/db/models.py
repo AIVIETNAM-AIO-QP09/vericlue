@@ -186,6 +186,17 @@ class ForensicSegmentRow(Base):
     signals: Mapped[list] = mapped_column(JSON, default=list)
 
 
+class CredentialChallengeRow(Base):
+    __tablename__ = "credential_challenges"
+    challenge_id: Mapped[str] = mapped_column(String(22), primary_key=True)
+    audience: Mapped[str] = mapped_column(String(200), index=True)
+    issuer: Mapped[str] = mapped_column(String(200))
+    key_id: Mapped[str] = mapped_column(String(64))
+    nonce: Mapped[str] = mapped_column(String(43))
+    issued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
 class CleanupAuditRow(Base):
     __tablename__ = "cleanup_audits"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

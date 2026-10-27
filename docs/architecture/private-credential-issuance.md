@@ -104,6 +104,10 @@ nghiệp vụ cần thu hồi tức thời phải có dịch vụ trạng thái 
 
 ## Kiểm chứng
 
+Sau PR #97 có [API kiểm chứng với nonce DB](private-credential-verifier.md),
+độc lập với verifier RAM của SDK được mô tả ở trên. Không cần khóa bí mật issuer
+ở bên kiểm chứng; chưa thay đổi giới hạn ví/thu hồi hoặc nguồn sinh trắc thật.
+
 - Node: lab cũ và profile server, chống dùng chéo, keygen idempotent, native worker.
 - API: bearer + device signature, source guards, claims injection, cache mã hóa,
   đổi offer, worker lỗi, rollback và không cấp lại sau đổi quyết định.

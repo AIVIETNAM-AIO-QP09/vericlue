@@ -21,31 +21,44 @@ if (input.op === "prepare") {
       },
     }),
   );
-} else if (input.op === "verify") {
+} else if (input.op === "verify" || input.op === "present") {
   const holder = {
     holderSecret: unb64(input.state.secret),
     proverNym: BigInt("0x" + input.state.prover),
     blinding: BigInt("0x" + input.state.blind),
   };
   const publicKey = unb64(input.key.public_key, 96);
-  const v = new VerificationVerifier({
-    publicKey,
-    issuer: input.credential.claims.issuer,
-    audience: "https://service.example",
-    clock: () => input.now,
-  });
-  const p = await presentVerification(
-    publicKey,
-    input.credential,
-    holder,
-    v.challenge(),
-  );
-  const result = await v.verify(p);
-  process.stdout.write(
-    JSON.stringify({
-      valid: result.valid,
-      replay: (await v.verify(p)).valid,
-      disclosed: Object.keys(result.disclosed ?? {}),
-    }),
-  );
+  if (input.op === "present") {
+    process.stdout.write(
+      JSON.stringify(
+        await presentVerification(
+          publicKey,
+          input.credential,
+          holder,
+          input.challenge,
+        ),
+      ),
+    );
+  } else {
+    const v = new VerificationVerifier({
+      publicKey,
+      issuer: input.credential.claims.issuer,
+      audience: "https://service.example",
+      clock: () => input.now,
+    });
+    const p = await presentVerification(
+      publicKey,
+      input.credential,
+      holder,
+      v.challenge(),
+    );
+    const result = await v.verify(p);
+    process.stdout.write(
+      JSON.stringify({
+        valid: result.valid,
+        replay: (await v.verify(p)).valid,
+        disclosed: Object.keys(result.disclosed ?? {}),
+      }),
+    );
+  }
 } else throw new Error("Unknown test operation");

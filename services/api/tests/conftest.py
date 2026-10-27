@@ -36,6 +36,14 @@ def _mock_env(monkeypatch, tmp_path, db_template):
     monkeypatch.setenv("FORENSIC_PDF_PLAYWRIGHT_DIR", "")
     monkeypatch.setenv("FORENSIC_REPORT_EVIDENCE", "false")
     monkeypatch.setenv("PRIVATE_CREDENTIALS", "false")
+    monkeypatch.setenv("CREDENTIAL_VERIFIER", "false")
+    for name in (
+        "CREDENTIAL_VERIFIER_TOKENS",
+        "CREDENTIAL_VERIFIER_ISSUER",
+        "CREDENTIAL_VERIFIER_PUBLIC_KEY_FILE",
+        "CREDENTIAL_VERIFIER_WORKER_FILE",
+    ):
+        monkeypatch.setenv(name, "")
     for name in ("CREDENTIAL_NODE", "CREDENTIAL_WORKER_FILE", "CREDENTIAL_SIGNING_KEY_FILE"):
         monkeypatch.setenv(name, "")
     # General scenario tests create many sessions. Rate-limit tests use the real default.

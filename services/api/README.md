@@ -5,6 +5,10 @@ thêm chữ ký chấp thuận bằng khóa thiết bị, worker Node/key riêng
 Không cấp từ verdict client, không mở chốt sinh trắc thật hoặc cấp tuổi.
 Chi tiết cấu hình/quyền/giới hạn: [private-credential-issuance.md](../../docs/architecture/private-credential-issuance.md).
 
+API kiểm chứng BBS dùng credential tích hợp riêng, public pin và nonce DB qua
+migration 0008. Restart/nhiều worker giữ dùng-một-lần, không lưu proof hoặc nym.
+Xem [verifier bền vững](../../docs/architecture/private-credential-verifier.md).
+
 **Phụ trách:** M5
 **Trạng thái:** API v1 chạy với dữ liệu mock (PLAT-03 khung, **PLAT-04** endpoint + hợp đồng). DB đã chuyển sang SQLAlchemy/PostgreSQL ở PLAT-05. PLAT-06 đã có token HMAC, TTL và chặn nhận lặp; các phần bảo mật còn lại xem "Phần tạm". Chính sách ROUT-02 đã nối ML, ngưỡng/fusion đang provisional; PLAT-08 có orchestrator song song.
 
