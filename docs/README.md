@@ -17,6 +17,7 @@ Thử nghiệm chứng nhận riêng tư BBS và đối chứng SD-JWT:
 [hướng dẫn chạy](../services/credentials/README.md), [ADR-0018](adr/0018-chung-nhan-rieng-tu-bbs.md).
 Cổng cấp từ backend: [private-credential-issuance.md](architecture/private-credential-issuance.md).
 API kiểm proof, nonce DB: [private-credential-verifier.md](architecture/private-credential-verifier.md).
+Xoay/thu hồi issuer key: [private-credential-keys.md](architecture/private-credential-keys.md).
 
 Chữ ký và kiểm tệp báo cáo HTML: [forensic-report-signing.md](architecture/forensic-report-signing.md).
 

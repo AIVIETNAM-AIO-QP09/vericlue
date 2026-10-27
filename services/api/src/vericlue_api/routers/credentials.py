@@ -21,7 +21,11 @@ router = APIRouter(
     prefix="/v1/credentials",
     tags=["credentials"],
     dependencies=[Depends(verifier_bearer)],
-    responses={401: {"model": ErrorResponse}, 503: {"model": ErrorResponse}},
+    responses={
+        401: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+        503: {"model": ErrorResponse},
+    },
 )
 DatabaseDep = Annotated[Session, Depends(get_credential_db, scope="function")]
 
@@ -37,7 +41,7 @@ def challenge(
     body: CredentialChallengeRequest, request: Request, db: DatabaseDep, response: Response
 ) -> VerificationChallenge:
     response.headers["Cache-Control"] = "no-store"
-    return _service(request, db).challenge()
+    return _service(request, db).challenge(body.key_id)
 
 
 @router.post("/verify", response_model=VerificationAccepted | VerificationRejected)

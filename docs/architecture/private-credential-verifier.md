@@ -84,6 +84,11 @@ nếu holder tự chia sẻ cả credential và toàn bộ secrets.
 
 ## Giới hạn còn lại
 
+Sau PR #99 có [registry/vòng đời issuer key](private-credential-keys.md) opt-in.
+Trong chế độ đó, key ID tùy chọn trên request challenge chỉ chọn pin đã tin ở DB;
+không fallback sang public pin file. Những giới hạn pin đơn dưới đây áp dụng cho
+chế độ legacy; HTTP verifier registry hỗ trợ nhiều key và revoke theo key.
+
 `VerificationVerifier` trong SDK/lab vẫn là verifier RAM. HTTP API này dùng DB
 riêng và hàm crypto stateless chung; không dùng RAM map làm nguồn nonce.
 

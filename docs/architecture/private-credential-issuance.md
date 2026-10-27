@@ -6,6 +6,10 @@ worker Node ký BBS thật, SDK holder tạo proof che account/device/result ID.
 
 ## Điều kiện cấp
 
+Khi bật [registry khóa](private-credential-keys.md), key cấu hình phải active
+đúng issuer trong DB, kiểm cả authorization/cấp và retry cache. CLI operator
+không tự thay private file hoặc `.env`; giữ khóa đúng qua worker và commit.
+
 `SignedResultService.issue` là cổng điều kiện duy nhất đang có: real, riêng tư,
 reauth/recovery đã pass, đủ module/gate/nonce media/L0 hoặc recovery receipt,
 chưa qua review, quyết định cuối khớp snapshot, tài khoản/thiết bị còn hiện hành,

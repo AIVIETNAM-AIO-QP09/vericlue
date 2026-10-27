@@ -15,6 +15,7 @@ from alembic.config import Config
 from conftest import staff_test_client
 from sqlalchemy import func, inspect, select, text
 from sqlalchemy.exc import DBAPIError
+from test_credential_keys import registry_env as registry_env
 from test_credential_verifier import stub_worker as stub_worker
 from test_credential_verifier import verifier_env as verifier_env
 
@@ -30,6 +31,118 @@ from vericlue_api.db.models import (
 )
 from vericlue_api.main import create_app
 from vericlue_api.services import storage
+
+
+def test_postgres_key_revoke_waits_for_inflight_verification(
+    postgres, registry_env, tmp_path, monkeypatch
+):
+    from fastapi.testclient import TestClient
+    from test_credential_keys import body_for, operate, register_pair, request_challenge
+
+    from vericlue_api.services.credential_keys import CredentialKeyRegistry
+    from vericlue_api.services.credential_verifier_worker import CredentialProofWorker
+
+    with TestClient(create_app()) as client:
+        old, _ = register_pair(client, registry_env, tmp_path)
+        first = request_challenge(client, registry_env)
+        later = request_challenge(client, registry_env)
+        entered, release = Event(), Event()
+
+        def verify(*args):
+            entered.set()
+            assert release.wait(timeout=10)
+            return True
+
+        monkeypatch.setattr(CredentialProofWorker, "verify", verify)
+        with ThreadPoolExecutor(1) as pool:
+            future = pool.submit(
+                client.post,
+                "/v1/credentials/verify",
+                headers=registry_env["a"],
+                json=body_for(first, registry_env["issuer"]),
+            )
+            try:
+                assert entered.wait(timeout=5)
+                with pytest.raises(DBAPIError) as caught, postgres.sessions.begin() as db:
+                    db.execute(text("SELECT set_config('lock_timeout', '250ms', true)"))
+                    CredentialKeyRegistry(db, registry_env["issuer"]).revoke(old.key_id)
+                assert caught.value.orig.sqlstate == "55P03"
+            finally:
+                release.set()
+            response = future.result(timeout=10)
+        assert response.status_code == 200 and response.json()["valid"] is True
+        operate(client, registry_env["issuer"], "revoke", old.key_id)
+        assert client.post(
+            "/v1/credentials/verify",
+            headers=registry_env["a"],
+            json=body_for(later, registry_env["issuer"]),
+        ).json() == {"valid": False}
+
+
+def test_postgres_key_share_locks_allow_independent_proofs(
+    postgres, registry_env, tmp_path, monkeypatch
+):
+    from fastapi.testclient import TestClient
+    from test_credential_keys import body_for, register_pair, request_challenge
+
+    from vericlue_api.services.credential_verifier_worker import CredentialProofWorker
+
+    with TestClient(create_app()) as first, TestClient(create_app()) as second:
+        register_pair(first, registry_env, tmp_path)
+        requests = [
+            body_for(request_challenge(first, registry_env), registry_env["issuer"])
+            for _ in range(2)
+        ]
+        entered = Barrier(2)
+
+        def verify(*args):
+            entered.wait(timeout=5)
+            return True
+
+        monkeypatch.setattr(CredentialProofWorker, "verify", verify)
+
+        def submit(pair):
+            client, body = pair
+            return client.post("/v1/credentials/verify", headers=registry_env["a"], json=body)
+
+        with ThreadPoolExecutor(2) as pool:
+            responses = list(pool.map(submit, zip((first, second), requests, strict=True)))
+        assert all(r.status_code == 200 and r.json()["valid"] is True for r in responses)
+
+
+def test_postgres_concurrent_key_activation_keeps_one_active(postgres, registry_env, tmp_path):
+    from fastapi.testclient import TestClient
+    from test_credential_keys import operate, pin, register_pair
+    from test_credential_verifier import write_public
+
+    from vericlue_api.db.models import CredentialTrustKeyRow
+    from vericlue_api.services.credential_keys import CredentialKeyRegistry
+
+    with TestClient(create_app()) as client:
+        _, second = register_pair(client, registry_env, tmp_path)
+        path = tmp_path / "third-public.json"
+        write_public(path)
+        third = pin(path)
+        operate(client, registry_env["issuer"], "register", third)
+        gate = Barrier(2)
+
+        def activate(key):
+            gate.wait(timeout=10)
+            with postgres.sessions.begin() as db:
+                CredentialKeyRegistry(db, registry_env["issuer"]).activate(key.key_id)
+
+        with ThreadPoolExecutor(2) as pool:
+            list(pool.map(activate, (second, third)))
+        with postgres.sessions() as db:
+            rows = list(
+                db.scalars(
+                    select(CredentialTrustKeyRow).where(
+                        CredentialTrustKeyRow.issuer == registry_env["issuer"],
+                        CredentialTrustKeyRow.state == "active",
+                    )
+                )
+            )
+            assert len(rows) == 1 and rows[0].key_id in {second.key_id, third.key_id}
 
 
 def test_postgres_verifier_rollback_and_cross_instance_replay(postgres, verifier_env, stub_worker):

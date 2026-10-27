@@ -109,6 +109,7 @@ def https_origin(value: str) -> str:
 
 class CredentialChallengeRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
+    key_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
 
 
 class VerificationChallenge(BaseModel):

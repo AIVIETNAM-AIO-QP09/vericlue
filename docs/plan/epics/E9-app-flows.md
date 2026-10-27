@@ -556,15 +556,19 @@ không nhận là range proof hoặc W3C VC hoàn chỉnh. Xem README package v�
 - [x] API opt-in cấp từ cổng quyết định server đã commit, khóa thiết bị ký consent
       cho commitment, cache mã hóa/unique session/rollback/retry; Node BBS thật và
       holder SDK profile riêng, không thêm tuổi hoặc mở chốt sinh trắc thật.
-- [ ] Ví/UI consent, client ký đúng context và nghiệm thu quyết định/thiết bị thật.
+- [ ] Ví/UI consent và client ký đúng context.
 - [x] HTTP verifier dùng nonce DB qua nhiều worker/restart, origin theo credential
       tích hợp riêng, worker chỉ có public pin; hạn kiểm trước/sau crypto và commit
       trước response. PostgreSQL khóa hàng/advisory quota, SQLite BEGIN IMMEDIATE.
-- [ ] Quản lý nhiều khóa/thu hồi và nghiệm thu trên thiết bị thật. Không gọi secret
-      RAM là khóa phần cứng hoặc BBS là PQC.
+- [x] Registry public issuer key opt-in: staged/active/verify_only/revoked, xoay
+      khóa nguyên tử, key cũ tin tối đa 60 giây, thu hồi theo key và CLI operator.
+      Không đổi BBS header/proof hoặc thêm định danh thu hồi cá nhân.
+- [ ] Nghiệm thu quyết định/thiết bị thật; thu hồi riêng từng credential nếu
+      cần phải có thiết kế giữ riêng tư. Không gọi secret RAM là phần cứng hoặc BBS là PQC.
 
 Chi tiết lát cắt API: `docs/architecture/private-credential-issuance.md`.
 API kiểm proof: `docs/architecture/private-credential-verifier.md`.
+Vòng đời khóa: `docs/architecture/private-credential-keys.md`.
 
 ---
 

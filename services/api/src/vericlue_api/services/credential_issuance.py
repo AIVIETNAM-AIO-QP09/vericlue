@@ -25,6 +25,7 @@ from vericlue_api.schemas.credential import (
 )
 from vericlue_api.schemas.result import ResultClaims
 from vericlue_api.services.accounts import EnrolledIdentity
+from vericlue_api.services.credential_keys import CredentialKeyRegistry
 from vericlue_api.services.credential_worker import CredentialWorker
 from vericlue_api.services.media_proof import public_key
 from vericlue_api.services.session_store import Session
@@ -59,6 +60,17 @@ class CredentialIssuance:
         if not issued <= int(utcnow().timestamp()) < expiry:
             raise rejected()
         key = self.worker.public_key()
+        if self.state.settings.credential_key_registry:
+            from vericlue_api.services.credential_worker import unavailable
+
+            try:
+                trusted = CredentialKeyRegistry(self.state.db, source.issuer).resolve(
+                    key.key_id, for_issue=True
+                )
+            except ValueError:
+                raise unavailable() from None
+            if trusted != key:
+                raise unavailable()
         offer_hash = hashlib.sha256(decode(offer.commitment)).hexdigest()
         claims = VerificationClaims(
             issuer=source.issuer,
@@ -126,7 +138,11 @@ class CredentialIssuance:
                 raise rejected()
             return cached
         result = self.worker.issue(request.commitment, claims)
-        if int(utcnow().timestamp()) >= claims.valid_until:
+        if result.key_id != key.key_id or result.claims != claims:
+            from vericlue_api.services.credential_worker import unavailable
+
+            raise unavailable()
+        if not claims.valid_from <= int(utcnow().timestamp()) < claims.valid_until:
             raise rejected()
         row = CredentialIssuanceRow(
             session_id=session.session_id,
