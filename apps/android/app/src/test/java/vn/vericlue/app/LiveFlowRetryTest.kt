@@ -1,6 +1,7 @@
 package vn.vericlue.app
 
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
@@ -14,14 +15,19 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.junit.Rule
+import org.junit.rules.TemporaryFolder
+import vn.vericlue.app.capture.awaitVideoFile
 import vn.vericlue.app.data.api.ApiError
 import vn.vericlue.app.data.api.SessionApi
 import vn.vericlue.app.flow.LiveFlow
 import vn.vericlue.app.flow.Next
 import vn.vericlue.app.flow.Routes
+import vn.vericlue.app.flow.submitWithVideo
 
 /** Retry after a failed step resends only what the server has not acknowledged, and never turns into a pass. */
 class LiveFlowRetryTest {
+    @get:Rule val temporary = TemporaryFolder()
     private lateinit var server: MockWebServer
     private lateinit var flow: LiveFlow
 
@@ -71,6 +77,59 @@ class LiveFlowRetryTest {
     /** Paths of all requests not yet taken, in order. */
     private fun paths(s: MockWebServer = server): List<String?> =
         generateSequence { s.takeRequest(200, TimeUnit.MILLISECONDS) }.map { it.path }.toList()
+
+    @Test
+    fun faceVideoTimeoutSendsNothingAndRetryUsesTheCompletedFile() = runTest {
+        startAndCapture()
+        val file = temporary.newFile("face.mp4").apply { writeBytes(byteArrayOf(1, 2, 3)) }
+        val completion = CompletableDeferred<Boolean>()
+        var accepted = 0
+        suspend fun upload() = submitWithVideo(awaitVideoFile(file, completion)) { video ->
+            flow.submitFace(video, emptyList(), emptyMap(), onMediaAcked = { accepted++; file.delete() })
+        }
+        assertEquals(Next.To(Routes.UploadFailed), upload())
+        assertEquals(1, server.requestCount) // only create; no media, signals or finalize
+        assertEquals(0, accepted)
+        assertTrue(file.exists())
+        assertFalse(flow.mediaAcked)
+
+        completion.complete(true)
+        server.enqueue(json(mediaAck))
+        server.enqueue(json(signalsAck))
+        server.enqueue(json(pass))
+        assertEquals(Next.To(Routes.Success), upload())
+        assertEquals(1, accepted)
+        assertEquals(listOf(createPath, mediaPath, signalsPath, finalizePath), paths())
+    }
+
+    @Test
+    fun voiceVideoTimeoutKeepsTheWavAndSendsNoVoiceRequest() = runTest {
+        startAndCapture()
+        server.enqueue(json(mediaAck))
+        server.enqueue(json(signalsAck))
+        server.enqueue(json("""{"status":"voice_challenge","voice_prompt":"Tôi xác nhận mở tài khoản"}"""))
+        assertEquals(Next.To(Routes.Voice), submit())
+        val wav = byteArrayOf(9, 8, 7)
+        flow.pendingWav = wav
+        val file = temporary.newFile("voice.mp4").apply { writeBytes(byteArrayOf(4, 5, 6)) }
+        val completion = CompletableDeferred<Boolean>()
+        var accepted = 0
+        suspend fun upload() = submitWithVideo(awaitVideoFile(file, completion)) { video ->
+            flow.submitVoice(wav, video, onAccepted = { accepted++; file.delete() })
+        }
+        assertEquals(Next.To(Routes.UploadFailed), upload())
+        assertEquals(4, server.requestCount)
+        assertEquals(0, accepted)
+        assertTrue(flow.pendingWav.contentEquals(wav))
+        assertTrue(file.exists())
+
+        completion.complete(true)
+        server.enqueue(json(pass))
+        assertEquals(Next.To(Routes.Success), upload())
+        assertEquals(1, accepted)
+        assertNull(flow.pendingWav)
+        assertEquals(listOf(createPath, mediaPath, signalsPath, finalizePath, voicePath), paths())
+    }
 
     @Test
     fun networkErrorOnMediaResendsMediaThenContinues() = runTest {

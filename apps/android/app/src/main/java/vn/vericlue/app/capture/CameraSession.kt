@@ -68,10 +68,13 @@ class CameraSession(private val context: Context) {
     )
     @Volatile private var backMode = false
     private var idRequest: CompletableDeferred<Pair<ByteArray, IdQuality>>? = null
-    private val _qr = MutableStateFlow<String?>(null)
+    private val qrState = QrCaptureState()
 
-    /** Last QR text seen by the rear camera (ID card back side). */
-    val qr: StateFlow<String?> = _qr
+    /** Last QR text seen during the current card side/retake. */
+    val qr: StateFlow<String?> = qrState.qr
+
+    /** Clears a card side's QR and rejects scanner callbacks from before this reset. */
+    fun clearQr() = qrState.clear()
 
     private val _face = MutableStateFlow<FaceSignal?>(null)
     val face: StateFlow<FaceSignal?> = _face
@@ -113,7 +116,7 @@ class CameraSession(private val context: Context) {
      */
     suspend fun start(owner: LifecycleOwner, back: Boolean): Boolean {
         if (!awaitInitialized()) return false
-        if (backMode != back) _qr.value = null
+        if (backMode != back) clearQr()
         backMode = back
         val preferred = if (back) CameraSelector.DEFAULT_BACK_CAMERA else CameraSelector.DEFAULT_FRONT_CAMERA
         val other = if (back) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
@@ -193,7 +196,7 @@ class CameraSession(private val context: Context) {
         }
     }
 
-    private var finalized: CompletableDeferred<Unit>? = null
+    private var finalized: CompletableDeferred<Boolean>? = null
 
     /**
      * Starts an MP4 recording, audio off. [voice] = false: the colour flash, sent as `video` in
@@ -202,7 +205,12 @@ class CameraSession(private val context: Context) {
      */
     @SuppressLint("MissingPermission")
     fun startRecording(voice: Boolean = false) {
-        if (recording != null || !videoEnabled) return
+        if (recording != null) return
+        if (!videoEnabled) {
+            videoFile = null
+            finalized = null
+            return
+        }
         val prefix = if (voice) "voice_" else "face_"
         val file = File(context.cacheDir, "$prefix${System.currentTimeMillis()}.mp4").also { videoFile = it }
         if (!voice) {
@@ -211,7 +219,7 @@ class CameraSession(private val context: Context) {
             firstFrameNs = 0L
             recordingFrames = true
         }
-        val done = CompletableDeferred<Unit>().also { finalized = it }
+        val done = CompletableDeferred<Boolean>().also { finalized = it }
         val begun = CompletableDeferred<Unit>().also { started = it }
         recordedAt = null
         recording = runCatching {
@@ -227,14 +235,13 @@ class CameraSession(private val context: Context) {
                 }
                 if (event is VideoRecordEvent.Finalize) {
                     begun.complete(Unit)
-                    if (event.hasError()) videoFile = null
-                    done.complete(Unit)
+                    done.complete(!event.hasError())
                 }
             }
         }.getOrNull()
         if (recording == null) {
             videoFile = null
-            done.complete(Unit)
+            done.complete(false)
             begun.complete(Unit)
         }
     }
@@ -279,17 +286,14 @@ class CameraSession(private val context: Context) {
         recording = null
     }
 
-    fun recordedVideo(): File? = videoFile?.takeIf { it.exists() && it.length() > 0 }
-
-    /** The last recording once CameraX has finished writing it (the MP4 is unreadable before). */
-    suspend fun finishedVideo(timeoutMs: Long = 3000): File? {
-        withTimeoutOrNull(timeoutMs) { finalized?.await() }
-        return recordedVideo()
-    }
+    /** A file is ready only after CameraX successfully closes that recording. */
+    suspend fun finishedVideo(timeoutMs: Long = 3000): VideoResult =
+        awaitVideoFile(videoFile, finalized, timeoutMs)
 
     /** Deletes every recorded video in the cache: once the server has it, or when the attempt is dropped. */
     fun deleteVideo() {
         videoFile = null
+        finalized = null
         context.cacheDir.listFiles { f -> (f.name.startsWith("face_") || f.name.startsWith("voice_")) && f.name.endsWith(".mp4") }
             ?.forEach { it.delete() }
     }
@@ -298,7 +302,7 @@ class CameraSession(private val context: Context) {
 
     /** Facts the server needs to trust the timing, sent as Signals.client_quality. */
     @androidx.annotation.OptIn(ExperimentalCamera2Interop::class)
-    fun clientQuality(): Map<String, String> {
+    fun clientQuality(readyVideo: File?): Map<String, String> {
         val source = runCatching {
             val info = controller.cameraInfo ?: return@runCatching "unknown"
             when (Camera2CameraInfo.from(info).getCameraCharacteristic(CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE)) {
@@ -314,7 +318,7 @@ class CameraSession(private val context: Context) {
             "timestamp_source" to source,
             "analysis_fps" to (Math.round(fps * 10) / 10.0).toString(),
             "ae_awb_lock_requested" to aeAwbLocked.toString(),
-            "video" to if (recordedVideo() != null) "mp4" else "missing",
+            "video" to if (readyVideo != null) "mp4" else "missing",
             "frames_recorded" to frameTimes().size.toString(),
             "camera_fallback" to usedFallbackCamera.toString(),
         )
@@ -414,6 +418,7 @@ class CameraSession(private val context: Context) {
 
     @androidx.annotation.OptIn(ExperimentalGetImage::class)
     private fun analyzeIdFrame(proxy: ImageProxy, media: android.media.Image, rotation: Int) {
+        val qrGeneration = qrState.generation()
         val request = synchronized(this) { idRequest.also { idRequest = null } }
         val now = SystemClock.elapsedRealtime()
         if (request != null) {
@@ -423,14 +428,14 @@ class CameraSession(private val context: Context) {
             val quality = IdQuality(
                 sharpness = ImageChecks.laplacianVariance(luma, proxy.width, proxy.height, plane.rowStride),
                 glareFraction = ImageChecks.glareFraction(luma, proxy.width, proxy.height, plane.rowStride),
-                qr = _qr.value,
+                qr = qr.value,
                 looksLikeCard = cardSeenAt > 0 && now - cardSeenAt <= CARD_SEEN_MS,
             )
             request.complete(toJpeg(proxy, rotation) to quality)
         }
         val image = InputImage.fromMediaImage(media, rotation)
         val qrTask = qrScanner.process(image)
-            .addOnSuccessListener { codes -> codes.firstNotNullOfOrNull { it.rawValue }?.let { _qr.value = it } }
+            .addOnSuccessListener { codes -> qrState.update(qrGeneration, codes.firstNotNullOfOrNull { it.rawValue }) }
         // OCR can take seconds on a slow phone: read a small copy so the camera frame goes back at once.
         val readText = (!textBusy || now - lastTextAt > TEXT_STUCK_MS) && now - lastTextAt >= TEXT_EVERY_MS
         val copy = if (readText) runCatching { scaled(proxy.toBitmap()) }.getOrNull() else null

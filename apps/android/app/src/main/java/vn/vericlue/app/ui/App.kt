@@ -67,6 +67,7 @@ import vn.vericlue.app.data.api.SessionApi
 import vn.vericlue.app.flow.FramingState
 import vn.vericlue.app.flow.OtpRules
 import vn.vericlue.app.flow.LiveFlow
+import vn.vericlue.app.flow.submitWithVideo
 import vn.vericlue.app.flow.Next
 import vn.vericlue.app.flow.errorRoute
 import vn.vericlue.app.ui.components.CameraXPreview
@@ -211,6 +212,7 @@ fun VeriClueApp() {
     @Composable
     fun IdCaptureRoute(back: Boolean, onDone: () -> Unit) {
         LaunchedEffect(Unit) {
+            camera.clearQr()
             if (!hasCamera) askPermissions.launch(arrayOf(Manifest.permission.CAMERA))
         }
         LaunchedEffect(hasCamera) {
@@ -222,10 +224,10 @@ fun VeriClueApp() {
         fun keep(s: Pair<ByteArray, IdQuality>) {
             if (back) {
                 idBack = s
-                cccd = CccdQr.parse(s.second.qr)
             } else {
                 idFront = s
             }
+            cccd = CccdQr.parse(FlowRules.cardQr(idFront?.second?.qr, idBack?.second?.qr))
             shot = s
             captured = true
             idHint = null
@@ -267,6 +269,9 @@ fun VeriClueApp() {
             capturedOk = shot?.second?.good ?: true,
             hint = idHint,
             onRetake = {
+                camera.clearQr()
+                if (back) idBack = null else idFront = null
+                cccd = CccdQr.parse(FlowRules.cardQr(idFront?.second?.qr, idBack?.second?.qr))
                 shot = null
                 captured = false
             },
@@ -480,10 +485,11 @@ fun VeriClueApp() {
                         nav.go(Routes.IdFront)
                     } else {
                         once {
-                            val (hint, error) = live.sendIdCard(front, backPhoto, idBack?.second?.qr)
+                            val qr = FlowRules.cardQr(idFront?.second?.qr, idBack?.second?.qr)
+                            val (hint, error) = live.sendIdCard(front, backPhoto, qr)
                             when {
                                 error != null -> nav.go(errorRoute(error))
-                                // QR unreadable or not a CCCD: take the back side again, saying why.
+                                // Ask to retake without claiming which side should contain the QR.
                                 hint != null -> {
                                     idHint = "Chưa đọc được mã QR trên thẻ. Hãy đưa thẻ lại gần hơn rồi chụp lại."
                                     nav.go(Routes.IdBack)
@@ -504,7 +510,10 @@ fun VeriClueApp() {
                         // The photo too: with the FLOW-05 identity bridge the server reads the QR from the image.
                         val sample = context.resources.getIdentifier("sample_cccd_qr", "raw", context.packageName)
                             .takeIf { it != 0 }?.let { id -> context.resources.openRawResource(id).use { it.readBytes() } }
-                        idBack?.let { (photo, q) -> idBack = (sample ?: photo) to q.copy(qr = DEBUG_SAMPLE_QR); cccd = CccdQr.parse(DEBUG_SAMPLE_QR) }
+                        idBack?.let { (photo, q) ->
+                            idBack = (sample ?: photo) to q.copy(qr = DEBUG_SAMPLE_QR)
+                            cccd = CccdQr.parse(FlowRules.cardQr(idFront?.second?.qr, idBack?.second?.qr))
+                        }
                     }
                 } else {
                     null
@@ -690,18 +699,20 @@ fun VeriClueApp() {
                     val wav = live.pendingWav
                     // A retry comes back here; LiveFlow resends only what the server has not received.
                     follow(
-                        if (wav != null) {
-                            live.submitVoice(wav, camera.finishedVideo(), live.audioOffsetMs, onAccepted = camera::deleteVideo)
-                        } else {
-                            val probe = withContext(Dispatchers.IO) { camera.camProbe() }
-                            live.submitFace(
-                                camera.finishedVideo(), // waits for CameraX to finish writing the MP4 (it was stopped just before)
-                                camera.frameTimes(),
-                                camera.clientQuality(),
-                                probe,
-                                camera.regionMeans().ifEmpty { null },
-                                onMediaAcked = camera::deleteVideo,
-                            )
+                        submitWithVideo(camera.finishedVideo()) { video ->
+                            if (wav != null) {
+                                live.submitVoice(wav, video, live.audioOffsetMs, onAccepted = camera::deleteVideo)
+                            } else {
+                                val probe = withContext(Dispatchers.IO) { camera.camProbe() }
+                                live.submitFace(
+                                    video,
+                                    camera.frameTimes(),
+                                    camera.clientQuality(video),
+                                    probe,
+                                    camera.regionMeans().ifEmpty { null },
+                                    onMediaAcked = camera::deleteVideo,
+                                )
+                            }
                         },
                     )
                 }
@@ -824,7 +835,7 @@ private fun GalleryScreen(nav: NavHostController, flow: FlowState) {
         "Lỗi và gián đoạn" to listOf(
             "Chưa cho camera" to Routes.ErrorCamera, "Chưa cho micro" to Routes.ErrorMic, "Mất mạng" to Routes.ErrorNetwork,
             "Hết phiên" to Routes.ErrorSession, "Dịch vụ không đáp ứng" to Routes.ErrorService, "Thiết bị chưa đáp ứng" to Routes.ErrorDevice,
-            "Bị gián đoạn" to Routes.Interrupted, "Lượt quay hết hạn" to Routes.FaceExpired, "Không thu được giọng" to Routes.NoVoice, "Gửi thất bại" to Routes.UploadFailed,
+            "Bị gián đoạn" to Routes.Interrupted, "Lượt quay hết hạn" to Routes.FaceExpired, "Không thu được giọng" to Routes.NoVoice, "Video chưa sẵn sàng" to Routes.UploadFailed,
             "Kiểm tra lâu" to Routes.Slow, "Xác nhận dừng" to Routes.ExitConfirm, "Đã dừng" to Routes.Stopped,
             "Bỏ qua nháy màu" to Routes.FlashSkipped, "Không thành công" to Routes.Deny,
             "Cần khôi phục" to Routes.RecoveryRequired,

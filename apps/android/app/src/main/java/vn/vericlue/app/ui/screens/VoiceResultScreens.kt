@@ -374,10 +374,11 @@ object Messages {
         )
     }
 
+    /** The MP4 is still being written on the phone; network errors use ErrorNetwork instead. */
     @Composable fun UploadFailed(onResend: () -> Unit, onStop: () -> Unit) = MessageScreen(
         Icons.Outlined.CloudOff, "Chưa gửi được dữ liệu",
-        "Hãy kiểm tra kết nối mạng rồi thử gửi lại. Dữ liệu chưa gửi xong chưa thể được kiểm tra.",
-        "Gửi lại" to onResend, "Dừng xác minh" to onStop, onBack = onStop,
+        "Video chưa sẵn sàng để gửi. Vui lòng thử lại sau một chút.",
+        "Thử lại" to onResend, "Dừng xác minh" to onStop, onBack = onStop,
     )
 
     @Composable fun Slow(onWait: () -> Unit, onStop: () -> Unit) = MessageScreen(
