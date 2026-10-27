@@ -223,9 +223,10 @@ class LiveFlow(
         }
     }
 
-    suspend fun confirmIdCard(fields: IdCardFields): ApiError? {
-        val s = session ?: return ApiError.Expired
-        val error = (api.confirmIdCard(s.sessionId, s.token, fields) as? ApiResult.Err)?.error
+    /** Null when the server took the fields; otherwise the error with its code (e.g. 422 `identity_incomplete`). */
+    suspend fun confirmIdCard(fields: IdCardFields): ApiResult.Err? {
+        val s = session ?: return ApiResult.Err(ApiError.Expired)
+        val error = api.confirmIdCard(s.sessionId, s.token, fields) as? ApiResult.Err
         if (error == null) idFields = fields
         return error
     }
@@ -330,6 +331,8 @@ class LiveFlow(
     private fun <T> ApiResult<T>.ackOrFail(): Next? {
         val err = this as? ApiResult.Err ?: return null
         if (err.error == ApiError.Conflict && err.code == "step_already_received") return null
+        // Nothing of this attempt reached the server yet: a fresh challenge and a new recording fix it.
+        if (err.error == ApiError.Conflict && err.code == "challenge_expired" && !mediaAcked) return Next.To(Routes.FaceExpired)
         return Next.Fail(err.error)
     }
 

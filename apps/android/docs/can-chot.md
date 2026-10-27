@@ -68,4 +68,23 @@
 | 25 | **Khóa `ID_HMAC_KEY`** | Dùng để băm số điện thoại và số CCCD | Code có giá trị mặc định chỉ để chạy dev. Máy demo đặt biến môi trường; trưởng nhóm giữ khóa | ok (duyệt 24/10, Quang chuyển lời) |
 | 26 | **ADR-0016 lệch với câu 5** | ADR-0016 ghi "luôn đọc câu"; câu 5 đã chốt "chỉ đọc khi server yêu cầu" | Trưởng nhóm sửa ADR-0016 cho khớp (luật 7: chỉ trưởng nhóm sửa ADR) | ok (duyệt 24/10, Quang chuyển lời) |
 
+## H. Luồng eKYC gọn (bản vẽ Figma "Đề xuất · Luồng gọn", 24/10)
+
+Quang đã duyệt phần app tự làm được: gộp điều khoản và đồng ý, bỏ màn Giới thiệu và Xin quyền, CCCD tự chụp 2 mặt (dừng 1 nhịp sau mỗi mặt, 1 màn xem lại cả 2 mặt), OTP tự điền và vẫn gõ tay được, màn xác nhận thông tin dời ra sau phần khuôn mặt. Các câu dưới đây đụng server hoặc chính sách, **app chưa làm**, giữ nguyên hành vi hiện tại tới khi có trả lời.
+
+| # | Câu hỏi | Vì sao cần | Đề xuất | Trả lời |
+|---|---|---|---|---|
+| 27 | **Bỏ số điện thoại và OTP khi app ngân hàng đã xác minh số** | Người dùng đã đăng nhập app ngân hàng bằng số đó; gõ lại số và OTP là 2 màn thừa | App ngân hàng truyền số đã xác minh khi mở VeriClue; bỏ 2 màn này. Server không bắt OTP trước `finalize` nên không phải sửa code, nhưng đây là chính sách của FLOW-02 (M2) | |
+| 28 | **Gộp màn "Chuẩn bị quay mặt" vào màn căn mặt** | Cảnh báo nhạy cảm ánh sáng đang chiếm cả một màn riêng | Cảnh báo thành 1 dòng trên màn căn mặt, người dùng vẫn có nút "Bỏ qua nháy màu" (câu 14). Cần chắc 1 dòng là đủ về mặt an toàn cho người dễ lên cơn động kinh | |
+| 29 | **Đọc câu chỉ khi server yêu cầu (cả khi đăng ký)** | Từ #49 (FLOW-01), phiên `onboarding`/`recovery` luôn có câu đọc (`session_flow.py`), khớp ADR-0016. Câu 5 và 26 trước đó chốt ngược lại | Vẫn mở. Nếu chốt "chỉ khi cần" thì server đổi luồng `onboarding` và ADR-0016 phải sửa; app chỉ đổi vài dòng. Tạm giữ như #49: đăng ký luôn đọc câu | |
+| 30 | **Màn xác nhận thông tin dời ra sau phần khuôn mặt** | Người dùng làm phần mặt liền sau phần CCCD; thông tin chỉ đọc lại một lần trước khi gửi | **Đã đổi 25/10 (Quang chốt):** app giữ video trên máy, người dùng bấm "Thông tin đúng" xong mới gửi media → signals → `finalize`. Không gửi video song song nữa, vì server nhánh `feat/FLOW-05-identity-lab` (runbook `docs/runbooks/identity-integration.md`) trả 409 `step_not_allowed` cho `id-card/confirm` và cho ảnh CCCD mới khi phiên đã nhận media. Quá 120 giây (thử thách màu hết hạn) thì app cho làm lại riêng phần mặt với thử thách mới (đã thử trên máy ảo 25/10). Báo để người làm FLOW-03/FLOW-05 biết thứ tự mới | |
+
+## I. Khi chạy thử identity lab (FLOW-05), 25/10
+
+| # | Câu hỏi | Vì sao cần | Đề xuất | Trả lời |
+|---|---|---|---|---|
+| 31 | **Không tải được LVFace-B bằng `scripts/download_models.py`** | Script dừng ở `lvface-b`: chuỗi `license` ("nghiên cứu phi thương mại (trọng số); MIT (code)") không nằm trong danh sách DATA-02 cho phép, dù `license_status: accepted-research`. Thiếu model thì `face_match` báo lỗi, mọi ca đăng ký có identity lab đều ra chờ duyệt. Script cũng tự viết lại định dạng `models/manifest.yaml` mỗi lần chạy | M3 (chủ mục `lvface-b`) sửa chuỗi `license` cho khớp danh sách, hoặc thêm chuỗi này vào danh sách nếu nhóm đã chấp nhận dùng cho nghiên cứu; sửa luôn việc script ghi đè manifest. App không tải tay để lách | |
+| 32 | **Luồng khôi phục có chụp CCCD không** | App Android (`FlowRules.afterOtp`) cho khôi phục chụp CCCD; `apps/ios/docs/plan-ios.md` ghi khôi phục bỏ bước CCCD; runbook FLOW-05 áp cầu nối CCCD–selfie cho cả `recovery` | Giữ chụp CCCD khi khôi phục (khớp runbook FLOW-05) và sửa `plan-ios.md` cho khớp | |
+| 33 | **Bật "Squash and merge" cho repo** | Lịch sử `main` rối vì mỗi PR để lại commit gộp lẫn các commit con, cộng nhiều lần gộp `main` ngược vào nhánh | Trưởng nhóm đặt GitHub → Settings → General → Pull Requests: chỉ cho "Squash and merge"; nhánh cập nhật bằng rebase, xóa nhánh sau khi merge | |
+
 Chi tiết kỹ thuật: [`plan-camera-mic.md`](plan-camera-mic.md) (mục 9 và 11), [`../README.md`](../README.md).

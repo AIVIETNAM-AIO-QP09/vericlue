@@ -4,14 +4,67 @@ package vn.vericlue.app.capture
  * ID card capture checks (APP-04). Local quality gate only: it helps the user retake a bad photo
  * before sending; it never judges whether the card is genuine.
  */
-data class IdQuality(val sharpness: Double, val glareFraction: Double, val qr: String?) {
+data class IdQuality(
+    val sharpness: Double,
+    val glareFraction: Double,
+    val qr: String?,
+    /** Card words read on the rear camera in the last moment ([CardText]); null = not checked. */
+    val looksLikeCard: Boolean? = null,
+) {
     val sharp: Boolean get() = sharpness >= MIN_SHARPNESS
     val noGlare: Boolean get() = glareFraction <= MAX_GLARE
+    val good: Boolean get() = sharp && noGlare
 
     companion object {
         // Starting values; tune on real phones and cards (plan, phase 9).
         const val MIN_SHARPNESS = 60.0
         const val MAX_GLARE = 0.02
+    }
+}
+
+/**
+ * Words printed on either side of a CCCD (chip card 2021 and the 2024 "Căn cước"), compared without
+ * diacritics. Only used to hold auto-capture until a card is in view: a sharp room is not a card.
+ * It never judges whether the card is genuine.
+ */
+object CardText {
+    private val words = listOf(
+        "CAN CUOC", "CONG DAN", "CITIZEN", "IDENTITY", "IDVNM", "CONG HOA", "SOCIALIST REPUBLIC",
+        "QUOC TICH", "NATIONALITY", "DAC DIEM NHAN DANG", "PERSONAL IDENTIFICATION", "NGAY CAP", "DATE OF ISSUE",
+    )
+
+    fun looksLikeCard(text: String): Boolean {
+        val plain = java.text.Normalizer.normalize(text.uppercase(), java.text.Normalizer.Form.NFD)
+            .replace(Regex("\\p{M}+"), "").replace('Đ', 'D').replace(Regex("\\s+"), " ")
+        return words.any { it in plain }
+    }
+}
+
+/**
+ * Takes the ID photo by itself once [needed] frames in a row are sharp, glare-free and show card
+ * words, so the user does not have to hold the phone still and tap. The shutter button stays as a
+ * fallback. A wrong shot is caught by the pause after each side and the review screen, not here.
+ */
+class IdAutoCapture(private val needed: Int = 2) {
+    private var good = 0
+
+    /** True when this frame completes the run: take it. */
+    fun offer(q: IdQuality): Boolean {
+        good = if (q.good && q.looksLikeCard == true) good + 1 else 0
+        return good >= needed
+    }
+
+    fun reset() {
+        good = 0
+    }
+
+    companion object {
+        /** Time to bring the card into the frame before sampling starts, and between samples. */
+        const val START_DELAY_MS = 1500L
+        const val SAMPLE_MS = 500L
+
+        /** The photo stays on screen this long before the next side (one beat to look at it). */
+        const val PAUSE_MS = 1500L
     }
 }
 

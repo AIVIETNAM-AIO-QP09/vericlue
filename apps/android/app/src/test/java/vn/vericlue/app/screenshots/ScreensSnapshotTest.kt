@@ -12,7 +12,6 @@ import vn.vericlue.app.ui.screens.BankOpenedScreen
 import vn.vericlue.app.ui.screens.BankStartScreen
 import vn.vericlue.app.ui.screens.CheckingScreen
 import vn.vericlue.app.ui.screens.ConfirmInfoScreen
-import vn.vericlue.app.ui.screens.ConsentScreen
 import vn.vericlue.app.ui.screens.EditInfoScreen
 import vn.vericlue.app.ui.screens.FaceReadyScreen
 import vn.vericlue.app.ui.screens.FramingScreen
@@ -20,10 +19,8 @@ import vn.vericlue.app.flow.FramingState
 import vn.vericlue.app.ui.screens.HoldStillScreen
 import vn.vericlue.app.ui.screens.IdCaptureScreen
 import vn.vericlue.app.ui.screens.IdReviewScreen
-import vn.vericlue.app.ui.screens.IntroScreen
 import vn.vericlue.app.ui.screens.Messages
 import vn.vericlue.app.ui.screens.OtpScreen
-import vn.vericlue.app.ui.screens.PermissionScreen
 import vn.vericlue.app.ui.screens.PhoneScreen
 import vn.vericlue.app.ui.screens.RetryChallengeScreen
 import vn.vericlue.app.ui.screens.RetryQualityScreen
@@ -52,21 +49,21 @@ class ScreensSnapshotTest {
         shot("00_bank_start") { BankStartScreen(n, n) }
         shot("01_auth") { AuthScreen(n, n, n) }
         shot("02_terms") { TermsScreen(n, n) }
-        shot("03_consent") { ConsentScreen(n, n) }
-        shot("03_consent_dark", dark = true) { ConsentScreen(n, n) }
+        shot("02_terms_dark", dark = true) { TermsScreen(n, n) }
     }
 
     @Test fun identity() {
-        shot("10_intro") { IntroScreen(n, n) }
-        shot("11_permission") { PermissionScreen(n, n) }
         shot("12_phone") { PhoneScreen(n) {} }
         shot("13_otp") { OtpScreen(n, n) }
         shot("13_otp_error") { OtpScreen(n, n, startWithError = true) }
+        shot("13_otp_filled") { OtpScreen(n, n, sms = "Mã xác nhận VeriClue của bạn là 482910.", autoCode = "482910") }
         shot("14_id_front") { IdCaptureScreen(back = false, glare = false, onBack = n, onCapture = n) }
         shot("14_id_glare") { IdCaptureScreen(back = false, glare = true, onBack = n, onCapture = n) }
-        shot("14_id_review") { IdReviewScreen(back = false, onBack = n, onRetake = n, onConfirm = n) }
+        shot("14_id_front_captured") { IdCaptureScreen(back = false, glare = false, onBack = n, onCapture = n, captured = true) }
         shot("15_id_back") { IdCaptureScreen(back = true, glare = false, onBack = n, onCapture = n) }
+        shot("15_id_review") { IdReviewScreen(onBack = n, onRetakeFront = n, onRetakeBack = n, onContinue = n) }
         shot("16_confirm") { ConfirmInfoScreen(n, n, n) }
+        shot("16_confirm_after_face") { ConfirmInfoScreen(n, n, n, afterFace = true) }
         shot("16_confirm_dark", dark = true) { ConfirmInfoScreen(n, n, n) }
         shot("17_edit") { EditInfoScreen(n, {}, n) }
     }

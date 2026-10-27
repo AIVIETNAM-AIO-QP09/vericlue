@@ -257,7 +257,8 @@ fun AuthScreen(onRegister: () -> Unit, onLogin: () -> Unit, onRecover: () -> Uni
         ) {
             TitleBlock(
                 title = "Chào mừng bạn đến với VeriClue",
-                body = "Xác minh danh tính bằng CCCD, khuôn mặt và giọng nói. Chỉ mất khoảng 2 phút.",
+                // The checklist that used to have its own intro screen (short flow, 24/10).
+                body = "Xác minh danh tính bằng CCCD, khuôn mặt và giọng nói. Chỉ mất khoảng 2 phút. Cần: CCCD gắn chip, chỗ đủ sáng và yên tĩnh.",
             )
             Spacer(Modifier.weight(1f))
             PrimaryButton("Đăng ký", onRegister)
@@ -302,11 +303,17 @@ private val termsSections = listOf(
     "8. Thay đổi điều khoản" to "Khi điều khoản thay đổi, ứng dụng sẽ thông báo và hỏi lại sự đồng ý của bạn trước khi tiếp tục xử lý dữ liệu.",
 )
 
+/**
+ * Terms and per-item consent on one screen (short flow, 24/10): read the terms to the end, tick
+ * them, tick each required item. Nothing is pre-ticked: consent has to be the user's own action.
+ */
 @Composable
 fun TermsScreen(onBack: () -> Unit, onAccept: () -> Unit) {
     val c = Vc.colors
     val scroll = rememberScrollState()
     var agreement by remember { mutableStateOf(Agreement()) }
+    var checked by remember { mutableStateOf(setOf<Int>()) }
+    val required = remember { consentItems.withIndex().filter { it.value.required }.map { it.index }.toSet() }
     val readToEnd = agreement.readToEnd
     val accepted = agreement.accepted
     val atEnd by remember { derivedStateOf { scroll.maxValue > 0 && scroll.value >= scroll.maxValue - 8 } }
@@ -322,9 +329,9 @@ fun TermsScreen(onBack: () -> Unit, onAccept: () -> Unit) {
 
     VcScreen(
         onBack = onBack,
-        actions = { PrimaryButton("Đồng ý và tiếp tục", onAccept, enabled = agreement.canContinue) },
+        actions = { PrimaryButton("Đồng ý và tiếp tục", onAccept, enabled = agreement.canContinueWith(checked, required)) },
     ) {
-        TitleBlock("Điều khoản sử dụng", "Đọc hết nội dung bên dưới để đồng ý và tiếp tục.")
+        TitleBlock("Điều khoản và đồng ý", "Đọc hết điều khoản, rồi chọn từng mục bên dưới.")
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 LinearProgressIndicator(
@@ -341,7 +348,7 @@ fun TermsScreen(onBack: () -> Unit, onAccept: () -> Unit) {
                 )
             }
             Box(
-                Modifier.fillMaxWidth().height(300.dp).clip(RoundedCornerShape(14.dp)).background(c.surfaceSubtle)
+                Modifier.fillMaxWidth().height(220.dp).clip(RoundedCornerShape(14.dp)).background(c.surfaceSubtle)
                     .border(1.dp, c.border, RoundedCornerShape(14.dp)),
             ) {
                 Column(
@@ -417,6 +424,7 @@ fun TermsScreen(onBack: () -> Unit, onAccept: () -> Unit) {
                 }
             }
         }
+        ConsentList(checked, onToggle = { i -> checked = if (i in checked) checked - i else checked + i })
     }
 }
 
@@ -448,68 +456,41 @@ private fun ConsentTag(required: Boolean) {
     )
 }
 
+/** The consent items, each ticked on its own (shown under the terms). */
 @Composable
-fun ConsentScreen(onBack: () -> Unit, onContinue: () -> Unit) {
+private fun ConsentList(checked: Set<Int>, onToggle: (Int) -> Unit) {
     val c = Vc.colors
-    var checked by remember { mutableStateOf(setOf<Int>()) }
-    val requiredOk = consentItems.withIndex().filter { it.value.required }.all { it.index in checked }
-    val allOn = checked.size == consentItems.size
-    VcScreen(
-        onBack = onBack,
-        actions = { PrimaryButton("Đồng ý và tiếp tục", onContinue, enabled = requiredOk) },
-    ) {
-        TitleBlock("Đồng ý xử lý dữ liệu", "Bạn chọn từng mục. Dữ liệu của bạn không được dùng để huấn luyện AI.")
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("Đồng ý xử lý dữ liệu · dữ liệu không dùng để huấn luyện AI", style = VcType.labelSmall, color = c.ink)
+        consentItems.forEachIndexed { i, item ->
+            val on = i in checked
             Row(
-                Modifier.fillMaxWidth().clickable(role = Role.Checkbox) {
-                    checked = if (allOn) emptySet() else consentItems.indices.toSet()
-                },
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                    .background(if (on) c.surfaceInfo else c.surfaceSubtle)
+                    .border(if (on) 1.5.dp else 1.dp, if (on) c.accent else c.border, RoundedCornerShape(14.dp))
+                    .clickable(role = Role.Checkbox) { onToggle(i) }
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("${checked.size}/${consentItems.size} mục đã chọn", style = VcType.caption, color = c.muted, modifier = Modifier.weight(1f))
-                Text(if (allOn) "Bỏ chọn tất cả" else "Chọn tất cả", style = VcType.label, color = c.accent)
-            }
-            consentItems.forEachIndexed { i, item ->
-                val on = i in checked
-                Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-                        .background(if (on) c.surfaceInfo else c.surfaceSubtle)
-                        .border(if (on) 1.5.dp else 1.dp, if (on) c.accent else c.border, RoundedCornerShape(16.dp))
-                        .clickable(role = Role.Checkbox) { checked = if (on) checked - i else checked + i }
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Box(
-                        Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(c.surface),
-                        contentAlignment = Alignment.Center,
-                    ) { Icon(item.icon, contentDescription = null, tint = c.accent, modifier = Modifier.size(22.dp)) }
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        ConsentTag(item.required)
-                        Text(item.title, style = VcType.bodyStrong, color = c.ink)
-                        Text(item.detail, style = VcType.caption, color = c.muted)
-                    }
-                    Checkbox(
-                        checked = on,
-                        onCheckedChange = { checked = if (on) checked - i else checked + i },
-                        colors = CheckboxDefaults.colors(checkedColor = c.primary),
-                        modifier = Modifier.size(24.dp),
-                    )
+                Icon(item.icon, contentDescription = null, tint = c.accent, modifier = Modifier.size(22.dp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    ConsentTag(item.required)
+                    Text(item.title, style = VcType.labelSmall, color = c.ink)
+                    Text(item.detail, style = VcType.footnote, color = c.muted)
                 }
-            }
-        }
-        Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.surfaceSubtle).padding(14.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Icon(Icons.Outlined.Shield, contentDescription = null, tint = c.ok, modifier = Modifier.size(20.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Bạn luôn có quyền thay đổi", style = VcType.labelSmall, color = c.ink)
-                Text(
-                    "Rút lại đồng ý hoặc xin xóa dữ liệu bất cứ lúc nào trong Cài đặt › Quyền riêng tư.",
-                    style = VcType.caption,
-                    color = c.muted,
+                Checkbox(
+                    checked = on,
+                    onCheckedChange = { onToggle(i) },
+                    colors = CheckboxDefaults.colors(checkedColor = c.primary),
+                    modifier = Modifier.size(24.dp),
                 )
             }
         }
+        Text(
+            "Bạn có thể rút lại đồng ý hoặc xin xóa dữ liệu bất cứ lúc nào trong Cài đặt › Quyền riêng tư.",
+            style = VcType.footnote,
+            color = c.muted,
+        )
     }
 }

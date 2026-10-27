@@ -34,11 +34,13 @@
 App iPhone cho người dân, chạy **cùng server, cùng hợp đồng** với app Android. Luồng đăng ký (`purpose = onboarding`):
 
 ```
-Màn ngân hàng mẫu → Chào → Đăng nhập/Đăng ký → Điều khoản → Đồng ý → Giới thiệu → Quyền camera/micro
-→ Số điện thoại → OTP → Chụp CCCD mặt trước → Xem lại → Mặt sau → Xem lại → Kiểm tra thông tin (sửa nếu cần)
+Màn ngân hàng mẫu → Chào → Đăng nhập/Đăng ký → Điều khoản + đồng ý (1 màn)
+→ Số điện thoại → OTP (tự điền, vẫn gõ tay được) → CCCD tự chụp mặt trước (dừng 1 nhịp) → Mặt sau → Xem lại 2 mặt
 → Chuẩn bị → Căn mặt → [một bản ghi video liên tục: nền xám → nháy màu → chấm sáng → quay đầu]
-→ Đọc câu → Gửi → Kết quả (thành công / chờ duyệt / chụp lại / lỗi)
+→ Kiểm tra thông tin (sửa nếu cần; xác nhận xong mới gửi video) → Đọc câu → Gửi → Kết quả (thành công / chờ duyệt / chụp lại / lỗi)
 ```
+
+**Luồng gọn (24/10):** không còn màn Giới thiệu và Xin quyền; xin camera lúc mở camera, xin micro ở bước đọc câu. Màn Kiểm tra thông tin nằm sau phần mặt. Video giữ trên máy; phải gửi `id-card/confirm` **trước** media và `finalize`: sau `finalize` phiên có thể đã đóng, và server có identity lab (FLOW-05) trả 409 khi xác nhận sau media. Bản tham chiếu: Android, nhánh `feat/APP-04-short-onboarding` (`FlowRules.afterFace`, `afterConfirm`, `afterIdReview`; `IdAutoCapture`). Figma: trang "Đề xuất · Luồng gọn".
 
 Thêm hai luồng ngắn hơn (ADR-0013):
 - **Đăng nhập lại (`reauth`):** số điện thoại → OTP → quay mặt **thụ động** (không nháy màu, không chấm sáng, không quay đầu). Hiện server luôn trả `recovery_required`, vì chưa có khóa thiết bị (SEC-02).
