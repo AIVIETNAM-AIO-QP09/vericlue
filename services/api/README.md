@@ -1,5 +1,10 @@
 # services/api — Máy chủ API (FastAPI)
 
+LIVE-05 có API opt-in cấp chứng nhận BBS ngắn hạn từ cổng kết quả đã commit,
+thêm chữ ký chấp thuận bằng khóa thiết bị, worker Node/key riêng và cache mã hóa.
+Không cấp từ verdict client, không mở chốt sinh trắc thật hoặc cấp tuổi.
+Chi tiết cấu hình/quyền/giới hạn: [private-credential-issuance.md](../../docs/architecture/private-credential-issuance.md).
+
 **Phụ trách:** M5
 **Trạng thái:** API v1 chạy với dữ liệu mock (PLAT-03 khung, **PLAT-04** endpoint + hợp đồng). DB đã chuyển sang SQLAlchemy/PostgreSQL ở PLAT-05. PLAT-06 đã có token HMAC, TTL và chặn nhận lặp; các phần bảo mật còn lại xem "Phần tạm". Chính sách ROUT-02 đã nối ML, ngưỡng/fusion đang provisional; PLAT-08 có orchestrator song song.
 

@@ -149,7 +149,7 @@
 | LIVE-02 | Dò mắt, chuỗi kiểm mặt và webcam lab — diagnostic | M3 (+M1) | Codex | 1,5 | S2 | P0 | LIVE-01 | doing |
 | LIVE-03 | Ký media theo phiên trên web (WebAuthn), chặn phát lại | M2 (+M1) | | 1 | S2 | P0 | LIVE-01 | todo |
 | LIVE-04 | Kháng lượng tử: đường truyền ML-KEM, ký kết quả ML-DSA | M2 | | 1 | S2 | P0 | FLOW-01 | todo |
-| LIVE-05 | Lab BBS holder binding/bí danh, đối chứng SD-JWT+KB; còn ví/API thật | M5 | Codex | 2,5 | S3 | P1 | PLAT-03 | doing |
+| LIVE-05 | BBS lab + API cấp từ quyết định, thiết bị ký consent; còn ví/nonce verifier/thiết bị thật | M5 | Codex | 2,5 | S3 | P1 | PLAT-03 | doing |
 | LIVE-06 | Gia hạn phiên khi gián đoạn, làm lại riêng phần khuôn mặt [contract] | M5 | Ngọc Quang+Claude | 0,5 | S2 | P0 | LIVE-01 | doing |
 | LIVE-07 | Thông báo làm lại theo hai loại (chất lượng · thử thách) | M1 | | 0,5 | S2 | P0 | LIVE-01 | todo |
 

@@ -1,5 +1,11 @@
 # Chứng nhận riêng tư — LIVE-05
 
+Sau PR #96 có thêm profile server-decision, `issuer-worker.mjs` nội bộ và
+`keygen.mjs --out ...` tạo khóa BBS riêng. Không dùng persona demo để cấp thật.
+Holder dùng `prepareHolder` rồi `presentVerification`; bên nhận pin key/issuer
+và dùng `VerificationVerifier`. API, khóa thiết bị ký chấp thuận và giới hạn:
+[hướng dẫn tích hợp](../../docs/architecture/private-credential-issuance.md).
+
 Bản thử nghiệm mật mã độc lập: issuer cấp credential tổng hợp, holder chỉ tiết
 lộ claim cần thiết, hai verifier kiểm proof với khóa issuer đã pin. Không kết
 nối luồng công dân, không cấp credential từ kết quả eKYC thật, không sửa UI.

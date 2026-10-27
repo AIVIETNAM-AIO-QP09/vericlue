@@ -93,6 +93,29 @@ export function createApiClient(options: ApiClientOptions = {}) {
   }
 
   return {
+    credentialSigningKey() {
+      return request<Schemas["CredentialKey"]>("GET", "/v1/credential-signing-key", {
+        cache: "no-store",
+      });
+    },
+    credentialAuthorization(
+      sessionId: string,
+      token: string,
+      body: Schemas["CredentialOfferRequest"],
+    ) {
+      return request<Schemas["CredentialAuthorization"]>(
+        "POST",
+        `/v1/sessions/${encodeURIComponent(sessionId)}/credential-authorization`,
+        { token, json: body, cache: "no-store" },
+      );
+    },
+    issueCredential(sessionId: string, token: string, body: Schemas["CredentialIssueRequest"]) {
+      return request<Schemas["VerificationCredential"]>(
+        "POST",
+        `/v1/sessions/${encodeURIComponent(sessionId)}/credential`,
+        { token, json: body, cache: "no-store" },
+      );
+    },
     /** Tạo phiên. `scenario` chỉ có tác dụng khi API chạy mock (header X-Mock-Scenario). */
     createSession(scenario?: string, signal?: AbortSignal) {
       return request<CreateSessionResponse>("POST", "/v1/sessions", {

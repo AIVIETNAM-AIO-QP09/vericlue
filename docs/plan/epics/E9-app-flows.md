@@ -550,9 +550,14 @@ không nhận là range proof hoặc W3C VC hoàn chỉnh. Xem README package v�
       luật real/mixed/account-bound mock và UI giữ nguyên. Lint/test vào CI.
 
 **Còn để hoàn tất tính năng tích hợp (giữ doing):**
-- [ ] Ví/consent và cấp từ quyết định eKYC thật đã commit; không nhận verdict client.
+- [x] API opt-in cấp từ cổng quyết định server đã commit, khóa thiết bị ký consent
+      cho commitment, cache mã hóa/unique session/rollback/retry; Node BBS thật và
+      holder SDK profile riêng, không thêm tuổi hoặc mở chốt sinh trắc thật.
+- [ ] Ví/UI consent, client ký đúng context và nghiệm thu quyết định/thiết bị thật.
 - [ ] Nonce durable/atomic nhiều worker, quản lý khóa/thu hồi/thời hạn và nghiệm thu
       trên thiết bị thật. Không gọi secret RAM là khóa phần cứng hoặc BBS là PQC.
+
+Chi tiết lát cắt API: `docs/architecture/private-credential-issuance.md`.
 
 ---
 

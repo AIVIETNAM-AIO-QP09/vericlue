@@ -1,5 +1,11 @@
 # Contracts — hợp đồng giữa các phần
 
+LIVE-05 thêm `credential.schema.json`: authorization/device signature và BBS
+profile server-decision riêng, không dùng credential tổng hợp như kết quả thật.
+API chỉ nhận commitment/consent/chữ ký thiết bị; claims dựng từ quyết định đã
+commit. Node producer/holder verifier và model API cùng schema; OpenAPI/SDK
+đồng bộ. Xem [cấp chứng nhận](../../docs/architecture/private-credential-issuance.md).
+
 LIVE-05 thêm `private_credential.schema.json` cho trao đổi giữa ba vai trò trong
 lab BBS/SD-JWT độc lập, không thêm endpoint công dân. Assurance/header bắt buộc
 synthetic-demo; offer không có holder secret. Producer/consumer Node cùng kiểm

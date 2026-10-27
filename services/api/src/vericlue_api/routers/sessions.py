@@ -10,6 +10,13 @@ from starlette.concurrency import run_in_threadpool
 from vericlue_api.core.errors import ApiError
 from vericlue_api.core.security import bearer_scheme, require_session
 from vericlue_api.core.state import AppState, get_state
+from vericlue_api.schemas.credential import (
+    CredentialAuthorization,
+    CredentialIssueRequest,
+    CredentialKey,
+    CredentialOfferRequest,
+    VerificationCredential,
+)
 from vericlue_api.schemas.result import SignedResult, SigningKey
 from vericlue_api.schemas.session import (
     AccountReceipt,
@@ -32,6 +39,8 @@ from vericlue_api.schemas.session import (
     StepAck,
     VoiceResponse,
 )
+from vericlue_api.services.credential_issuance import CredentialIssuance
+from vericlue_api.services.credential_worker import CredentialWorker
 from vericlue_api.services.session_store import Session
 from vericlue_api.services.uploads import read_limited
 from vericlue_ml.mock import SCENARIOS
@@ -65,6 +74,38 @@ def result_key(request: Request, response: Response) -> SigningKey:
 def signed_result(session: SessionDep, state: StateDep, response: Response) -> SignedResult:
     response.headers["Cache-Control"] = "no-store"
     return state.signed_results.issue(session)
+
+
+@keys_router.get(
+    "/credential-signing-key",
+    response_model=CredentialKey,
+    responses={503: {"model": ErrorResponse}},
+)
+def credential_key(request: Request, response: Response) -> CredentialKey:
+    response.headers["Cache-Control"] = "no-store"
+    return CredentialWorker(request.app.state.vericlue.settings).public_key()
+
+
+@router.post(
+    "/{session_id}/credential-authorization",
+    response_model=CredentialAuthorization,
+    responses=SESSION_ERRORS,
+)
+def credential_authorization(
+    session: SessionDep, state: StateDep, body: CredentialOfferRequest, response: Response
+) -> CredentialAuthorization:
+    response.headers["Cache-Control"] = "no-store"
+    return CredentialIssuance(state).authorization(session, body)
+
+
+@router.post(
+    "/{session_id}/credential", response_model=VerificationCredential, responses=SESSION_ERRORS
+)
+def issue_credential(
+    session: SessionDep, state: StateDep, body: CredentialIssueRequest, response: Response
+) -> VerificationCredential:
+    response.headers["Cache-Control"] = "no-store"
+    return CredentialIssuance(state).issue(session, body)
 
 
 def resolve_scenario(header: str | None, state: AppState) -> str:

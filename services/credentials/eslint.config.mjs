@@ -8,9 +8,16 @@ export default [
       ecmaVersion: 2024,
       sourceType: 'module',
       globals: Object.fromEntries(
-        ['Buffer', 'console', 'process', 'URL', 'TextEncoder', 'structuredClone', 'Uint8Array'].map(
-          (name) => [name, 'readonly'],
-        ),
+        [
+          'Buffer',
+          'console',
+          'process',
+          'URL',
+          'TextEncoder',
+          'TextDecoder',
+          'structuredClone',
+          'Uint8Array',
+        ].map((name) => [name, 'readonly']),
       ),
     },
   },

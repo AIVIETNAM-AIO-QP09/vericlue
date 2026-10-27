@@ -55,6 +55,15 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - name: Install (Python 3.12 + thư viện, đúng uv.lock)
         run: uv sync --all-packages --extra face --frozen
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: services/credentials/package-lock.json
+      - name: Native BBS worker for API integration tests
+        run: |
+          npm ci --ignore-scripts --prefix services/credentials
+          echo "TEST_CREDENTIAL_NODE=$(command -v node)" >> "$GITHUB_ENV"
       - name: Lint
         run: uv run ruff check . && uv run ruff format --check .
       - name: Kiểm tra kế hoạch (backlog ↔ task card, phụ thuộc, tải, đường găng)
