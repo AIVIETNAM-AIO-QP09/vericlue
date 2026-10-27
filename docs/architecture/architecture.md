@@ -80,6 +80,10 @@ Sau PR #97 có [HTTP verifier BBS](private-credential-verifier.md): credential
 tích hợp → origin cố định, public-key-only worker, nonce DB dùng một lần qua
 nhiều worker/restart. Không lưu proof/nym; không thay chốt sinh trắc thật.
 
+Sau PR #99 thêm [vòng đời issuer key](private-credential-keys.md): public registry
+DB opt-in, staging/active/grace/revocation và công cụ operator. Không có HTTP
+quản trị key; giữ khóa tin cậy xuyên suốt cấp/kiểm để phối hợp thu hồi.
+
 FLOW-05 thêm hook ghi danh onboarding opt-in `ACCOUNT_ENROLLMENT`: trích mẫu qua
 worker/hàng đợi `face_match` đã nạp, giữ lease tới khi native xong, ghi mẫu mã hóa
 trong cùng transaction với quyết định. Vector không vào ModuleResult/snapshot/HTTP;

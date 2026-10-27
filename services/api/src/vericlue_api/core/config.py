@@ -86,6 +86,7 @@ class Settings(BaseSettings):
     result_audience: str | None = Field(default=None, pattern=r"^[A-Za-z0-9:/._-]{1,200}$")
     result_ttl_seconds: int = Field(default=60, ge=1, le=60)
     private_credentials: bool = False
+    credential_key_registry: bool = False
     credential_node: str | None = None
     credential_worker_file: str | None = None
     credential_signing_key_file: str | None = None

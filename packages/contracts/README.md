@@ -11,6 +11,10 @@ audience do credential tích hợp quyết định; request không được khai
 issuer/policy riêng. `valid:false` khác lỗi hạ tầng 503. Bên nhận chỉ có public pin.
 Xem [API kiểm proof](../../docs/architecture/private-credential-verifier.md).
 
+`CredentialChallengeRequest.key_id` là tùy chọn chọn pin đã tin trong registry
+(key cũ còn grace); không có/null chọn key active. Response/proof BBS giữ nguyên.
+Không nhận public key hoặc status ID cá nhân từ client. Xem [vòng đời khóa](../../docs/architecture/private-credential-keys.md).
+
 LIVE-05 thêm `private_credential.schema.json` cho trao đổi giữa ba vai trò trong
 lab BBS/SD-JWT độc lập, không thêm endpoint công dân. Assurance/header bắt buộc
 synthetic-demo; offer không có holder secret. Producer/consumer Node cùng kiểm

@@ -867,7 +867,10 @@ export interface components {
             message: string;
         };
         /** CredentialChallengeRequest */
-        CredentialChallengeRequest: Record<string, never>;
+        CredentialChallengeRequest: {
+            /** Key Id */
+            key_id?: string | null;
+        };
         /** CredentialIssueRequest */
         CredentialIssueRequest: {
             /** Commitment */
@@ -1814,6 +1817,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -1858,6 +1870,15 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

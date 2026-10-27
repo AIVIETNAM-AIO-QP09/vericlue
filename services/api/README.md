@@ -9,6 +9,10 @@ API kiểm chứng BBS dùng credential tích hợp riêng, public pin và nonce
 migration 0008. Restart/nhiều worker giữ dùng-một-lần, không lưu proof hoặc nym.
 Xem [verifier bền vững](../../docs/architecture/private-credential-verifier.md).
 
+Registry public issuer key opt-in (migration 0009) hỗ trợ stage/activate,
+grace key cũ 60 giây và revoke theo key bằng CLI operator, không HTTP quản trị.
+Xem [vòng đời khóa](../../docs/architecture/private-credential-keys.md).
+
 **Phụ trách:** M5
 **Trạng thái:** API v1 chạy với dữ liệu mock (PLAT-03 khung, **PLAT-04** endpoint + hợp đồng). DB đã chuyển sang SQLAlchemy/PostgreSQL ở PLAT-05. PLAT-06 đã có token HMAC, TTL và chặn nhận lặp; các phần bảo mật còn lại xem "Phần tạm". Chính sách ROUT-02 đã nối ML, ngưỡng/fusion đang provisional; PLAT-08 có orchestrator song song.
 

@@ -2,7 +2,19 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    text,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -184,6 +196,43 @@ class ForensicSegmentRow(Base):
     t_start: Mapped[float] = mapped_column(Float)
     t_end: Mapped[float] = mapped_column(Float)
     signals: Mapped[list] = mapped_column(JSON, default=list)
+
+
+class CredentialTrustKeyRow(Base):
+    __tablename__ = "credential_trust_keys"
+    __table_args__ = (
+        CheckConstraint(
+            "state IN ('staged', 'active', 'verify_only', 'revoked')",
+            name="ck_credential_key_state",
+        ),
+        CheckConstraint(
+            "(state = 'verify_only' AND verify_until IS NOT NULL) OR (state <> 'verify_only' AND verify_until IS NULL)",
+            name="ck_credential_verify_deadline",
+        ),
+        Index(
+            "uq_credential_active_issuer",
+            "issuer",
+            unique=True,
+            sqlite_where=text("state = 'active'"),
+            postgresql_where=text("state = 'active'"),
+        ),
+    )
+    key_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    issuer: Mapped[str] = mapped_column(String(200), index=True)
+    public_key: Mapped[str] = mapped_column(String(128))
+    state: Mapped[str] = mapped_column(String(16))
+    verify_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class CredentialKeyEventRow(Base):
+    __tablename__ = "credential_key_events"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    key_id: Mapped[str] = mapped_column(ForeignKey("credential_trust_keys.key_id"), index=True)
+    from_state: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    to_state: Mapped[str] = mapped_column(String(16))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class CredentialChallengeRow(Base):

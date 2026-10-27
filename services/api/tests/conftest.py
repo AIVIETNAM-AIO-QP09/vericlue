@@ -36,6 +36,7 @@ def _mock_env(monkeypatch, tmp_path, db_template):
     monkeypatch.setenv("FORENSIC_PDF_PLAYWRIGHT_DIR", "")
     monkeypatch.setenv("FORENSIC_REPORT_EVIDENCE", "false")
     monkeypatch.setenv("PRIVATE_CREDENTIALS", "false")
+    monkeypatch.setenv("CREDENTIAL_KEY_REGISTRY", "false")
     monkeypatch.setenv("CREDENTIAL_VERIFIER", "false")
     for name in (
         "CREDENTIAL_VERIFIER_TOKENS",
