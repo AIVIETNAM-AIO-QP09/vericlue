@@ -42,6 +42,7 @@ data class Challenge(
     @SerialName("expires_at") val expiresAt: String? = null,
     /** FLOW-01/LIVE-01 schedule; only for sessions created with purpose onboarding or recovery. */
     val dynamic: DynamicChallenge? = null,
+    @SerialName("media_nonce") val mediaNonce: String? = null,
 )
 
 /** One mark of the dot path: x/y as a fraction of the display area, time from the recording's start. */
@@ -66,7 +67,37 @@ data class DynamicChallenge(
 )
 
 @Serializable
-data class CreateSessionRequest(val purpose: String, val nonce: String)
+data class CreateSessionRequest(
+    val purpose: String, val nonce: String,
+    @SerialName("device_public_key_spki") val devicePublicKeySpki: String? = null,
+    @SerialName("account_id") val accountId: String? = null,
+    @SerialName("device_id") val deviceId: String? = null,
+)
+
+@Serializable
+data class AccountReceipt(
+    @SerialName("account_id") val accountId: String,
+    @SerialName("device_id") val deviceId: String,
+    @SerialName("expires_at") val expiresAt: String,
+)
+
+@Serializable
+data class DeviceChallenge(val message: String, @SerialName("expires_at") val expiresAt: String)
+
+@Serializable
+data class DeviceProofRequest(val signature: String)
+
+@Serializable
+data class DeviceProofResponse(val received: Boolean = false)
+
+/** Opaque signed result for the integrator; signature validity is not a pass decision. */
+@Serializable
+data class SignedResult(val algorithm: String, @SerialName("key_id") val keyId: String,
+    val payload: String, val signature: String)
+
+@Serializable
+data class SigningKey(val algorithm: String, @SerialName("key_id") val keyId: String,
+    @SerialName("public_key_spki") val publicKeySpki: String)
 
 @Serializable
 data class CreateSessionResponse(
@@ -76,6 +107,7 @@ data class CreateSessionResponse(
     val challenge: Challenge,
     val purpose: String? = null,
     val nonce: String? = null,
+    @SerialName("device_challenge") val deviceChallenge: DeviceChallenge? = null,
 )
 
 @Serializable
@@ -118,6 +150,7 @@ data class VoiceResponse(
     @SerialName("voice_prompt") val voicePrompt: String? = null,
     @SerialName("attempts_left") val attemptsLeft: Int? = null,
     @SerialName("voice_challenge_id") val voiceChallengeId: String? = null,
+    val account: AccountReceipt? = null,
 )
 
 @Serializable
@@ -196,11 +229,25 @@ class SessionApi(
         return call(post(url("v1", "sessions"), body.toRequestBody(JSON), null, mockScenario))
     }
 
-    suspend fun uploadMedia(sessionId: String, token: String, imageJpeg: ByteArray, video: File?, challengeId: String? = null): ApiResult<StepAck> {
+    suspend fun proveDevice(sessionId: String, token: String, signature: String): ApiResult<DeviceProofResponse> =
+        call(post(url("v1", "sessions", sessionId, "device-proof"),
+            json.encodeToString(DeviceProofRequest.serializer(), DeviceProofRequest(signature)).toRequestBody(JSON), token))
+
+    suspend fun accountReceipt(sessionId: String, token: String): ApiResult<AccountReceipt> =
+        call(Request.Builder().url(url("v1", "sessions", sessionId, "account"))
+            .header("Authorization", "Bearer $token").header("Cache-Control", "no-store").get().build())
+
+    /** Forward to the integrator backend; do not decode and authorize based on payload alone. */
+    suspend fun signedResult(sessionId: String, token: String): ApiResult<SignedResult> =
+        call(Request.Builder().url(url("v1", "sessions", sessionId, "result"))
+            .header("Authorization", "Bearer $token").header("Cache-Control", "no-store").get().build())
+
+    suspend fun uploadMedia(sessionId: String, token: String, imageJpeg: ByteArray, video: File?, challengeId: String? = null, mediaSignature: String? = null): ApiResult<StepAck> {
         val body = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart("image", "face.jpg", imageJpeg.toRequestBody(JPEG))
             .apply { if (video != null) addFormDataPart("video", video.name, video.asRequestBody(MP4)) }
             .apply { if (challengeId != null) addFormDataPart("challenge_id", challengeId) }
+            .apply { if (mediaSignature != null) addFormDataPart("media_signature", mediaSignature) }
             .build()
         return call(post(url("v1", "sessions", sessionId, "media"), body, token))
     }
@@ -221,6 +268,7 @@ class SessionApi(
         video: File?,
         audioOffsetMs: Int? = null,
         voiceChallengeId: String? = null,
+        mediaSignature: String? = null,
     ): ApiResult<VoiceResponse> {
         val body = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart("audio", "voice.wav", wav.toRequestBody(WAV))
@@ -230,6 +278,7 @@ class SessionApi(
                     audioOffsetMs?.let { addFormDataPart("audio_offset_ms", it.coerceIn(-5000, 5000).toString()) }
                 }
                 if (voiceChallengeId != null) addFormDataPart("voice_challenge_id", voiceChallengeId)
+                if (mediaSignature != null) addFormDataPart("media_signature", mediaSignature)
             }
             .build()
         return call(post(url("v1", "sessions", sessionId, "voice"), body, token))

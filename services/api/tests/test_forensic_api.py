@@ -59,7 +59,8 @@ def test_verify_flow(client):
 
     ok = client.post("/v1/forensic/verify", json={"report_sha256": digest, "signature": sig})
     assert ok.status_code == 200
-    assert ok.json() == {"valid": True}
+    # A mock checksum is deliberately forgeable; it must never verify as a real signature.
+    assert ok.json() == {"valid": False}
 
     tampered = sig[:-1] + ("0" if sig[-1] != "0" else "1")
     bad = client.post("/v1/forensic/verify", json={"report_sha256": digest, "signature": tampered})

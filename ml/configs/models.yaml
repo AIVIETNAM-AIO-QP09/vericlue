@@ -13,6 +13,7 @@ modules:
   gaze_tracking: mediapipe-face-landmarker # LIVE-02: opt-in, chưa nằm trong profile MVP/full
   head_turn: mediapipe-face-landmarker # FLOW-04: kiểm thứ tự; không chứng minh chiều sâu
   face_match: lvface-b # FLOW-05: diagnostic và API identity opt-in; cần artifact đúng protocol để pass
+  face_continuity: lvface-b # FLOW-05: cùng backend; protocol/ngưỡng front–voice riêng, opt-in
 
 gaze:
   model_subdir: mediapipe-face-landmarker
@@ -25,6 +26,19 @@ diagnostic_models:
   chromapulse: chromapulse-diagnostic@0.1+face-landmarker-f16-1
   voice_challenge: qwen3-asr-06b-hf
   voice_spoof: nes2net-x-xlsr
+
+session_face:
+  face_match: lvface-b
+  sampler: video-frontal-v1
+  pose_reader: mediapipe-face-landmarker
+  motion: [gaze_tracking, head_turn]
+
+session_voice:
+  voice_challenge: qwen3-asr-06b-hf
+  voice_spoof: nes2net-x-xlsr
+  timing: ctc-aligner
+  lipsync: syncnet
+  transport: vericlue-session-voice-v1
 
 # Optional voice_challenge timing variant; not a replacement for ASR/content checking.
 reading_timing:

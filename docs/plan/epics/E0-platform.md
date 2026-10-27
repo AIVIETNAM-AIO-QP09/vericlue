@@ -167,17 +167,35 @@
 **Tiêu chí hoàn thành:**
 - [x] Token sai chữ ký hoặc hết hạn → 401 (test).
 - [x] Gọi lại một bước đã nhận trong cùng lượt → 409 (test).
-- [ ] Media gắn thử thách quá 120 giây hoặc thử thách cũ → bị từ chối (test).
-- [ ] Vượt giới hạn lượt → 429 (test).
+- [x] API media có chữ ký: thử thách hết hạn hoặc proof của lượt cũ bị từ chối, kể cả đổi nhãn ID; kiểm trước/sau đọc file, retry/refresh/đọc lại câu và restart (test tổng hợp).
+- [ ] Nghiệm thu client ký/Keystore và media thật trên thiết bị; đường legacy unsigned không chứng minh được tuổi của byte media.
+- [x] Vượt giới hạn lượt → 429 (test); cửa sổ trượt 3 lần/giờ/IP, RAM một worker demo, giới hạn nêu rõ trong API README.
 - [x] Quá 2 lần chụp lại → `review` (test).
-- [ ] Ký và xác minh chữ ký Ed25519 (test).
-- [ ] Gọi `/v1/review/*`, `/v1/forensic/*` không có xác thực nhân viên → 401 (test).
+- [x] Ký và xác minh chữ ký Ed25519 (test); gen_keys không in/ghi đè bí mật, signer không có khóa mock mặc định.
+- [x] Body HTTP giới hạn tổng tại ASGI trước parser; chặn header quá lớn/sai và đếm byte thực tế của stream (kể cả thiếu/khai sai length), đóng file multipart dở khi lỗi (test).
+- [x] Gọi `/v1/review/*`, `/v1/forensic/*` không có xác thực nhân viên → 401 (test); bắt buộc cả mock/không privacy, thiếu cấu hình chặn 503 trước đọc upload.
 
 **Phần bảo vệ phiên 24/10 (PLAT-06 vẫn doing):** đã có HMAC-SHA256, chỉ lưu hash token,
 chặn nhận lặp và đóng phiên sau pass/review, hết hạn thử thách khuôn mặt/câu đọc,
-xóa tham chiếu bằng chứng khi retry. Chưa hoàn thành tiêu chí media cũ: cần ràng buộc
-media với challenge_id/chữ ký ở LIVE-03/SEC-02. Còn 429, Ed25519/gen_keys, auth nhân viên
-và giới hạn body trước multipart. Gia hạn sau gián đoạn thuộc LIVE-06 theo ADR-0017.
+xóa tham chiếu bằng chứng khi retry. SEC-02 đã ràng buộc media với challenge_id/
+chữ ký; bổ sung kiểm API tự động 26/10, còn nghiệm thu thiết bị. Đã có Ed25519/gen_keys và kết quả
+phiên ký opt-in (26/10); thêm quota tạo phiên 429 và giới hạn body trước parser.
+Quota RAM chỉ bảo vệ một worker demo, mất sau restart; không coi là giới hạn
+phân tán. StaffBearer đã bắt buộc cho cả review và forensic ở mọi chế độ; actor
+review từ cấu hình server, SDK web có callback credential riêng và không sửa UI.
+Còn nghiệm thu media cũ/chữ ký trên máy thật; chưa coi là xong toàn bảo mật.
+Gia hạn sau gián đoạn thuộc LIVE-06 theo ADR-0017. HTML giám định đã có chữ ký
+Ed25519 riêng và CLI kiểm byte tệp; MOCK không được coi là chữ ký thật. Gói
+JSON/PDF ký đã có ở PR85; FOR-04 còn neo audit/ảnh phổ/LR và ENFSI. Xem
+`docs/architecture/forensic-report-signing.md`, `docs/architecture/forensic-pdf-bundle.md`
+và `docs/architecture/signed-session-results.md`.
+
+**Bổ sung 26/10, sau PR85:** sửa claim nonce media ở SQLite để lỗi lưu bản ghi
+rollback cả nonce, cho gửi lại đúng proof khi request trước chưa nhận thành công.
+Không dùng savepoint riêng cho claim; lỗi phải thoát transaction. Test chữ ký
+mặt/giọng bao phủ hết hạn lúc đọc, proof cũ sau đổi lượt và restart; PostgreSQL
+có test rollback/tranh nonce. REQUIRE_MEDIA_PROOF vẫn opt-in, không tự mở luồng
+sinh trắc real/mixed hoặc thay đổi UI. Giới hạn chữ ký/legacy xem `media-proof.md`.
 
 ---
 

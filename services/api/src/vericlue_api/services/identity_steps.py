@@ -1,6 +1,7 @@
 """Giai đoạn A của luồng eKYC (ADR-0013): OTP mô phỏng (FLOW-02) và nhận CCCD (FLOW-03).
 
-Không lưu số điện thoại hay số CCCD dạng rõ: chỉ HMAC (để kiểm "đã đăng ký" sau này) và mã OTP băm.
+Số điện thoại chỉ lưu HMAC, OTP lưu băm. CCCD dùng HMAC để tra cứu; số đầy đủ
+chỉ được giữ trong snapshot đã mã hóa khi bật SEC-01, phục vụ nhân viên duyệt.
 Phát hiện thẻ giả nằm ngoài phạm vi; ở đây chỉ kiểm định dạng QR.
 """
 
@@ -22,6 +23,7 @@ from vericlue_api.schemas.session import (
     OtpVerifyResponse,
 )
 from vericlue_api.services.identity_runtime import IdentityRuntime
+from vericlue_api.services.session_privacy import SessionPrivacy
 from vericlue_api.services.session_store import Session
 from vericlue_api.services.storage import save_upload
 from vericlue_ml.common.result import Module
@@ -45,9 +47,16 @@ def _digest(key: str, value: str) -> str:
 
 
 class IdentitySteps:
-    def __init__(self, settings: Settings, channel: OtpChannel | None = None) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        channel: OtpChannel | None = None,
+        *,
+        privacy: SessionPrivacy | None = None,
+    ) -> None:
         self.settings = settings
         self.channel = channel or SimulatedSms()
+        self.privacy = privacy
 
     def _key(self) -> str:
         return self.settings.id_hmac_key.get_secret_value()
@@ -93,6 +102,8 @@ class IdentitySteps:
     @staticmethod
     def ensure_card_upload_allowed(session: Session) -> None:
         """Reject card changes before reading, scanning or storing new images."""
+        if session.account_id:
+            raise ApiError(409, "step_not_allowed", "Bước này chưa phù hợp.")
         if session.accepted_steps or session.face_scored:
             raise ApiError(409, "step_not_allowed", "Hãy bắt đầu lại phiên trước khi đổi ảnh thẻ.")
 
@@ -117,9 +128,15 @@ class IdentitySteps:
             f"id_front_{scan_id}",
             front_filename,
             front,
+            privacy=self.privacy,
         )
         back_path = save_upload(
-            self.settings.media_dir, session.session_id, f"id_back_{scan_id}", back_filename, back
+            self.settings.media_dir,
+            session.session_id,
+            f"id_back_{scan_id}",
+            back_filename,
+            back,
+            privacy=self.privacy,
         )
         session.id_front, session.id_back = front_path, back_path
         return response
@@ -130,6 +147,8 @@ class IdentitySteps:
         # A completed rescan, including a retry response, invalidates prior confirmation.
         # Exceptions roll the request transaction back, preserving the previous card.
         session.id_fields = None
+        session.sensitive_id_number = None
+        session.sensitive_confirmed_id_number = None
         session.id_number_hmac = None
         session.id_edited = []
         session.id_source = None
@@ -176,6 +195,8 @@ class IdentitySteps:
     def _accept_fields(self, session: Session, fields: IdCardFields, source: str) -> IdCardResponse:
         session.id_source = source
         session.id_fields = fields.model_dump(mode="json", exclude_none=True, exclude={"id_number"})
+        if self.privacy and self.privacy.enabled:
+            session.sensitive_id_number = fields.id_number
         session.id_number_hmac = (
             _digest(self._key(), fields.id_number) if fields.id_number else None
         )
@@ -226,6 +247,10 @@ class IdentitySteps:
             _digest(self._key(), confirmed.id_number) if confirmed.id_number else None
         )
         session.id_confirmed = True
+        if self.privacy and self.privacy.enabled:
+            session.sensitive_confirmed_id_number = (
+                confirmed.id_number or session.sensitive_id_number
+            )
         return IdCardConfirmResponse()
 
 

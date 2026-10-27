@@ -65,6 +65,23 @@ Data4Life/
 
 ## 3. Giao diện chung của mô-đun AI
 
+LIVE-05 có lab chứng nhận BBS độc lập trong `services/credentials`: blind issuance,
+holder binding, bí danh dịch vụ, verifier nonce một lần và đối chứng JWT/SD-JWT+KB.
+Chỉ persona tổng hợp với domain synthetic-demo, chưa nối HTTP/eKYC thật hoặc UI.
+Xem [ADR-0018](../adr/0018-chung-nhan-rieng-tu-bbs.md) và
+[README package](../../services/credentials/README.md). PQC là hướng riêng.
+
+FLOW-05 thêm hook ghi danh onboarding opt-in `ACCOUNT_ENROLLMENT`: trích mẫu qua
+worker/hàng đợi `face_match` đã nạp, giữ lease tới khi native xong, ghi mẫu mã hóa
+trong cùng transaction với quyết định. Vector không vào ModuleResult/snapshot/HTTP;
+lỗi rollback thay vì trả pass dở dang. Không mở chốt luồng thật/mixed. Xem
+[ghi danh tài khoản](account-enrollment.md).
+
+FLOW-05 thêm `face_continuity` opt-in: `reference_video` nội bộ giữ video bước
+mặt, `video` là bản ghi đọc câu. Dùng chung backend LVFace, protocol ba mẫu
+theo WAV/PTS/offset và ngưỡng riêng, không ghi đè `face_match`. Xem
+[so cùng người mặt–giọng](face-voice-continuity.md). Không mở luồng thật/mixed.
+
 VOICE-12 thêm A/V lab opt-in: một DirectShow input có hai track, PCM/JPEG và PTS
 chung trong RAM, tái dùng CTC/SCRFD/Stable SyncNet. Kết quả `lipsync` version riêng
 luôn unclear, không score/prob_attack; không thay HTTP hoặc kết luận xác minh.
@@ -106,6 +123,11 @@ Runtime identity bên ngoài chỉ còn được API gọi để đọc QR/OCR. 
 `detector_input.schema.json` cho `image_roles` và `reference_image` do server
 quản lý. Thiếu ngưỡng hiệu chỉnh đúng version luôn `degraded/unclear`. Xem
 [`head-and-match.md`](head-and-match.md).
+
+FLOW-05/LIVE-02 thêm opt-in chọn/kiểm khung chính diện từ video và hai cổng
+mắt/quay đầu trong orchestrator, cùng task MediaPipe và deadline hiện hành. Xem
+[`session-verification.md`](session-verification.md). Đây chưa phải toàn bộ các lớp
+xác minh thật; không gỡ chặn dynamic real/mixed.
 
 Mọi bộ phát hiện (kể cả cổng chất lượng `quality`) đều trả một `ModuleResult` (schema: `packages/contracts/schemas/module_result.schema.json`):
 
@@ -193,8 +215,15 @@ Chính sách dọn (quyết định trưởng nhóm 15/10):
 - Giám định: `FORENSIC_TTL_DAYS` để trống mặc định = **không tự xóa**. Số ngày dương là opt-in; nhóm phải phê duyệt chính sách chứng cứ trước khi bật.
 - Job dọn chạy lúc API khởi động và mỗi `MEDIA_CLEANUP_INTERVAL_SECONDS=300`; mỗi lượt ghi audit DB và một dòng log, gồm cả lượt không xóa được file. Lỗi giữa chừng vẫn ghi các file đã xóa thành công. DB metadata/audit không bị dọn theo TTL media.
 
-Token hiện vẫn là token tạm PLAT-04, không thêm HMAC/TTL enforcement/409 mới/429 ở task này.
-Nhật ký ghi actor `staff-unverified` vì xác thực nhân viên thuộc PLAT-06; không coi đây là chữ ký giám định thật.
+PLAT-06 đã có HMAC/TTL, chặn lặp bước, quota tạo phiên và giới hạn tổng body.
+Review/forensic bắt buộc StaffBearer ở mọi chế độ, độc lập với SESSION_PRIVACY;
+thiếu credential trả 401, thiếu/sai cấu hình trả 503 trước đọc upload. Actor quyết
+định review lấy từ cấu hình server; dữ liệu `staff-unverified` cũ không tự viết
+lại. HTML forensic đã có chữ ký Ed25519 với khóa report riêng; gói PDF/JSON ký
+đã có ở FOR-04, thêm [ảnh/phổ minh họa opt-in](forensic-report-evidence.md) và
+[gắn hồ sơ/neo nhật ký](forensic-review-audit.md), còn LR/ENFSI. Xem
+[gói PDF/JSON](forensic-pdf-bundle.md), [giao thức HTML](forensic-report-signing.md) và
+[`services/api/README.md`](../../services/api/README.md#truy-cập-nhân-viên-plat-06).
 
 ## 6. Luồng một phiên eKYC
 

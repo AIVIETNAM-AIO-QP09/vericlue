@@ -1,6 +1,33 @@
 {
   "components": {
     "schemas": {
+      "AccountReceipt": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "pattern": "^acct_[0-9a-f]{32}$",
+            "title": "Account Id",
+            "type": "string"
+          },
+          "device_id": {
+            "pattern": "^dev_[0-9a-f]{32}$",
+            "title": "Device Id",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id",
+          "device_id",
+          "expires_at"
+        ],
+        "title": "AccountReceipt",
+        "type": "object"
+      },
       "AuditVerification": {
         "properties": {
           "bad_index": {
@@ -53,6 +80,19 @@
             "description": "Video hoặc âm thanh cần giám định",
             "title": "File",
             "type": "string"
+          },
+          "review_case_id": {
+            "anyOf": [
+              {
+                "pattern": "^case_[A-Za-z0-9_-]{1,64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tùy chọn: ca đã có quyết định ban đầu; server đối chiếu byte media",
+            "title": "Review Case Id"
           }
         },
         "required": [
@@ -115,6 +155,19 @@
             "title": "Image",
             "type": "string"
           },
+          "media_signature": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SEC-02: chữ ký DER ECDSA P-256/SHA-256 base64 của manifest media",
+            "title": "Media Signature"
+          },
           "video": {
             "anyOf": [
               {
@@ -156,6 +209,19 @@
             ],
             "description": "Thời điểm WAV bắt đầu, tính bằng ms từ khung hình đầu của video (dương = WAV bắt đầu sau). Dùng để căn khớp môi; chỉ có khi gửi video.",
             "title": "Audio Offset Ms"
+          },
+          "media_signature": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SEC-02: chữ ký manifest gồm audio/video và audio_offset_ms",
+            "title": "Media Signature"
           },
           "video": {
             "anyOf": [
@@ -316,6 +382,18 @@
               }
             ],
             "title": "Expires At"
+          },
+          "media_nonce": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Media Nonce"
           }
         },
         "required": [
@@ -380,6 +458,42 @@
       "CreateSessionRequest": {
         "additionalProperties": false,
         "properties": {
+          "account_id": {
+            "anyOf": [
+              {
+                "pattern": "^acct_[0-9a-f]{32}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          },
+          "device_id": {
+            "anyOf": [
+              {
+                "pattern": "^dev_[0-9a-f]{32}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Id"
+          },
+          "device_public_key_spki": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Public Key Spki"
+          },
           "nonce": {
             "pattern": "^[A-Za-z0-9_-]{16,128}$",
             "title": "Nonce",
@@ -418,6 +532,16 @@
         "properties": {
           "challenge": {
             "$ref": "#/components/schemas/Challenge"
+          },
+          "device_challenge": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeviceChallenge"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "expires_at": {
             "description": "Hạn của token (~5 phút)",
@@ -492,6 +616,56 @@
           "status"
         ],
         "title": "DecisionResponse",
+        "type": "object"
+      },
+      "DeviceChallenge": {
+        "additionalProperties": false,
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "message": {
+            "maxLength": 2048,
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message",
+          "expires_at"
+        ],
+        "title": "DeviceChallenge",
+        "type": "object"
+      },
+      "DeviceProofRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "signature": {
+            "maxLength": 160,
+            "minLength": 8,
+            "title": "Signature",
+            "type": "string"
+          }
+        },
+        "required": [
+          "signature"
+        ],
+        "title": "DeviceProofRequest",
+        "type": "object"
+      },
+      "DeviceProofResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "received": {
+            "const": true,
+            "default": true,
+            "title": "Received",
+            "type": "boolean"
+          }
+        },
+        "title": "DeviceProofResponse",
         "type": "object"
       },
       "DynamicChallenge": {
@@ -793,6 +967,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/ForensicProvenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "review_audit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewAuditAnchor"
               },
               {
                 "type": "null"
@@ -1575,6 +1759,173 @@
         "title": "ReviewAiOpinion",
         "type": "object"
       },
+      "ReviewAuditAnchor": {
+        "additionalProperties": false,
+        "description": "Server-verified media binding and append-only review checkpoint, signed in reports.",
+        "properties": {
+          "captured_at": {
+            "format": "date-time",
+            "title": "Captured At",
+            "type": "string"
+          },
+          "case_id": {
+            "pattern": "^case_[A-Za-z0-9_-]{1,64}$",
+            "title": "Case Id",
+            "type": "string"
+          },
+          "event_count": {
+            "maximum": 4096.0,
+            "minimum": 1.0,
+            "title": "Event Count",
+            "type": "integer"
+          },
+          "session_id": {
+            "pattern": "^ses_[A-Za-z0-9_-]{1,72}$",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "source_role": {
+            "enum": [
+              "face_video",
+              "voice_audio",
+              "voice_video"
+            ],
+            "title": "Source Role",
+            "type": "string"
+          },
+          "source_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Source Sha256",
+            "type": "string"
+          },
+          "tail_event_id": {
+            "minimum": 1.0,
+            "title": "Tail Event Id",
+            "type": "integer"
+          },
+          "tail_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Tail Hash",
+            "type": "string"
+          },
+          "version": {
+            "const": 1,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "case_id",
+          "session_id",
+          "source_role",
+          "source_sha256",
+          "captured_at",
+          "event_count",
+          "tail_event_id",
+          "tail_hash"
+        ],
+        "title": "ReviewAuditAnchor",
+        "type": "object"
+      },
+      "ReviewAuditVerifyRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "report_json": {
+            "maxLength": 4194304,
+            "minLength": 1,
+            "title": "Report Json",
+            "type": "string"
+          },
+          "signature": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Signature",
+            "type": "string"
+          }
+        },
+        "required": [
+          "report_json",
+          "signature"
+        ],
+        "title": "ReviewAuditVerifyRequest",
+        "type": "object"
+      },
+      "ReviewAuditVerifyResponse": {
+        "properties": {
+          "anchored_count": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchored Count"
+          },
+          "appended_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Appended Count"
+          },
+          "current_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Count"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "scope": {
+            "const": "signed_json_review_audit",
+            "default": "signed_json_review_audit",
+            "title": "Scope",
+            "type": "string"
+          },
+          "signature_valid": {
+            "title": "Signature Valid",
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "intact",
+              "extended",
+              "invalid_signature",
+              "unlinked",
+              "case_unavailable",
+              "chain_invalid",
+              "tail_truncated",
+              "anchor_mismatch"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "signature_valid",
+          "ok",
+          "status"
+        ],
+        "title": "ReviewAuditVerifyResponse",
+        "type": "object"
+      },
       "ReviewCase": {
         "properties": {
           "capture_notes": {
@@ -1793,6 +2144,87 @@
         "title": "ReviewEvent",
         "type": "object"
       },
+      "ReviewIdentity": {
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "case_id": {
+            "title": "Case Id",
+            "type": "string"
+          },
+          "date_of_birth": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date Of Birth"
+          },
+          "edited_fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Edited Fields",
+            "type": "array"
+          },
+          "full_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Name"
+          },
+          "id_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id Number"
+          },
+          "masked": {
+            "title": "Masked",
+            "type": "boolean"
+          },
+          "sex": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sex"
+          }
+        },
+        "required": [
+          "case_id",
+          "masked",
+          "edited_fields"
+        ],
+        "title": "ReviewIdentity",
+        "type": "object"
+      },
       "SegmentSignal": {
         "properties": {
           "applicable": {
@@ -1890,6 +2322,71 @@
           "frame_times"
         ],
         "title": "Signals",
+        "type": "object"
+      },
+      "SignedResult": {
+        "additionalProperties": false,
+        "properties": {
+          "algorithm": {
+            "const": "Ed25519",
+            "title": "Algorithm",
+            "type": "string"
+          },
+          "key_id": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Key Id",
+            "type": "string"
+          },
+          "payload": {
+            "maxLength": 4096,
+            "minLength": 16,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Payload",
+            "type": "string"
+          },
+          "signature": {
+            "maxLength": 86,
+            "minLength": 86,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Signature",
+            "type": "string"
+          }
+        },
+        "required": [
+          "algorithm",
+          "key_id",
+          "payload",
+          "signature"
+        ],
+        "title": "SignedResult",
+        "type": "object"
+      },
+      "SigningKey": {
+        "additionalProperties": false,
+        "properties": {
+          "algorithm": {
+            "const": "Ed25519",
+            "default": "Ed25519",
+            "title": "Algorithm",
+            "type": "string"
+          },
+          "key_id": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Key Id",
+            "type": "string"
+          },
+          "public_key_spki": {
+            "maxLength": 128,
+            "minLength": 40,
+            "title": "Public Key Spki",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key_id",
+          "public_key_spki"
+        ],
+        "title": "SigningKey",
         "type": "object"
       },
       "StepAck": {
@@ -2024,6 +2521,7 @@
         "type": "object"
       },
       "VerifyRequest": {
+        "additionalProperties": false,
         "properties": {
           "report_sha256": {
             "pattern": "^[0-9a-f]{64}$",
@@ -2031,6 +2529,8 @@
             "type": "string"
           },
           "signature": {
+            "description": "Chữ ký Ed25519 base64 chuẩn cho hash HTML; MOCK không hợp lệ",
+            "maxLength": 160,
             "title": "Signature",
             "type": "string"
           }
@@ -2057,6 +2557,16 @@
       },
       "VoiceResponse": {
         "properties": {
+          "account": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AccountReceipt"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "attempts_left": {
             "anyOf": [
               {
@@ -2146,6 +2656,11 @@
         "description": "Token theo phiên, nhận từ POST /v1/sessions (ADR-0011). Sai hoặc thiếu → 401.",
         "scheme": "bearer",
         "type": "http"
+      },
+      "StaffBearer": {
+        "description": "Credential nhân viên bắt buộc cho bàn duyệt/giám định; không dùng token người dân.",
+        "scheme": "bearer",
+        "type": "http"
       }
     }
   },
@@ -2220,6 +2735,46 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai credential nhân viên"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Không tìm thấy ca cần liên kết"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Ca chưa có quyết định ban đầu, file không khớp hoặc nhật ký không hợp lệ"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Media của hồ sơ đã hết thời hạn lưu trữ"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -2239,8 +2794,23 @@
               }
             },
             "description": "forensic_busy: hàng đợi giám định đang đầy"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Credential nhân viên, khóa report hoặc kho dữ liệu chưa sẵn sàng"
           }
         },
+        "security": [
+          {
+            "StaffBearer": []
+          }
+        ],
         "summary": "Create Job",
         "tags": [
           "forensic"
@@ -2272,6 +2842,16 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai credential nhân viên"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -2291,8 +2871,23 @@
               }
             },
             "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Credential nhân viên, khóa report hoặc kho dữ liệu chưa sẵn sàng"
           }
         },
+        "security": [
+          {
+            "StaffBearer": []
+          }
+        ],
         "summary": "Get Job",
         "tags": [
           "forensic"
@@ -2322,7 +2917,17 @@
                 }
               }
             },
-            "description": "Báo cáo HTML; chữ ký trong header X-VeriClue-Signature"
+            "description": "HTML; job real ký Ed25519, mock không có chữ ký hợp lệ; metadata trong X-VeriClue-Signature/Signature-Algorithm/Key-Id/Report-SHA256"
+          },
+          "401": {
+            "content": {
+              "text/html": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai credential nhân viên"
           },
           "404": {
             "content": {
@@ -2353,9 +2958,226 @@
               }
             },
             "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "text/html": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Credential nhân viên, khóa report hoặc kho dữ liệu chưa sẵn sàng"
           }
         },
+        "security": [
+          {
+            "StaffBearer": []
+          }
+        ],
         "summary": "Get Report",
+        "tags": [
+          "forensic"
+        ]
+      }
+    },
+    "/v1/forensic/jobs/{job_id}/report-bundle": {
+      "get": {
+        "operationId": "download_report_bundle_v1_forensic_jobs__job_id__report_bundle_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "ZIP gồm report.pdf, report.json chuẩn hóa và report.sig Ed25519 tách rời; không phải PAdES/ENFSI"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai credential nhân viên"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Không có job này"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Job chưa xong hoặc chỉ là bản mô phỏng"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Credential nhân viên, khóa report hoặc kho dữ liệu chưa sẵn sàng"
+          }
+        },
+        "security": [
+          {
+            "StaffBearer": []
+          }
+        ],
+        "summary": "Download Report Bundle",
+        "tags": [
+          "forensic"
+        ]
+      }
+    },
+    "/v1/forensic/review-audit/verify": {
+      "post": {
+        "description": "Verify signed JSON first, then compare its checkpoint with DB; does not verify PDF bytes.",
+        "operationId": "verify_signed_review_audit_v1_forensic_review_audit_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewAuditVerifyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewAuditVerifyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai credential nhân viên"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Credential nhân viên, khóa report hoặc kho dữ liệu chưa sẵn sàng"
+          }
+        },
+        "security": [
+          {
+            "StaffBearer": []
+          }
+        ],
+        "summary": "Verify Signed Review Audit",
+        "tags": [
+          "forensic"
+        ]
+      }
+    },
+    "/v1/forensic/signing-key": {
+      "get": {
+        "description": "Staff-only public key; does not connect to DB or start any model.",
+        "operationId": "signing_key_v1_forensic_signing_key_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SigningKey"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai credential nhân viên"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Credential nhân viên, khóa report hoặc kho dữ liệu chưa sẵn sàng"
+          }
+        },
+        "security": [
+          {
+            "StaffBearer": []
+          }
+        ],
+        "summary": "Signing Key",
         "tags": [
           "forensic"
         ]
@@ -2385,6 +3207,16 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai credential nhân viên"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -2394,11 +3226,57 @@
               }
             },
             "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Credential nhân viên, khóa report hoặc kho dữ liệu chưa sẵn sàng"
           }
         },
+        "security": [
+          {
+            "StaffBearer": []
+          }
+        ],
         "summary": "Verify Report",
         "tags": [
           "forensic"
+        ]
+      }
+    },
+    "/v1/result-signing-key": {
+      "get": {
+        "operationId": "result_key_v1_result_signing_key_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SigningKey"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Result Key",
+        "tags": [
+          "integration"
         ]
       }
     },
@@ -2459,6 +3337,26 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai credential nhân viên"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Dữ liệu hết thời hạn lưu trữ"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -2468,8 +3366,23 @@
               }
             },
             "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
           }
         },
+        "security": [
+          {
+            "StaffBearer": []
+          }
+        ],
         "summary": "List Cases",
         "tags": [
           "review"
@@ -2501,6 +3414,16 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai credential nhân viên"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -2511,6 +3434,16 @@
             },
             "description": "Không có ca này"
           },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Dữ liệu hết thời hạn lưu trữ"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -2520,8 +3453,23 @@
               }
             },
             "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
           }
         },
+        "security": [
+          {
+            "StaffBearer": []
+          }
+        ],
         "summary": "Get Case",
         "tags": [
           "review"
@@ -2553,6 +3501,16 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai credential nhân viên"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -2573,6 +3531,16 @@
             },
             "description": "Chưa có quyết định ban đầu"
           },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Dữ liệu hết thời hạn lưu trữ"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -2582,8 +3550,23 @@
               }
             },
             "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
           }
         },
+        "security": [
+          {
+            "StaffBearer": []
+          }
+        ],
         "summary": "Get Ai Opinion",
         "tags": [
           "review"
@@ -2616,6 +3599,16 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai credential nhân viên"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -2626,6 +3619,16 @@
             },
             "description": "Không có ca này"
           },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Dữ liệu hết thời hạn lưu trữ"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -2635,8 +3638,23 @@
               }
             },
             "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
           }
         },
+        "security": [
+          {
+            "StaffBearer": []
+          }
+        ],
         "summary": "Verify Audit",
         "tags": [
           "review"
@@ -2678,6 +3696,16 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai credential nhân viên"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -2698,6 +3726,16 @@
             },
             "description": "initial_decision_required, decision_already_recorded hoặc review_conflict (ghi đồng thời, tải lại rồi thử lại)"
           },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Dữ liệu hết thời hạn lưu trữ"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -2707,9 +3745,199 @@
               }
             },
             "description": "invalid_reason_code"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
           }
         },
+        "security": [
+          {
+            "StaffBearer": []
+          }
+        ],
         "summary": "Post Decision",
+        "tags": [
+          "review"
+        ]
+      }
+    },
+    "/v1/review/cases/{case_id}/identity": {
+      "get": {
+        "operationId": "get_identity_v1_review_cases__case_id__identity_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "title": "Case Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewIdentity"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai credential nhân viên"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Không có ca này"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Dữ liệu hết thời hạn lưu trữ"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
+          }
+        },
+        "security": [
+          {
+            "StaffBearer": []
+          }
+        ],
+        "summary": "Get Identity",
+        "tags": [
+          "review"
+        ]
+      }
+    },
+    "/v1/review/cases/{case_id}/identity/reveal": {
+      "post": {
+        "description": "Explicit staff action; an access event is committed before any full fields are sent.",
+        "operationId": "reveal_identity_v1_review_cases__case_id__identity_reveal_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "title": "Case Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewIdentity"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai credential nhân viên"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Không có ca này"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Dữ liệu hết thời hạn lưu trữ"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
+          }
+        },
+        "security": [
+          {
+            "StaffBearer": []
+          }
+        ],
+        "summary": "Reveal Identity",
         "tags": [
           "review"
         ]
@@ -2750,6 +3978,16 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai credential nhân viên"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -2770,6 +4008,16 @@
             },
             "description": "initial_already_recorded (đã có quyết định ban đầu) hoặc review_conflict (ghi đồng thời, tải lại rồi thử lại)"
           },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Dữ liệu hết thời hạn lưu trữ"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -2779,8 +4027,23 @@
               }
             },
             "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
           }
         },
+        "security": [
+          {
+            "StaffBearer": []
+          }
+        ],
         "summary": "Post Initial",
         "tags": [
           "review"
@@ -2801,8 +4064,43 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai credential nhân viên"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Dữ liệu hết thời hạn lưu trữ"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng"
           }
         },
+        "security": [
+          {
+            "StaffBearer": []
+          }
+        ],
         "summary": "List Reason Codes",
         "tags": [
           "review"
@@ -2887,6 +4185,83 @@
         ]
       }
     },
+    "/v1/sessions/{session_id}/account": {
+      "get": {
+        "operationId": "account_receipt_v1_sessions__session_id__account_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountReceipt"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai token phiên"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sai trạng thái, phiên đã kết thúc, thiếu bước hoặc sai/hết hạn mã thử thách; bước gửi trùng cũng trả 409."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Kho dữ liệu hoặc luồng xác minh chưa sẵn sàng"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Account Receipt",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
     "/v1/sessions/{session_id}/challenge": {
       "post": {
         "description": "Thử thách mới cho phần khuôn mặt và gia hạn token (ADR-0017 §2, giới hạn tổng 15 phút).",
@@ -2950,6 +4325,93 @@
           }
         ],
         "summary": "Refresh Challenge",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/v1/sessions/{session_id}/device-proof": {
+      "post": {
+        "operationId": "device_proof_v1_sessions__session_id__device_proof_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceProofRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceProofResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai token phiên"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sai trạng thái, phiên đã kết thúc, thiếu bước hoặc sai/hết hạn mã thử thách; bước gửi trùng cũng trả 409."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Kho dữ liệu hoặc luồng xác minh chưa sẵn sàng"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Device Proof",
         "tags": [
           "sessions"
         ]
@@ -3441,6 +4903,83 @@
           }
         ],
         "summary": "Verify Otp",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/v1/sessions/{session_id}/result": {
+      "get": {
+        "operationId": "signed_result_v1_sessions__session_id__result_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignedResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai token phiên"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sai trạng thái, phiên đã kết thúc, thiếu bước hoặc sai/hết hạn mã thử thách; bước gửi trùng cũng trả 409."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Kho dữ liệu hoặc luồng xác minh chưa sẵn sàng"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Signed Result",
         "tags": [
           "sessions"
         ]

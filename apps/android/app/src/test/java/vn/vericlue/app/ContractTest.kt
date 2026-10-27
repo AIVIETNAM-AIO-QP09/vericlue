@@ -14,11 +14,18 @@ import vn.vericlue.app.data.api.Challenge
 import vn.vericlue.app.data.api.ColorEvent
 import vn.vericlue.app.data.api.ColorStep
 import vn.vericlue.app.data.api.CreateSessionResponse
+import vn.vericlue.app.data.api.CreateSessionRequest
+import vn.vericlue.app.data.api.AccountReceipt
+import vn.vericlue.app.data.api.DeviceChallenge
+import vn.vericlue.app.data.api.DeviceProofRequest
+import vn.vericlue.app.data.api.DeviceProofResponse
 import vn.vericlue.app.data.api.FinalizeResponse
 import vn.vericlue.app.data.api.FrameTime
 import vn.vericlue.app.data.api.Signals
 import vn.vericlue.app.data.api.StepAck
 import vn.vericlue.app.data.api.VoiceResponse
+import vn.vericlue.app.data.api.SignedResult
+import vn.vericlue.app.data.api.SigningKey
 
 /**
  * AGENTS.md §6 rule 1: the app's models must match packages/contracts. Reads the JSON Schema
@@ -28,14 +35,17 @@ class ContractTest {
     private val defs: JsonObject = Json.parseToJsonElement(
         File("../../../packages/contracts/schemas/session.schema.json").readText(),
     ).jsonObject["\$defs"]!!.jsonObject
+    private val resultDefs: JsonObject = Json.parseToJsonElement(
+        File("../../../packages/contracts/schemas/result.schema.json").readText(),
+    ).jsonObject["\$defs"]!!.jsonObject
 
     private fun props(def: JsonObject): Set<String> = def["properties"]?.jsonObject?.keys.orEmpty()
     private fun required(def: JsonObject): Set<String> =
         def["required"]?.jsonArray?.map { it.jsonPrimitive.content }?.toSet().orEmpty()
 
     /** Server → app: read only declared fields, and require only what the contract requires. */
-    private fun checkResponse(name: String, serializer: KSerializer<*>) {
-        val def = defs[name]!!.jsonObject
+    private fun checkResponse(name: String, serializer: KSerializer<*>, schemaDefs: JsonObject = defs) {
+        val def = schemaDefs[name]!!.jsonObject
         val d = serializer.descriptor
         val names = (0 until d.elementsCount).map(d::getElementName)
         val unknown = names - props(def)
@@ -63,6 +73,13 @@ class ContractTest {
         checkResponse("StepAck", StepAck.serializer())
         checkResponse("FinalizeResponse", FinalizeResponse.serializer())
         checkResponse("VoiceResponse", VoiceResponse.serializer())
+        checkResponse("SignedResult", SignedResult.serializer(), resultDefs)
+        checkResponse("SigningKey", SigningKey.serializer(), resultDefs)
+        checkResponse("AccountReceipt", AccountReceipt.serializer())
+        checkResponse("DeviceChallenge", DeviceChallenge.serializer())
+        checkResponse("DeviceProofResponse", DeviceProofResponse.serializer())
+        checkRequest(defs["CreateSessionRequest"]!!.jsonObject, "CreateSessionRequest", CreateSessionRequest.serializer())
+        checkRequest(defs["DeviceProofRequest"]!!.jsonObject, "DeviceProofRequest", DeviceProofRequest.serializer())
     }
 
     @Test

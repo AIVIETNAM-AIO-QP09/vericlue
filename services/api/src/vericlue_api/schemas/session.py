@@ -23,8 +23,34 @@ class CreateSessionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     purpose: SessionPurpose
+    device_public_key_spki: str | None = Field(default=None, max_length=256)
     nonce: str = Field(pattern=r"^[A-Za-z0-9_-]{16,128}$")
     reference_image_id: str | None = Field(default=None, pattern=r"^ref_[A-Za-z0-9_-]{1,120}$")
+    account_id: str | None = Field(default=None, pattern=r"^acct_[0-9a-f]{32}$")
+    device_id: str | None = Field(default=None, pattern=r"^dev_[0-9a-f]{32}$")
+
+
+class AccountReceipt(BaseModel):
+    model_config = ConfigDict(extra="forbid", from_attributes=True)
+    account_id: str = Field(pattern=r"^acct_[0-9a-f]{32}$")
+    device_id: str = Field(pattern=r"^dev_[0-9a-f]{32}$")
+    expires_at: datetime
+
+
+class DeviceChallenge(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    message: str = Field(max_length=2048)
+    expires_at: datetime
+
+
+class DeviceProofRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    signature: str = Field(min_length=8, max_length=160)
+
+
+class DeviceProofResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    received: Literal[True] = True
 
 
 class GazePoint(BaseModel):
@@ -64,6 +90,7 @@ class ColorStep(BaseModel):
 
 
 class Challenge(BaseModel):
+    media_nonce: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     challenge_id: str
     baseline_ms: int = 1000
     color_sequence: list[ColorStep] = Field(min_length=8, max_length=8)
@@ -81,6 +108,7 @@ class CreateSessionResponse(BaseModel):
     challenge: Challenge
     purpose: SessionPurpose | None = None
     nonce: str | None = None
+    device_challenge: DeviceChallenge | None = None
 
 
 class Signals(BaseModel):
@@ -112,6 +140,7 @@ class VoiceResponse(BaseModel):
     voice_prompt: str | None = None
     attempts_left: int | None = None
     voice_challenge_id: str | None = None
+    account: AccountReceipt | None = None
 
 
 class OtpRequest(BaseModel):

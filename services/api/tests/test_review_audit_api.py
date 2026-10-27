@@ -9,7 +9,7 @@ from threading import Barrier
 from typing import Any
 
 import pytest
-from fastapi.testclient import TestClient
+from conftest import staff_test_client
 
 from vericlue_api.core.config import get_settings
 from vericlue_api.main import create_app
@@ -150,7 +150,7 @@ def test_seed_demo_mock_has_two_cases(client):
 def test_seed_demo_absent_without_mock(monkeypatch):
     monkeypatch.setenv("USE_MOCK_MODELS", "false")
     get_settings.cache_clear()
-    with TestClient(create_app()) as c:
+    with staff_test_client(create_app()) as c:
         assert c.get("/v1/review/cases").json()["items"] == []
 
 
@@ -213,7 +213,7 @@ def test_postgres_concurrent_initial_and_decisions(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", url)
     get_settings.cache_clear()
     cid = _new_postgres_case(url)  # DB dùng chung giữa các lần chạy: luôn tạo ca riêng
-    with TestClient(create_app()) as client:
+    with staff_test_client(create_app()) as client:
         barrier = Barrier(2)
 
         def go(decision):

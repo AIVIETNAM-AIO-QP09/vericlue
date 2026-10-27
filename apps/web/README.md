@@ -37,9 +37,16 @@ npm run build
 
 ## Gọi API
 
+FOR-04 có các hàm staff `createForensicJob(file, fileName, {reviewCaseId?})`,
+`getForensicJob` và `verifyForensicReviewAudit(reportJson, signature)`. Chuỗi
+report.json giữ nguyên byte ASCII qua JSON string, không format/serialize lại.
+Credential từ getStaffToken trong RAM, no-store; không dùng token người dân.
+Scope verifier là JSON đã ký/nhật ký, không thay kiểm byte PDF. Không sửa UI.
+
 - Chỉ qua `src/lib/api/client.ts` (`createApiClient`): tự gắn `Authorization: Bearer` cho các bước của phiên, lỗi thành `ApiError` có `errorCode`.
 - Type nằm ở `src/lib/api/schema.d.ts`, **sinh tự động**, đừng sửa tay. Khi API đổi: `uv run python scripts/gen_openapi.py` rồi `npm run gen:api`, commit cả hai file (CI kiểm chạy lại không lệch).
 - `NEXT_PUBLIC_API_URL` trỏ tới API (mặc định `http://localhost:8000`). Khi API chạy mock, `createSession("print")` chọn kịch bản qua header `X-Mock-Scenario`.
+- Review/forensic bắt buộc credential nhân viên, kể cả mock. `createApiClient({ getStaffToken: () => tokenTrongBoNho })` gắn bearer riêng cho các method review và `cache: no-store`; callback được đọc lại mỗi lần gọi, không dùng token phiên người dân. UI phải nối nguồn credential riêng, SDK không tự đăng nhập/lưu token. Không đưa credential vào `NEXT_PUBLIC_*` hoặc URL báo cáo. Xem [cấu hình API](../../services/api/README.md#truy-cập-nhân-viên-plat-06).
 
 ## Cổng chất lượng ảnh (CAP-02)
 

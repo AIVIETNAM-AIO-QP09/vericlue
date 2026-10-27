@@ -40,6 +40,7 @@ from vericlue_api.services.audit_log import (
 )
 from vericlue_api.services.detection import run_detectors
 from vericlue_api.services.provisional_decision import FACE_MODULES, fused_prob
+from vericlue_api.services.session_privacy import SessionPrivacy
 from vericlue_ml.common.result import Module, ModuleResult
 
 DEMO_MODULES = (
@@ -98,9 +99,17 @@ class CaseRecord:
 
 
 class ReviewStore:
-    def __init__(self, db: DBSession, *, runner: Callable = run_detectors) -> None:
+    def __init__(
+        self,
+        db: DBSession,
+        *,
+        runner: Callable = run_detectors,
+        privacy: SessionPrivacy | None = None,
+    ) -> None:
         self.db = db
         self._run = runner
+        self.privacy = privacy
+        self.actor = "staff-unverified"
         self._loaded: dict[str, tuple[CaseRecord, ReviewCaseRow]] = {}
 
     def add(
@@ -142,13 +151,38 @@ class ReviewStore:
         if row is None:
             return None
         record = self._record(row)
-        record.history = self._history(case_id)
+        record.history = self._history(case_id, record.session_id)
         self._loaded[case_id] = (record, row)
         return record
 
+    def get_metadata(self, case_id: str) -> CaseRecord | None:
+        """Audit verification must remain possible after the content key expires."""
+        row = self.db.scalar(
+            select(ReviewCaseRow).where(ReviewCaseRow.case_id == case_id).with_for_update()
+        )
+        return self._metadata(row) if row is not None else None
+
     @staticmethod
-    def _record(row: ReviewCaseRow) -> CaseRecord:
-        data = row.payload
+    def _metadata(row: ReviewCaseRow) -> CaseRecord:
+        return CaseRecord(
+            case_id=row.case_id,
+            session_id=row.session_id,
+            priority=row.priority,
+            status=row.status,
+            scenario="",
+            results={},
+            media=[],
+            created_at=aware(row.created_at),
+            initial_decision=row.initial_decision,
+            final_decision=row.final_decision,
+        )
+
+    def _record(self, row: ReviewCaseRow) -> CaseRecord:
+        data = (
+            self.privacy.open_json(row.session_id, "review:" + row.case_id, row.payload)
+            if self.privacy
+            else row.payload
+        )
         return CaseRecord(
             case_id=row.case_id,
             session_id=row.session_id,
@@ -172,13 +206,19 @@ class ReviewStore:
             )
         )
 
-    def _history(self, case_id: str) -> list[ReviewEvent]:
+    def _history(self, case_id: str, session_id: str) -> list[ReviewEvent]:
         return [
             ReviewEvent(
                 action=e.action,
                 decision=e.payload["decision"],
                 reason_code=e.reason_code,
-                note=e.note,
+                note=(
+                    self.privacy.open_json(
+                        session_id, "review-note:" + case_id, e.payload["private_note"]
+                    ).get("note")
+                    if self.privacy and "private_note" in e.payload
+                    else e.note
+                ),
                 actor=e.actor,
                 created_at=aware(e.created_at),
             )
@@ -198,7 +238,10 @@ class ReviewStore:
             query = query.where(ReviewCaseRow.status == status)
         if priority is not None:
             query = query.where(ReviewCaseRow.priority == priority)
-        items = [self._record(row) for row in self.db.scalars(query)]
+        items = [
+            self._metadata(row) if self.privacy and self.privacy.enabled else self._record(row)
+            for row in self.db.scalars(query)
+        ]
         return sorted(items, key=lambda c: (c.priority != "high", -c.created_at.timestamp()))
 
     def seed_demo(self) -> None:
@@ -236,12 +279,17 @@ class ReviewStore:
             row.priority = record.priority
             row.initial_decision = record.initial_decision
             row.final_decision = record.final_decision
-            row.payload = {
+            payload = {
                 "scenario": record.scenario,
                 "results": {str(k): v.to_contract() for k, v in record.results.items()},
                 "media": [m.model_dump(mode="json") for m in record.media],
                 "notes": list(record.notes),
             }
+            row.payload = (
+                self.privacy.seal_json(record.session_id, "review:" + record.case_id, payload)
+                if self.privacy
+                else payload
+            )
 
     def _claim_decision(self, record: CaseRecord, action: str, decision: str) -> None:
         """Atomically reserve this transition before reading/appending the audit chain."""
@@ -291,20 +339,27 @@ class ReviewStore:
         now = utcnow()
         payload = {
             "case_id": record.case_id,
-            "actor": "staff-unverified",
+            "actor": self.actor,
             "action": action,
             "decision": decision,
             "reason_code": reason_code,
             "note": note,
             "created_at": now.isoformat(),
         }
+        encrypted_note = bool(self.privacy and self.privacy.enabled and note is not None)
+        if encrypted_note:
+            payload["note"] = None
+            payload["private_note"] = self.privacy.seal_json(
+                record.session_id, "review-note:" + record.case_id, {"note": note}
+            )
         digest = compute_hash(previous, payload)
         self.db.add(
             ReviewEventRow(
                 case_id=record.case_id,
                 action=action,
                 reason_code=reason_code,
-                note=note,
+                note=None if encrypted_note else note,
+                actor=self.actor,
                 prev_hash=previous,
                 hash=digest,
                 payload=payload,
@@ -324,7 +379,7 @@ class ReviewStore:
                 decision=decision,  # type: ignore[arg-type]
                 reason_code=reason_code,
                 note=note,
-                actor="staff-unverified",
+                actor=self.actor,
                 created_at=now,
             )
         )
@@ -341,6 +396,10 @@ class ReviewStore:
                 DecisionRow(
                     session_id=record.session_id,
                     action=decision,
-                    config_version="staff-unverified@PLAT-04",
+                    config_version=(
+                        "staff-authenticated@PLAT-06"
+                        if self.actor != "staff-unverified"
+                        else "staff-unverified@PLAT-04"
+                    ),
                 )
             )

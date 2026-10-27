@@ -4,16 +4,20 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, Header, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Header, Request, Response, UploadFile
 from starlette.concurrency import run_in_threadpool
 
 from vericlue_api.core.errors import ApiError
 from vericlue_api.core.security import bearer_scheme, require_session
 from vericlue_api.core.state import AppState, get_state
+from vericlue_api.schemas.result import SignedResult, SigningKey
 from vericlue_api.schemas.session import (
+    AccountReceipt,
     ChallengeResponse,
     CreateSessionRequest,
     CreateSessionResponse,
+    DeviceProofRequest,
+    DeviceProofResponse,
     ErrorResponse,
     FinalizeRequest,
     FinalizeResponse,
@@ -33,6 +37,7 @@ from vericlue_api.services.uploads import read_limited
 from vericlue_ml.mock import SCENARIOS
 
 router = APIRouter(prefix="/v1/sessions", tags=["sessions"])
+keys_router = APIRouter(prefix="/v1", tags=["integration"])
 
 # 401: thiếu/sai/hết hạn token. 409: sai trạng thái, bước đã nhận hoặc thử thách hết hạn.
 SESSION_ERRORS: dict[int | str, dict] = {
@@ -46,6 +51,20 @@ SESSION_ERRORS: dict[int | str, dict] = {
 
 SessionDep = Annotated[Session, Depends(require_session)]
 StateDep = Annotated[AppState, Depends(get_state, scope="function")]
+
+
+@keys_router.get(
+    "/result-signing-key", response_model=SigningKey, responses={503: {"model": ErrorResponse}}
+)
+def result_key(request: Request, response: Response) -> SigningKey:
+    response.headers["Cache-Control"] = "no-store"
+    return request.app.state.vericlue.settings.result_signer.public_key()
+
+
+@router.get("/{session_id}/result", response_model=SignedResult, responses=SESSION_ERRORS)
+def signed_result(session: SessionDep, state: StateDep, response: Response) -> SignedResult:
+    response.headers["Cache-Control"] = "no-store"
+    return state.signed_results.issue(session)
 
 
 def resolve_scenario(header: str | None, state: AppState) -> str:
@@ -78,6 +97,32 @@ def create_session(
     return state.flow.create(resolve_scenario(x_mock_scenario, state), request)
 
 
+@router.get(
+    "/{session_id}/account",
+    response_model=AccountReceipt,
+    responses=SESSION_ERRORS,
+)
+def account_receipt(session: SessionDep, state: StateDep, response: Response) -> AccountReceipt:
+    response.headers["Cache-Control"] = "no-store"
+    return AccountReceipt.model_validate(state.accounts.receipt_for_session(session))
+
+
+@router.post(
+    "/{session_id}/device-proof",
+    response_model=DeviceProofResponse,
+    responses=SESSION_ERRORS,
+)
+def device_proof(
+    session: SessionDep,
+    state: StateDep,
+    body: DeviceProofRequest,
+    response: Response,
+) -> DeviceProofResponse:
+    response.headers["Cache-Control"] = "no-store"
+    state.flow.account_auth.verify(session, body.signature)
+    return DeviceProofResponse()
+
+
 @router.post(
     "/{session_id}/media",
     response_model=StepAck,
@@ -88,6 +133,13 @@ async def upload_media(
     session: SessionDep,
     state: StateDep,
     image: Annotated[UploadFile, File(description="Ảnh mặt chất lượng cao")],
+    media_signature: Annotated[
+        str | None,
+        Form(
+            max_length=160,
+            description="SEC-02: chữ ký DER ECDSA P-256/SHA-256 base64 của manifest media",
+        ),
+    ] = None,
     video: Annotated[UploadFile | None, File(description="Đoạn video lúc phát màu")] = None,
     challenge_id: Annotated[
         str | None, Form(description="Mã thử thách; bắt buộc khi có purpose")
@@ -103,6 +155,7 @@ async def upload_media(
         image_filename=image.filename,
         video=video_bytes,
         video_filename=video.filename if video else None,
+        media_signature=media_signature,
     )
     return StepAck(step="media")
 
@@ -142,6 +195,12 @@ async def voice(
     session: SessionDep,
     state: StateDep,
     audio: Annotated[UploadFile, File(description="Âm thanh lúc đọc câu")],
+    media_signature: Annotated[
+        str | None,
+        Form(
+            max_length=160, description="SEC-02: chữ ký manifest gồm audio/video và audio_offset_ms"
+        ),
+    ] = None,
     video: Annotated[UploadFile | None, File(description="Video lúc đọc câu")] = None,
     audio_offset_ms: Annotated[
         int | None,
@@ -168,6 +227,8 @@ async def voice(
         audio_filename=audio.filename,
         video=video_bytes,
         video_filename=video.filename if video else None,
+        media_signature=media_signature,
+        audio_offset_ms=audio_offset_ms,
     )
     return await run_in_threadpool(
         state.flow.voice, session, voice_video=voice_video, audio_offset_ms=audio_offset_ms
@@ -194,6 +255,10 @@ STAGE_A_ERRORS: dict[int | str, dict] = {
 def send_otp(session: SessionDep, state: StateDep, body: OtpRequest) -> OtpSent:
     """Gửi mã 6 số (hạn 2 phút, sai 5 lần thì khóa). Gọi lại = mã mới, mã cũ hết hiệu lực."""
     state.flow.ensure_open(session)
+    if session.account_id:
+        if session.purpose != "recovery":
+            raise ApiError(409, "step_not_allowed", "Bước này chưa phù hợp.")
+        state.flow.account_auth.check_phone(session, body.phone)
     return state.identity.send_otp(session, body.phone)
 
 
@@ -205,6 +270,10 @@ def send_otp(session: SessionDep, state: StateDep, body: OtpRequest) -> OtpSent:
 )
 def verify_otp(session: SessionDep, state: StateDep, body: OtpVerifyRequest) -> OtpVerifyResponse:
     state.flow.ensure_open(session)
+    if session.account_id:
+        if session.purpose != "recovery":
+            raise ApiError(409, "step_not_allowed", "Bước này chưa phù hợp.")
+        state.flow.account_auth.current(session)
     return state.identity.verify_otp(session, body.code)
 
 

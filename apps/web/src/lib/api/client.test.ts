@@ -35,6 +35,108 @@ const SESSION = {
 };
 
 describe("api client", () => {
+  it("gửi giám định độc lập hoặc gắn ca bằng credential nhân viên và giữ nguyên JSON đã ký", async () => {
+    const { impl, calls } = fakeFetch([
+      { body: { job_id: "job_1", status: "queued" } },
+      { body: { job_id: "job_2", status: "queued" } },
+      {
+        body: {
+          ok: false,
+          signature_valid: false,
+          status: "invalid_signature",
+          scope: "signed_json_review_audit",
+        },
+      },
+      { body: { job_id: "a/b?c", status: "done", segments: [] } },
+    ]);
+    const api = createApiClient({
+      baseUrl: "http://api.test",
+      fetchImpl: impl,
+      getStaffToken: () => "staff-test",
+    });
+    const signal = new AbortController().signal;
+    await api.createForensicJob(new Blob(["synthetic"]), "material.mp4", { signal });
+    await api.createForensicJob(new Blob(["synthetic"]), "material.mp4", {
+      reviewCaseId: "case_1",
+      signal,
+    });
+    expect((calls[0].init.body as FormData).has("review_case_id")).toBe(false);
+    expect((calls[1].init.body as FormData).get("review_case_id")).toBe("case_1");
+    for (const call of calls) {
+      expect(call.init.headers).toMatchObject({ Authorization: "Bearer staff-test" });
+      expect((call.init.headers as Record<string, string>)["Content-Type"]).toBeUndefined();
+      expect(call.init.cache).toBe("no-store");
+      expect(call.init.signal).toBe(signal);
+    }
+    const raw = '{"filename":"\\u0111","job":{}}';
+    await api.verifyForensicReviewAudit(raw, "synthetic-signature");
+    expect(JSON.parse(calls[2].init.body as string)).toEqual({
+      report_json: raw,
+      signature: "synthetic-signature",
+    });
+    expect(calls[2].url).toBe("http://api.test/v1/forensic/review-audit/verify");
+    await api.getForensicJob("a/b?c");
+    expect(calls[3].url).toBe("http://api.test/v1/forensic/jobs/a%2Fb%3Fc");
+  });
+  it("chỉ gửi credential nhân viên cho bàn duyệt, không lẫn với token phiên", async () => {
+    const { impl, calls } = fakeFetch([
+      { body: SESSION },
+      { body: { status: "pass" } },
+      { body: { items: [] } },
+      { body: {} },
+      { body: {} },
+      { body: {} },
+    ]);
+    let staffLookups = 0;
+    const api = createApiClient({
+      baseUrl: "http://api.test",
+      fetchImpl: impl,
+      getStaffToken: () => {
+        staffLookups += 1;
+        return "staff-synthetic";
+      },
+    });
+    await api.createSession();
+    await api.finalize("ses_1", "citizen-synthetic");
+    expect(staffLookups).toBe(0);
+    await api.listReviewCases();
+    await api.getReviewCase("case_1");
+    await api.recordInitialDecision("case_1", "accept", "");
+    await api.getAiOpinion("case_1");
+    expect(staffLookups).toBe(4);
+    expect(calls[0].init.headers).not.toHaveProperty("Authorization");
+    expect(calls[1].init.headers).toMatchObject({ Authorization: "Bearer citizen-synthetic" });
+    for (const call of calls.slice(2)) {
+      expect(call.init.headers).toMatchObject({ Authorization: "Bearer staff-synthetic" });
+      expect(call.init.cache).toBe("no-store");
+      expect(call.url).not.toContain("staff-synthetic");
+    }
+  });
+
+  it("lấy lại credential mỗi lần gọi và không giữ token cũ sau đăng xuất", async () => {
+    const { impl, calls } = fakeFetch([
+      { body: { items: [] } },
+      { body: { items: [] } },
+      {
+        status: 401,
+        body: { error_code: "unauthorized", message: "Thiếu hoặc sai quyền truy cập." },
+      },
+    ]);
+    let token: string | undefined = "staff-first";
+    const api = createApiClient({ fetchImpl: impl, getStaffToken: () => token });
+    await api.listReviewCases();
+    token = "staff-second";
+    await api.listReviewCases();
+    token = undefined;
+    await expect(api.listReviewCases()).rejects.toMatchObject({
+      status: 401,
+      errorCode: "unauthorized",
+    });
+    expect(calls[0].init.headers).toMatchObject({ Authorization: "Bearer staff-first" });
+    expect(calls[1].init.headers).toMatchObject({ Authorization: "Bearer staff-second" });
+    expect(calls[2].init.headers).not.toHaveProperty("Authorization");
+  });
+
   it("POST /v1/sessions trả challenge 8 màu", async () => {
     const { impl, calls } = fakeFetch([{ body: SESSION }]);
     const api = createApiClient({ baseUrl: "http://api.test/", fetchImpl: impl });

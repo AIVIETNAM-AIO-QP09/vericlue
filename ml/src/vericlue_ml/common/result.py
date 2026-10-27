@@ -25,6 +25,7 @@ class Module(StrEnum):
     GAZE_TRACKING = "gaze_tracking"
     HEAD_TURN = "head_turn"
     FACE_MATCH = "face_match"
+    FACE_CONTINUITY = "face_continuity"
 
 
 class Status(StrEnum):

@@ -95,10 +95,10 @@ def test_failed_rescan_preserves_confirmed_identity_and_both_images(client, monk
         elif failure == "second_write":
             original_save = identity_steps.save_upload
 
-            def fail_back(media_dir, folder, stem, filename, data):
+            def fail_back(media_dir, folder, stem, filename, data, **kwargs):
                 if stem.startswith("id_back"):
                     raise OSError("Synthetic storage failure")
-                return original_save(media_dir, folder, stem, filename, data)
+                return original_save(media_dir, folder, stem, filename, data, **kwargs)
 
             patch.setattr(identity_steps, "save_upload", fail_back)
         else:

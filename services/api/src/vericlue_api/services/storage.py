@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import json
 import logging
 import re
@@ -12,6 +13,7 @@ from pathlib import Path
 from sqlalchemy import and_, or_, select
 
 from vericlue_api.core.config import Settings
+from vericlue_api.core.errors import ApiError
 from vericlue_api.db.database import Database
 from vericlue_api.db.models import (
     CleanupAuditRow,
@@ -21,6 +23,8 @@ from vericlue_api.db.models import (
     aware,
     utcnow,
 )
+from vericlue_api.services.accounts import AccountStore
+from vericlue_api.services.session_privacy import SessionPrivacy
 
 logger = logging.getLogger(__name__)
 ALLOWED_SUFFIXES = frozenset(
@@ -57,12 +61,47 @@ def save_generated(media_dir: str, folder: str, name: str, data: bytes) -> Path:
     return path
 
 
-def save_upload(media_dir: str, folder: str, stem: str, filename: str | None, data: bytes) -> Path:
+def save_upload(
+    media_dir: str,
+    folder: str,
+    stem: str,
+    filename: str | None,
+    data: bytes,
+    *,
+    privacy: SessionPrivacy | None = None,
+) -> Path:
     """Giữ đuôi trong whitelist; tên gốc chỉ dùng như metadata, không làm đường dẫn."""
     suffix = Path(filename or "").suffix.lower()
-    return save_generated(
-        media_dir, folder, stem + (suffix if suffix in ALLOWED_SUFFIXES else ".bin"), data
-    )
+    name = stem + (suffix if suffix in ALLOWED_SUFFIXES else ".bin")
+    if privacy is not None:
+        if privacy.enabled and suffix in {".jpg", ".jpeg", ".png", ".webp"}:
+            data = _strip_image_metadata(data, suffix)
+        data = privacy.seal_media(folder, name, data)
+    return save_generated(media_dir, folder, name, data)
+
+
+def _strip_image_metadata(data: bytes, suffix: str) -> bytes:
+    from PIL import Image, ImageOps
+
+    try:
+        with Image.open(io.BytesIO(data)) as source:
+            if (
+                source.format not in {"JPEG", "PNG", "WEBP"}
+                or getattr(source, "n_frames", 1) != 1
+                or max(source.size) > 4096
+                or source.width * source.height > 16_000_000
+            ):
+                raise ValueError("Invalid image bounds")
+            image = ImageOps.exif_transpose(source).convert("RGB")
+            image.info.clear()
+            output = io.BytesIO()
+            image.save(
+                output,
+                format={".jpg": "JPEG", ".jpeg": "JPEG", ".png": "PNG", ".webp": "WEBP"}[suffix],
+            )
+            return output.getvalue()
+    except Exception as exc:
+        raise ApiError(422, "invalid_image", "Ảnh không đọc được. Vui lòng chụp lại.") from exc
 
 
 def _delete_folder(folder: Path, root: Path, on_deleted: Callable[[str], None]) -> None:
@@ -152,6 +191,7 @@ def cleanup_expired(
                             {"path": name, "reason": reason}
                         ),
                     )
+                    SessionPrivacy(settings, db).destroy(row.session_id)
                     row.media_deleted_at = now
                 except (OSError, ValueError) as exc:
                     errors.append({"id": row.session_id, "error": str(exc)})
@@ -191,7 +231,13 @@ def cleanup_expired(
                     job.media_deleted_at = now
                 except (OSError, ValueError) as exc:
                     errors.append({"id": job.job_id, "error": str(exc)})
-            details = {"deleted": deleted, "protected_forensic": protected, "errors": errors}
+            expired_accounts = AccountStore(settings, db).expire(now=now)
+            details = {
+                "deleted": deleted,
+                "protected_forensic": protected,
+                "errors": errors,
+                "expired_accounts": expired_accounts,
+            }
             db.add(
                 CleanupAuditRow(
                     created_at=now,

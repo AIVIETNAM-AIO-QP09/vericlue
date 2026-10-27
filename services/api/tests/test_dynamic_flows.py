@@ -73,9 +73,24 @@ def edit_session(client, created, **patch):
         row.payload = {**row.payload, **patch}
 
 
+def test_onboarding_with_a_clear_face_passes_without_a_sentence(client):
+    created, auth = create(client, "onboarding", scenario="genuine")
+    result = submit_face(client, created, auth)
+    assert result == {"status": "pass"}
+    response = submit_voice(client, created, auth, created["challenge"]["dynamic"])
+    assert response.status_code == 409  # nothing to read: no shortcut through /voice
+    with client.app.state.vericlue.database.sessions() as db:
+        actions = db.scalars(
+            select(DecisionRow.action).where(DecisionRow.session_id == created["session_id"])
+        ).all()
+        assert actions == ["pass"]
+
+
 @pytest.mark.parametrize("purpose", ["onboarding", "recovery"])
 def test_full_mock_flow_requires_voice_and_uses_preissued_prompt(client, purpose):
-    created, auth = create(client, purpose)
+    # Onboarding reads only when the face is unclear (voice_clone: B < face < A); recovery always.
+    scenario = "voice_clone" if purpose == "onboarding" else "genuine"
+    created, auth = create(client, purpose, scenario=scenario)
     plan = created["challenge"]["dynamic"]
     assert plan["session_id"] == created["session_id"] and plan["nonce"] == NONCE
     assert created["purpose"] == purpose and created["nonce"] == NONCE
@@ -84,6 +99,8 @@ def test_full_mock_flow_requires_voice_and_uses_preissued_prompt(client, purpose
     assert result["status"] == "voice_challenge"
     assert result["voice_prompt"] == plan["voice_prompt"]
     assert result["voice_challenge_id"] == plan["voice_challenge_id"]
+    if purpose == "onboarding":
+        edit_session(client, created, scenario="genuine")  # ambiguous face, then a genuine voice
     response = submit_voice(client, created, auth, result)
     validate(response.json(), "session", "VoiceResponse")
     assert response.json() == {"status": "pass"}
@@ -170,7 +187,7 @@ def test_face_retry_rotates_every_challenge_and_rejects_old_data(client):
 
 
 def test_reread_rotates_prompt_and_id_and_is_limited(client):
-    created, auth = create(client, scenario="genuine")
+    created, auth = create(client, "recovery", scenario="genuine")
     result = submit_face(client, created, auth)
 
     class WrongPhraseDetector:
@@ -336,7 +353,7 @@ def test_expired_challenge_does_not_receive_media(client):
 
 
 def test_persistence_across_api_restart_and_no_scores_in_plan(client):
-    created, auth = create(client)
+    created, auth = create(client, "recovery")
     encoded = json.dumps(created, ensure_ascii=False).lower()
     assert all(word not in encoded for word in ('"score"', '"prob_attack"', "giả mạo"))
     with TestClient(create_app()) as restarted:

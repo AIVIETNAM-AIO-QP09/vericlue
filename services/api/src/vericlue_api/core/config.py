@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import secrets
 from functools import cached_property, lru_cache
-from typing import Literal
+from pathlib import Path
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import Field, PrivateAttr, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -12,6 +13,10 @@ from sqlalchemy.engine import URL
 
 from vericlue_api.core.chromapulse_config import load_chromapulse_config
 from vericlue_api.core.session_tokens import SessionTokenSigner
+
+if TYPE_CHECKING:
+    from vericlue_api.core.report_signing import ReportSigner
+    from vericlue_api.core.signing import ResultSigner
 
 
 class Settings(BaseSettings):
@@ -62,6 +67,69 @@ class Settings(BaseSettings):
     media_ttl_incomplete_hours: int = Field(default=24, gt=0)
     forensic_ttl_days: int | None = Field(default=None, gt=0)
     media_cleanup_interval_seconds: float = Field(default=300, gt=0)
+    # Opt-in encrypted session storage. A random base64-encoded 32-byte master key
+    # is mandatory; never fall back to the token/HMAC key or a development constant.
+    session_privacy: bool = False
+    session_master_key: SecretStr | None = None
+    # Demo staff credentials: JSON object {random_token: actor_id}. No client actor header.
+    staff_access_tokens: SecretStr | None = None
+    require_media_proof: bool = False
+    account_enrollment: bool = False
+    report_signing_key_path: str | None = None
+    forensic_pdf_node: str | None = None
+    forensic_pdf_playwright_dir: str | None = None
+    forensic_pdf_timeout_seconds: float = Field(default=30, ge=1, le=60)
+    forensic_report_evidence: bool = False
+    forensic_report_ffmpeg: str | None = None
+    result_signing_key_file: str | None = None
+    result_issuer: str | None = Field(default=None, pattern=r"^[A-Za-z0-9:/._-]{1,200}$")
+    result_audience: str | None = Field(default=None, pattern=r"^[A-Za-z0-9:/._-]{1,200}$")
+    result_ttl_seconds: int = Field(default=60, ge=1, le=60)
+
+    @field_validator("report_signing_key_path", mode="before")
+    @classmethod
+    def blank_disables_report_signing(cls, value):
+        return None if isinstance(value, str) and not value.strip() else value
+
+    @cached_property
+    def report_signer(self) -> ReportSigner:
+        """Load an explicit report key once; never use session keys or generate a fallback."""
+        from vericlue_api.core.errors import ApiError
+        from vericlue_api.core.report_signing import ReportSigner
+        from vericlue_api.core.signing import load_private_key
+
+        try:
+            if not self.report_signing_key_path:
+                raise ValueError("Report signing key required")
+            return ReportSigner(load_private_key(Path(self.report_signing_key_path)))
+        except Exception as exc:
+            raise ApiError(
+                503, "report_signing_unavailable", "Chưa thể ký hoặc kiểm tra báo cáo lúc này."
+            ) from exc
+
+    @field_validator("result_signing_key_file", "result_issuer", "result_audience", mode="before")
+    @classmethod
+    def blank_disables_result_signing(cls, value):
+        return None if isinstance(value, str) and not value.strip() else value
+
+    @cached_property
+    def result_signer(self) -> ResultSigner:
+        """Load one configured key per application; no generated/fallback development key."""
+        from vericlue_api.core.errors import ApiError
+        from vericlue_api.core.signing import ResultSigner, load_private_key
+
+        try:
+            if (
+                not self.result_signing_key_file
+                or not self.result_issuer
+                or not self.result_audience
+            ):
+                raise ValueError("Signing configuration required")
+            return ResultSigner(load_private_key(Path(self.result_signing_key_file)))
+        except Exception as exc:
+            raise ApiError(
+                503, "result_signing_unavailable", "Chưa thể cấp kết quả lúc này."
+            ) from exc
 
     @field_validator("use_mock_models", mode="before")
     @classmethod
@@ -90,8 +158,39 @@ class Settings(BaseSettings):
     identity_lab_url: str | None = None
     identity_lab_timeout_seconds: float = Field(default=90, gt=0, le=180)
     identity_face_calibration: str | None = None
+    identity_account_calibration: str | None = None
+    identity_recovery_calibration: str | None = None
+    identity_face_from_video: bool = False
+    session_face_checks: bool = False
+    session_face_models: bool = False
+    identity_consistency_required: bool = False
+    identity_consistency_calibration: str | None = None
+    identity_voice_continuity: bool = False
+    identity_voice_calibration: str | None = None
+    session_voice_models: bool = False
+    voice_runtime_python: str | None = None
+    voice_spoof_python: str | None = None
+    session_model_timeout_seconds: float = Field(default=30, gt=0, le=90)
+
+    @model_validator(mode="after")
+    def consistency_requires_video(self):
+        if self.identity_consistency_required and not self.identity_face_from_video:
+            raise ValueError("IDENTITY_CONSISTENCY_REQUIRED requires IDENTITY_FACE_FROM_VIDEO")
+        if self.identity_voice_continuity and (
+            not self.identity_face_from_video or not self.identity_lab_url
+        ):
+            raise ValueError(
+                "IDENTITY_VOICE_CONTINUITY requires video identity and IDENTITY_LAB_URL"
+            )
+        return self
+
     max_retries: int = Field(default=2, ge=0, le=2)
-    max_upload_mb: int = 50
+    max_upload_mb: int = Field(default=50, ge=1)
+    # Total HTTP body, including all files and multipart framing (PLAT-06).
+    max_request_mb: int = Field(default=128, ge=1)
+    session_create_limit: int = Field(default=3, ge=1, le=1000)
+    session_create_window_seconds: int = Field(default=3600, ge=1)
+    session_rate_max_clients: int = Field(default=10000, ge=1, le=100000)
     # Để trống = dùng bảng màu trong packages/contracts/chromapulse.json (nguồn chung với web).
     challenge_palette: str = ""
 

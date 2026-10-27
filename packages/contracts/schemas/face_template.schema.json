@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vericlue.local/contracts/face_template.schema.json",
+  "title": "Internal encrypted face template",
+  "description": "ML → API nội bộ; không nhận từ HTTP, không đưa vào ModuleResult, log hay phản hồi người dân. Vector chỉ lưu trong phong bì mã hóa của tài khoản.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["session_id", "challenge_id", "model_version", "preprocessing", "source_video_sha256", "pixels_sha256", "embedding"],
+  "properties": {
+    "session_id": {"type": "string", "pattern": "^ses_[a-zA-Z0-9_-]+$"},
+    "challenge_id": {"type": "string", "minLength": 1, "maxLength": 80},
+    "model_version": {"type": "string", "minLength": 1},
+    "preprocessing": {"const": "arcface112-rgb-minus1to1-v1"},
+    "source_video_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "pixels_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "embedding": {
+      "type": "array", "minItems": 512, "maxItems": 512,
+      "items": {"type": "number", "minimum": -1, "maximum": 1},
+      "description": "512 số hữu hạn, chuẩn L2 bằng 1; Python kiểm chuẩn với dung sai 1e-5."
+    }
+  }
+}

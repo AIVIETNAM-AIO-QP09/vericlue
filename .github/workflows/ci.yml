@@ -10,6 +10,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  credentials:
+    name: Credentials (${{ matrix.os }}, real crypto)
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        working-directory: services/credentials
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: services/credentials/package-lock.json
+      - run: npm ci --ignore-scripts
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm test
+      - name: CLI comparison, synthetic credentials only
+        run: node cli.mjs demo --runs 2
+
   python:
     name: Python (lint + test) + kiểm tra kế hoạch
     runs-on: ubuntu-latest
@@ -36,11 +61,32 @@ jobs:
         run: uv run python scripts/plan_check.py
       - name: openapi.json khớp code (chạy lại gen_openapi không được tạo khác biệt)
         run: uv run python scripts/gen_openapi.py && git diff --exit-code -- packages/contracts/openapi.json
+      - name: FFmpeg cho kiểm tra ảnh/phổ báo cáo (công cụ CI, không đóng gói sản phẩm)
+        timeout-minutes: 6
+        run: |
+          if ! /usr/bin/ffmpeg -version >/dev/null 2>&1; then
+            # Avoid the runner's mirror redirector: slow archive downloads can exceed the budget.
+            # A job-local source list keeps the runner configuration intact; APT verifies Ubuntu signatures.
+            . /etc/os-release
+            apt_sources="$RUNNER_TEMP/vericlue-ubuntu.list"
+            printf 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://archive.ubuntu.com/ubuntu %s main universe\n' \
+              "$VERSION_CODENAME" "${VERSION_CODENAME}-updates" "${VERSION_CODENAME}-security" > "$apt_sources"
+            apt_options=(
+              -o "Dir::Etc::sourcelist=$apt_sources" -o Dir::Etc::sourceparts=-
+              -o Acquire::Languages=none -o Acquire::Retries=1
+              -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20
+              -o Dpkg::Lock::Timeout=30
+            )
+            sudo apt-get "${apt_options[@]}" update
+            sudo apt-get "${apt_options[@]}" install -y --no-install-recommends ffmpeg
+          fi
+          /usr/bin/ffmpeg -version
       - name: Test (mô-đun giả lập, CPU)
         env:
           USE_MOCK_MODELS: "true"
           # Ephemeral test database only; deployment passwords remain in local .env.
           TEST_DATABASE_URL: postgresql+psycopg://vericlue_test:ci-only-not-a-secret@127.0.0.1:5432/vericlue_test
+          TEST_FFMPEG_BINARY: /usr/bin/ffmpeg
         run: uv run pytest
 
   web:
@@ -76,6 +122,24 @@ jobs:
         run: npm run test --if-present
       - if: steps.has_web.outputs.yes == 'true'
         run: npm run build
+
+  pdf:
+    name: PDF (Chromium Windows, offline resources)
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npx playwright install chromium
+      - name: Worker Chromium thật, chặn tài nguyên mạng và gói lỗi
+        run: node --test ../../services/api/tests/pdf_worker.test.cjs
 
   guard:
     name: Guard (no data/secrets)

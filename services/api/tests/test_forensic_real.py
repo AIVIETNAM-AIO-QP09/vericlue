@@ -317,7 +317,7 @@ def test_bao_cao_that_day_du_va_verify(real_client):
     assert res.headers["content-type"].startswith("text/html")
     html = res.text
     for needle in (
-        "Chữ ký: MOCK",
+        "Chữ ký: Ed25519",
         "Giới hạn",
         job["file_sha256"],
         "Kết luận: suspect",
@@ -517,7 +517,7 @@ def test_slot_duoc_tra_sau_job_xong_va_sau_job_loi(monkeypatch, real_client):
 
 
 def test_slot_duoc_tra_khi_create_nem_loi(monkeypatch, real_client):
-    def boom(self, data, filename, scenario):
+    def boom(self, data, filename, scenario, *, review_case_id=None):
         raise RuntimeError("DB hỏng")
 
     monkeypatch.setattr(ForensicStore, "create", boom)

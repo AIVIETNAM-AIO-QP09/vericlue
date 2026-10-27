@@ -4,6 +4,20 @@
 
 ## Trạng thái
 
+SEC-02 opt-in: build thêm `-Pvericlue.signedMedia=true` để `LiveFlow` dùng khóa
+Android Keystore ký media mặt/giọng và gửi public key lúc tạo phiên. Không đổi
+giao diện. API cần migration 0004; nonce/manifest và giới hạn xem
+[`media-proof.md`](../../docs/architecture/media-proof.md). Chưa nghiệm thu
+thiết bị thật. API/client đã có receipt tài khoản và L0 ký khóa
+đã ghi danh (migration 0006). Bên làm UI truyền receipt vào
+`LiveFlow.ensureSession(..., "reauth", account)`; flow tự kiểm/ký/gửi L0 và
+chỉ giữ session sau ACK. Receipt sau giọng nằm ở `LiveFlow.accountReceipt`, hoặc
+lấy lại bằng `fetchAccountReceipt()`; đăng ký đạt ngay ở `finalize` (không đọc câu, từ 26/10)
+thì chỉ có cách gọi `fetchAccountReceipt()`. Cần lưu mapping mã tài khoản với đúng
+alias Keystore ở bên tích hợp; chưa tự lưu mapping hoặc nghiệm thu thiết bị thật.
+Không có màn hình mới. Xem
+[`account-authentication.md`](../../docs/architecture/account-authentication.md).
+
 - **Giao diện (APP-01):** đủ các màn theo Figma "VeriClue eKYC App"; điều hướng 3 luồng (đăng ký, đăng nhập lại, khôi phục).
 - **Bản dựng khung camera, micro, API** (nhánh `feat/APP-02-camera-mic-scaffold`): đã chạy hết luồng trên máy ảo với API mock.
 - **Điện thoại thật (27/10):** Galaxy S24 FE, bản debug qua `adb reverse`, API mock nhánh FLOW-01: đăng ký `genuine` → đạt không đọc câu, `low_quality` → chụp lại, `voice_clone` → đọc câu → chờ duyệt. Chưa thử qua HTTPS và bản release; chưa kiểm chiều quay đầu, rung, gián đoạn. Chi tiết: `docs/status/handoffs/2026-10-27-2000-app-01-ng-c-quang-claude.md`.

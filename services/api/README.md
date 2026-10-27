@@ -5,12 +5,76 @@
 
 ## Trách nhiệm
 
+PLAT-06/FLOW-01 có khóa Ed25519 opt-in và kết quả phiên ký cho bên tích hợp:
+[`signed-session-results.md`](../../docs/architecture/signed-session-results.md).
+`GET /v1/result-signing-key` trả khóa công khai; bearer đúng phiên đọc `/result`.
+Thiếu cấu hình trả 503, mock/phiên cũ/thiếu ràng buộc không được ký. Không mở chốt
+sinh trắc, không ký báo cáo forensic hoặc thay ML-DSA; không sửa UI.
+
+PLAT-06 ký báo cáo HTML giám định bằng khóa `REPORT_SIGNING_KEY_PATH` riêng:
+[`forensic-report-signing.md`](../../docs/architecture/forensic-report-signing.md).
+Job real thiếu khóa trả 503, không hạ về MOCK. `/v1/forensic/signing-key` và
+`/verify` dùng StaffBearer, không cần DB/model; CLI kiểm đúng byte tệp bằng public
+key đã pin. Checksum MOCK không còn được coi là chữ ký hợp lệ. Đây chưa phải gói
+JSON/PDF và thang lời ENFSI của FOR-04.
+
+FOR-04 đã có phần xuất gói PDF/JSON ký Ed25519, Node/Chromium opt-in:
+[`forensic-pdf-bundle.md`](../../docs/architecture/forensic-pdf-bundle.md).
+`GET /v1/forensic/jobs/{id}/report-bundle` chỉ cho staff, job done/real, có khóa
+report và runtime. Thiếu runtime trả 503; HTML ký vẫn dùng độc lập. CLI xác minh
+đúng ba tệp bằng public key đã pin, không giải nén/render. Chưa có LR/thang lời
+ENFSI hoặc UI mới.
+
+`POST /v1/forensic/jobs` thêm review_case_id tùy chọn; thiếu mã ca giữ file độc lập.
+Gắn ca phải có quyết định ban đầu và file khớp byte media đang lưu, gồm SEC-01.
+Checkpoint được ký trong báo cáo, chống ký lại đuôi đã cắt và không hạ mốc mới.
+`POST /v1/forensic/review-audit/verify` kiểm JSON đã ký trước DB, phân biệt intact/
+extended/truncated; scope không gồm byte PDF. Không khởi tạo mô hình khi verify.
+Xem [liên kết và nhật ký](../../docs/architecture/forensic-review-audit.md).
+
+Ảnh/phổ minh họa opt-in cho cả HTML và PDF:
+[`forensic-report-evidence.md`](../../docs/architecture/forensic-report-evidence.md).
+FORENSIC_REPORT_EVIDENCE=true cùng FORENSIC_REPORT_FFMPEG tuyệt đối; snapshot nguồn
+kiểm SHA-256 trước trích, tối đa ba khoảng, giới hạn runtime/file/PNG. Thiếu nguồn/
+runtime ghi rõ bỏ minh họa, không đổi verdict hoặc hạ chữ ký. Không phải heatmap
+hay chứng nhận nội dung, không sửa UI. FFmpeg do người vận hành cài riêng.
+
+FLOW-05 có nền lưu mẫu mặt/tài khoản mã hóa, gắn public key và dọn sau 24 giờ
+(migration 0005): [`account-enrollment.md`](../../docs/architecture/account-enrollment.md).
+`ACCOUNT_ENROLLMENT=true` nối worker trích mẫu và ghi danh sau `pass` onboarding
+trong cùng transaction; mặc định tắt, lỗi rollback cả quyết định. Đã có receipt
+theo bearer phiên, L0 và service khôi phục/thu hồi khóa (migration 0006), xem
+[`account-authentication.md`](../../docs/architecture/account-authentication.md).
+Chốt sinh trắc real/mixed và account-bound mock vẫn giữ. So cùng người
+giữa mặt–giọng đã có opt-in riêng: [`face-voice-continuity.md`](../../docs/architecture/face-voice-continuity.md).
+Thiếu ngưỡng riêng không được đạt. Không mở luồng thật/mixed.
+
+SEC-02 có chữ ký media mặt/giọng theo phiên, nonce dùng một lần và client Android
+opt-in: [`media-proof.md`](../../docs/architecture/media-proof.md). Cần migration
+0004; khóa đã gắn tài khoản qua AccountStore, chưa mở luồng reauth thật.
+
+Claim nonce nằm trong transaction request: lỗi lưu mặt/giọng rollback claim để
+gửi lại cùng proof, không tiêu thụ nonce bởi savepoint SQLite. Test gồm hết hạn
+trước/trong lúc đọc, proof lượt cũ sau đổi lượt/đọc lại và restart; CI kiểm tranh
+nonce PostgreSQL. Đường legacy unsigned vẫn tương thích khi không bắt buộc proof,
+không chứng minh được tuổi bản ghi. Ký media không chứng thực camera hoặc lúc quay.
+Kịch bản tự động/thiết bị: [nghiệm thu media](../../docs/runbooks/media-proof-acceptance.md).
+
+SEC-01 opt-in mã hóa snapshot/media phiên, hủy khóa theo TTL, che/mở thông tin và
+credential/nhật ký truy cập nhân viên: [`session-privacy.md`](../../docs/architecture/session-privacy.md).
+Cần migration 0003 và cấu hình khóa riêng; không tự chuyển dữ liệu demo cũ.
+
 OCR/QR và LVFace-B opt-in cho UI Android: xem
 [identity-integration.md](../../docs/runbooks/identity-integration.md).
 `IDENTITY_LAB_URL` bật QR/OCR từ runtime cục bộ và LVFace-B thật trong orchestrator.
 `IDENTITY_FACE_CALIBRATION` là artifact ngưỡng đúng version; thiếu thì so mặt vẫn
 trả điểm nội bộ nhưng không đạt. Không dùng ngưỡng AdaFace `0.40` cũ. Luồng đầy đủ
 vẫn có giới hạn mock/real nêu dưới đây.
+
+`IDENTITY_FACE_FROM_VIDEO=true` chọn khung chính diện theo lịch server thay ảnh đầu;
+`SESSION_FACE_CHECKS=true` chạy thêm mắt/quay đầu, dùng chung MediaPipe. Hai cờ mặc
+định tắt, yêu cầu runtime MediaPipe tương thích. Xem
+[`session-verification.md`](../../docs/architecture/session-verification.md).
 
 FLOW-01/LIVE-01 đã có nền backend opt-in bằng body `purpose`/`nonce`, gói thử thách
 động, kiểm mã lượt và chính sách theo luồng. **Hiện chỉ chạy mock**; real/mixed trả
@@ -30,6 +94,85 @@ gửi body giữ nguyên. Hướng dẫn cho người tích hợp (không sửa 
 - Mọi lỗi trả về theo một định dạng `{error_code, message}` (`ErrorResponse`).
 - Phản hồi cho người dân (`/v1/sessions/*`) **không bao giờ** có điểm số hay chữ "giả mạo" — có test; đừng xóa.
 
+## Giới hạn request (PLAT-06)
+
+- `POST /v1/sessions`: mặc định **3 lần gọi/IP trong cửa sổ trượt 3600 giây**.
+  `SESSION_CREATE_LIMIT` và `SESSION_CREATE_WINDOW_SECONDS` cấu hình số lượt và
+  khoảng thời gian. Mỗi lần được nhận vào xử lý đều tính lượt, kể cả lỗi body hoặc
+  nghiệp vụ sau đó; không hoàn lượt để tránh gọi lỗi nhằm vượt giới hạn.
+  Vượt lượt trả **429 `session_rate_limited`**, `Retry-After` (giây), `Cache-Control:
+  no-store`; không khóa các bước của phiên đã tạo. CORS cho phép đọc `Retry-After`.
+- Bộ đếm nguyên tử ở RAM, dành cho **một worker của demo**; restart làm mất lượt,
+  nhiều worker có bộ đếm riêng. Không coi đây là quota bền vững hoặc chống DDoS.
+  Khóa bucket là HMAC của địa chỉ peer với khóa ngẫu nhiên của app, không giữ IP
+  thô trong bộ đếm. Tối đa `SESSION_RATE_MAX_CLIENTS=10000` bucket; hết chỗ chưa
+  có bucket hết hạn thì trả **503 `rate_limit_unavailable`**, không đẩy bucket
+  còn hiệu lực ra để tạo lỗ vượt quota. Thiếu peer ASGI cũng trả 503.
+- Chỉ lấy `scope.client` do ASGI server cung cấp, **không tự tin** `X-Forwarded-For`,
+  `Forwarded` hoặc `CF-Connecting-IP`. Nếu dùng proxy/tunnel, chỉ cấu hình server
+  tin proxy được kiểm soát và không mở đường đi trực tiếp giả header. Nếu chưa
+  cấu hình, mọi người qua cùng proxy/NAT có thể dùng chung quota; cần thử cấu hình
+  trên máy demo. Không dùng `forwarded-allow-ips=*` cho listener công khai.
+- `MAX_UPLOAD_MB=50` vẫn giới hạn **từng file**. `MAX_REQUEST_MB=128` giới hạn
+  **tổng body** (mọi file, JSON, phần bao multipart). Header `Content-Length` quá
+  lớn bị chặn trước khi đọc body/khởi tạo nghiệp vụ; header trùng, sai hoặc đồng
+  thời với `Transfer-Encoding` trả **400 `invalid_content_length`**. Body thiếu
+  length hoặc khai length thấp vẫn bị đếm byte thực tế tại ASGI `receive`, trả
+  **413 `request_too_large`** trước khi chuyển chunk vượt mức cho parser. Multipart
+  đang dở đóng file tạm khi lỗi; chưa ghi media hoặc tiêu thụ bước phiên.
+- Không đệm thêm bản sao toàn body hoặc ghi thêm file tạm ở middleware. Parser
+  có thể đã nhận các chunk dưới mức giới hạn; đây không phải giới hạn RAM của
+  toàn server hay băng thông mạng. Giới hạn kết nối/thời gian đọc/body ở proxy
+  vẫn cần thiết khi triển khai ngoài demo. API không giải nén body.
+
+Khi test nội bộ cần tạo nhiều phiên, đặt `SESSION_CREATE_LIMIT` phù hợp trước khi
+khởi động lại API; không sửa mặc định hoặc dùng cờ mock để tự bỏ bảo vệ. Bộ test
+nghiệp vụ cấu hình quota riêng; `test_request_limits.py` kiểm quota 3 và đồng thời.
+Không đổi schema request/response; lỗi vẫn là `{error_code, message}` hiện có.
+
+Tham chiếu giao thức: [ASGI HTTP request/receive](https://asgi.readthedocs.io/en/latest/specs/www.html#request-receive-event)
+và [Starlette multipart parser](https://github.com/Kludex/starlette/blob/main/starlette/formparsers.py)
+(kiểm thêm phiên bản đã cài bằng test đóng file tạm).
+
+## Truy cập nhân viên (PLAT-06)
+
+Mọi endpoint `/v1/review/*` và `/v1/forensic/*` yêu cầu credential nhân viên,
+**kể cả mock và SESSION_PRIVACY=false**. Khi nâng cấp từ bản cũ, cấu hình
+`STAFF_ACCESS_TOKENS` trước khi dùng bàn duyệt/giám định; không có chế độ bỏ qua.
+
+- Cấu hình server là JSON `{ "<token ngẫu nhiên>": "<mã nhân viên>" }`. Mỗi token
+  nên sinh bằng `secrets.token_urlsafe(32)`, dài 32–512 ký tự ASCII theo cú pháp
+  bearer; actor 1–100 ký tự in được, không chỉ khoảng trắng hoặc `staff-unverified`.
+  Tối đa 256 credential/64 KiB cấu hình; JSON trùng token, token ngắn hoặc sai
+  cấu trúc đều bị từ chối. Không có token mẫu mặc định hoặc token tự sinh fallback.
+- Gửi **một** header `Authorization: Bearer <token>` qua HTTPS. Token người dân
+  không dùng được cho nhân viên và ngược lại. Không nhận token từ URL, cookie,
+  `X-Staff-Actor` hoặc body; actor lấy từ cấu hình server. Thiếu/sai bearer trả
+  **401 `unauthorized`**, kèm `WWW-Authenticate: Bearer`. Thiếu/sai cấu hình trả
+  **503 `staff_unavailable`**, không làm endpoint trở thành công khai.
+- Guard chạy trước đọc body, transaction hoặc detector, kể cả upload forensic;
+  kiểm đường dẫn đã giải mã và `root_path`. CORS preflight vẫn hoạt động, lỗi auth
+  có CORS cho origin được phép. Phản hồi staff (kể cả báo cáo/lỗi) có
+  `Cache-Control: no-store`. `/healthz`, OpenAPI và API người dân giữ cơ chế riêng.
+- Nhật ký quyết định review dùng actor đã xác thực; nhật ký truy cập/che/mở PII
+  vẫn thuộc SEC-01 khi bật riêng tư. Giám định chưa có nhật ký truy cập/owner từng
+  job hoặc vault mã hóa eKYC; credential hiện có cùng quyền demo, chưa SSO/RBAC/MFA.
+  Auth không chứng nhận chữ ký; HTML ký Ed25519 bằng cấu hình riêng, JSON/PDF vẫn thuộc FOR-04.
+- Giữ credential trong cấu hình máy, không Git, log hoặc biến frontend
+  `NEXT_PUBLIC_*`. Compose đã chuyển `STAFF_ACCESS_TOKENS` vào API. Đổi cấu hình
+  cần khởi động lại; xóa token khỏi cấu hình thu hồi quyền gọi mới, không thu hồi
+  dữ liệu người đó đã tải trước đây.
+
+SDK web có `createApiClient({ getStaffToken: () => tokenTrongBoNho })`: chỉ các
+method review đọc callback tại mỗi lần gọi và gửi request `cache: no-store`.
+Không tự lưu token hoặc thêm màn đăng nhập; người làm UI nối nguồn credential
+riêng. Chỉ cấu hình server chưa đủ để trình duyệt tự đăng nhập. Forensic client
+tích hợp trực tiếp dùng cùng header bearer. Không đặt token vào URL tải báo cáo.
+
+Tham chiếu cách truyền bearer và challenge 401:
+[RFC 6750 §2.1/§3](https://www.rfc-editor.org/rfc/rfc6750.html).
+Đây là credential demo, không triển khai authorization server OAuth.
+
 ## Lệnh
 
 ```bash
@@ -45,8 +188,8 @@ uv run python scripts/gen_openapi.py        # sinh lại packages/contracts/open
 |---|---|
 | Sức khỏe | `GET /healthz` |
 | Phiên (Bearer, trừ tạo phiên) | `POST /v1/sessions`, `POST /v1/sessions/{id}/{media,signals,finalize,voice}` |
-| Bàn duyệt | `GET /v1/review/cases`, `GET /v1/review/cases/{id}`, `POST …/initial`, `GET …/ai` (409 nếu chưa có quyết định ban đầu), `POST …/decision` (422 `invalid_reason_code`), `GET /v1/review/reason-codes`, `GET …/audit/verify` |
-| Giám định | `POST /v1/forensic/jobs`, `GET …/jobs/{id}`, `GET …/jobs/{id}/report`, `POST /v1/forensic/verify` |
+| Bàn duyệt (StaffBearer) | `GET /v1/review/cases`, `GET /v1/review/cases/{id}`, `POST …/initial`, `GET …/ai` (409 nếu chưa có quyết định ban đầu), `POST …/decision` (422 `invalid_reason_code`), `GET /v1/review/reason-codes`, `GET …/audit/verify` |
+| Giám định (StaffBearer) | `POST /v1/forensic/jobs`, `GET …/jobs/{id}`, `GET …/jobs/{id}/report`, `POST /v1/forensic/verify` |
 
 Chạy mock (`USE_MOCK_MODELS=true`, mặc định) chọn kịch bản bằng header **`X-Mock-Scenario`** khi tạo phiên hoặc giám định: `genuine`, `print`, `replay`, `virtual_cam`, `faceswap`, `voice_clone`, `low_quality`, `error`. Khi tắt mock, header bị bỏ qua. App mock có sẵn 2 ca duyệt mẫu.
 
@@ -83,14 +226,14 @@ Chạy mock (`USE_MOCK_MODELS=true`, mặc định) chọn kịch bản bằng h
 
 | Phần | Hiện nay | Thay bằng |
 |---|---|---|
-| Phiên | HMAC, hash token trong DB, TTL và chặn nhận lặp đã có; thử thách khuôn mặt/câu đọc có hạn riêng | **PLAT-06** còn 429 (3 phiên/giờ/IP), khóa ký báo cáo, auth nhân viên, giới hạn body trước multipart; LIVE-03/SEC-02 ràng buộc media với thử thách; LIVE-06 gia hạn phiên |
+| Phiên | HMAC/hash token/TTL/chặn lặp; Ed25519 opt-in; quota tạo phiên 429 và giới hạn body ASGI đã có | **PLAT-06** còn nghiệm thu media cũ; FOR-04 nối ký báo cáo; LIVE-03/SEC-02 ràng buộc media và LIVE-06 gia hạn |
 | Lưu trữ | **PLAT-05**: PostgreSQL, migration Alembic, transaction theo request | Đã có persistence; nghiệp vụ tiếp tục ở các task tương ứng |
 | Chạy detector | **PLAT-08**: executor chung, preload lifespan, deadline/timeout và latency thực | Đã có; detector thật được bổ sung bởi các task mô hình |
 | Luật quyết định | **ROUT-02**: ML TrustRouter, snapshot `ml/configs/thresholds.yaml`, provisional max-fusion | **ROUT-03**: ngưỡng LTT trên calib_ltt; logistic học trên calib_fit khi có dữ liệu thật |
-| Giám định, chữ ký | **FOR-01 lõi (MVP):** `USE_MOCK_MODELS` khác `true` → tác vụ nền chia đoạn 3 s chồng 50%, chạy detector THẬT từng đoạn (`face_deepfake`, `voice_spoof`; `lipsync` chưa hỗ trợ), quét nguồn gốc cả file (AudioSeal, C2PA), `GET /jobs/{id}` trả tiến độ; module chưa có mô hình thật là `unavailable` và kết luận ra `inconclusive`. Chữ ký vẫn `MOCK-<sha256>`; `USE_MOCK_MODELS=true` giữ bản mock cũ | **FOR-01** hiệu chỉnh riêng (calibrator `forensic`, DATA-05), **FOR-04** khóa Ed25519 ở PLAT-06 |
+| Giám định, chữ ký | **FOR-01 lõi (MVP)** chạy detector thật theo đoạn, thiếu bước → inconclusive. HTML job real đã ký Ed25519 với khóa report riêng; mock ghi rõ mô phỏng, checksum không verify được | **FOR-01** hiệu chỉnh riêng; **FOR-04** JSON/PDF/neo audit/LR/thang lời ENFSI |
 | Bàn duyệt | **REV-01**: DB, nhật ký băm nối chuỗi, `verify_chain`, mã lý do cố định; URL media vẫn là chỗ giữ chỗ | **REV-02** (giao diện, phục vụ media) |
-| Giới hạn upload | `MAX_UPLOAD_MB` chỉ kiểm **sau khi** Starlette đã nhận multipart (và trước khi xác thực token vẫn nhận được body) | **PLAT-06** / reverse proxy: giới hạn cứng ở lớp trước ứng dụng |
-| Xác thực nhân viên | `/v1/review/*` và `/v1/forensic/*` chưa có xác thực; nhật ký ghi `actor` cố định `staff-unverified` | **PLAT-06** / REV-02 |
+| Giới hạn upload | `MAX_REQUEST_MB` kiểm header/tổng byte trước parser; `MAX_UPLOAD_MB` kiểm riêng từng file | Reverse proxy: giới hạn kết nối, thời gian đọc và body ở lớp mạng |
+| Xác thực nhân viên | StaffBearer bắt buộc cho review/forensic ở mọi chế độ; thiếu cấu hình chặn 503; actor từ server | **REV-02/FOR-02** nối credential vào UI; SSO/RBAC/owner job ngoài phạm vi demo |
 
 Chính sách ROUT-02, thứ tự cổng: phiên/thời gian hợp lệ → quality (chụp lại tối đa 2 lần rồi `review`) → chromapulse/camprobe (fail → `review` ưu tiên cao; unclear → chụp lại; gate rỗng/không xác định → `review`) → ngưỡng trên **max `prob_attack`** của `face_pad` và `face_deepfake` (≤ B `pass`; trên B đến dưới A `voice_challenge`; ≥ A `review`). `error`/`degraded`/thiếu ở bước bắt buộc → `review`, không bao giờ `pass`.
 
@@ -105,8 +248,8 @@ Chạy native: `uv run alembic -c services/api/alembic.ini upgrade head`.
 Các kho session/review/forensic dùng cùng transaction request và ghi snapshot
 JSON tường minh; nested signals/challenge/ModuleResult được phục hồi sau restart.
 Seed hai ca mock idempotent, có khóa PostgreSQL khi nhiều worker khởi động đồng thời.
-`review_events` bị trigger DB chặn UPDATE/DELETE, không cascade xóa; actor hiện là
-`staff-unverified`, xác thực nhân viên vẫn thuộc PLAT-06. Test dùng
+`review_events` bị trigger DB chặn UPDATE/DELETE, không cascade xóa. Actor
+`staff-unverified` chỉ thuộc dữ liệu cũ/nội bộ; HTTP mới dùng actor từ credential nhân viên. Test dùng
 `app.state.vericlue.transaction()` để setup/kiểm snapshot, không sửa object RAM toàn cục.
 
 - `MEDIA_DIR/<session_id>/`: file phiên; tên và đuôi do server kiểm soát.
@@ -239,7 +382,8 @@ SessionFlow tăng counters/cấp challenge hoặc câu mới; ML chỉ trả quy
 Token không khớp/hết hạn → 401; challenge hết hạn trước bước → 409, không chạy
 detector/ghi quyết định mới. Nếu hết hạn trong khi inference đang chạy, policy
 không cho pass. Voice có hạn câu đọc riêng, không dùng lại hạn challenge màu.
-429 vẫn thuộc phần còn lại của PLAT-06. Các chốt409/row lock/deadline/queue/503
+Quota tạo phiên 429 đã có ở PLAT-06 (test smoke 7 kịch bản cần cấu hình đủ lượt).
+Các chốt409/row lock/deadline/queue/503
 storage_busy của PLAT-04/05/08 giữ nguyên. Công dân chỉ nhận schema cũ, không nhận
 xác suất, Λ, hash cấu hình, ngưỡng, lý do nội bộ hay transcript.
 
@@ -251,6 +395,10 @@ Report mặc định `tmp/rout02-compose-smoke.json` (gitignored); xong chạy `
 
 
 ## Hồ sơ MVP (ROUT-01, ADR-0012)
+
+Opt-in Qwen/CTC/NES2Net/SyncNet cho API phiên và runtime tách riêng:
+[`session-voice.md`](../../docs/architecture/session-voice.md). Cờ mặc định tắt;
+khi bật cần đủ runtime local, không tự thay bằng mock khi thiếu mô hình.
 
 `ROUTER_PROFILE=full` mặc định giữ nguyên chính sách và tập module hiện có.
 `ROUTER_PROFILE=mvp` chỉ chạy/preload `quality`, `face_pad`, `face_deepfake`,

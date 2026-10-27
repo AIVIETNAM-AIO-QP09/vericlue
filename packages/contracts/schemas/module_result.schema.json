@@ -26,7 +26,8 @@
         "provenance",
         "gaze_tracking",
         "head_turn",
-        "face_match"
+        "face_match",
+        "face_continuity"
       ]
     },
     "model_version": {
