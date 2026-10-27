@@ -15,6 +15,8 @@ from alembic.config import Config
 from conftest import staff_test_client
 from sqlalchemy import func, inspect, select, text
 from sqlalchemy.exc import DBAPIError
+from test_credential_verifier import stub_worker as stub_worker
+from test_credential_verifier import verifier_env as verifier_env
 
 from vericlue_api.core.config import Settings, get_settings
 from vericlue_api.core.session_tokens import token_digest
@@ -28,6 +30,57 @@ from vericlue_api.db.models import (
 )
 from vericlue_api.main import create_app
 from vericlue_api.services import storage
+
+
+def test_postgres_verifier_rollback_and_cross_instance_replay(postgres, verifier_env, stub_worker):
+    from fastapi.testclient import TestClient
+    from test_credential_verifier import challenge, presentation
+
+    from vericlue_api.db.models import CredentialChallengeRow
+    from vericlue_api.schemas.credential import VerificationPresentation
+    from vericlue_api.services.credential_verifier import CredentialVerifier
+
+    with TestClient(create_app()) as first, TestClient(create_app()) as second:
+        q = challenge(first, verifier_env["a"])
+        body = presentation(q)
+        root = first.app.state.vericlue
+        with pytest.raises(RuntimeError), root.database.sessions.begin() as db:
+            assert (
+                CredentialVerifier(root.settings, db, q["audience"])
+                .verify(VerificationPresentation.model_validate(body))
+                .valid
+            )
+            raise RuntimeError("synthetic verifier rollback before response")
+        with root.database.sessions() as db:
+            assert db.get(CredentialChallengeRow, q["id"]) is not None
+        stub_worker.clear()
+        gate = Barrier(2)
+
+        def verify(client):
+            gate.wait(timeout=10)
+            return client.post("/v1/credentials/verify", headers=verifier_env["a"], json=body)
+
+        with ThreadPoolExecutor(2) as pool:
+            responses = list(pool.map(verify, (first, second)))
+        assert all(r.status_code == 200 for r in responses)
+        assert sorted(r.json()["valid"] for r in responses) == [False, True]
+        assert len(stub_worker) == 1
+
+
+def test_postgres_verifier_capacity_is_atomic(postgres, verifier_env, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    monkeypatch.setattr("vericlue_api.services.credential_verifier.MAX_PENDING_PER_AUDIENCE", 1)
+    with TestClient(create_app()) as first, TestClient(create_app()) as second:
+        gate = Barrier(2)
+
+        def create(client):
+            gate.wait(timeout=10)
+            return client.post("/v1/credentials/challenges", headers=verifier_env["a"], json={})
+
+        with ThreadPoolExecutor(2) as pool:
+            responses = list(pool.map(create, (first, second)))
+        assert sorted(r.status_code for r in responses) == [200, 503]
 
 
 def test_postgres_credential_issue_rollback_and_parallel_retry(postgres, tmp_path, monkeypatch):

@@ -6,6 +6,10 @@ Holder dùng `prepareHolder` rồi `presentVerification`; bên nhận pin key/is
 và dùng `VerificationVerifier`. API, khóa thiết bị ký chấp thuận và giới hạn:
 [hướng dẫn tích hợp](../../docs/architecture/private-credential-issuance.md).
 
+Sau PR #97 có `verifier-worker.mjs` chỉ nhận public key, dùng chung crypto stateless
+với verifier RAM. API lưu nonce DB để kiểm qua nhiều worker/restart; xuất pin bằng
+`export-public-key.mjs`. Xem [API verifier](../../docs/architecture/private-credential-verifier.md).
+
 Bản thử nghiệm mật mã độc lập: issuer cấp credential tổng hợp, holder chỉ tiết
 lộ claim cần thiết, hai verifier kiểm proof với khóa issuer đã pin. Không kết
 nối luồng công dân, không cấp credential từ kết quả eKYC thật, không sửa UI.

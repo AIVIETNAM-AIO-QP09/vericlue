@@ -6,6 +6,11 @@ API chỉ nhận commitment/consent/chữ ký thiết bị; claims dựng từ q
 commit. Node producer/holder verifier và model API cùng schema; OpenAPI/SDK
 đồng bộ. Xem [cấp chứng nhận](../../docs/architecture/private-credential-issuance.md).
 
+Schema này thêm challenge/accepted/rejected cho HTTP verifier nonce DB:
+audience do credential tích hợp quyết định; request không được khai nonce/key/
+issuer/policy riêng. `valid:false` khác lỗi hạ tầng 503. Bên nhận chỉ có public pin.
+Xem [API kiểm proof](../../docs/architecture/private-credential-verifier.md).
+
 LIVE-05 thêm `private_credential.schema.json` cho trao đổi giữa ba vai trò trong
 lab BBS/SD-JWT độc lập, không thêm endpoint công dân. Assurance/header bắt buộc
 synthetic-demo; offer không có holder secret. Producer/consumer Node cùng kiểm

@@ -115,6 +115,70 @@ export async function presentVerification(publicKey, credential, holder, q) {
   });
 }
 
+// Stateless crypto boundary. Callers must atomically reserve/consume the persisted
+// challenge; supplying a presentation's own context is never sufficient.
+export async function verifyVerification({
+  publicKey,
+  issuer,
+  audience,
+  challenge: q,
+  presentation,
+  clock = () => Math.floor(Date.now() / 1000),
+}) {
+  try {
+    checkCredential('VerificationChallenge', q);
+    checkCredential('VerificationPresentation', presentation);
+    origin(audience);
+    const now = clock();
+    const c = presentation.disclosed;
+    if (
+      publicKey.length !== 96 ||
+      !/^[A-Za-z0-9:/._-]{1,200}$/.test(issuer) ||
+      q.audience !== audience ||
+      q.id !== presentation.challenge_id ||
+      q.issued_at > now ||
+      q.expires_at <= now ||
+      q.expires_at - q.issued_at > CHALLENGE_TTL ||
+      q.expires_at <= q.issued_at ||
+      c.issuer !== issuer ||
+      !validity(c) ||
+      now < c.valid_from ||
+      now >= c.valid_until
+    )
+      throw new Error('Invalid context');
+    const ok = await nym.ProofVerifyWithPseudonym({
+      PK: publicKey,
+      header: VERIFICATION_HEADER,
+      ph: context(q),
+      proof: unb64(presentation.proof, 496),
+      pseudonym: unb64(presentation.pseudonym, 48),
+      context_id: bytes(audience),
+      L: NAMES.length,
+      disclosed_indexes: REVEAL,
+      disclosed_messages: REVEAL.map((i) => encoded([NAMES[i], c[NAMES[i]]])),
+      disclosed_committed_messages: [],
+      disclosed_committed_indexes: [],
+      ciphersuite: suite,
+    });
+    const finished = clock();
+    if (
+      !ok ||
+      finished < Math.max(q.issued_at, c.valid_from) ||
+      finished >= q.expires_at ||
+      finished >= c.valid_until
+    )
+      throw new Error('Invalid proof');
+    return checkCredential('VerificationAccepted', {
+      valid: true,
+      assurance: 'server-decision',
+      disclosed: structuredClone(c),
+      pseudonym: presentation.pseudonym,
+    });
+  } catch {
+    return {valid: false};
+  }
+}
+
 export class VerificationVerifier {
   #key;
   #issuer;
@@ -163,39 +227,18 @@ export class VerificationVerifier {
         throw new Error('Unavailable challenge');
       entry.busy = true;
       reserved = true;
-      const c = presentation.disclosed;
-      if (c.issuer !== this.#issuer || !validity(c) || now < c.valid_from || now >= c.valid_until)
-        throw new Error('Invalid policy');
-      const ok = await nym.ProofVerifyWithPseudonym({
-        PK: this.#key,
-        header: VERIFICATION_HEADER,
-        ph: context(entry.q),
-        proof: unb64(presentation.proof, 496),
-        pseudonym: unb64(presentation.pseudonym, 48),
-        context_id: bytes(this.#audience),
-        L: NAMES.length,
-        disclosed_indexes: REVEAL,
-        disclosed_messages: REVEAL.map((i) => encoded([NAMES[i], c[NAMES[i]]])),
-        disclosed_committed_messages: [],
-        disclosed_committed_indexes: [],
-        ciphersuite: suite,
+      const result = await verifyVerification({
+        publicKey: this.#key,
+        issuer: this.#issuer,
+        audience: this.#audience,
+        challenge: entry.q,
+        presentation,
+        clock: this.#clock,
       });
-      const finished = this.#clock();
-      if (
-        !ok ||
-        finished < entry.q.issued_at ||
-        finished >= entry.q.expires_at ||
-        finished >= c.valid_until ||
-        this.#pending.get(entry.q.id) !== entry
-      )
+      if (!result.valid || this.#pending.get(entry.q.id) !== entry)
         throw new Error('Invalid proof');
       this.#pending.delete(entry.q.id);
-      return {
-        valid: true,
-        assurance: 'server-decision',
-        disclosed: structuredClone(c),
-        pseudonym: presentation.pseudonym,
-      };
+      return result;
     } catch {
       return {valid: false};
     } finally {

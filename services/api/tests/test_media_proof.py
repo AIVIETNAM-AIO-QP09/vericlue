@@ -308,7 +308,7 @@ def test_storage_failure_rolls_back_nonce_and_allows_exact_signed_retry(client, 
     """A proof must not be consumed if the request fails before media is stored."""
     from vericlue_api.services import session_flow
 
-    created, auth, key = create(client)
+    created, auth, key = create(client, purpose="recovery" if stage == "voice" else "onboarding")
     if stage == "voice":
         assert send_face(client, created, auth, sign(client, created, key)).status_code == 200
         voice = face_outcome(client, created, auth)
@@ -361,7 +361,7 @@ def test_signed_upload_expiry_rejected_without_writes_or_consumption(
     from vericlue_api.routers import sessions as routes
     from vericlue_api.services import session_flow
 
-    created, auth, key = create(client)
+    created, auth, key = create(client, purpose="recovery" if stage == "voice" else "onboarding")
     if stage == "voice":
         assert send_face(client, created, auth, sign(client, created, key)).status_code == 200
         voice = face_outcome(client, created, auth)
@@ -428,7 +428,7 @@ def test_retry_rejects_previous_proof_even_when_relabelled_as_current_attempt(cl
 def test_voice_reread_rejects_old_id_and_old_proof_with_new_id(client):
     from vericlue_ml.common.result import Gate, Module, ModuleResult, Status
 
-    created, auth, key = create(client)
+    created, auth, key = create(client, purpose="recovery")
     assert send_face(client, created, auth, sign(client, created, key)).status_code == 200
     voice = face_outcome(client, created, auth)
     old_proof = sign(client, created, key, "voice", {"audio": AUDIO})
@@ -529,7 +529,8 @@ def test_signed_mock_scenarios_close_once_and_keep_all_nonce_claims(client, scen
         outcome = response.json()
     assert outcome == {"status": expected}
     assert face_attempts == (3 if scenario == "low_quality" else 1)
-    assert voice_attempts == (1 if scenario in {"genuine", "voice_clone"} else 0)
+    # Clear onboarding completes at the face step; only the ambiguous case reads a sentence.
+    assert voice_attempts == (1 if scenario == "voice_clone" else 0)
     with client.app.state.vericlue.transaction() as state:
         session = state.sessions.get(created["session_id"])
         assert session.completed

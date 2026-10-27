@@ -14,11 +14,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from vericlue_api import __version__
 from vericlue_api.core.config import get_settings
+from vericlue_api.core.credential_access import authenticate_verifier, is_verifier_path
 from vericlue_api.core.errors import install_error_handlers
 from vericlue_api.core.request_limits import RequestLimitsMiddleware
 from vericlue_api.core.staff_access import authenticate_staff, is_staff_path
 from vericlue_api.core.state import ApplicationState
-from vericlue_api.routers import forensic, health, review, sessions
+from vericlue_api.routers import credentials, forensic, health, review, sessions
 from vericlue_api.services.storage import cleanup_expired
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -63,8 +64,10 @@ def create_app() -> FastAPI:
     @app.middleware("http")
     async def staff_access(request, call_next):
         rejected = authenticate_staff(request, settings)
+        if rejected is None:
+            rejected = authenticate_verifier(request, settings)
         response = rejected if rejected is not None else await call_next(request)
-        if is_staff_path(request.scope):
+        if is_staff_path(request.scope) or is_verifier_path(request.scope):
             response.headers["Cache-Control"] = "no-store"
         return response
 
@@ -90,6 +93,7 @@ def create_app() -> FastAPI:
         sessions.keys_router,
         review.router,
         forensic.router,
+        credentials.router,
     ):
         app.include_router(router)
     return app

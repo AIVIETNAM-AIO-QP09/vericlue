@@ -90,6 +90,13 @@ class Settings(BaseSettings):
     credential_worker_file: str | None = None
     credential_signing_key_file: str | None = None
     credential_timeout_seconds: float = Field(default=4, ge=1, le=10)
+    credential_verifier: bool = False
+    credential_verifier_tokens: SecretStr | None = None
+    credential_verifier_issuer: str | None = Field(
+        default=None, pattern=r"^[A-Za-z0-9:/._-]{1,200}$"
+    )
+    credential_verifier_public_key_file: str | None = None
+    credential_verifier_worker_file: str | None = None
 
     @field_validator("report_signing_key_path", mode="before")
     @classmethod
@@ -112,7 +119,13 @@ class Settings(BaseSettings):
                 503, "report_signing_unavailable", "Chưa thể ký hoặc kiểm tra báo cáo lúc này."
             ) from exc
 
-    @field_validator("result_signing_key_file", "result_issuer", "result_audience", mode="before")
+    @field_validator(
+        "result_signing_key_file",
+        "result_issuer",
+        "result_audience",
+        "credential_verifier_issuer",
+        mode="before",
+    )
     @classmethod
     def blank_disables_result_signing(cls, value):
         return None if isinstance(value, str) and not value.strip() else value

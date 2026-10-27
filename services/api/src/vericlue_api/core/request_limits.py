@@ -18,6 +18,8 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from vericlue_api.core.config import Settings
 
+CREDENTIAL_BODY_MAX_BYTES = 8 * 1024
+
 
 class RequestLimitError(HTTPException):
     """An HTTP exception that also survives FastAPI's body-parsing boundary."""
@@ -106,6 +108,16 @@ class RequestLimitsMiddleware:
         root = scope.get("root_path", "")
         if root and (path == root or path.startswith(root + "/")):
             path = path[len(root) :]
+        # Verifier requests are small JSON; bound bytes before body parsing/crypto.
+        limit = (
+            min(self.max_bytes, CREDENTIAL_BODY_MAX_BYTES)
+            if path == "/v1/credentials" or path.startswith("/v1/credentials/")
+            else self.max_bytes
+        )
+        if lengths and int(lengths[0]) > limit:
+            await self._reject(scope, receive, send, 413, "request_too_large")
+            return
+
         if scope["method"] == "POST" and path == "/v1/sessions":
             peer = scope.get("client")
             if not peer or not peer[0]:
@@ -127,7 +139,7 @@ class RequestLimitsMiddleware:
             message = await receive()
             if message["type"] == "http.request":
                 total += len(message.get("body", b""))
-                if total > self.max_bytes:
+                if total > limit:
                     raise RequestLimitError()
             return message
 
