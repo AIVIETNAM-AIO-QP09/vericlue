@@ -80,7 +80,7 @@ def verdict(module, version="synthetic-storage-test", **changes):
     )
 
 
-def prepared(state, *, id_hmac="a" * 64):
+def prepared(state, *, id_hmac="a" * 64, voiced=True):
     from vericlue_api.schemas.session import CreateSessionRequest
 
     key = ec.generate_private_key(ec.SECP256R1())
@@ -104,7 +104,7 @@ def prepared(state, *, id_hmac="a" * 64):
     session.id_confirmed = True
     session.id_source = "server_qr"
     session.id_number_hmac = session.id_confirmed_number_hmac = id_hmac
-    session.accepted_steps = ["media", "signals", "finalize", "voice"]
+    session.accepted_steps = ["media", "signals", "finalize", *(["voice"] if voiced else [])]
     session.voice_requested = session.voice_owed = False
     session.results = {
         m: verdict(m)
@@ -116,9 +116,7 @@ def prepared(state, *, id_hmac="a" * 64):
             Module.CAMPROBE,
             Module.GAZE_TRACKING,
             Module.HEAD_TURN,
-            Module.VOICE_CHALLENGE,
-            Module.VOICE_SPOOF,
-            Module.LIPSYNC,
+            *((Module.VOICE_CHALLENGE, Module.VOICE_SPOOF, Module.LIPSYNC) if voiced else ()),
         )
     }
     template = FaceTemplate(
@@ -155,7 +153,7 @@ def prepared(state, *, id_hmac="a" * 64):
             }.items()
         ],
     )
-    for stage in ("face", "voice"):
+    for stage in ("face", "voice") if voiced else ("face",):
         files = {
             "video": ("synthetic.mp4", b"synthetic-not-biometric"),
             "image" if stage == "face" else "audio": (
@@ -166,6 +164,11 @@ def prepared(state, *, id_hmac="a" * 64):
         message, _, _ = manifest(session, stage, files)
         signature = base64.b64encode(key.sign(message, ec.ECDSA(hashes.SHA256()))).decode()
         verify_and_consume(state.db, session, stage, signature, files, required=True)
+    if voiced:
+        # As in the real flow: the router asked for a sentence, then the voice step passed.
+        state.sessions.record_decision(
+            session, "voice_challenge", thresholds={}, config_version="synthetic-test"
+        )
     state.sessions.record_decision(session, "pass", thresholds={}, config_version="synthetic-test")
     return session, template, continuity
 
@@ -215,6 +218,32 @@ def test_unsafe_configuration_cannot_enroll(private_client, fault):
                 session, template, continuity=continuity
             )
         assert error.value.status_code == 503
+        assert state.db.scalar(select(func.count()).select_from(AccountRow)) == 0
+
+
+def test_clear_face_onboarding_enrolls_without_a_voice_step(private_client):
+    with private_client.app.state.vericlue.transaction() as state:
+        session, template, _ = prepared(state, voiced=False)
+        receipt = AccountStore(real_settings(state), state.db).create(session, template)
+        assert receipt.account_id.startswith("acct_")
+        assert state.db.scalar(select(func.count()).select_from(AccountRow)) == 1
+
+
+@pytest.mark.parametrize("fault", ["asked_but_skipped", "face_not_signed", "edited"])
+def test_onboarding_without_voice_keeps_every_other_check(private_client, fault):
+    with private_client.app.state.vericlue.transaction() as state:
+        session, template, _ = prepared(state, voiced=False)
+        if fault == "asked_but_skipped":
+            # The server asked for a sentence earlier: skipping it never enrolls.
+            state.sessions.record_decision(
+                session, "voice_challenge", thresholds={}, config_version="synthetic-test"
+            )
+        elif fault == "face_not_signed":
+            session.challenge.media_nonce = secrets.token_hex(32)
+        else:
+            session.id_edited = ["full_name"]
+        with pytest.raises(ApiError):
+            AccountStore(real_settings(state), state.db).create(session, template)
         assert state.db.scalar(select(func.count()).select_from(AccountRow)) == 0
 
 

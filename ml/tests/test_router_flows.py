@@ -14,11 +14,24 @@ def results(scenario="genuine"):
     return {module: MockDetector(module).predict(inp) for module in Module}
 
 
-@pytest.mark.parametrize("purpose", ["onboarding", "recovery"])
-def test_registration_and_recovery_always_require_voice(purpose):
+def test_recovery_always_requires_voice():
     router = TrustRouter()
-    assert route_face(router.finalize(results()), purpose).status == "voice_challenge"
-    assert route_voice(router.voice(results()), purpose).status == "pass"
+    assert route_face(router.finalize(results()), "recovery").status == "voice_challenge"
+    assert route_voice(router.voice(results()), "recovery").status == "pass"
+
+
+@pytest.mark.parametrize(
+    "scenario,expected",
+    [
+        ("genuine", "pass"),  # clear face: no sentence to read
+        ("voice_clone", "voice_challenge"),  # B < face < A: read a sentence
+        ("print", "review"),
+    ],
+)
+def test_onboarding_reads_only_when_the_face_is_unclear(scenario, expected):
+    decision = route_face(TrustRouter().finalize(results(scenario)), "onboarding")
+    assert decision.status == expected
+    assert route_voice(TrustRouter().voice(results()), "onboarding").status == "pass"
 
 
 @pytest.mark.parametrize("purpose", ["onboarding", "recovery", "reauth"])
