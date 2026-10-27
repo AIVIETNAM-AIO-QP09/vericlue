@@ -37,14 +37,17 @@ def test_postgres_credential_issue_rollback_and_parallel_retry(postgres, tmp_pat
     from vericlue_api.schemas.credential import CredentialIssueRequest
     from vericlue_api.services.credential_issuance import CredentialIssuance
 
-    monkeypatch.setenv("SESSION_PRIVACY", "true")
+    # PostgreSQL fixtures share the seeded review rows. Keep those plaintext;
+    # enable encryption only after startup, for this test's own credential flow.
+    monkeypatch.setenv("SESSION_PRIVACY", "false")
     monkeypatch.setenv("SESSION_MASTER_KEY", base64.b64encode(secrets.token_bytes(32)).decode())
     get_settings.cache_clear()
     with staff_test_client(create_app()) as client:
+        root = client.app.state.vericlue
+        root.settings = root.settings.model_copy(update={"session_privacy": True})
         key, _, body, headers, calls = setup_credential(client, tmp_path, monkeypatch)
         request = authorize(client, body, headers, offer(), key)
         sid = body["session_id"]
-        root = client.app.state.vericlue
         with pytest.raises(RuntimeError), root.transaction() as state:
             CredentialIssuance(state).issue(
                 state.sessions.get(sid), CredentialIssueRequest.model_validate(request)

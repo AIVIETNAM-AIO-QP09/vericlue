@@ -693,7 +693,10 @@ def test_sqlite_guarded_routes_pass_lock_timeout_and_consume_absolute_budget(mon
             real_transaction, real_run = root.transaction, root.orchestrator.run
 
             @contextmanager
-            def spy_transaction(*, lock_timeout_seconds=None, inference_deadline=None):
+            def spy_transaction(
+                *, lock_timeout_seconds=None, inference_deadline=None, serialize_sqlite=False
+            ):
+                assert serialize_sqlite is False  # Only credential issuance changes this policy.
                 transaction_arguments.append((lock_timeout_seconds, inference_deadline))
                 if inference_deadline is not None:
                     time.sleep(0.04)  # Work before inference must consume the same budget.
