@@ -74,6 +74,15 @@ class DeviceProofUseRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class CredentialIssuanceRow(Base):
+    __tablename__ = "credential_issuances"
+    session_id: Mapped[str] = mapped_column(ForeignKey("sessions.session_id"), primary_key=True)
+    offer_sha256: Mapped[str] = mapped_column(String(64))
+    key_id: Mapped[str] = mapped_column(String(64))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    payload: Mapped[dict] = mapped_column(JSON)
+
+
 class AccountRecoveryRow(Base):
     __tablename__ = "account_recoveries"
     session_id: Mapped[str] = mapped_column(String(80), primary_key=True)

@@ -595,6 +595,111 @@
         "title": "CreateSessionResponse",
         "type": "object"
       },
+      "CredentialAuthorization": {
+        "additionalProperties": false,
+        "properties": {
+          "algorithm": {
+            "const": "ES256-DER",
+            "default": "ES256-DER",
+            "title": "Algorithm",
+            "type": "string"
+          },
+          "expires_at": {
+            "maximum": 9999999999.0,
+            "minimum": 0.0,
+            "title": "Expires At",
+            "type": "integer"
+          },
+          "message": {
+            "maxLength": 2048,
+            "minLength": 80,
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message",
+          "expires_at"
+        ],
+        "title": "CredentialAuthorization",
+        "type": "object"
+      },
+      "CredentialIssueRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "commitment": {
+            "pattern": "^[A-Za-z0-9_-]{235}$",
+            "title": "Commitment",
+            "type": "string"
+          },
+          "consent": {
+            "const": true,
+            "title": "Consent",
+            "type": "boolean"
+          },
+          "device_signature": {
+            "maxLength": 108,
+            "minLength": 12,
+            "title": "Device Signature",
+            "type": "string"
+          }
+        },
+        "required": [
+          "commitment",
+          "consent",
+          "device_signature"
+        ],
+        "title": "CredentialIssueRequest",
+        "type": "object"
+      },
+      "CredentialKey": {
+        "additionalProperties": false,
+        "properties": {
+          "algorithm": {
+            "const": "BBS-BLS12-381-SHA-256-NYM",
+            "default": "BBS-BLS12-381-SHA-256-NYM",
+            "title": "Algorithm",
+            "type": "string"
+          },
+          "key_id": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Key Id",
+            "type": "string"
+          },
+          "public_key": {
+            "pattern": "^[A-Za-z0-9_-]{128}$",
+            "title": "Public Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key_id",
+          "public_key"
+        ],
+        "title": "CredentialKey",
+        "type": "object"
+      },
+      "CredentialOfferRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "commitment": {
+            "pattern": "^[A-Za-z0-9_-]{235}$",
+            "title": "Commitment",
+            "type": "string"
+          },
+          "consent": {
+            "const": true,
+            "title": "Consent",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "commitment",
+          "consent"
+        ],
+        "title": "CredentialOfferRequest",
+        "type": "object"
+      },
       "DecisionResponse": {
         "properties": {
           "case_id": {
@@ -2520,6 +2625,117 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "VerificationClaims": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "pattern": "^acct_[a-f0-9]{32}$",
+            "title": "Account Id",
+            "type": "string"
+          },
+          "assurance": {
+            "const": "server-decision",
+            "default": "server-decision",
+            "title": "Assurance",
+            "type": "string"
+          },
+          "device_id": {
+            "pattern": "^dev_[a-f0-9]{32}$",
+            "title": "Device Id",
+            "type": "string"
+          },
+          "issuer": {
+            "pattern": "^[A-Za-z0-9:/._-]{1,200}$",
+            "title": "Issuer",
+            "type": "string"
+          },
+          "policy_version": {
+            "const": "vericlue-session-result-v1",
+            "default": "vericlue-session-result-v1",
+            "title": "Policy Version",
+            "type": "string"
+          },
+          "protocol": {
+            "const": "vericlue-private-verification-v1",
+            "default": "vericlue-private-verification-v1",
+            "title": "Protocol",
+            "type": "string"
+          },
+          "source_purpose": {
+            "enum": [
+              "reauth",
+              "recovery"
+            ],
+            "title": "Source Purpose",
+            "type": "string"
+          },
+          "source_result_id": {
+            "pattern": "^res_[a-f0-9]{64}$",
+            "title": "Source Result Id",
+            "type": "string"
+          },
+          "valid_from": {
+            "maximum": 9999999999.0,
+            "minimum": 0.0,
+            "title": "Valid From",
+            "type": "integer"
+          },
+          "valid_until": {
+            "maximum": 9999999999.0,
+            "minimum": 0.0,
+            "title": "Valid Until",
+            "type": "integer"
+          },
+          "verification_completed": {
+            "const": true,
+            "default": true,
+            "title": "Verification Completed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "issuer",
+          "valid_from",
+          "valid_until",
+          "source_result_id",
+          "account_id",
+          "device_id",
+          "source_purpose"
+        ],
+        "title": "VerificationClaims",
+        "type": "object"
+      },
+      "VerificationCredential": {
+        "additionalProperties": false,
+        "properties": {
+          "claims": {
+            "$ref": "#/components/schemas/VerificationClaims"
+          },
+          "key_id": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Key Id",
+            "type": "string"
+          },
+          "signature": {
+            "pattern": "^[A-Za-z0-9_-]{107}$",
+            "title": "Signature",
+            "type": "string"
+          },
+          "signer_entropy": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Signer Entropy",
+            "type": "string"
+          }
+        },
+        "required": [
+          "claims",
+          "signature",
+          "signer_entropy",
+          "key_id"
+        ],
+        "title": "VerificationCredential",
+        "type": "object"
+      },
       "VerifyRequest": {
         "additionalProperties": false,
         "properties": {
@@ -2688,6 +2904,37 @@
         "summary": "Healthz",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/v1/credential-signing-key": {
+      "get": {
+        "operationId": "credential_key_v1_credential_signing_key_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialKey"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Credential Key",
+        "tags": [
+          "integration"
         ]
       }
     },
@@ -4325,6 +4572,180 @@
           }
         ],
         "summary": "Refresh Challenge",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/v1/sessions/{session_id}/credential": {
+      "post": {
+        "operationId": "issue_credential_v1_sessions__session_id__credential_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CredentialIssueRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerificationCredential"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai token phiên"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sai trạng thái, phiên đã kết thúc, thiếu bước hoặc sai/hết hạn mã thử thách; bước gửi trùng cũng trả 409."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Kho dữ liệu hoặc luồng xác minh chưa sẵn sàng"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Issue Credential",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/v1/sessions/{session_id}/credential-authorization": {
+      "post": {
+        "operationId": "credential_authorization_v1_sessions__session_id__credential_authorization_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CredentialOfferRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialAuthorization"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Thiếu hoặc sai token phiên"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Sai trạng thái, phiên đã kết thúc, thiếu bước hoặc sai/hết hạn mã thử thách; bước gửi trùng cũng trả 409."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Kho dữ liệu hoặc luồng xác minh chưa sẵn sàng"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Credential Authorization",
         "tags": [
           "sessions"
         ]

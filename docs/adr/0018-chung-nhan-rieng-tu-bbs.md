@@ -49,6 +49,16 @@ phần cứng hoặc API cấp từ quyết định eKYC thật. Chứng minh đ
 minh AI đúng, nguồn camera thật, người đang hiện diện hay danh tính pháp lý.
 LIVE-05 giữ doing cho tới tích hợp và nghiệm thu; không lấy benchmark mật mã làm R1–R7.
 
+## Bổ sung 27/10 — cổng cấp từ backend sau PR #96
+
+Theo yêu cầu tiếp tục sau khi merge #96, thêm profile `server-decision` riêng và
+API opt-in tái dùng nguyên cổng SignedResultService, chỉ reauth/recovery pass.
+Khóa thiết bị hiện hành ký chấp thuận commitment/source/key/hạn; bearer đơn lẻ
+không cấp được cho holder khác. Worker BBS và key tách khỏi khóa Ed25519 hiện có.
+Cache mã hóa, unique session, retry idempotent, hạn không vượt kết quả nguồn.
+Không thêm tuổi, không mở chốt sinh trắc thật hoặc nhận verdict client. Chi tiết:
+[cấp chứng nhận](../architecture/private-credential-issuance.md).
+
 ## Nguồn
 
 - [W3C BBS, bản 10/09/2026](https://www.w3.org/TR/2026/CRD-vc-di-bbs-20260910/).

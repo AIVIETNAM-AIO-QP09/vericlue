@@ -21,6 +21,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/credential-signing-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Credential Key */
+        get: operations["credential_key_v1_credential_signing_key_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/forensic/jobs": {
         parameters: {
             query?: never;
@@ -373,6 +390,40 @@ export interface paths {
          * @description Thử thách mới cho phần khuôn mặt và gia hạn token (ADR-0017 §2, giới hạn tổng 15 phút).
          */
         post: operations["refresh_challenge_v1_sessions__session_id__challenge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sessions/{session_id}/credential": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Issue Credential */
+        post: operations["issue_credential_v1_sessions__session_id__credential_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sessions/{session_id}/credential-authorization": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Credential Authorization */
+        post: operations["credential_authorization_v1_sessions__session_id__credential_authorization_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -767,6 +818,54 @@ export interface components {
              * @description Token HMAC-SHA256 theo phiên, có hạn; gửi Authorization: Bearer. DB chỉ lưu hash token.
              */
             token: string;
+        };
+        /** CredentialAuthorization */
+        CredentialAuthorization: {
+            /**
+             * Algorithm
+             * @default ES256-DER
+             * @constant
+             */
+            algorithm: "ES256-DER";
+            /** Expires At */
+            expires_at: number;
+            /** Message */
+            message: string;
+        };
+        /** CredentialIssueRequest */
+        CredentialIssueRequest: {
+            /** Commitment */
+            commitment: string;
+            /**
+             * Consent
+             * @constant
+             */
+            consent: true;
+            /** Device Signature */
+            device_signature: string;
+        };
+        /** CredentialKey */
+        CredentialKey: {
+            /**
+             * Algorithm
+             * @default BBS-BLS12-381-SHA-256-NYM
+             * @constant
+             */
+            algorithm: "BBS-BLS12-381-SHA-256-NYM";
+            /** Key Id */
+            key_id: string;
+            /** Public Key */
+            public_key: string;
+        };
+        /** CredentialOfferRequest */
+        CredentialOfferRequest: {
+            /** Commitment */
+            commitment: string;
+            /**
+             * Consent
+             * @constant
+             */
+            consent: true;
         };
         /** DecisionResponse */
         DecisionResponse: {
@@ -1401,6 +1500,60 @@ export interface components {
             /** Error Type */
             type: string;
         };
+        /** VerificationClaims */
+        VerificationClaims: {
+            /** Account Id */
+            account_id: string;
+            /**
+             * Assurance
+             * @default server-decision
+             * @constant
+             */
+            assurance: "server-decision";
+            /** Device Id */
+            device_id: string;
+            /** Issuer */
+            issuer: string;
+            /**
+             * Policy Version
+             * @default vericlue-session-result-v1
+             * @constant
+             */
+            policy_version: "vericlue-session-result-v1";
+            /**
+             * Protocol
+             * @default vericlue-private-verification-v1
+             * @constant
+             */
+            protocol: "vericlue-private-verification-v1";
+            /**
+             * Source Purpose
+             * @enum {string}
+             */
+            source_purpose: "reauth" | "recovery";
+            /** Source Result Id */
+            source_result_id: string;
+            /** Valid From */
+            valid_from: number;
+            /** Valid Until */
+            valid_until: number;
+            /**
+             * Verification Completed
+             * @default true
+             * @constant
+             */
+            verification_completed: true;
+        };
+        /** VerificationCredential */
+        VerificationCredential: {
+            claims: components["schemas"]["VerificationClaims"];
+            /** Key Id */
+            key_id: string;
+            /** Signature */
+            signature: string;
+            /** Signer Entropy */
+            signer_entropy: string;
+        };
         /** VerifyRequest */
         VerifyRequest: {
             /** Report Sha256 */
@@ -1465,6 +1618,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Health"];
+                };
+            };
+        };
+    };
+    credential_key_v1_credential_signing_key_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CredentialKey"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -2678,6 +2860,130 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    issue_credential_v1_sessions__session_id__credential_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CredentialIssueRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerificationCredential"];
+                };
+            };
+            /** @description Thiếu hoặc sai token phiên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sai trạng thái, phiên đã kết thúc, thiếu bước hoặc sai/hết hạn mã thử thách; bước gửi trùng cũng trả 409. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Kho dữ liệu hoặc luồng xác minh chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    credential_authorization_v1_sessions__session_id__credential_authorization_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CredentialOfferRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CredentialAuthorization"];
+                };
+            };
+            /** @description Thiếu hoặc sai token phiên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sai trạng thái, phiên đã kết thúc, thiếu bước hoặc sai/hết hạn mã thử thách; bước gửi trùng cũng trả 409. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Kho dữ liệu hoặc luồng xác minh chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

@@ -35,6 +35,34 @@ const SESSION = {
 };
 
 describe("api client", () => {
+  it("cấp chứng nhận theo bearer phiên và gửi chấp thuận đã ký, không lưu cache", async () => {
+    const { impl, calls } = fakeFetch([
+      { body: { key_id: "test-key", public_key: "test-public" } },
+      { body: { message: "exact-server-bytes", expires_at: 123 } },
+      { body: { claims: { assurance: "server-decision" } } },
+    ]);
+    const api = createApiClient({ baseUrl: "http://api.test", fetchImpl: impl });
+    await api.credentialSigningKey();
+    await api.credentialAuthorization("a/b", "session-token", {
+      commitment: "test-commitment",
+      consent: true,
+    });
+    await api.issueCredential("a/b", "session-token", {
+      commitment: "test-commitment",
+      consent: true,
+      device_signature: "registered-device-signature",
+    });
+    expect(calls[1].url).toContain("/a%2Fb/credential-authorization");
+    expect(calls[2].url).toContain("/a%2Fb/credential");
+    for (const call of calls) expect(call.init.cache).toBe("no-store");
+    for (const call of calls.slice(1))
+      expect(call.init.headers).toMatchObject({ Authorization: "Bearer session-token" });
+    expect(JSON.parse(calls[2].init.body as string)).toEqual({
+      commitment: "test-commitment",
+      consent: true,
+      device_signature: "registered-device-signature",
+    });
+  });
   it("gửi giám định độc lập hoặc gắn ca bằng credential nhân viên và giữ nguyên JSON đã ký", async () => {
     const { impl, calls } = fakeFetch([
       { body: { job_id: "job_1", status: "queued" } },

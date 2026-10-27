@@ -30,6 +30,47 @@ from vericlue_api.main import create_app
 from vericlue_api.services import storage
 
 
+def test_postgres_credential_issue_rollback_and_parallel_retry(postgres, tmp_path, monkeypatch):
+    from test_credential_issuance import authorize, offer, setup_credential
+
+    from vericlue_api.db.models import CredentialIssuanceRow
+    from vericlue_api.schemas.credential import CredentialIssueRequest
+    from vericlue_api.services.credential_issuance import CredentialIssuance
+
+    # PostgreSQL fixtures share the seeded review rows. Keep those plaintext;
+    # enable encryption only after startup, for this test's own credential flow.
+    monkeypatch.setenv("SESSION_PRIVACY", "false")
+    monkeypatch.setenv("SESSION_MASTER_KEY", base64.b64encode(secrets.token_bytes(32)).decode())
+    get_settings.cache_clear()
+    with staff_test_client(create_app()) as client:
+        root = client.app.state.vericlue
+        root.settings = root.settings.model_copy(update={"session_privacy": True})
+        key, _, body, headers, calls = setup_credential(client, tmp_path, monkeypatch)
+        request = authorize(client, body, headers, offer(), key)
+        sid = body["session_id"]
+        with pytest.raises(RuntimeError), root.transaction() as state:
+            CredentialIssuance(state).issue(
+                state.sessions.get(sid), CredentialIssueRequest.model_validate(request)
+            )
+            raise RuntimeError("synthetic rollback after BBS issuance")
+        with root.database.sessions() as db:
+            assert db.get(CredentialIssuanceRow, sid) is None
+        calls.clear()
+        ready = Barrier(2)
+
+        def submit(_):
+            ready.wait(timeout=10)
+            return client.post(f"/v1/sessions/{sid}/credential", headers=headers, json=request)
+
+        with ThreadPoolExecutor(2) as pool:
+            responses = list(pool.map(submit, range(2)))
+        assert [r.status_code for r in responses] == [200, 200]
+        assert responses[0].json() == responses[1].json()
+        assert len(calls) == 1
+        with root.database.sessions() as db:
+            assert db.get(CredentialIssuanceRow, sid) is not None
+
+
 def test_postgres_linked_report_checkpoint_rollback_and_parallel_exports(postgres, monkeypatch):
     """Native PostgreSQL JSON CAS/row locking, fake media analysis and real signatures."""
     from test_forensic_real import FakeSource, _face, _pipeline, _voice

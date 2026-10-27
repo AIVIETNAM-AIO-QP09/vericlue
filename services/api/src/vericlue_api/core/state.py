@@ -105,9 +105,17 @@ class ApplicationState:
 
     @contextmanager
     def transaction(
-        self, *, lock_timeout_seconds: float | None = None, inference_deadline: float | None = None
+        self,
+        *,
+        lock_timeout_seconds: float | None = None,
+        inference_deadline: float | None = None,
+        serialize_sqlite: bool = False,
     ) -> Iterator[AppState]:
         with self.database.sessions.begin() as db:
+            if serialize_sqlite and db.bind.dialect.name == "sqlite":
+                # Acquire the write transaction before reading eligibility/device snapshots.
+                # pysqlite's legacy SELECT transaction mode does not serialize stale readers.
+                db.execute(text("BEGIN IMMEDIATE"))
             if lock_timeout_seconds is not None and db.bind.dialect.name == "postgresql":
                 db.execute(
                     text("SELECT set_config('lock_timeout', :timeout, true)"),
@@ -156,8 +164,14 @@ def get_state(request: Request) -> Iterator[AppState]:
         "/v1/sessions/{session_id}/voice",
     }
     timeout = root.settings.db_lock_timeout_seconds if guarded else None
+    credential_write = (
+        request.method == "POST"
+        and getattr(route, "path", "") == "/v1/sessions/{session_id}/credential"
+    )
     with root.transaction(
-        lock_timeout_seconds=timeout, inference_deadline=inference_deadline if guarded else None
+        lock_timeout_seconds=timeout,
+        inference_deadline=inference_deadline if guarded else None,
+        serialize_sqlite=credential_write,
     ) as state:
         state.reviews.actor = getattr(request.state, "staff_actor", "staff-unverified")
         state.review_audit.actor = state.reviews.actor
