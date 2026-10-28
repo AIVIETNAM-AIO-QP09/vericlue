@@ -6,13 +6,18 @@ import Testing
 struct IdentityFlowTests {
     private let qr = "000000000001||NGUYEN VAN MAU|01011995|Nam|DIA CHI MAU|01012021"
 
-    private func verified(_ server: MockServer) async throws -> IdentityFlow {
+    private func sent(_ server: MockServer) async throws -> IdentityFlow {
         let identity = IdentityFlow(api: server.api())
         identity.begin(purpose: .onboarding, scenario: "genuine")
         identity.phone = "0912345678"
         server.enqueue(try Fixtures.session())
         server.enqueue("{\"expires_at\":\"2026-10-24T10:00:00Z\",\"attempts_left\":5,\"simulated_sms\":\"Mã mô phỏng 123456\"}")
         #expect(await identity.sendOTP() == .otp)
+        return identity
+    }
+
+    private func verified(_ server: MockServer) async throws -> IdentityFlow {
+        let identity = try await sent(server)
         identity.code = "123456"
         server.enqueue("{\"status\":\"pass\",\"attempts_left\":5}")
         #expect(await identity.verifyOTP() == .idFront)
@@ -80,7 +85,7 @@ struct IdentityFlowTests {
 
     @Test func wrongExpiredLockedTooManyAndAlreadyVerified() async throws {
         let server = MockServer()
-        let identity = try await verified(server)
+        let identity = try await sent(server)
         identity.code = "000000"
         server.enqueue("{\"status\":\"retry\",\"attempts_left\":4}")
         #expect(await identity.verifyOTP() == nil)
@@ -92,19 +97,40 @@ struct IdentityFlowTests {
         server.error(409, "otp_expired")
         #expect(await identity.verifyOTP() == nil)
         #expect(identity.otpLocked && identity.errorText == FlowRules.otpErrorText("otp_expired"))
-        server.enqueue("{\"expires_at\":\"2026-10-24T10:01:00Z\",\"attempts_left\":5}")
+        server.enqueue("{\"expires_at\":\"2026-10-24T10:01:00Z\",\"attempts_left\":4}")
         #expect(await identity.sendOTP(resend: true, now: Date().addingTimeInterval(46)) == .otp)
+        #expect(identity.attemptsLeft == 4)
         identity.code = "000000"
         server.error(409, "otp_locked")
         #expect(await identity.verifyOTP() == nil)
         #expect(identity.attemptsLeft == 0 && identity.otpLocked)
-        server.error(409, "otp_too_many")
-        #expect(await identity.sendOTP(resend: true, now: Date().addingTimeInterval(46)) == .errorService)
-        server.error(409, "otp_already_verified")
-        #expect(await identity.sendOTP(resend: true, now: Date().addingTimeInterval(46)) == .idFront)
+        let requests = server.captured.count
+        #expect(await identity.sendOTP(resend: true, now: Date().addingTimeInterval(46)) == nil)
+        #expect(server.captured.count == requests) // Exhaustion cannot be unlocked by resend.
+
+        let another = MockServer()
+        let pending = try await sent(another)
+        another.error(409, "otp_too_many")
+        #expect(await pending.sendOTP(resend: true, now: Date().addingTimeInterval(46)) == .errorService)
+        another.error(409, "otp_already_verified")
+        #expect(await pending.sendOTP(resend: true, now: Date().addingTimeInterval(46)) == .otp)
+        #expect(pending.otpVerified && pending.continueAfterVerifiedOTP() == .idFront)
     }
 
-    @Test func serverQRRetryReturnsToBackAndKeepsFront() async throws {
+    @Test func returningAfterVerifiedDoesNotPretendToVerifyAnotherCode() async throws {
+        let server = MockServer()
+        let identity = try await verified(server)
+        let requests = server.captured.count
+        identity.code = "999999"
+        #expect(await identity.verifyOTP() == nil)
+        identity.eraseCode(); identity.appendCode("0")
+        #expect(identity.code == "999999") // Editing APIs are locked after verification.
+        #expect(await identity.sendOTP(resend: true, now: Date().addingTimeInterval(46)) == .otp)
+        #expect(server.captured.count == requests)
+        #expect(identity.continueAfterVerifiedOTP() == .idFront)
+    }
+
+    @Test func serverQRRetryStaysInReviewKeepsBothAndRequiresRetake() async throws {
         let server = MockServer()
         let identity = try await verified(server)
         let front = IDCardPhoto(jpeg: Data([1, 2]), sharpness: 100, glareFraction: 0, qr: nil)
@@ -112,11 +138,40 @@ struct IdentityFlowTests {
         identity.acceptPhoto(front, isBack: false)
         identity.acceptPhoto(back, isBack: true)
         server.enqueue("{\"status\":\"retry\",\"retry_hint\":\"QR_INVALID\"}")
-        #expect(await identity.uploadCard() == .idBack)
-        #expect(identity.frontPhoto?.jpeg == front.jpeg && identity.backPhoto == nil)
+        let frontID = identity.frontCaptureID
+        let backID = identity.backCaptureID
+        #expect(await identity.uploadCard() == .idReview)
+        #expect(identity.frontPhoto?.jpeg == front.jpeg && identity.backPhoto?.jpeg == back.jpeg)
+        #expect(identity.frontCaptureID == frontID && identity.backCaptureID == backID)
+        #expect(identity.cardQRRejected)
         #expect(identity.serverFields == nil)
         let body = String(decoding: server.captured.last!.httpBody!, as: UTF8.self)
         #expect(body.contains("name=\"front\"") && body.contains("name=\"back\"") && body.contains(qr))
+        let requests = server.captured.count
+        #expect(await identity.uploadCard() == .idReview)
+        #expect(server.captured.count == requests)
+        identity.retake(isBack: false)
+        #expect(identity.frontPhoto == nil && identity.backPhoto?.jpeg == back.jpeg)
+        #expect(!identity.cardQRRejected && identity.frontCaptureID != frontID)
+    }
+
+    @Test(arguments: [true, false])
+    func qrOnEitherSideIsSentWithBothImages(_ qrOnFront: Bool) async throws {
+        let server = MockServer()
+        let identity = try await verified(server)
+        let front = IDCardPhoto(jpeg: Data([1, 2]), sharpness: 100, glareFraction: 0, qr: qrOnFront ? qr : nil)
+        let back = IDCardPhoto(jpeg: Data([3, 4]), sharpness: 100, glareFraction: 0, qr: qrOnFront ? nil : qr)
+        identity.acceptPhoto(front, isBack: false); identity.acceptPhoto(back, isBack: true)
+        server.enqueue("{\"status\":\"ok\",\"fields\":{\"full_name\":\"DEMO\",\"id_number\":\"000000000001\"}}")
+        #expect(await identity.uploadCard() == .faceReady)
+        #expect(identity.cardQR == qr && identity.awaitingFaceConfirmation)
+        let body = String(decoding: try #require(server.captured.last?.httpBody), as: UTF8.self)
+        #expect(body.contains("name=\"front\"") && body.contains("name=\"back\"") && body.contains(qr))
+        #expect(identity.frontPhoto?.jpeg == front.jpeg && identity.backPhoto?.jpeg == back.jpeg)
+        identity.retake(isBack: qrOnFront ? false : true)
+        #expect(identity.cardQR == nil) // Never reuse QR from a discarded capture.
+        if qrOnFront { #expect(identity.backPhoto?.jpeg == back.jpeg) }
+        else { #expect(identity.frontPhoto?.jpeg == front.jpeg) }
     }
 
     @Test func editsPersistAndOnlyEditedValuesAreConfirmed() async throws {
@@ -125,7 +180,13 @@ struct IdentityFlowTests {
         identity.acceptPhoto(IDCardPhoto(jpeg: Data([1]), sharpness: 100, glareFraction: 0, qr: nil), isBack: false)
         identity.acceptPhoto(IDCardPhoto(jpeg: Data([2]), sharpness: 100, glareFraction: 0, qr: qr), isBack: true)
         server.enqueue("{\"status\":\"ok\",\"fields\":{\"full_name\":\"Nguyễn Văn Mẫu\",\"id_number\":\"000000000001\",\"date_of_birth\":\"1995-01-01\",\"sex\":\"Nam\",\"address\":\"Địa chỉ mẫu\",\"issued_on\":\"2021-01-01\"}}")
-        #expect(await identity.uploadCard() == .confirm)
+        #expect(await identity.uploadCard() == .faceReady)
+        #expect(identity.awaitingFaceConfirmation)
+        #expect(server.captured.last?.url?.lastPathComponent == "id-card")
+        #expect(!server.captured.contains { $0.url?.lastPathComponent == "confirm" })
+        let acceptedRequests = server.captured.count
+        #expect(await identity.uploadCard() == .faceReady)
+        #expect(server.captured.count == acceptedRequests) // Reviewing unchanged images does not re-upload.
         #expect(identity.draftValues[0] == "NGUYỄN VĂN MẪU")
         #expect(identity.draftValues[1] == "000 000 000 001")
         #expect(identity.draftValues[2] == "01/01/1995")
@@ -140,7 +201,7 @@ struct IdentityFlowTests {
         #expect(identity.draftValues[0] == "Nguyễn Văn Mẫu B")
         #expect(identity.draftValues[2] == "02/01/1995")
         server.enqueue("{\"received\":true}")
-        #expect(await identity.confirmCard() == .faceReady)
+        #expect(await identity.confirmCard() == .uploading)
         let sent = try SessionJSON.decoder().decode(IdCardFields.self, from: server.captured.last!.httpBody!)
         #expect(sent == edited)
         #expect(sent.issuedOn == "2021-01-01")
@@ -156,7 +217,8 @@ struct IdentityFlowTests {
         #expect(await identity.uploadCard() == .idFront)
         identity.acceptPhoto(IDCardPhoto(jpeg: Data([1]), sharpness: 100, glareFraction: 0, qr: nil), isBack: false)
         identity.acceptPhoto(IDCardPhoto(jpeg: Data([2]), sharpness: 100, glareFraction: 0, qr: "not a CCCD QR"), isBack: true)
-        #expect(await identity.uploadCard() == .idBack)
+        #expect(await identity.uploadCard() == .idReview)
+        #expect(identity.frontPhoto != nil && identity.backPhoto != nil)
         #expect(server.captured.count == before)
         identity.reset()
         #expect(identity.frontPhoto == nil && identity.backPhoto == nil && identity.draftValues.isEmpty)
@@ -164,11 +226,11 @@ struct IdentityFlowTests {
 
     @Test func QRRetakePopsBackToTheExistingBackCaptureRoute() {
         let navigation = AppNavigation()
-        navigation.path = [.auth, .phone, .otp, .idFront, .idFrontReview, .idBack, .idBackReview]
+        navigation.path = [.auth, .phone, .otp, .idFront, .idBack, .idReview]
         navigation.returnTo(.idBack)
-        #expect(navigation.path == [.auth, .phone, .otp, .idFront, .idFrontReview, .idBack])
+        #expect(navigation.path == [.auth, .phone, .otp, .idFront, .idBack])
         navigation.returnTo(.idBack)
-        #expect(navigation.path.count == 6)
+        #expect(navigation.path.count == 5)
         navigation.returnTo(.idFront)
         #expect(navigation.path == [.auth, .phone, .otp, .idFront])
     }

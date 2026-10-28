@@ -1,24 +1,6 @@
 import SwiftUI
 import UIKit
-
-struct IdentityPermissionScreen: View {
-    let onNext: (Route) -> Void
-    @State private var request: Task<Void, Never>?
-
-    var body: some View {
-        PermissionScreen {
-            guard request == nil else { return }
-            request = Task {
-                let allowed = await CameraSession.requestPermission()
-                guard !Task.isCancelled else { return }
-                onNext(allowed ? .phone : .errorCamera)
-                request = nil
-            }
-        }
-        .disabled(request != nil)
-        .onDisappear { request?.cancel(); request = nil }
-    }
-}
+import QuartzCore
 
 struct IdentityPhoneScreen: View {
     @EnvironmentObject private var identity: IdentityFlow
@@ -63,9 +45,14 @@ struct IdentityOTPScreen: View {
     @EnvironmentObject private var identity: IdentityFlow
     @Environment(\.vcColors) private var colors
     let onNext: (Route) -> Void
+    var onRestart: (() -> Void)? = nil
 
     var body: some View {
         VcScreen(step: 1) {
+            if identity.otpVerified {
+                VcTitleBlock(title: "Số điện thoại đã được xác nhận",
+                    bodyText: "Mã đã được sử dụng. Không cần nhập hoặc gửi lại mã; bấm Tiếp tục để quay lại bước kế tiếp.")
+            } else {
             if let sms = identity.otpSMS {
                 VcBanner(text: "SMS mô phỏng · " + sms, systemImage: "message")
             }
@@ -81,19 +68,31 @@ struct IdentityOTPScreen: View {
                 Button(seconds == 0 ? "Gửi lại mã" : countdown(seconds)) {
                     Task { if let route = await identity.sendOTP(resend: true) { onNext(route) } }
                 }
-                .disabled(seconds > 0 || identity.busy)
+                .disabled(seconds > 0 || identity.busy || identity.attemptsLeft == 0)
                 .font(VcType.caption)
                 .frame(maxWidth: .infinity)
                 .accessibilityIdentifier("identity-resend-otp")
             }
+            }
         }
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 8) {
+                if identity.otpVerified {
+                    VcPrimaryButton(title: "Tiếp tục") {
+                        if let route = identity.continueAfterVerifiedOTP() { onNext(route) }
+                    }.padding(.horizontal, 20)
+                } else {
                 VcPrimaryButton(title: "Xác nhận", action: verify, enabled: canVerify)
                     .padding(.horizontal, 20)
                     .accessibilityIdentifier("identity-verify-otp")
                 VcNumericKeypad(onDigit: identity.appendCode, onBackspace: identity.eraseCode, onDone: verify)
                     .disabled(identity.busy || identity.otpLocked)
+                if identity.attemptsLeft == 0 {
+                    VcSecondaryButton(title: "Bắt đầu lại từ ngân hàng") { onRestart?() }
+                        .disabled(identity.busy)
+                        .padding(.horizontal, 20)
+                }
+                }
             }
             .background(colors.background)
         }
@@ -101,7 +100,7 @@ struct IdentityOTPScreen: View {
     }
 
     private var canVerify: Bool {
-        OtpRules.isComplete(identity.code) && !identity.busy && !identity.otpHasError && !identity.otpLocked
+        !identity.otpVerified && OtpRules.isComplete(identity.code) && !identity.busy && !identity.otpHasError && !identity.otpLocked
     }
     private func verify() {
         guard canVerify else { return }
@@ -119,6 +118,11 @@ struct IdentityCaptureScreen: View {
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var camera = CameraSession()
     @State private var errorText: String?
+    @State private var heldPhoto: IDCardPhoto?
+    @State private var holdReady = false
+    @State private var holdDeadline = 0.0
+    @State private var operation = UUID()
+    @State private var pending: Task<Void, Never>?
 
     var body: some View {
         VStack(spacing: 18) {
@@ -129,7 +133,11 @@ struct IdentityCaptureScreen: View {
             }
             VcTitleBlock(title: isBack ? "Chụp mặt sau CCCD" : "Chụp mặt trước CCCD",
                          bodyText: "Đặt thẻ gọn trong khung, không bị lóa")
-            RearCameraPreview(session: camera.session)
+            Group {
+                if let heldPhoto, let image = UIImage(data: heldPhoto.jpeg) {
+                    Image(uiImage: image).resizable().scaledToFit()
+                } else { RearCameraPreview(session: camera.session) }
+            }
                 .aspectRatio(1.586, contentMode: .fit)
                 .clipped()
                 .overlay(CardCorners().stroke(.white, lineWidth: 3))
@@ -139,15 +147,22 @@ struct IdentityCaptureScreen: View {
             if let failure = camera.failure {
                 VcBanner(text: cameraErrorText(failure), tone: .warning)
                 Button("Mở Cài đặt") { openCameraSettings() }.font(VcType.label)
-                Button("Thử lại") { Task { await camera.start() } }.font(VcType.label)
+                Button("Thử lại") { Task { await camera.start(isBack: isBack) } }.font(VcType.label)
+            }
+            if heldPhoto != nil {
+                VcSecondaryButton(title: "Chụp lại mặt này", action: retake)
+                VcPrimaryButton(title: "Tiếp tục", action: advance,
+                    enabled: holdReady && heldPhoto?.canContinue(isBack: isBack) == true)
+            } else {
+                Text(autoHint).font(VcType.caption)
             }
             Spacer(minLength: 0)
             Button(action: capture) {
                 Circle().fill(.white).frame(width: 72, height: 72)
                     .overlay(Circle().stroke(.black.opacity(0.25), lineWidth: 2).padding(6))
             }
-            .disabled(!camera.ready || camera.busy)
-            .opacity(camera.ready && !camera.busy ? 1 : 0.4)
+            .disabled(!camera.ready || camera.busy || heldPhoto != nil)
+            .opacity(camera.ready && !camera.busy && heldPhoto == nil ? 1 : 0.4)
             .accessibilityLabel("Chụp ảnh")
         }
         .padding(20)
@@ -157,27 +172,69 @@ struct IdentityCaptureScreen: View {
         .toolbarColorScheme(.dark, for: .navigationBar)
         .navigationBarBackButtonHidden(camera.busy)
         .task(id: scenePhase) {
-            if scenePhase == .active { await camera.start() }
-            else { camera.stop() }
+            if scenePhase == .active {
+                if heldPhoto == nil { await camera.start(isBack: isBack) }
+                else {
+                    let remaining = max(0, holdDeadline - CACurrentMediaTime())
+                    try? await Task.sleep(for: .seconds(remaining))
+                    if !Task.isCancelled { holdReady = true } // Resume never auto-advances a paused shot.
+                }
+            } else { cancelPending(); camera.stop() }
         }
-        .onDisappear { camera.stop() }
+        .onChange(of: camera.shouldAutoCapture) { ready in if ready { capture() } }
+        .onDisappear { cancelPending(); camera.stop() }
     }
 
     private func capture() {
-        guard camera.ready, !camera.busy else { return }
-        Task {
+        guard camera.ready, !camera.busy, heldPhoto == nil, pending == nil else { return }
+        let id = UUID()
+        operation = id
+        pending = Task {
+            defer { if operation == id { pending = nil } }
             do {
                 errorText = nil
                 let photo = try await camera.capture()
+                guard operation == id, !Task.isCancelled, scenePhase == .active else { return }
                 identity.acceptPhoto(photo, isBack: isBack)
                 camera.stop()
-                onNext(isBack ? .idBackReview : .idFrontReview)
+                heldPhoto = photo; holdReady = false
+                holdDeadline = CACurrentMediaTime() + IDAutoCapture.pause
+                if !photo.sharp { errorText = "Ảnh bị mờ, hãy chụp lại." }
+                else if !photo.noGlare { errorText = "Thẻ bị lóa, hãy nghiêng nhẹ thẻ rồi chụp lại." }
+                try await Task.sleep(for: .seconds(IDAutoCapture.pause))
+                guard operation == id, !Task.isCancelled, scenePhase == .active else { return }
+                holdReady = true
+                if photo.canContinue(isBack: isBack) { advance() }
             } catch CameraError.cancelled {
                 // Background/navigation cancelled the shot; do not advance.
             } catch {
+                guard operation == id, !Task.isCancelled else { return }
                 errorText = "Chưa chụp được ảnh. Hãy giữ điện thoại ổn định rồi chụp lại."
             }
         }
+    }
+
+    private var autoHint: String {
+        guard let sample = camera.observation else { return "Giữ thẻ trong khung. Máy sẽ tự chụp khi sẵn sàng; vẫn có thể bấm chụp tay." }
+        if !sample.looksLikeCard { return "Đưa CCCD vào khung để máy nhận ra nội dung thẻ." }
+        if !sample.qualityGood { return "Giữ thẻ rõ nét, không bị lóa." }
+        return "Giữ yên thẻ để tự chụp."
+    }
+
+    private func cancelPending() { operation = UUID(); pending?.cancel(); pending = nil }
+    private func retake() {
+        cancelPending(); camera.stop(); identity.retake(isBack: isBack)
+        heldPhoto = nil; holdReady = false; errorText = nil
+        let id = UUID(); operation = id
+        pending = Task {
+            defer { if operation == id { pending = nil } }
+            await camera.start(isBack: isBack)
+        }
+    }
+    private func advance() {
+        guard scenePhase == .active, holdReady, heldPhoto?.canContinue(isBack: isBack) == true else { return }
+        cancelPending()
+        onNext(isBack || identity.backPhoto != nil ? .idReview : .idBack)
     }
 
     private func cameraErrorText(_ error: CameraError) -> String {
@@ -204,52 +261,76 @@ private struct CardCorners: Shape {
 }
 
 struct IdentityReviewScreen: View {
-    let isBack: Bool
     let onNext: (Route) -> Void
     @EnvironmentObject private var identity: IdentityFlow
 
-    private var photo: IDCardPhoto? { isBack ? identity.backPhoto : identity.frontPhoto }
-
     var body: some View {
         VcScreen(step: 1) {
-            VcTitleBlock(title: isBack ? "Kiểm tra ảnh mặt sau" : "Kiểm tra ảnh mặt trước",
+            VcTitleBlock(title: "Kiểm tra hai mặt CCCD",
                          bodyText: "Xem lại ảnh trước khi gửi: chữ và ảnh trên thẻ phải rõ, không mờ, không lóa.")
+            ForEach([false, true], id: \.self) { isBack in
+                let photo = isBack ? identity.backPhoto : identity.frontPhoto
+                Text(isBack ? "Mặt sau" : "Mặt trước").font(VcType.section)
             if let photo, let image = UIImage(data: photo.jpeg) {
                 Image(uiImage: image).resizable().scaledToFit().accessibilityLabel("Ảnh thẻ vừa chụp")
                 VcChecklistCard(title: "Kiểm tra chất lượng ảnh", rows: [
                     VcChecklistRow(systemImage: nil, label: "Ảnh rõ nét, không mờ", state: photo.sharp ? .done : .waiting, trailing: photo.sharp ? "Ổn" : "Chụp lại"),
                     VcChecklistRow(systemImage: nil, label: "Không bị lóa", state: photo.noGlare ? .done : .waiting, trailing: photo.noGlare ? "Ổn" : "Chụp lại"),
-                    VcChecklistRow(systemImage: nil, label: "Đọc được mã QR", state: isBack && photo.hasQR ? .done : nil, trailing: isBack ? (photo.hasQR ? "Ổn" : "Chụp lại") : nil)
+                    VcChecklistRow(systemImage: nil, label: "Mã QR ở mặt này", state: photo.hasQR ? .done : nil,
+                        trailing: photo.hasQR ? "Đã đọc" : "Kiểm tra mặt còn lại")
                 ])
                 if !photo.sharp { VcBanner(text: "Ảnh bị mờ, hãy giữ máy chắc tay rồi chụp lại.", tone: .warning) }
                 if !photo.noGlare { VcBanner(text: "Thẻ bị lóa, hãy nghiêng nhẹ thẻ rồi chụp lại.", tone: .warning) }
-                if isBack && !photo.hasQR {
-                    VcBanner(text: "Chưa đọc được mã QR, hãy đưa mặt sau thẻ lại gần hơn rồi chụp lại.", tone: .warning)
-                }
             } else { VcBanner(text: "Chưa chụp được ảnh. Hãy chụp lại.", tone: .warning) }
+                VcSecondaryButton(title: isBack ? "Chụp lại mặt sau" : "Chụp lại mặt trước") {
+                    identity.retake(isBack: isBack); onNext(isBack ? .idBack : .idFront)
+                }.disabled(identity.busy)
+            }
+            if identity.cardQR == nil || identity.cardQRRejected {
+                VcBanner(text: "Chưa đọc được mã QR trên thẻ. Chọn chụp lại mặt có mã QR, giữ nguyên mặt còn lại.", tone: .warning)
+            }
             if let error = identity.errorText { VcBanner(text: error, tone: .warning) }
             if identity.busy { ProgressView("Đang gửi dữ liệu…").font(VcType.caption) }
         }
         .safeAreaInset(edge: .bottom) {
             BottomAction {
-                VcPrimaryButton(title: isBack ? "Ảnh rõ, tiếp tục" : "Ảnh rõ, chụp mặt sau", action: confirm,
-                    enabled: photo?.canContinue(isBack: isBack) == true && !identity.busy)
-                VcSecondaryButton(title: "Chụp lại", action: retake).disabled(identity.busy)
+                VcPrimaryButton(title: "Ảnh rõ, gửi hai mặt", action: confirm,
+                    enabled: identity.frontPhoto?.canContinue(isBack: false) == true &&
+                        identity.backPhoto?.canContinue(isBack: true) == true && identity.cardQR != nil &&
+                        !identity.cardQRRejected && !identity.busy)
             }
         }
         .navigationBarBackButtonHidden(identity.busy)
     }
 
     private func confirm() {
-        if isBack { Task { if let route = await identity.uploadCard() { onNext(route) } } }
-        else { onNext(.idBack) }
+        Task { if let route = await identity.uploadCard() { onNext(route) } }
     }
-    private func retake() { identity.retake(isBack: isBack); onNext(isBack ? .idBack : .idFront) }
+}
+
+struct IDPairDemoReviewScreen: View {
+    let onContinue: () -> Void
+    let onRetake: (Route) -> Void
+    var body: some View {
+        VcScreen(step: 1) {
+            VcTitleBlock(title: "Kiểm tra hai mặt CCCD", bodyText: "Dữ liệu mẫu · không dùng ảnh căn cước thật.")
+            ForEach([false, true], id: \.self) { isBack in
+                Text(isBack ? "Mặt sau · dữ liệu mẫu" : "Mặt trước · dữ liệu mẫu").font(VcType.label)
+                VcCameraFrame(cardMode: true)
+                VcSecondaryButton(title: isBack ? "Chụp lại mặt sau" : "Chụp lại mặt trước") {
+                    onRetake(isBack ? .idBack : .idFront)
+                }
+            }
+            VcPrimaryButton(title: "Ảnh rõ, tiếp tục", action: onContinue)
+        }
+    }
 }
 
 struct IdentityConfirmScreen: View {
     let onNext: (Route) -> Void
     @EnvironmentObject private var identity: IdentityFlow
+    @EnvironmentObject private var captures: CaptureFlows
+    @EnvironmentObject private var face: FaceCaptureFlow
 
     var body: some View {
         VcScreen(step: 1) {
@@ -266,14 +347,15 @@ struct IdentityConfirmScreen: View {
         .safeAreaInset(edge: .bottom) {
             BottomAction {
                 VcPrimaryButton(title: "Thông tin đúng", action: confirm,
-                    enabled: identity.confirmedFields != nil && !identity.busy)
+                    enabled: face.hasPendingCapture && identity.confirmedFields != nil && !identity.busy)
                 VcSecondaryButton(title: "Sửa thông tin", action: { onNext(.editInfo) })
                     .disabled(identity.busy || identity.confirmedFields == nil)
+                VcSecondaryButton(title: "Dừng xác minh") { captures.showExitConfirmation = true }
             }
         }
         .navigationBarBackButtonHidden(identity.busy)
     }
-    private func confirm() { Task { if let route = await identity.confirmCard() { onNext(route) } } }
+    private func confirm() { Task { if let route = await captures.confirmIdentity(identity) { onNext(route) } } }
 }
 
 private let identityFieldLabels = ["Họ và tên", "Số CCCD", "Ngày sinh", "Giới tính", "Nơi thường trú"]
@@ -281,6 +363,8 @@ private let identityFieldLabels = ["Họ và tên", "Số CCCD", "Ngày sinh", "
 struct IdentityEditScreen: View {
     let onNext: (Route) -> Void
     @EnvironmentObject private var identity: IdentityFlow
+    @EnvironmentObject private var captures: CaptureFlows
+    @EnvironmentObject private var face: FaceCaptureFlow
     @Environment(\.vcColors) private var colors
 
     var body: some View {
@@ -318,11 +402,13 @@ struct IdentityEditScreen: View {
         .safeAreaInset(edge: .bottom) {
             BottomAction {
                 VcPrimaryButton(title: "Lưu và tiếp tục", action: save,
-                    enabled: !identity.busy && identity.draftError == nil)
+                    enabled: face.hasPendingCapture && !identity.busy && identity.draftError == nil)
                 VcSecondaryButton(title: "Chụp lại CCCD", action: {
+                    captures.restartFace(live: identity.liveFlow)
                     identity.retake(isBack: false)
                     onNext(.idFront)
                 }).disabled(identity.busy)
+                VcSecondaryButton(title: "Dừng xác minh") { captures.showExitConfirmation = true }
             }
         }
         .navigationBarBackButtonHidden(identity.busy)
@@ -333,7 +419,7 @@ struct IdentityEditScreen: View {
             if identity.draftValues.indices.contains(index) { identity.draftValues[index] = $0 }
         })
     }
-    private func save() { Task { if let route = await identity.confirmCard() { onNext(route) } } }
+    private func save() { Task { if let route = await captures.confirmIdentity(identity) { onNext(route) } } }
 }
 
 func openCameraSettings() {

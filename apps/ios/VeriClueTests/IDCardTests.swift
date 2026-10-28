@@ -8,6 +8,20 @@ import UniformTypeIdentifiers
 
 @MainActor
 struct IDCardTests {
+    @Test func QRMayBeOnEitherSideAndMalformedCandidatesAreSkipped() {
+        let front = "000000000001||DEMO FRONT|01011995|Nam|DEMO"
+        let back = "000000000002||DEMO BACK|01011995|Nam|DEMO"
+        #expect(CCCDQR.select(front: front, back: nil) == front)
+        #expect(CCCDQR.select(front: nil, back: back) == back)
+        #expect(CCCDQR.select(front: front, back: back) == back)
+        #expect(CCCDQR.select(front: front, back: "invalid") == front)
+        #expect(CCCDQR.select(front: " ", back: "") == nil)
+        #expect(CCCDQR.select(front: nil, back: nil) == nil)
+        let photo = IDCardPhoto(jpeg: Data([1]), sharpness: 100, glareFraction: 0, qr: nil)
+        #expect(photo.canContinue(isBack: false) && photo.canContinue(isBack: true))
+        #expect(!IDCardPhoto(jpeg: Data(), sharpness: 100, glareFraction: 0, qr: front).canContinue(isBack: true))
+    }
+
     @Test func emptyAndInvalidImagesFailClosed() {
         #expect(throws: IDCardError.self) { _ = try IDCardAnalyzer.analyze(Data()) }
         #expect(throws: IDCardError.self) { _ = try IDCardAnalyzer.analyze(Data([1, 2, 3])) }

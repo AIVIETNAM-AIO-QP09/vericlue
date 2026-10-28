@@ -9,6 +9,13 @@ enum Next: Equatable {
 @MainActor
 final class LiveFlow: ObservableObject {
     private let api: SessionApi
+    private let accountStore: AccountStore
+    @Published private(set) var accountReceipt: AccountReceipt?
+    @Published private(set) var receiptIssue: ReceiptIssue?
+    private var verificationPassed = false
+    private var receiptSaved = false
+    private var receiptCollection: Task<Void, Never>?
+    private var receiptCollectionID: UUID?
     @Published private(set) var session: CreateSessionResponse?
     @Published private(set) var challenge: Challenge?
     var token: String? { session?.token }
@@ -19,6 +26,7 @@ final class LiveFlow: ObservableObject {
     @Published private(set) var voiceChecked = false
     @Published private(set) var otpSms: String?
     @Published private(set) var idFields: IdCardFields?
+    @Published private(set) var idCardConfirmed = false
     @Published private(set) var voicePrompt: String?
     @Published private(set) var voiceChallengeId: String?
     @Published private(set) var retryHint: String?
@@ -37,7 +45,12 @@ final class LiveFlow: ObservableObject {
     private var cancelRequest: (() -> Void)?
     private(set) var requiresFreshChallenge = false
 
-    init(api: SessionApi) { self.api = api }
+    init(api: SessionApi, accountStore: AccountStore = .shared) {
+        self.api = api
+        self.accountStore = accountStore
+    }
+
+    enum ReceiptIssue: Equatable { case api(ApiError), invalidReceipt, storage }
 
     enum OtpResult: Equatable { case pass, wrong(Int), fail(ApiError) }
     enum IdResult: Equatable { case accepted, retry(String), fail(ApiError) }
@@ -48,6 +61,7 @@ final class LiveFlow: ObservableObject {
         challenge = nil
         otpSms = nil
         idFields = nil
+        idCardConfirmed = false
         readyRetryChallenge = false
         requestedPurpose = nil
         dropFaceAttempt()
@@ -97,6 +111,12 @@ final class LiveFlow: ObservableObject {
     }
 
     func dropFaceAttempt() {
+        receiptCollectionID = nil
+        receiptCollection?.cancel(); receiptCollection = nil
+        verificationPassed = false
+        accountReceipt = nil
+        receiptIssue = nil
+        receiptSaved = false
         frontalJpeg = nil
         colorEvents.removeAll()
         pendingFaceVideo = nil
@@ -210,6 +230,7 @@ final class LiveFlow: ObservableObject {
         switch await request(operation, { await self.api.sendIdCard(sessionId: current.sessionId, token: current.token, front: front, back: back, qr: qr) }) {
         case .failure(let error): return .fail(error)
         case .success(let value):
+            idCardConfirmed = false
             switch value.status {
             case "ok":
                 guard let fields = value.fields else { return .fail(.badResponse) }
@@ -230,6 +251,7 @@ final class LiveFlow: ObservableObject {
         case .success(let value):
             guard value.received else { return .badResponse }
             idFields = fields
+            idCardConfirmed = true
             return nil
         }
     }
@@ -284,6 +306,7 @@ final class LiveFlow: ObservableObject {
             }
             retryHint = value.retryHint
             attemptsLeft = value.attemptsLeft
+            verificationPassed = value.status == "pass"
             return .to(route)
         }
     }
@@ -326,9 +349,63 @@ final class LiveFlow: ObservableObject {
             self.audioOffsetMs = nil
             voiceChecked = true
             attemptsLeft = value.attemptsLeft
+            verificationPassed = value.status == "pass"
+            if verificationPassed {
+                accountReceipt = value.account.flatMap { $0.isUsable() ? $0 : nil }
+                receiptSaved = false
+            }
             onAccepted()
             return .to(route)
         }
+    }
+
+    // Survives Success -> BankOpened, but reset/abandon cancels it. No biometrics
+    // are retried, and a stale collector cannot unlock a newer collector's lease.
+    func collectReceiptAfterPass() {
+        guard verificationPassed, receiptCollection == nil else { return }
+        let id = UUID()
+        receiptCollectionID = id
+        receiptCollection = Task { [weak self] in
+            guard let self else { return }
+            await self.receiptAfterPass()
+            if self.receiptCollectionID == id {
+                self.receiptCollection = nil; self.receiptCollectionID = nil
+            }
+        }
+    }
+
+    // Called by the live success screen, never as part of submitFace/submitVoice.
+    // Receipt failure is separate from a confirmed pass; retry this GET/save only.
+    @discardableResult
+    func receiptAfterPass() async -> AccountReceipt? {
+        guard !Task.isCancelled, verificationPassed, let current = session,
+              ["onboarding", "recovery"].contains(current.purpose ?? requestedPurpose?.rawValue ?? ""),
+              let operation = beginOperation() else { return nil }
+        defer { endOperation(operation) }
+        receiptIssue = nil
+        if accountReceipt?.isUsable() != true {
+            accountReceipt = nil; receiptSaved = false
+            switch await request(operation, { await self.api.accountReceipt(sessionId: current.sessionId, token: current.token) }) {
+            case .failure(let error):
+                // reset/leave invalidates the operation; do not publish into a new session.
+                if activeOperation == operation { receiptIssue = .api(error) }
+                return nil
+            case .success(let receipt):
+                guard receipt.isUsable() else { receiptIssue = .invalidReceipt; return nil }
+                accountReceipt = receipt
+            }
+        }
+        guard let receipt = accountReceipt else { return nil }
+        if !receiptSaved {
+            do { try await accountStore.save(receipt) }
+            catch {
+                if activeOperation == operation, !Task.isCancelled { receiptIssue = .storage }
+                return nil
+            }
+            guard activeOperation == operation, !Task.isCancelled else { return nil }
+            receiptSaved = true
+        }
+        return receipt
     }
 
     private func acknowledgmentError(_ result: Result<StepAck, ApiError>, step: String) -> ApiError? {

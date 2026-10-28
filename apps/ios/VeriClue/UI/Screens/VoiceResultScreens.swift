@@ -150,7 +150,7 @@ struct SuccessScreen: View {
 
     var body: some View {
         VcScreen(centered: true) {
-            VcStatusBadge(systemImage: "checkmark.circle.fill", tone: .success)
+            VCSuccessEmblem()
             switch purpose {
             case .onboarding:
                 VcTitleBlock(title: "Xác minh thành công", bodyText: "Đang quay lại ứng dụng ngân hàng…", centered: true)
@@ -159,6 +159,7 @@ struct SuccessScreen: View {
                     rows: (["Ảnh giấy tờ"] + FlowRules.checkedByServer(voiceChecked: voiceChecked))
                         .map { VcChecklistRow(systemImage: nil, label: $0, state: .done, trailing: "") }
                 )
+                VCSampleAccount()
             case .reauth:
                 VcTitleBlock(title: "Đăng nhập thành công", bodyText: liveVerification ? "Danh tính của bạn đã được xác nhận." : "Danh tính của bạn đã được xác nhận. Thiết bị này đã được liên kết với tài khoản.", centered: true)
                 if liveVerification {
@@ -271,7 +272,9 @@ struct MessageSpec {
         case .errorDevice:
             MessageSpec(systemImage: "iphone.gen3", title: "Thiết bị chưa đáp ứng", body: "Camera hoặc micro chưa hoạt động ổn định, hoặc thiết bị chưa đáp ứng yêu cầu. Hãy kiểm tra quyền, đóng ứng dụng đang dùng thiết bị rồi thử lại.", primary: "Kiểm tra quyền truy cập", secondary: "Quay lại ứng dụng ngân hàng")
         case .interrupted:
-            MessageSpec(systemImage: "video.slash", title: "Xác minh bị gián đoạn", body: "Camera bị ngắt hoặc ứng dụng đã chuyển sang nền. Thông tin giấy tờ vẫn được giữ; bạn chỉ cần làm lại phần khuôn mặt.", primary: "Quay lại chuẩn bị", secondary: "Dừng xác minh")
+            MessageSpec(systemImage: "video.slash", title: "Xác minh bị gián đoạn", body: "Camera bị ngắt hoặc ứng dụng đã rời màn hình. Hãy quay lại chuẩn bị và thực hiện lại.", primary: "Quay lại chuẩn bị", secondary: "Dừng xác minh")
+        case .faceExpired:
+            MessageSpec(systemImage: "clock", title: "Lượt quay đã hết hạn", body: "Thông tin của bạn vẫn được giữ. Hãy quay lại chuẩn bị và quay khuôn mặt lần nữa.", primary: "Quay lại chuẩn bị", secondary: "Dừng xác minh")
         case .noVoice:
             MessageSpec(systemImage: "mic.slash", title: "Chưa thu được giọng nói", body: "Bản ghi chưa dùng được hoặc micro đã bị ngắt. Hãy kiểm tra micro và chọn nơi yên tĩnh trước khi chuẩn bị đọc lại.", primary: "Chuẩn bị đọc lại", secondary: "Dừng xác minh")
         case .exitConfirm:

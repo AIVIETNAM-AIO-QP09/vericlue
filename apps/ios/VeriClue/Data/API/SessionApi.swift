@@ -56,6 +56,14 @@ final class SessionApi {
         await call(post(["v1", "sessions", sessionId, "challenge"], token: token))
     }
 
+    func accountReceipt(sessionId: String, token: String) async -> Result<AccountReceipt, ApiError> {
+        var request = post(["v1", "sessions", sessionId, "account"], token: token)
+        request.httpMethod = "GET"
+        request.setValue(nil, forHTTPHeaderField: "Content-Type")
+        request.setValue("no-store", forHTTPHeaderField: "Cache-Control")
+        return await call(request)
+    }
+
     func sendMedia(sessionId: String, token: String, imageJpeg: Data, video: Data?, challengeId: String?) async -> Result<StepAck, ApiError> {
         var body = MultipartBody()
         body.file("image", filename: "face.jpg", contentType: "image/jpeg", data: imageJpeg)

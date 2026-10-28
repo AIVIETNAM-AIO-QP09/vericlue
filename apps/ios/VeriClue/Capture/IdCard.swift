@@ -3,6 +3,7 @@ import CoreGraphics
 import CoreImage
 import Foundation
 import ImageIO
+import QuartzCore
 import UniformTypeIdentifiers
 import Vision
 
@@ -18,10 +19,18 @@ struct IDCardPhoto: Sendable {
     var sharp: Bool { sharpness >= 60 }
     var noGlare: Bool { glareFraction <= 0.02 }
     var hasQR: Bool { CCCDQR.isPlausible(qr) }
-    func canContinue(isBack: Bool) -> Bool { sharp && noGlare && (!isBack || hasQR) }
+    // Per-photo quality only. A QR may be on either side; validate the pair at review.
+    func canContinue(isBack _: Bool) -> Bool { !jpeg.isEmpty && sharp && noGlare }
 }
 
 enum CCCDQR {
+    // Match Android's back-first selection, but skip malformed/blank candidates.
+    nonisolated static func select(front: String?, back: String?) -> String? {
+        if isPlausible(back) { return back }
+        if isPlausible(front) { return front }
+        return nil
+    }
+
     // Local formatting gate only. Server remains the source of the displayed identity fields.
     nonisolated static func isPlausible(_ raw: String?) -> Bool {
         guard let raw else { return false }
@@ -33,6 +42,23 @@ enum CCCDQR {
 }
 
 enum IDCardAnalyzer {
+    nonisolated static func observe(_ image: CGImage) throws -> IDCardObservation {
+        let card = try cardViewport(image)
+        let quality = try quality(in: card)
+        let request = VNRecognizeTextRequest()
+        request.recognitionLevel = .fast
+        request.recognitionLanguages = ["en-US"] // Printed bilingual card words; supported on iOS 16.
+        request.usesLanguageCorrection = false
+        let text: String
+        do {
+            try VNImageRequestHandler(cgImage: card).perform([request])
+            text = request.results?.compactMap { $0.topCandidates(1).first?.string }.joined(separator: " ") ?? ""
+        } catch { text = "" } // Fail closed for auto capture; manual capture remains available.
+        let hasQR = CCCDQR.isPlausible(try? decodeQR(in: card))
+        return IDCardObservation(sharpness: quality.sharpness, glareFraction: quality.glare,
+            looksLikeCard: CardText.looksLikeCard(text) || hasQR, hasQR: hasQR, sampledAt: CACurrentMediaTime())
+    }
+
     nonisolated static func analyze(_ data: Data) throws -> IDCardPhoto {
         guard !data.isEmpty else { throw IDCardError.emptyImage }
         guard let source = CGImageSourceCreateWithData(data as CFData, nil),
@@ -42,6 +68,19 @@ enum IDCardAnalyzer {
                 kCGImageSourceThumbnailMaxPixelSize: 1600
               ] as CFDictionary) else { throw IDCardError.unreadableImage }
         // Same aspect-fill, centered card viewport as the rear preview. Normalize EXIF first.
+        let card = try cardViewport(upright)
+        let quality = try quality(in: card)
+        let qr = try decodeQR(in: card)
+        let jpeg = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(jpeg, UTType.jpeg.identifier as CFString, 1, nil) else {
+            throw IDCardError.processingFailed
+        }
+        CGImageDestinationAddImage(destination, card, [kCGImageDestinationLossyCompressionQuality: 0.9] as CFDictionary)
+        guard CGImageDestinationFinalize(destination), jpeg.length > 0 else { throw IDCardError.processingFailed }
+        return IDCardPhoto(jpeg: jpeg as Data, sharpness: quality.sharpness, glareFraction: quality.glare, qr: qr)
+    }
+
+    nonisolated private static func cardViewport(_ upright: CGImage) throws -> CGImage {
         let targetRatio = 1.586
         let width = min(Double(upright.width), Double(upright.height) * targetRatio)
         let height = width / targetRatio
@@ -50,6 +89,10 @@ enum IDCardAnalyzer {
         guard let card = upright.cropping(to: rect), card.width >= 3, card.height >= 3 else {
             throw IDCardError.unreadableImage
         }
+        return card
+    }
+
+    nonisolated private static func quality(in card: CGImage) throws -> (sharpness: Double, glare: Double) {
         var luma = [UInt8](repeating: 0, count: card.width * card.height)
         let drawn = luma.withUnsafeMutableBytes { bytes -> Bool in
             guard let context = CGContext(data: bytes.baseAddress, width: card.width, height: card.height,
@@ -59,16 +102,8 @@ enum IDCardAnalyzer {
             return true
         }
         guard drawn else { throw IDCardError.processingFailed }
-        let qr = try decodeQR(in: card)
-        let jpeg = NSMutableData()
-        guard let destination = CGImageDestinationCreateWithData(jpeg, UTType.jpeg.identifier as CFString, 1, nil) else {
-            throw IDCardError.processingFailed
-        }
-        CGImageDestinationAddImage(destination, card, [kCGImageDestinationLossyCompressionQuality: 0.9] as CFDictionary)
-        guard CGImageDestinationFinalize(destination), jpeg.length > 0 else { throw IDCardError.processingFailed }
-        return IDCardPhoto(jpeg: jpeg as Data,
-            sharpness: laplacianVariance(luma, width: card.width, height: card.height),
-            glareFraction: glareFraction(luma, width: card.width, height: card.height), qr: qr)
+        return (laplacianVariance(luma, width: card.width, height: card.height),
+                glareFraction(luma, width: card.width, height: card.height))
     }
 
     nonisolated private static func decodeQR(in card: CGImage) throws -> String? {

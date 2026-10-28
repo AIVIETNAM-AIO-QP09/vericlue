@@ -31,6 +31,17 @@
 
 ## 1. Mục tiêu và phạm vi
 
+> **Kế hoạch đồng bộ 28/10/2026:** xem [baseline và bảng đối chiếu Android](android-alignment.md).
+> Chặng 0 đã khóa nền IOS-06; chặng 1 [đã nối receipt riêng](account-receipt.md),
+> build thành công, unit/receipt test xanh; bài UI từng timeout đã kiểm lại riêng 1/1 xanh,
+> chưa kiểm chứng backend tương thích. Mục tiêu mới: luồng gọn,
+> confirm sau quay mặt nhưng trước upload, theme ấm; recovery bỏ CCCD theo tài liệu.
+> Receipt làm riêng, không gộp ký media/device proof. Sơ đồ cũ bên dưới mô tả nền
+> đang có, không phải bằng chứng các thay đổi đồng bộ đã được triển khai.
+> Chặng 2–3 đã có bản checkpoint màn đầu/OTP/camera CCCD, chờ
+> [nghiệm thu camera sau trên iPhone](compact-flow-device-checklist.md).
+> Onboarding tạm dừng sau `/id-card`; confirm sau mặt và theme chưa triển khai.
+
 App iPhone cho người dân, chạy **cùng server, cùng hợp đồng** với app Android. Luồng đăng ký (`purpose = onboarding`):
 
 ```
@@ -134,9 +145,11 @@ apps/ios/
     Flow/Routes.swift              ← Routes trong flow/Flow.kt (tên route giữ nguyên)
     Flow/FlowRules.swift           ← FlowRules trong flow/Flow.kt
     Flow/LiveFlow.swift            ← flow/LiveFlow.kt
-    Flow/DemoFlow.swift            ← DemoOutcome, FlowState trong ui/App.kt
-    Data/Models.swift              ← các data class trong data/api/Api.kt
-    Data/SessionApi.swift          ← SessionApi trong data/api/Api.kt
+    Flow/FlowTypes.swift           ← Purpose, DemoOutcome trong flow/Flow.kt
+    Flow/DemoFlow.swift            ← trạng thái demo tương ứng FlowState trong ui/App.kt
+    Flow/CaptureFlows.swift        ← điều phối lifecycle/cleanup chung của camera và micro
+    Data/API/Models.swift              ← các data class trong data/api/Api.kt
+    Data/API/SessionApi.swift          ← SessionApi trong data/api/Api.kt
     Capture/Clock.swift            ← CaptureClock trong capture/Signals.kt
     Capture/CameraSession.swift    ← capture/CameraSession.kt
     Capture/VideoWriter.swift      (mới: AVAssetWriter)
@@ -147,10 +160,13 @@ apps/ios/
     Capture/IdCard.swift           ← capture/IdCard.kt (đo nét, lóa, đọc QR)
     Capture/CamProbe.swift         ← capture/CamProbe.kt
     Capture/Regions.swift          ← capture/Regions.kt
-    UI/Theme.swift                 ← ui/theme/Theme.kt
+    UI/Theme/Theme.swift                 ← ui/theme/Theme.kt
     UI/Components/*.swift          ← ui/components/*.kt
     UI/Screens/StartScreens.swift, IdentityScreens.swift, FaceScreens.swift, VoiceResultScreens.swift
-    UI/AppNavigation.swift         ← ui/App.kt (NavigationStack + điều phối)
+    UI/App.swift                   ← ui/App.kt (NavigationStack + ghép các flow)
+    UI/AppRoutes.swift             ← NavHost/composable trong ui/App.kt
+    UI/AppNavigation.swift         ← chỉ quản lý navigation path
+    UI/Debug/GalleryScreen.swift   ← Gallery, chỉ biên dịch trong Debug
     Resources/Fonts/*.ttf
   VeriClueTests/
     FlowRulesTests.swift           ← FlowRulesTest.kt
@@ -229,10 +245,12 @@ Nhận về (rút gọn; bản đầy đủ ở `packages/contracts/examples/ses
 - Gửi (multipart):
   - `front`: ảnh JPEG mặt trước;
   - `back`: ảnh JPEG mặt sau;
-  - `qr`: chuỗi QR app đọc được ở mặt sau. Thiếu thì bỏ trường này.
+  - `qr`: chuỗi QR hợp định dạng từ một trong hai ảnh. Ưu tiên mặt sau nếu hợp lệ,
+    nếu không dùng mặt trước; không mặc định QR nằm ở mặt nào. Bản iOS hiện chặn
+    gửi tại review nếu cả hai ảnh không đọc được QR hợp định dạng.
 - Nhận về:
   - `{"status": "ok", "fields": {"full_name": "Nguyễn Văn An", "id_number": "001099012345", "date_of_birth": "1995-01-01", "sex": "Nam", "address": "…", "issued_on": "2021-06-15"}}` → màn Kiểm tra thông tin;
-  - `{"status": "retry", "retry_hint": "QR_UNREADABLE" | "QR_INVALID"}` → quay lại chụp mặt sau, hiện "Chưa đọc được mã QR, hãy đưa mặt sau thẻ lại gần hơn rồi chụp lại."
+  - `{"status": "retry", "retry_hint": "QR_UNREADABLE" | "QR_INVALID"}` → giữ cả hai ảnh ở review, cho chọn chụp lại mặt chứa QR, giữ mặt còn lại. Không tự xóa/chỉ định mặt sau.
 - Xác nhận: gửi JSON `IdCardFields`.
   - Trường nào người dùng **không sửa** thì gửi đúng giá trị server trả; chỉ trường đã sửa mới khác.
   - Ngày gửi dạng `YYYY-MM-DD`; giới tính chỉ `Nam` hoặc `Nữ`.
@@ -358,7 +376,7 @@ Toàn bộ phần mặt (nền xám → màu → chấm → quay đầu) nằm t
 
 **Làm:**
 1. Tạo project theo mục 5.
-2. `UI/Theme.swift`: màu lấy đúng mã hex trong `apps/android/app/src/main/java/vn/vericlue/app/ui/theme/Theme.kt` (sáng và tối); font Be Vietnam Pro; cỡ chữ theo `VcType`.
+2. `UI/Theme/Theme.swift`: màu lấy đúng mã hex trong `apps/android/app/src/main/java/vn/vericlue/app/ui/theme/Theme.kt` (sáng và tối); font Be Vietnam Pro; cỡ chữ theo `VcType`.
 3. `UI/Components/`: port từng component ở `ui/components/` (thanh trên, thanh tiến độ 3 bước, nút chính, nút phụ, banner, bàn phím số, ô OTP, thẻ danh sách, khung camera).
 4. `Flow/Routes.swift`: enum `Route` với đủ các route sau, tên giữ nguyên như Android:
    `bank_start, bank_opened, gallery, splash, auth, terms, consent, intro, permission, phone, otp, otp_error, id_front, id_front_glare, id_front_review, id_back, id_back_review, confirm, edit_info, face_ready, framing, hold_still, turn_head, voice, voice_again, uploading, upload_failed, checking, slow, success, review, retry_quality, retry_challenge, error_camera, error_mic, error_network, error_session, error_service, error_device, interrupted, no_voice, exit_confirm, stopped, flash_skipped`.
@@ -373,8 +391,8 @@ Toàn bộ phần mặt (nền xám → màu → chấm → quay đầu) nằm t
 ### IOS-02 · Client API và luật luồng (1,5 ngày)
 
 **Làm:**
-1. `Data/Models.swift`: struct `Codable` cho mọi def ở mục 7. Dùng `CodingKeys` snake_case, hoặc `JSONDecoder.keyDecodingStrategy = .convertFromSnakeCase`. Trường nào có thể thiếu thì để optional.
-2. `Data/SessionApi.swift` dùng `URLSession` + `async/await`:
+1. `Data/API/Models.swift`: struct `Codable` cho mọi def ở mục 7. Dùng `CodingKeys` snake_case, hoặc `JSONDecoder.keyDecodingStrategy = .convertFromSnakeCase`. Trường nào có thể thiếu thì để optional.
+2. `Data/API/SessionApi.swift` dùng `URLSession` + `async/await`:
    - mỗi lệnh ở mục 7 là một hàm `async`, trả `Result<T, ApiError>`;
    - `enum ApiError { network, unauthorized, conflict(code: String?), expired, busy, badResponse, server }`;
    - map mã HTTP giống `SessionApi.errorFor` của Android;
@@ -405,9 +423,15 @@ Toàn bộ phần mặt (nền xám → màu → chấm → quay đầu) nằm t
    - **Độ nét:** chuyển ảnh xám, chạy Laplacian (vImage), tính phương sai. Ngưỡng ban đầu lấy từ `IdCard.kt`, chỉnh lại theo số đo trên iPhone.
    - **Lóa:** tỉ lệ điểm ảnh gần trắng (luma ≥250) trong vùng thẻ; chặn khi tỉ lệ >0.02, theo `IdCard.kt` Android. Đây là ngưỡng khởi đầu, chưa hiệu chỉnh bằng tập đo iPhone.
    - **QR:** `VNDetectBarcodesRequest`, `symbologies = [.qr]`, lấy `payloadStringValue`.
-5. Màn xem lại: hiện ảnh vừa chụp và 3 dòng kiểm (nét / không lóa / đọc được QR, riêng mặt sau), câu nhắc đúng lỗi.
-6. Mặt sau "Ảnh rõ, tiếp tục" → `sendIdCard(front:back:qr:)`; `retry` → về chụp mặt sau; `ok` → màn Kiểm tra thông tin với dữ liệu server.
-7. Màn Kiểm tra thông tin → "Thông tin đúng" → `confirmIdCard(fields của server)`; "Sửa thông tin" → màn sửa → "Lưu và tiếp tục" → `confirmIdCard(confirmedFields(…))`.
+5. Màn xem lại hai ảnh: kiểm nét/lóa từng ảnh và QR chung từ một trong hai mặt; câu nhắc không mặc định mặt chứa QR.
+6. Review chung → `sendIdCard(front:back:qr:)` với QR hợp lệ từ một trong hai mặt;
+   `retry` → giữ review chọn retake mặt chứa QR; `ok` → giữ fields/draft, tới
+   face_ready. Checkpoint camera chặng 3 đã được sếp xác nhận; bản chặng 4 hiện
+   đi tiếp quay mặt, đóng file và giữ evidence trước khi mở confirm.
+7. Chặng 4 đã nối: màn Kiểm tra thông tin sau quay mặt → "Thông tin đúng"
+   → `confirmIdCard(fields của server)`; sửa thì gửi đúng confirmedFields đã sửa,
+   sau đó mới media/signals/finalize. Đã build nhưng chưa chạy test/nghiệm thu
+   chặng 4; xem `post-face-confirm-device-checklist.md`.
 
 **Xong khi:** trên iPhone với server mock: OTP sai rồi đúng chạy đúng; chụp một thẻ **in thử từ dữ liệu bịa** (đừng dùng thẻ thật trong ảnh commit) → server nhận 2 ảnh, trả thông tin từ QR.
 
@@ -553,7 +577,7 @@ Chữ cho 2 route mới:
 - [ ] Tắt Wi-Fi lúc gửi → "Không kết nối được"; "Thử lại" khi vẫn mất mạng → vẫn báo lỗi; bật lại → đi tiếp đúng.
 - [ ] Vuốt về màn hình chính lúc đang quay → "Xác minh bị gián đoạn"; làm lại thì app gọi `/challenge`.
 - [ ] OTP sai → "Mã chưa đúng. Bạn còn N lần thử."; đúng → sang CCCD.
-- [ ] CCCD: QR không đọc được → quay lại chụp mặt sau; sửa họ tên → server ghi chú cho ca duyệt.
+- [ ] CCCD: QR không đọc được → review chọn retake mặt chứa QR, giữ mặt kia; sửa họ tên → server ghi chú cho ca duyệt.
 - [ ] `reauth`: quay thụ động → màn `recovery_required`.
 - [ ] Video gửi lên mở được, đúng chiều, không lật, dài đúng lịch.
 - [ ] Không màn nào có chữ cấm; test `⌘U` xanh.

@@ -19,7 +19,7 @@ final class IdentityFlow: ObservableObject {
     private var purpose = Purpose.onboarding
     private var scenario: String?
     private var sessionPhone: String?
-    private(set) var otpVerified = false
+    @Published private(set) var otpVerified = false
     var liveFlow: LiveFlow? { live } // IOS-04 must reuse this session/token after stage A.
 
     @Published var phone = ""
@@ -33,7 +33,12 @@ final class IdentityFlow: ObservableObject {
     @Published private(set) var resendClock = OTPResendClock()
     @Published private(set) var frontPhoto: IDCardPhoto?
     @Published private(set) var backPhoto: IDCardPhoto?
+    @Published private(set) var cardQRRejected = false
+    var cardQR: String? { CCCDQR.select(front: frontPhoto?.qr, back: backPhoto?.qr) }
     @Published private(set) var serverFields: IdCardFields?
+    @Published private(set) var awaitingFaceConfirmation = false
+    @Published private(set) var frontCaptureID = UUID()
+    @Published private(set) var backCaptureID = UUID()
     @Published var draftValues: [String] = []
     private var originallyShown: [String] = []
 
@@ -90,19 +95,24 @@ final class IdentityFlow: ObservableObject {
     }
 
     func appendCode(_ digit: Character) {
-        guard !busy, !otpLocked else { return }
+        guard !busy, !otpLocked, !otpVerified else { return }
         if otpHasError { code = ""; otpHasError = false; errorText = nil }
         code = OtpRules.append(code, digit)
     }
 
     func eraseCode() {
-        guard !busy else { return }
+        guard !busy, !otpVerified else { return }
         if !code.isEmpty { code.removeLast() }
         if !otpLocked { otpHasError = false; errorText = nil }
     }
 
     func sendOTP(resend: Bool = false, now: Date = Date()) async -> Route? {
         guard !busy, PhoneRules.isValid(phone) else { return nil }
+        if sessionPhone == phone && otpVerified { return .otp }
+        if sessionPhone == phone && attemptsLeft == 0 {
+            errorText = FlowRules.otpErrorText("otp_locked")
+            return nil
+        }
         if resend && resendClock.remaining(at: now) > 0 { return nil }
         if sessionPhone == phone && resendClock.remaining(at: now) > 0 { return .otp }
         if let sessionPhone, sessionPhone != phone {
@@ -128,15 +138,15 @@ final class IdentityFlow: ObservableObject {
         if let error { return handle(error, otp: true) }
         otpSMS = live.otpSms
         attemptsLeft = live.attemptsLeft
-        code = ""
+        code = OtpRules.simulatedCode(in: otpSMS) ?? ""
         otpHasError = false
-        otpLocked = false
+        otpLocked = live.attemptsLeft == 0
         resendClock.sent() // Start from acceptance, not the time the network request began.
         return .otp
     }
 
     func verifyOTP() async -> Route? {
-        guard !busy, !otpHasError, !otpLocked, OtpRules.isComplete(code) else { return nil }
+        guard !otpVerified, !busy, !otpHasError, !otpLocked, OtpRules.isComplete(code) else { return nil }
         guard let live else { return .errorService }
         let current = generation
         busy = true
@@ -158,29 +168,42 @@ final class IdentityFlow: ObservableObject {
         }
     }
 
+    func continueAfterVerifiedOTP() -> Route? {
+        guard !busy, otpVerified, phone == sessionPhone else { return nil }
+        return FlowRules.afterOtp(purpose)
+    }
+
     func acceptPhoto(_ photo: IDCardPhoto, isBack: Bool) {
         guard !busy else { return }
         errorText = nil
+        cardQRRejected = false
         serverFields = nil
         originallyShown = []
         draftValues = []
+        awaitingFaceConfirmation = false
         if isBack { backPhoto = photo }
-        else { frontPhoto = photo; backPhoto = nil }
+        else { frontPhoto = photo }
     }
 
     func retake(isBack: Bool) {
         guard !busy else { return }
-        if isBack { backPhoto = nil }
-        else { clearPhotos() }
+        if isBack { backPhoto = nil; backCaptureID = UUID() }
+        else { frontPhoto = nil; frontCaptureID = UUID() }
+        serverFields = nil; originallyShown = []; draftValues = []
+        awaitingFaceConfirmation = false
+        cardQRRejected = false
         errorText = nil
     }
 
     func clearPhotos() {
+        cardQRRejected = false
         frontPhoto = nil
         backPhoto = nil
+        frontCaptureID = UUID(); backCaptureID = UUID()
         serverFields = nil
         originallyShown = []
         draftValues = []
+        awaitingFaceConfirmation = false
     }
 
     func uploadCard() async -> Route? {
@@ -190,16 +213,20 @@ final class IdentityFlow: ObservableObject {
             return .idFront
         }
         guard let back = backPhoto, !back.jpeg.isEmpty, back.canContinue(isBack: true) else {
-            backPhoto = nil
-            errorText = "Chưa đọc được mã QR, hãy đưa mặt sau thẻ lại gần hơn rồi chụp lại."
+            errorText = "Hãy chụp lại mặt sau CCCD rõ nét, không bị lóa."
             return .idBack
         }
+        guard let qr = cardQR, !cardQRRejected else {
+            errorText = "Chưa đọc được mã QR trên thẻ. Hãy chọn chụp lại mặt chứa mã QR."
+            return .idReview
+        }
+        if awaitingFaceConfirmation && serverFields != nil { return .faceReady }
         guard let live else { return .errorService }
         let current = generation
         busy = true
         errorText = nil
         defer { if current == generation { busy = false } }
-        let result = await live.sendIdCard(front: front.jpeg, back: back.jpeg, qr: back.qr)
+        let result = await live.sendIdCard(front: front.jpeg, back: back.jpeg, qr: qr)
         guard current == generation, !Task.isCancelled else { return nil }
         switch result {
         case .accepted:
@@ -207,11 +234,14 @@ final class IdentityFlow: ObservableObject {
             serverFields = fields
             originallyShown = Self.displayValues(fields)
             draftValues = originallyShown
-            return .confirm
+            awaitingFaceConfirmation = true
+            return .faceReady
         case .retry:
-            backPhoto = nil
-            errorText = "Chưa đọc được mã QR, hãy đưa mặt sau thẻ lại gần hơn rồi chụp lại."
-            return .idBack
+            cardQRRejected = true
+            serverFields = nil; originallyShown = []; draftValues = []
+            awaitingFaceConfirmation = false
+            errorText = "Chưa đọc được mã QR trên thẻ. Hãy chọn chụp lại mặt chứa mã QR."
+            return .idReview
         case .fail(let error): return handle(error)
         }
     }
@@ -237,6 +267,7 @@ final class IdentityFlow: ObservableObject {
 
     func confirmCard() async -> Route? {
         guard !busy else { return nil }
+        if live?.idCardConfirmed == true && !awaitingFaceConfirmation { return .uploading }
         if let draftError { errorText = draftError; return nil }
         guard let live, let fields = confirmedFields else { return .errorService }
         let current = generation
@@ -249,7 +280,8 @@ final class IdentityFlow: ObservableObject {
         serverFields = fields
         originallyShown = Self.displayValues(fields)
         draftValues = originallyShown
-        return .faceReady
+        awaitingFaceConfirmation = false
+        return .uploading
     }
 
     private func handle(_ error: ApiError, otp: Bool = false) -> Route? {
@@ -260,7 +292,7 @@ final class IdentityFlow: ObservableObject {
         case .conflict(let code):
             if !otp && (code?.hasPrefix("otp_") == true) { return .errorService }
             switch code {
-            case "otp_already_verified": otpVerified = true; return FlowRules.afterOtp(purpose)
+            case "otp_already_verified": otpVerified = true; return .otp
             case "otp_expired", "otp_locked":
                 otpHasError = true
                 otpLocked = true
@@ -268,6 +300,7 @@ final class IdentityFlow: ObservableObject {
                 errorText = FlowRules.otpErrorText(code)
             case "otp_too_many": return .errorService
             case "session_closed", "session_too_long": return .errorSession
+            case "challenge_expired", "challenge_mismatch": return .faceExpired
             default: return .errorService
             }
         case .busy, .badResponse, .server: return .errorService

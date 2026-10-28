@@ -278,6 +278,19 @@ Kế hoạch chi tiết từng bước: [`apps/ios/docs/plan-ios.md`](../../../a
 **Tiêu chí hoàn thành:**
 - [x] Đi hết luồng demo của 3 `purpose` trên Simulator.
 
+**Đồng bộ 28/10 (`review`):** đã gộp Terms/consent demo, bỏ ba route cũ, recovery
+bỏ CCCD sau OTP và cập nhật Gallery. Checkbox trên thuộc baseline, không chứng
+minh bản đồng bộ đã nghiệm thu. Confirm sau mặt đã chốt chặng 4 (148/148).
+Theme ấm đã triển khai; lượt toàn bộ mới 159/159 bài đạt (186 lần thực thi),
+Release không ký build được. Sau sửa demo binding/keypad/confirm, **lượt cuối
+159/159 (186 lần thực thi) xanh**, 0 bỏ qua; 12 vòng Back Terms → Gallery và
+OTP/confirm AX3 đã kiểm. Bundle `/tmp/vericlue-ios-theme-final-20261028.xcresult`.
+Lịch sử lỗi vẫn nằm trong bàn giao. Sếp xác nhận iPhone bản mới nhất đạt cả
+A/B/C/D: theme/Back/chữ lớn, CCCD, quay/confirm/offline/thứ tự API và dừng/dọn
+file. Đây là xác nhận thủ công của sếp, không phải agent tự chạy thiết bị.
+Chuyển review, còn PR; task chưa done/đã merge. Xem
+[bàn giao theme](../../status/handoffs/2026-10-28-1608-ios-01-l-anh-qu-n-codex.md).
+
 ---
 
 ### IOS-02 · App iOS: client API, LiveFlow, FlowRules + test
@@ -291,6 +304,26 @@ Kế hoạch chi tiết từng bước: [`apps/ios/docs/plan-ios.md`](../../../a
 **Đầu ra:**
 - `Models.swift`, `SessionApi.swift` (URLSession async/await, multipart), `LiveFlow.swift`, `FlowRules.swift`.
 - Port test `LiveFlowTest`, `LiveFlowRetryTest`, `LiveFlowStageATest`, `FlowRulesTest`; giải mã các ví dụ trong `packages/contracts/examples`.
+
+**Bổ sung 28/10/2026 (`doing`):** chặng 0 đồng bộ Android đã khóa nền IOS-06
+`6aef3ac` và nguồn `feat/APP-01-account-flow` tại `f034fa9`, tạo nhánh
+`feat/IOS-02-android-alignment`. Receipt làm riêng trước, không ký media/device
+proof; recovery bỏ CCCD là mục tiêu chặng sau. Chặng 1 đã nối model/GET/storage
+receipt sau pass, thêm 19 hàm test với mock. Build test bundle Simulator và Release
+iPhone không ký thành công. Một lượt test: unit/receipt xanh, tổng 123/124 đạt,
+UI từng timeout đã kiểm lại riêng 1/1 xanh, không sửa assertion. Sếp xác nhận probe Keychain trên iPhone và giữ thành
+công sau GET account 409 đạt; chưa kiểm chứng GET 200 receipt thật.
+Xem [bảng đối chiếu và lệch contract/backend](../../../apps/ios/docs/android-alignment.md).
+Checkbox test nền cũ bên dưới không chứng minh phần receipt mới đã được làm/test.
+Xem [bàn giao receipt](../../status/handoffs/2026-10-28-0413-ios-02-l-anh-qu-n-codex.md).
+
+**Rà cấu trúc 28/10:** chuyển model/client/multipart vào `Data/API`, theme vào
+`UI/Theme`; tách `UI/App.swift`, `UI/AppRoutes.swift`, Gallery Debug và
+`Flow/CaptureFlows.swift` khỏi navigation. Domain types chung ở `Flow/FlowTypes.swift`.
+Nền đối chiếu mới là upstream/main `24895c3`; không merge main, không thay
+capture/retry/receipt hay luật recovery/OTP riêng. Đây là refactor cấu trúc,
+không phải hoàn tất confirm sau mặt hoặc theme mới. Kết quả build và giới hạn
+ghi tại [tài liệu đồng bộ](../../../apps/ios/docs/android-alignment.md).
 
 **Tiêu chí hoàn thành:**
 - [x] `xcodebuild test` xanh, không test nào gọi mạng thật.
@@ -312,6 +345,18 @@ Kế hoạch chi tiết từng bước: [`apps/ios/docs/plan-ios.md`](../../../a
 - [x] Trên iPhone thật với API mock: OTP sai/đúng đúng câu; server nhận 2 ảnh CCCD và trả thông tin từ QR.
 
 Nghiệm thu thao tác do Lý Anh Quân xác nhận ngày 25/10/2026; Codex kiểm tra thêm hai JPEG và `id_edited` ở server local. Chi tiết, kết quả test và giới hạn nằm trong [bàn giao IOS-03](../../status/handoffs/2026-10-25-1004-ios-03-l-anh-qu-n-codex.md). Chưa commit/push/merge PR; không coi checkbox nghiệm thu là đã tích hợp vào main.
+
+**Đồng bộ 28/10 (`review`):** chặng 2–3 thêm OTP tự điền không tự verify, auto/manual
+CCCD có nội dung thẻ, pause, review hai mặt và retake giữ mặt còn lại. Sếp đã
+xác nhận 4 ca camera/QR/retake/Home chặng 3 đạt. Chặng 4 đã nối giữ MP4 đã đóng
+và binding phiên/challenge, confirm sau mặt rồi mới upload; thêm test thứ tự,
+mạng/expiry/rotation/late reply/cleanup. Sếp xác nhận nhóm A/B/C/D; DB xác nhận
+tên/ngày sửa, ISO và ID gốc khớp. Sau sửa ba lỗi, lượt toàn bộ cuối đạt 148/148,
+0 lỗi/0 bỏ qua (174/174 tính tham số), chốt chặng 4 xanh. Chưa commit/push/merge,
+chưa đổi theme và không tuyên bố account-bound auth/receipt thật đã hoàn chỉnh.
+Xem [checklist mới](../../../apps/ios/docs/post-face-confirm-device-checklist.md)
+và [bàn giao](../../status/handoffs/2026-10-28-1106-ios-03-l-anh-qu-n-codex.md).
+Không dùng checkbox/test nền cũ để nghiệm thu code mới.
 
 ---
 

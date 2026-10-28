@@ -172,6 +172,72 @@ struct VoiceResponse: Codable, Equatable, Sendable {
     var voicePrompt: String? = nil
     var attemptsLeft: Int? = nil
     var voiceChallengeId: String? = nil
+    var account: AccountReceipt? = nil
+}
+
+extension VoiceResponse {
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        status = try values.decode(String.self, forKey: .status)
+        voicePrompt = try values.decodeIfPresent(String.self, forKey: .voicePrompt)
+        attemptsLeft = try values.decodeIfPresent(Int.self, forKey: .attemptsLeft)
+        voiceChallengeId = try values.decodeIfPresent(String.self, forKey: .voiceChallengeId)
+        // Receipt is ancillary metadata. A malformed receipt cannot undo a valid
+        // verification result; GET /account may recover it after a pass.
+        account = try? values.decodeIfPresent(AccountReceipt.self, forKey: .account)
+    }
+}
+
+// Published contract at Android reference f034fa9, session.schema.json $defs.AccountReceipt.
+// A reference to an enrollment, NOT a credential or a bank account number.
+struct AccountReceipt: Codable, Equatable, Sendable {
+    let accountId: String
+    let deviceId: String
+    let expiresAt: String
+
+    private enum CodingKeys: String, CodingKey { case accountId, deviceId, expiresAt }
+
+    nonisolated var expirationDate: Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: expiresAt) { return date }
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: expiresAt)
+    }
+
+    nonisolated var isWellFormed: Bool {
+        Self.validId(accountId, prefix: "acct_") && Self.validId(deviceId, prefix: "dev_") && expirationDate != nil
+    }
+
+    nonisolated func isUsable(at now: Date = Date()) -> Bool {
+        isWellFormed && (expirationDate.map { $0 > now } ?? false)
+    }
+
+    nonisolated private static func validId(_ value: String, prefix: String) -> Bool {
+        guard value.hasPrefix(prefix) else { return false }
+        let suffix = value.dropFirst(prefix.count).utf8
+        return suffix.count == 32 && suffix.allSatisfy { (48...57).contains($0) || (97...102).contains($0) }
+    }
+}
+
+extension AccountReceipt {
+    nonisolated func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(accountId, forKey: .accountId)
+        try values.encode(deviceId, forKey: .deviceId)
+        try values.encode(expiresAt, forKey: .expiresAt)
+    }
+
+    nonisolated init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        accountId = try values.decode(String.self, forKey: .accountId)
+        deviceId = try values.decode(String.self, forKey: .deviceId)
+        expiresAt = try values.decode(String.self, forKey: .expiresAt)
+        guard isWellFormed else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath,
+                debugDescription: "Invalid account receipt"))
+        }
+    }
 }
 struct ErrorResponse: Codable, Equatable {
     let errorCode: String

@@ -15,10 +15,10 @@ import UIKit
 struct VeriClueTests {
     @Test func routesMatchIOS01Plan() {
         let expected = Set([
-            "bank_start", "bank_opened", "gallery", "splash", "auth", "terms", "consent", "intro", "permission", "phone", "otp", "otp_error",
-            "id_front", "id_front_glare", "id_front_review", "id_back", "id_back_review", "confirm", "edit_info", "face_ready", "framing", "hold_still",
+            "bank_start", "bank_opened", "gallery", "splash", "auth", "terms", "phone", "otp", "otp_error",
+            "id_front", "id_front_glare", "id_back", "id_review", "confirm", "edit_info", "face_ready", "framing", "hold_still",
             "turn_head", "voice", "voice_again", "uploading", "upload_failed", "checking", "slow", "success", "review", "retry_quality", "retry_challenge",
-            "error_camera", "error_mic", "error_network", "error_session", "error_service", "error_device", "interrupted", "no_voice", "exit_confirm", "stopped",
+            "error_camera", "error_mic", "error_network", "error_session", "error_service", "error_device", "interrupted", "face_expired", "no_voice", "exit_confirm", "stopped",
             "flash_skipped", "deny", "recovery_required"
         ])
 
@@ -55,7 +55,7 @@ struct VeriClueTests {
         #expect(reauth.last == .success)
 
         let recovery = flow.routeSequence(for: .recovery)
-        #expect(recovery.contains(.idFront))
+        #expect(!recovery.contains(.idFront))
         #expect(recovery.contains(.voice))
         #expect(recovery.last == .success)
     }

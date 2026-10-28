@@ -65,7 +65,7 @@ struct VcCameraFrame: View {
     @ViewBuilder private var frameOverlay: some View {
         if cardMode {
             RoundedRectangle(cornerRadius: 18)
-                .stroke(colors.accent, lineWidth: 3)
+                .stroke(colors.warmAccent, lineWidth: 3)
                 .padding(24)
         } else {
             ZStack {

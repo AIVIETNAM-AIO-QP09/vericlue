@@ -75,12 +75,14 @@ lệ ở IOS-07, nên nghiệm thu giai đoạn này bằng Debug trên iPhone.
   khoảng 20 giây rồi quay lại: thời gian phải giảm tương ứng, không đứng ở số cũ.
 - Back về điện thoại rồi bấm Gửi mã cùng số trong 45 giây: quay về OTP cũ,
   không phát thêm request. Đổi số điện thoại thì tạo phiên mới.
-- Khi gửi lại thành công: SMS/mã/attempts được cập nhật, bắt đầu deadline 45s mới.
+- Khi gửi lại thành công: SMS/mã cập nhật, bắt đầu deadline 45s mới; attempts giữ
+  ngân sách sai còn lại của phiên, không trở về 5 (luật sếp duyệt 28/10).
 - Để mã quá hạn (mặc định server 2 phút) → thông báo hết hạn, xin mã mới.
-- Nhập sai tới khóa → không cho xác nhận tiếp, vẫn cho xin mã mới khi hết cooldown.
+- Nhập sai tới khóa → khóa xác nhận và gửi lại; phải bắt đầu phiên mới.
 - Gửi mã quá giới hạn server (mặc định 3 lần) → màn tạm thời chưa thể xác minh.
-- Sau OTP đúng, Back từ chụp trước về OTP và xác nhận lại: server
-  `otp_already_verified` được coi là đã qua, không quay vòng nhập mã.
+- Sau OTP đúng, Back từ chụp trước về OTP: hiện “Số điện thoại đã được xác nhận”,
+  không còn nhập/gửi lại mã; bấm Tiếp tục để trở lại bước kế tiếp. Không coi mã
+  khác nhập lại là một lần verify hợp lệ.
 
 Mất Wi-Fi trong lúc gửi/verify phải báo lỗi tại chính màn đó. Bật lại Wi-Fi và
 thử lại; không tự đi tới kết quả thành công.
@@ -103,11 +105,11 @@ thị trên thiết bị thứ hai; không dùng dịch vụ tạo QR với thô
 2. Xem đúng ảnh vừa chụp, kiểm dòng nét/lóa. Ảnh chưa đạt thì nút tiếp tục khóa.
 3. Chụp lại với máy rung/mất nét → phải nhắc ảnh bị mờ.
 4. Chiếu đèn gây mảng trắng phản chiếu → phải nhắc thẻ bị lóa.
-5. Với ảnh đạt, đi sang mặt sau; không có QR/QR không giống định dạng CCCD thì
-   yêu cầu chụp lại mặt sau, chưa gửi ảnh lên server.
+5. Quy tắc mới 28/10: đọc QR từ cả hai mặt, không bắt buộc QR ở mặt sau. Không có QR/QR không giống định dạng CCCD thì
+   ở lại review chọn chụp lại mặt chứa QR, giữ mặt kia, chưa gửi ảnh lên server.
 6. Để thử retry QR từ server, dùng QR có 12 chữ số và đủ trường nhưng ngày sinh
    sai như `32011995`. Vision vẫn đọc được và local gate cho gửi; server phải trả
-   `QR_INVALID`. App quay đúng capture mặt sau, giữ ảnh mặt trước.
+   `QR_INVALID`. App giữ hai ảnh ở review để chọn chụp lại mặt chứa QR, giữ mặt còn lại.
 7. Dùng lại QR hợp lệ → upload hai ảnh, tới màn kiểm tra thông tin server trả.
 8. Tắt quyền camera trong Cài đặt → thông báo quyền; Mở Cài đặt và cấp lại,
    quay lại/Thử lại phải mở preview được. Ra Home khi đang chụp không được tự
@@ -173,7 +175,9 @@ commit IOS-03. API local: `http://192.168.1.11:8000/`, mock/genuine.
 - [x] Hết hạn/khóa/quá số lần/đã xác nhận xử lý đúng.
 - [x] Chụp hai mặt bằng camera sau; khung và ảnh không lệch vùng thẻ.
 - [x] Ảnh thiếu/mờ/lóa bị chặn; từ chối quyền không crash.
-- [x] Local QR lỗi và server QR_INVALID quay đúng mặt sau, giữ mặt trước.
+- [ ] Quy tắc QR mới 28/10: QR ở mặt trước hoặc sau đều gửi được; lỗi QR giữ review,
+  retake mặt do người dùng chọn và giữ mặt kia. Nghiệm thu back-only trước đây
+  không chứng minh quy tắc mới đạt; cần thử lại trên iPhone.
 - [x] Sửa tên/ngày được giữ trong app, gửi đúng JSON ISO, khóa số CCCD.
 - [x] Server nhận đủ hai JPEG, xác nhận các trường thay đổi.
 - [x] Mất mạng không đi tắt qua bước đang gửi hoặc ra success.

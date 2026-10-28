@@ -48,7 +48,7 @@ struct PhoneScreen: View {
     @State private var phone = ""
     @Environment(\.vcColors) private var colors
 
-    private var valid: Bool { phone.count == 10 && phone.hasPrefix("0") }
+    private var valid: Bool { PhoneRules.isValid(phone) }
     private var formatted: String {
         let groups = [4, 3, 3]
         var result: [String] = []
@@ -84,7 +84,7 @@ struct PhoneScreen: View {
             VStack(spacing: 8) {
                 VcPrimaryButton(title: "Gửi mã", action: { onSend(phone) }, enabled: valid).padding(.horizontal, 20)
                 VcNumericKeypad(
-                    onDigit: { if phone.count < 10 { phone.append($0) } },
+                    onDigit: { phone = PhoneRules.append(phone, $0) },
                     onBackspace: { if !phone.isEmpty { phone.removeLast() } },
                     onDone: { if valid { onSend(phone) } }
                 )
@@ -100,57 +100,61 @@ struct OTPDemoScreen: View {
     let onVerified: () -> Void
     @State private var code: String
     @State private var hasError: Bool
-    @State private var seconds = 45
+    @State private var attemptsLeft: Int
+    @State private var resendClock = OTPResendClock()
     @Environment(\.vcColors) private var colors
 
     init(startsWithError: Bool = false, onVerified: @escaping () -> Void) {
         self.startsWithError = startsWithError
         self.onVerified = onVerified
-        _code = State(initialValue: startsWithError ? "472910" : "")
+        _code = State(initialValue: startsWithError ? "472910" : "654321")
         _hasError = State(initialValue: startsWithError)
+        _attemptsLeft = State(initialValue: startsWithError ? 4 : 5)
+        var clock = OTPResendClock(); clock.sent()
+        _resendClock = State(initialValue: clock)
     }
 
-    private var complete: Bool { code.count == 6 && !hasError }
-    private var countdownLabel: String {
-        let padded = seconds < 10 ? "0\(seconds)" : String(seconds)
-        return "Gửi lại mã sau 0:\(padded)"
-    }
+    private var complete: Bool { OtpRules.isComplete(code) && !hasError && attemptsLeft > 0 }
 
     var body: some View {
         VcScreen(step: 1) {
-            VcBanner(text: "SMS mô phỏng · Mã xác nhận VeriClue của bạn là [6 SỐ]. Không chia sẻ mã này.", systemImage: "message")
+            VcBanner(text: "Dữ liệu mẫu · SMS mô phỏng: 654321. Không phải mã từ server.", systemImage: "message")
             Text("Nhập mã xác nhận").font(VcType.titleLarge).foregroundStyle(colors.ink)
             VcOTPBoxes(code: code, hasError: hasError)
-            if hasError { VcBanner(text: "Mã chưa đúng. Bạn còn 2 lần thử.", tone: .warning) }
-            Button(seconds > 0 ? countdownLabel : "Gửi lại mã") {
-                guard seconds == 0 else { return }
-                code = ""
-                hasError = false
-                seconds = 45
+            if hasError { VcBanner(text: FlowRules.otpWrongText(attemptsLeft), tone: .warning) }
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                let seconds = resendClock.remaining(at: context.date)
+                let padded = seconds < 10 ? "0\(seconds)" : String(seconds)
+                Button(seconds > 0 ? "Gửi lại mã sau 0:\(padded)" : "Gửi lại mã") {
+                    guard seconds == 0, attemptsLeft > 0 else { return }
+                    code = "654321"; hasError = false; resendClock.sent()
+                }
+                .disabled(seconds > 0 || attemptsLeft == 0)
+                .font(VcType.caption)
+                .foregroundStyle(seconds > 0 ? colors.muted : colors.accent)
+                .frame(maxWidth: .infinity)
             }
-            .font(VcType.caption)
-            .foregroundStyle(seconds > 0 ? colors.muted : colors.accent)
-            .frame(maxWidth: .infinity)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 8) {
-                VcPrimaryButton(title: "Xác nhận", action: onVerified, enabled: complete).padding(.horizontal, 20)
-                VcNumericKeypad(onDigit: type, onBackspace: erase, onDone: { if complete { onVerified() } })
+                VcPrimaryButton(title: "Xác nhận", action: verify, enabled: complete).padding(.horizontal, 20)
+                VcNumericKeypad(onDigit: type, onBackspace: erase, onDone: verify)
+                    .disabled(attemptsLeft == 0)
             }
             .padding(.top, 8)
             .background(colors.background)
-        }
-        .task {
-            while seconds > 0 && !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
-                if !Task.isCancelled { seconds -= 1 }
-            }
         }
     }
 
     private func type(_ digit: Character) {
         if hasError { code = ""; hasError = false }
-        if code.count < 6 { code.append(digit) }
+        code = OtpRules.append(code, digit)
+    }
+
+    private func verify() {
+        guard complete else { return }
+        if code == "654321" { onVerified() }
+        else { attemptsLeft -= 1; hasError = true }
     }
 
     private func erase() {
@@ -251,19 +255,9 @@ struct ConfirmInfoScreen: View {
         VcScreen(step: 1) {
             VcTitleBlock(title: "Kiểm tra thông tin", bodyText: "Đọc từ mã QR trên CCCD của bạn.")
             VcBanner(text: "Dữ liệu mẫu", systemImage: "info.circle")
-            VStack(spacing: 0) {
-                ForEach(sampleIDFields) { field in
-                    HStack(alignment: .top) {
-                        Text(field.label).font(VcType.caption).foregroundStyle(colors.muted).frame(width: 100, alignment: .leading)
-                        Text(field.value).font(VcType.bodyStrong).foregroundStyle(colors.ink)
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.vertical, 12)
-                    if field.id != sampleIDFields.last?.id { Divider() }
-                }
-            }
-            .padding(.horizontal, 16)
-            .background(colors.surfaceSubtle, in: RoundedRectangle(cornerRadius: 16))
+            VcChecklistCard(rows: sampleIDFields.map { field in
+                VcChecklistRow(systemImage: nil, label: field.label, trailing: field.value)
+            })
         }
         .safeAreaInset(edge: .bottom) {
             BottomAction {

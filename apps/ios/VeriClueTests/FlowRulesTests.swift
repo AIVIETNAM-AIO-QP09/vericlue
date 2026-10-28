@@ -5,11 +5,12 @@ import Testing
 struct FlowRulesTests {
     @Test func routesStagesAndErrorScreens() {
         #expect(FlowRules.afterOtp(.reauth) == .faceReady)
+        #expect(FlowRules.afterOtp(.recovery) == .faceReady)
         #expect(FlowRules.afterTurnHead(.reauth) == .checking)
         for purpose in [Purpose.onboarding, .recovery] {
-            #expect(FlowRules.afterOtp(purpose) == .idFront)
             #expect(FlowRules.afterTurnHead(purpose) == .voice)
         }
+        #expect(FlowRules.afterOtp(.onboarding) == .idFront)
         #expect(Set(DemoOutcome.allCases.map(FlowRules.afterChecking)).count == DemoOutcome.allCases.count)
         #expect(FlowRules.stepOf(.otp) == 1)
         #expect(FlowRules.stepOf(.holdStill) == 2)
@@ -83,9 +84,9 @@ struct FlowRulesTests {
         #expect(FlowRules.displayToIso("29/02/2023") == nil)
     }
 
-    @Test func qualityAndOTPTextsMatchAndroid() {
+    @Test func qualityTextsMatchAndroidAndOTPLockMatchesSessionBudget() {
         #expect(FlowRules.otpWrongText(3) == "Mã chưa đúng. Bạn còn 3 lần thử.")
-        #expect(FlowRules.otpWrongText(0) == "Bạn đã nhập sai quá số lần. Hãy bấm \"Gửi lại mã\".")
+        #expect(FlowRules.otpWrongText(0) == "Bạn đã nhập sai quá số lần trong phiên. Hãy bắt đầu lại.")
         #expect(FlowRules.otpErrorText("otp_expired") == "Mã đã hết hạn. Hãy bấm \"Gửi lại mã\".")
         #expect(FlowRules.otpErrorText("otp_locked") == FlowRules.otpWrongText(0))
         #expect(FlowRules.otpErrorText("session_closed") == nil)

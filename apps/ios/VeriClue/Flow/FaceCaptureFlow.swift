@@ -13,7 +13,7 @@ private final class FaceDisplayTarget: NSObject {
 @MainActor
 final class FaceCaptureFlow: ObservableObject {
     enum Stage {
-        case intro, preparing, framing, recording, finishing, uploading, failed, interrupted, awaitingVoice, completed
+        case intro, preparing, framing, recording, finishing, awaitingConfirmation, readyToUpload, uploading, failed, interrupted, awaitingVoice, completed
         var restartsOnInterruption: Bool { [.preparing, .framing, .recording, .finishing, .awaitingVoice].contains(self) }
     }
     let camera = FrontCameraSession()
@@ -42,7 +42,10 @@ final class FaceCaptureFlow: ObservableObject {
     private var armedAt = 0.0
     private var lastDisplay: Double?
     private var generation = 0
-    private var payload: (Data, FaceEvidence, CamProbe, [String: JSONValue])?
+    private var payload: PendingFaceCapture?
+    private var attemptBinding: FaceAttemptBinding?
+    var hasPendingCapture: Bool { payload != nil }
+    var pendingCaptureID: UUID? { payload?.id }
     private var screenID: UUID?
 
     init() {
@@ -69,12 +72,14 @@ final class FaceCaptureFlow: ObservableObject {
 
     func configure(live: LiveFlow?, purpose: Purpose, screenID: UUID? = nil) {
         generation += 1
+        if payload != nil { self.live?.abandonFaceAttempt() }
         self.screenID = screenID
         stage = .intro
-        camera.stop(); camera.discardRecording()
+        camera.stop(); discardVideo()
         invalidateDisplay()
         self.live = live; self.purpose = purpose
         destination = nil; errorText = nil; retryUpload = false; payload = nil
+        attemptBinding = nil
         phase = .baseline; stage = .intro; timeline = nil; elapsedMs = 0
         eventLog = ColorEventLog(); lastEvents = []; lastQuality = [:]; lastFrameCount = 0; lastRegionCount = 0
         lastAttemptChallengeId = nil
@@ -94,6 +99,10 @@ final class FaceCaptureFlow: ObservableObject {
         }
         guard id == generation, !Task.isCancelled, let challenge = live.challenge else { return }
         do {
+            guard let session = live.session, let binding = FaceAttemptBinding(session: session, challenge: challenge) else {
+                throw FaceTimelineError.invalidChallenge
+            }
+            attemptBinding = binding
             if purpose != .reauth {
                 guard let d = challenge.dynamic, d.sessionId == live.session?.sessionId,
                       d.nonce == live.session?.nonce else { throw FaceTimelineError.invalidChallenge }
@@ -162,7 +171,7 @@ final class FaceCaptureFlow: ObservableObject {
             guard events.count == timeline.colors.count else { captureFailed(); return }
             stage = .finishing
             invalidateDisplay()
-            Task { await finishAndSubmit() }
+            Task { await finishCapture() }
         }
     }
 
@@ -177,7 +186,7 @@ final class FaceCaptureFlow: ObservableObject {
         }
     }
 
-    private func finishAndSubmit() async {
+    private func finishCapture() async {
         let id = generation
         await camera.finishRecording()
         guard id == generation, !Task.isCancelled, stage == .finishing else { return }
@@ -190,8 +199,7 @@ final class FaceCaptureFlow: ObservableObject {
             guard !evidence.frameTimes.isEmpty, abs(evidence.frontalAtMs - Double(timeline.frontalAtMs)) <= 100,
                   evidence.regionMeans.contains(where: Regions.hasAllSixMeasured),
                   evidence.duplicateRatio != nil else { throw FaceTimelineError.missingEvidence }
-            let data = try await Task.detached(priority: .userInitiated) { try Data(contentsOf: video.url) }.value
-            guard id == generation, !Task.isCancelled, !data.isEmpty else { return }
+            guard id == generation, !Task.isCancelled, let binding = attemptBinding else { return }
             var probe = DeviceProbe.collect()
             probe.duplicateFrameRatio = evidence.duplicateRatio
             probe.trackSettings = ["width": .number(Double(video.width)), "height": .number(Double(video.height)),
@@ -213,29 +221,74 @@ final class FaceCaptureFlow: ObservableObject {
             lastQuality = quality; lastEvents = events
             lastAttemptChallengeId = timeline.challengeId
             lastFrameCount = evidence.frameTimes.count; lastRegionCount = evidence.regionMeans.count
-            payload = (data, evidence, probe, quality)
-            await submit()
+            retainCompletedCapture(PendingFaceCapture(videoURL: video.url, evidence: evidence, probe: probe,
+                quality: quality, events: events, binding: binding))
+            if stage == .readyToUpload { await submit() }
         } catch { if id == generation { captureFailed() } }
     }
 
+    // Called only after the writer is finished and its video/evidence inspected.
+    func retainCompletedCapture(_ capture: PendingFaceCapture) {
+        guard let live else { return }
+        payload = capture
+        stage = purpose == .onboarding && !live.idCardConfirmed ? .awaitingConfirmation : .readyToUpload
+        camera.stop() // Keep the sealed file, not an open camera/writer, while editing.
+        if validatePendingCapture() == nil, stage == .awaitingConfirmation { destination = .confirm }
+    }
+
+    @discardableResult
+    func validatePendingCapture(now: Date = Date()) -> Route? {
+        guard let payload, let live else { return .faceExpired }
+        var invalid = payload.binding.invalidRoute(session: live.session, challenge: live.challenge, now: now)
+        if invalid == nil && live.requiresFreshChallenge { invalid = .faceExpired }
+        if invalid == nil && !live.mediaAcked {
+            // URL resource values can retain a successful stat after the file is deleted.
+            // Read fresh filesystem attributes on every confirm/upload validation.
+            let values = try? FileManager.default.attributesOfItem(atPath: payload.videoURL.path)
+            let bytes = (values?[.size] as? NSNumber)?.int64Value ?? 0
+            if values?[.type] as? FileAttributeType != .typeRegular || bytes <= 0 {
+                invalid = .faceExpired
+            }
+        }
+        if let invalid {
+            cancel()
+            stage = .failed
+            destination = invalid
+        }
+        return invalid
+    }
+
     func submit() async {
-        guard [.finishing, .failed].contains(stage), let live, let payload else { return }
+        guard [.readyToUpload, .awaitingConfirmation, .failed].contains(stage), let live, let payload else { return }
+        guard validatePendingCapture() == nil else { return }
+        guard purpose != .onboarding || live.idCardConfirmed else {
+            stage = .awaitingConfirmation; destination = .confirm; return
+        }
         let id = generation
-        stage = .uploading; errorText = nil; retryUpload = false
-        live.frontalJpeg = payload.1.jpeg; live.colorEvents = events
-        let next = await live.submitFace(video: payload.0, frameTimes: payload.1.frameTimes, clientQuality: payload.3,
-                                        camprobe: payload.2, regionMeans: payload.1.regionMeans,
-                                        onMediaAcked: { if id == self.generation { self.camera.discardRecording() } })
+        stage = .uploading; destination = nil; errorText = nil; retryUpload = false
+        // Do not read the whole MP4 until upload, or read it again once media is acknowledged.
+        let video: Data?
+        do {
+            video = live.mediaAcked ? nil : try await Task.detached(priority: .userInitiated) {
+                try Data(contentsOf: payload.videoURL, options: .mappedIfSafe)
+            }.value
+        } catch { if id == generation { captureFailed() }; return }
+        guard id == generation, !Task.isCancelled, validatePendingCapture() == nil else { return }
+        guard live.mediaAcked || video?.isEmpty == false else { captureFailed(); return }
+        live.frontalJpeg = payload.evidence.jpeg; live.colorEvents = payload.events
+        let next = await live.submitFace(video: video, frameTimes: payload.evidence.frameTimes, clientQuality: payload.quality,
+                                        camprobe: payload.probe, regionMeans: payload.evidence.regionMeans,
+                                        onMediaAcked: { if id == self.generation { self.discardVideo() } })
         guard id == generation, !Task.isCancelled else { return }
         switch next {
         case .fail(.conflict(code: "challenge_expired")), .fail(.conflict(code: "challenge_mismatch")):
-            self.payload = nil; stage = .failed; retryUpload = false
-            camera.stop(); camera.discardRecording(); live.abandonFaceAttempt()
-            errorText = "Lượt quay đã hết hạn. Hãy căn mặt rồi thực hiện lại."
+            stage = .failed; retryUpload = false
+            camera.stop(); discardVideo(); live.abandonFaceAttempt()
+            self.payload = nil
+            destination = .faceExpired
         case .fail(let error): apiFailed(error, canRetryUpload: error == .network)
         case .to(let route):
-            self.payload = nil
-            camera.discardRecording()
+            discardVideo(); self.payload = nil
             stage = route == .voice ? .awaitingVoice : .completed
             if route != .voice { camera.stop() }
             destination = route
@@ -249,7 +302,7 @@ final class FaceCaptureFlow: ObservableObject {
         else { errorText = error == .unauthorized || error == .expired ? "Phiên đã hết hạn. Hãy bắt đầu lại." : "Tạm thời chưa thể xác minh. Vui lòng thử lại sau." }
         // Expired/unknown failures never become an automatic recapture or success.
         if error != .network {
-            payload = nil; camera.discardRecording(); live?.abandonFaceAttempt()
+            discardVideo(); payload = nil; live?.abandonFaceAttempt()
             destination = FlowRules.errorRoute(error)
         }
     }
@@ -259,7 +312,7 @@ final class FaceCaptureFlow: ObservableObject {
         // Leave .recording BEFORE camera.stop() can synchronously publish errors.
         stage = .failed
         invalidateDisplay()
-        camera.stop(); camera.discardRecording()
+        camera.stop(); discardVideo()
         payload = nil; retryUpload = false
         live?.abandonFaceAttempt()
         errorText = "Video bị gián đoạn hoặc chưa thu đủ dữ liệu. Hãy căn mặt rồi thực hiện lại."
@@ -277,15 +330,27 @@ final class FaceCaptureFlow: ObservableObject {
         generation += 1
         stage = .intro
         invalidateDisplay()
-        camera.stop(); camera.discardRecording()
+        camera.stop(); discardVideo()
         payload = nil; destination = nil; retryUpload = false
+        attemptBinding = nil
         live?.abandonFaceAttempt()
+    }
+
+    private func discardVideo() {
+        camera.discardRecording()
+        // The capture retains this exact file only. Never sweep another attempt's files.
+        if let url = payload?.videoURL,
+           url.deletingLastPathComponent().standardizedFileURL == CaptureFileStore.directory.standardizedFileURL,
+           CaptureFileStore.ownsName(url.lastPathComponent, legacy: false) {
+            try? FileManager.default.removeItem(at: url)
+            CaptureFileStore.release(url)
+        }
     }
 
     func leaveFaceScreen(_ id: UUID? = nil) {
         guard id == screenID else { return }
         guard destination == nil else { return } // Teardown already handled before navigation.
-        if stage != .awaitingVoice && stage != .completed { cancel() }
+        if stage != .awaitingVoice && stage != .completed && stage != .awaitingConfirmation { cancel() }
     }
 
     private func invalidateDisplay() {

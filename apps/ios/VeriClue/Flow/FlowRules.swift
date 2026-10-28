@@ -1,7 +1,7 @@
 import Foundation
 
 enum FlowRules {
-    static func afterOtp(_ purpose: Purpose) -> Route { purpose == .reauth ? .faceReady : .idFront }
+    static func afterOtp(_ purpose: Purpose) -> Route { purpose == .onboarding ? .idFront : .faceReady }
     static func afterTurnHead(_ purpose: Purpose) -> Route { purpose == .reauth ? .checking : .voice }
     static func afterChecking(_ outcome: DemoOutcome) -> Route { outcome.destination }
 
@@ -31,13 +31,13 @@ enum FlowRules {
     }
 
     static func otpWrongText(_ attemptsLeft: Int) -> String {
-        attemptsLeft > 0 ? "Mã chưa đúng. Bạn còn \(attemptsLeft) lần thử." : "Bạn đã nhập sai quá số lần. Hãy bấm \"Gửi lại mã\"."
+        attemptsLeft > 0 ? "Mã chưa đúng. Bạn còn \(attemptsLeft) lần thử." : "Bạn đã nhập sai quá số lần trong phiên. Hãy bắt đầu lại."
     }
 
     static func otpErrorText(_ code: String?) -> String? {
         switch code {
         case "otp_expired": "Mã đã hết hạn. Hãy bấm \"Gửi lại mã\"."
-        case "otp_locked": "Bạn đã nhập sai quá số lần. Hãy bấm \"Gửi lại mã\"."
+        case "otp_locked": "Bạn đã nhập sai quá số lần trong phiên. Hãy bắt đầu lại."
         default: nil
         }
     }
@@ -88,7 +88,7 @@ enum FlowRules {
     }
     static func confirmsCaptureExit(_ route: Route) -> Bool {
         [.faceReady, .framing, .holdStill, .turnHead, .voice, .voiceAgain,
-         .uploading, .checking, .retryQuality, .retryChallenge].contains(route)
+         .uploading, .checking, .retryQuality, .retryChallenge, .confirm].contains(route)
     }
     static func sessionExpired(_ expiresAt: String, now: Date = Date()) -> Bool {
         let formatter = ISO8601DateFormatter()
@@ -104,8 +104,8 @@ enum FlowRules {
     }
     static func stepOf(_ route: Route) -> Int? {
         switch route {
-        case .intro, .permission, .phone, .otp, .otpError, .idFront, .idFrontGlare,
-             .idFrontReview, .idBack, .idBackReview, .confirm, .editInfo: 1
+        case .phone, .otp, .otpError, .idFront, .idFrontGlare,
+             .idBack, .idReview, .confirm, .editInfo: 1
         case .faceReady, .framing, .holdStill, .turnHead, .retryQuality, .retryChallenge: 2
         case .voice, .voiceAgain: 3
         default: nil
@@ -134,6 +134,12 @@ enum PhoneRules {
     }
 }
 enum OtpRules {
+    static func simulatedCode(in sms: String?) -> String? {
+        guard let sms, let regex = try? NSRegularExpression(pattern: #"(?<!\p{N})[0-9]{6}(?!\p{N})"#) else { return nil }
+        let matches = regex.matches(in: sms, range: NSRange(sms.startIndex..., in: sms))
+        guard matches.count == 1, let range = Range(matches[0].range, in: sms) else { return nil }
+        return String(sms[range])
+    }
     static func append(_ current: String, _ digit: Character) -> String {
         digit.isASCII && digit.isNumber && current.count < 6 ? current + String(digit) : current
     }
@@ -145,6 +151,9 @@ struct Agreement {
     var readToEnd = false
     var accepted = false
     var canContinue: Bool { readToEnd && accepted }
+    func canContinue(selected: Set<Int>, required: Set<Int>) -> Bool {
+        canContinue && required.isSubset(of: selected)
+    }
     mutating func reachedEnd() { readToEnd = true }
     mutating func toggle() { if readToEnd { accepted.toggle() } }
 }

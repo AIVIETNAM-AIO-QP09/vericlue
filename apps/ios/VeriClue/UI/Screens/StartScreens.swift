@@ -52,12 +52,9 @@ struct BankOpenedScreen: View {
 
     var body: some View {
         VcScreen(centered: true, showsLogo: false) {
-            VcStatusBadge(systemImage: "checkmark.circle.fill", tone: .success)
+            VCSuccessEmblem()
             VcTitleBlock(title: "Mở tài khoản thành công", bodyText: "Tài khoản mẫu đã sẵn sàng.", centered: true)
-            VcChecklistCard(
-                title: "Số tài khoản",
-                rows: [VcChecklistRow(systemImage: "creditcard", label: "0123 4567 8901", trailing: "Dữ liệu mẫu")]
-            )
+            VCSampleAccount()
             VcPrimaryButton(title: "Vào ứng dụng", action: onDone)
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -72,9 +69,7 @@ struct SplashScreen: View {
     var body: some View {
         VStack(spacing: 24) {
             Spacer()
-            Image(systemName: "checkmark.shield.fill")
-                .font(.system(size: 72, weight: .semibold))
-                .foregroundStyle(colors.accent)
+            VCSuccessEmblem(checked: false)
             VcLogo().scaleEffect(1.45)
             Text("Xác minh danh tính an toàn, nhanh chóng")
                 .font(VcType.body)
@@ -104,32 +99,27 @@ struct AuthScreen: View {
 
     var body: some View {
         VcScreen {
-            Spacer(minLength: 24)
+            VCWelcomeIllustration()
             VcTitleBlock(
-                title: "Chào mừng bạn đến với VeriClue",
-                bodyText: "Xác minh danh tính bằng CCCD, khuôn mặt và giọng nói. Chỉ mất khoảng 2 phút.",
-                centered: true
+                title: "Mở tài khoản\ntrong 2 phút",
+                bodyText: "Xác minh bằng CCCD và khuôn mặt, chỉ đọc một câu ngắn khi cần."
             )
-            HStack(spacing: 8) {
-                ForEach([("person.text.rectangle", "CCCD"), ("face.smiling", "Khuôn mặt"), ("waveform", "Giọng nói")], id: \.1) { item in
-                    VStack(spacing: 8) {
-                        Image(systemName: item.0).font(.title2)
-                        Text(item.1).font(VcType.labelExtraSmall)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
+            VStack(spacing: 0) {
+                VCNumberedRow(number: 1, title: "CCCD")
+                VCNumberedRow(number: 2, title: "Khuôn mặt")
+                VCNumberedRow(number: 3, title: "Đọc một câu", detail: "Chỉ khi cần")
             }
+        }
+        .safeAreaInset(edge: .bottom) {
+            BottomAction {
             VcPrimaryButton(title: "Đăng ký", action: onRegister)
             VcSecondaryButton(title: "Đăng nhập", action: onLogin)
             Button(action: onRecover) {
                 (Text("Mất tài khoản? ").foregroundColor(.secondary) + Text("Khôi phục tài khoản"))
-                    .font(VcType.label)
+                    .font(VcType.label).frame(minHeight: 44)
             }
             .frame(maxWidth: .infinity)
-            VcBanner(
-                text: "Dữ liệu được mã hóa khi truyền và chỉ dùng để xác minh. Khi tiếp tục, bạn đồng ý với Điều khoản sử dụng và Chính sách quyền riêng tư.",
-                systemImage: "lock.shield"
-            )
+            }
         }
     }
 }
@@ -147,16 +137,18 @@ private let termsSections: [(String, String)] = [
 
 struct TermsScreen: View {
     let onAccept: () -> Void
-    @State private var reachedEnd = false
-    @State private var accepted = false
+    @State private var agreement = Agreement()
+    @State private var selected: Set<Int> = []
     @Environment(\.vcColors) private var colors
+    private var reachedEnd: Bool { agreement.readToEnd }
+    private var accepted: Bool { agreement.accepted }
 
     var body: some View {
         VStack(spacing: 0) {
             VcStepProgress(step: 1)
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    VcTitleBlock(title: "Điều khoản sử dụng", bodyText: "Đọc hết nội dung bên dưới để đồng ý và tiếp tục.")
+                    VcTitleBlock(title: "Điều khoản và đồng ý", bodyText: "Đọc hết điều khoản, rồi chọn từng mục bên dưới.")
                     VcBanner(text: "Nội dung mẫu · chờ nhóm và pháp chế chốt", tone: .warning)
                     ForEach(Array(termsSections.enumerated()), id: \.offset) { _, section in
                         VStack(alignment: .leading, spacing: 7) {
@@ -166,26 +158,47 @@ struct TermsScreen: View {
                     }
                     Text("Phiên bản demo · cập nhật 22/10/2026")
                         .font(VcType.footnote).foregroundStyle(colors.muted)
-                    Button("Bạn đã đọc đến cuối điều khoản") { reachedEnd = true }
+                    Button("Bạn đã đọc đến cuối điều khoản") { agreement.reachedEnd() }
+                        .accessibilityIdentifier("terms-read-end")
                         .font(VcType.label)
                         .frame(maxWidth: .infinity)
                         .padding()
                         .background(colors.surfaceSubtle, in: RoundedRectangle(cornerRadius: 12))
-                    Toggle(
-                        "Tôi đã đọc hết và đồng ý với Điều khoản sử dụng và Chính sách xử lý dữ liệu cá nhân.",
-                        isOn: Binding(get: { accepted }, set: { accepted = reachedEnd ? $0 : false })
-                    )
-                    .font(VcType.bodySmall)
+                        .contentShape(Rectangle())
+                    Button { agreement.toggle() } label: {
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: accepted ? "checkmark.square.fill" : "square")
+                                .font(.title3)
+                            Text("Tôi đã đọc hết và đồng ý với Điều khoản sử dụng và Chính sách xử lý dữ liệu cá nhân.")
+                                .font(VcType.bodySmall)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .foregroundStyle(colors.ink)
+                        .padding(16)
+                        .frame(minHeight: 44)
+                        .background(colors.surfaceSubtle, in: RoundedRectangle(cornerRadius: 12))
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("terms-agreement")
+                    .accessibilityValue(accepted ? "Đã đồng ý" : "Chưa đồng ý")
+                    .disabled(!reachedEnd)
                     Text(accepted ? "Đã đồng ý." : reachedEnd ? "Bạn đã đọc hết. Tích để đồng ý." : "Kéo xuống cuối điều khoản để bật ô này.")
                         .font(VcType.caption)
                         .foregroundStyle(colors.muted)
+                    ConsentSelection(selected: $selected)
                 }
                 .padding(20)
             }
+            .accessibilityIdentifier("terms-scroll")
         }
         .background(colors.background.ignoresSafeArea())
         .safeAreaInset(edge: .bottom) {
-            VcPrimaryButton(title: "Đồng ý và tiếp tục", action: onAccept, enabled: accepted)
+            VcPrimaryButton(title: "Đồng ý và tiếp tục", action: {
+                guard agreement.canContinue(selected: selected, required: ConsentPolicy.requiredIDs) else { return }
+                onAccept()
+            }, enabled: agreement.canContinue(selected: selected, required: ConsentPolicy.requiredIDs))
+                .accessibilityIdentifier("terms-continue")
                 .padding(20).background(colors.background)
         }
         .navigationTitle("Điều khoản")
@@ -193,32 +206,16 @@ struct TermsScreen: View {
     }
 }
 
-private struct ConsentChoice: Identifiable {
-    let id: Int
-    let title: String
-    let detail: String
-    let required: Bool
-}
-
-struct ConsentScreen: View {
-    let onContinue: () -> Void
-    @State private var selected: Set<Int> = [0, 2]
+private struct ConsentSelection: View {
+    @Binding var selected: Set<Int>
     @Environment(\.vcColors) private var colors
 
-    private let choices = [
-        ConsentChoice(id: 0, title: "Xử lý khuôn mặt và giọng nói", detail: "Để xác minh bạn là người thật và đúng chủ CCCD. Tự xóa sau 24 giờ nếu thành công, hoặc sau 30 ngày nếu cần xem xét.", required: true),
-        ConsentChoice(id: 1, title: "Lưu mẫu khuôn mặt đã mã hóa", detail: "Để lần sau xác thực nhanh hơn.", required: false),
-        ConsentChoice(id: 2, title: "Lưu thông tin CCCD", detail: "Để mở và quản lý tài khoản.", required: true)
-    ]
-
-    private var canContinue: Bool { selected.contains(0) && selected.contains(2) }
-
     var body: some View {
-        VcScreen(step: 1) {
-            VcTitleBlock(title: "Đồng ý xử lý dữ liệu", bodyText: "Bạn chọn từng mục. Dữ liệu của bạn không được dùng để huấn luyện AI.")
-            Text("\(selected.count)/\(choices.count) mục đã chọn")
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Đồng ý xử lý dữ liệu").font(VcType.section)
+            Text("\(selected.count)/\(ConsentPolicy.choices.count) mục đã chọn")
                 .font(VcType.label).foregroundStyle(colors.muted)
-            ForEach(choices) { choice in
+            ForEach(ConsentPolicy.choices) { choice in
                 Button {
                     if selected.contains(choice.id) { selected.remove(choice.id) }
                     else { selected.insert(choice.id) }
@@ -238,14 +235,12 @@ struct ConsentScreen: View {
                     .foregroundStyle(colors.ink)
                     .padding(16)
                     .background(colors.surfaceSubtle, in: RoundedRectangle(cornerRadius: 12))
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("consent-choice-\(choice.id)")
+                .accessibilityValue(selected.contains(choice.id) ? "Đã chọn" : "Chưa chọn")
             }
-            VcBanner(text: "Bạn luôn có quyền thay đổi\nRút lại đồng ý hoặc xin xóa dữ liệu bất cứ lúc nào trong Cài đặt › Quyền riêng tư.", systemImage: "hand.raised")
-        }
-        .safeAreaInset(edge: .bottom) {
-            VcPrimaryButton(title: "Đồng ý và tiếp tục", action: onContinue, enabled: canContinue)
-                .padding(20).background(colors.background)
         }
     }
 }

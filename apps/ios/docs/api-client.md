@@ -2,11 +2,17 @@
 
 ## Phạm vi
 
-`Data/Models.swift` dùng Codable và codec `SessionJSON` để giữ tên JSON snake_case.
-`Data/SessionApi.swift` cung cấp 10 endpoint phiên. `Flow/LiveFlow.swift` giữ trạng
+`Data/API/Models.swift` dùng Codable và codec `SessionJSON` để giữ tên JSON snake_case.
+`Data/API/SessionApi.swift` cung cấp 10 endpoint POST và GET account receipt. `Flow/LiveFlow.swift` giữ trạng
 thái một phiên; `Flow/FlowRules.swift` quyết định route/câu nhắc từ kết quả server.
-Chưa nối vào màn live hoặc camera/micro: các bước này thuộc IOS-03..06. Demo IOS-01
-vẫn chạy độc lập.
+Màn live và camera/micro đã được nối qua IOS-03..06. Demo IOS-01 vẫn chạy độc lập.
+
+Model/client/multipart cùng nằm trong `Data/API`, tương ứng `data/api` Android.
+`Data/AccountStore.swift` tách riêng vì Keychain là persistence, không phải API.
+`UI/App.swift` ghép các flow, `UI/AppRoutes.swift` nối route với màn;
+`UI/AppNavigation.swift` chỉ giữ path. Lifecycle camera/micro nằm ở
+`Flow/CaptureFlows.swift`, không nằm trong lớp navigation. Xem
+[bản đồ cấu trúc](android-alignment.md#10-cấu-trúc-ios-đối-chiếu-android).
 
 ## Cách dùng
 
@@ -26,10 +32,30 @@ chuỗi lỗi server trực tiếp cho người dân.
 6. Khi kết quả yêu cầu đọc câu, dùng `voicePrompt`, `voiceChallengeId` và gọi
    `submitVoice(wav:video:audioOffsetMs:)`.
 
+**Chặng 4:** uploadCard giữ fields/draft rồi tới chuẩn bị mặt. FaceCaptureFlow
+đóng/kiểm video và giữ PendingFaceCapture (URL, JPEG, signals, binding phiên/token/
+challenge/deadline), không nạp cả MP4 để chờ sửa thông tin. Onboarding chưa confirm
+đi tới confirm; CaptureFlows kiểm binding trước/sau confirm rồi mới mở upload.
+LiveFlow giữ idCardConfirmed qua refresh/retry, reset khi phiên/thẻ thay đổi.
+Recovery/reauth không đòi CCCD. SMS mô phỏng chỉ tự điền, không tự verify.
+Xem [checklist chặng 4](post-face-confirm-device-checklist.md).
+
+Chuyển mặt → confirm không hủy evidence. Home ở confirm/edit giữ bản thu đã đóng
+đến deadline, không chạy camera hoặc tự upload. Back ở confirm hỏi dừng; Back ở
+edit về confirm. Retake CCCD từ edit bỏ evidence mặt cũ và phải quay mới.
+Lỗi mạng confirm giữ draft/file; lỗi confirm terminal không upload. Hết challenge
+hoặc binding bị đổi dọn file → face_expired, hết session → error_session.
+MP4 được đọc mapped-if-safe khi gửi, không đọc lại sau media ack; LiveFlow vẫn
+giữ signals/ack để retry phần chưa nhận. Không thêm tính idempotent cho finalize.
+
 Media/signals nhận HTTP 200 phải có đúng `step` và `received: true`. Chỉ 409
 `step_already_received` ở hai bước này mới thay thế acknowledgment; không áp dụng
 cho finalize hoặc voice. Mọi mã 409 khác giữ nguyên error code để caller xử lý.
 OTP có ngoại lệ riêng theo contract: `otp_already_verified` nghĩa là đã qua OTP.
+UI sau khi đã xác nhận hiển thị trạng thái riêng, không nhập/verify mã lần nữa;
+Tiếp tục là tiếp tục phiên đã xác nhận, không phải công nhận mã tùy ý. Quyết định
+28/10 của sếp đổi backend sang ngân sách mặc định 5 lần sai toàn phiên; resend
+không reset lượt, hết lượt phải bắt đầu lại. Cần server có bản sửa tương ứng.
 
 Lỗi mạng không tự retry. Gọi lại submit sẽ chỉ gửi phần chưa được xác nhận;
 payload video/signals/voice của lần gửi lỗi được giữ tới khi server nhận.
@@ -51,6 +77,11 @@ nhận 409, app báo lỗi theo contract; không tự coi 409 là pass. Không �
 hoặc giả lập idempotency mới trong IOS-06.
 
 ## Timeout
+
+Account receipt được nối riêng sau pass, không phải acknowledgment media/signals.
+Xem [phạm vi, lưu trữ và kiểm chứng receipt](account-receipt.md). Lỗi lấy/lưu receipt
+không đổi pass thành lỗi sinh trắc, không gọi lại finalize/voice. Đây chưa phải
+đăng nhập lại thật hoặc device proof.
 
 URLSession không cung cấp ba timeout connect/read/write riêng như OkHttp.
 Client đặt `timeoutIntervalForRequest = 15` (thời gian không có dữ liệu),

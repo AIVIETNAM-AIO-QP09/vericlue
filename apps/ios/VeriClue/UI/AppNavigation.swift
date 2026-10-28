@@ -1,10 +1,25 @@
-import AVFoundation
 import Combine
-import SwiftUI
+import Foundation
+#if DEBUG
+import OSLog
+#endif
 
 @MainActor
 final class AppNavigation: ObservableObject {
-    @Published var path: [Route] = []
+    @Published var path: [Route] = [] {
+        didSet {
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--vc-navigation-trace") {
+                // Route names only; never include session, OTP, receipt or identity data.
+                let routeNames = path.map(\.rawValue).joined(separator: "/")
+                Self.trace.notice("path=\(routeNames, privacy: .public)")
+            }
+            #endif
+        }
+    }
+    #if DEBUG
+    private static let trace = Logger(subsystem: "vn.vericlue.app", category: "navigation-qa")
+    #endif
 
     var current: Route { path.last ?? .bankStart }
 
@@ -27,159 +42,17 @@ final class AppNavigation: ObservableObject {
         path.removeAll()
     }
 
+    func restartFace() {
+        // Dispose the previous face/confirm/edit/upload views before installing a new owner.
+        if let index = path.firstIndex(where: { [.faceReady, .framing, .holdStill, .turnHead, .confirm, .editInfo].contains($0) }) {
+            path.removeSubrange(index..<path.endIndex)
+        }
+        go(.faceReady)
+    }
+
     func returnTo(_ route: Route) {
         if let index = path.lastIndex(of: route) {
             path.removeSubrange(path.index(after: index)..<path.endIndex)
         } else { go(route) }
-    }
-}
-
-@MainActor
-final class CaptureFlows: ObservableObject {
-    let face: FaceCaptureFlow
-    let voice: VoiceCaptureFlow
-    let startupCleanupCount: Int
-    @Published var showExitConfirmation = false
-    @Published private(set) var expiryDestination: Route?
-    private var expiryMonitor: Task<Void, Never>?
-
-    init() {
-        startupCleanupCount = CaptureFileStore.cleanupOrphans() // Before any recorder exists.
-        let face = FaceCaptureFlow()
-        self.face = face
-        voice = VoiceCaptureFlow(camera: face.camera)
-    }
-
-    func restartFace(live: LiveFlow?) {
-        voice.cancel(); face.cancel(); live?.abandonFaceAttempt()
-    }
-
-    func leaveFlow(live: LiveFlow?) {
-        expiryMonitor?.cancel(); expiryMonitor = nil; expiryDestination = nil
-        restartFace(live: live)
-        live?.reset()
-    }
-
-    func monitorExpiry(live: LiveFlow?, voice: Bool = false) {
-        expiryMonitor?.cancel()
-        expiryDestination = nil
-        guard let live else { return }
-        expiryMonitor = Task { [weak self, weak live] in
-            while !Task.isCancelled {
-                guard let self, let live, let session = live.session else { return }
-                if voice ? self.voice.stage == .completed : self.face.stage == .completed { return }
-                if FlowRules.sessionExpired(session.expiresAt) {
-                    self.restartFace(live: live)
-                    self.expiryDestination = .errorSession
-                    return
-                }
-                try? await Task.sleep(for: .milliseconds(500))
-            }
-        }
-    }
-
-    func background(at route: Route) {
-        if [.voice, .voiceAgain].contains(route) {
-            if voice.stage == .uploading { face.camera.stop() }
-            else { voice.interrupt() }
-        } else if [.faceReady, .framing, .holdStill, .turnHead].contains(route) {
-            if face.stage == .uploading { face.camera.stop() }
-            else { face.interrupt() }
-        }
-    }
-
-    func validatePermissions(at route: Route) {
-        guard FlowRules.confirmsCaptureExit(route) else { return }
-        let camera = AVCaptureDevice.authorizationStatus(for: .video)
-        let microphone = AVCaptureDevice.authorizationStatus(for: .audio)
-        if [.voice, .voiceAgain].contains(route) {
-            guard voice.stage != .uploading, !voice.retryUpload else { return }
-            if camera == .denied || camera == .restricted { voice.interrupt(route: .errorCamera) }
-            else if microphone == .denied || microphone == .restricted { voice.interrupt(route: .errorMic) }
-        } else if camera == .denied || camera == .restricted {
-            face.interrupt(route: .errorCamera)
-        }
-    }
-}
-
-struct AppNavigationView: View {
-    @StateObject private var navigation = AppNavigation()
-    @StateObject private var flow = DemoFlow()
-    @StateObject private var identity = IdentityFlow()
-    @StateObject private var captures = CaptureFlows()
-    @Environment(\.scenePhase) private var scenePhase
-    private var face: FaceCaptureFlow { captures.face }
-    private var voice: VoiceCaptureFlow { captures.voice }
-    private var liveMode: Bool { flow.useLiveAPI && !flow.previewMode }
-
-    private var navigationPath: Binding<[Route]> {
-        // Read during body evaluation, not only inside NavigationStack's getter.
-        // The stack must receive the path snapshot from this render when go()
-        // publishes a change; the setter still intercepts native Back gestures.
-        let renderedPath = navigation.path
-        return Binding(get: { renderedPath }, set: { next in
-            if liveMode, next.count < navigation.path.count {
-                if [.errorSession, .success, .review, .bankOpened, .deny, .recoveryRequired].contains(navigation.current) {
-                    finishAtBank(); return
-                }
-                if FlowRules.confirmsCaptureExit(navigation.current) {
-                    captures.showExitConfirmation = true
-                    return
-                }
-                identity.cancelPendingRequests()
-                if next.isEmpty { finishAtBank(); return }
-            }
-            navigation.path = next
-        })
-    }
-
-    var body: some View {
-        NavigationStack(path: navigationPath) {
-            BankStartScreen(
-                onOpenAccount: {
-                    flow.previewMode = false
-                    captures.leaveFlow(live: identity.liveFlow)
-                    identity.reset()
-                    navigation.go(.splash)
-                },
-                onGallery: { navigation.go(.gallery) }
-            )
-            .navigationDestination(for: Route.self) { route in
-                RouteScreen(route: route)
-                    .environmentObject(navigation)
-                    .environmentObject(flow)
-                    .environmentObject(identity)
-                    .environmentObject(face)
-                    .environmentObject(voice)
-                    .environmentObject(captures)
-            }
-        }
-        .environmentObject(navigation)
-        .environmentObject(flow)
-        .environmentObject(identity)
-        .environmentObject(face)
-        .environmentObject(voice)
-        .environmentObject(captures)
-        .confirmationDialog("Bạn muốn dừng xác minh?", isPresented: $captures.showExitConfirmation, titleVisibility: .visible) {
-            Button("Quay lại chuẩn bị") {
-                captures.restartFace(live: identity.liveFlow)
-                navigation.returnTo(.faceReady)
-            }
-            Button("Dừng xác minh", role: .destructive, action: finishAtBank)
-            Button("Tiếp tục", role: .cancel) {}
-        }
-        .onChange(of: scenePhase) { phase in
-            guard liveMode else { return }
-            if phase == .background { captures.background(at: navigation.current) }
-            else if phase == .active { captures.validatePermissions(at: navigation.current) }
-        }
-        .onChange(of: captures.expiryDestination) { route in
-            if liveMode, let route { navigation.replaceTop(with: route) }
-        }
-    }
-
-    private func finishAtBank() {
-        captures.leaveFlow(live: identity.liveFlow)
-        identity.reset(); flow.resetForBank(); navigation.toBank()
     }
 }

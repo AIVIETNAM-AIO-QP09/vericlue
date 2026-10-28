@@ -7,17 +7,13 @@ enum Route: String, CaseIterable, Hashable, Identifiable {
     case splash
     case auth
     case terms
-    case consent
-    case intro
-    case permission
     case phone
     case otp
     case otpError = "otp_error"
     case idFront = "id_front"
     case idFrontGlare = "id_front_glare"
-    case idFrontReview = "id_front_review"
     case idBack = "id_back"
-    case idBackReview = "id_back_review"
+    case idReview = "id_review"
     case confirm
     case editInfo = "edit_info"
     case faceReady = "face_ready"
@@ -41,6 +37,7 @@ enum Route: String, CaseIterable, Hashable, Identifiable {
     case errorService = "error_service"
     case errorDevice = "error_device"
     case interrupted
+    case faceExpired = "face_expired"
     case noVoice = "no_voice"
     case exitConfirm = "exit_confirm"
     case stopped
