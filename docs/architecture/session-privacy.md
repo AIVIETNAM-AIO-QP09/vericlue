@@ -20,8 +20,10 @@ Nhân viên dùng `Authorization: Bearer <staff token>`, khác token người d�
 
 Dùng DATABASE_URL/MEDIA_DIR mới hoặc có kế hoạch chuyển đổi dữ liệu trước khi bật.
 Snapshot/media cũ dạng rõ bị từ chối ở chế độ riêng tư, không được xem là đã mã hóa.
-Kho demo phải dùng cùng master key giữa các worker và sau restart. Đổi master
-key chưa có quy trình rewrap trong lát cắt này.
+Kho demo phải dùng cùng master key giữa các worker và sau restart. Công cụ
+[rewrap DEK ngoại tuyến](../runbooks/master-key-lifecycle.md) hỗ trợ đổi master
+cho DEK phiên/tài khoản trong một giao dịch; người vận hành phải dừng mọi dịch
+vụ và tự cập nhật cấu hình sau khi đổi. Công cụ không đổi các bản backup cũ.
 
 ## Dữ liệu được bảo vệ
 
