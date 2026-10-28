@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vericlue.local/contracts/privacy.schema.json",
+  "title": "Đồng ý và xóa dữ liệu trong phạm vi phiên",
+  "description": "Biên nhận gắn phiên và bearer đã xác thực; không tự chứng minh ý chí người dùng, không xóa tài khoản hay thu hồi tức thời chứng nhận BBS đã cấp.",
+  "$defs": {
+    "PrivacyCategory": {
+      "type": "string",
+      "enum": ["contact", "id_document", "face_biometrics", "voice_biometrics"]
+    },
+    "PrivacyConsentRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy_version", "categories", "consent"],
+      "properties": {
+        "policy_version": {"type": "string", "pattern": "^[A-Za-z0-9._-]{1,64}$"},
+        "categories": {"type": "array", "items": {"$ref": "#/$defs/PrivacyCategory"}, "minItems": 1, "maxItems": 4, "uniqueItems": true},
+        "consent": {"type": "boolean", "const": true}
+      }
+    },
+    "PrivacyWithdrawalRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["confirm"],
+      "properties": {"confirm": {"type": "boolean", "const": true}}
+    },
+    "PrivacyState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["session_id", "scope", "policy_version", "status", "categories", "consent_receipt_id", "consented_at", "withdrawal_receipt_id", "withdrawn_at", "storage_erasure", "processing_cleanup", "account_data_erased", "credential_revocation"],
+      "properties": {
+        "session_id": {"type": "string", "pattern": "^ses_[A-Za-z0-9_-]{1,120}$"},
+        "scope": {"type": "string", "const": "session"},
+        "policy_version": {"type": "string", "pattern": "^[A-Za-z0-9._-]{1,64}$"},
+        "status": {"type": "string", "enum": ["not_granted", "granted", "withdrawn"]},
+        "categories": {"type": "array", "items": {"$ref": "#/$defs/PrivacyCategory"}, "maxItems": 4, "uniqueItems": true},
+        "consent_receipt_id": {"anyOf": [{"type": "string", "pattern": "^prv_[0-9a-f]{32}$"}, {"type": "null"}]},
+        "consented_at": {"anyOf": [{"type": "string", "format": "date-time"}, {"type": "null"}]},
+        "withdrawal_receipt_id": {"anyOf": [{"type": "string", "pattern": "^prv_[0-9a-f]{32}$"}, {"type": "null"}]},
+        "withdrawn_at": {"anyOf": [{"type": "string", "format": "date-time"}, {"type": "null"}]},
+        "storage_erasure": {"type": "string", "enum": ["not_requested", "key_destroyed", "files_deleted"]},
+        "processing_cleanup": {"type": "string", "enum": ["not_applicable", "not_verified"]},
+        "account_data_erased": {"type": "boolean", "const": false},
+        "credential_revocation": {"type": "string", "const": "not_performed"}
+      }
+    }
+  }
+}

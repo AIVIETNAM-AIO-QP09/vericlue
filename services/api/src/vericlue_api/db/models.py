@@ -253,3 +253,38 @@ class CleanupAuditRow(Base):
     files: Mapped[list] = mapped_column(JSON, default=list)
     reason: Mapped[str] = mapped_column(String(80), default="media_cleanup")
     details: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class PrivacyEventRow(Base):
+    """Minimal append-only session ledger, with no PII, biometric bytes or bearer plaintext."""
+
+    __tablename__ = "privacy_events"
+    __table_args__ = (
+        CheckConstraint(
+            "kind IN ('consent', 'withdrawal', 'files_erased')", name="ck_privacy_event_kind"
+        ),
+        Index(
+            "uq_privacy_withdrawal",
+            "session_id",
+            unique=True,
+            sqlite_where=text("kind = 'withdrawal'"),
+            postgresql_where=text("kind = 'withdrawal'"),
+        ),
+        Index(
+            "uq_privacy_files_erased",
+            "session_id",
+            unique=True,
+            sqlite_where=text("kind = 'files_erased'"),
+            postgresql_where=text("kind = 'files_erased'"),
+        ),
+    )
+    receipt_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    session_id: Mapped[str] = mapped_column(ForeignKey("sessions.session_id"), index=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    policy_version: Mapped[str] = mapped_column(String(64))
+    categories: Mapped[list] = mapped_column(JSON, default=list)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    token_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

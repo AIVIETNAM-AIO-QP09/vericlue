@@ -137,6 +137,11 @@ class SessionMultipartParser(MultiPartParser):
 class SessionAPIRoute(APIRoute):
     """Run short auth before body parsing; normal dependencies still recheck at use time."""
 
+    json_body_max_bytes: int | None = None
+
+    def authenticate(self, request: Request, session_id: str) -> None:
+        preflight_session(request, session_id)
+
     def get_route_handler(self) -> Callable[[Request], Coroutine[Any, Any, Response]]:
         original = super().get_route_handler()
         rules = UPLOAD_RULES.get(self.endpoint.__name__)
@@ -147,7 +152,20 @@ class SessionAPIRoute(APIRoute):
                 try:
                     session_id = request.path_params.get("session_id")
                     if session_id is not None:
-                        await run_in_threadpool(preflight_session, request, session_id)
+                        await run_in_threadpool(self.authenticate, request, session_id)
+                    if self.json_body_max_bytes is not None and request.method == "POST":
+                        size = 0
+                        chunks = []
+                        async for chunk in request.stream():
+                            size += len(chunk)
+                            if size > self.json_body_max_bytes:
+                                raise ApiError(
+                                    413,
+                                    "request_too_large",
+                                    "Dữ liệu gửi lên vượt quá giới hạn cho phép.",
+                                )
+                            chunks.append(chunk)
+                        request._body = b"".join(chunks)
                     if rules is not None:
                         media_type, _ = parse_options_header(
                             request.headers.get("content-type", "")
@@ -170,6 +188,12 @@ class SessionAPIRoute(APIRoute):
                             # Request.form() in the original FastAPI handler reuses this
                             # cache instead of parsing (and spooling) the body twice.
                             request._form = form
+                        elif media_type:
+                            raise ApiError(
+                                415,
+                                "unsupported_media_type",
+                                "Vui lòng gửi file theo định dạng tải lên được hỗ trợ.",
+                            )
                 except ApiError as exc:
                     # No handler dependency transaction has begun yet. Do not catch
                     # original() errors: yield dependencies must see them and roll back.

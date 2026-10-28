@@ -1,0 +1,5 @@
+{
+  "policy_version": "demo-v1",
+  "categories": ["face_biometrics"],
+  "consent": true
+}
