@@ -38,7 +38,7 @@ COPY services/api/alembic.ini services/api/alembic.ini
 COPY services/api/migrations services/api/migrations
 COPY packages/contracts/chromapulse.json /app/config/chromapulse.json
 COPY ml/configs /app/ml/configs
-COPY scripts/credential_keys.py scripts/check_credentials.py /app/scripts/
+COPY scripts/credential_keys.py scripts/check_credentials.py scripts/check_security_profile.py /app/scripts/
 USER api
 EXPOSE 8000
 CMD ["sh", "-c", "alembic -c services/api/alembic.ini upgrade head && exec uvicorn vericlue_api.main:app --host 0.0.0.0 --port 8000"]
