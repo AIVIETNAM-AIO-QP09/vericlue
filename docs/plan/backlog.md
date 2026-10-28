@@ -162,6 +162,7 @@
 | SEC-05 | Profile bảo mật và chặn cấu hình dev dùng nhầm | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | todo |
 | SEC-06 | Retention và thao tác riêng tư [contract] | M5 | Codex | 1 | S2 | P0 | PLAT-05 | todo |
 | SEC-07 | Vá dependency web và kiểm chứng tích hợp | M2 | Codex | 0,5 | S2 | P0 | PLAT-02, PLAT-05 | todo |
+| SEC-08 | Vòng đời khóa và file tạm cho demo | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | todo |
 
 ## Tổng hợp tải (chạy `plan_check.py` để có số mới nhất)
 
