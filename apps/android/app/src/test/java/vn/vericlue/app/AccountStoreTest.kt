@@ -47,8 +47,8 @@ class AccountStoreTest {
     fun savesAndLoadsAReceipt() {
         val store = AccountStore(MapStore()) { now }
         assertNull(store.load())
-        store.save(receipt)
-        assertEquals(receipt, store.load())
+        store.save(receipt, "vericlue.media.test")
+        assertEquals(receipt, store.load()?.receipt)
         store.clear()
         assertNull(store.load())
     }
@@ -56,11 +56,11 @@ class AccountStoreTest {
     @Test
     fun expiredOrBrokenReceiptCountsAsNoAccount() {
         val map = MapStore()
+        AccountStore(map) { now }.save(receipt, "vericlue.media.test")
         val store = AccountStore(map) { Instant.parse("2026-11-28T00:00:00Z") }
-        store.save(receipt)
         assertNull(store.load())
         assertTrue(map.map.isEmpty())
-        map.put("account_receipt.v1", "{not json")
+        map.put("account_binding.v2", "{not json")
         assertNull(store.load())
         assertTrue(map.map.isEmpty())
     }

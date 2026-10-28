@@ -13,12 +13,16 @@ import java.util.Base64
  * Recipe: https://developer.android.com/privacy-and-security/keystore
  * Call on Dispatchers.IO. This does not attest hardware or prove camera origin.
  */
-class AndroidMediaSigner(private val alias: String = "vericlue.media.v1") : MediaSigner {
-    init { require(alias.matches(Regex("vericlue\\.media\\.[A-Za-z0-9._-]{1,100}"))) }
+class AndroidMediaSigner(
+    private val alias: String = "vericlue.media.v1",
+    private val createIfMissing: Boolean = true,
+) : MediaSigner {
+    init { require(KeyAliases.valid(alias)) }
 
     private fun entry(): KeyStore.PrivateKeyEntry = synchronized(creationLock) {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         if (!store.containsAlias(alias)) {
+            check(createIfMissing) { "Enrolled key is unavailable" }
             KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_EC, "AndroidKeyStore").apply {
                 initialize(KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_SIGN)
                     .setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1"))
@@ -42,5 +46,17 @@ class AndroidMediaSigner(private val alias: String = "vericlue.media.v1") : Medi
         return Base64.getEncoder().encodeToString(signature)
     }
 
-    private companion object { val creationLock = Any() }
+    companion object {
+        private val creationLock = Any()
+
+        fun exists(alias: String): Boolean = synchronized(creationLock) {
+            require(KeyAliases.valid(alias))
+            KeyStore.getInstance("AndroidKeyStore").apply { load(null) }.isKeyEntry(alias)
+        }
+
+        fun delete(alias: String): Unit = synchronized(creationLock) {
+            require(KeyAliases.valid(alias))
+            KeyStore.getInstance("AndroidKeyStore").apply { load(null) }.deleteEntry(alias)
+        }
+    }
 }

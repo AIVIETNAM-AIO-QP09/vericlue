@@ -13,13 +13,21 @@ thiết bị thật. API/client đã có receipt tài khoản và L0 ký khóa
 `LiveFlow.ensureSession(..., "reauth", account)`; flow tự kiểm/ký/gửi L0 và
 chỉ giữ session sau ACK. Receipt sau giọng nằm ở `LiveFlow.accountReceipt`, hoặc
 lấy lại bằng `fetchAccountReceipt()`; đăng ký đạt ngay ở `finalize` (không đọc câu, từ 26/10)
-thì chỉ có cách gọi `fetchAccountReceipt()`. Từ 27/10 app tự làm việc này: màn thành công
-(đăng ký/khôi phục, bản live) gọi `receiptAfterPass()` và lưu vào `AccountStore`
-(SharedPreferences riêng app; hết hạn thì coi như chưa có). "Đăng nhập lại" dùng receipt
-đã lưu qua `LiveFlow.boundAccount`; không có receipt hoặc tắt `signedMedia` thì về đăng ký.
-Một alias Keystore cố định (`vericlue.media.v1`), khôi phục chưa đổi khóa. Server hiện trả
+thì chỉ có cách gọi `fetchAccountReceipt()`. App gọi `receiptAfterPass()` và lưu receipt
+cùng alias khóa vào `AccountStore` trước khi mở màn thành công; lỗi lấy/lưu chỉ ghi log.
+SharedPreferences riêng app lưu một binding nguyên tử, hết hạn/hỏng/thiếu alias thì coi
+như chưa có. Định dạng receipt cũ thiếu alias không được gán đoán sang một khóa khác.
+"Đăng nhập lại" dùng đúng khóa đã lưu, không tạo khóa thay thế nếu khóa mất; trường hợp
+này và HTTP `409 recovery_required` dẫn tới hướng dẫn khôi phục. Không có receipt hoặc
+tắt `signedMedia` thì về đăng ký với lời nhắc ngắn.
+Khôi phục gửi account_id cũ, tạo alias/khóa mới, vẫn chụp CCCD sau OTP theo H32.
+Chỉ xóa khóa cũ sau khi receipt/alias mới đã ghi bền; lỗi lưu giữ khóa cũ.
+Chọn lại luồng ở màn bắt đầu luôn tạo LiveFlow mới. Server hiện trả
 `503 flow_unavailable` ở bước sinh trắc của reauth/recovery có tài khoản (ra màn "Dịch vụ
-chưa sẵn sàng"); đăng ký cần server bật `ACCOUNT_ENROLLMENT=true` mới có receipt.
+chưa sẵn sàng"), kể cả mock. Đăng ký cần `ACCOUNT_ENROLLMENT=true` và đầy đủ cấu hình
+mô hình thật/mã hóa/các cổng ghi danh mới có receipt; bật cờ trên API mock không đủ.
+`signedMedia` vẫn mặc định **false**; bản thử tài khoản phải build với
+`-Pvericlue.signedMedia=true`. Manifest ký đã nhận `reauth`, không mở chốt server.
 Không có màn hình mới. Xem
 [`account-authentication.md`](../../docs/architecture/account-authentication.md).
 
@@ -41,7 +49,7 @@ Không có màn hình mới. Xem
 | CCCD | Camera sau, tự chụp khi 2 khung liền nhau đủ nét và không lóa (`IdAutoCapture`, vẫn có nút chụp), đọc QR (ML Kit), điền thông tin từ QR | Gửi 2 ảnh + chuỗi QR lên server, thông tin xác nhận theo server; thứ tự trường QR cần kiểm với thẻ thật |
 | OTP | Gửi/kiểm mã qua server; tự điền từ `simulated_sms` hoặc SMS thật (SMS User Consent, không cần quyền SMS); bàn phím vẫn gõ tay được | SMS thật chưa có (kênh mô phỏng) |
 | Gián đoạn | Xuống nền giữa lúc quay → bỏ lượt, màn "Xác minh bị gián đoạn" | Gia hạn phiên (LIVE-06) |
-| Keystore, ký media | | SEC-02, LIVE-03 |
+| Keystore, ký media | P-256/SHA-256 opt-in; receipt gắn alias; L0 reauth; đổi khóa khôi phục, xóa khóa cũ sau ghi bền | Chưa nghiệm thu Keystore/khôi phục trên điện thoại thật; sinh trắc tài khoản bị chặn ở server |
 
 ## Cài đặt lần đầu (Windows)
 
