@@ -32,6 +32,13 @@ sau parser để bắt thay đổi token/chính sách hoặc rút lại trong l�
 không tạo sự kiện mới; mỗi phiên tối đa tám sự kiện đồng ý, một sự kiện rút lại và một xác nhận
 xóa file. Nhãn nhóm là metadata, không phải giá trị sinh trắc học.
 
+Kiểm tra ở thời điểm xử lý/xuất kết quả còn xét dữ liệu đã lưu: finalize, voice,
+kết quả ký, cấp BBS và biên nhận tài khoản cần nhóm CCCD hiện hành khi phiên có
+chứng cứ CCCD; cần liên hệ khi ghi danh/khôi phục dùng ràng buộc số điện thoại;
+cần giọng nếu đã có bản ghi/kết quả giọng. Vì vậy đổi phiên bản chính sách rồi chỉ
+đồng ý mặt không cho phép tái dùng CCCD hoặc liên hệ thuộc phiên bản cũ. Câu đọc
+được cấp trước nhưng chưa thu âm không tự làm phát sinh yêu cầu đồng ý giọng.
+
 ## Rút lại và xóa
 
 Trong một transaction khóa hàng phiên, server xác thực bearer hiện hành, ghi sự kiện rút lại và

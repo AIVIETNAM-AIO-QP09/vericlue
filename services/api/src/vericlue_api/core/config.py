@@ -211,6 +211,8 @@ class Settings(BaseSettings):
 
     max_retries: int = Field(default=2, ge=0, le=2)
     max_upload_mb: int = Field(default=50, ge=1)
+    # Cumulative raw + normalized media budget, persisted per session under its DB lock.
+    max_session_media_mb: int = Field(default=256, ge=1, le=1024)
     max_id_card_scans: int = Field(default=5, ge=1, le=20)
     max_id_card_total_mb: int = Field(default=128, ge=1, le=512)
     # Total HTTP body, including all files and multipart framing (PLAT-06).

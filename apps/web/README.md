@@ -37,6 +37,13 @@ npm run build
 
 ## Gọi API
 
+SEC-06 bổ sung `sessionPrivacy`, `grantSessionConsent` và `withdrawSessionConsent`
+trong SDK, dùng bearer phiên và `cache: no-store`. Các hàm không tự gọi khi tạo
+phiên, không lưu token hay tự xác nhận đồng ý. UI/app cần nối lựa chọn chủ động
+đúng phiên bản chính sách trước thu dữ liệu khi bật `REQUIRE_PRIVACY_CONSENT`.
+Rút lại chỉ có phạm vi phiên; không phải xóa tài khoản. Xem
+[thiết kế consent](../../docs/architecture/session-privacy-consent.md).
+
 FOR-04 có các hàm staff `createForensicJob(file, fileName, {reviewCaseId?})`,
 `getForensicJob` và `verifyForensicReviewAudit(reportJson, signature)`. Chuỗi
 report.json giữ nguyên byte ASCII qua JSON string, không format/serialize lại.

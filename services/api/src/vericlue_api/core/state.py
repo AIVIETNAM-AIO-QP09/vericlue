@@ -150,7 +150,7 @@ class ApplicationState:
                 return
             self.orchestrator.start()
             with self.transaction() as state:
-                if self.settings.use_mock_models:
+                if self.settings.use_mock_models and self.settings.product_mode == "tools":
                     state.reviews.seed_demo()
                 else:
                     from sqlalchemy import select
@@ -158,7 +158,10 @@ class ApplicationState:
                     from vericlue_api.db.models import SessionRow
 
                     state.db.execute(select(SessionRow.session_id).limit(1))
-                if self.settings.use_mock_models is not True:
+                if (
+                    self.settings.use_mock_models is not True
+                    and self.settings.product_mode == "tools"
+                ):
                     state.forensic.fail_interrupted()  # job giám định dở dang của lần chạy trước
             self._initialized = True
 

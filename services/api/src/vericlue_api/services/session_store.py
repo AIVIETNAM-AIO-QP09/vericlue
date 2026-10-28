@@ -11,6 +11,7 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
+from vericlue_api.core.retention import ensure_session_retained
 from vericlue_api.core.session_tokens import SessionTokenSigner, token_digest
 from vericlue_api.db.models import DecisionRow, ModuleResultRow, SessionRow, utcnow
 from vericlue_api.schemas.session import Challenge, SessionPurpose
@@ -131,6 +132,8 @@ class SessionStore:
         # Unsigned legacy credentials are revoked, not silently upgraded.
         if row is None:
             return None
+        if self.privacy is not None:
+            ensure_session_retained(self.privacy.settings, row)
         data = dict(
             self.privacy.open_json(session_id, "session", row.payload)
             if self.privacy
@@ -155,6 +158,8 @@ class SessionStore:
 
     def save_all(self) -> None:
         for session, row in self._loaded.values():
+            if self.privacy is not None:
+                ensure_session_retained(self.privacy.settings, row)
             row.payload = self._stored_snapshot(session)
             row.last_activity_at = utcnow()
             row.media_deleted_at = None
@@ -163,12 +168,21 @@ class SessionStore:
         self, session: Session, action: str, *, thresholds: dict, config_version: str
     ) -> None:
         row = self._loaded[session.session_id][1]
+        if self.privacy is not None:
+            # A request authorized before expiry cannot renew retention by
+            # finishing inference and writing a new decision after its deadline.
+            ensure_session_retained(self.privacy.settings, row)
         row.status = (
             action if action in {"pass", "review", "deny", "recovery_required"} else "incomplete"
         )
         row.ever_review = row.ever_review or action == "review"
-        # Review retention starts only when staff close the case, not at routing time.
-        row.decided_at = utcnow() if action in {"pass", "deny", "recovery_required"} else None
+        # Tools mode keeps staff retention; eKYC has no pending staff case.
+        terminal = action in {"pass", "deny", "recovery_required"} or (
+            action == "review"
+            and self.privacy is not None
+            and self.privacy.settings.product_mode == "ekyc"
+        )
+        row.decided_at = utcnow() if terminal else None
         self.db.add(
             DecisionRow(
                 session_id=session.session_id,

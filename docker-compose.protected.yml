@@ -1,5 +1,8 @@
 # Explicit protected profile; keeps all biometric real/mixed/account guards closed.
 services:
+  web:
+    # Mobile eKYC does not require the legacy Next.js frontend.
+    profiles: [legacy-web]
   api:
     environment:
       SECURITY_PROFILE: protected

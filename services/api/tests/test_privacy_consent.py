@@ -3,6 +3,7 @@
 import base64
 import io
 import json
+import re
 import secrets
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
@@ -22,6 +23,7 @@ from vericlue_api.db.models import PrivacyEventRow, SessionKeyRow, utcnow
 from vericlue_api.main import create_app
 from vericlue_api.routers import privacy
 from vericlue_api.services.privacy_consent import MAX_CONSENT_EVENTS
+from vericlue_api.services.session_flow import SessionFlow
 
 
 @pytest.fixture
@@ -155,6 +157,105 @@ def test_policy_change_requires_current_version_again(private_client):
     assert r.status_code == 409 and r.json()["error_code"] == "privacy_policy_changed"
     assert grant(client, sid, auth, ["face_biometrics"], "test-v2").status_code == 200
     assert upload_face(client, sid, auth).status_code == 200
+
+
+def collect_document(client, sid, auth):
+    # Fictional card fields and generated JPEG; no identity/person data.
+    response = client.post(
+        f"/v1/sessions/{sid}/id-card",
+        headers=auth,
+        files={"front": ("front.jpg", photo()), "back": ("back.jpg", photo())},
+        data={"qr": "000000000001||Nguoi Thu Nghiem|01011995|Nam|Dia Chi Tong Hop|01012020"},
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+
+
+def collect_contact(client, sid, auth):
+    sent = client.post(f"/v1/sessions/{sid}/otp", headers=auth, json={"phone": "0900000000"})
+    assert sent.status_code == 200
+    code = re.search(r"\b(\d{6})\b", sent.json()["simulated_sms"]).group(1)
+    verified = client.post(f"/v1/sessions/{sid}/otp/verify", headers=auth, json={"code": code})
+    assert verified.status_code == 200
+
+
+def test_policy_change_cannot_reuse_collected_document_for_face_match(private_client, monkeypatch):
+    client = private_client
+    s, auth = start_session(client)
+    sid = s["session_id"]
+    assert grant(client, sid, auth, ["id_document", "face_biometrics"]).status_code == 200
+    collect_document(client, sid, auth)
+    assert upload_face(client, sid, auth).status_code == 200
+    root = client.app.state.vericlue
+    root.settings.identity_lab_url = "http://identity.invalid"
+    root.settings.privacy_policy_version = "test-v2"
+    assert grant(client, sid, auth, ["face_biometrics"], "test-v2").status_code == 200
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Old-policy card reached face matching")
+
+    monkeypatch.setattr(SessionFlow, "finalize", forbidden)
+    r = client.post(f"/v1/sessions/{sid}/finalize", headers=auth)
+    assert r.status_code == 409 and r.json()["error_code"] == "privacy_consent_required"
+
+
+@pytest.mark.parametrize("endpoint", ["finalize", "voice"])
+def test_policy_change_cannot_reuse_verified_contact_for_enrollment(
+    private_client, monkeypatch, endpoint
+):
+    client = private_client
+    s, auth = start_session(client)
+    sid = s["session_id"]
+    assert (
+        grant(client, sid, auth, ["contact", "id_document", "face_biometrics"]).status_code == 200
+    )
+    collect_document(client, sid, auth)
+    collect_contact(client, sid, auth)
+    root = client.app.state.vericlue
+    with root.transaction() as state:
+        state.sessions.get(sid).purpose = "onboarding"
+    root.settings.account_enrollment = True
+    root.settings.privacy_policy_version = "test-v2"
+    # Regrant card and face/voice; old verified contact must still require fresh permission.
+    assert (
+        grant(
+            client, sid, auth, ["id_document", "face_biometrics", "voice_biometrics"], "test-v2"
+        ).status_code
+        == 200
+    )
+
+    async def forbidden_parser(*args, **kwargs):
+        raise AssertionError("Old-policy enrollment contact reached voice parser")
+
+    def forbidden_finalize(*args, **kwargs):
+        raise AssertionError("Old-policy enrollment contact reached inference/enrollment")
+
+    monkeypatch.setattr(SessionMultipartParser, "parse", forbidden_parser)
+    monkeypatch.setattr(SessionFlow, "finalize", forbidden_finalize)
+    if endpoint == "voice":
+        r = client.post(
+            f"/v1/sessions/{sid}/voice", headers=auth, files={"audio": ("voice.wav", b"unused")}
+        )
+    else:
+        r = client.post(f"/v1/sessions/{sid}/finalize", headers=auth)
+    assert r.status_code == 409 and r.json()["error_code"] == "privacy_consent_required"
+
+
+def test_face_only_processing_does_not_require_preissued_voice_or_unused_contact(private_client):
+    client = private_client
+    s, auth = start_session(client)
+    sid = s["session_id"]
+    assert grant(client, sid, auth, ["contact", "face_biometrics"]).status_code == 200
+    collect_contact(client, sid, auth)
+    root = client.app.state.vericlue
+    with root.transaction() as state:
+        session = state.sessions.get(sid)
+        session.voice_prompt = "Preissued but never recorded"
+        session.voice_challenge_id = "vc_unused"
+    root.settings.privacy_policy_version = "test-v2"
+    assert grant(client, sid, auth, ["face_biometrics"], "test-v2").status_code == 200
+    assert upload_face(client, sid, auth).status_code == 200
+    assert client.post(f"/v1/sessions/{sid}/finalize", headers=auth).status_code == 200
 
 
 @pytest.mark.parametrize(

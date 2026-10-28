@@ -69,9 +69,9 @@ def preflight_session(request: Request, session_id: str) -> None:
     _verify_token(root.settings, session_id, token)
     with root.database.sessions() as db:
         store = SessionStore(db, privacy=SessionPrivacy(root.settings, db))
-        _current_session(store, session_id, token)
+        session = _current_session(store, session_id, token)
         require_categories(
-            db, root.settings, session_id, getattr(request.scope.get("endpoint"), "__name__", "")
+            db, root.settings, session, getattr(request.scope.get("endpoint"), "__name__", "")
         )
 
 
@@ -87,6 +87,6 @@ def require_session(
     _verify_token(state.settings, session_id, token)
     session = _current_session(state.sessions, session_id, token)
     require_categories(
-        state.db, state.settings, session_id, getattr(request.scope.get("endpoint"), "__name__", "")
+        state.db, state.settings, session, getattr(request.scope.get("endpoint"), "__name__", "")
     )
     return session

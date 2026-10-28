@@ -112,7 +112,7 @@ def test_face_refresh_preserves_budget_and_rejected_upload_changes_nothing(clien
     assert media_used(client, sid) == 1024 * 1024 and set(folder.iterdir()) == before
 
 
-def test_concurrent_card_and_face_share_total_budget(client):
+def test_concurrent_card_and_face_share_total_budget(client, monkeypatch):
     settings = client.app.state.vericlue.settings
     settings.max_session_media_mb = 1
     body, auth = start_session(client)
@@ -121,8 +121,19 @@ def test_concurrent_card_and_face_share_total_budget(client):
     amount = 4 * len(image)
     with client.app.state.vericlue.transaction() as state:
         state.sessions.get(sid).uploaded_media_bytes = 1024 * 1024 - amount
+    card_locked, release_card, face_started = Event(), Event(), Event()
+    original_save = identity_steps.save_upload
+
+    def hold_card_write(*args, **kwargs):
+        if args[2].startswith("id_front"):
+            card_locked.set()
+            assert release_card.wait(5)
+        return original_save(*args, **kwargs)
+
+    monkeypatch.setattr(identity_steps, "save_upload", hold_card_write)
 
     def send_face():
+        face_started.set()
         return client.post(
             f"/v1/sessions/{sid}/media",
             headers=auth,
@@ -130,8 +141,15 @@ def test_concurrent_card_and_face_share_total_budget(client):
         )
 
     with ThreadPoolExecutor(max_workers=2) as pool:
-        responses = [pool.submit(card, client, sid, auth), pool.submit(send_face)]
-        assert sorted(f.result().status_code for f in responses) == [200, 413]
+        scanned = pool.submit(card, client, sid, auth)
+        try:
+            assert card_locked.wait(5)
+            face = pool.submit(send_face)
+            assert face_started.wait(5)
+        finally:
+            release_card.set()
+        assert scanned.result().status_code == 200
+        assert face.result().status_code == 413
     assert media_used(client, sid) == 1024 * 1024
     assert len(list((Path(settings.media_dir) / sid).iterdir())) == 2
 

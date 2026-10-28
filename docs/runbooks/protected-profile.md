@@ -4,6 +4,11 @@
 với dữ liệu thật. `protected` kiểm cấu hình ngay trong `create_app`, trước DB/model
 startup hoặc nhận request. Profile không tự mở đường sinh trắc thật/account-bound.
 
+Profile protected không tự khởi động giao diện Next.js cũ: service `web` thuộc
+profile Compose `legacy-web`. App iOS/Android gọi API trực tiếp. Nếu bật web
+tường minh, phải kiểm tra bản vá dependency web trước khi đưa service đó ra mạng;
+việc tắt service không phải là đã vá thư viện của nó.
+
 ## Điều kiện bắt buộc
 
 - `PRODUCT_MODE=ekyc`, `SESSION_PRIVACY=true`, `REQUIRE_MEDIA_PROOF=true`,
@@ -63,3 +68,33 @@ camera thật, AI đúng, UI consent, TLS/proxy, quyền tệp hay backup đã n
 demo bảo thủ cho phần SEC-04. Chọn lại sau khi đo capture hợp lệ; counters theo
 phiên phải lưu bền và không bỏ hạn mức bằng restart. Không dùng số liệu này làm
 đánh giá chất lượng AI.
+
+`MAX_SESSION_MEDIA_MB=256` (1–1024) giới hạn tổng byte đã tiếp nhận của phiên,
+gồm bản gốc và bản chuẩn hóa theo công thức đã ghi trong
+[pipeline upload](../architecture/upload-image-safety.md). Đây là quota tích lũy,
+không phải hạn mức chung của toàn máy chủ. Rate limit tạo phiên vẫn theo một
+process; proxy phải đặt giới hạn kết nối, băng thông và dung lượng toàn hệ thống.
+
+## Consent và retention của sản phẩm eKYC
+
+Áp dụng migration `0010_privacy_receipts` trước khi phục vụ request. Backend và
+SDK có API ghi đồng ý/rút lại theo phiên; app phải tích hợp lựa chọn chủ động
+đúng phiên bản, không tự gọi consent thay người dùng. Xem
+[phạm vi biên nhận và xóa](../architecture/session-privacy-consent.md).
+
+Trong `PRODUCT_MODE=ekyc`, phiên `review` kết thúc ở trạng thái chưa thể xác minh;
+không tạo ca nhân viên chờ duyệt, không tự chuyển thành `pass`. API review/forensic
+trả 404 và không xuất hiện trong OpenAPI của mode này. `tools` giữ luồng cũ cho lab.
+OpenAPI đã commit dùng mode `tools` để SDK chung vẫn có type của công cụ tương lai.
+
+`MEDIA_TTL_UNVERIFIED_HOURS=24` là mặc định cho ca chưa đạt; ca đạt dùng
+`MEDIA_TTL_PASS_HOURS`. Mốc tính là `decided_at`; nếu phiên bị bỏ dở hoặc là ca cũ
+chưa có mốc này thì dùng `created_at + SESSION_MAX_SECONDS`. Polling không gia hạn.
+API chặn truy cập tại deadline kể cả cleanup chưa chạy. Cleanup chỉ chạy trên
+đường triển khai đã chọn; thay mode trên kho đang dùng có thể làm dữ liệu cũ đủ
+điều kiện xóa ngay trong lần dọn kế tiếp. PR không chạy lệnh chuyển mode hoặc xóa
+trên kho thật: operator cần kiểm retention và backup trước khi triển khai.
+
+Rút đồng ý chỉ xóa trong phạm vi kho phiên, không xóa mẫu tài khoản, bản sao lưu
+hoặc thu hồi ngay BBS đã cấp. API tách kết quả hủy khóa với xóa file; plaintext
+lease của tác vụ đã bắt đầu có thể còn tới khi xử lý thực sự kết thúc.

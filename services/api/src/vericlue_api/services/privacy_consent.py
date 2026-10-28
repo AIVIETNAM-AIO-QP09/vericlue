@@ -17,6 +17,7 @@ from vericlue_api.schemas.privacy import PrivacyConsentRequest, PrivacyState
 from vericlue_api.services.session_privacy import SessionPrivacy
 from vericlue_api.services.session_store import Session, SessionStore
 from vericlue_api.services.storage import _delete_folder, _folder
+from vericlue_ml.common.result import Module
 
 MAX_CONSENT_EVENTS = 8
 ENDPOINT_CATEGORIES: dict[str, frozenset[str]] = {
@@ -29,6 +30,54 @@ ENDPOINT_CATEGORIES: dict[str, frozenset[str]] = {
     "finalize": frozenset({"face_biometrics"}),
     "voice": frozenset({"face_biometrics", "voice_biometrics"}),
 }
+PROCESSING_ENDPOINTS = frozenset(
+    {
+        "finalize",
+        "voice",
+        "signed_result",
+        "credential_authorization",
+        "issue_credential",
+        "account_receipt",
+    }
+)
+VOICE_EVIDENCE_MODULES = frozenset(
+    {Module.VOICE_SPOOF, Module.VOICE_CHALLENGE, Module.LIPSYNC, Module.FACE_CONTINUITY}
+)
+
+
+def categories_for_use(settings: Settings, session: Session, endpoint: str) -> set[str]:
+    """Recheck consent for saved evidence too; preissued prompts are not voice collection."""
+    required = set(ENDPOINT_CATEGORIES.get(endpoint, ()))
+    if endpoint not in PROCESSING_ENDPOINTS:
+        return required
+    required.add("face_biometrics")
+    # Matching, identity gates, enrollment and review notes can consume saved card data.
+    if (
+        session.id_front is not None
+        or session.id_back is not None
+        or session.id_fields is not None
+        or session.id_confirmed_fields is not None
+        or session.id_number_hmac is not None
+        or session.id_confirmed
+        or session.id_edited
+    ):
+        required.add("id_document")
+    # Enrollment/recovery checks and persists the verified phone binding, even without SMS here.
+    if (
+        settings.account_enrollment
+        and session.purpose == "onboarding"
+        or session.purpose == "recovery"
+        and session.account_id
+    ) and (session.phone_hmac is not None or session.otp_verified):
+        required.add("contact")
+    if (
+        session.audio is not None
+        or session.voice_video is not None
+        or "voice" in session.accepted_steps
+        or VOICE_EVIDENCE_MODULES.intersection(session.results)
+    ):
+        required.add("voice_biometrics")
+    return required
 
 
 def unavailable() -> ApiError:
@@ -53,10 +102,11 @@ def require_session_active(db: DBSession, session_id: str) -> None:
         raise withdrawn()
 
 
-def require_categories(db: DBSession, settings: Settings, session_id: str, endpoint: str) -> None:
+def require_categories(db: DBSession, settings: Settings, session: Session, endpoint: str) -> None:
     """Enforce current-version categories at collection and again at use time."""
+    session_id = session.session_id
     require_session_active(db, session_id)
-    required = ENDPOINT_CATEGORIES.get(endpoint, frozenset())
+    required = categories_for_use(settings, session, endpoint)
     if not settings.require_privacy_consent or not required:
         return
     events = list(

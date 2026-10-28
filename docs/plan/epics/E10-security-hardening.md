@@ -16,10 +16,10 @@ kiểm quyền chung, giao dịch ngắn trước upload; kiểm lại trong ngh
 giữ row lock qua lúc client gửi body. Giới hạn file/field/byte theo endpoint,
 không hiểu nhầm max_part_size là trần file.
 
-- [ ] Token sai, token cũ, Authorization trùng không gọi parser.
-- [ ] Upload hợp lệ chạy, hết hạn/thu hồi trong upload không được chấp nhận.
-- [ ] File/field trùng hoặc ngoài allowlist và trần file bị chặn trong parser.
-- [ ] Có test, tài liệu và bàn giao; không đổi hợp đồng bên ngoài.
+- [x] Token sai, token cũ, Authorization trùng không gọi parser.
+- [x] Upload hợp lệ chạy, hết hạn/thu hồi trong upload không được chấp nhận.
+- [x] File/field trùng hoặc ngoài allowlist và trần file bị chặn trong parser.
+- [x] Có test, tài liệu và bàn giao; không đổi hợp đồng bên ngoài.
 
 ### SEC-04 · Chuẩn hóa ảnh và vòng đời rescan
 
@@ -32,10 +32,10 @@ dung, không suffix. CCCD được kiểm trước OCR. Tên file do server cấ
 không làm mất cặp cũ; dọn ảnh cũ sau commit và file mới sau rollback. Có trần
 lượt/tổng dung lượng rescan, bền qua restart, không nới guard model.
 
-- [ ] JPEG đổi đuôi vẫn qua cùng kiểm tra và xóa EXIF; file giả bị chặn.
-- [ ] Bounds ảnh áp dụng trước OCR/ML, đúng thứ tự chữ ký và rollback nonce.
-- [ ] Rescan/ghi lỗi/commit lỗi/concurrency không mất cặp đã commit hoặc xóa nhầm.
-- [ ] Có trần tài nguyên cấu hình và kiểm thử; không commit ảnh thật.
+- [x] JPEG đổi đuôi vẫn qua cùng kiểm tra và xóa EXIF; file giả bị chặn.
+- [x] Bounds ảnh áp dụng trước OCR/ML, đúng thứ tự chữ ký và rollback nonce.
+- [x] Rescan/ghi lỗi/commit lỗi/concurrency không mất cặp đã commit hoặc xóa nhầm.
+- [x] Có trần tài nguyên cấu hình và kiểm thử; không commit ảnh thật.
 
 ### SEC-05 · Profile bảo mật và chặn cấu hình dev dùng nhầm
 
@@ -48,10 +48,10 @@ khóa hợp lệ hoặc dùng HMAC dev. OTP mô phỏng không chứng minh gi�
 luồng yêu cầu thật chưa có kênh thật phải đóng. Kiểm cấu hình toàn API/Compose;
 không tự sinh/ghi đè khóa, không chạy npm audit BBS khi chưa có quyền egress.
 
-- [ ] Cấu hình an toàn được kiểm trước nhận dữ liệu; dev/mock tách rõ.
-- [ ] OTP real-mode không trả simulated_sms hoặc công nhận mã mô phỏng.
-- [ ] Cấu hình mẫu/runbook phù hợp; guard sinh trắc vẫn giữ.
-- [ ] Có kiểm thử âm/dương; không sửa UI, schema, ADR hoặc ngưỡng.
+- [x] Cấu hình an toàn được kiểm trước nhận dữ liệu; dev/mock tách rõ.
+- [x] OTP real-mode không trả simulated_sms hoặc công nhận mã mô phỏng.
+- [x] Cấu hình mẫu/runbook phù hợp; guard sinh trắc vẫn giữ.
+- [x] Có kiểm thử âm/dương; không sửa UI, schema, ADR hoặc ngưỡng.
 
 ### SEC-06 · Khép kín retention và thao tác riêng tư
 
@@ -65,10 +65,10 @@ không chuyển thành pass hoặc dựng quyết định nhân viên giả. Tá
 future work. Consent/rút lại/xóa sớm phải khớp hợp đồng trước code nếu triển khai.
 Không tự di chuyển hoặc xóa kho thật; giữ giới hạn thu hồi credential đã cấp.
 
-- [ ] Review mở được dọn theo profile eKYC mới; mode công cụ giữ nghiệp vụ riêng.
-- [ ] Không đọc/cấp kết quả từ dữ liệu hết hạn; polling không kéo dài retention.
-- [ ] Thao tác consent/rút lại, nếu thêm, có schema/type/API/test thống nhất.
-- [ ] Có bàn giao rõ những phần app/thiết bị/backup chưa nghiệm thu.
+- [x] Review mở được dọn theo profile eKYC mới; mode công cụ giữ nghiệp vụ riêng.
+- [x] Không đọc/cấp kết quả từ dữ liệu hết hạn; polling không kéo dài retention.
+- [x] Thao tác consent/rút lại, nếu thêm, có schema/type/API/test thống nhất.
+- [x] Có bàn giao rõ những phần app/thiết bị/backup chưa nghiệm thu.
 
 ### SEC-07 · Vá dependency web và kiểm chứng tích hợp
 
@@ -82,9 +82,14 @@ chạy kiểm tra phù hợp và ghi lại mức khắc phục theo từng AUD. 
 advisory là đã khai thác được; giữ hạng mục chưa có bằng chứng ở trạng thái mở.
 
 - [ ] Next/config/lockfile đồng bộ; unit/type/lint/build phù hợp đạt.
-- [ ] Các kịch bản AUD-01…06 được chạy lại trên bản tích hợp.
-- [ ] Python lint/contract/backlog và test liên quan đạt.
-- [ ] PR/bàn giao nêu rõ phạm vi, kiểm chứng và giới hạn còn lại.
+- [x] Các kịch bản AUD-01…06 được chạy lại trên bản tích hợp.
+- [x] Python lint/contract/backlog và test liên quan đạt.
+- [x] PR/bàn giao nêu rõ phạm vi, kiểm chứng và giới hạn còn lại.
+
+Dependency web đang chờ quyền npm registry (auto-review đã chặn egress metadata
+và tải package; chưa được người dùng chấp thuận). Không đổi manifest một mình khi
+lockfile chưa thể cập nhật. Protected overlay đưa service web cũ vào profile
+opt-in `legacy-web`; đây là giảm bề mặt triển khai, không phải vá Next.js.
 
 ### SEC-08 · Công cụ vòng đời khóa và file tạm cho demo
 
@@ -98,7 +103,7 @@ cầu xác nhận dịch vụ đã dừng, giao dịch nguyên tử, lỗi giữ
 orphan chỉ trong thư mục được cấu hình; không xóa lease đang chạy. Không gọi
 công cụ trên kho thật trong task này; chỉ dùng dữ liệu tổng hợp.
 
-- [ ] Dry-run không đổi DB/tệp, output không có bí mật hoặc PII.
-- [ ] Rewrap thành công đọc bằng khóa mới; sai khóa/lỗi DB rollback toàn bộ.
-- [ ] Runbook nêu việc cập nhật cấu hình, backup/restore, ACL và ranh giới xóa.
-- [ ] Có test và bàn giao, không sửa UI/schema/ngưỡng.
+- [x] Dry-run không đổi DB/tệp, output không có bí mật hoặc PII.
+- [x] Rewrap thành công đọc bằng khóa mới; sai khóa/lỗi DB rollback toàn bộ.
+- [x] Runbook nêu việc cập nhật cấu hình, backup/restore, ACL và ranh giới xóa.
+- [x] Có test và bàn giao, không sửa UI/schema/ngưỡng.

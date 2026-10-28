@@ -825,6 +825,9 @@ class SessionFlow:
         return notes
 
     def _open_case(self, session: Session, outcome: Outcome) -> None:
+        if self.settings.product_mode == "ekyc":
+            # The caller completes this unverified session without inventing staff action.
+            return
         if session.case_id is not None:  # một phiên chỉ một ca
             return
         media = [MediaRef(kind="face_image", url=f"/media/{session.session_id}/face_image")]

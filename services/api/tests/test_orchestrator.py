@@ -696,12 +696,16 @@ def test_sqlite_guarded_routes_pass_lock_timeout_and_consume_absolute_budget(mon
             def spy_transaction(
                 *, lock_timeout_seconds=None, inference_deadline=None, serialize_sqlite=False
             ):
-                assert serialize_sqlite is False  # Only credential issuance changes this policy.
+                # Every session snapshot write is serialized, including signals;
+                # inference endpoints additionally receive the absolute budget.
+                assert serialize_sqlite is True
                 transaction_arguments.append((lock_timeout_seconds, inference_deadline))
                 if inference_deadline is not None:
                     time.sleep(0.04)  # Work before inference must consume the same budget.
                 with real_transaction(
-                    lock_timeout_seconds=lock_timeout_seconds, inference_deadline=inference_deadline
+                    lock_timeout_seconds=lock_timeout_seconds,
+                    inference_deadline=inference_deadline,
+                    serialize_sqlite=serialize_sqlite,
                 ) as state:
                     yield state
 
@@ -724,7 +728,7 @@ def test_sqlite_guarded_routes_pass_lock_timeout_and_consume_absolute_budget(mon
             assert before < deadline <= before + 0.3
             assert runner_arguments and runner_arguments[0][0] == deadline
             assert 0 < deadline - runner_arguments[0][1] < 0.23
-            # Non-inference endpoints retain their original unguarded transaction policy.
+            # Non-inference endpoints do not consume the inference deadline.
             client.post(
                 f"/v1/sessions/{sid}/signals",
                 headers=headers,

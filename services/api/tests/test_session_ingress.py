@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from starlette.formparsers import MultiPartParser
 from starlette.requests import Request
+from synthetic_images import synthetic_image
 
 from vericlue_api.core.config import get_settings
 from vericlue_api.core.session_ingress import QR_MAX_BYTES, SessionMultipartParser
@@ -96,7 +97,7 @@ def test_refreshed_token_is_rejected_before_parser(client, monkeypatch):
 def test_preflight_releases_db_and_handler_rechecks_after_stream(client, monkeypatch, change):
     session, auth = start_session(client)
     sid = session["session_id"]
-    body = multipart(("image", "face.jpg", b"synthetic"))
+    body = multipart(("image", "face.jpg", synthetic_image()))
     changed = []
     parsing = []
     original = SessionMultipartParser.parse
@@ -129,26 +130,31 @@ def test_valid_upload_reuses_the_parsed_form_and_does_not_change_filename(client
     session, auth = start_session(client)
     sid = session["session_id"]
     counts = []
+    filenames = []
     original = MultiPartParser.parse
 
     async def spy(self):
         counts.append(True)
-        return await original(self)
+        form = await original(self)
+        filenames.extend((form["image"].filename, form["video"].filename))
+        return form
 
     monkeypatch.setattr(MultiPartParser, "parse", spy)
     response = client.post(
         f"/v1/sessions/{sid}/media",
         headers=auth,
         files={
-            "image": ("face.jpg", b"synthetic-image"),
+            "image": ("face.jpg", synthetic_image(b"ingress-valid")),
             "video": ("face.mp4", b"synthetic-video"),
         },
     )
     assert response.status_code == 200
     assert counts == [True]
+    assert filenames == ["face.jpg", "face.mp4"]
     with client.app.state.vericlue.transaction() as state:
         stored = state.sessions.get(sid)
-        assert stored.images[0].read_bytes() == b"synthetic-image"
+        assert stored.images[0].suffix == ".png"
+        assert stored.images[0].read_bytes() == synthetic_image(b"ingress-valid")
         assert stored.video.read_bytes() == b"synthetic-video"
 
 
