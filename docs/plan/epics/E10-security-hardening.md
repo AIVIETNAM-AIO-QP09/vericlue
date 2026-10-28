@@ -85,3 +85,20 @@ advisory là đã khai thác được; giữ hạng mục chưa có bằng chứ
 - [ ] Các kịch bản AUD-01…06 được chạy lại trên bản tích hợp.
 - [ ] Python lint/contract/backlog và test liên quan đạt.
 - [ ] PR/bàn giao nêu rõ phạm vi, kiểm chứng và giới hạn còn lại.
+
+### SEC-08 · Công cụ vòng đời khóa và file tạm cho demo
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M2 | 0,5 | S2 | P0 | PLAT-05 |
+
+AUD-08/AUD-14: CLI operator có dry-run để kiểm/rewrap DEK phiên và tài khoản
+bằng master mới; không giải mã media, tự sửa .env hoặc ghi đè khóa. Apply yêu
+cầu xác nhận dịch vụ đã dừng, giao dịch nguyên tử, lỗi giữ nguyên DB. Kiểm temp
+orphan chỉ trong thư mục được cấu hình; không xóa lease đang chạy. Không gọi
+công cụ trên kho thật trong task này; chỉ dùng dữ liệu tổng hợp.
+
+- [ ] Dry-run không đổi DB/tệp, output không có bí mật hoặc PII.
+- [ ] Rewrap thành công đọc bằng khóa mới; sai khóa/lỗi DB rollback toàn bộ.
+- [ ] Runbook nêu việc cập nhật cấu hình, backup/restore, ACL và ranh giới xóa.
+- [ ] Có test và bàn giao, không sửa UI/schema/ngưỡng.
