@@ -89,6 +89,11 @@ kiểm chữ ký nguồn/context, consent trước commitment, đối chiếu by
 P-256 và tạo BBS proof theo origin đã đồng ý. Secret chỉ RAM; Chromium kiểm bằng
 crypto thật. Chưa nối màn consent/Android hoặc nghiệm thu pass sinh trắc thật.
 
+Sau PR #101 SDK thêm điều phối cấp qua callback: giữ offer/body đã ký khi thử lại,
+timeout mạng, hủy khi logout. Có kiểm Chromium–HTTP FastAPI–Node BBS xuyên suốt
+phần chứng nhận cho reauth/recovery, nguồn quyết định tổng hợp phía server.
+Không có endpoint seed/pass hoặc thay đổi chốt sinh trắc; UI/Android còn riêng.
+
 FLOW-05 thêm hook ghi danh onboarding opt-in `ACCOUNT_ENROLLMENT`: trích mẫu qua
 worker/hàng đợi `face_match` đã nạp, giữ lease tới khi native xong, ghi mẫu mã hóa
 trong cùng transaction với quyết định. Vector không vào ModuleResult/snapshot/HTTP;

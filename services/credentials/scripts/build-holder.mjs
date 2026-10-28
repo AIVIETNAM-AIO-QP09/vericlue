@@ -42,7 +42,7 @@ const aliases = {
 };
 const result = await build({
   absWorkingDir: root,
-  entryPoints: ['browser/holder.mjs'],
+  entryPoints: ['browser/index.mjs'],
   outfile: 'dist/holder.mjs',
   platform: 'browser',
   format: 'esm',

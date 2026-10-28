@@ -559,8 +559,11 @@ không nhận là range proof hoặc W3C VC hoàn chỉnh. Xem README package v�
 - [x] SDK ví RAM trình duyệt: kiểm Ed25519/context/pins, consent bắt buộc, đối chiếu
       byte trước ký P-256, kiểm credential và BBS proof theo origin. Chromium thực
       kiểm tương thích Python-signature/Node-issuer/verifier, chưa là HTTP xuyên suốt.
-- [ ] Màn consent và tích hợp UI/Android với khóa thiết bị đã ghi danh; nghiệm thu
-      browser–FastAPI xuyên suốt. SDK headless không thay được đồng ý của người dùng.
+- [x] Điều phối SDK giữ offer/body ký khi thử lại, timeout/abort, hủy phản hồi muộn;
+      Chromium–HTTP FastAPI–worker BBS xuyên suốt phần chứng nhận reauth/recovery
+      với quyết định/khóa ghi danh tổng hợp phía server, không mở chốt sinh trắc.
+- [ ] Màn consent và tích hợp UI/Android với khóa thiết bị đã ghi danh;
+      SDK headless không thay được đồng ý hoặc nghiệm thu người dùng/thiết bị thật.
 - [x] HTTP verifier dùng nonce DB qua nhiều worker/restart, origin theo credential
       tích hợp riêng, worker chỉ có public pin; hạn kiểm trước/sau crypto và commit
       trước response. PostgreSQL khóa hàng/advisory quota, SQLite BEGIN IMMEDIATE.

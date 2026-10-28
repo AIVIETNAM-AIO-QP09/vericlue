@@ -237,6 +237,7 @@ test('actual Chromium: Python-signed result, P-256 consent, BBS issuance and pai
   assert.equal(metadata.buffer, 'undefined');
   assert.deepEqual(metadata.exports, [
     'HolderError',
+    'createVerificationSession',
     'createVerificationWallet',
     'webCryptoP256Signer',
   ]);
@@ -443,4 +444,186 @@ test('logout or expiry while a proof is computing discards the proof', async () 
     {q, expiry: claims.valid_until},
   );
   assert.equal(expired, 'holder_expired');
+});
+
+async function session(fault = '', requestTimeoutMs = 10000) {
+  await initialize();
+  const issued = new Map();
+  await page.exposeFunction('holderApi', async (op, body) => {
+    if (op === 'authorize') return authorization(body);
+    if (!issued.has(body.commitment))
+      issued.set(
+        body.commitment,
+        await issueVerification(keys, {commitment: body.commitment}, claims),
+      );
+    return issued.get(body.commitment);
+  });
+  await page.evaluate(
+    async ({vector, pin, fault, requestTimeoutMs}) => {
+      globalThis.fault = fault;
+      globalThis.calls = {authorize: [], issue: [], aborted: 0};
+      const invoke = async (op, body, {signal}) => {
+        globalThis.calls[op].push(structuredClone(body));
+        signal.addEventListener('abort', () => globalThis.calls.aborted++, {once: true});
+        if (globalThis.fault === op + '_fail') {
+          globalThis.fault = '';
+          body.commitment = 'changed-by-transport';
+          throw new Error('must-not-leak-bearer-or-response');
+        }
+        const result = await globalThis.holderApi(op, body);
+        if (globalThis.fault === op + '_lost') {
+          globalThis.fault = '';
+          throw new Error('response-lost');
+        }
+        if (globalThis.fault === op + '_hang') {
+          globalThis.fault = '';
+          return new Promise((resolve) => {
+            globalThis.resolveTransport = () => resolve(result);
+          });
+        }
+        return result;
+      };
+      globalThis.session = await globalThis.sdk.createVerificationSession({
+        result: vector.result,
+        resultKey: vector.result_key,
+        credentialKey: pin,
+        expected: vector.expected,
+        clock: () => globalThis.clockNow,
+        requestTimeoutMs,
+        signDevice: async (message) => {
+          globalThis.signCalls++;
+          return globalThis.sdk.webCryptoP256Signer(globalThis.deviceKeys.privateKey)(message);
+        },
+        transport: {
+          authorize: (body, options) => invoke('authorize', body, options),
+          issue: (body, options) => invoke('issue', body, options),
+        },
+      });
+    },
+    {vector, pin, fault, requestTimeoutMs},
+  );
+}
+
+const issueSession = () => page.evaluate(() => globalThis.session.issue({consent: true}));
+
+test('session orchestration retries authorization with the same unmodified commitment and explicit consent', async () => {
+  await session('authorize_fail');
+  const refused = await page.evaluate(async () => {
+    try {
+      await globalThis.session.issue({consent: false});
+    } catch (e) {
+      return e.code;
+    }
+  });
+  assert.equal(refused, 'holder_consent_required');
+  assert.equal(await page.evaluate(() => globalThis.calls.authorize.length), 0);
+  const error = await page.evaluate(async () => {
+    try {
+      await globalThis.session.issue({consent: true});
+    } catch (e) {
+      return {code: e.code, message: e.message};
+    }
+  });
+  assert.deepEqual(error, {code: 'holder_request_failed', message: 'holder_request_failed'});
+  assert.equal((await issueSession()).state, 'issued');
+  const calls = await page.evaluate(() => globalThis.calls);
+  assert.deepEqual(calls.authorize[0], calls.authorize[1]);
+  assert.equal(calls.issue.length, 1);
+});
+
+test('lost issuance response keeps the signed request; retry does not sign or blind-issue a new holder', async () => {
+  await session('issue_lost');
+  await assert.rejects(issueSession());
+  assert.equal((await issueSession()).state, 'issued');
+  assert.equal((await issueSession()).state, 'issued');
+  const calls = await page.evaluate(() => ({
+    ...globalThis.calls,
+    signs: globalThis.signCalls,
+    keys: Object.keys(globalThis.session),
+  }));
+  assert.equal(calls.authorize.length, 1);
+  assert.equal(calls.signs, 1);
+  assert.deepEqual(calls.issue[0], calls.issue[1]);
+  assert.equal(calls.issue.length, 2);
+  assert.deepEqual(calls.keys, []);
+  const receiver = verifier('https://a.example');
+  const q = receiver.challenge();
+  const proof = await page.evaluate(
+    (q) => globalThis.session.present(q, {audience: q.audience, consent: true}),
+    q,
+  );
+  assert.equal((await receiver.verify(proof)).valid, true);
+  assert.equal(proof.challenge_id, q.id);
+});
+
+test('HTTP callback timeout aborts its signal, keeps the pending issuance body and allows retry', async () => {
+  await session('issue_hang', 1000);
+  const code = await page.evaluate(async () => {
+    try {
+      await globalThis.session.issue({consent: true});
+    } catch (e) {
+      return e.code;
+    }
+  });
+  assert.equal(code, 'holder_request_timeout');
+  assert.equal((await issueSession()).state, 'issued');
+  const calls = await page.evaluate(() => ({...globalThis.calls, signs: globalThis.signCalls}));
+  assert.equal(calls.signs, 1);
+  assert.deepEqual(calls.issue[0], calls.issue[1]);
+  assert.ok(calls.aborted > 0);
+});
+
+test('destroy cancels an uncooperative transport and discards its late response; concurrent calls are refused', async () => {
+  await session('authorize_hang');
+  await page.evaluate(() => {
+    globalThis.pendingSession = globalThis.session.issue({consent: true}).then(
+      () => 'unexpected',
+      (e) => e.code,
+    );
+  });
+  await page.waitForFunction(() => typeof globalThis.resolveTransport === 'function');
+  const result = await page.evaluate(async () => {
+    let busy;
+    try {
+      await globalThis.session.issue({consent: true});
+    } catch (e) {
+      busy = e.code;
+    }
+    globalThis.session.destroy();
+    const code = await globalThis.pendingSession;
+    globalThis.resolveTransport();
+    await new Promise((done) => setTimeout(done, 0));
+    return {
+      busy,
+      code,
+      state: globalThis.session.metadata().state,
+      signs: globalThis.signCalls,
+      issues: globalThis.calls.issue.length,
+    };
+  });
+  assert.deepEqual(result, {
+    busy: 'holder_busy',
+    code: 'holder_closed',
+    state: 'closed',
+    signs: 0,
+    issues: 0,
+  });
+});
+
+test('expiry after an HTTP response closes the session before signing or issuing', async () => {
+  await session('authorize_hang');
+  await page.evaluate(() => {
+    globalThis.pendingSession = globalThis.session.issue({consent: true}).then(
+      () => 'unexpected',
+      (e) => e.code,
+    );
+  });
+  await page.waitForFunction(() => typeof globalThis.resolveTransport === 'function');
+  const code = await page.evaluate(async (expiry) => {
+    globalThis.clockNow = expiry;
+    globalThis.resolveTransport();
+    return globalThis.pendingSession;
+  }, claims.valid_until);
+  assert.equal(code, 'holder_expired');
+  assert.equal(await page.evaluate(() => globalThis.signCalls), 0);
 });

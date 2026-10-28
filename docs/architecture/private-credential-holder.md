@@ -5,6 +5,9 @@ RAM, kiểm nội dung trước khi nhờ khóa thiết bị ký và tạo BBS p
 được người dùng đồng ý. Không có HTTP client, màn hình consent hoặc lưu ví lâu dài.
 Backend và các cổng sinh trắc giữ nguyên; SDK không tạo được quyết định pass.
 
+Sau PR #101 có thêm `createVerificationSession`: điều phối gọi API qua callback,
+giữ nguyên body để thử lại khi mất phản hồi, giới hạn thời gian và hủy khi logout.
+
 ## Build và kiểm thử
 
 ```powershell
@@ -114,7 +117,70 @@ ký P-256, issuer/verifier Node dùng BBS thật. Có test khác context/khóa/c
 consent, credential ví khác, replay, hết hạn, logout trong lúc chờ ký/tạo proof,
 giới hạn đồng thời và không ghi storage.
 
-Đây là tương thích giữa các thành phần, **chưa phải browser → FastAPI end-to-end**
-hoặc nghiệm thu Android/Safari/Firefox. API → Python → Node có bộ native test riêng
-với quyết định sinh trắc fixture tổng hợp. Không bật đường pass sinh trắc thật,
-không dùng kết quả này làm R1–R7 hoặc số liệu chất lượng mô hình.
+Các bài trên kiểm tương thích thành phần. Có thêm kiểm HTTP xuyên suốt bên dưới;
+chưa nghiệm thu Android/Safari/Firefox hoặc AI thật. Không bật đường pass sinh trắc
+thật, không dùng kết quả này làm R1–R7 hoặc số liệu chất lượng mô hình.
+
+## Điều phối cấp credential và thử lại
+
+`createVerificationSession` nhận cùng nguồn/pins/expected như factory wallet,
+thêm `signDevice`, `transport.authorize(body, {signal})` và
+`transport.issue(body, {signal})`. Hai callback vận chuyển đúng JSON theo schema
+tới hai endpoint phiên đã có; bearer/token ở closure của ứng dụng, không trong
+proof hoặc thông điệp holder. Đây không phải HTTP client hay API backend mới.
+
+```javascript
+const session = await createVerificationSession({
+  result: signedResult, resultKey: trustedResultPin,
+  credentialKey: trustedBbsPin, expected: currentSessionContext,
+  signDevice: webCryptoP256Signer(enrolledDeviceKey),
+  transport: {
+    authorize: (body, {signal}) => postAuthorization(body, {signal}),
+    issue: (body, {signal}) => postCredential(body, {signal}),
+  },
+});
+// Chỉ gọi sau khi người dùng đồng ý. Không tự thử lại hoặc tự cấp khi mở trang.
+await session.issue({consent: true});
+// Khi lỗi mạng, UI có thể cho người dùng thử lại cùng lệnh trên khi còn hạn.
+// Kết thúc/chuyển tài khoản/logout:
+session.destroy();
+```
+
+- Lỗi trước authorization: giữ nguyên offer, lần thử lại dùng đúng commitment.
+- Lỗi sau ký/mất phản hồi cấp: giữ nguyên body đã ký, không ký lại hoặc sinh offer
+  mới. Backend quyết định điều kiện và idempotency; SDK không tự trả pass khi lỗi.
+- Đã accept: gọi issue lần nữa khi còn hạn chỉ trả metadata, không gọi mạng/ký lại.
+- Callback mạng có hạn mặc định 10 giây (cấu hình 1–15.000 ms) và nhận AbortSignal.
+  Timeout hủy signal, trả `holder_request_timeout`; có thể thử lại cùng body.
+  Không tự retry. Transport phải tôn trọng signal và dùng endpoint/origin đã tin,
+  không đi theo redirect mang bearer tới origin khác hoặc ghi log body/token.
+- SDK giới hạn từng action; lỗi callback được rút thành `holder_request_failed`.
+  Không cho gọi issue/present đồng thời. Consent cấp và consent xuất trình riêng.
+- `destroy` trả lỗi cho thao tác đang chờ kể cả callback không phản hồi, bỏ kết quả
+  đến muộn và đóng wallet. Abort không đảo được transaction backend đã commit.
+  Hết hạn nguồn đóng ví; không timeout ngắn cho hộp thoại ký thiết bị nhưng vẫn
+  chặn theo hạn nguồn. GC/xóa bộ nhớ và UI consent giữ giới hạn đã nêu ở trên.
+
+## Kiểm HTTP xuyên suốt
+
+Từ gốc repo, sau khi cài Playwright/Chromium và build SDK:
+
+```powershell
+$env:TEST_CREDENTIAL_NODE = (Get-Command node).Source
+$env:TEST_CREDENTIAL_BROWSER = 'true'
+uv run pytest services/api/tests/test_credential_browser_http.py
+```
+
+Test chạy server loopback với API production nguyên bản và harness HTML chỉ có
+trong test. Chromium fetch `/result`, ký P-256, gọi authorization/cấp credential,
+tạo proof; adapter bên nhận trong process Node gọi HTTP challenge/verify bằng
+credential server-to-server. Verifier token không truyền vào page. Nonce nằm trong
+DB, issuer/verifier chạy worker BBS thật. Cả reauth/recovery kiểm mất phản hồi sau
+commit, thử lại cùng body/một chữ ký/một issuance, hai origin, replay và phân quyền.
+
+**Quyết định sinh trắc là fixture server tổng hợp**, không đến từ browser/request.
+Khóa P-256 test do Python tạo và ghi danh bằng fixture, sau đó import non-extractable
+vào Web Crypto chỉ trong test; không chứng minh quy trình ghi danh hoặc phần cứng.
+Harness không có endpoint seed/pass và không được gắn vào app production.
+Đây là HTTP xuyên suốt của phần chứng nhận, chưa là toàn luồng eKYC/consent người
+thật hoặc Android. Test mặc định skip nếu không opt-in; CI Linux bật rõ hai biến.
