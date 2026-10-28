@@ -352,6 +352,12 @@ Probe HTTPS tổng hợp qua 3 kịch bản; CI run `40725003348` tạo APK, ki�
 BuildConfig/DEX và checksum sau tải khớp. Người test xác nhận Chrome Android
 đã mở được HTTPS health. Chưa nghiệm thu camera/micro/luồng app từ xa hoặc AI thật.
 
+**29/10:** người test báo đi hết luồng mock qua APK. Đã chuẩn bị profile AI mặt
+từng phần bằng cờ hiện có, DB/khóa riêng, Serve 8421; probe native và HTTP/HTTPS
+tổng hợp qua. Chưa có lượt camera Android với profile AI. Qwen thiếu RAM, giọng
+chưa bật; không nhận là eKYC thật xuyên suốt. Chi tiết ở mục 6 của runbook và
+bàn giao `2026-10-29-0029-app-05-codex.md`. Giữ `review`, không mở guard hoặc sửa ngưỡng.
+
 ## App iOS (bản thêm, ADR-0014 cập nhật 24/10)
 
 Kế hoạch chi tiết từng bước: [`apps/ios/docs/plan-ios.md`](../../../apps/ios/docs/plan-ios.md). App Android (APP-01..04) là đặc tả hành vi và câu chữ.

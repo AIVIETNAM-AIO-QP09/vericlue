@@ -1,6 +1,7 @@
 # Test Android từ xa qua Tailscale
 
-**APP-05 · Bản test nội bộ, API mô phỏng.** Laptop chạy FastAPI, điện thoại chạy
+**APP-05 · Bản test nội bộ.** Cấu hình cơ sở bên dưới là API mô phỏng; profile
+AI mặt từng phần ngày 29/10 được ghi ở mục 6. Laptop chạy FastAPI, điện thoại chạy
 app Android hiện có; không cần web Next.js. Đường truyền riêng qua Tailscale Serve,
 không bật Funnel hoặc mở cổng router. Cần Android 10 trở lên; APK được đóng gói
 ở đây dành cho điện thoại ARM64.
@@ -128,3 +129,56 @@ CI build/unit test và probe HTTP không chứng minh độ chính xác AI hay t
 thiết bị thật. Ghi nhận riêng sau khi người test xác nhận: model điện thoại,
 phiên bản Android, source SHA APK, Tailscale/health, quyền camera/micro, từng
 kịch bản và lỗi gặp phải. Không gửi log có token/OTP/CCCD lên issue.
+
+## 6. Profile test mặt AI từng phần — 29/10
+
+Người test đã báo đi hết luồng mock qua APK. Chuẩn bị lượt camera thật ngày
+30/10 bằng các cờ opt-in **đã có**, không đổi app/API/contract hoặc mở guard:
+
+| Thành phần | Trạng thái cấu hình trên laptop |
+|---|---|
+| Runtime API | `tmp/session-api-runtime`, CPU; bổ sung `cryptography==50.0.2` từ cache offline; dependency check passed |
+| Kho test riêng | `tmp/remote-android-ai/`, ACL riêng, `.env.face`, `face.db`, `face-media/`; khóa khác kho mock |
+| AI mặt | `SESSION_FACE_CHECKS=true`, `SESSION_FACE_MODELS=true`: FS-VFM-L, GenD, đo màu, mắt và quay đầu |
+| Timeout / worker | 45 giây / 2 worker; app hiện có read timeout 60 giây |
+| Tích hợp còn mô phỏng | `USE_MOCK_MODELS=true` cho OTP/CCCD, quality và CamProbe; voice models tắt |
+| Đường riêng | Serve HTTPS trỏ loopback 8421; kho mock 8420 giữ làm dự phòng |
+
+Health vẫn có `mock_models=true` vì đây là profile từng phần. Không sửa health
+hoặc đổi thành `false` để làm giống toàn bộ chạy thật. `startup.json` cục bộ ghi
+type/version 5 adapter đã nạp; probe HTTP đối chiếu version trong `module_results`
+và kiểm payload mã hóa. Probe clip không mặt trả `review`, không thể thành pass.
+FS-VFM/GenD đã forward trên tensor tổng hợp; chưa đo accuracy hoặc camera Android.
+
+Mô hình mặt theo giao thức mới chưa hiệu chỉnh; **kết quả chưa đủ điều kiện xác
+minh không được chuyển thành đạt**. OCR/LVFace, tạo tài khoản, BBS và consent API
+chưa bật trong profile này. Chỉ test nội bộ có biết việc quay, dùng CCCD/QR tổng
+hợp. Chưa phải protected profile hoặc đăng ký thật xuyên suốt.
+
+Các helper **riêng trên laptop**, không nằm trong Git: `prepare.py` chỉ tạo lần
+đầu; `start.py` giữ khóa cũ, kiểm ít nhất 3 GiB RAM trống rồi chạy `launch.py`;
+`stop.py` đối chiếu command line trước khi dừng cây tiến trình đúng PID. Không
+chạy lại prepare trên DB đã có. Sau restart Windows, từ gốc repo:
+
+```powershell
+& './.venv/Scripts/python.exe' './tmp/remote-android-ai/start.py'
+# Chờ nạp model, kiểm http://127.0.0.1:8421/healthz trước khi test điện thoại.
+```
+
+`launch.py` yêu cầu Windows giữ hệ thống thức theo vòng đời tiến trình, không
+đổi power plan. Khi API dừng yêu cầu này cũng kết thúc. Cắm sạc, giữ mạng, không
+gập nắp hoặc chủ động Sleep. Nếu Serve đã được chuyển sang dự phòng 8420, sau
+khi health 8421 ổn mới đổi lại bằng lệnh Serve trong mục 2 với cổng 8421.
+Mỗi lần đổi kho server phải bắt đầu phiên Android mới; bearer cũ không dùng
+được với kho/khóa mới. Khi dừng API AI bằng `stop.py`, Serve không tự đổi đích.
+
+Giọng nói: NES2Net, CTC và SyncNet đã qua từng smoke test native bằng tín hiệu
+tổng hợp trong runtime riêng. Qwen ASR bị resource monitor dừng vì thiếu RAM;
+chưa đạt smoke test và không bật voice profile. Các probe riêng không chứng minh
+đủ RAM khi chạy đồng thời hoặc luồng giọng Android hoạt động. Cần giải phóng RAM
+và kiểm lại trước khi đưa giọng vào buổi test; không dùng kết quả mock thay thế.
+
+Bằng chứng cục bộ: `tmp/remote-android/*-probe-resource.json`,
+`face-activation-probe.json`; `tmp/remote-android-ai/startup.json`,
+`http-probe-local.json`, `http-probe-https.json`, `readiness.json` và
+`TEST-NGAY-MAI.txt`. Không có accuracy hoặc tuyên bố xác minh từ các probe này.
