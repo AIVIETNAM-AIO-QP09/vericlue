@@ -13,8 +13,13 @@ thiết bị thật. API/client đã có receipt tài khoản và L0 ký khóa
 `LiveFlow.ensureSession(..., "reauth", account)`; flow tự kiểm/ký/gửi L0 và
 chỉ giữ session sau ACK. Receipt sau giọng nằm ở `LiveFlow.accountReceipt`, hoặc
 lấy lại bằng `fetchAccountReceipt()`; đăng ký đạt ngay ở `finalize` (không đọc câu, từ 26/10)
-thì chỉ có cách gọi `fetchAccountReceipt()`. Cần lưu mapping mã tài khoản với đúng
-alias Keystore ở bên tích hợp; chưa tự lưu mapping hoặc nghiệm thu thiết bị thật.
+thì chỉ có cách gọi `fetchAccountReceipt()`. Từ 27/10 app tự làm việc này: màn thành công
+(đăng ký/khôi phục, bản live) gọi `receiptAfterPass()` và lưu vào `AccountStore`
+(SharedPreferences riêng app; hết hạn thì coi như chưa có). "Đăng nhập lại" dùng receipt
+đã lưu qua `LiveFlow.boundAccount`; không có receipt hoặc tắt `signedMedia` thì về đăng ký.
+Một alias Keystore cố định (`vericlue.media.v1`), khôi phục chưa đổi khóa. Server hiện trả
+`503 flow_unavailable` ở bước sinh trắc của reauth/recovery có tài khoản (ra màn "Dịch vụ
+chưa sẵn sàng"); đăng ký cần server bật `ACCOUNT_ENROLLMENT=true` mới có receipt.
 Không có màn hình mới. Xem
 [`account-authentication.md`](../../docs/architecture/account-authentication.md).
 
