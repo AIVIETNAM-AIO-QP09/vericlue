@@ -1,200 +1,186 @@
-# Workflow VeriClue — cơ sở để thống nhất và rút gọn luồng
+# Workflow VeriClue — đối chiếu hiện tại và đề xuất rút gọn
 
-Đối chiếu main `24895c3` và phần đóng gói BBS tiếp theo, ngày 28/10/2026.
-Tài liệu mô tả hệ thống làm gì ở từng bước; chưa thay đổi quy trình hay UI.
-Nguồn ưu tiên: code/API hiện hành và cập nhật 26/10 của ADR-0016, không dùng
-thứ tự cũ trong các bản proposal lưu trữ. BBS được chọn theo ADR-0018.
+Đối chiếu main `54acaad` sau PR #105, ngày 28/10/2026; task FLOW-06.
+**Đây là bản chuẩn bị tích hợp app, chưa thay UI hoặc chính sách API.**
+Phần “đề xuất” chưa được triển khai; các cổng sinh trắc thật vẫn giữ nguyên.
 
-**Cần phân biệt:** sơ đồ dưới là luồng nghiệp vụ đích của dự án. Backend có
-các module/điểm nối và nhiều test, nhưng luồng động thật, đặc biệt phiên gắn
-tài khoản, còn bị `flow_unavailable` chặn trước khi đủ nghiệm thu. Không có
-cờ runtime hoặc endpoint để biến mock thành một quyết định thật hợp lệ.
-Thử nghiệm BBS HTTP dùng fixture quyết định ở server, không phải người thật đã
-đi qua toàn bộ quy trình. App iOS/Android do nhóm tích hợp/kiểm trên máy thật.
+## 1. Luồng tổng thể đề xuất
 
-## 1. Bức tranh toàn dự án
+Đăng ký mới gồm năm chặng: **đồng ý → số điện thoại/OTP → CCCD và xác nhận →
+một lượt camera trước → kết quả**. Đọc câu nằm trong chặng xác minh, chỉ xuất
+hiện khi server yêu cầu. Một chặng có thể có trạng thái hướng dẫn/chờ/lỗi, không
+đồng nghĩa mỗi chặng chỉ có một màn hoặc một lần bấm.
 
 ```mermaid
 flowchart TD
-    U[Người dân] --> P{Mục đích}
-    P --> O[Đăng ký mới: OTP và CCCD]
-    P --> R[Đăng nhập lại: tài khoản và khóa đã ghi danh]
-    P --> C[Khôi phục: tài khoản, OTP và khóa mới]
-    O --> F[Thu hình và kiểm mặt theo luồng]
-    R --> F
-    C --> F
-    F --> V{Có cần đọc câu?}
-    V -->|Đăng ký hoặc reauth lưng chừng; recovery luôn cần| A[Thu tiếng và video đọc câu]
-    V -->|Đủ điều kiện bỏ bước giọng| D[Server quyết định]
-    A --> D
-    D --> X[Đạt / làm lại / xét duyệt / từ chối theo mục đích]
-    X --> E[Ghi danh hoặc kết quả phiên nếu đủ điều kiện]
-    E --> B[BBS tùy chọn cho bên nhận; hiện chỉ reauth/recovery hợp lệ]
-    I[Điều tra viên] --> J[Giám định file độc lập hoặc gắn hồ sơ]
-    J --> M[Bộ phát hiện dùng chung, phân tích theo đoạn]
-    M --> Q[Báo cáo, chứng cứ minh họa, chữ ký và kiểm nhật ký]
+    Start[Chọn mục đích] --> Consent[Thông báo và lựa chọn xử lý dữ liệu]
+    Consent --> Purpose{Mục đích}
+    Purpose -->|Đăng ký| Phone[Số điện thoại và OTP]
+    Phone --> Card[Chụp hai mặt CCCD và xác nhận một lần]
+    Card --> Face[Một lượt camera trước theo thử thách]
+    Purpose -->|Đăng nhập lại| Key[Khóa đã ghi danh và tài khoản còn hiệu lực]
+    Key --> Passive[Thu hình mặt theo luồng đăng nhập]
+    Purpose -->|Khôi phục| Recovery[OTP tới số đã đăng ký và khóa mới]
+    Recovery --> RecoveryFace[Thử thách mặt đầy đủ, so mẫu tài khoản]
+    Face --> Judge{Server đánh giá}
+    Passive --> Judge
+    RecoveryFace --> Judge
+    Judge -->|Cần đọc câu| Voice[Đồng ý giọng khi cần, đọc câu và quay video]
+    Voice --> Result[Kết quả từ server]
+    Judge -->|Đủ điều kiện kết thúc hoặc làm lại| Result
+    Result -->|retry| Retry[Làm lại đúng phần, dùng thử thách mới]
+    Retry --> Capture[Lượt camera phù hợp với mục đích]
+    Capture --> Judge
+    Result -->|pass và đủ điều kiện ghi danh| Account[Hoàn tất tài khoản hoặc kết quả phiên]
+    Result -->|review / deny / recovery_required| Stop[Chưa xác minh được hoặc hướng dẫn khôi phục]
 ```
 
-BBS đứng sau kết quả nguồn đủ điều kiện, không thay camera/AI/so danh tính.
-Đăng ký mới hiện nhận biên nhận tài khoản, không tự chạy thêm BBS hoặc thêm
-một lượt reauth. Nếu muốn cấp BBS trực tiếp sau onboarding, nhóm phải chốt
-một thay đổi nguồn/hợp đồng riêng; code hiện tại chưa hỗ trợ đường đó.
+Sơ đồ là đích đề xuất. CCCD trong khôi phục đang lệch giữa Android và API,
+chưa đưa thành bước bắt buộc trong sơ đồ; xem D3. BBS là nhánh chia sẻ riêng
+sau nguồn kết quả hợp lệ, không thêm vào đường đăng ký thông thường.
 
-## 2. Đăng ký mới — người dùng và hệ thống làm gì?
+## 2. Đăng ký mới: mỗi chặng làm gì?
 
-| Bước | Người dùng / ứng dụng | Server / AI thực hiện | Đầu ra và nhánh tiếp theo |
+| Chặng | Người dùng / app | Server / AI | Điều kiện đi tiếp |
 |---|---|---|---|
-| 1. Bắt đầu và đồng ý | Đọc phạm vi xử lý, chọn đồng ý cần thiết; app chuẩn bị khóa thiết bị và mở phiên | Tạo mã phiên/bearer có hạn; ghi purpose, nonce, ngữ cảnh; cấp thử thách/mã lượt do server sinh | Có phiên hợp lệ. Chưa coi khóa mới hoặc lời tự khai là danh tính đã xác thực |
-| 2. Xác minh số điện thoại | Nhập số và OTP | Kiểm OTP đúng, còn hạn, chưa dùng, chưa vượt số lần sai; lưu phone HMAC theo chính sách | Đúng mới đi tiếp. **Kênh SMS hiện là mô phỏng**, không gọi đó là SMS thật |
-| 3. Chụp CCCD | Chụp hai mặt bằng camera sau; app hướng dẫn nét/lóa | Đọc QR/thông tin qua bộ đọc hiện có, kiểm định dạng, trích ảnh chân dung tham chiếu, kiểm trùng bằng HMAC | Trả trường thông tin để xác nhận hoặc yêu cầu chụp lại; không đọc chip/NFC hoặc chứng minh thẻ thật |
-| 4. Xác nhận thông tin | Xem và xác nhận; nếu sửa thì gửi giá trị đã sửa | Kiểm đủ trường và trạng thái; lưu bản xác nhận. Sửa khác QR có thể tạo dấu hiệu cho bàn duyệt | Có ảnh/thông tin tham chiếu đã chốt; chưa phải pass sinh trắc |
-| 5. Căn mặt vào khung | Chuyển sang camera trước; làm theo một chỉ dẫn chất lượng mỗi lần | App kiểm chất lượng để hướng dẫn, server kiểm lại từ media; làm mới lượt thử thách đúng lúc nếu cần | Đủ chất lượng mới thu lượt cần chấm. Phép đo trên điện thoại không tự quyết đạt |
-| 6. Giữ đầu yên, nhìn theo chấm | Một phiên quay liền mạch; app chụp chính diện ở nền trung tính, phát màu rồi cho chấm chạy theo gói server | Từ video: đo phản xạ ánh sáng theo màu/thời gian, chuyển động mắt so với đường chấm, kiểm nguồn camera/CamProbe theo khả năng hiện có | Bằng chứng hiện diện cho lượt này; thiếu/lỗi module bắt buộc không được mặc nhiên coi đạt |
-| 7. Quay đầu theo lệnh | Quay trái/phải theo thứ tự ngẫu nhiên rồi trở về giữa; không cần người dùng tự chụp thêm từng ảnh | Đo pose/thứ tự/độ phủ; lấy khung chính diện/nghiêng để PAD/GenD và kiểm liên tục danh tính theo protocol | Có khung đủ góc/cùng người hoặc yêu cầu làm lại/chuyển duyệt. **Pose đúng chưa chứng minh chiều sâu 3D** |
-| 8. Chốt phần mặt | App gửi media đã ký cùng mã lượt; có thể thể hiện đang xử lý | Kiểm bearer, hash/chữ ký thiết bị, nonce/challenge/hạn/chống dùng lại; chạy chất lượng, PAD, GenD, ánh sáng, mắt/đầu và so mặt với tham chiếu theo cấu hình | Server phối hợp các cổng và policy; phân biệt lỗi chất lượng, nghi ngờ và lỗi kỹ thuật |
-| 9. Đọc câu khi được yêu cầu | **Chỉ đọc nếu mặt lưng chừng hoặc phiên còn nợ bước giọng**; app thu WAV và video cùng lượt | Kiểm đúng câu (ASR), nhịp/độ phủ giọng (alignment/timing), giọng AI, khớp khẩu hình–tiếng, cùng người giữa video mặt và video đọc; kiểm chữ ký/nonce media | Đủ điều kiện mới có thể pass. Reread cấp câu/mã mới; không dùng lại kết quả cũ |
-| 10. Quyết định và ghi danh | Nhận thông báo phù hợp, không thấy điểm hoặc chữ “giả mạo” | Mọi cổng bắt buộc đạt mới ghi quyết định. Khi đủ điều kiện và bật ghi danh, trích/lưu mẫu mặt mã hóa, gắn public key đã dùng và tạo tài khoản trong transaction | Trả account/device receipt. Lỗi ghi danh rollback, không trả thành công dở dang. Bản demo tài khoản có TTL theo cấu hình/quy tắc lưu trữ |
+| 1. Đồng ý | Đọc thông báo đúng phiên bản, chủ động chọn phạm vi; đồng ý lưu mẫu mã hóa để tạo tài khoản | Tạo phiên, cấp bearer/thử thách và ghi biên nhận trước thu dữ liệu thuộc phạm vi | Không tự tick/gọi consent thay người dùng; phiên bản đổi phải xem và đồng ý lại. Lựa chọn lưu mẫu cần được nối theo D1 |
+| 2. Liên hệ | Nhập số, nhận và nhập OTP | Kiểm mã/hạn/lượt sai, lưu binding theo chính sách | Có consent `contact`; OTP hiện chỉ mô phỏng trong synthetic+mock, đường cần SMS thật chưa sẵn sàng |
+| 3. CCCD | Chụp hai mặt, kiểm ảnh/thông tin trong cùng chặng, sửa nếu cần; xác nhận một lần | Kiểm byte/metadata/quota trước OCR, đọc QR/OCR, chuẩn bị chân dung tham chiếu và nhận xác nhận | Có `id_document`; `id-card/confirm` thành công trước gửi media mặt. Chưa chứng minh giấy tờ thật hoặc đọc chip |
+| 4. Khuôn mặt | Căn khung; một bản ghi gồm nền trung tính, màu, chấm mắt và quay đầu theo gói server | Kiểm chữ ký trên byte gốc, mã lượt/nonce/hạn; chạy các module được cấu hình và so CCCD với khung chính diện phù hợp | Có `face_biometrics`; tín hiệu client không tự quyết đạt. Dùng chung video, không yêu cầu chụp lại cho mỗi model |
+| 4b. Giọng khi cần | Chỉ khi nhận `voice_challenge`: xem phạm vi giọng, đồng ý nếu chưa có, xin micro rồi thu WAV và video đọc | Kiểm câu, nhịp/độ phủ, giọng, khớp môi và cùng người theo cấu hình; kiểm chữ ký/mã lần đọc | Có `voice_biometrics`; không thu âm chỉ vì server đã cấp sẵn prompt. Lỗi mặt bắt buộc không được giọng xóa đi |
+| 5. Kết quả | Nhận thông báo phù hợp; lưu binding tài khoản khi server thực sự đã tạo | Commit quyết định; chỉ ghi danh khi đủ mọi điều kiện và được phép lưu mẫu | `pass` của phiên không tự đồng nghĩa đã tạo tài khoản. Biên nhận và khóa tương ứng phải được lưu bền trước khi hứa dùng được lần sau |
 
-**Điểm quan trọng về so mặt:** ảnh CCCD là tham chiếu chính diện. Protocol
-so CCCD dùng ảnh/khung chính diện phù hợp; kiểm các góc quay thuộc phần liên tục
-danh tính/liveness. Không đưa cả ba ảnh nghiêng vào so CCCD rồi gọi đó là ba lần
-xác minh giấy tờ. Backend hiện chọn LVFace theo config; không dùng tên AdaFace cũ
-trong ADR như bằng chứng model đó đang chạy ở mọi đường.
+**Quy tắc mặt:**
 
-**Quy tắc rẽ nhánh đăng ký đã chốt 26/10:**
+- Mặt rõ, mọi cổng bắt buộc đạt và không còn nợ giọng → có thể kết thúc không đọc câu.
+- Mặt lưng chừng hoặc còn `voice_owed` → đọc câu. Làm lại mặt không xóa nghĩa vụ giọng.
+- Chất lượng chưa đủ → retry trong giới hạn, bỏ bằng chứng cũ, dùng mã lượt/nonce mới.
+- Cổng an ninh bắt buộc lỗi hoặc chưa đủ căn cứ → không pass. Trong mode eKYC,
+  `review` là kết thúc chưa thể xác minh, không tạo ca chờ nhân viên.
 
-- Mặt rõ và mọi cổng bắt buộc đạt → bỏ đọc câu, chốt/ghi danh khi đủ điều kiện.
-- Mặt lưng chừng → yêu cầu đọc câu. Khi một phiên đã nợ bước giọng, làm lại mặt
-  không tự xóa nghĩa vụ đó.
-- Nghi rõ hoặc cổng an ninh bắt buộc lỗi → chuyển duyệt theo policy; không tự pass.
-- Chất lượng chưa đủ → retry trong giới hạn, thử thách/nonce mới và bỏ bằng chứng
-  cũ. Hết lượt → nhánh xét duyệt phù hợp.
+Ảnh CCCD là tham chiếu chính diện; các góc quay dùng cho hiện diện/liên tục danh
+tính. Không lấy mọi ảnh nghiêng so trực tiếp với CCCD rồi gọi là ba lần kiểm thẻ.
+Quay đúng hướng chưa chứng minh chiều sâu 3D. Tên model/runtime thực tế lấy từ
+cấu hình và bằng chứng kết quả, không lấy tên model trong tài liệu cũ làm cam kết.
 
-Số giây “giữ yên/quay đầu/đọc câu” phải lấy từ protocol/cấu hình của lượt. Các
-ước lượng trải nghiệm trong tài liệu thiết kế **chưa là số đo người dùng thật**.
-Không thêm một màn cho mỗi detector: nhiều detector đọc chung một video.
+## 3. Đăng nhập lại và khôi phục
 
-## 3. Đăng nhập lại — tái sử dụng danh tính đã ghi danh
+| Luồng đích | Trình tự | Tham chiếu đúng người | Lúc cần giọng |
+|---|---|---|---|
+| Đăng nhập lại | Tài khoản/alias đã lưu → ký challenge bằng khóa đã ghi danh (L0) → thu hình mặt → kết quả | Mẫu tài khoản; không thay bằng public key hoặc CCCD mới tự gửi | Mặt lưng chừng hoặc đã nợ giọng; nhánh lỗi/nghi rõ kết thúc theo policy |
+| Khôi phục | Binding tài khoản → OTP tới số đã đăng ký và khóa mới → thử thách mặt đầy đủ → đọc câu khi đủ điều kiện → đổi binding | Mẫu đã ghi danh và binding liên hệ cũ; CCCD mới không thay thế mốc tin cậy này | Luôn phải qua bước giọng trước khi khôi phục thành công; lỗi mặt bắt buộc có thể kết thúc sớm |
 
-| Bước | Người dùng / ứng dụng | Hệ thống thực hiện |
+Đăng nhập bình thường đề xuất đi thẳng từ lựa chọn tài khoản sang kiểm khóa/mặt,
+không nhập số/OTP hoặc chụp CCCD lại. Khóa mất/tài khoản hết hạn thì sang hướng
+dẫn khôi phục, không âm thầm tạo khóa thay thế rồi gọi là đăng nhập.
+
+**Giới hạn hiện tại:** L0 có kiểm P-256 độc lập, nhưng ACK khóa chưa phải pass
+sinh trắc. `SessionFlow.ensure_flow_available` vẫn chặn bước sinh trắc account-bound
+(kể cả mock) và luồng động real/mixed bằng `503 flow_unavailable`. Không có bước
+trong tài liệu này cho phép bỏ chốt đó. OTP thật, app và module/policy/thiết bị
+còn phải nghiệm thu trước khi gọi ba luồng là chạy thật trọn vẹn.
+
+## 4. Những gì cần sửa ở app để có luồng trên
+
+Đối chiếu này dùng Android đã có trên main. Các PR iOS chưa merge được xem là
+điểm tích hợp tương lai, không phải tính năng đã có trên main.
+
+| Hiện tại trên main | Tác động | Phương án tích hợp |
 |---|---|---|
-| 1. Chọn tài khoản/thiết bị | App dùng receipt đã lưu và nonce của yêu cầu mới | Kiểm tài khoản/thiết bị còn hiệu lực; không tin public key mới do client tự gửi để thay khóa cũ |
-| 2. Chứng minh giữ khóa (L0) | App ký challenge bằng private key đã ghi danh | Kiểm P-256, nội dung challenge, phiên, hạn và dùng một lần. L0 ACK **không phải** quyết định pass sinh trắc hoặc credential nguồn |
-| 3. Kiểm mặt theo luồng | Thu hình ngắn theo yêu cầu; không chụp CCCD/OTP lại trong luồng bình thường | Chất lượng, PAD/GenD và so với **mẫu tài khoản**, cùng các cổng cần thiết của policy. Reauth không mặc định đầy đủ thử thách động như onboarding/recovery |
-| 4. Leo thang nếu cần | Đọc câu khi mặt lưng chừng | Kiểm giọng, nội dung và liên tục danh tính; bắt buộc không được bỏ khi đã yêu cầu |
-| 5. Kết quả | Nhận thành công/không thành công hoặc hướng dẫn khôi phục | Trả pass/deny/recovery_required theo điều kiện. Reauth không mặc định chuyển nhân viên duyệt. Kết quả ký gắn nonce/purpose/audience và hạn ngắn khi đủ điều kiện |
+| `TermsScreen.onAccept` chỉ điều hướng sang Phone; không truyền lựa chọn tới `LiveFlow` | Bật yêu cầu consent ở API sẽ chặn bước thu dữ liệu | Truyền lựa chọn và version, tạo phiên rồi ghi consent trước OTP/CCCD/mặt; không thêm màn đồng ý cho mỗi detector |
+| Checkbox lưu mẫu mặt/lưu CCCD là tùy chọn nhưng lựa chọn chưa đi tới backend; ghi danh điều khiển bằng cấu hình server | Không thể khẳng định tùy chọn “không lưu” đã được thực thi | Theo D1: đăng ký cần đồng ý lưu mẫu, không đồng ý thì dừng tạo tài khoản. Không quy đổi consent xử lý CCCD thành lưu ảnh dài hạn |
+| `AccountFlow.begin(reauth)` đi Phone; `FlowRules.afterOtp` mới bỏ CCCD | Đăng nhập lại vẫn có số/OTP dù luồng đích dựa khóa và mẫu tài khoản | Sau thông báo/lựa chọn phù hợp, tạo phiên và kiểm L0 rồi vào mặt; không mở guard sinh trắc |
+| Chụp CCCD → xem ảnh → quay mặt → Confirm; app gửi mặt sau confirm | Thời gian xem/sửa thông tin có thể làm thử thách hoặc video mặt hết hạn; hiện chưa có upload mặt song song trong lúc đọc thông tin | Gộp xem ảnh/thông tin trong chặng CCCD và xác nhận trước quay mặt (D2); refresh challenge sau chặng này |
+| Android recovery đi qua CCCD; `IdentitySteps.ensure_card_upload_allowed` từ chối card upload khi đã có `account_id` | Có lệch luồng trước cả nghiệm thu khôi phục thật | Chốt D3; không tự bỏ hoặc mở thêm cổng khôi phục trong PR tài liệu |
+| `leave()` dừng capture và reset local, chưa gọi withdrawal | Rời app không đồng nghĩa server đã hủy phiên/xóa dữ liệu | Tách “rời luồng” với “rút đồng ý”; thêm logic hủy/biên nhận theo [bàn giao app](mobile-privacy-integration.md) |
+| Nội dung consent còn nêu review 30 ngày; nhánh `Review` và nhãn demo còn “chờ duyệt” | Lệch mode eKYC không bàn duyệt và retention mới | Đổi nội dung theo profile đã triển khai; không hứa có nhân viên đang xử lý |
+| `AccountFlow.finish` ghi log nếu thiếu/không lưu được receipt nhưng vẫn giữ kết quả pass | Có thể hiểu nhầm đã có tài khoản đăng nhập được trên máy | Phân biệt xác minh phiên với tạo/lưu tài khoản; chỉ hứa đăng nhập lại khi binding được lưu bền |
 
-Đây là thiết kế đích; code hiện giữ guard `flow_unavailable` với bước sinh trắc
-phiên account-bound. L0 có thể kiểm độc lập, nhưng không được bỏ guard đó hoặc
-nhận pass client để hoàn thành demo BBS. Cần kiểm module/policy/thiết bị thật trước.
+## 5. Quyền riêng tư, gián đoạn và BBS
 
-## 4. Khôi phục hoặc đổi thiết bị
+**Consent theo phiên:** version/nhóm xử lý phải phù hợp với thông báo và dữ liệu
+được dùng. Server kiểm trước parser và trước xử lý; dùng lại CCCD/liên hệ/giọng
+cũ cũng phải có quyền hiện hành. Checkbox cấp/lộ thuộc tính BBS là lựa chọn riêng.
+Backend hiện chưa có hợp đồng cho lựa chọn lưu mẫu/CCCD dài hạn trong D1.
 
-| Bước | Người dùng / ứng dụng | Hệ thống thực hiện |
+**Rút lại:** app dừng camera/micro và upload mới, gọi withdrawal bằng bearer
+hiện hành; chỉ xác nhận đã nhận yêu cầu khi có biên nhận server. Mất mạng không
+được hiện “đã xóa”. Server chặn tiếp xử lý và hủy khóa riêng của phiên trước dọn
+file; biên nhận phân biệt hủy khóa, xóa file và plaintext lease chưa xác nhận dọn.
+Không hứa xóa mẫu tài khoản, backup hoặc thu hồi ngay BBS đã cấp.
+
+**Gián đoạn/retry:** làm lại đúng phần còn hợp lệ, dùng challenge/token mới theo
+server; không gửi lại bằng chứng cũ với mã mới. Nếu server đã ACK media/signals,
+không gửi lại tùy tiện. Mất response commit là trạng thái chưa biết, cần đối
+chiếu trạng thái bằng cơ chế API thực sự có; không coi transport error là rollback.
+Nếu token hết hạn không gọi được withdrawal thì không báo đã xóa; cần cơ chế hỗ
+trợ riêng hoặc retention. Chi tiết ở tài liệu bàn giao app.
+
+**Retention mode eKYC:** ca đạt dùng `MEDIA_TTL_PASS_HOURS`, ca chưa đạt dùng
+`MEDIA_TTL_UNVERIFIED_HOURS` (đều mặc định 24h). Tính từ `decided_at`; phiên chưa
+có mốc này dùng `created_at + SESSION_MAX_SECONDS`. Polling không gia hạn.
+Đây là thời hạn kho phiên, không phải lời hứa “mọi dữ liệu tự xóa sau 24h”.
+Tài khoản demo có vòng đời riêng, hiện 24h theo `AccountStore`.
+
+**BBS:** sau nguồn reauth/recovery đã commit, có chữ ký và đủ điều kiện, người
+dùng chủ động chọn chia sẻ → chấp thuận cấp → khóa thiết bị ký nội dung server
+cấp → holder giữ secret/credential → bên nhận sinh challenge → người dùng đồng
+ý thuộc tính/bên nhận → tạo và kiểm proof một lần. Hiện không cấp trực tiếp từ
+onboarding, mock/L0 hoặc pass client. Không bắt new user đăng nhập lại thêm một
+lần chỉ để trình diễn BBS. SDK holder hiện có không đồng nghĩa đã nối màn app.
+
+BBS chia sẻ kết quả tối thiểu/bí danh theo origin; không chứng minh camera thật,
+không thay AES-GCM và không phải PQC. Metadata vẫn có thể liên kết. Chi tiết:
+[cấp](private-credential-issuance.md), [holder](private-credential-holder.md),
+[verifier](private-credential-verifier.md), [runtime](../runbooks/bbs-demo.md).
+
+## 6. Quyết định và điểm cần thống nhất khi tích hợp
+
+| Mã | Nội dung | Trạng thái |
 |---|---|---|
-| 1. Xác minh quyền khôi phục | Chọn tài khoản, OTP tới số đã đăng ký; app có khóa mới | Kiểm binding tài khoản/số điện thoại, OTP/hạn/số lần; khóa mới chưa được tin ngay |
-| 2. Kiểm mặt đầy đủ | Căn mặt, ánh sáng/mắt/quay đầu theo gói server | Kiểm hiện diện, PAD/GenD và so với **mẫu đã ghi danh**, không thay mốc bằng CCCD mới tự cung cấp |
-| 3. Luôn đọc câu | Thu tiếng/video câu ngẫu nhiên | Kiểm đúng câu, giọng AI, nhịp/khẩu hình và cùng người giữa các đoạn; chữ ký/nonce/hạn đầy đủ |
-| 4. Đổi khóa khi đạt | Nhận kết quả | Transaction gắn khóa mới, mã hóa lại binding cần thiết, thu hồi phiên/khóa cũ theo logic tài khoản; nghi thì xét duyệt. Không đổi khóa nếu kiểm chưa đạt |
+| D1 | Đăng ký tài khoản cần chủ động đồng ý lưu mẫu mặt mã hóa phục vụ đăng nhập lại/khôi phục; từ chối thì dừng tạo tài khoản. Không thêm chế độ xác minh một lần trong đợt này | Đã chọn sau khi người dùng giao quyền quyết định ngày 28/10. Cần nối lựa chọn vào backend; hiện chưa có contract cho ý chí lưu mẫu, không dùng cờ cấu hình thay biên nhận |
+| D2 | Xác nhận thông tin cùng chặng CCCD, trước quay mặt; chỉ bắt đầu lượt camera sau xác nhận | Đề xuất rút gọn. Chưa áp dụng điều hướng; cần nhóm app thống nhất cùng bản luồng |
+| D3 | Khôi phục có yêu cầu chụp CCCD mới không? | Chưa thống nhất: UI đang có, API account-bound không nhận. Đề xuất dùng binding cũ + OTP + mẫu đã ghi danh + mặt/giọng; nếu cần CCCD bổ sung phải thiết kế cổng/API riêng, không thay tham chiếu cũ bằng ảnh mới |
 
-Nguồn thực tế còn guard như phần reauth. Kiểm thử lịch sử tổng hợp không thay
-được nghiệm thu người dùng/thiết bị. Bên tích hợp tự quyết chính sách nghiệp vụ
-sau khôi phục; VeriClue không tự đặt hạn mức giao dịch hoặc quy tắc ngân hàng.
+D1 chỉ nói về mẫu cần cho tài khoản, không mặc nhiên cho phép lưu ảnh/video gốc
+hoặc toàn bộ CCCD lâu dài. Account payload hiện có template và binding khóa,
+cùng HMAC tra cứu ở metadata; kho phiên và tài khoản có khóa/vòng đời riêng.
+Nội dung thông báo phải mô tả đúng những kho này và kênh yêu cầu xóa thực tế.
+Không tự đặt pháp nhân hoặc kết luận tuân thủ từ một boolean.
 
-## 5. BBS — chia sẻ kết quả tối thiểu sau xác minh
+Chưa có số đo thời gian/người dùng nên không công bố giảm bao nhiêu giây/phần trăm.
 
-| Bước | Ai làm | Hệ thống làm gì / dữ liệu đi đâu |
-|---|---|---|
-| 1. Chọn chia sẻ | Người dùng/app | Chỉ dùng kết quả reauth/recovery đã commit, được Ed25519 ký và đủ mọi cổng; không nhận pass hoặc claim tự khai |
-| 2. Đồng ý cấp | Người dùng | App nhận đồng ý riêng, SDK kiểm nguồn/pin/context, tạo secret RAM và commitment. Server **không nhận holder secret** |
-| 3. Xin nội dung chấp thuận | SDK → issuer API | Server kiểm nguồn/tài khoản/khóa hiện hành rồi trả đúng byte authorization gắn phiên/result/account/device/offer hash/key/hạn/consent |
-| 4. Ký và cấp | Khóa thiết bị → issuer | SDK kiểm authorization khớp trước khi gọi khóa P-256 ký. Server kiểm chữ ký, cấp BBS, giữ cache mã hóa/idempotency. SDK kiểm blind signature trước khi giữ |
-| 5. Bên nhận ra challenge | Server dịch vụ nhận | Token riêng xác định origin HTTPS; server sinh nonce/policy/hạn và lưu DB. Token không nằm trong app hoặc proof |
-| 6. Đồng ý xuất trình | Người dùng/app | Hiển thị đúng bên nhận và thông tin sẽ lộ; SDK tạo proof cho origin đã đồng ý. Không gửi credential/signature/secret nguyên gốc cho bên nhận |
-| 7. Kiểm proof | Server bên nhận → verifier API | Kiểm trust key, proof, claim, nonce, audience và hạn; tiêu thụ challenge và commit trước valid=true. Replay bị từ chối |
-| 8. Kết thúc / thử lại | App | Logout gọi destroy; timeout không tự pass. Mất phản hồi cấp thì thử lại cùng offer/body; reload mất ví. Hạn credential không vượt nguồn |
+## 7. Thứ tự triển khai và nghiệm thu
 
-Bên nhận thấy: protocol, issuer, assurance, đã hoàn thành xác minh, khoảng hiệu
-lực, policy version và bí danh theo origin. Không thấy account/device/source
-result/purpose trong proof, không nhận CCCD, tên, ảnh, âm thanh hoặc điểm AI.
-Bí danh ổn định theo credential trong một origin, khác khi origin đổi; không
-phải mã người dùng suốt đời. Metadata/IP/claim chung vẫn có thể liên kết.
+1. Nhóm thống nhất D2/D3 và nội dung thông báo; bổ sung yêu cầu/hợp đồng lưu mẫu
+   theo D1 trước thay đổi server/client có liên quan. Không cần thêm màn riêng
+   cho mỗi loại consent hoặc detector.
+2. Nối model/client API consent, lựa chọn theo phiên, version thay đổi, withdrawal
+   và xử lý lỗi trong logic app; UI nối dữ liệu/hành động cần thiết. Áp dụng cùng
+   hợp đồng cho iOS khi các nhánh tương ứng được tích hợp.
+3. Nghiệm thu consent và luồng bằng mock có nhãn rõ, dữ liệu tổng hợp. Bật yêu
+   cầu consent không biến mock thành protected hoặc mở được ghi danh thật.
+4. Kiểm trên thiết bị: permission đúng lúc, capture/chữ ký, gián đoạn, mạng,
+   receipt/alias, thông báo không có điểm/lý do an ninh hoặc lời hứa bàn duyệt.
+5. Nghiệm thu module/policy, OTP, HTTPS/khóa/backup và đường real theo task liên
+   quan trước khi xét mở guard. Không thêm cờ bỏ qua bảo vệ cho demo.
 
-Profile tích hợp **chưa chứng minh “trên 18 tuổi”**. Bản lab có boolean tuổi tổng
-hợp để so sánh BBS/SD-JWT/JWT, không phải tuổi được xác thực từ CCCD hay range proof.
-BBS không phải PQC hoặc cách chứng minh video không cần rời điện thoại.
+Bàn duyệt và giám định là **future work / mode tools**, không nằm trong ba luồng
+mobile đang đề xuất. Mode eKYC trả 404 các route này. Các chức năng báo cáo đã
+có vẫn xem ở [kiến trúc chung](architecture.md), không thêm actor nhân viên vào
+workflow sản phẩm hiện tại.
 
-## 6. Bàn duyệt khi luồng cần nhân viên
+## Nguồn đối chiếu
 
-| Bước | Nhân viên | Hệ thống |
-|---|---|---|
-| 1. Mở hồ sơ | Dùng credential nhân viên riêng | Kiểm quyền; cấp metadata/bằng chứng theo vai trò, che thông tin định danh mặc định |
-| 2. Đọc và kiểm chứng | Xem kết quả từng module, media và lý do | Giữ snapshot; mở thông tin đầy đủ là thao tác rõ ràng có ghi truy cập; người dân không thấy điểm/lý do an ninh |
-| 3. Quyết định | Chọn lý do/ghi chú theo yêu cầu | Kiểm mã lý do, phiên/trạng thái/cạnh tranh; ghi sự kiện vào chuỗi nhật ký, không cập nhật đè lịch sử |
-
-Nhân viên duyệt không tự biến hồ sơ thành nguồn BBS: SignedResult/BBS hiện loại
-phiên qua review hoặc override theo chính sách nguồn. Cần thay policy riêng nếu
-nhóm muốn hỗ trợ loại chứng nhận đó trong tương lai.
-
-## 7. Giám định file cho điều tra viên
-
-| Bước | Điều tra viên | Hệ thống |
-|---|---|---|
-| 1. Gửi vật chứng | Upload video/âm thanh; tùy chọn gắn hồ sơ eKYC | Kiểm staff token, loại/dung lượng file; băm byte gốc; nếu gắn hồ sơ thì đối chiếu điều kiện và byte nguồn |
-| 2. Phân tích | Theo dõi tiến độ | Chia đoạn, chạy bộ phát hiện chung; phân tích mặt/giọng theo dữ liệu có; quét provenance AudioSeal/C2PA khi runtime hỗ trợ |
-| 3. Xem kết quả | Xem timeline/đoạn nghi vấn và giới hạn | Trả kết quả theo đoạn/module và trạng thái thiếu/lỗi rõ ràng. Thủy vân/manifest vắng không tự chứng minh nội dung giả |
-| 4. Xuất báo cáo | Chọn báo cáo/gói xuất | Tạo HTML hoặc PDF/JSON theo runtime; minh họa khung/phổ khi bật; ràng buộc hash và ký Ed25519, không biến heatmap thành chứng minh AI đúng |
-| 5. Kiểm lại | Bên nhận kiểm gói/báo cáo | Kiểm chữ ký/hash đúng byte; nếu liên kết review thì kiểm checkpoint nhật ký nguồn. Sửa byte hoặc cắt đuôi đã neo không được coi nguyên vẹn |
-
-Đây là chế độ điều tra viên, không chèn thêm bước vào đăng ký của người dân.
-Không phải báo cáo LR/ENFSI đã được hiệu chuẩn hoặc kết luận pháp lý tự động.
-
-## 8. Các việc chạy phía sau, không nên thành màn riêng
-
-- **Khóa và chống replay:** bearer phiên, key/challenge/nonce/hash/media signature,
-  slot/timeout/quota được server kiểm; app không phải yêu cầu người dùng “ký số”
-  thủ công từng detector. Không gọi ECDSA/Keystore hiện có là Passkey/FIDO2.
-- **Bảo vệ dữ liệu:** AES-GCM, khóa phiên riêng, mẫu mặt mã hóa; CCCD/số điện thoại
-  tra cứu bằng HMAC; audit truy cập và quyết định. BBS không thay mã hóa lưu trữ.
-- **Lưu/xóa:** tài khoản demo, raw media, hồ sơ review và forensic có vòng đời
-  khác nhau theo cấu hình; không tuyên bố “tất cả tự xóa sau 24 giờ”. Giám định
-  chưa có TTL mặc định thì phải nói rõ cho operator. Hủy khóa không bảo đảm xóa
-  mọi bản sao/bản rõ/backup ở ngoài phạm vi kiểm soát.
-- **Lỗi hoặc thiếu module:** không mặc nhiên pass. UI phản hồi chất lượng hoặc
-  trạng thái chung; nhân viên có thông tin kỹ thuật theo quyền riêng.
-
-## 9. Cơ sở thảo luận rút gọn cho new user — chưa thay quy trình
-
-Mục tiêu là giảm số thao tác/màn chờ mà vẫn biết mỗi yêu cầu đã được kiểm ở đâu.
-Các điểm nhóm nên chốt sau khi đọc workflow:
-
-1. Có thể tổ chức thành các chặng dễ hiểu **đồng ý → số điện thoại → CCCD → một
-   phiên camera trước → kết quả**; giữ đọc câu là nhánh điều kiện của onboarding.
-2. Không yêu cầu người dùng tự chụp ba ảnh mặt, làm riêng từng detector, xác nhận
-   cùng thông tin nhiều lần hoặc làm thêm reauth/BBS chỉ để kết thúc đăng ký.
-3. Căn mặt/quality là hướng dẫn trước và trong lúc thu, không thêm một màn kiểm
-   tra chất lượng độc lập. Phản hồi ngay khi đủ dữ liệu; các phép tính dùng chung
-   video/khung được phối hợp ở server, không thu lại media vì mỗi module một file.
-4. Tải/chấm song song ở nơi code/runtime thực sự hỗ trợ; trước khi bỏ màn chờ cần
-   xác định thứ tự bắt buộc, quyền hủy và trường hợp server yêu cầu giọng. Không
-   quay lại quy tắc cũ “onboarding luôn đọc câu” khi thiết kế hiện tại đã bỏ.
-5. Chốt riêng loại consent nào cần trước thu sinh trắc, loại lưu mẫu/dữ liệu nào
-   tùy chọn và consent nào thuộc BBS/bên nhận. Không gộp thành một dấu tick tự chọn.
-6. Với iOS/Android, đi qua từng màn hiện có để đối chiếu bảng trên, đo số thao tác/
-   thời gian thực rồi mới thống nhất cách gộp. Hiện chưa có số đo để khẳng định
-   giảm bao nhiêu giây hoặc “mượt hơn bao nhiêu phần trăm”.
-
-## Nguồn trong repo
-
-- Thiết kế: [ADR-0013](../adr/0013-hai-luong-ekyc.md),
-  [ADR-0016, cập nhật 26/10](../adr/0016-dynamic-liveness.md),
-  [ADR-0018](../adr/0018-chung-nhan-rieng-tu-bbs.md).
-- Luồng/guard: [SessionFlow](../../services/api/src/vericlue_api/services/session_flow.py),
-  [router theo purpose](../../ml/src/vericlue_ml/router/flows.py),
-  [giao thức tài khoản](account-authentication.md).
-- Runtime/model: [models.yaml](../../ml/configs/models.yaml),
-  [kiểm cùng người mặt–giọng](face-voice-continuity.md).
-- BBS: [cấp](private-credential-issuance.md), [verifier](private-credential-verifier.md),
-  [SDK](private-credential-holder.md), [chạy demo](../runbooks/bbs-demo.md).
-- Giám định: [gói PDF/JSON](forensic-pdf-bundle.md),
-  [nhật ký liên kết](forensic-review-audit.md).
+- [App/điều hướng Android](../../apps/android/app/src/main/java/vn/vericlue/app/ui/App.kt),
+  [FlowRules](../../apps/android/app/src/main/java/vn/vericlue/app/flow/Flow.kt),
+  [LiveFlow](../../apps/android/app/src/main/java/vn/vericlue/app/flow/LiveFlow.kt),
+  [AccountFlow](../../apps/android/app/src/main/java/vn/vericlue/app/flow/AccountFlow.kt).
+- [SessionFlow/guard](../../services/api/src/vericlue_api/services/session_flow.py),
+  [policy theo mục đích](../../ml/src/vericlue_ml/router/flows.py),
+  [CCCD](../../services/api/src/vericlue_api/services/identity_steps.py),
+  [ghi danh](account-enrollment.md), [khóa/tài khoản](account-authentication.md).
+- [Consent và phạm vi xóa](session-privacy-consent.md),
+  [profile/retention](../runbooks/protected-profile.md), [bàn giao app](mobile-privacy-integration.md).
+- Các quyết định nền giữ nguyên: [ADR-0013](../adr/0013-hai-luong-ekyc.md),
+  [ADR-0016](../adr/0016-dynamic-liveness.md), [ADR-0018](../adr/0018-chung-nhan-rieng-tu-bbs.md).

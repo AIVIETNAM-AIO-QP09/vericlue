@@ -132,6 +132,7 @@
 | FLOW-03 | Chụp CCCD, QR, chân dung, kiểm đã đăng ký; bảo toàn ảnh khi lỗi | M1 | Ngọc Quang+Claude | 1,5 | S1 | P0 | PLAT-05, FACE-01 | doing |
 | FLOW-04 | Quay đầu, chọn khung RAM, GenD và FS-VFM-L PAD — diagnostic | M1 (+M3) | Codex | 1 | S1 | P0 | CAP-06 | doing |
 | FLOW-05 | LVFace-B/mặt–giọng; ghi danh, receipt, so mẫu đã lưu; giữ chốt luồng thật | M3 | Codex | 1 | S1 | P0 | FLOW-03, FACE-01 | doing |
+| FLOW-06 | Rà workflow mobile và bàn giao tích hợp riêng tư | M5 | Codex | 0,5 | S2 | P0 | PLAT-05 | review |
 | SEC-01 | Khóa theo phiên, che dữ liệu, nhật ký truy cập | M2 | Codex | 1,5 | S1 | P0 | REV-01, PLAT-05 | review |
 | SEC-02 ★ | Ký media, L0 khóa ghi danh; service khôi phục/thu hồi, chờ nghiệm thu máy thật | M2 (+M1) | Codex | 1 | S2 | P0 | APP-01, PLAT-06 | doing |
 | APP-01 ★ | App Kotlin: UI A, receipt/alias và 3 luồng; chờ HTTPS và nghiệm thu tài khoản thật | M1 | Ngọc Quang+Claude+Codex | 1,5 | S1 | P0 | PLAT-04 | doing |
@@ -157,12 +158,13 @@
 
 | Mã | Task | Vai trò | Người | Ngày công | Sprint | Ưu tiên | Phụ thuộc | Trạng thái |
 |---|---|---|---|---|---|---|---|---|
-| SEC-03 | Kiểm quyền trước parser và giới hạn multipart | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | review |
-| SEC-04 | Chuẩn hóa ảnh và vòng đời rescan | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | review |
-| SEC-05 | Profile bảo mật và chặn cấu hình dev dùng nhầm | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | review |
-| SEC-06 | Retention và thao tác riêng tư [contract] | M5 | Codex | 1 | S2 | P0 | PLAT-05 | review |
+| SEC-03 | Kiểm quyền trước parser và giới hạn multipart | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | done |
+| SEC-04 | Chuẩn hóa ảnh và vòng đời rescan | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | done |
+| SEC-05 | Profile bảo mật và chặn cấu hình dev dùng nhầm | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | done |
+| SEC-06 | Retention và thao tác riêng tư [contract] | M5 | Codex | 1 | S2 | P0 | PLAT-05 | done |
 | SEC-07 | Vá dependency web và kiểm chứng tích hợp | M2 | Codex | 0,5 | S2 | P0 | PLAT-02, PLAT-05 | doing |
-| SEC-08 | Vòng đời khóa và file tạm cho demo | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | review |
+| SEC-08 | Vòng đời khóa và file tạm cho demo | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | done |
+| SEC-09 | Consent lưu mẫu và logic riêng tư app [contract] | M5 | | 1 | S2 | P0 | SEC-06, FLOW-06 | todo |
 
 ## Tổng hợp tải (chạy `plan_check.py` để có số mới nhất)
 
