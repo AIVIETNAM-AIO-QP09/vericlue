@@ -2,29 +2,32 @@
 
 from __future__ import annotations
 
-import io
 import json
 import logging
 import re
+import secrets
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, or_, select, text
 
 from vericlue_api.core.config import Settings
-from vericlue_api.core.errors import ApiError
+from vericlue_api.core.retention import ekyc_expiry_filter
 from vericlue_api.db.database import Database
 from vericlue_api.db.models import (
     CleanupAuditRow,
     ForensicJobRow,
     ReviewCaseRow,
+    SessionKeyRow,
     SessionRow,
     aware,
     utcnow,
 )
 from vericlue_api.services.accounts import AccountStore
+from vericlue_api.services.file_changes import FileChanges
 from vericlue_api.services.session_privacy import SessionPrivacy
+from vericlue_api.services.upload_images import PreparedImage, prepare_image
 
 logger = logging.getLogger(__name__)
 ALLOWED_SUFFIXES = frozenset(
@@ -69,39 +72,23 @@ def save_upload(
     data: bytes,
     *,
     privacy: SessionPrivacy | None = None,
+    image_role: bool = False,
+    prepared_image: PreparedImage | None = None,
+    changes: FileChanges | None = None,
 ) -> Path:
-    """Giữ đuôi trong whitelist; tên gốc chỉ dùng như metadata, không làm đường dẫn."""
+    """Save server-named bytes; image roles use content validation in every mode."""
     suffix = Path(filename or "").suffix.lower()
+    if image_role:
+        prepared_image = prepared_image or prepare_image(data)
+        data, suffix = prepared_image.data, prepared_image.suffix
+    if changes is not None:
+        stem += "_" + secrets.token_hex(16)
     name = stem + (suffix if suffix in ALLOWED_SUFFIXES else ".bin")
     if privacy is not None:
-        if privacy.enabled and suffix in {".jpg", ".jpeg", ".png", ".webp"}:
-            data = _strip_image_metadata(data, suffix)
         data = privacy.seal_media(folder, name, data)
+    if changes is not None:
+        changes.track(_folder(media_dir, folder) / name)
     return save_generated(media_dir, folder, name, data)
-
-
-def _strip_image_metadata(data: bytes, suffix: str) -> bytes:
-    from PIL import Image, ImageOps
-
-    try:
-        with Image.open(io.BytesIO(data)) as source:
-            if (
-                source.format not in {"JPEG", "PNG", "WEBP"}
-                or getattr(source, "n_frames", 1) != 1
-                or max(source.size) > 4096
-                or source.width * source.height > 16_000_000
-            ):
-                raise ValueError("Invalid image bounds")
-            image = ImageOps.exif_transpose(source).convert("RGB")
-            image.info.clear()
-            output = io.BytesIO()
-            image.save(
-                output,
-                format={".jpg": "JPEG", ".jpeg": "JPEG", ".png": "PNG", ".webp": "WEBP"}[suffix],
-            )
-            return output.getvalue()
-    except Exception as exc:
-        raise ApiError(422, "invalid_image", "Ảnh không đọc được. Vui lòng chụp lại.") from exc
 
 
 def _delete_folder(folder: Path, root: Path, on_deleted: Callable[[str], None]) -> None:
@@ -134,8 +121,14 @@ def cleanup_expired(
     deleted: list[dict] = []
     errors: list[dict] = []
     protected: list[str] = []
+    session_erasure: list[dict] = []
+    committed = False
     try:
         with database.sessions.begin() as db:
+            if db.bind.dialect.name == "sqlite":
+                # FOR UPDATE is ignored by SQLite. Take the write lock before
+                # selecting rows or unlinking files, matching session uploads.
+                db.execute(text("BEGIN IMMEDIATE"))
             has_review = (
                 select(ReviewCaseRow.case_id)
                 .where(ReviewCaseRow.session_id == SessionRow.session_id)
@@ -168,6 +161,9 @@ def cleanup_expired(
                     <= now - timedelta(hours=settings.media_ttl_incomplete_hours),
                 ),
             )
+            if settings.product_mode == "ekyc":
+                # No dependency on future staff UI or a manual case-close timestamp.
+                expired = ekyc_expiry_filter(settings, now)
             rows = db.scalars(
                 select(SessionRow)
                 .where(SessionRow.media_deleted_at.is_(None), expired)
@@ -176,12 +172,33 @@ def cleanup_expired(
             )
             for row in rows:
                 reason = (
-                    "review_expired"
+                    "unverified_expired"
+                    if settings.product_mode == "ekyc" and row.status != "pass"
+                    else "review_expired"
                     if row.ever_review
                     else "pass_expired"
                     if row.status == "pass"
                     else "incomplete_expired"
                 )
+                privacy = SessionPrivacy(settings, db)
+                key_erasure = "not_applicable"
+                if settings.session_privacy:
+                    # Key erasure must not depend on Windows handles/ACLs allowing
+                    # physical unlink. Leave the media marker unset on file error
+                    # so subsequent cleanup runs still retry the ciphertext files.
+                    privacy.destroy(row.session_id)
+                    key = db.get(SessionKeyRow, row.session_id)
+                    key_erasure = (
+                        "destroyed"
+                        if key is not None and key.destroyed_at is not None
+                        else "not_present"
+                    )
+                erasure = {
+                    "session_id": row.session_id,
+                    "key_erasure": key_erasure,
+                    "files_erasure": "pending",
+                }
+                session_erasure.append(erasure)
                 try:
                     folder = _folder(settings.media_dir, row.session_id)
                     _delete_folder(
@@ -191,8 +208,12 @@ def cleanup_expired(
                             {"path": name, "reason": reason}
                         ),
                     )
-                    SessionPrivacy(settings, db).destroy(row.session_id)
+                    if not settings.session_privacy:
+                        # Preserve legacy cleanup of any older key after the
+                        # plaintext files are removed; do not claim cryptoshred.
+                        privacy.destroy(row.session_id)
                     row.media_deleted_at = now
+                    erasure["files_erasure"] = "deleted"
                 except (OSError, ValueError) as exc:
                     errors.append({"id": row.session_id, "error": str(exc)})
             if settings.forensic_ttl_days is None:
@@ -237,6 +258,7 @@ def cleanup_expired(
                 "protected_forensic": protected,
                 "errors": errors,
                 "expired_accounts": expired_accounts,
+                "session_erasure": session_erasure,
             }
             db.add(
                 CleanupAuditRow(
@@ -246,6 +268,7 @@ def cleanup_expired(
                     details=details,
                 )
             )
+        committed = True
     except Exception as exc:
         errors.append({"id": "cleanup", "error": str(exc)})
         raise
@@ -259,6 +282,10 @@ def cleanup_expired(
                     "deleted": deleted,
                     "protected_forensic": protected,
                     "errors": errors,
+                    # A rollback can undo key erasure, while physical unlinks
+                    # above remain true. Never log an uncommitted key claim.
+                    "transaction_committed": committed,
+                    "session_erasure": session_erasure if committed else [],
                 },
                 ensure_ascii=False,
             ),

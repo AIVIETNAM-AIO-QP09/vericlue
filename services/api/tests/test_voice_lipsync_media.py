@@ -2,6 +2,7 @@
 
 import pytest
 from fastapi.testclient import TestClient
+from synthetic_images import synthetic_image
 
 from vericlue_api.core.config import get_settings
 from vericlue_api.main import create_app
@@ -62,7 +63,7 @@ def face_then_challenge(client):
         f"/v1/sessions/{sid}/media",
         headers=headers,
         files={
-            "image": ("face.jpg", b"synthetic image", "image/jpeg"),
+            "image": ("face.jpg", synthetic_image(b"synthetic image"), "image/jpeg"),
             "video": ("face.mp4", b"earlier face clip", "video/mp4"),
         },
     )

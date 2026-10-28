@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from synthetic_images import synthetic_image
 
 from vericlue_api.core.config import Settings, get_settings
 from vericlue_api.core.request_limits import RequestLimitsMiddleware, SessionCreationLimiter
@@ -302,7 +303,7 @@ def test_streamed_multipart_stops_at_limit_closes_files_and_leaves_session_uncha
             sync.post(
                 f"/v1/sessions/{sid}/media",
                 headers=auth,
-                files={"image": ("face.jpg", b"\xff\xd8\xff", "image/jpeg")},
+                files={"image": ("face.jpg", synthetic_image(b"\xff\xd8\xff"), "image/jpeg")},
             ).status_code
             == 200
         )

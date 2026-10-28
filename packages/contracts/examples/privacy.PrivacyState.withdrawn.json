@@ -1,0 +1,15 @@
+{
+  "session_id": "ses_example",
+  "scope": "session",
+  "policy_version": "demo-v1",
+  "status": "withdrawn",
+  "categories": ["face_biometrics"],
+  "consent_receipt_id": "prv_00000000000000000000000000000001",
+  "consented_at": "2026-10-28T12:00:00Z",
+  "withdrawal_receipt_id": "prv_00000000000000000000000000000002",
+  "withdrawn_at": "2026-10-28T12:01:00Z",
+  "storage_erasure": "files_deleted",
+  "processing_cleanup": "not_verified",
+  "account_data_erased": false,
+  "credential_revocation": "not_performed"
+}

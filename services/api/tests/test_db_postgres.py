@@ -15,6 +15,7 @@ from alembic.config import Config
 from conftest import staff_test_client
 from sqlalchemy import func, inspect, select, text
 from sqlalchemy.exc import DBAPIError
+from synthetic_images import synthetic_image
 from test_credential_keys import registry_env as registry_env
 from test_credential_verifier import stub_worker as stub_worker
 from test_credential_verifier import verifier_env as verifier_env
@@ -529,6 +530,32 @@ def postgres(monkeypatch):
     get_settings.cache_clear()
 
 
+def test_postgres_concurrent_id_rescans_keep_quota_and_committed_pair(postgres):
+    from fastapi.testclient import TestClient
+    from test_upload_image_safety import card, snapshot
+
+    with TestClient(create_app()) as first, TestClient(create_app()) as second:
+        first.app.state.vericlue.settings.max_id_card_scans = 2
+        second.app.state.vericlue.settings.max_id_card_scans = 2
+        response = first.post("/v1/sessions")
+        created = response.json()
+        sid = created["session_id"]
+        auth = {"Authorization": "Bearer " + created["token"]}
+        assert card(first, sid, auth).status_code == 200
+        gate = Barrier(2)
+
+        def scan(client):
+            gate.wait(timeout=5)
+            return card(client, sid, auth).status_code
+
+        with ThreadPoolExecutor(2) as pool:
+            statuses = list(pool.map(scan, [first, second]))
+        assert sorted(statuses) == [200, 409]
+        front, back, count, _ = snapshot(first, sid)
+        assert count == 2
+        assert set(front.parent.iterdir()) == {front, back}
+
+
 def test_postgres_migration_mock_flow_and_restart(postgres):
     assert {"sessions", "module_results", "decisions", "review_events", "forensic_jobs"} <= set(
         inspect(postgres.engine).get_table_names()
@@ -543,7 +570,7 @@ def test_postgres_migration_mock_flow_and_restart(postgres):
             client.post(
                 f"/v1/sessions/{sid}/media",
                 headers=auth,
-                files={"image": ("face.jpg", b"synthetic", "image/jpeg")},
+                files={"image": ("face.jpg", synthetic_image(b"synthetic"), "image/jpeg")},
             ).status_code
             == 200
         )

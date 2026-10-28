@@ -1,0 +1,20 @@
+# Explicit protected profile; keeps all biometric real/mixed/account guards closed.
+services:
+  web:
+    # Mobile eKYC does not require the legacy Next.js frontend.
+    profiles: [legacy-web]
+  api:
+    environment:
+      SECURITY_PROFILE: protected
+      PRODUCT_MODE: ekyc
+      REQUIRE_PRIVACY_CONSENT: "true"
+      PRIVACY_POLICY_VERSION: ${PRIVACY_POLICY_VERSION:-demo-v1}
+      USE_MOCK_MODELS: "false"
+      SESSION_PRIVACY: "true"
+      REQUIRE_MEDIA_PROOF: "true"
+      SESSION_MASTER_KEY: ${SESSION_MASTER_KEY:?Set an independent base64 32-byte master key}
+      ID_HMAC_KEY: ${ID_HMAC_KEY:?Set an independent random identity HMAC key}
+      SESSION_SIGNING_SECRET: ${SESSION_SIGNING_SECRET:?Set an independent random session signing key}
+      TMPDIR: /run/vericlue-temp
+    tmpfs:
+      - /run/vericlue-temp:rw,nosuid,nodev,noexec,size=268435456,mode=0700,uid=10001,gid=10001

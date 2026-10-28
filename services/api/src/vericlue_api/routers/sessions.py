@@ -9,6 +9,7 @@ from starlette.concurrency import run_in_threadpool
 
 from vericlue_api.core.errors import ApiError
 from vericlue_api.core.security import bearer_scheme, require_session
+from vericlue_api.core.session_ingress import SessionAPIRoute
 from vericlue_api.core.state import AppState, get_state
 from vericlue_api.schemas.credential import (
     CredentialAuthorization,
@@ -45,7 +46,7 @@ from vericlue_api.services.session_store import Session
 from vericlue_api.services.uploads import read_limited
 from vericlue_ml.mock import SCENARIOS
 
-router = APIRouter(prefix="/v1/sessions", tags=["sessions"])
+router = APIRouter(prefix="/v1/sessions", tags=["sessions"], route_class=SessionAPIRoute)
 keys_router = APIRouter(prefix="/v1", tags=["integration"])
 
 # 401: thiếu/sai/hết hạn token. 409: sai trạng thái, bước đã nhận hoặc thử thách hết hạn.

@@ -15,6 +15,8 @@ export type ErrorResponse = Schemas["ErrorResponse"];
 export type ReviewCase = Schemas["ReviewCase"];
 export type ReviewCaseList = Schemas["ReviewCaseList"];
 export type ReviewAiOpinion = Schemas["ReviewAiOpinion"];
+export type PrivacyState = Schemas["PrivacyState"];
+export type PrivacyConsentRequest = Schemas["PrivacyConsentRequest"];
 
 export class ApiError extends Error {
   constructor(
@@ -93,6 +95,32 @@ export function createApiClient(options: ApiClientOptions = {}) {
   }
 
   return {
+    sessionPrivacy(sessionId: string, token: string, signal?: AbortSignal) {
+      return request<PrivacyState>("GET", `/v1/sessions/${encodeURIComponent(sessionId)}/privacy`, {
+        token,
+        signal,
+        cache: "no-store",
+      });
+    },
+    grantSessionConsent(
+      sessionId: string,
+      token: string,
+      body: PrivacyConsentRequest,
+      signal?: AbortSignal,
+    ) {
+      return request<PrivacyState>(
+        "POST",
+        `/v1/sessions/${encodeURIComponent(sessionId)}/privacy/consent`,
+        { token, json: body, signal, cache: "no-store" },
+      );
+    },
+    withdrawSessionConsent(sessionId: string, token: string, signal?: AbortSignal) {
+      return request<PrivacyState>(
+        "POST",
+        `/v1/sessions/${encodeURIComponent(sessionId)}/privacy/withdraw`,
+        { token, json: { confirm: true }, signal, cache: "no-store" },
+      );
+    },
     credentialSigningKey() {
       return request<Schemas["CredentialKey"]>("GET", "/v1/credential-signing-key", {
         cache: "no-store",

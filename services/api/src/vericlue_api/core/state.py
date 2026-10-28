@@ -17,6 +17,7 @@ from vericlue_api.core.config import Settings
 from vericlue_api.db.database import Database
 from vericlue_api.services.accounts import AccountStore
 from vericlue_api.services.enrollment import EnrollmentService
+from vericlue_api.services.file_changes import file_changes
 from vericlue_api.services.forensic_service import ForensicStore
 from vericlue_api.services.identity_steps import IdentitySteps
 from vericlue_api.services.orchestrator import Orchestrator
@@ -111,21 +112,37 @@ class ApplicationState:
         inference_deadline: float | None = None,
         serialize_sqlite: bool = False,
     ) -> Iterator[AppState]:
-        with self.database.sessions.begin() as db:
-            if serialize_sqlite and db.bind.dialect.name == "sqlite":
-                # Acquire the write transaction before reading eligibility/device snapshots.
-                # pysqlite's legacy SELECT transaction mode does not serialize stale readers.
-                db.execute(text("BEGIN IMMEDIATE"))
-            if lock_timeout_seconds is not None and db.bind.dialect.name == "postgresql":
-                db.execute(
-                    text("SELECT set_config('lock_timeout', :timeout, true)"),
-                    {"timeout": f"{max(1, round(lock_timeout_seconds * 1000))}ms"},
-                )
-            state = AppState(self.settings, db, self.orchestrator, inference_deadline)
-            yield state
-            state.sessions.save_all()
-            state.reviews.save_all()
-            db.flush()
+        db = self.database.sessions()
+        changes = file_changes(db, self.settings.media_dir)
+        try:
+            with db.begin():
+                self._transaction_body_begin(db, serialize_sqlite, lock_timeout_seconds)
+                state = AppState(self.settings, db, self.orchestrator, inference_deadline)
+                yield state
+                state.sessions.save_all()
+                state.reviews.save_all()
+                db.flush()
+        except BaseException:
+            changes.rollback()
+            raise
+        else:
+            changes.commit()
+        finally:
+            db.close()
+
+    @staticmethod
+    def _transaction_body_begin(
+        db: DBSession, serialize_sqlite: bool, lock_timeout_seconds: float | None
+    ) -> None:
+        if serialize_sqlite and db.bind.dialect.name == "sqlite":
+            # Acquire the write transaction before reading eligibility/device snapshots.
+            # pysqlite's legacy SELECT transaction mode does not serialize stale readers.
+            db.execute(text("BEGIN IMMEDIATE"))
+        if lock_timeout_seconds is not None and db.bind.dialect.name == "postgresql":
+            db.execute(
+                text("SELECT set_config('lock_timeout', :timeout, true)"),
+                {"timeout": f"{max(1, round(lock_timeout_seconds * 1000))}ms"},
+            )
 
     def initialize(self) -> None:
         with self._initializing:
@@ -133,7 +150,7 @@ class ApplicationState:
                 return
             self.orchestrator.start()
             with self.transaction() as state:
-                if self.settings.use_mock_models:
+                if self.settings.use_mock_models and self.settings.product_mode == "tools":
                     state.reviews.seed_demo()
                 else:
                     from sqlalchemy import select
@@ -141,7 +158,10 @@ class ApplicationState:
                     from vericlue_api.db.models import SessionRow
 
                     state.db.execute(select(SessionRow.session_id).limit(1))
-                if self.settings.use_mock_models is not True:
+                if (
+                    self.settings.use_mock_models is not True
+                    and self.settings.product_mode == "tools"
+                ):
                     state.forensic.fail_interrupted()  # job giám định dở dang của lần chạy trước
             self._initialized = True
 
@@ -164,14 +184,17 @@ def get_state(request: Request) -> Iterator[AppState]:
         "/v1/sessions/{session_id}/voice",
     }
     timeout = root.settings.db_lock_timeout_seconds if guarded else None
-    credential_write = (
-        request.method == "POST"
-        and getattr(route, "path", "") == "/v1/sessions/{session_id}/credential"
+    # SessionStore.save_all writes a loaded snapshot even on a read endpoint.
+    # Serialize all session routes, so refresh/signals/GET cannot restore stale
+    # counters while an upload commits. PostgreSQL already uses row locks.
+    route_path = getattr(route, "path", "")
+    serialized_write = route_path == "/v1/sessions/{session_id}" or route_path.startswith(
+        "/v1/sessions/{session_id}/"
     )
     with root.transaction(
         lock_timeout_seconds=timeout,
         inference_deadline=inference_deadline if guarded else None,
-        serialize_sqlite=credential_write,
+        serialize_sqlite=serialized_write,
     ) as state:
         state.reviews.actor = getattr(request.state, "staff_actor", "staff-unverified")
         state.review_audit.actor = state.reviews.actor

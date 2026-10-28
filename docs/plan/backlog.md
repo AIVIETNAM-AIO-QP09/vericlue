@@ -153,6 +153,17 @@
 | LIVE-06 | Gia hạn phiên khi gián đoạn, làm lại riêng phần khuôn mặt [contract] | M5 | Ngọc Quang+Claude | 0,5 | S2 | P0 | LIVE-01 | doing |
 | LIVE-07 | Thông báo làm lại theo hai loại (chất lượng · thử thách) | M1 | | 0,5 | S2 | P0 | LIVE-01 | todo |
 
+## E10 — Khắc phục bảo mật · `epics/E10-security-hardening.md`
+
+| Mã | Task | Vai trò | Người | Ngày công | Sprint | Ưu tiên | Phụ thuộc | Trạng thái |
+|---|---|---|---|---|---|---|---|---|
+| SEC-03 | Kiểm quyền trước parser và giới hạn multipart | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | review |
+| SEC-04 | Chuẩn hóa ảnh và vòng đời rescan | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | review |
+| SEC-05 | Profile bảo mật và chặn cấu hình dev dùng nhầm | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | review |
+| SEC-06 | Retention và thao tác riêng tư [contract] | M5 | Codex | 1 | S2 | P0 | PLAT-05 | review |
+| SEC-07 | Vá dependency web và kiểm chứng tích hợp | M2 | Codex | 0,5 | S2 | P0 | PLAT-02, PLAT-05 | doing |
+| SEC-08 | Vòng đời khóa và file tạm cho demo | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | review |
+
 ## Tổng hợp tải (chạy `plan_check.py` để có số mới nhất)
 
 | Vai trò | S0 | S1 | S2 | S3 | DP | Tổng |

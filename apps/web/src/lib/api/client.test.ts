@@ -35,6 +35,46 @@ const SESSION = {
 };
 
 describe("api client", () => {
+  it("consent theo phiên dùng đúng bearer, mã hóa đường dẫn và không lưu cache", async () => {
+    const { impl, calls } = fakeFetch([
+      { body: { status: "not_granted", scope: "session" } },
+      { body: { status: "granted", scope: "session" } },
+      { body: { status: "withdrawn", account_data_erased: false } },
+    ]);
+    const api = createApiClient({
+      baseUrl: "http://api.test",
+      fetchImpl: impl,
+      getStaffToken: () => {
+        throw new Error("Không dùng credential nhân viên cho consent");
+      },
+    });
+    const signal = new AbortController().signal;
+    await api.sessionPrivacy("a/b?c", "session-token", signal);
+    await api.grantSessionConsent(
+      "a/b?c",
+      "session-token",
+      {
+        consent: true,
+        policy_version: "demo-v1",
+        categories: ["face_biometrics"],
+      },
+      signal,
+    );
+    const receipt = await api.withdrawSessionConsent("a/b?c", "session-token", signal);
+    expect(receipt.account_data_erased).toBe(false);
+    expect(calls.map((c) => c.url)).toEqual([
+      "http://api.test/v1/sessions/a%2Fb%3Fc/privacy",
+      "http://api.test/v1/sessions/a%2Fb%3Fc/privacy/consent",
+      "http://api.test/v1/sessions/a%2Fb%3Fc/privacy/withdraw",
+    ]);
+    for (const call of calls) {
+      expect(call.init.cache).toBe("no-store");
+      expect(call.init.signal).toBe(signal);
+      expect(call.init.headers).toMatchObject({ Authorization: "Bearer session-token" });
+      expect(call.url).not.toContain("session-token");
+    }
+    expect(JSON.parse(calls[2].init.body as string)).toEqual({ confirm: true });
+  });
   it("cấp chứng nhận theo bearer phiên và gửi chấp thuận đã ký, không lưu cache", async () => {
     const { impl, calls } = fakeFetch([
       { body: { key_id: "test-key", public_key: "test-public" } },

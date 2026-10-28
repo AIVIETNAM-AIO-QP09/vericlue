@@ -6,6 +6,15 @@
 
 ## 1. Tổng quan
 
+**SEC-03…08 (28/10):** profile sản phẩm `PRODUCT_MODE=ekyc` phục vụ app qua API,
+ẩn toàn bộ route review/forensic và không tạo ca nhân viên. Mode mặc định `tools`
+giữ các công cụ bên dưới cho lab/future work; sơ đồ lịch sử không có nghĩa phải
+triển khai web hoặc bàn duyệt trong sản phẩm. Protected Compose không tự bật
+Next.js cũ. Thiết kế bổ sung: [ingress](session-ingress.md),
+[upload](upload-image-safety.md), [consent theo phiên](session-privacy-consent.md),
+[profile và retention](../runbooks/protected-profile.md),
+[vòng đời master key](../runbooks/master-key-lifecycle.md).
+
 ```
  Trình duyệt (Next.js)                      Máy chủ (FastAPI)                         Bộ não (vericlue_ml)
  ┌──────────────────────┐   HTTPS/JSON     ┌──────────────────────────┐   gọi hàm   ┌──────────────────────────┐

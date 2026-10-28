@@ -63,6 +63,11 @@ khóa, không phải verdict sinh trắc. Chi tiết:
 
 ## Quy tắc
 
+SEC-06 thêm `schemas/privacy.schema.json`: biên nhận đồng ý/rút lại theo **phiên**,
+nhóm dữ liệu và phiên bản thông báo. Không chứng minh ý chí người dùng bằng boolean;
+không đại diện cho xóa tài khoản hoặc thu hồi BBS đã cấp. Xem
+[thiết kế và phạm vi xóa](../../docs/architecture/session-privacy-consent.md).
+
 FLOW-05 thêm module `face_continuity` và `DetectorInput.reference_video` nội bộ:
 so khung chính diện đã duyệt với ba mẫu video đọc câu, kết quả/ngưỡng riêng với
 `face_match`. Không nhận đường dẫn hay kết quả tham chiếu từ HTTP; response người

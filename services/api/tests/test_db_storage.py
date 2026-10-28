@@ -10,6 +10,7 @@ from conftest import staff_test_client
 from sqlalchemy import func, inspect, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import DBAPIError, SQLAlchemyError
+from synthetic_images import synthetic_image
 
 from vericlue_api.core.config import Settings, get_settings
 from vericlue_api.db.database import Database
@@ -174,7 +175,7 @@ def test_restart_keeps_session_media_signals_review_and_forensic(database, monke
             client.post(
                 f"/v1/sessions/{sid}/media",
                 headers=headers,
-                files={"image": ("face.jpg", b"synthetic", "image/jpeg")},
+                files={"image": ("face.jpg", synthetic_image(b"synthetic"), "image/jpeg")},
             ).status_code
             == 200
         )
@@ -365,7 +366,7 @@ def test_new_upload_resets_deleted_marker(client):
     response = client.post(
         f"/v1/sessions/{identifier}/media",
         headers={"Authorization": f"Bearer {created['token']}"},
-        files={"image": ("face.jpg", b"new media", "image/jpeg")},
+        files={"image": ("face.jpg", synthetic_image(b"new media"), "image/jpeg")},
     )
     assert response.status_code == 200
     with database.sessions() as connection:
