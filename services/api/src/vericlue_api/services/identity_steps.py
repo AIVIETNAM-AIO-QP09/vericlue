@@ -53,8 +53,12 @@ class IdentitySteps:
     def send_otp(self, session: Session, phone: str) -> OtpSent:
         if session.otp_verified:
             raise ApiError(409, "otp_already_verified", "Số điện thoại đã được xác minh.")
+        if session.otp_sends > 0 and session.otp_attempts_left <= 0:
+            raise ApiError(409, "otp_locked", "Đã hết lượt nhập mã trong phiên. Hãy bắt đầu lại.")
         if session.otp_sends >= self.settings.otp_max_sends:
             raise ApiError(409, "otp_too_many", "Đã gửi mã quá số lần. Hãy bắt đầu lại.")
+        if session.otp_sends == 0:
+            session.otp_attempts_left = self.settings.otp_max_attempts
         session.otp_sends += 1
         code = f"{secrets.randbelow(10**6):06d}"
         session.phone_hmac = _digest(self._key(), phone)
@@ -62,7 +66,6 @@ class IdentitySteps:
         session.otp_expires_at = datetime.now(UTC) + timedelta(
             seconds=self.settings.otp_ttl_seconds
         )
-        session.otp_attempts_left = self.settings.otp_max_attempts
         return OtpSent(
             expires_at=session.otp_expires_at,
             attempts_left=session.otp_attempts_left,
@@ -75,7 +78,7 @@ class IdentitySteps:
         if session.otp_hash is None or session.otp_expires_at is None:
             raise ApiError(409, "otp_not_requested", "Chưa yêu cầu gửi mã.")
         if session.otp_attempts_left <= 0:
-            raise ApiError(409, "otp_locked", "Nhập sai quá số lần. Hãy yêu cầu mã mới.")
+            raise ApiError(409, "otp_locked", "Đã hết lượt nhập mã trong phiên. Hãy bắt đầu lại.")
         if datetime.now(UTC) >= session.otp_expires_at:
             raise ApiError(409, "otp_expired", "Mã đã hết hạn. Hãy yêu cầu mã mới.")
         expected = _digest(self._key(), f"{session.session_id}:{code}")

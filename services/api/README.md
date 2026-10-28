@@ -25,6 +25,17 @@ gửi body giữ nguyên. Hướng dẫn cho người tích hợp (không sửa 
 
 ## Lệnh
 
+### OTP: ngân sách nhập sai theo phiên
+
+Theo quyết định nghiệm thu iOS ngày 28/10/2026, `OTP_MAX_ATTEMPTS` (mặc định 5)
+áp dụng cho **toàn phiên**, không phải mỗi mã. Gửi lại chỉ đổi mã và hạn dùng,
+không cộng lại attempts_left. Khi hết lượt, cả gửi và xác nhận đều trả 409
+`otp_locked`; phải bắt đầu phiên mới. Giới hạn `OTP_MAX_SENDS` (mặc định 3) độc lập.
+Client phải dùng attempts_left từ server, không tự reset sau resend. Hành vi này
+áp dụng cho mọi client dùng API, cần Android/web theo cùng quy tắc. Không đổi
+tên trường/mã lỗi hoặc JSON Schema; không phục hồi được lịch sử sai đã bị bản
+server cũ reset trước khi cập nhật.
+
 ```bash
 uv sync --frozen --all-packages
 uv run uvicorn vericlue_api.main:app --reload --app-dir services/api/src   # http://localhost:8000/docs
