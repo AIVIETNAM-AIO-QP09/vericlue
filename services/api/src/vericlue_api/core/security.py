@@ -5,14 +5,16 @@ from __future__ import annotations
 import secrets
 from datetime import UTC, datetime
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from vericlue_api.core.config import Settings
 from vericlue_api.core.errors import ApiError
 from vericlue_api.core.session_tokens import token_digest
 from vericlue_api.core.state import AppState, get_state
 from vericlue_api.db.models import aware
-from vericlue_api.services.session_store import Session
+from vericlue_api.services.session_privacy import SessionPrivacy
+from vericlue_api.services.session_store import Session, SessionStore
 
 bearer_scheme = HTTPBearer(
     auto_error=False,
@@ -24,18 +26,25 @@ def _unauthorized() -> ApiError:
     return ApiError(401, "unauthorized", "Thiếu hoặc sai token phiên.")
 
 
-def require_session(
-    session_id: str,
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-    state: AppState = Depends(get_state, scope="function"),
-) -> Session:
-    if credentials is None or credentials.scheme.lower() != "bearer":
+def session_token(request: Request) -> str:
+    """Read one bearer header; never let proxies and the application choose different tokens."""
+    values = request.headers.getlist("Authorization")
+    if len(values) != 1:
         raise _unauthorized()
-    token = credentials.credentials
-    if not state.settings.session_token_signer.verify(token, session_id):
+    scheme, _, token = values[0].partition(" ")
+    if scheme.lower() != "bearer" or not token or token != token.strip():
         raise _unauthorized()
-    session = state.sessions.get(session_id)
-    # Phiên không tồn tại cũng trả 401 để không lộ phiên nào có thật.
+    return token
+
+
+def _verify_token(settings: Settings, session_id: str, token: str) -> None:
+    if not settings.session_token_signer.verify(token, session_id):
+        raise _unauthorized()
+
+
+def _current_session(sessions: SessionStore, session_id: str, token: str) -> Session:
+    session = sessions.get(session_id)
+    # Missing, expired and superseded credentials have the same response.
     if (
         session is None
         or aware(session.token_expires_at) <= datetime.now(UTC)
@@ -43,3 +52,31 @@ def require_session(
     ):
         raise _unauthorized()
     return session
+
+
+def preflight_session(request: Request, session_id: str) -> None:
+    """Authenticate before reading a body, releasing DB/key locks before waiting for upload.
+
+    This intentionally does not use ApplicationState.transaction/save_all: a read
+    must not refresh activity, revive deleted media or overwrite another request.
+    The ordinary dependency validates again after body parsing.
+    """
+    root = request.app.state.vericlue
+    token = session_token(request)
+    _verify_token(root.settings, session_id, token)
+    with root.database.sessions() as db:
+        store = SessionStore(db, privacy=SessionPrivacy(root.settings, db))
+        _current_session(store, session_id, token)
+
+
+def require_session(
+    session_id: str,
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    state: AppState = Depends(get_state, scope="function"),
+) -> Session:
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise _unauthorized()
+    token = session_token(request)
+    _verify_token(state.settings, session_id, token)
+    return _current_session(state.sessions, session_id, token)
