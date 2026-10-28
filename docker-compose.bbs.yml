@@ -1,0 +1,25 @@
+# Explicit opt-in overlay. Keys/config remain host-managed and mounted read-only.
+services:
+  api:
+    environment:
+      PRIVATE_CREDENTIALS: "true"
+      CREDENTIAL_NODE: /usr/local/bin/node
+      CREDENTIAL_WORKER_FILE: /app/services/credentials/issuer-worker.mjs
+      CREDENTIAL_SIGNING_KEY_FILE: /run/vericlue-secrets/bbs/bbs-private.json
+      CREDENTIAL_TIMEOUT_SECONDS: ${CREDENTIAL_TIMEOUT_SECONDS:-4}
+      CREDENTIAL_KEY_REGISTRY: ${CREDENTIAL_KEY_REGISTRY:-false}
+      CREDENTIAL_VERIFIER: "true"
+      CREDENTIAL_VERIFIER_TOKENS: ${CREDENTIAL_VERIFIER_TOKENS:?Set dedicated server-to-server verifier tokens}
+      CREDENTIAL_VERIFIER_ISSUER: ${RESULT_ISSUER:?Set the trusted issuer identifier}
+      CREDENTIAL_VERIFIER_WORKER_FILE: /app/services/credentials/verifier-worker.mjs
+      CREDENTIAL_VERIFIER_PUBLIC_KEY_FILE: /run/vericlue-secrets/bbs/bbs-public.json
+      RESULT_SIGNING_KEY_FILE: /run/vericlue-secrets/results/ed25519-private.pem
+      RESULT_ISSUER: ${RESULT_ISSUER}
+      RESULT_AUDIENCE: ${RESULT_AUDIENCE:?Set the source result audience}
+      SESSION_PRIVACY: "true"
+      SESSION_MASTER_KEY: ${SESSION_MASTER_KEY:?Set a separate base64 32-byte master key}
+    volumes:
+      - type: bind
+        source: ${BBS_SECRETS_DIR:?Set an absolute host directory containing operator-managed keys}
+        target: /run/vericlue-secrets
+        read_only: true

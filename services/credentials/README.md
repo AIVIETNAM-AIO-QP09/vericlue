@@ -1,5 +1,9 @@
 # Chứng nhận riêng tư — LIVE-05
 
+Đóng gói/chạy trên máy demo: [runbook BBS](../../docs/runbooks/bbs-demo.md).
+`node runtime-check.mjs` kiểm runtime bằng vector công khai, không cấp credential;
+có tùy chọn kiểm private/public key theo cấu hình triển khai mà không in bí mật.
+
 Sau PR #101 có `createVerificationSession` điều phối authorization/cấp qua callback,
 giữ nguyên yêu cầu khi thử lại, timeout/cancel và bỏ phản hồi đến muộn. Có kiểm
 Chromium → HTTP FastAPI → worker BBS thật cho reauth/recovery bằng fixture nguồn

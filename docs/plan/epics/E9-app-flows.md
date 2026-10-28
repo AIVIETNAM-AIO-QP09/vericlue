@@ -564,6 +564,9 @@ không nhận là range proof hoặc W3C VC hoàn chỉnh. Xem README package v�
       với quyết định/khóa ghi danh tổng hợp phía server, không mở chốt sinh trắc.
 - [ ] Màn consent và tích hợp UI/Android với khóa thiết bị đã ghi danh;
       SDK headless không thay được đồng ý hoặc nghiệm thu người dùng/thiết bị thật.
+- [x] Đóng gói Node/BBS/schema/holder bundle trong image API; overlay mount khóa
+      read-only, CLI preflight không ký verdict/cấp credential hoặc mở DB.
+      CI kiểm image non-root, read-only/network none và khóa tạm trong tmpfs.
 - [x] HTTP verifier dùng nonce DB qua nhiều worker/restart, origin theo credential
       tích hợp riêng, worker chỉ có public pin; hạn kiểm trước/sau crypto và commit
       trước response. PostgreSQL khóa hàng/advisory quota, SQLite BEGIN IMMEDIATE.
@@ -577,6 +580,10 @@ Chi tiết lát cắt API: `docs/architecture/private-credential-issuance.md`.
 API kiểm proof: `docs/architecture/private-credential-verifier.md`.
 Vòng đời khóa: `docs/architecture/private-credential-keys.md`.
 SDK holder không UI: `docs/architecture/private-credential-holder.md`.
+Runtime/bàn giao: `docs/runbooks/bbs-demo.md`.
+Trao đổi 28/10: nhóm có app iOS/Android; thống nhất/rút gọn workflow trước khi
+chỉnh UI. Không coi các mục UI/nguồn thật đã hoàn thành chỉ vì BBS kỹ thuật có test.
+Workflow đối chiếu: `docs/architecture/project-workflow.md`.
 
 ---
 

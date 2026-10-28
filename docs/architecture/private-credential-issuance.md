@@ -43,9 +43,10 @@ CREDENTIAL_SIGNING_KEY_FILE=/absolute/path/to/secrets/private-credentials/bbs.js
 CREDENTIAL_TIMEOUT_SECONDS=4
 ```
 
-Thiếu/sai cấu hình trả 503, không tự sinh khóa hoặc chuyển sang mock. Docker cần
-mount package đã cài và `packages/contracts/` đúng cây thư mục; không có runtime
-Node BBS trong image API hiện hành. Không quảng cáo chỉ bật cờ là eKYC thật chạy.
+Thiếu/sai cấu hình trả 503, không tự sinh khóa hoặc chuyển sang mock. Image API
+đã bổ sung Node/BBS, schema, holder bundle và CLI kiểm cấu hình; private key do
+operator mount read-only bằng overlay riêng. Không quảng cáo chỉ bật cờ là eKYC
+thật chạy. Xem [chạy và bàn giao BBS](../runbooks/bbs-demo.md).
 
 ## Giao thức
 
