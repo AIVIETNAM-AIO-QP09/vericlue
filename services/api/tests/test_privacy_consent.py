@@ -16,9 +16,11 @@ from fastapi.testclient import TestClient
 from PIL import Image
 from sqlalchemy import event, func, select, text
 from sqlalchemy.exc import DBAPIError, SQLAlchemyError
+from starlette.requests import Request
 
 from vericlue_api.core.config import get_settings
 from vericlue_api.core.session_ingress import SessionMultipartParser
+from vericlue_api.core.state import ApplicationState
 from vericlue_api.db.models import PrivacyEventRow, SessionKeyRow, utcnow
 from vericlue_api.main import create_app
 from vericlue_api.routers import privacy
@@ -548,3 +550,46 @@ def test_concurrent_withdrawal_has_one_receipt_and_no_key_revival(private_client
             == 1
         )
         assert db.get(SessionKeyRow, sid).wrapped_key is None
+
+
+def test_privacy_preflight_and_body_transaction_bound_locks_before_auth_reads(
+    private_client, monkeypatch
+):
+    client = private_client
+    s, auth = start_session(client)
+    root = client.app.state.vericlue
+    root.settings.db_lock_timeout_seconds = 0.1
+    configured = []
+    original = ApplicationState._transaction_body_begin
+
+    def begin(db, serialize, timeout):
+        configured.append((db, serialize, timeout))
+        original(db, serialize, timeout)
+
+    def before_query(*args):
+        assert configured, "Privacy authorization query preceded bounded lock setup"
+
+    request = Request(
+        {
+            "type": "http",
+            "app": client.app,
+            "headers": [(b"authorization", auth["Authorization"].encode())],
+        }
+    )
+    monkeypatch.setattr(ApplicationState, "_transaction_body_begin", staticmethod(begin))
+    event.listen(root.database.engine, "before_execute", before_query)
+    try:
+        privacy.preflight_privacy(request, s["session_id"])
+        assert len(configured) == 1
+        db, serialize, timeout = configured.pop()
+        assert serialize is False and timeout == 0.1
+        assert not db.in_transaction()
+        # A competing lock may appear while the JSON body is received; bound the second tx too.
+        with privacy.privacy_transaction(request, s["session_id"]) as (service, _):
+            assert service.state(s["session_id"]).status == "not_granted"
+        assert len(configured) == 1
+        db, serialize, timeout = configured[0]
+        assert serialize is True and timeout == 0.1
+        assert not db.in_transaction()
+    finally:
+        event.remove(root.database.engine, "before_execute", before_query)

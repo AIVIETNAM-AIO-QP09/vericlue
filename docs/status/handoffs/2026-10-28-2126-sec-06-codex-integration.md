@@ -49,6 +49,7 @@
 - Scripts/ML: lượt rộng **2635 passed, 42 skipped**, một test not_repository lỗi vì basetemp nằm dưới Git; nhóm eval-report được chạy lại với TEMP riêng ngoài repo, kết quả bổ sung dưới đây.
 - Nhóm `ml/tests/test_eval_report.py` chạy lại với TEMP riêng ngoài repo: **42 passed**. Không sửa source ML hoặc thay kỳ vọng test để xử lý lỗi môi trường.
 - API toàn bộ cuối: **1800 passed, 29 skipped**, một warning, 441,80 giây; có worker BBS thật bằng Node cục bộ. PostgreSQL/trình duyệt/điều kiện ngoài được skip đúng fixture; không gọi đây là toàn bộ đường triển khai đã đạt.
+- CI đầu ở `10431ba` chạy PostgreSQL/container thật: **4440 passed, 61 skipped, 2 failed**; hai ca finalize/voice khóa DB phát hiện preflight chưa áp lock timeout. Bản theo sau dùng cùng helper transaction hiện có để đặt timeout trước đọc/khóa ở preflight và privacy; **59 test liên quan local đạt**, giữ nguyên giới hạn 2 giây của test PostgreSQL. Ba test bảo mật PostgreSQL mới đã chạy và đạt trong CI đầu. Kết quả CI sau sửa xem [PR #105](https://github.com/AIVIETNAM-AIO-QP09/vericlue/pull/105).
 - `plan_check.py`: **0 lỗi, 10 cảnh báo** tải/lịch sẵn có. Hooks kiểm secrets/merge/JSON/YAML/kích thước/lint đạt trước commit.
 
 Số test kiểm logic phần mềm và mật mã trên fixture tổng hợp; không phải số người,

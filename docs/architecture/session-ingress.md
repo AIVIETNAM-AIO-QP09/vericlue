@@ -11,6 +11,13 @@ Kiểm trước dùng một DB session ngắn, không gọi `save_all`, không c
 vẫn kiểm lại sau parser: token bị thu hồi hoặc hết hạn trong khi nhận không được
 ghi nhận. Preflight không tự khởi tạo model và không mở guard real/mixed.
 
+PostgreSQL áp `DB_LOCK_TIMEOUT_SECONDS` bằng thiết lập transaction-local **trước**
+lần đọc session/DEK đầu tiên, kể cả preflight privacy và transaction privacy sau
+body. Khóa đang bận trả `503 storage_busy` mà chưa parse hoặc thay trạng thái;
+không chờ tới `get_state` mới đặt timeout. SQLite preflight vẫn chỉ đọc, còn
+transaction privacy giữ BEGIN IMMEDIATE. Kiểm thử PostgreSQL giữ nguyên yêu cầu
+trả lời trong 2 giây khi một kết nối khác đang giữ khóa phiên.
+
 ## Multipart
 
 Parser chỉ nhận các vai trò đã khai báo:

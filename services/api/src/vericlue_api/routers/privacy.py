@@ -4,9 +4,13 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 
 from fastapi import APIRouter, Depends, Request, Response
-from sqlalchemy import text
 
-from vericlue_api.core.security import _verify_token, bearer_scheme, session_token
+from vericlue_api.core.security import (
+    _verify_token,
+    bearer_scheme,
+    begin_session_auth,
+    session_token,
+)
 from vericlue_api.core.session_ingress import SessionAPIRoute
 from vericlue_api.schemas.privacy import (
     PrivacyConsentRequest,
@@ -22,6 +26,7 @@ def preflight_privacy(request: Request, session_id: str) -> None:
     token = session_token(request)
     _verify_token(root.settings, session_id, token)
     with root.database.sessions() as db:
+        begin_session_auth(db, root.settings)
         PrivacyService(root.settings, db).authorize(session_id, token)
 
 
@@ -47,8 +52,7 @@ def privacy_transaction(request: Request, session_id: str) -> Iterator[tuple[Pri
     token = session_token(request)
     _verify_token(root.settings, session_id, token)
     with root.database.sessions.begin() as db:
-        if db.bind.dialect.name == "sqlite":
-            db.execute(text("BEGIN IMMEDIATE"))
+        begin_session_auth(db, root.settings, serialize_sqlite=True)
         service = PrivacyService(root.settings, db)
         service.lock(session_id)
         service.authorize(session_id, token)

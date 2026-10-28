@@ -2,11 +2,12 @@
 
 from datetime import timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from conftest import start_session
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import event, select
 from starlette.formparsers import MultiPartParser
 from starlette.requests import Request
 from synthetic_images import synthetic_image
@@ -14,6 +15,7 @@ from synthetic_images import synthetic_image
 from vericlue_api.core.config import get_settings
 from vericlue_api.core.session_ingress import QR_MAX_BYTES, SessionMultipartParser
 from vericlue_api.core.session_tokens import token_digest
+from vericlue_api.core.state import ApplicationState
 from vericlue_api.db.models import SessionRow, utcnow
 from vericlue_api.main import create_app
 
@@ -306,3 +308,71 @@ def test_encrypted_session_preflight_rejects_destroyed_key_without_parsing(monke
             f"/v1/sessions/{sid}/media", headers=auth, files={"image": ("face.jpg", b"synthetic")}
         )
         assert response.status_code == 410
+
+
+@pytest.mark.parametrize(
+    "dialect,serialize,expected",
+    [
+        (
+            "postgresql",
+            False,
+            [("SELECT set_config('lock_timeout', :timeout, true)", {"timeout": "100ms"})],
+        ),
+        (
+            "postgresql",
+            True,
+            [("SELECT set_config('lock_timeout', :timeout, true)", {"timeout": "100ms"})],
+        ),
+        ("sqlite", False, []),
+        ("sqlite", True, [("BEGIN IMMEDIATE", None)]),
+    ],
+)
+def test_auth_transaction_uses_local_pg_timeout_and_preserves_sqlite_read_only(
+    dialect, serialize, expected
+):
+    from vericlue_api.core.security import begin_session_auth
+
+    statements = []
+    db = SimpleNamespace(
+        bind=SimpleNamespace(dialect=SimpleNamespace(name=dialect)),
+        execute=lambda statement, params=None: statements.append((str(statement), params)),
+    )
+    begin_session_auth(db, SimpleNamespace(db_lock_timeout_seconds=0.1), serialize_sqlite=serialize)
+    assert statements == expected
+
+
+def test_session_preflight_installs_lock_budget_before_any_auth_query(client, monkeypatch):
+    from vericlue_api.core.security import preflight_session
+
+    session, auth = start_session(client)
+    root = client.app.state.vericlue
+    root.settings.db_lock_timeout_seconds = 0.1
+    configured = []
+    original = ApplicationState._transaction_body_begin
+
+    def begin(db, serialize, timeout):
+        configured.append((db, serialize, timeout))
+        original(db, serialize, timeout)
+
+    def before_query(*args):
+        assert configured, "Authentication query ran before its bounded lock setup"
+
+    monkeypatch.setattr(ApplicationState, "_transaction_body_begin", staticmethod(begin))
+    event.listen(root.database.engine, "before_execute", before_query)
+    try:
+        preflight_session(
+            Request(
+                {
+                    "type": "http",
+                    "app": client.app,
+                    "headers": [(b"authorization", auth["Authorization"].encode())],
+                }
+            ),
+            session["session_id"],
+        )
+    finally:
+        event.remove(root.database.engine, "before_execute", before_query)
+    assert len(configured) == 1
+    db, serialize, timeout = configured[0]
+    assert serialize is False and timeout == 0.1
+    assert not db.in_transaction(), "Auth transaction remained open after preflight"

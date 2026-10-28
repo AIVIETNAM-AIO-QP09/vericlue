@@ -7,11 +7,12 @@ from datetime import UTC, datetime
 
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.orm import Session as DBSession
 
 from vericlue_api.core.config import Settings
 from vericlue_api.core.errors import ApiError
 from vericlue_api.core.session_tokens import token_digest
-from vericlue_api.core.state import AppState, get_state
+from vericlue_api.core.state import ApplicationState, AppState, get_state
 from vericlue_api.db.models import aware
 from vericlue_api.services.privacy_consent import require_categories, require_session_active
 from vericlue_api.services.session_privacy import SessionPrivacy
@@ -57,6 +58,13 @@ def _current_session(sessions: SessionStore, session_id: str, token: str) -> Ses
     return session
 
 
+def begin_session_auth(
+    db: DBSession, settings: Settings, *, serialize_sqlite: bool = False
+) -> None:
+    """Bound authentication row/key lock waits before the first database read."""
+    ApplicationState._transaction_body_begin(db, serialize_sqlite, settings.db_lock_timeout_seconds)
+
+
 def preflight_session(request: Request, session_id: str) -> None:
     """Authenticate before reading a body, releasing DB/key locks before waiting for upload.
 
@@ -68,6 +76,7 @@ def preflight_session(request: Request, session_id: str) -> None:
     token = session_token(request)
     _verify_token(root.settings, session_id, token)
     with root.database.sessions() as db:
+        begin_session_auth(db, root.settings)
         store = SessionStore(db, privacy=SessionPrivacy(root.settings, db))
         session = _current_session(store, session_id, token)
         require_categories(
