@@ -326,12 +326,14 @@ test tách biệt và tạo APK từ source hiện có, không cần Android SDK
 Không thay UI, contract, guard sinh trắc, ngưỡng hoặc dùng dữ liệu triển khai.
 
 - [x] API test mã hóa, chỉ loopback; Tailscale Serve HTTPS riêng, không Funnel.
-- [ ] CI nhận URL HTTPS riêng qua cấu hình, bật ký media, chạy unit test và build APK có checksum/metadata nguồn; không nhúng khóa hoặc token mạng riêng vào APK.
-- [ ] Kiểm HTTP qua HTTPS bằng dữ liệu tổng hợp và chữ ký; artifact trỏ đúng endpoint.
+- [x] CI nhận URL HTTPS riêng qua cấu hình, bật ký media, chạy unit test và build APK có checksum/metadata nguồn; không nhúng khóa hoặc token mạng riêng vào APK.
+- [x] Kiểm HTTP qua HTTPS bằng dữ liệu tổng hợp và chữ ký; artifact trỏ đúng endpoint.
 - [x] Có hướng dẫn cài/chọn API, QR mẫu/kịch bản mock, dừng/restart và giới hạn chưa nghiệm thu điện thoại.
 
 Hướng dẫn: [android-remote-test.md](../../runbooks/android-remote-test.md).
-Probe HTTPS tổng hợp đã qua 3 kịch bản; chờ CI tạo APK và kiểm artifact.
+Probe HTTPS tổng hợp qua 3 kịch bản; CI run `40725003348` tạo APK, kiểm
+BuildConfig/DEX và checksum sau tải khớp. Người test xác nhận Chrome Android
+đã mở được HTTPS health. Chưa nghiệm thu camera/micro/luồng app từ xa hoặc AI thật.
 
 ## App iOS (bản thêm, ADR-0014 cập nhật 24/10)
 
