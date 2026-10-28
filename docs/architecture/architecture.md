@@ -94,6 +94,11 @@ timeout mạng, hủy khi logout. Có kiểm Chromium–HTTP FastAPI–Node BBS 
 phần chứng nhận cho reauth/recovery, nguồn quyết định tổng hợp phía server.
 Không có endpoint seed/pass hoặc thay đổi chốt sinh trắc; UI/Android còn riêng.
 
+Runtime API có Node/BBS, schema và holder bundle, overlay khóa read-only cùng CLI
+preflight không cấp credential hoặc mở DB. Xem [chạy BBS](../runbooks/bbs-demo.md).
+Workflow nghiệp vụ từng bước, các guard còn lại và nội dung cần thống nhất trước
+khi rút gọn app: [workflow dự án](project-workflow.md).
+
 FLOW-05 thêm hook ghi danh onboarding opt-in `ACCOUNT_ENROLLMENT`: trích mẫu qua
 worker/hàng đợi `face_match` đã nạp, giữ lease tới khi native xong, ghi mẫu mã hóa
 trong cùng transaction với quyết định. Vector không vào ModuleResult/snapshot/HTTP;

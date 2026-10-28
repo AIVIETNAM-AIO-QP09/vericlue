@@ -1,5 +1,9 @@
 # services/api — Máy chủ API (FastAPI)
 
+Image API bổ sung runtime BBS/Node, holder bundle và CLI preflight; kích hoạt qua
+overlay riêng, khóa host mount read-only. Hướng dẫn và giới hạn nghiệm thu:
+[chạy BBS](../../docs/runbooks/bbs-demo.md). Không tự mở luồng sinh trắc thật.
+
 LIVE-05 có API opt-in cấp chứng nhận BBS ngắn hạn từ cổng kết quả đã commit,
 thêm chữ ký chấp thuận bằng khóa thiết bị, worker Node/key riêng và cache mã hóa.
 Không cấp từ verdict client, không mở chốt sinh trắc thật hoặc cấp tuổi.

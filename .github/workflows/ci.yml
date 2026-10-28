@@ -10,6 +10,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  bbs-container:
+    name: BBS container (non-root, offline crypto)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/api/Dockerfile
+          load: true
+          tags: vericlue-api:bbs-ci
+          cache-from: type=gha,scope=bbs-api
+          cache-to: type=gha,mode=max,scope=bbs-api
+      - name: Offline public conformance and packaged runtime, no keys or DB
+        run: |
+          docker run --rm --network none --read-only --tmpfs /tmp --entrypoint node vericlue-api:bbs-ci /app/services/credentials/runtime-check.mjs
+          docker run --rm --network none --read-only --tmpfs /tmp --entrypoint python vericlue-api:bbs-ci /app/scripts/check_credentials.py
+          docker run --rm --network none --read-only --tmpfs /tmp --mount "type=bind,source=$PWD/scripts/tests/credential_image_smoke.py,target=/credential_image_smoke.py,readonly" --entrypoint python vericlue-api:bbs-ci /credential_image_smoke.py
   credentials:
     name: Credentials (${{ matrix.os }}, real crypto)
     runs-on: ${{ matrix.os }}
