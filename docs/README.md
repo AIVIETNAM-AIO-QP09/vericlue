@@ -21,6 +21,7 @@ Xoay/thu hồi issuer key: [private-credential-keys.md](architecture/private-cre
 SDK holder trình duyệt, không UI: [private-credential-holder.md](architecture/private-credential-holder.md).
 Chạy/bàn giao BBS và runtime container: [bbs-demo.md](runbooks/bbs-demo.md).
 Workflow từng bước và cơ sở rút gọn đăng ký: [project-workflow.md](architecture/project-workflow.md).
+Test Android từ xa qua laptop và mạng riêng: [android-remote-test.md](runbooks/android-remote-test.md).
 
 Chữ ký và kiểm tệp báo cáo HTML: [forensic-report-signing.md](architecture/forensic-report-signing.md).
 

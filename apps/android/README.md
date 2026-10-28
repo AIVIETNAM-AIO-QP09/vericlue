@@ -85,6 +85,10 @@ Bản debug cho phép HTTP thường **chỉ** tới `10.0.2.2` và `localhost` 
 
 ### Chọn file APK
 
+Test trên điện thoại ở xa, laptop làm server: xem
+[hướng dẫn Tailscale và APK nội bộ](../../docs/runbooks/android-remote-test.md).
+Workflow đóng gói ký media và endpoint HTTPS riêng; API test vẫn là mock.
+
 | File | Dùng cho |
 |---|---|
 | `app-arm64-v8a-*.apk` | Hầu hết điện thoại Android hiện nay |
