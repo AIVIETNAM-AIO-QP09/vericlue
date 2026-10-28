@@ -15,6 +15,7 @@ from typing import Protocol
 
 from vericlue_api.core.config import Settings
 from vericlue_api.core.errors import ApiError
+from vericlue_api.core.security_profile import ensure_otp_available
 from vericlue_api.schemas.session import (
     IdCardConfirmResponse,
     IdCardFields,
@@ -63,6 +64,7 @@ class IdentitySteps:
 
     # --- OTP ---------------------------------------------------------------
     def send_otp(self, session: Session, phone: str) -> OtpSent:
+        ensure_otp_available(self.settings)
         if session.otp_verified:
             raise ApiError(409, "otp_already_verified", "Số điện thoại đã được xác minh.")
         if session.otp_sends >= self.settings.otp_max_sends:
@@ -82,6 +84,7 @@ class IdentitySteps:
         )
 
     def verify_otp(self, session: Session, code: str) -> OtpVerifyResponse:
+        ensure_otp_available(self.settings)
         if session.otp_verified:
             raise ApiError(409, "otp_already_verified", "Mã đã được dùng.")
         if session.otp_hash is None or session.otp_expires_at is None:
