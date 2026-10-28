@@ -60,7 +60,7 @@ object MediaProof {
         require(listOf(session.sessionId, challenge.challengeId, attemptId, session.nonce ?: "").all {
             it.matches(Regex("[A-Za-z0-9_-]+"))
         })
-        require(session.purpose in setOf("onboarding", "recovery"))
+        require(session.purpose in setOf("onboarding", "recovery", "reauth"))
         val allowed = if (stage == "face") setOf("image", "video") else setOf("audio", "video")
         require(stage in setOf("face", "voice") && files.keys.all { it in allowed })
         require((if (stage == "face") "image" else "audio") in files)

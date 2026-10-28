@@ -103,7 +103,7 @@ class DeviceProofTest {
                 }
             }
             val flow = LiveFlow(SessionApi(server.url("/").toString()), signer)
-            assertEquals(ApiError.Conflict, flow.ensureSession(null, "reauth", account))
+            assertEquals(ApiError.RecoveryRequired, flow.ensureSession(null, "reauth", account))
             assertNull(flow.session)
         } finally { server.shutdown() }
     }

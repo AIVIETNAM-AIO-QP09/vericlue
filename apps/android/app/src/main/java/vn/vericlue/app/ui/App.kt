@@ -32,6 +32,8 @@ import androidx.navigation.compose.rememberNavController
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.util.Log
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -61,6 +63,11 @@ import vn.vericlue.app.ui.screens.idFields
 import vn.vericlue.app.capture.ColorSchedule
 import vn.vericlue.app.capture.QualityGate
 import vn.vericlue.app.capture.WavRecorder
+import vn.vericlue.app.data.AccountStore
+import vn.vericlue.app.data.PrefsStore
+import vn.vericlue.app.flow.AccountEntry
+import vn.vericlue.app.flow.AccountFlow
+import vn.vericlue.app.security.AndroidAccountKeys
 import vn.vericlue.app.data.api.ColorEvent
 import vn.vericlue.app.capture.FaceTimeline
 import vn.vericlue.app.data.api.SessionApi
@@ -149,7 +156,16 @@ fun VeriClueApp() {
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
     val camera = remember { CameraSession(context.applicationContext) }
-    val live = remember { LiveFlow(SessionApi(BuildConfig.API_BASE_URL)) }
+    val api = remember { SessionApi(BuildConfig.API_BASE_URL) }
+    var live by remember { mutableStateOf(LiveFlow(api)) }
+    val accounts = remember {
+        AccountStore(PrefsStore(context.applicationContext.getSharedPreferences("vericlue.account", Context.MODE_PRIVATE)))
+    }
+    val accountFlow = remember {
+        AccountFlow(accounts, AndroidAccountKeys(), BuildConfig.SIGNED_MEDIA,
+            warn = { Log.w("VeriClue", it) })
+    }
+    var accountEntry by remember { mutableStateOf<AccountEntry?>(null) }
     val recorder = remember { WavRecorder() }
     var hasCamera by remember { mutableStateOf(granted(context, Manifest.permission.CAMERA)) }
     var hasMic by remember { mutableStateOf(granted(context, Manifest.permission.RECORD_AUDIO)) }
@@ -197,6 +213,34 @@ fun VeriClueApp() {
                 busy = false
             }
         }
+    }
+
+    /** Every auth choice starts a fresh session, including when returning from OTP with Back. */
+    fun enterAccount(requested: Purpose) = once {
+        camera.unbind()
+        camera.deleteVideo()
+        recorder.stop()
+        live.reset()
+        idFront = null
+        idBack = null
+        cccd = null
+        faceCaptured = false
+        idConfirmed = false
+        phone = ""
+        otpError = null
+        accountEntry = null
+        val entry = if (flow.live) withContext(Dispatchers.IO) {
+            runCatching { accountFlow.begin(requested) }.getOrNull()
+        } else null
+        if (flow.live && entry == null) {
+            nav.go(Routes.ErrorService)
+            return@once
+        }
+        flow.purpose = entry?.purpose ?: requested
+        live = LiveFlow(api, mediaSigner = entry?.signer).apply { boundAccount = entry?.account }
+        accountEntry = entry
+        entry?.hint?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
+        nav.go(entry?.route ?: if (requested == Purpose.Onboarding) Routes.Terms else Routes.Phone)
     }
 
     /** Back to the one review screen, replacing an older copy of it in the back stack. */
@@ -290,6 +334,7 @@ fun VeriClueApp() {
         camera.deleteVideo()
         recorder.stop()
         live.reset()
+        accountEntry = null
         idFront = null
         idBack = null
         cccd = null
@@ -411,9 +456,9 @@ fun VeriClueApp() {
         }
         composable(Routes.Auth) {
             AuthScreen(
-                onRegister = { flow.purpose = Purpose.Onboarding; nav.go(Routes.Terms) },
-                onLogin = { flow.purpose = Purpose.Reauth; nav.go(Routes.Phone) },
-                onRecover = { flow.purpose = Purpose.Recovery; nav.go(Routes.Phone) },
+                onRegister = { enterAccount(Purpose.Onboarding) },
+                onLogin = { enterAccount(Purpose.Reauth) },
+                onRecover = { enterAccount(Purpose.Recovery) },
             )
         }
         // Terms and consent on one screen; no intro or permission screen (short flow, 24/10).
@@ -698,23 +743,24 @@ fun VeriClueApp() {
                 LaunchedEffect(Unit) {
                     val wav = live.pendingWav
                     // A retry comes back here; LiveFlow resends only what the server has not received.
-                    follow(
-                        submitWithVideo(camera.finishedVideo()) { video ->
-                            if (wav != null) {
-                                live.submitVoice(wav, video, live.audioOffsetMs, onAccepted = camera::deleteVideo)
-                            } else {
-                                val probe = withContext(Dispatchers.IO) { camera.camProbe() }
-                                live.submitFace(
-                                    video,
-                                    camera.frameTimes(),
-                                    camera.clientQuality(video),
-                                    probe,
-                                    camera.regionMeans().ifEmpty { null },
-                                    onMediaAcked = camera::deleteVideo,
-                                )
-                            }
-                        },
-                    )
+                    val next = submitWithVideo(camera.finishedVideo()) { video ->
+                        if (wav != null) {
+                            live.submitVoice(wav, video, live.audioOffsetMs, onAccepted = camera::deleteVideo)
+                        } else {
+                            val probe = withContext(Dispatchers.IO) { camera.camProbe() }
+                            live.submitFace(
+                                video,
+                                camera.frameTimes(),
+                                camera.clientQuality(video),
+                                probe,
+                                camera.regionMeans().ifEmpty { null },
+                                onMediaAcked = camera::deleteVideo,
+                            )
+                        }
+                    }
+                    // Finish account persistence while Uploading still owns the coroutine.
+                    // Success automatically advances; its destination must not own this work.
+                    follow(accountEntry?.let { accountFlow.finish(it, live, next) } ?: next)
                 }
             }
             Messages.Uploading(onStop = exit, onDone = { nav.go(Routes.Checking) }, auto = !flow.live)

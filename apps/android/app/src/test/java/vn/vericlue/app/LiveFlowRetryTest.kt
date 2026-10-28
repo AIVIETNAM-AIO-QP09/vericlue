@@ -58,6 +58,7 @@ class LiveFlowRetryTest {
     // No silent OkHttp retry: a dropped connection must reach LiveFlow as a network error.
     private fun newFlow(s: MockWebServer) = LiveFlow(
         SessionApi(s.url("/").toString(), OkHttpClient.Builder().retryOnConnectionFailure(false).build()),
+        mediaSigner = null, // Compatibility fixtures exercise unsigned sessions in either build.
     )
 
     private fun json(body: String, code: Int = 200) = MockResponse().setResponseCode(code).setBody(body)

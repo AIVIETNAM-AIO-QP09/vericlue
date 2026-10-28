@@ -205,7 +205,7 @@ data class ChallengeResponse(
 data class ErrorResponse(@SerialName("error_code") val errorCode: String, val message: String)
 
 /** Why a call failed. Each maps to an error screen; none of them is ever a pass. */
-enum class ApiError { Network, Unauthorized, Conflict, Expired, Busy, BadResponse, Server }
+enum class ApiError { Network, Unauthorized, Conflict, RecoveryRequired, Expired, Busy, BadResponse, Server }
 
 sealed interface ApiResult<out T> {
     data class Ok<T>(val value: T) : ApiResult<T>
@@ -320,7 +320,7 @@ class SessionApi(
                 val text = res.body?.string().orEmpty()
                 if (!res.isSuccessful) {
                     val code = runCatching { json.decodeFromString(ErrorResponse.serializer(), text).errorCode }.getOrNull()
-                    return@withContext ApiResult.Err(errorFor(res.code), code)
+                    return@withContext ApiResult.Err(errorFor(res.code, code), code)
                 }
                 ApiResult.Ok(json.decodeFromString<T>(text))
             }
@@ -339,9 +339,9 @@ class SessionApi(
         private val MP4 = "video/mp4".toMediaType()
         private val WAV = "audio/wav".toMediaType()
 
-        fun errorFor(httpCode: Int): ApiError = when (httpCode) {
+        fun errorFor(httpCode: Int, code: String? = null): ApiError = when (httpCode) {
             401 -> ApiError.Unauthorized
-            409 -> ApiError.Conflict
+            409 -> if (code == "recovery_required") ApiError.RecoveryRequired else ApiError.Conflict
             410 -> ApiError.Expired
             503 -> ApiError.Busy
             in 400..499 -> ApiError.BadResponse

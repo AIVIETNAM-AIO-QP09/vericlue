@@ -252,7 +252,11 @@ cứng. Xem `media-proof.md` và `account-authentication.md`.
 - [x] So ảnh Paparazzi cho 10 màn yêu cầu ở cả sáng/tối; test tương phản (kể cả lúc nút chuyển màu), giảm chuyển động và `CitizenCopyTest`.
 - [x] Áp hướng A · Tối giản ấm: nền trắng ngà, pill navy, Canvas CCCD, nội dung không đóng hộp, tấm đáy/số tài khoản mẫu; so ảnh sáng/tối và A1–A3 với thiết kế.
 - [x] Tạo phiên và nhận kết quả từ API thật trên điện thoại thật. (27/10, Galaxy S24 FE, API mock qua `adb reverse`; bàn giao `2026-10-27-2000-app-01`)
-- [ ] CI không bắt buộc build Android ở bước này; ghi rõ trong PR.
+- [x] CI chạy unit test và build Android. Kiểm thêm tại máy với `signedMedia=true`.
+- [x] Client lưu receipt cùng alias Keystore; nhận receipt sau finalize không giọng;
+  đăng nhập lại mở đúng khóa đã lưu; khôi phục tạo khóa mới và chỉ xóa khóa cũ sau
+  ghi bền. Test hồi quy HTTP 409/503, mất khóa, hết hạn và lỗi lưu; chưa nghiệm thu
+  tài khoản trên điện thoại thật vì server còn chặn sinh trắc account-bound (FLOW-05/SEC-02).
 
 ---
 
