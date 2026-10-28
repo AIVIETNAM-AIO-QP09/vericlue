@@ -86,7 +86,18 @@ def authorize(client, body, headers, request, key):
     )
     assert response.status_code == 200, response.text
     validate(response.json(), "credential", "CredentialAuthorization")
-    signature = signed(key, base64.b64decode(response.json()["message"]))
+    message = base64.b64decode(response.json()["message"])
+    context = json.loads(message)
+    # Producer must match the holder's compiled contract and exact-byte signing profile.
+    validate(context, "credential", "CredentialAuthorizationContext")
+    assert message == json.dumps(context, sort_keys=True, separators=(",", ":")).encode()
+    assert context["session_id"] == body["session_id"]
+    assert context["expires_at"] == response.json()["expires_at"]
+    assert (
+        context["offer_sha256"]
+        == hashlib.sha256(base64.urlsafe_b64decode(request["commitment"] + "=")).hexdigest()
+    )
+    signature = signed(key, message)
     return {**request, "device_signature": signature}
 
 

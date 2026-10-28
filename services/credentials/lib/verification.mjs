@@ -12,36 +12,18 @@ import {
   CHALLENGE_TTL,
 } from './profile.mjs';
 
-export const VERIFICATION_PROTOCOL = 'vericlue-private-verification-v1';
-export const VERIFICATION_HEADER = encoded([VERIFICATION_PROTOCOL, 'bbs-nym', 'server-decision']);
-const NAMES = Object.freeze([
-  'protocol',
-  'issuer',
-  'assurance',
-  'verification_completed',
-  'valid_from',
-  'valid_until',
-  'policy_version',
-  'source_result_id',
-  'account_id',
-  'device_id',
-  'source_purpose',
-]);
-const REVEAL = Object.freeze([0, 1, 2, 3, 4, 5, 6]);
-const messages = (c) => NAMES.map((n) => encoded([n, c[n]]));
+import {
+  VERIFICATION_PROTOCOL,
+  VERIFICATION_HEADER,
+  NAMES,
+  REVEAL,
+  messages,
+  context,
+  validity,
+} from './verification-profile.mjs';
+export {VERIFICATION_PROTOCOL, VERIFICATION_HEADER} from './verification-profile.mjs';
 const scalar = (b) => BigInt(`0x${Buffer.from(b).toString('hex')}`);
 const kid = (key) => createHash('sha256').update(key).digest('hex');
-const context = (q) =>
-  encoded([VERIFICATION_PROTOCOL, q.audience, q.id, q.nonce, q.policy, q.issued_at, q.expires_at]);
-
-function validity(c) {
-  return (
-    c.valid_from % 10 === 0 &&
-    c.valid_until % 10 === 0 &&
-    c.valid_until > c.valid_from &&
-    c.valid_until - c.valid_from <= 60
-  );
-}
 
 export async function issueVerification(keys, offer, claims) {
   check('Offer', offer);

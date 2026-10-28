@@ -9,6 +9,11 @@
 | `@digitalbazaar/bbs-signatures` 3.1.0 | BSD-3-Clause | Primitive BBS/blind/pseudonym; adapter import API nội bộ đã pin, không sửa code upstream | LIVE-05 |
 | `@noble/curves` 2.4.0, `@noble/hashes` 2.4.0 | MIT | Phụ thuộc BBS theo lockfile | LIVE-05 |
 | `ajv` 8.20.0 | MIT | Kiểm JSON Schema ở từng vai trò | LIVE-05 |
+| `esbuild` 0.28.2 | MIT | Công cụ build SDK trình duyệt; khóa bằng package-lock | LIVE-05 |
+
+Bundle holder dùng adapter Web Crypto nguyên bản của BBS, không chép primitive.
+`npm run build:holder` xuất đầy đủ license BBS, noble, AJV và esbuild vào
+`dist/LICENSES.txt`; khi phân phối phải kèm file này với `dist/holder.mjs`.
 
 Vector public `packages/contracts/test-vectors/bbs-nym-public-v1.json` trích các
 input xác minh của fixture Digital Bazaar (BSD-3-Clause), pin source/revision và

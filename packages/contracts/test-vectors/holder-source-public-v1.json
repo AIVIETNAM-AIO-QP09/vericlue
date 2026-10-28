@@ -1,0 +1,26 @@
+{
+  "kind": "synthetic public conformance vector, not a biometric result",
+  "generator": "vericlue_api.core.signing.ResultSigner",
+  "generator_commit": "b97112cf92329717680e5b258a7108a063b1104c",
+  "now": 1793145600,
+  "expected": {
+    "issuer": "https://vericlue.example",
+    "audience": "demo-integrator",
+    "session_id": "ses_holder_vector",
+    "nonce": "synthetic_holder_nonce_123456",
+    "purpose": "reauth",
+    "account_id": "acct_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "device_id": "dev_cccccccccccccccccccccccccccccccc"
+  },
+  "result_key": {
+    "algorithm": "Ed25519",
+    "key_id": "27effa8c4af6221a837f8cd67998161de3043bffe774b75a465b34e6f84a6921",
+    "public_key_spki": "MCowBQYDK2VwAyEAmw/AImOHdxVk627i0ot59o2Wu5tZnoHa27HNcmHCZ84="
+  },
+  "result": {
+    "algorithm": "Ed25519",
+    "key_id": "27effa8c4af6221a837f8cd67998161de3043bffe774b75a465b34e6f84a6921",
+    "payload": "eyJhY2NvdW50X2lkIjoiYWNjdF9iYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYiIsImF1ZGllbmNlIjoiZGVtby1pbnRlZ3JhdG9yIiwiZGV2aWNlX2lkIjoiZGV2X2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjIiwiZXhwaXJlc19hdCI6MTc5MzE0NTY2MCwiaXNzdWVkX2F0IjoxNzkzMTQ1NjAwLCJpc3N1ZXIiOiJodHRwczovL3ZlcmljbHVlLmV4YW1wbGUiLCJub25jZSI6InN5bnRoZXRpY19ob2xkZXJfbm9uY2VfMTIzNDU2IiwicHVycG9zZSI6InJlYXV0aCIsInJlc3VsdF9pZCI6InJlc19kZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkIiwic2Vzc2lvbl9pZCI6InNlc19ob2xkZXJfdmVjdG9yIiwic3RhdHVzIjoicGFzcyIsInZlcnNpb24iOjF9",
+    "signature": "dTp9xNWcOPkA1wNyYA-qCOAvxvIziMjtVKArFWaRPnUDam859r7tm19kQDxuN3Vx5eiqyZxrkXAioEViLbF6CQ"
+  }
+}

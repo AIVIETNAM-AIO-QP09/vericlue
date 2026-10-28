@@ -84,6 +84,11 @@ Sau PR #99 thêm [vòng đời issuer key](private-credential-keys.md): public r
 DB opt-in, staging/active/grace/revocation và công cụ operator. Không có HTTP
 quản trị key; giữ khóa tin cậy xuyên suốt cấp/kiểm để phối hợp thu hồi.
 
+Sau PR #100 thêm [SDK holder trình duyệt](private-credential-holder.md), không UI:
+kiểm chữ ký nguồn/context, consent trước commitment, đối chiếu byte trước khi ký
+P-256 và tạo BBS proof theo origin đã đồng ý. Secret chỉ RAM; Chromium kiểm bằng
+crypto thật. Chưa nối màn consent/Android hoặc nghiệm thu pass sinh trắc thật.
+
 FLOW-05 thêm hook ghi danh onboarding opt-in `ACCOUNT_ENROLLMENT`: trích mẫu qua
 worker/hàng đợi `face_match` đã nạp, giữ lease tới khi native xong, ghi mẫu mã hóa
 trong cùng transaction với quyết định. Vector không vào ModuleResult/snapshot/HTTP;

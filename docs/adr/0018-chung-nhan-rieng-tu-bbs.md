@@ -77,6 +77,18 @@ pin đã tin, không nhận public key hoặc claim client. Không đổi header
 không thêm status ID cá nhân. Đây là thu hồi theo key, không thu hồi riêng từng
 credential. Chi tiết: [vòng đời khóa](../architecture/private-credential-keys.md).
 
+## Bổ sung 28/10 — SDK holder trình duyệt sau PR #100
+
+Build browser ESM từ BBS đã pin với adapter Web Crypto upstream; AJV biên dịch
+trước từ schema. Wallet kiểm nguồn Ed25519 và context ứng dụng, yêu cầu consent
+trước commitment/presentation, so đúng authorization trước khi gọi khóa thiết bị
+P-256, kiểm blind signature và giới hạn audience/hạn. Secret chỉ RAM, logout
+loại kết quả thao tác đang chạy. Không gọi non-extractable là khóa phần cứng.
+SDK không có UI/HTTP/persistence; boolean consent chưa chứng minh ý chí người dùng.
+Kiểm Chromium thực với nguồn tổng hợp Python ký và issuer/verifier Node thật,
+chưa có browser–FastAPI xuyên suốt hoặc Android. Không mở chốt sinh trắc thật.
+Chi tiết: [SDK holder](../architecture/private-credential-holder.md).
+
 ## Nguồn
 
 - [W3C BBS, bản 10/09/2026](https://www.w3.org/TR/2026/CRD-vc-di-bbs-20260910/).

@@ -556,7 +556,11 @@ không nhận là range proof hoặc W3C VC hoàn chỉnh. Xem README package v�
 - [x] API opt-in cấp từ cổng quyết định server đã commit, khóa thiết bị ký consent
       cho commitment, cache mã hóa/unique session/rollback/retry; Node BBS thật và
       holder SDK profile riêng, không thêm tuổi hoặc mở chốt sinh trắc thật.
-- [ ] Ví/UI consent và client ký đúng context.
+- [x] SDK ví RAM trình duyệt: kiểm Ed25519/context/pins, consent bắt buộc, đối chiếu
+      byte trước ký P-256, kiểm credential và BBS proof theo origin. Chromium thực
+      kiểm tương thích Python-signature/Node-issuer/verifier, chưa là HTTP xuyên suốt.
+- [ ] Màn consent và tích hợp UI/Android với khóa thiết bị đã ghi danh; nghiệm thu
+      browser–FastAPI xuyên suốt. SDK headless không thay được đồng ý của người dùng.
 - [x] HTTP verifier dùng nonce DB qua nhiều worker/restart, origin theo credential
       tích hợp riêng, worker chỉ có public pin; hạn kiểm trước/sau crypto và commit
       trước response. PostgreSQL khóa hàng/advisory quota, SQLite BEGIN IMMEDIATE.
@@ -569,6 +573,7 @@ không nhận là range proof hoặc W3C VC hoàn chỉnh. Xem README package v�
 Chi tiết lát cắt API: `docs/architecture/private-credential-issuance.md`.
 API kiểm proof: `docs/architecture/private-credential-verifier.md`.
 Vòng đời khóa: `docs/architecture/private-credential-keys.md`.
+SDK holder không UI: `docs/architecture/private-credential-holder.md`.
 
 ---
 

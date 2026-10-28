@@ -1,6 +1,7 @@
 import js from '@eslint/js';
 
 export default [
+  {ignores: ['dist/**', 'tmp/**']},
   js.configs.recommended,
   {
     files: ['**/*.mjs'],
@@ -17,6 +18,9 @@ export default [
           'TextDecoder',
           'structuredClone',
           'Uint8Array',
+          'btoa',
+          'atob',
+          'setTimeout',
         ].map((name) => [name, 'readonly']),
       ),
     },
