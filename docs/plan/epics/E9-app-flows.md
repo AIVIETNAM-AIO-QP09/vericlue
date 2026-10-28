@@ -170,6 +170,23 @@ chân dung tham chiếu đã cắt do server quản lý. Xem
 
 ---
 
+### FLOW-06 · Rà workflow mobile và bàn giao tích hợp riêng tư
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M5 | 0,5 | S2 | P0 | PLAT-05 |
+
+**Mục tiêu:** theo yêu cầu sau merge PR #105, đối chiếu ba luồng với main,
+trình bày phương án giảm thao tác và xác định việc cần nối ở app. Đây là bước
+chuẩn bị để nhóm thống nhất workflow, không tự thay UI hoặc mở guard sinh trắc.
+
+**Đầu ra:** `docs/architecture/project-workflow.md` và tài liệu bàn giao app.
+
+- [x] Phân biệt rõ code hiện tại, đề xuất rút gọn và đường thật chưa nghiệm thu.
+- [x] Ba luồng nêu việc người dùng/hệ thống làm, tham chiếu danh tính và lúc cần giọng.
+- [x] Ghi thứ tự consent/API, rút lại, hết hạn, retry và phạm vi xóa; không tự gán quyền từ checkbox tùy chọn chưa có contract.
+- [x] Có danh sách quyết định cần nhóm chốt, điểm nối app và checklist kiểm thử; không sửa UI/schema/ADR/ngưỡng.
+
 ### SEC-01 · Riêng tư: khóa theo phiên, che dữ liệu, nhật ký truy cập
 
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |

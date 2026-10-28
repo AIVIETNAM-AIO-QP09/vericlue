@@ -5,6 +5,11 @@ AUD-01…14, chia subagent và kiểm chứng trên dữ liệu tổng hợp. Kh
 trắc, không sửa ngưỡng AI, không tự nhập/xóa dữ liệu đang triển khai. Không sửa UI
 đang do nhóm app phụ trách. Chỉ trưởng nhóm cập nhật STATUS.md.
 
+Sau merge PR #105 (`54acaad`), SEC-03/04/05/06/08 hoàn tất tiêu chí code trong
+task card; CI nguồn `228be37` đạt 8 checks, Python/PostgreSQL 4448 passed,
+61 skipped. `done` của các task này không bao gồm nghiệm thu app/OTP thật,
+triển khai/backup hoặc bản vá web còn ở SEC-07.
+
 ### SEC-03 · Kiểm quyền trước parser và giới hạn multipart
 
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
@@ -107,3 +112,27 @@ công cụ trên kho thật trong task này; chỉ dùng dữ liệu tổng hợ
 - [x] Rewrap thành công đọc bằng khóa mới; sai khóa/lỗi DB rollback toàn bộ.
 - [x] Runbook nêu việc cập nhật cấu hình, backup/restore, ACL và ranh giới xóa.
 - [x] Có test và bàn giao, không sửa UI/schema/ngưỡng.
+
+### SEC-09 · Nối consent lưu mẫu và logic riêng tư vào app [contract]
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M5 | 1 | S2 | P0 | SEC-06, FLOW-06 |
+
+**Mục tiêu:** triển khai bước tiếp theo sau khi nhóm thống nhất workflow FLOW-06.
+D1 đã chọn: đăng ký tài khoản cần lựa chọn chủ động cho lưu mẫu mã hóa; từ chối
+thì dừng tạo tài khoản. Không thêm chế độ xác minh một lần trong đợt này.
+
+**Phạm vi hợp đồng được giao:** bổ sung biên nhận/mục đích lưu mẫu và điều kiện
+ghi danh phù hợp vào `packages/contracts/` trước code, đồng bộ API/type/SDK và
+client Android; iOS nhận cùng hợp đồng khi các nhánh được tích hợp. Phân biệt
+quyền xử lý trong phiên với dữ liệu tài khoản và phạm vi rút lại/xóa, không tự
+coi category hiện có là đã bao gồm lưu mẫu dài hạn. Không mở guard sinh trắc.
+
+- [ ] Server chỉ ghi danh khi có lựa chọn lưu mẫu đúng phiên bản/phạm vi; không dùng cờ cấu hình thay biên nhận.
+- [ ] Client có model/method privacy, lựa chọn theo phiên và logic ghi trước thu dữ liệu, refresh bearer, policy đổi và từ chối; không auto-grant.
+- [ ] Rút lại dừng capture/upload mới, giữ trạng thái chưa xác nhận khi lỗi mạng và tôn trọng receipt/phạm vi xóa.
+- [ ] Có test contract/server/client và checklist nối UI/máy thật; không lặng lẽ triển khai thay đổi điều hướng D2/D3 chưa thống nhất.
+
+Điểm nối cụ thể và ca cần nghiệm thu:
+[`mobile-privacy-integration.md`](../../architecture/mobile-privacy-integration.md).
