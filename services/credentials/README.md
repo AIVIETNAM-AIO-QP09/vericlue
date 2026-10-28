@@ -1,5 +1,10 @@
 # Chứng nhận riêng tư — LIVE-05
 
+Sau PR #101 có `createVerificationSession` điều phối authorization/cấp qua callback,
+giữ nguyên yêu cầu khi thử lại, timeout/cancel và bỏ phản hồi đến muộn. Có kiểm
+Chromium → HTTP FastAPI → worker BBS thật cho reauth/recovery bằng fixture nguồn
+tổng hợp; không có UI, Android hoặc nghiệm thu sinh trắc. Xem hướng dẫn SDK bên dưới.
+
 Sau PR #100 có SDK holder trình duyệt không UI: kiểm nguồn Ed25519 và context
 trước khi ký P-256, ví RAM và BBS proof theo consent/origin. Build bằng
 `npm run build:holder`; kiểm Chromium bằng `npm run test:holder` (cần Playwright

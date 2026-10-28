@@ -106,3 +106,31 @@ export function createVerificationWallet(options: {
   /** Unix seconds; omit in applications. Injectable for deterministic conformance tests. */
   clock?: () => number;
 }): Promise<VerificationWallet>;
+
+export interface CredentialTransport {
+  authorize(
+    body: CredentialOfferRequest,
+    options: {signal: AbortSignal},
+  ): Promise<CredentialAuthorization>;
+  issue(
+    body: CredentialIssueRequest,
+    options: {signal: AbortSignal},
+  ): Promise<VerificationCredential>;
+}
+export interface VerificationSession {
+  metadata(): WalletMetadata;
+  issue(options: {consent: true}): Promise<WalletMetadata>;
+  present(
+    challenge: VerificationChallenge,
+    options: {audience: string; consent: true},
+  ): Promise<VerificationPresentation>;
+  destroy(): void;
+}
+export function createVerificationSession(
+  options: Parameters<typeof createVerificationWallet>[0] & {
+    transport: CredentialTransport;
+    signDevice: DeviceSigner;
+    /** Per HTTP callback, 1–15000 ms; default 10000. A retry keeps the same body. */
+    requestTimeoutMs?: number;
+  },
+): Promise<VerificationSession>;
