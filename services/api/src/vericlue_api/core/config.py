@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     _mock_session_key: bytes = PrivateAttr(default_factory=lambda: secrets.token_bytes(32))
 
     app_name: str = "VeriClue API"
+    # Synthetic stays compatible with labs; protected must pass startup checks.
+    security_profile: Literal["synthetic", "protected"] = "synthetic"
+    product_mode: Literal["ekyc", "tools"] = "tools"
+    require_privacy_consent: bool = False
+    privacy_policy_version: str = Field(default="demo-v1", pattern=r"^[A-Za-z0-9._-]{1,64}$")
     api_cors_origins: str = "http://localhost:3000"
     use_mock_models: bool | Literal["mixed"] = True  # mixed: module có mô hình thật dùng thật
     router_profile: Literal["full", "mvp"] = "full"
@@ -65,6 +70,7 @@ class Settings(BaseSettings):
     media_ttl_pass_hours: int = Field(default=24, gt=0)
     media_ttl_review_days: int = Field(default=30, gt=0)
     media_ttl_incomplete_hours: int = Field(default=24, gt=0)
+    media_ttl_unverified_hours: int = Field(default=24, gt=0)
     forensic_ttl_days: int | None = Field(default=None, gt=0)
     media_cleanup_interval_seconds: float = Field(default=300, gt=0)
     # Opt-in encrypted session storage. A random base64-encoded 32-byte master key
@@ -205,6 +211,8 @@ class Settings(BaseSettings):
 
     max_retries: int = Field(default=2, ge=0, le=2)
     max_upload_mb: int = Field(default=50, ge=1)
+    max_id_card_scans: int = Field(default=5, ge=1, le=20)
+    max_id_card_total_mb: int = Field(default=128, ge=1, le=512)
     # Total HTTP body, including all files and multipart framing (PLAT-06).
     max_request_mb: int = Field(default=128, ge=1)
     session_create_limit: int = Field(default=3, ge=1, le=1000)

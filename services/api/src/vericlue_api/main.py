@@ -17,6 +17,7 @@ from vericlue_api.core.config import get_settings
 from vericlue_api.core.credential_access import authenticate_verifier, is_verifier_path
 from vericlue_api.core.errors import install_error_handlers
 from vericlue_api.core.request_limits import RequestLimitsMiddleware
+from vericlue_api.core.security_profile import validate_security_profile
 from vericlue_api.core.staff_access import authenticate_staff, is_staff_path
 from vericlue_api.core.state import ApplicationState
 from vericlue_api.routers import credentials, forensic, health, review, sessions
@@ -56,6 +57,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    validate_security_profile(settings)
     app = FastAPI(title=settings.app_name, version=__version__, lifespan=lifespan)
     app.add_middleware(RequestLimitsMiddleware, settings=settings)
     install_error_handlers(app)

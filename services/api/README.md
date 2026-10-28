@@ -1,5 +1,10 @@
 # services/api — Máy chủ API (FastAPI)
 
+SEC-05 có profile `synthetic|protected` kiểm trước khi nhận request, khóa nền
+độc lập, bắt buộc privacy/ký media trong protected và preflight chỉ xuất trạng
+thái an toàn. Kênh OTP hiện chỉ mô phỏng; real/mixed/protected chưa có SMS thật
+phải đóng. Xem [profile bảo vệ dữ liệu](../../docs/runbooks/protected-profile.md).
+
 Image API bổ sung runtime BBS/Node, holder bundle và CLI preflight; kích hoạt qua
 overlay riêng, khóa host mount read-only. Hướng dẫn và giới hạn nghiệm thu:
 [chạy BBS](../../docs/runbooks/bbs-demo.md). Không tự mở luồng sinh trắc thật.
