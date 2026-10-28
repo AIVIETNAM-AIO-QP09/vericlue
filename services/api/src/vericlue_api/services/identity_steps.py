@@ -23,10 +23,13 @@ from vericlue_api.schemas.session import (
     OtpSent,
     OtpVerifyResponse,
 )
+from vericlue_api.services.file_changes import file_changes
 from vericlue_api.services.identity_runtime import IdentityRuntime
 from vericlue_api.services.session_privacy import SessionPrivacy
 from vericlue_api.services.session_store import Session
 from vericlue_api.services.storage import save_upload
+from vericlue_api.services.upload_images import prepare_image
+from vericlue_api.services.upload_quota import reserve_media
 from vericlue_ml.common.result import Module
 
 
@@ -121,9 +124,28 @@ class IdentitySteps:
         back_filename: str | None = None,
     ) -> IdCardResponse:
         self.ensure_card_upload_allowed(session)
-        response = self._scan_images(session, front, back, client_qr)
+        if session.id_scan_count >= self.settings.max_id_card_scans:
+            raise ApiError(
+                409, "id_card_scan_limit", "Đã quét lại nhiều lần. Vui lòng bắt đầu phiên mới."
+            )
+        incoming_bytes = len(front) + len(back)
+        limit = self.settings.max_id_card_total_mb * 1024 * 1024
+        if session.id_scan_bytes + incoming_bytes > limit:
+            raise ApiError(
+                413, "id_card_quota_exceeded", "Dữ liệu ảnh thẻ vượt giới hạn của phiên."
+            )
+        prepared_front, prepared_back = prepare_image(front), prepare_image(back)
+        accounted_bytes = incoming_bytes + len(prepared_front.data) + len(prepared_back.data)
+        if session.id_scan_bytes + accounted_bytes > limit:
+            raise ApiError(
+                413, "id_card_quota_exceeded", "Dữ liệu ảnh thẻ vượt giới hạn của phiên."
+            )
+        reserve_media(session, self.settings, accounted_bytes)
+        response = self._scan_images(session, prepared_front.data, prepared_back.data, client_qr)
+        changes = file_changes(self.privacy.db, self.settings.media_dir) if self.privacy else None
+        previous = [session.id_front, session.id_back]
         # Never overwrite a committed reference: DB rollback cannot undo file writes.
-        # Unreferenced files from a failed write/commit are left to the session TTL cleanup.
+        # Transaction callbacks remove failed writes; TTL is fallback for OS failures/crashes.
         scan_id = secrets.token_hex(16)
         front_path = save_upload(
             self.settings.media_dir,
@@ -132,6 +154,9 @@ class IdentitySteps:
             front_filename,
             front,
             privacy=self.privacy,
+            image_role=True,
+            prepared_image=prepared_front,
+            changes=changes,
         )
         back_path = save_upload(
             self.settings.media_dir,
@@ -140,8 +165,15 @@ class IdentitySteps:
             back_filename,
             back,
             privacy=self.privacy,
+            image_role=True,
+            prepared_image=prepared_back,
+            changes=changes,
         )
         session.id_front, session.id_back = front_path, back_path
+        session.id_scan_count += 1
+        session.id_scan_bytes += accounted_bytes
+        if changes is not None:
+            changes.replace(previous)
         return response
 
     def _scan_images(

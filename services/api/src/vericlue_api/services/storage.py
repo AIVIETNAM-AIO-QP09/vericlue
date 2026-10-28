@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import io
 import json
 import logging
 import re
+import secrets
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -13,7 +13,6 @@ from pathlib import Path
 from sqlalchemy import and_, or_, select
 
 from vericlue_api.core.config import Settings
-from vericlue_api.core.errors import ApiError
 from vericlue_api.db.database import Database
 from vericlue_api.db.models import (
     CleanupAuditRow,
@@ -24,7 +23,9 @@ from vericlue_api.db.models import (
     utcnow,
 )
 from vericlue_api.services.accounts import AccountStore
+from vericlue_api.services.file_changes import FileChanges
 from vericlue_api.services.session_privacy import SessionPrivacy
+from vericlue_api.services.upload_images import PreparedImage, prepare_image
 
 logger = logging.getLogger(__name__)
 ALLOWED_SUFFIXES = frozenset(
@@ -69,39 +70,23 @@ def save_upload(
     data: bytes,
     *,
     privacy: SessionPrivacy | None = None,
+    image_role: bool = False,
+    prepared_image: PreparedImage | None = None,
+    changes: FileChanges | None = None,
 ) -> Path:
-    """Giữ đuôi trong whitelist; tên gốc chỉ dùng như metadata, không làm đường dẫn."""
+    """Save server-named bytes; image roles use content validation in every mode."""
     suffix = Path(filename or "").suffix.lower()
+    if image_role:
+        prepared_image = prepared_image or prepare_image(data)
+        data, suffix = prepared_image.data, prepared_image.suffix
+    if changes is not None:
+        stem += "_" + secrets.token_hex(16)
     name = stem + (suffix if suffix in ALLOWED_SUFFIXES else ".bin")
     if privacy is not None:
-        if privacy.enabled and suffix in {".jpg", ".jpeg", ".png", ".webp"}:
-            data = _strip_image_metadata(data, suffix)
         data = privacy.seal_media(folder, name, data)
+    if changes is not None:
+        changes.track(_folder(media_dir, folder) / name)
     return save_generated(media_dir, folder, name, data)
-
-
-def _strip_image_metadata(data: bytes, suffix: str) -> bytes:
-    from PIL import Image, ImageOps
-
-    try:
-        with Image.open(io.BytesIO(data)) as source:
-            if (
-                source.format not in {"JPEG", "PNG", "WEBP"}
-                or getattr(source, "n_frames", 1) != 1
-                or max(source.size) > 4096
-                or source.width * source.height > 16_000_000
-            ):
-                raise ValueError("Invalid image bounds")
-            image = ImageOps.exif_transpose(source).convert("RGB")
-            image.info.clear()
-            output = io.BytesIO()
-            image.save(
-                output,
-                format={".jpg": "JPEG", ".jpeg": "JPEG", ".png": "PNG", ".webp": "WEBP"}[suffix],
-            )
-            return output.getvalue()
-    except Exception as exc:
-        raise ApiError(422, "invalid_image", "Ảnh không đọc được. Vui lòng chụp lại.") from exc
 
 
 def _delete_folder(folder: Path, root: Path, on_deleted: Callable[[str], None]) -> None:

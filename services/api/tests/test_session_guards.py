@@ -11,6 +11,7 @@ import pytest
 from conftest import start_session
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
+from synthetic_images import synthetic_image
 
 from vericlue_api.core.config import Settings
 from vericlue_api.core.errors import ApiError
@@ -19,7 +20,7 @@ from vericlue_api.db.models import DecisionRow, SessionRow
 from vericlue_api.main import create_app
 from vericlue_api.services import session_flow
 
-IMAGE = {"image": ("face.jpg", b"first image", "image/jpeg")}
+IMAGE = {"image": ("face.jpg", synthetic_image(b"first image"), "image/jpeg")}
 AUDIO = {"audio": ("voice.wav", b"first audio", "audio/wav")}
 SIGNALS = {"color_events": [], "frame_times": []}
 
@@ -155,7 +156,7 @@ def test_replayed_media_and_signals_do_not_replace_accepted_data(client):
     again = client.post(
         endpoint(created, "media"),
         headers=auth,
-        files={"image": ("face.jpg", b"replacement", "image/jpeg")},
+        files={"image": ("face.jpg", synthetic_image(b"replacement"), "image/jpeg")},
     )
     assert again.status_code == 409
     assert again.json()["error_code"] == "step_already_received"
@@ -170,7 +171,7 @@ def test_replayed_media_and_signals_do_not_replace_accepted_data(client):
     )
     with client.app.state.vericlue.transaction() as state:
         session = state.sessions.get(created["session_id"])
-        assert session.images[0].read_bytes() == b"first image"
+        assert session.images[0].read_bytes() == IMAGE["image"][1]
         assert session.signals == SIGNALS
 
 

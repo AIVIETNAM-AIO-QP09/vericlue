@@ -10,6 +10,7 @@ from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
+from synthetic_images import synthetic_image
 
 from vericlue_api.core.config import get_settings
 from vericlue_api.db.database import Database
@@ -63,7 +64,7 @@ def test_locked_session_returns_storage_busy_without_mutation(locked_request_pos
             client.post(
                 f"/v1/sessions/{sid}/media",
                 headers=auth,
-                files={"image": ("face.jpg", b"synthetic-face", "image/jpeg")},
+                files={"image": ("face.jpg", synthetic_image(b"synthetic-face"), "image/jpeg")},
             ).status_code
             == 200
         )

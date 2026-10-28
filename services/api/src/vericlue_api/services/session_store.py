@@ -65,6 +65,9 @@ class Session:
     id_confirmed_fields: dict | None = None
     id_confirmed_number_hmac: str | None = None
     id_confirmed: bool = False
+    id_scan_count: int = 0
+    id_scan_bytes: int = 0
+    uploaded_media_bytes: int = 0
     purpose: SessionPurpose | None = None
     nonce: str | None = None
     reference_image_id: str | None = None

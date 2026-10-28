@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 from conftest import start_session
+from synthetic_images import synthetic_image
 
 from vericlue_api.core.config import Settings
 from vericlue_api.services.identity_runtime import IdentityRuntime
@@ -13,7 +14,10 @@ from vericlue_ml.face.match import MATCH_VERSION
 from vericlue_ml.router.policy import Decision
 
 QR = "001099012345||Nguyễn Văn An|01011995|Nam|12 Phố Huế|15062021"
-FILES = {"front": ("a.jpg", b"front", "image/jpeg"), "back": ("b.jpg", b"back", "image/jpeg")}
+FILES = {
+    "front": ("a.jpg", synthetic_image(b"front"), "image/jpeg"),
+    "back": ("b.jpg", synthetic_image(b"back"), "image/jpeg"),
+}
 
 
 def enable(client, monkeypatch, payload):
@@ -138,7 +142,7 @@ def test_finalize_does_not_leak_face_score(client, monkeypatch):
     client.post(
         f"/v1/sessions/{sid}/media",
         headers=auth,
-        files={"image": ("face.jpg", b"synthetic", "image/jpeg")},
+        files={"image": ("face.jpg", synthetic_image(b"synthetic"), "image/jpeg")},
     )
     response = client.post(f"/v1/sessions/{sid}/finalize", headers=auth)
     assert response.status_code == 200

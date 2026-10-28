@@ -37,6 +37,7 @@ from vericlue_api.services.dynamic_challenge import (
     new_dynamic_voice_prompt,
     new_voice_prompt,
 )
+from vericlue_api.services.file_changes import file_changes
 from vericlue_api.services.media_proof import (
     bind_key,
     rejected,
@@ -51,6 +52,8 @@ from vericlue_api.services.provisional_decision import (
 from vericlue_api.services.review_store import ReviewStore
 from vericlue_api.services.session_privacy import SessionPrivacy
 from vericlue_api.services.session_store import Session, SessionStore
+from vericlue_api.services.upload_images import prepare_image
+from vericlue_api.services.upload_quota import reserve_media
 from vericlue_api.services.uploads import save_upload
 from vericlue_ml.common.result import Gate, Module, Status
 from vericlue_ml.face.continuity import FACE_VOICE_VERSION
@@ -289,6 +292,10 @@ class SessionFlow:
             files,
             required=self._requires_proof(session),
         )
+        prepared = prepare_image(image)
+        reserve_media(
+            session, self.settings, len(image) + len(prepared.data) + 2 * len(video or b"")
+        )
         session.images = [
             save_upload(
                 self.settings.media_dir,
@@ -297,6 +304,9 @@ class SessionFlow:
                 image_filename,
                 image,
                 privacy=self.privacy,
+                image_role=True,
+                prepared_image=prepared,
+                changes=file_changes(self.sessions.db, self.settings.media_dir),
             )
         ]
         session.video = (
@@ -307,6 +317,7 @@ class SessionFlow:
                 video_filename,
                 video,
                 privacy=self.privacy,
+                changes=file_changes(self.sessions.db, self.settings.media_dir),
             )
             if video is not None
             else None
@@ -338,6 +349,7 @@ class SessionFlow:
             required=self._requires_proof(session),
             audio_offset_ms=audio_offset_ms,
         )
+        reserve_media(session, self.settings, 2 * (len(audio) + len(video or b"")))
         session.audio = save_upload(
             self.settings.media_dir,
             session.session_id,
@@ -345,6 +357,7 @@ class SessionFlow:
             audio_filename,
             audio,
             privacy=self.privacy,
+            changes=file_changes(self.sessions.db, self.settings.media_dir),
         )
         return (
             save_upload(
@@ -354,6 +367,7 @@ class SessionFlow:
                 video_filename,
                 video,
                 privacy=self.privacy,
+                changes=file_changes(self.sessions.db, self.settings.media_dir),
             )
             if video is not None
             else None

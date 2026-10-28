@@ -8,12 +8,13 @@ import pytest
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from sqlalchemy import func, select
+from synthetic_images import synthetic_image
 
 from vericlue_api.core.errors import ApiError
 from vericlue_api.db.models import MediaProofUseRow
 from vericlue_api.services.media_proof import manifest, verify_and_consume
 
-IMAGE = ("face.jpg", b"synthetic image")
+IMAGE = ("face.jpg", synthetic_image(b"synthetic image"))
 VIDEO = ("face.mp4", b"synthetic video")
 AUDIO = ("voice.wav", b"synthetic audio")
 
@@ -328,6 +329,8 @@ def test_storage_failure_rolls_back_nonce_and_allows_exact_signed_retry(client, 
             return send_face(client, created, auth, proof)
 
     original = session_flow.save_upload
+    with client.app.state.vericlue.transaction() as state:
+        budget_before = state.sessions.get(created["session_id"]).uploaded_media_bytes
 
     def fail_storage(*args, **kwargs):
         raise ApiError(503, "storage_unavailable", "Chưa thể lưu bản ghi.")
@@ -348,6 +351,7 @@ def test_storage_failure_rolls_back_nonce_and_allows_exact_signed_retry(client, 
     with root.transaction() as state:
         session = state.sessions.get(created["session_id"])
         assert ("media" if stage == "face" else "voice") not in session.accepted_steps
+        assert session.uploaded_media_bytes == budget_before
     monkeypatch.setattr(session_flow, "save_upload", original)
     assert send().status_code == 200
 

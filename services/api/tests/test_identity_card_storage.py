@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from conftest import start_session
 from sqlalchemy.exc import OperationalError
+from synthetic_images import synthetic_image
 
 from vericlue_api.core.errors import ApiError
 from vericlue_api.services import identity_steps
@@ -13,12 +14,12 @@ from vericlue_ml.common.result import Gate, Module, ModuleResult, Status
 
 QR = "001099012345||Test Person|01011995|Nam|Synthetic Address|15062021"
 FILES = {
-    "front": ("front.jpg", b"original front", "image/jpeg"),
-    "back": ("back.jpg", b"original back", "image/jpeg"),
+    "front": ("front.jpg", synthetic_image(b"original front"), "image/jpeg"),
+    "back": ("back.jpg", synthetic_image(b"original back"), "image/jpeg"),
 }
 REPLACEMENT = {
-    "front": ("front.jpg", b"replacement front", "image/jpeg"),
-    "back": ("back.jpg", b"replacement back", "image/jpeg"),
+    "front": ("front.jpg", synthetic_image(b"replacement front"), "image/jpeg"),
+    "back": ("back.jpg", synthetic_image(b"replacement back"), "image/jpeg"),
 }
 
 
@@ -138,4 +139,4 @@ def test_completed_rescan_uses_new_files_and_invalidates_prior_confirmation(
     for side in ("front", "back"):
         assert after[f"id_{side}"] != before[f"id_{side}"]
         assert after[f"{side}_bytes"] == REPLACEMENT[side][1]
-        assert Path(before[f"id_{side}"]).read_bytes() == FILES[side][1]
+        assert not Path(before[f"id_{side}"]).exists()

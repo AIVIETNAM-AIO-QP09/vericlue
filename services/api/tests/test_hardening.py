@@ -7,13 +7,14 @@ import random
 import pytest
 from conftest import start_session
 from fastapi.testclient import TestClient
+from synthetic_images import synthetic_image
 
 from vericlue_api.core.config import Settings, get_settings
 from vericlue_api.main import create_app
 from vericlue_api.services.challenge import generate_challenge
 
 AUDIO = {"audio": ("voice.wav", b"RIFF", "audio/wav")}
-IMAGE = {"image": ("face.jpg", b"\xff\xd8\xff", "image/jpeg")}
+IMAGE = {"image": ("face.jpg", synthetic_image(b"\xff\xd8\xff"), "image/jpeg")}
 FINALIZE = "/v1/sessions/{sid}/finalize"
 VOICE = "/v1/sessions/{sid}/voice"
 
