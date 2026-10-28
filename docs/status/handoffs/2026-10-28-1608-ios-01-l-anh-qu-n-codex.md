@@ -18,8 +18,14 @@
 - Luật OTP backend tổng số lần sai/phiên được tách commit; hai test Python mới
   chưa có bằng chứng thực thi. Cần chạy trước khi duyệt merge phần backend.
 - Giữ thay đổi Debug API cổng 8001 ở local, loại khỏi commit.
-- GitHub connector trả 404; Git trực tiếp tới upstream không xác thực được
-  (`could not read Username`). Chưa mở PR/đăng review trên GitHub; không tự merge.
+- Đã commit/push upstream: `e7cfa6d` (backend OTP), `737e020` (đồng bộ iOS),
+  nhánh `feat/IOS-02-android-alignment`. Hook commit đạt, Swift sau commit vẫn
+  khớp manifest bản test cuối. Chỉ Debug.xcconfig còn modified local.
+- Lượt Git read ban đầu lỗi xác thực nhưng push sau đó thành công. GitHub
+  connector vẫn trả 404 khi tạo PR; trình duyệt tích hợp chưa đăng nhập nên
+  không truy cập được repo. Chưa mở PR/đăng review trên GitHub; không tự merge.
+- Link tạo PR đúng base:
+  https://github.com/AIVIETNAM-AIO-QP09/vericlue/compare/feat/IOS-06-interruption-retry...feat/IOS-02-android-alignment?expand=1
 - `plan_check.py`: 0 lỗi/10 cảnh báo kế hoạch; chưa cấu hình SwiftLint riêng.
 
 ## Xác nhận thiết bị
@@ -36,8 +42,9 @@ iPhone. Chốt nghiệm thu chặng 5/đồng bộ UI trong phạm vi này. Khô
 hoặc sửa code trong lượt ghi nhận, không tự bổ sung log/số đo/model/iOS của lượt
 này. Kết quả tự động vẫn là bundle cuối 159/159 bên dưới.
 
-Còn duyệt PR, commit/push và review/merge theo quy trình; chưa thực hiện, không
-đánh dấu task done/đã merge. Receipt thật/device proof không thuộc xác nhận A–D.
+Còn tạo PR và peer review/merge theo quy trình; commit/push đã thực hiện như
+cập nhật trên. Không đánh dấu task done/đã merge. Receipt thật/device proof
+không thuộc xác nhận A–D.
 Các dòng “chưa có kết quả iPhone” bên dưới là lịch sử trước xác nhận mới này.
 
 ## Kết luận mới nhất · 28/10/2026 17:23
