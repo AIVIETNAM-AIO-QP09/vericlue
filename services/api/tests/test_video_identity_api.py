@@ -3,6 +3,7 @@
 import numpy as np
 import pytest
 from fastapi.testclient import TestClient
+from synthetic_images import synthetic_image
 from test_dynamic_flows import create
 
 from vericlue_api.core.config import get_settings
@@ -89,7 +90,7 @@ def test_api_uses_bound_video_frame_even_when_uploaded_still_is_not_an_image(mon
                 headers=auth,
                 data={"challenge_id": cid},
                 files={
-                    "image": ("forged.jpg", b"not an image", "image/jpeg"),
+                    "image": ("forged.jpg", synthetic_image(b"not an image"), "image/jpeg"),
                     "video": ("video.mp4", b"\0\0\0\x18ftyp" + b"0" * 16, "video/mp4"),
                 },
             ).status_code

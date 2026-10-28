@@ -12,6 +12,7 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from sqlalchemy import select
+from synthetic_images import synthetic_image
 from test_account_auth import new_key, recovery_ready, seeded, signed, start
 from test_accounts import private_client as private_client
 from test_accounts import real_settings, verdict
@@ -78,7 +79,10 @@ def ready(client, receipt, key):
                 Evidence(type="text", name="reference_account_id", value=receipt.account_id),
             ],
         )
-        files = {"image": ("synthetic.jpg", b"synthetic"), "video": ("synthetic.mp4", b"synthetic")}
+        files = {
+            "image": ("synthetic.jpg", synthetic_image(b"synthetic")),
+            "video": ("synthetic.mp4", b"synthetic"),
+        }
         payload, _, _ = manifest(session, "face", files)
         verify_and_consume(state.db, session, "face", signed(key, payload), files, required=True)
         session.accepted_steps = ["media", "signals", "finalize"]

@@ -7,6 +7,7 @@ import pytest
 from contract_utils import validate
 from fastapi.testclient import TestClient
 from sqlalchemy import select
+from synthetic_images import synthetic_image
 
 from vericlue_api.core.config import get_settings
 from vericlue_api.db.models import DecisionRow, ReviewCaseRow, SessionRow
@@ -14,7 +15,7 @@ from vericlue_api.main import create_app
 from vericlue_api.services.dynamic_challenge import generate_dynamic_challenge
 from vericlue_ml.common.result import Gate, Module, ModuleResult, Status
 
-IMAGE = {"image": ("face.jpg", b"synthetic image", "image/jpeg")}
+IMAGE = {"image": ("face.jpg", synthetic_image(b"synthetic image"), "image/jpeg")}
 AUDIO = {"audio": ("voice.wav", b"synthetic audio", "audio/wav")}
 NONCE = "integration_nonce_12345678"
 

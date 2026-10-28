@@ -7,6 +7,7 @@ import json
 import pytest
 from conftest import start_session
 from contract_utils import validate
+from synthetic_images import synthetic_image
 
 FORBIDDEN_KEYS = {"score", "prob_attack", "gate", "modules", "suggestion", "evidence", "quality"}
 FORBIDDEN_WORDS = ("giả mạo", "deepfake", "spoof", "attack")
@@ -15,7 +16,7 @@ SIGNALS = {
     "color_events": [{"index": 0, "rgb": "#ffcc73", "painted_at": 1234.5}],
     "frame_times": [{"capture_time": 1240.2, "presented_frames": 31, "media_time": 0.5}],
 }
-IMAGE = {"image": ("face.jpg", b"\xff\xd8\xff", "image/jpeg")}
+IMAGE = {"image": ("face.jpg", synthetic_image(b"\xff\xd8\xff"), "image/jpeg")}
 AUDIO = {"audio": ("voice.wav", b"RIFF", "audio/wav")}
 
 
@@ -190,7 +191,8 @@ def test_review_case_from_session_has_priority_and_no_score(client):
 def test_uploads_are_stored_with_server_chosen_names(client, tmp_path):
     body, auth = start_session(client)
     sid = body["session_id"]
-    evil = {"image": ("../../evil.php", b"x", "image/jpeg")}
+    evil = {"image": ("../../evil.php", synthetic_image(b"x"), "image/jpeg")}
     assert client.post(path(sid, "media"), headers=auth, files=evil).status_code == 200
     stored = sorted(p.name for p in (tmp_path / "media" / sid).iterdir())
-    assert stored == ["face_image.bin"]
+    assert len(stored) == 1
+    assert stored[0].startswith("face_image_") and stored[0].endswith(".png")
