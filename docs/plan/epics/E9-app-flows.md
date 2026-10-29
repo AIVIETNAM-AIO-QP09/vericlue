@@ -358,6 +358,36 @@ tổng hợp qua. Chưa có lượt camera Android với profile AI. Qwen thiế
 chưa bật; không nhận là eKYC thật xuyên suốt. Chi tiết ở mục 6 của runbook và
 bàn giao `2026-10-29-0029-app-05-codex.md`. Giữ `review`, không mở guard hoặc sửa ngưỡng.
 
+### APP-06 · Android test server qua USB
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M2 | 0,5 | S2 | P0 | PLAT-05 |
+
+**Mục tiêu:** theo yêu cầu 29/10, dùng điện thoại Android cắm USB để test API
+trên laptop qua ADB reverse; giữ APK Tailscale và dữ liệu app hiện có.
+
+- [x] Debug APK riêng `vn.vericlue.app.usbtest`, tên VeriClue USB, gọi đúng
+  `http://localhost:8421/`, bắt buộc ký media; không có release USB.
+- [x] CI chạy unit test/build và kiểm APK/manifest/checksum/source metadata.
+- [x] Cài ADB chính thức, nhận quyền thiết bị, reverse cổng 8421 và kiểm health
+  từ điện thoại; không mở API LAN, Funnel hoặc ADB TCP legacy.
+- [x] Cài/khởi động bản USB trên thiết bị được cho phép; không gỡ bản cũ hoặc
+  xóa dữ liệu. Có runbook, cách bỏ reverse và giới hạn AI từng phần.
+
+Không đổi UI flow, API/ML/contract/ngưỡng hoặc guard. API mặt thật vẫn là profile
+nội bộ từng phần; đổi đường truyền không làm OTP/CCCD hoặc giọng thành thật.
+
+**29/10:** CI 10 checks xanh ở commit `92555d0`; run USB `40796808317` kiểm
+package/label/URL/release guard. Artifact tải về khớp SHA-256; đã cài mới và mở
+trên Samsung SM-S721B SDK36 ARM64, app cũ giữ nguyên. Chủ máy xác nhận health
+trong Chrome qua localhost/USB; chưa nghiệm thu capture và AI từ app mới.
+
+**Bổ sung theo yêu cầu 29/10:** cáp mất kết nối nhiều lần; chuyển sang Wireless
+debugging TLS ghép đôi bằng mã, giữ APK. Đã kiểm route Wi-Fi, reverse và mở app;
+chủ máy xác nhận health ok sau rút cáp, không còn transport USB. Không dùng cổng
+5555 legacy hoặc lưu mã pairing. Hướng dẫn ở cuối runbook; chưa nghiệm thu AI.
+
 ## App iOS (bản thêm, ADR-0014 cập nhật 24/10)
 
 Kế hoạch chi tiết từng bước: [`apps/ios/docs/plan-ios.md`](../../../apps/ios/docs/plan-ios.md). App Android (APP-01..04) là đặc tả hành vi và câu chữ.
