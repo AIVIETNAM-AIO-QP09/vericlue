@@ -1,0 +1,3 @@
+// Copy to Release.local.xcconfig and replace the placeholder with the approved HTTPS host.
+// $() prevents xcconfig from treating // as a comment.
+API_BASE_URL = https:/$()/<approved-cloudflared-domain>/

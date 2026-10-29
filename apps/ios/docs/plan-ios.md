@@ -31,36 +31,25 @@
 
 ## 1. Mục tiêu và phạm vi
 
+> **Kế hoạch đồng bộ 28/10/2026:** xem [baseline và bảng đối chiếu Android](android-alignment.md).
+> Chặng 0 đã khóa nền IOS-06; chặng 1 [đã nối receipt riêng](account-receipt.md),
+> build thành công, unit/receipt test xanh; bài UI từng timeout đã kiểm lại riêng 1/1 xanh,
+> chưa kiểm chứng backend tương thích. Mục tiêu mới: luồng gọn,
+> confirm sau quay mặt nhưng trước upload, theme ấm; recovery bỏ CCCD theo tài liệu.
+> Receipt làm riêng, không gộp ký media/device proof. Sơ đồ cũ bên dưới mô tả nền
+> đang có, không phải bằng chứng các thay đổi đồng bộ đã được triển khai.
+> Chặng 2–3 đã có bản checkpoint màn đầu/OTP/camera CCCD, chờ
+> [nghiệm thu camera sau trên iPhone](compact-flow-device-checklist.md).
+> Onboarding tạm dừng sau `/id-card`; confirm sau mặt và theme chưa triển khai.
+
 App iPhone cho người dân, chạy **cùng server, cùng hợp đồng** với app Android. Luồng đăng ký (`purpose = onboarding`):
 
 ```
-Màn ngân hàng mẫu → Chào → Đăng nhập/Đăng ký → Điều khoản + đồng ý (1 màn)
-→ Số điện thoại → OTP (tự điền, vẫn gõ tay được) → CCCD tự chụp mặt trước (dừng 1 nhịp) → Mặt sau → Xem lại 2 mặt
+Màn ngân hàng mẫu → Chào → Đăng nhập/Đăng ký → Điều khoản → Đồng ý → Giới thiệu → Quyền camera/micro
+→ Số điện thoại → OTP → Chụp CCCD mặt trước → Xem lại → Mặt sau → Xem lại → Kiểm tra thông tin (sửa nếu cần)
 → Chuẩn bị → Căn mặt → [một bản ghi video liên tục: nền xám → nháy màu → chấm sáng → quay đầu]
-→ Kiểm tra thông tin (sửa nếu cần; xác nhận xong mới gửi video) → Đọc câu → Gửi → Kết quả (thành công / chờ duyệt / chụp lại / lỗi)
+→ Đọc câu → Gửi → Kết quả (thành công / chờ duyệt / chụp lại / lỗi)
 ```
-
-**Luồng gọn (24/10):** không còn màn Giới thiệu và Xin quyền; xin camera lúc mở camera, xin micro ở bước đọc câu. Màn Kiểm tra thông tin nằm sau phần mặt. Video giữ trên máy; phải gửi `id-card/confirm` **trước** media và `finalize`: sau `finalize` phiên có thể đã đóng, và server có identity lab (FLOW-05) trả 409 khi xác nhận sau media. Bản tham chiếu: Android, nhánh `feat/APP-04-short-onboarding` (`FlowRules.afterFace`, `afterConfirm`, `afterIdReview`; `IdAutoCapture`). Figma: trang "Đề xuất · Luồng gọn".
-
-**Đọc câu chỉ khi cần (26/10, trưởng nhóm duyệt khi họp):** với `purpose = onboarding`, server chỉ đòi đọc câu khi điểm mặt lưng chừng. `finalize` trả `pass` thì **xong luôn** (không có màn Đọc câu); trả `voice_challenge` thì sang màn Đọc câu như cũ. `recovery` vẫn luôn đọc câu, `reauth` không đổi. App không cần tự quyết: chỉ đi theo `status` (bảng 7.5). Tài khoản được ghi danh ngay ở `finalize`; lấy biên nhận bằng `GET /v1/sessions/{id}/account`. Chữ hiển thị: màn chào ghi bước 3 là "Đọc một câu · Chỉ khi cần". Server: nhánh `feat/FLOW-01-voice-on-suspicion`.
-
-**Phong cách giao diện (26/10): hướng A · Tối giản ấm.** Figma file `kKEiRjXMCNDPVeupHsUn1H`, trang "Đề xuất · Phong cách", hàng A (A1 chào, A2 chụp CCCD, A3 thành công). Bản Android tham chiếu: nhánh `feat/APP-01-ui-polish`, `apps/android/app/src/main/java/vn/vericlue/app/ui/theme/Theme.kt`.
-
-| Thành phần | Giá trị |
-|---|---|
-| Nền màn sáng | `#FAF8F5` (trắng ngà); bề mặt `#FFFFFF` |
-| Chữ chính / phụ | `#14202B` / `#5B6670` |
-| Nút chính | navy `#0C2345`, dạng viên thuốc (bo tròn hết), cao ~56 pt, chữ 16 SemiBold; nút phụ chỉ chữ navy |
-| Nhấn phụ | cam `#E8743B`, chỉ cho điểm nhỏ: số bước cuối, nhãn bước trên camera, góc khung CCCD |
-| Đạt | `#1E8A5A` trên nền `#E4F2EA` |
-| Đường kẻ | `#ECE7E0`, thay cho viền hộp |
-| Camera | nền `#0D1620`, không hiệu ứng trang trí |
-| Chữ | chỉ Be Vietnam Pro; tiêu đề 32–34 Bold, giãn chữ âm nhẹ; mỗi màn tối đa một dòng phụ |
-
-- Ít hộp viền: tách nhóm bằng khoảng trắng và đường kẻ mảnh; chỉ giữ khung cho thứ bấm được và khung camera.
-- Danh sách bước đánh số tròn (số trắng trên navy, bước cuối nền cam) thay icon trong ô vuông.
-- Màn chào: hình thẻ CCCD nghiêng cạnh vòng tròn navy có **dấu VC trắng** (logo `logo_mark`), vòng nét đứt cam. Màn thành công: dấu VC lớn trên navy kèm huy hiệu tích xanh nhỏ, số tài khoản to trong tấm trắng ở đáy màn.
-- Không đổi màu nháy của thử thách ánh sáng. Tôn trọng "Reduce Motion" của iOS (tắt animation trang trí).
 
 Thêm hai luồng ngắn hơn (ADR-0013):
 - **Đăng nhập lại (`reauth`):** số điện thoại → OTP → quay mặt **thụ động** (không nháy màu, không chấm sáng, không quay đầu). Hiện server luôn trả `recovery_required`, vì chưa có khóa thiết bị (SEC-02).
@@ -156,9 +145,11 @@ apps/ios/
     Flow/Routes.swift              ← Routes trong flow/Flow.kt (tên route giữ nguyên)
     Flow/FlowRules.swift           ← FlowRules trong flow/Flow.kt
     Flow/LiveFlow.swift            ← flow/LiveFlow.kt
-    Flow/DemoFlow.swift            ← DemoOutcome, FlowState trong ui/App.kt
-    Data/Models.swift              ← các data class trong data/api/Api.kt
-    Data/SessionApi.swift          ← SessionApi trong data/api/Api.kt
+    Flow/FlowTypes.swift           ← Purpose, DemoOutcome trong flow/Flow.kt
+    Flow/DemoFlow.swift            ← trạng thái demo tương ứng FlowState trong ui/App.kt
+    Flow/CaptureFlows.swift        ← điều phối lifecycle/cleanup chung của camera và micro
+    Data/API/Models.swift              ← các data class trong data/api/Api.kt
+    Data/API/SessionApi.swift          ← SessionApi trong data/api/Api.kt
     Capture/Clock.swift            ← CaptureClock trong capture/Signals.kt
     Capture/CameraSession.swift    ← capture/CameraSession.kt
     Capture/VideoWriter.swift      (mới: AVAssetWriter)
@@ -169,10 +160,13 @@ apps/ios/
     Capture/IdCard.swift           ← capture/IdCard.kt (đo nét, lóa, đọc QR)
     Capture/CamProbe.swift         ← capture/CamProbe.kt
     Capture/Regions.swift          ← capture/Regions.kt
-    UI/Theme.swift                 ← ui/theme/Theme.kt
+    UI/Theme/Theme.swift                 ← ui/theme/Theme.kt
     UI/Components/*.swift          ← ui/components/*.kt
     UI/Screens/StartScreens.swift, IdentityScreens.swift, FaceScreens.swift, VoiceResultScreens.swift
-    UI/AppNavigation.swift         ← ui/App.kt (NavigationStack + điều phối)
+    UI/App.swift                   ← ui/App.kt (NavigationStack + ghép các flow)
+    UI/AppRoutes.swift             ← NavHost/composable trong ui/App.kt
+    UI/AppNavigation.swift         ← chỉ quản lý navigation path
+    UI/Debug/GalleryScreen.swift   ← Gallery, chỉ biên dịch trong Debug
     Resources/Fonts/*.ttf
   VeriClueTests/
     FlowRulesTests.swift           ← FlowRulesTest.kt
@@ -251,10 +245,12 @@ Nhận về (rút gọn; bản đầy đủ ở `packages/contracts/examples/ses
 - Gửi (multipart):
   - `front`: ảnh JPEG mặt trước;
   - `back`: ảnh JPEG mặt sau;
-  - `qr`: chuỗi QR app đọc được ở mặt sau. Thiếu thì bỏ trường này.
+  - `qr`: chuỗi QR hợp định dạng từ một trong hai ảnh. Ưu tiên mặt sau nếu hợp lệ,
+    nếu không dùng mặt trước; không mặc định QR nằm ở mặt nào. Bản iOS hiện chặn
+    gửi tại review nếu cả hai ảnh không đọc được QR hợp định dạng.
 - Nhận về:
   - `{"status": "ok", "fields": {"full_name": "Nguyễn Văn An", "id_number": "001099012345", "date_of_birth": "1995-01-01", "sex": "Nam", "address": "…", "issued_on": "2021-06-15"}}` → màn Kiểm tra thông tin;
-  - `{"status": "retry", "retry_hint": "QR_UNREADABLE" | "QR_INVALID"}` → quay lại chụp mặt sau, hiện "Chưa đọc được mã QR, hãy đưa mặt sau thẻ lại gần hơn rồi chụp lại."
+  - `{"status": "retry", "retry_hint": "QR_UNREADABLE" | "QR_INVALID"}` → giữ cả hai ảnh ở review, cho chọn chụp lại mặt chứa QR, giữ mặt còn lại. Không tự xóa/chỉ định mặt sau.
 - Xác nhận: gửi JSON `IdCardFields`.
   - Trường nào người dùng **không sửa** thì gửi đúng giá trị server trả; chỉ trường đã sửa mới khác.
   - Ngày gửi dạng `YYYY-MM-DD`; giới tính chỉ `Nam` hoặc `Nữ`.
@@ -293,7 +289,7 @@ Nhận về (rút gọn; bản đầy đủ ở `packages/contracts/examples/ses
 
 | `status` | Làm gì |
 |---|---|
-| `pass` | Thành công. Từ 26/10 `onboarding` ra `pass` ở đây khi mặt rõ (không đọc câu); `recovery` thì không, vì luôn đọc câu |
+| `pass` | (luồng có `purpose` hầu như không ra `pass` ở đây vì luôn phải đọc câu) → Thành công |
 | `voice_challenge` | Lưu `voice_prompt`, `voice_challenge_id` → màn Đọc câu |
 | `retry` | Có `retry_hint` → màn "Chụp lại" (câu nhắc theo mục 10); không có → màn "Làm lại thử thách". Thay `challenge` bằng `challenge` trong phản hồi. `attempts_left` hiện "Còn N lần chụp lại" |
 | `review` | Màn "Hồ sơ đang được xác minh thêm" |
@@ -337,7 +333,7 @@ Toàn bộ phần mặt (nền xám → màu → chấm → quay đầu) nằm t
 | Nháy màu | `baseline_ms` | `baseline_ms + Σ(hold_ms + transition_ms)` | Mỗi bước: chuyển màu trong `transition_ms`, giữ `hold_ms`. Ghi `color_events` lúc màu **thật sự lên màn**. Hết pha thì **mở khóa AE/AWB** |
 | Chấm sáng | `gaze_points[0].at_ms` | `gaze_points[7].at_ms` | Chấm ở `gaze_points[0]`; đi **thẳng, đều** tới điểm sau, tới đúng `at_ms` của điểm đó. Chữ "Giữ đầu yên, chỉ đưa mắt theo chấm sáng" |
 | Quay đầu | `head_start_at_ms` | `+ head_duration_ms` (6000) | 3 đoạn, mỗi đoạn 2000 ms: `head_turns[0]`, `head_turns[1]`, `center`. Hiện mũi tên và chữ "Quay sang trái/phải", "Nhìn thẳng" |
-| Dừng quay | `head_start_at_ms + 6000` | — | Dừng ghi video, **chờ ghi file xong**, sang màn "Đang gửi" → gửi phần mặt → `finalize` trả `pass` (xong) hoặc `voice_challenge` → màn Đọc câu (giống Android) |
+| Dừng quay | `head_start_at_ms + 6000` | — | Dừng ghi video, **chờ ghi file xong**, sang màn "Đang gửi" → gửi phần mặt → `finalize` trả `voice_challenge` → màn Đọc câu (giống Android) |
 
 ### 8.2 Đồng hồ
 
@@ -380,7 +376,7 @@ Toàn bộ phần mặt (nền xám → màu → chấm → quay đầu) nằm t
 
 **Làm:**
 1. Tạo project theo mục 5.
-2. `UI/Theme.swift`: màu lấy đúng mã hex trong `apps/android/app/src/main/java/vn/vericlue/app/ui/theme/Theme.kt` (sáng và tối); font Be Vietnam Pro; cỡ chữ theo `VcType`.
+2. `UI/Theme/Theme.swift`: màu lấy đúng mã hex trong `apps/android/app/src/main/java/vn/vericlue/app/ui/theme/Theme.kt` (sáng và tối); font Be Vietnam Pro; cỡ chữ theo `VcType`.
 3. `UI/Components/`: port từng component ở `ui/components/` (thanh trên, thanh tiến độ 3 bước, nút chính, nút phụ, banner, bàn phím số, ô OTP, thẻ danh sách, khung camera).
 4. `Flow/Routes.swift`: enum `Route` với đủ các route sau, tên giữ nguyên như Android:
    `bank_start, bank_opened, gallery, splash, auth, terms, consent, intro, permission, phone, otp, otp_error, id_front, id_front_glare, id_front_review, id_back, id_back_review, confirm, edit_info, face_ready, framing, hold_still, turn_head, voice, voice_again, uploading, upload_failed, checking, slow, success, review, retry_quality, retry_challenge, error_camera, error_mic, error_network, error_session, error_service, error_device, interrupted, no_voice, exit_confirm, stopped, flash_skipped`.
@@ -395,8 +391,8 @@ Toàn bộ phần mặt (nền xám → màu → chấm → quay đầu) nằm t
 ### IOS-02 · Client API và luật luồng (1,5 ngày)
 
 **Làm:**
-1. `Data/Models.swift`: struct `Codable` cho mọi def ở mục 7. Dùng `CodingKeys` snake_case, hoặc `JSONDecoder.keyDecodingStrategy = .convertFromSnakeCase`. Trường nào có thể thiếu thì để optional.
-2. `Data/SessionApi.swift` dùng `URLSession` + `async/await`:
+1. `Data/API/Models.swift`: struct `Codable` cho mọi def ở mục 7. Dùng `CodingKeys` snake_case, hoặc `JSONDecoder.keyDecodingStrategy = .convertFromSnakeCase`. Trường nào có thể thiếu thì để optional.
+2. `Data/API/SessionApi.swift` dùng `URLSession` + `async/await`:
    - mỗi lệnh ở mục 7 là một hàm `async`, trả `Result<T, ApiError>`;
    - `enum ApiError { network, unauthorized, conflict(code: String?), expired, busy, badResponse, server }`;
    - map mã HTTP giống `SessionApi.errorFor` của Android;
@@ -425,11 +421,17 @@ Toàn bộ phần mặt (nền xám → màu → chấm → quay đầu) nằm t
 3. `Capture/CameraSession.swift` (phần camera sau): mở camera sau, preview trong khung tỉ lệ thẻ 1,586:1, nút chụp.
 4. `Capture/IdCard.swift`:
    - **Độ nét:** chuyển ảnh xám, chạy Laplacian (vImage), tính phương sai. Ngưỡng ban đầu lấy từ `IdCard.kt`, chỉnh lại theo số đo trên iPhone.
-   - **Lóa:** tỉ lệ điểm ảnh gần trắng (> 245) trong vùng thẻ, ngưỡng như Android.
+   - **Lóa:** tỉ lệ điểm ảnh gần trắng (luma ≥250) trong vùng thẻ; chặn khi tỉ lệ >0.02, theo `IdCard.kt` Android. Đây là ngưỡng khởi đầu, chưa hiệu chỉnh bằng tập đo iPhone.
    - **QR:** `VNDetectBarcodesRequest`, `symbologies = [.qr]`, lấy `payloadStringValue`.
-5. Màn xem lại: hiện ảnh vừa chụp và 3 dòng kiểm (nét / không lóa / đọc được QR, riêng mặt sau), câu nhắc đúng lỗi.
-6. Mặt sau "Ảnh rõ, tiếp tục" → `sendIdCard(front:back:qr:)`; `retry` → về chụp mặt sau; `ok` → màn Kiểm tra thông tin với dữ liệu server.
-7. Màn Kiểm tra thông tin → "Thông tin đúng" → `confirmIdCard(fields của server)`; "Sửa thông tin" → màn sửa → "Lưu và tiếp tục" → `confirmIdCard(confirmedFields(…))`.
+5. Màn xem lại hai ảnh: kiểm nét/lóa từng ảnh và QR chung từ một trong hai mặt; câu nhắc không mặc định mặt chứa QR.
+6. Review chung → `sendIdCard(front:back:qr:)` với QR hợp lệ từ một trong hai mặt;
+   `retry` → giữ review chọn retake mặt chứa QR; `ok` → giữ fields/draft, tới
+   face_ready. Checkpoint camera chặng 3 đã được sếp xác nhận; bản chặng 4 hiện
+   đi tiếp quay mặt, đóng file và giữ evidence trước khi mở confirm.
+7. Chặng 4 đã nối: màn Kiểm tra thông tin sau quay mặt → "Thông tin đúng"
+   → `confirmIdCard(fields của server)`; sửa thì gửi đúng confirmedFields đã sửa,
+   sau đó mới media/signals/finalize. Đã build nhưng chưa chạy test/nghiệm thu
+   chặng 4; xem `post-face-confirm-device-checklist.md`.
 
 **Xong khi:** trên iPhone với server mock: OTP sai rồi đúng chạy đúng; chụp một thẻ **in thử từ dữ liệu bịa** (đừng dùng thẻ thật trong ảnh commit) → server nhận 2 ảnh, trả thông tin từ QR.
 
@@ -470,7 +472,7 @@ Toàn bộ phần mặt (nền xám → màu → chấm → quay đầu) nằm t
    - `ios:debugger`: `sysctl` với `KERN_PROC_PID`, kiểm cờ `P_TRACED`. Chỉ bật ở Release; Debug luôn có debugger nên **bỏ cờ này ở Debug**, ghi chú vào `client_quality`;
    - `device_label`: `UIDevice.current.model` + mã máy (`utsname.machine`);
    - `duplicate_frame_ratio`: tỉ lệ khung trùng hệt khung trước (so hash nhỏ của ảnh thu nhỏ), như `DuplicateFrameMeter` của Android.
-10. `Regions.swift`: 5 vùng da + nền theo tỉ lệ hộp mặt, như `Regions.kt` (làm sau cùng, cắt được).
+10. `Regions.swift`: đủ 5 vùng da + nền theo tỉ lệ hộp mặt, như `Regions.kt` (bắt buộc theo yêu cầu Cổng 5; không cắt).
 11. Hết pha quay đầu: `finish()` video (chờ xong) → màn "Đang gửi" → `submitFace`. Kết quả `voice_challenge` → màn Đọc câu với `voice_prompt`; `retry`, `review`, `deny` hay lỗi → màn tương ứng (bảng 7.5).
 
 **Xong khi:** trên iPhone, kịch bản `genuine`: server nhận JPEG, MP4 (mở được bằng QuickTime, không lật, dài khoảng 19 giây), `color_events` 8 phần tử, `frame_times` khoảng 30 khung/giây; `low_quality` ra "Chụp lại" với câu nhắc, lượt sau dùng challenge mới.
@@ -496,7 +498,10 @@ Toàn bộ phần mặt (nền xám → màu → chấm → quay đầu) nằm t
 1. Theo dõi `scenePhase`: sang `.background` khi đang ở `framing`, `hold_still`, `turn_head`, `voice`, `voice_again` thì dừng video và ghi âm, xóa file tạm, sang màn "Xác minh bị gián đoạn". "Quay lại chuẩn bị" → `face_ready`, lượt sau gọi `/challenge`.
 2. Lỗi mạng ở bất kỳ bước gửi nào → "Không kết nối được" → "Thử lại" gửi lại **chỉ phần chưa được nhận**, không bao giờ đi tắt ra kết quả.
 3. Nút thoát giữa chừng → hộp thoại "Bạn muốn dừng xác minh?": ở phần mặt hoặc giọng thì "Quay lại chuẩn bị"; ở chỗ khác thì "Tiếp tục".
-4. Xóa mọi `face_*.mp4`, `voice_*.mp4`, `*.wav` trong thư mục tạm khi server đã nhận, khi rời luồng, khi bị gián đoạn.
+4. Xóa file thu do app sở hữu khi server đã nhận, khi rời luồng hoặc bị gián đoạn.
+   IOS-06 đặt MP4 trong `tmp/vericlue-capture/` với tên face/voice + UUID; WAV ở RAM.
+   Lúc mở app dọn orphan trong namespace và file legacy `vericlue-face/voice-<UUID>`;
+   không xóa rộng mọi WAV/MP4 hoặc file do người dùng xuất sang Files/Photos.
 5. Màn thành công: chỉ tích những gì server đã kiểm ("Khuôn mặt", và "Giọng nói" nếu đã gửi giọng).
 
 **Xong khi:** đủ các mục ở checklist 13.1 liên quan.
@@ -566,13 +571,13 @@ Chữ cho 2 route mới:
 
 ### 13.1 Checklist trên iPhone thật với server mock
 
-- [ ] `genuine`, onboarding: đi hết luồng → **không** đọc câu → "Xác minh thành công" (từ 26/10), chỉ tích phần server đã kiểm.
+- [ ] `genuine`, onboarding: đi hết luồng; `pass` → "Xác minh thành công" không đọc câu; chỉ `voice_challenge` mới đọc câu. Chỉ tích phần server đã kiểm.
 - [ ] `low_quality`: "Chụp lại" với câu nhắc và "Còn N lần chụp lại" lấy từ server; lượt sau dùng challenge mới.
 - [ ] `voice_clone`: đọc câu → "Hồ sơ đang được xác minh thêm".
 - [ ] Tắt Wi-Fi lúc gửi → "Không kết nối được"; "Thử lại" khi vẫn mất mạng → vẫn báo lỗi; bật lại → đi tiếp đúng.
 - [ ] Vuốt về màn hình chính lúc đang quay → "Xác minh bị gián đoạn"; làm lại thì app gọi `/challenge`.
 - [ ] OTP sai → "Mã chưa đúng. Bạn còn N lần thử."; đúng → sang CCCD.
-- [ ] CCCD: QR không đọc được → quay lại chụp mặt sau; sửa họ tên → server ghi chú cho ca duyệt.
+- [ ] CCCD: QR không đọc được → review chọn retake mặt chứa QR, giữ mặt kia; sửa họ tên → server ghi chú cho ca duyệt.
 - [ ] `reauth`: quay thụ động → màn `recovery_required`.
 - [ ] Video gửi lên mở được, đúng chiều, không lật, dài đúng lịch.
 - [ ] Không màn nào có chữ cấm; test `⌘U` xanh.
@@ -586,11 +591,12 @@ Sau mỗi phiên làm việc, ghi bàn giao (`scripts/new_handoff.py`), gồm: �
 
 ## 14. Nếu không kịp thì cắt gì (theo thứ tự)
 
-1. `region_means` (IOS-04, bước 10).
-2. `camprobe` chỉ giữ cờ `ios:simulator`.
+**Cập nhật yêu cầu Cổng 5:** sếp yêu cầu làm đủ IOS-04; `region_means` và full
+`camprobe` là bắt buộc, không áp dụng hai phương án cắt trước đây cho task này.
+
 3. CCCD thật: dùng thông tin mẫu ở chế độ demo, giữ OTP.
 4. Luồng `recovery`.
-5. **Tối thiểu để demo:** IOS-01, IOS-02, IOS-04 (bỏ bước 9, 10), IOS-05.
+5. **Tối thiểu để demo:** IOS-01, IOS-02, IOS-04 (đủ bước 9, 10 theo yêu cầu mới), IOS-05.
 
 Bản dự phòng cuối cùng trên iPhone: mở web `/verify` bằng Safari.
 
