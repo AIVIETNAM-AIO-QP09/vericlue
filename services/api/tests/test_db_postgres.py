@@ -1,6 +1,8 @@
 """Real PostgreSQL migration/transaction tests (CI service or local Docker)."""
 
+import base64
 import os
+import secrets
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -10,9 +12,13 @@ from uuid import uuid4
 import pytest
 from alembic import command
 from alembic.config import Config
-from fastapi.testclient import TestClient
+from conftest import staff_test_client
 from sqlalchemy import func, inspect, select, text
 from sqlalchemy.exc import DBAPIError
+from synthetic_images import synthetic_image
+from test_credential_keys import registry_env as registry_env
+from test_credential_verifier import stub_worker as stub_worker
+from test_credential_verifier import verifier_env as verifier_env
 
 from vericlue_api.core.config import Settings, get_settings
 from vericlue_api.core.session_tokens import token_digest
@@ -26,6 +32,483 @@ from vericlue_api.db.models import (
 )
 from vericlue_api.main import create_app
 from vericlue_api.services import storage
+
+
+def test_postgres_key_revoke_waits_for_inflight_verification(
+    postgres, registry_env, tmp_path, monkeypatch
+):
+    from fastapi.testclient import TestClient
+    from test_credential_keys import body_for, operate, register_pair, request_challenge
+
+    from vericlue_api.services.credential_keys import CredentialKeyRegistry
+    from vericlue_api.services.credential_verifier_worker import CredentialProofWorker
+
+    with TestClient(create_app()) as client:
+        old, _ = register_pair(client, registry_env, tmp_path)
+        first = request_challenge(client, registry_env)
+        later = request_challenge(client, registry_env)
+        entered, release = Event(), Event()
+
+        def verify(*args):
+            entered.set()
+            assert release.wait(timeout=10)
+            return True
+
+        monkeypatch.setattr(CredentialProofWorker, "verify", verify)
+        with ThreadPoolExecutor(1) as pool:
+            future = pool.submit(
+                client.post,
+                "/v1/credentials/verify",
+                headers=registry_env["a"],
+                json=body_for(first, registry_env["issuer"]),
+            )
+            try:
+                assert entered.wait(timeout=5)
+                with pytest.raises(DBAPIError) as caught, postgres.sessions.begin() as db:
+                    db.execute(text("SELECT set_config('lock_timeout', '250ms', true)"))
+                    CredentialKeyRegistry(db, registry_env["issuer"]).revoke(old.key_id)
+                assert caught.value.orig.sqlstate == "55P03"
+            finally:
+                release.set()
+            response = future.result(timeout=10)
+        assert response.status_code == 200 and response.json()["valid"] is True
+        operate(client, registry_env["issuer"], "revoke", old.key_id)
+        assert client.post(
+            "/v1/credentials/verify",
+            headers=registry_env["a"],
+            json=body_for(later, registry_env["issuer"]),
+        ).json() == {"valid": False}
+
+
+def test_postgres_key_share_locks_allow_independent_proofs(
+    postgres, registry_env, tmp_path, monkeypatch
+):
+    from fastapi.testclient import TestClient
+    from test_credential_keys import body_for, register_pair, request_challenge
+
+    from vericlue_api.services.credential_verifier_worker import CredentialProofWorker
+
+    with TestClient(create_app()) as first, TestClient(create_app()) as second:
+        register_pair(first, registry_env, tmp_path)
+        requests = [
+            body_for(request_challenge(first, registry_env), registry_env["issuer"])
+            for _ in range(2)
+        ]
+        entered = Barrier(2)
+
+        def verify(*args):
+            entered.wait(timeout=5)
+            return True
+
+        monkeypatch.setattr(CredentialProofWorker, "verify", verify)
+
+        def submit(pair):
+            client, body = pair
+            return client.post("/v1/credentials/verify", headers=registry_env["a"], json=body)
+
+        with ThreadPoolExecutor(2) as pool:
+            responses = list(pool.map(submit, zip((first, second), requests, strict=True)))
+        assert all(r.status_code == 200 and r.json()["valid"] is True for r in responses)
+
+
+def test_postgres_concurrent_key_activation_keeps_one_active(postgres, registry_env, tmp_path):
+    from fastapi.testclient import TestClient
+    from test_credential_keys import operate, pin, register_pair
+    from test_credential_verifier import write_public
+
+    from vericlue_api.db.models import CredentialTrustKeyRow
+    from vericlue_api.services.credential_keys import CredentialKeyRegistry
+
+    with TestClient(create_app()) as client:
+        _, second = register_pair(client, registry_env, tmp_path)
+        path = tmp_path / "third-public.json"
+        write_public(path)
+        third = pin(path)
+        operate(client, registry_env["issuer"], "register", third)
+        gate = Barrier(2)
+
+        def activate(key):
+            gate.wait(timeout=10)
+            with postgres.sessions.begin() as db:
+                CredentialKeyRegistry(db, registry_env["issuer"]).activate(key.key_id)
+
+        with ThreadPoolExecutor(2) as pool:
+            list(pool.map(activate, (second, third)))
+        with postgres.sessions() as db:
+            rows = list(
+                db.scalars(
+                    select(CredentialTrustKeyRow).where(
+                        CredentialTrustKeyRow.issuer == registry_env["issuer"],
+                        CredentialTrustKeyRow.state == "active",
+                    )
+                )
+            )
+            assert len(rows) == 1 and rows[0].key_id in {second.key_id, third.key_id}
+
+
+def test_postgres_verifier_rollback_and_cross_instance_replay(postgres, verifier_env, stub_worker):
+    from fastapi.testclient import TestClient
+    from test_credential_verifier import challenge, presentation
+
+    from vericlue_api.db.models import CredentialChallengeRow
+    from vericlue_api.schemas.credential import VerificationPresentation
+    from vericlue_api.services.credential_verifier import CredentialVerifier
+
+    with TestClient(create_app()) as first, TestClient(create_app()) as second:
+        q = challenge(first, verifier_env["a"])
+        body = presentation(q)
+        root = first.app.state.vericlue
+        with pytest.raises(RuntimeError), root.database.sessions.begin() as db:
+            assert (
+                CredentialVerifier(root.settings, db, q["audience"])
+                .verify(VerificationPresentation.model_validate(body))
+                .valid
+            )
+            raise RuntimeError("synthetic verifier rollback before response")
+        with root.database.sessions() as db:
+            assert db.get(CredentialChallengeRow, q["id"]) is not None
+        stub_worker.clear()
+        gate = Barrier(2)
+
+        def verify(client):
+            gate.wait(timeout=10)
+            return client.post("/v1/credentials/verify", headers=verifier_env["a"], json=body)
+
+        with ThreadPoolExecutor(2) as pool:
+            responses = list(pool.map(verify, (first, second)))
+        assert all(r.status_code == 200 for r in responses)
+        assert sorted(r.json()["valid"] for r in responses) == [False, True]
+        assert len(stub_worker) == 1
+
+
+def test_postgres_verifier_capacity_is_atomic(postgres, verifier_env, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    monkeypatch.setattr("vericlue_api.services.credential_verifier.MAX_PENDING_PER_AUDIENCE", 1)
+    with TestClient(create_app()) as first, TestClient(create_app()) as second:
+        gate = Barrier(2)
+
+        def create(client):
+            gate.wait(timeout=10)
+            return client.post("/v1/credentials/challenges", headers=verifier_env["a"], json={})
+
+        with ThreadPoolExecutor(2) as pool:
+            responses = list(pool.map(create, (first, second)))
+        assert sorted(r.status_code for r in responses) == [200, 503]
+
+
+def test_postgres_credential_issue_rollback_and_parallel_retry(postgres, tmp_path, monkeypatch):
+    from test_credential_issuance import authorize, offer, setup_credential
+
+    from vericlue_api.db.models import CredentialIssuanceRow
+    from vericlue_api.schemas.credential import CredentialIssueRequest
+    from vericlue_api.services.credential_issuance import CredentialIssuance
+
+    # PostgreSQL fixtures share the seeded review rows. Keep those plaintext;
+    # enable encryption only after startup, for this test's own credential flow.
+    monkeypatch.setenv("SESSION_PRIVACY", "false")
+    monkeypatch.setenv("SESSION_MASTER_KEY", base64.b64encode(secrets.token_bytes(32)).decode())
+    get_settings.cache_clear()
+    with staff_test_client(create_app()) as client:
+        root = client.app.state.vericlue
+        root.settings = root.settings.model_copy(update={"session_privacy": True})
+        key, _, body, headers, calls = setup_credential(client, tmp_path, monkeypatch)
+        request = authorize(client, body, headers, offer(), key)
+        sid = body["session_id"]
+        with pytest.raises(RuntimeError), root.transaction() as state:
+            CredentialIssuance(state).issue(
+                state.sessions.get(sid), CredentialIssueRequest.model_validate(request)
+            )
+            raise RuntimeError("synthetic rollback after BBS issuance")
+        with root.database.sessions() as db:
+            assert db.get(CredentialIssuanceRow, sid) is None
+        calls.clear()
+        ready = Barrier(2)
+
+        def submit(_):
+            ready.wait(timeout=10)
+            return client.post(f"/v1/sessions/{sid}/credential", headers=headers, json=request)
+
+        with ThreadPoolExecutor(2) as pool:
+            responses = list(pool.map(submit, range(2)))
+        assert [r.status_code for r in responses] == [200, 200]
+        assert responses[0].json() == responses[1].json()
+        assert len(calls) == 1
+        with root.database.sessions() as db:
+            assert db.get(CredentialIssuanceRow, sid) is not None
+
+
+def test_postgres_linked_report_checkpoint_rollback_and_parallel_exports(postgres, monkeypatch):
+    """Native PostgreSQL JSON CAS/row locking, fake media analysis and real signatures."""
+    from test_forensic_real import FakeSource, _face, _pipeline, _voice
+    from test_review_audit_link import finalize_review, prepare_case, submit
+
+    from vericlue_api.db.models import ForensicJobRow
+    from vericlue_api.services import forensic_runner
+    from vericlue_ml.common.result import Module
+
+    monkeypatch.setenv("SESSION_PRIVACY", "false")
+    get_settings.cache_clear()
+    monkeypatch.setattr(forensic_runner, "FileMediaSource", FakeSource)
+    monkeypatch.setattr(
+        forensic_runner,
+        "build_pipeline",
+        lambda root: _pipeline(
+            {
+                Module.FACE_DEEPFAKE: _face(),
+                Module.VOICE_SPOOF: _voice(),
+            }
+        ),
+    )
+    with staff_test_client(create_app()) as client:
+        cid, _ = prepare_case(client)
+        root = client.app.state.vericlue
+        monkeypatch.setattr(root.settings, "use_mock_models", False)
+        response = submit(client, cid)
+        assert response.status_code == 200, response.text
+        jid = response.json()["job_id"]
+        finalize_review(client, cid)
+        with pytest.raises(RuntimeError), root.transaction() as state:
+            assert state.forensic.report_job(jid).review_audit.event_count == 2
+            raise RuntimeError("synthetic failed export transaction")
+        with root.database.sessions() as db:
+            assert db.get(ForensicJobRow, jid).payload["job"]["review_audit"]["event_count"] == 1
+        ready = Barrier(2)
+
+        def export(_):
+            ready.wait(timeout=10)
+            return client.get(f"/v1/forensic/jobs/{jid}/report")
+
+        with ThreadPoolExecutor(2) as pool:
+            reports = list(pool.map(export, range(2)))
+        signer = root.settings.report_signer
+        for report in reports:
+            assert report.status_code == 200, report.text
+            import hashlib
+
+            assert signer.verify(
+                hashlib.sha256(report.content).hexdigest(), report.headers["X-VeriClue-Signature"]
+            )
+        with root.database.sessions() as db:
+            assert db.get(ForensicJobRow, jid).payload["job"]["review_audit"]["event_count"] == 2
+            assert (
+                db.scalar(
+                    select(func.count())
+                    .select_from(ReviewEventRow)
+                    .where(ReviewEventRow.case_id == cid)
+                )
+                == 2
+            )
+
+
+def test_signed_media_claim_rolls_back_with_failed_outer_request(postgres):
+    from test_media_proof import IMAGE, VIDEO, create, send_face, sign
+
+    from vericlue_api.db.models import MediaProofUseRow
+    from vericlue_api.services.media_proof import verify_and_consume
+
+    with staff_test_client(create_app()) as client:
+        created, auth, key = create(client)
+        proof = sign(client, created, key)
+        root = client.app.state.vericlue
+        with pytest.raises(RuntimeError), root.transaction() as state:
+            session = state.sessions.get(created["session_id"])
+            verify_and_consume(state.db, session, "face", proof, {"image": IMAGE, "video": VIDEO})
+            raise RuntimeError("synthetic failed request after media claim")
+        with root.database.sessions() as db:
+            assert (
+                db.scalar(
+                    select(func.count())
+                    .select_from(MediaProofUseRow)
+                    .where(MediaProofUseRow.session_id == created["session_id"])
+                )
+                == 0
+            )
+        assert send_face(client, created, auth, proof).status_code == 200
+
+
+def test_media_nonce_unique_constraint_serializes_competing_claims(postgres):
+    """Even stale readers outside SessionStore's row lock cannot claim a nonce twice."""
+    from test_media_proof import IMAGE, VIDEO, create, sign
+
+    from vericlue_api.core.errors import ApiError
+    from vericlue_api.db.models import MediaProofUseRow
+    from vericlue_api.services.media_proof import verify_and_consume
+
+    with staff_test_client(create_app()) as client:
+        created, _, key = create(client)
+        proof = sign(client, created, key)
+        root = client.app.state.vericlue
+        with root.transaction() as state:
+            snapshot = state.sessions.get(created["session_id"])
+        ready = Barrier(2)
+
+        def claim(_):
+            ready.wait(timeout=10)
+            try:
+                with root.transaction() as state:
+                    verify_and_consume(
+                        state.db, snapshot, "face", proof, {"image": IMAGE, "video": VIDEO}
+                    )
+                return "accepted"
+            except ApiError as exc:
+                return exc.error_code
+
+        with ThreadPoolExecutor(2) as pool:
+            assert sorted(pool.map(claim, range(2))) == ["accepted", "media_not_accepted"]
+        with root.database.sessions() as db:
+            assert (
+                db.scalar(
+                    select(func.count())
+                    .select_from(MediaProofUseRow)
+                    .where(MediaProofUseRow.session_id == created["session_id"])
+                )
+                == 1
+            )
+
+
+def test_account_l0_claim_and_recovery_races(postgres, monkeypatch):
+    """Two L0 requests consume one challenge; two recoveries replace one old key once."""
+    from pydantic import SecretStr
+    from test_account_auth import new_key, recovery_ready, signed
+    from test_accounts import prepared, real_settings
+
+    from vericlue_api.core.errors import ApiError
+    from vericlue_api.db.models import AccountRecoveryRow, DeviceProofUseRow
+    from vericlue_api.schemas.session import CreateSessionRequest
+    from vericlue_api.services.account_auth import AccountAuth, message
+    from vericlue_api.services.accounts import AccountStore
+
+    monkeypatch.setenv("SESSION_PRIVACY", "false")
+    get_settings.cache_clear()
+    with staff_test_client(create_app()) as client:
+        root = client.app.state.vericlue
+        with root.transaction() as state:
+            record, template, continuity = prepared(state, id_hmac=secrets.token_hex(32))
+            settings = real_settings(state).model_copy(
+                update={
+                    "session_privacy": True,
+                    "session_master_key": SecretStr(
+                        base64.b64encode(secrets.token_bytes(32)).decode()
+                    ),
+                }
+            )
+            store = AccountStore(settings, state.db)
+            receipt = store.create(record, template, continuity=continuity)
+            # Use a known real P-256 key, enrolled via the fully gated recovery fixture.
+            key = new_key()
+            receipt = store.recover(recovery_ready(state, receipt, key))
+            created = state.flow.create(
+                "genuine",
+                CreateSessionRequest(
+                    purpose="reauth",
+                    nonce="postgres_race_synthetic_nonce",
+                ),
+            )
+            session = state.sessions.get(created.session_id)
+            AccountAuth(store).bind(session, receipt.account_id, receipt.device_id)
+            signature = signed(key, message(session))
+            sid = session.session_id
+
+        ready = Barrier(2)
+
+        def prove(_):
+            ready.wait(timeout=10)
+            try:
+                with root.transaction() as state:
+                    loaded = state.sessions.get(sid)
+                    AccountAuth(AccountStore(settings, state.db)).verify(loaded, signature)
+                return "accepted"
+            except ApiError as exc:
+                return exc.error_code
+
+        with ThreadPoolExecutor(2) as pool:
+            assert sorted(pool.map(prove, range(2))) == ["accepted", "recovery_required"]
+        with root.transaction() as state:
+            assert state.db.get(DeviceProofUseRow, sid) is not None
+            first = recovery_ready(state, receipt, new_key()).session_id
+            second = recovery_ready(state, receipt, new_key()).session_id
+        ready = Barrier(2)
+
+        def recover(recovery_sid):
+            ready.wait(timeout=10)
+            try:
+                with root.transaction() as state:
+                    loaded = state.sessions.get(recovery_sid)
+                    AccountStore(settings, state.db).recover(loaded)
+                return "accepted"
+            except ApiError as exc:
+                return exc.error_code
+
+        with ThreadPoolExecutor(2) as pool:
+            assert sorted(pool.map(recover, [first, second])) == [
+                "accepted",
+                "enrollment_not_available",
+            ]
+        with root.transaction() as state:
+            rows = list(
+                state.db.scalars(
+                    select(AccountRecoveryRow).where(
+                        AccountRecoveryRow.previous_device_id == receipt.device_id,
+                    )
+                )
+            )
+            assert len(rows) == 1
+            assert state.db.get(SessionRow, sid).status == "incomplete"
+
+
+def test_account_duplicate_identity_race(postgres, monkeypatch):
+    """Two different locked sessions must not enroll the same live identity."""
+    from pydantic import SecretStr
+    from test_accounts import prepared, real_settings
+
+    from vericlue_api.core.errors import ApiError
+    from vericlue_api.db.models import AccountRow
+    from vericlue_api.services.accounts import AccountStore
+
+    # This fixture shares PostgreSQL's demo review rows with other test modules.
+    # Keep those synthetic rows plaintext; only the account under test is encrypted.
+    monkeypatch.setenv("SESSION_PRIVACY", "false")
+    get_settings.cache_clear()
+    identity_hmac = secrets.token_hex(32)
+    with staff_test_client(create_app()) as client:
+        root = client.app.state.vericlue
+        with root.transaction() as state:
+            first = prepared(state, id_hmac=identity_hmac)
+            second = prepared(state, id_hmac=identity_hmac)
+            settings = real_settings(state).model_copy(
+                update={
+                    "session_privacy": True,
+                    "session_master_key": SecretStr(
+                        base64.b64encode(secrets.token_bytes(32)).decode()
+                    ),
+                }
+            )
+        ready = Barrier(2)
+
+        def enroll(record):
+            session, template, continuity = record
+            try:
+                with root.transaction() as state:
+                    loaded = state.sessions.get(session.session_id)
+                    ready.wait(timeout=10)
+                    AccountStore(settings, state.db).create(loaded, template, continuity=continuity)
+                return "created"
+            except ApiError as exc:
+                return exc.error_code
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(enroll, [first, second]))
+        assert sorted(results) == ["created", "enrollment_not_available"]
+        with postgres.sessions() as db:
+            assert (
+                db.scalar(
+                    select(func.count())
+                    .select_from(AccountRow)
+                    .where(AccountRow.id_number_hmac == identity_hmac)
+                )
+                == 1
+            )
 
 
 @pytest.fixture
@@ -47,11 +530,37 @@ def postgres(monkeypatch):
     get_settings.cache_clear()
 
 
+def test_postgres_concurrent_id_rescans_keep_quota_and_committed_pair(postgres):
+    from fastapi.testclient import TestClient
+    from test_upload_image_safety import card, snapshot
+
+    with TestClient(create_app()) as first, TestClient(create_app()) as second:
+        first.app.state.vericlue.settings.max_id_card_scans = 2
+        second.app.state.vericlue.settings.max_id_card_scans = 2
+        response = first.post("/v1/sessions")
+        created = response.json()
+        sid = created["session_id"]
+        auth = {"Authorization": "Bearer " + created["token"]}
+        assert card(first, sid, auth).status_code == 200
+        gate = Barrier(2)
+
+        def scan(client):
+            gate.wait(timeout=5)
+            return card(client, sid, auth).status_code
+
+        with ThreadPoolExecutor(2) as pool:
+            statuses = list(pool.map(scan, [first, second]))
+        assert sorted(statuses) == [200, 409]
+        front, back, count, _ = snapshot(first, sid)
+        assert count == 2
+        assert set(front.parent.iterdir()) == {front, back}
+
+
 def test_postgres_migration_mock_flow_and_restart(postgres):
     assert {"sessions", "module_results", "decisions", "review_events", "forensic_jobs"} <= set(
         inspect(postgres.engine).get_table_names()
     )
-    with TestClient(create_app()) as client:
+    with staff_test_client(create_app()) as client:
         response = client.post("/v1/sessions")
         assert response.status_code == 200
         body = response.json()
@@ -61,7 +570,7 @@ def test_postgres_migration_mock_flow_and_restart(postgres):
             client.post(
                 f"/v1/sessions/{sid}/media",
                 headers=auth,
-                files={"image": ("face.jpg", b"synthetic", "image/jpeg")},
+                files={"image": ("face.jpg", synthetic_image(b"synthetic"), "image/jpeg")},
             ).status_code
             == 200
         )
@@ -85,7 +594,7 @@ def test_postgres_migration_mock_flow_and_restart(postgres):
             )
             == 1
         )
-    with TestClient(create_app()) as restarted:
+    with staff_test_client(create_app()) as restarted:
         with restarted.app.state.vericlue.transaction() as state:
             assert state.sessions.get(sid).results
             assert state.sessions.get(sid).token == ""
@@ -101,7 +610,7 @@ def test_postgres_migration_mock_flow_and_restart(postgres):
 
 
 def test_postgres_review_events_are_append_only(postgres):
-    with TestClient(create_app()) as client:
+    with staff_test_client(create_app()) as client:
         created = client.post("/v1/sessions", headers={"X-Mock-Scenario": "print"}).json()
         auth = {"Authorization": "Bearer " + created["token"]}
         sid = created["session_id"]
@@ -148,7 +657,7 @@ def test_postgres_review_events_are_append_only(postgres):
 
 
 def test_postgres_concurrent_finalize_creates_exactly_one_review_case(postgres):
-    with TestClient(create_app()) as client:
+    with staff_test_client(create_app()) as client:
         created = client.post("/v1/sessions", headers={"X-Mock-Scenario": "print"}).json()
         sid = created["session_id"]
         barrier = Barrier(2)
@@ -254,7 +763,7 @@ def test_postgres_cleanup_skips_locked_expired_and_does_not_lock_fresh_or_open(
 
 
 def test_postgres_review_list_does_not_lock_cases(postgres):
-    with TestClient(create_app()) as client:
+    with staff_test_client(create_app()) as client:
         cases = client.get("/v1/review/cases").json()["items"]
         assert cases
         with postgres.sessions.begin() as locked:

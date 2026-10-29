@@ -53,13 +53,16 @@ def serve(source: BinaryIO, target: BinaryIO, detector) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--models-dir", type=Path, required=True)
+    parser.add_argument("--whole-utterance", action="store_true")
     args = parser.parse_args(argv)
     source, target = sys.stdin.buffer, sys.stdout.buffer
     try:
         with contextlib.redirect_stdout(sys.stderr):
             from vericlue_ml.voice.nes2net import Nes2NetDetector
+            from vericlue_ml.voice.nes2net_timeline import Nes2NetTimelineDetector
 
-            detector = Nes2NetDetector(args.models_dir)
+            detector_class = Nes2NetTimelineDetector if args.whole_utterance else Nes2NetDetector
+            detector = detector_class(args.models_dir)
         serve(source, target, detector)
     except Exception:
         # Do not print PCM, paths or a misleading protocol response after bad framing.

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 
 import pytest
-from fastapi.testclient import TestClient
+from conftest import staff_test_client
 from sqlalchemy import select
 
 from vericlue_api.core.config import get_settings
@@ -24,7 +24,7 @@ def test_forensic_genuine_does_not_authenticate_when_mvp_steps_are_disabled(
 ) -> None:
     monkeypatch.setenv("ROUTER_PROFILE", profile)
     get_settings.cache_clear()
-    with TestClient(create_app()) as client:
+    with staff_test_client(create_app()) as client:
         created = client.post(
             "/v1/forensic/jobs",
             headers={"X-Mock-Scenario": "genuine"},
@@ -83,7 +83,7 @@ def test_forensic_genuine_does_not_authenticate_when_mvp_steps_are_disabled(
 def test_mvp_review_seed_retains_disabled_step_evidence(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ROUTER_PROFILE", "mvp")
     get_settings.cache_clear()
-    with TestClient(create_app()) as client:
+    with staff_test_client(create_app()) as client:
         with client.app.state.vericlue.database.sessions() as db:
             cases = db.scalars(select(ReviewCaseRow)).all()
             assert cases

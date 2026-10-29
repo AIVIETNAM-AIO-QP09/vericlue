@@ -1,5 +1,10 @@
 # Hiện diện và chuyển động mắt
 
+PRES-05 ghép các thành phần local vào `eval.presence_lab`: một lượt màu →
+mắt → quay đầu, cùng clock/reader/id, giữ kết quả riêng và chỉ chấm ba ảnh khi
+motion đủ. Chưa có quyết định xác minh; xem
+[hướng dẫn](../../../../docs/architecture/presence-lab.md).
+
 PRES-02 có backend đo phản hồi màu từ video bằng cùng MediaPipe, xuất R²/lag
 biểu kiến qua CLI riêng. Chưa có ngưỡng hoặc kiểm chứng đồng hồ; kết quả thật
 luôn unclear, chưa nối HTTP. Xem

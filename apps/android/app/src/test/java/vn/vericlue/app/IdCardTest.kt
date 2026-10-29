@@ -1,10 +1,13 @@
 package vn.vericlue.app
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import vn.vericlue.app.capture.CardText
 import vn.vericlue.app.capture.CccdQr
+import vn.vericlue.app.capture.IdAutoCapture
 import vn.vericlue.app.capture.IdQuality
 import vn.vericlue.app.capture.ImageChecks
 import vn.vericlue.app.ui.screens.idRetakeHint
@@ -56,5 +59,33 @@ class IdCardTest {
         assertTrue(idRetakeHint(true, IdQuality(500.0, 0.0, null))!!.contains("mã QR"))
         assertNull(idRetakeHint(true, IdQuality(500.0, 0.0, qr)))
         assertNull(idRetakeHint(false, null))
+    }
+
+    @Test
+    fun autoCaptureNeedsTwoGoodFramesInARow() {
+        val sharp = IdQuality(500.0, 0.0, null, looksLikeCard = true)
+        val auto = IdAutoCapture()
+        assertFalse(auto.offer(sharp))
+        assertFalse(auto.offer(IdQuality(10.0, 0.0, null, true))) // blurry frame breaks the run
+        assertFalse(auto.offer(sharp))
+        assertFalse(auto.offer(IdQuality(500.0, 0.5, null, true))) // glare too
+        assertFalse(auto.offer(sharp))
+        assertFalse(auto.offer(IdQuality(500.0, 0.0, null, looksLikeCard = false))) // a sharp room is not a card
+        assertFalse(auto.offer(sharp))
+        assertFalse(auto.offer(IdQuality(500.0, 0.0, null))) // text not read: no auto shot
+        assertFalse(auto.offer(sharp))
+        assertTrue(auto.offer(sharp))
+        auto.reset()
+        assertFalse(auto.offer(sharp))
+    }
+
+    @Test
+    fun cardWordsAreFoundWithOrWithoutDiacritics() {
+        assertTrue(CardText.looksLikeCard("CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM\nCĂN CƯỚC CÔNG DÂN"))
+        assertTrue(CardText.looksLikeCard("Citizen Identity Card"))
+        assertTrue(CardText.looksLikeCard("IDVNM0950123451001095012345<<5"))
+        assertTrue(CardText.looksLikeCard("CAN  CUOC")) // OCR without diacritics, extra space
+        assertFalse(CardText.looksLikeCard("BOOKS TV LIVING ROOM"))
+        assertFalse(CardText.looksLikeCard(""))
     }
 }

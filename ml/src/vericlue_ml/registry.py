@@ -31,6 +31,7 @@ REAL_TASK: dict[Module, str] = {
     Module.GAZE_TRACKING: "LIVE-02",
     Module.HEAD_TURN: "FLOW-04",
     Module.FACE_MATCH: "FLOW-05",
+    Module.FACE_CONTINUITY: "FLOW-05",
 }
 
 
@@ -54,6 +55,13 @@ def _face_match() -> Detector:
     from vericlue_ml.face.match import FaceMatchDetector
 
     return FaceMatchDetector()
+
+
+@lru_cache(maxsize=1)
+def _face_continuity() -> Detector:
+    from vericlue_ml.face.continuity import FaceContinuityDetector
+
+    return FaceContinuityDetector(matcher=_face_match())
 
 
 @lru_cache(maxsize=1)
@@ -116,6 +124,7 @@ _REAL_FACTORIES: dict[Module, Callable[[], Detector]] = {
     Module.GAZE_TRACKING: _gaze_tracking,
     Module.HEAD_TURN: _head_turn,
     Module.FACE_MATCH: _face_match,
+    Module.FACE_CONTINUITY: _face_continuity,
     Module.VOICE_CHALLENGE: _voice_challenge,
     Module.VOICE_SPOOF: _voice_spoof,
     Module.FACE_PAD: _face_pad,
@@ -169,6 +178,29 @@ def register(module: Module, factory: Callable[[], Detector]) -> None:
     _REAL_FACTORIES[Module(module)] = factory
 
 
+def get_video_face_match(*, mock: bool = False) -> Detector:
+    """Explicit server-video identity variant; leave the standard registry selection intact."""
+    if mock:
+        from vericlue_ml.mock.video_match import MockVideoFaceMatchDetector
+
+        return MockVideoFaceMatchDetector()
+    from vericlue_ml.face.video_match import VideoFaceMatchDetector
+
+    return VideoFaceMatchDetector()
+
+
+def get_session_voice(kind: str, *, client=None, mock: bool = False) -> Detector:
+    if mock:
+        from vericlue_ml.mock.session_voice import MockSessionVoiceDetector
+
+        return MockSessionVoiceDetector(kind)
+    if client is None:
+        raise ValueError("Session voice requires an explicitly configured local runtime")
+    from vericlue_ml.voice.session import SessionVoiceDetector
+
+    return SessionVoiceDetector(client, kind)
+
+
 @lru_cache(maxsize=2)
 def get_fsvfm_pad(*, mock: bool = False) -> Detector:
     """Explicit diagnostic alternative; leave get_detector('face_pad') unchanged."""
@@ -209,6 +241,18 @@ def get_nes2net(*, mock: bool = False) -> Detector:
     from vericlue_ml.voice.nes2net import Nes2NetDetector
 
     return Nes2NetDetector()
+
+
+@lru_cache(maxsize=2)
+def get_nes2net_timeline(*, mock: bool = False) -> Detector:
+    """Opt-in per-window NES2Net evidence; keep HTTP and first4s factories unchanged."""
+    if mock:
+        from vericlue_ml.mock.nes2net_timeline import MockNes2NetTimelineDetector
+
+        return MockNes2NetTimelineDetector()
+    from vericlue_ml.voice.nes2net_timeline import Nes2NetTimelineDetector
+
+    return Nes2NetTimelineDetector()
 
 
 @lru_cache(maxsize=2)

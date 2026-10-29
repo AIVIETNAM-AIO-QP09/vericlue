@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vericlue.local/contracts/result.schema.json",
+  "title": "Kết quả xác minh có chữ ký",
+  "description": "Kết quả Ed25519 cho bên tích hợp theo PLAT-06/FLOW-01. Không phải token đăng nhập hoặc kết quả kháng lượng tử. Không chứa điểm hoặc dữ liệu sinh trắc.",
+  "$defs": {
+    "SigningKey": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "key_id", "public_key_spki"],
+      "properties": {
+        "algorithm": {"type": "string", "const": "Ed25519"},
+        "key_id": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "public_key_spki": {"type": "string", "minLength": 40, "maxLength": 128}
+      }
+    },
+    "SignedResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "key_id", "payload", "signature"],
+      "properties": {
+        "algorithm": {"type": "string", "const": "Ed25519"},
+        "key_id": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "payload": {"type": "string", "minLength": 16, "maxLength": 4096, "pattern": "^[A-Za-z0-9_-]+$", "description": "Base64url không padding của đúng các byte JSON ResultClaims được ký; bên nhận không tuần tự hóa lại trước khi kiểm chữ ký."},
+        "signature": {"type": "string", "minLength": 86, "maxLength": 86, "pattern": "^[A-Za-z0-9_-]+$"}
+      }
+    },
+    "ResultClaims": {
+      "type": "object",
+      "additionalProperties": false,
+      "dependentRequired": {"account_id": ["device_id"], "device_id": ["account_id"]},
+      "allOf": [
+        {"if": {"properties": {"status": {"const": "pass"}}, "required": ["status"]}, "then": {"required": ["account_id", "device_id"]}},
+        {"if": {"properties": {"purpose": {"const": "recovery"}}, "required": ["purpose"]}, "then": {"properties": {"status": {"const": "pass"}}}}
+      ],
+      "required": ["version", "issuer", "audience", "result_id", "session_id", "purpose", "nonce", "status", "issued_at", "expires_at"],
+      "properties": {
+        "version": {"type": "integer", "const": 1},
+        "issuer": {"type": "string", "pattern": "^[A-Za-z0-9:/._-]{1,200}$"},
+        "audience": {"type": "string", "pattern": "^[A-Za-z0-9:/._-]{1,200}$"},
+        "result_id": {"type": "string", "pattern": "^res_[0-9a-f]{64}$"},
+        "session_id": {"type": "string", "pattern": "^ses_[A-Za-z0-9_-]{1,120}$"},
+        "purpose": {"type": "string", "enum": ["reauth", "recovery"]},
+        "nonce": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"},
+        "status": {"type": "string", "enum": ["pass", "deny", "recovery_required"]},
+        "issued_at": {"type": "integer", "minimum": 0, "maximum": 9999999999},
+        "expires_at": {"type": "integer", "minimum": 0, "maximum": 9999999999},
+        "account_id": {"type": "string", "pattern": "^acct_[0-9a-f]{32}$"},
+        "device_id": {"type": "string", "pattern": "^dev_[0-9a-f]{32}$"}
+      }
+    }
+  }
+}

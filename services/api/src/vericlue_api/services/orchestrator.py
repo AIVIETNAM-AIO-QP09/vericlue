@@ -9,20 +9,35 @@ from concurrent.futures import Future, ThreadPoolExecutor, wait
 from copy import copy
 from dataclasses import dataclass, field
 from pathlib import Path
-from threading import Lock
+from threading import Lock, Thread
 from time import perf_counter
-from typing import Any
+from typing import Any, Literal
 
 from vericlue_api.core.config import Settings
+from vericlue_api.core.errors import ApiError
 from vericlue_ml.common.detector import Detector, DetectorInput
 from vericlue_ml.common.result import ErrorCode, Evidence, Module, ModuleResult, Status
+from vericlue_ml.face.continuity import FaceContinuityDetector
+from vericlue_ml.face.enrolled import match_enrolled
+from vericlue_ml.face.fsvfm import FsvfmPadDetector
 from vericlue_ml.face.gend import FaceDeepfakeDetector
+from vericlue_ml.face.match import FaceMatchDetector
 from vericlue_ml.face.pad import FacePadDetector
 from vericlue_ml.face.quality import QualityDetector
+from vericlue_ml.face.session_attack import SessionAttackDetector
+from vericlue_ml.face.template import FaceTemplate
+from vericlue_ml.face.video_match import VideoFaceMatchDetector
+from vericlue_ml.presence.chromapulse import ChromaPulseDetector
+from vericlue_ml.presence.color_regions import ColorObservationReader
+from vericlue_ml.presence.gaze import GazeDetector
+from vericlue_ml.presence.head_turn import HeadTurnDetector
+from vericlue_ml.presence.landmarks import FaceObservationReader
 from vericlue_ml.registry import get_detector
 from vericlue_ml.router.policy import TrustRouter
+from vericlue_ml.runtime.voice_client import VoiceWorkerClient
 from vericlue_ml.voice.antispoof import AntiDeepfakeDetector
 from vericlue_ml.voice.challenge import VoiceChallengeDetector
+from vericlue_ml.voice.session import SessionVoiceDetector
 from vericlue_ml.voice.syncnet import SyncNetDetector
 
 logger = logging.getLogger(__name__)
@@ -35,6 +50,8 @@ class _Job:
     submitted: float
     deadline: float
     result: Future = field(default_factory=Future)
+    approved: ModuleResult | None = None
+    reference_template: FaceTemplate | None = field(default=None, repr=False)
 
 
 class Orchestrator:
@@ -45,9 +62,7 @@ class Orchestrator:
     ) -> None:
         self.settings = settings
         self.router = TrustRouter(settings.router_config, profile=settings.router_profile)
-        self._factory = detector_factory or (
-            lambda module: get_detector(module, mock=settings.use_mock_models)
-        )
+        self._factory = detector_factory or self._default_detector
         self._detectors: dict[Module, Detector] = {}
         self._failed: set[Module] = set()
         self._queues: dict[Module, deque[_Job]] = {module: deque() for module in Module}
@@ -55,6 +70,86 @@ class Orchestrator:
         self._lifecycle = Lock()
         self._started = self._closed = False
         self._executor: ThreadPoolExecutor | None = None
+        self._face_reader = FaceObservationReader()
+        self._identity_matcher: FaceMatchDetector | None = None
+        self._voice_clients: dict[str, VoiceWorkerClient] = {}
+
+    def _default_detector(self, module: Module) -> Detector:
+        if self.settings.session_voice_models and module in {
+            Module.VOICE_CHALLENGE,
+            Module.VOICE_SPOOF,
+            Module.LIPSYNC,
+        }:
+            group = "spoof" if module == Module.VOICE_SPOOF else "voice"
+            python = (
+                self.settings.voice_spoof_python
+                if group == "spoof"
+                else self.settings.voice_runtime_python
+            )
+            if not python:
+                raise ValueError("Configure compatible local voice runtimes")
+            if group not in self._voice_clients:
+                self._voice_clients[group] = VoiceWorkerClient(
+                    Path(python),
+                    Path(self.settings.models_dir),
+                    Path(self.settings.media_dir),
+                    timeout=self.settings.session_model_timeout_seconds,
+                )
+            return SessionVoiceDetector(
+                self._voice_clients[group],
+                {
+                    Module.VOICE_CHALLENGE: "content",
+                    Module.VOICE_SPOOF: "spoof",
+                    Module.LIPSYNC: "lipsync",
+                }[module],
+                match_config=self.settings.router_config.voice
+                if module == Module.VOICE_CHALLENGE
+                else None,
+            )
+        if (
+            module == Module.FACE_MATCH
+            and self.settings.identity_lab_url
+            or module == Module.FACE_CONTINUITY
+            and self.settings.identity_voice_continuity
+        ):
+            # Identity opt-in is deliberately hybrid: OCR and face matching are real,
+            # even when the remaining API detectors are mocked for the demo.
+            artifact = self.settings.identity_face_calibration
+            if self._identity_matcher is None and self.settings.identity_face_from_video:
+                self._identity_matcher = VideoFaceMatchDetector(
+                    reader=self._face_reader,
+                    calibration_path=Path(artifact) if artifact else None,
+                    with_consistency=self.settings.identity_consistency_required,
+                    consistency_path=Path(self.settings.identity_consistency_calibration)
+                    if self.settings.identity_consistency_calibration
+                    else None,
+                )
+            if self._identity_matcher is None:
+                self._identity_matcher = FaceMatchDetector(
+                    calibration_path=Path(artifact) if artifact else None
+                )
+            if module == Module.FACE_MATCH:
+                return self._identity_matcher
+            return FaceContinuityDetector(
+                self._identity_matcher,
+                self._face_reader,
+                calibration_path=Path(self.settings.identity_voice_calibration)
+                if self.settings.identity_voice_calibration
+                else None,
+            )
+        if self.settings.session_face_checks:
+            if module == Module.GAZE_TRACKING:
+                return GazeDetector(self._face_reader)
+            if module == Module.HEAD_TURN:
+                return HeadTurnDetector(self._face_reader)
+        if self.settings.session_face_models:
+            if module == Module.FACE_PAD:
+                return SessionAttackDetector(FsvfmPadDetector(), self._face_reader)
+            if module == Module.FACE_DEEPFAKE:
+                return SessionAttackDetector(FaceDeepfakeDetector(), self._face_reader)
+            if module == Module.CHROMAPULSE:
+                return ChromaPulseDetector(ColorObservationReader(self._face_reader))
+        return get_detector(module, mock=self.settings.use_mock_models)
 
     def loaded_detector(self, module: Module) -> Detector | None:
         """Bộ phát hiện đã preload (dùng lại cho giám định, tránh nạp mô hình hai lần); None nếu chưa có."""
@@ -74,7 +169,14 @@ class Orchestrator:
                 raise RuntimeError("Orchestrator is closed")
             if self._started:
                 return
-            for module in self.router.profile.modules:
+            modules = list(self.router.profile.modules)
+            if self.settings.identity_lab_url:
+                modules.append(Module.FACE_MATCH)
+            if self.settings.identity_voice_continuity:
+                modules.append(Module.FACE_CONTINUITY)
+            if self.settings.session_face_checks:
+                modules.extend((Module.GAZE_TRACKING, Module.HEAD_TURN))
+            for module in dict.fromkeys(modules):
                 try:
                     detector = self._factory(module)
                     if Module(detector.name) != module:
@@ -90,6 +192,10 @@ class Orchestrator:
                             models_dir=Path(self.settings.models_dir),
                             device=self.settings.lipsync_device,
                         )
+                    elif isinstance(
+                        detector, (GazeDetector, HeadTurnDetector, ChromaPulseDetector)
+                    ):
+                        preload(models_dir=Path(self.settings.models_dir))
                     elif preload is not None:
                         if isinstance(
                             detector,
@@ -99,6 +205,9 @@ class Orchestrator:
                                 FacePadDetector,
                                 FaceDeepfakeDetector,
                                 QualityDetector,
+                                FaceMatchDetector,
+                                FaceContinuityDetector,
+                                SessionAttackDetector,
                             ),
                         ):
                             preload(
@@ -119,6 +228,8 @@ class Orchestrator:
     def close(self) -> None:
         """Stop accepting work; running inference cannot be safely killed in a thread."""
         with self._lifecycle:
+            if self._closed:
+                return
             self._closed = True
             for queue in self._queues.values():
                 while queue:
@@ -137,6 +248,22 @@ class Orchestrator:
                     )
             if self._executor is not None:
                 self._executor.shutdown(wait=False, cancel_futures=True)
+                if (
+                    self.settings.identity_face_from_video
+                    or self.settings.session_face_checks
+                    or self.settings.session_face_models
+                ):
+                    executor, reader = self._executor, self._face_reader
+
+                    def release_reader() -> None:
+                        # Wait outside the request/shutdown path; no task may reopen the
+                        # shared reader between close and its last native inference.
+                        executor.shutdown(wait=True)
+                        reader.close()
+
+                    Thread(target=release_reader, name="vericlue-face-cleanup", daemon=True).start()
+            for client in self._voice_clients.values():
+                client.close()
 
     def _error(
         self, module: Module, code: ErrorCode, latency_ms: float, *, reason: str | None = None
@@ -163,15 +290,44 @@ class Orchestrator:
         )
 
     def _predict(
-        self, module: Module, inp: DetectorInput, submitted: float, deadline: float
-    ) -> tuple[ModuleResult, float]:
+        self,
+        module: Module,
+        inp: DetectorInput,
+        submitted: float,
+        deadline: float,
+        approved: ModuleResult | None = None,
+        reference_template: FaceTemplate | None = None,
+    ) -> tuple[ModuleResult | FaceTemplate, float]:
         if perf_counter() >= deadline:
             finished = perf_counter()
             return self._error(
                 module, ErrorCode.E_TIMEOUT, (finished - submitted) * 1000, reason="timeout"
             ), finished
         try:
-            result = self._detectors[module].predict(inp)
+            if reference_template is not None:
+                if self.settings.use_mock_models is not False:
+                    raise ValueError("Enrolled matching requires real model mode")
+                detector = self._detectors[module]
+                if module != Module.FACE_MATCH or not isinstance(detector, VideoFaceMatchDetector):
+                    raise ValueError("Video identity detector required")
+                artifact = (
+                    self.settings.identity_recovery_calibration
+                    if inp.metadata.get("purpose") == "recovery"
+                    else self.settings.identity_account_calibration
+                )
+                result = match_enrolled(
+                    detector, inp, reference_template, Path(artifact) if artifact else None
+                )
+            elif approved is not None:
+                detector = self._detectors[module]
+                if module != Module.FACE_MATCH or not isinstance(detector, VideoFaceMatchDetector):
+                    raise ValueError("Video identity detector required")
+                template = detector.enrollment_template(inp, approved)
+                # Private artifact: never place it in ModuleResult or detector logs.
+                template = FaceTemplate.model_validate_json(template.model_dump_json())
+                return template, perf_counter()
+            else:
+                result = self._detectors[module].predict(inp)
             if not isinstance(result, ModuleResult) or Module(result.module) != module:
                 raise ValueError("Invalid detector result")
             result = ModuleResult.model_validate(result.model_dump())
@@ -184,7 +340,9 @@ class Orchestrator:
         # Only one executor worker per module; queued requests do not occupy pool threads.
         module = job.module
         while True:
-            result = self._predict(module, job.inp, job.submitted, job.deadline)
+            result = self._predict(
+                module, job.inp, job.submitted, job.deadline, job.approved, job.reference_template
+            )
             with self._lifecycle:
                 queue = self._queues[module]
                 next_job = queue.popleft() if queue else None
@@ -220,6 +378,75 @@ class Orchestrator:
                 remaining.append(job)
         self._queues[module] = remaining
 
+    def _enqueue_locked(self, job: _Job, media_lease=None) -> Future:
+        """Admit ordinary and private jobs to the same bounded per-module queue."""
+        module = job.module
+        now = perf_counter()
+        self._prune(module)
+        if (
+            not self._started
+            or self._closed
+            or module not in self._detectors
+            or module in self._failed
+            or now >= job.deadline
+            or module in self._running
+            and len(self._queues[module]) >= self.settings.detector_queue_size
+        ):
+            job.result.set_result(
+                (self._error(module, ErrorCode.E_TIMEOUT, (now - job.submitted) * 1000), now)
+            )
+            return job.result
+        if media_lease is not None:
+            media_lease.retain(job.result)
+        if module in self._running:
+            self._queues[module].append(job)
+        else:
+            self._running.add(module)
+            try:
+                self._executor.submit(self._drain, job)
+            except Exception:
+                self._running.remove(module)
+                job.result.set_result(
+                    (
+                        self._error(module, ErrorCode.E_INTERNAL, (now - job.submitted) * 1000),
+                        perf_counter(),
+                    )
+                )
+        return job.result
+
+    def extract_template(
+        self,
+        inp: DetectorInput,
+        approved: ModuleResult,
+        *,
+        deadline: float | None = None,
+        media_lease=None,
+    ) -> FaceTemplate:
+        """Private bounded worker operation on the already loaded LVFace instance."""
+        if self.settings.use_mock_models is not False or not self.settings.identity_face_from_video:
+            raise ApiError(503, "enrollment_unavailable", "Chưa thể hoàn tất ghi danh lúc này.")
+        started = perf_counter()
+        deadline = min(
+            started + self.settings.session_model_timeout_seconds,
+            deadline if deadline is not None else float("inf"),
+        )
+        job = _Job(
+            Module.FACE_MATCH,
+            inp.model_copy(deep=True),
+            started,
+            deadline,
+            approved=approved.model_copy(deep=True),
+        )
+        with self._lifecycle:
+            future = self._enqueue_locked(job, media_lease)
+        wait([future], timeout=max(0.0, deadline - perf_counter()))
+        if future.done() and not future.cancelled():
+            result, finished = future.result()
+            if finished <= deadline and isinstance(result, FaceTemplate):
+                return result
+        # Native work may still be running; its future owns the lease, never the DB.
+        raise ApiError(503, "enrollment_unavailable", "Chưa thể hoàn tất ghi danh lúc này.")
+
     def run(
         self,
         modules: Iterable[Module],
@@ -227,21 +454,36 @@ class Orchestrator:
         session_id: str | None,
         scenario: str,
         images: list[Path] | None = None,
+        reference_image: Path | None = None,
+        reference_video: Path | None = None,
+        image_roles: list[Literal["front", "left", "right"]] | None = None,
         video: Path | None = None,
         audio: Path | None = None,
         signals: dict[str, Any] | None = None,
         extra_metadata: dict[str, Any] | None = None,
         deadline: float | None = None,
+        media_lease=None,
+        reference_template: FaceTemplate | None = None,
     ) -> dict[Module, ModuleResult]:
         """Use a common submission deadline; discard late results without state writes."""
         started = perf_counter()
         deadline = min(
-            started + self.settings.detector_timeout_seconds,
+            started
+            + (
+                self.settings.session_model_timeout_seconds
+                if self.settings.session_face_models
+                or self.settings.session_voice_models
+                or self.settings.identity_voice_continuity
+                else self.settings.detector_timeout_seconds
+            ),
             deadline if deadline is not None else float("inf"),
         )
         inp = DetectorInput(
             session_id=session_id,
             images=images or [],
+            reference_image=reference_image,
+            reference_video=reference_video,
+            image_roles=image_roles or [],
             video=video,
             audio=audio,
             signals=signals or {},
@@ -252,7 +494,14 @@ class Orchestrator:
         with self._lifecycle:
             for value in dict.fromkeys(modules):
                 module = Module(value)
-                if module not in self.router.profile.modules:
+                if module not in self.router.profile.modules and not (
+                    module == Module.FACE_MATCH
+                    and self.settings.identity_lab_url
+                    or module == Module.FACE_CONTINUITY
+                    and self.settings.identity_voice_continuity
+                    or module in {Module.GAZE_TRACKING, Module.HEAD_TURN}
+                    and self.settings.session_face_checks
+                ):
                     out[module] = self._error(
                         module,
                         ErrorCode.E_INTERNAL,
@@ -285,24 +534,16 @@ class Orchestrator:
                         reason="busy",
                     )
                     continue
-                job = _Job(module, inp.model_copy(deep=True), started, deadline)
-                futures[module] = job.result
-                if module in self._running:
-                    self._queues[module].append(job)
-                else:
-                    self._running.add(module)
-                    try:
-                        self._executor.submit(self._drain, job)
-                    except Exception:
-                        self._running.remove(module)
-                        job.result.set_result(
-                            (
-                                self._error(
-                                    module, ErrorCode.E_INTERNAL, (perf_counter() - started) * 1000
-                                ),
-                                perf_counter(),
-                            )
-                        )
+                job = _Job(
+                    module,
+                    inp.model_copy(deep=True),
+                    started,
+                    deadline,
+                    reference_template=reference_template.model_copy(deep=True)
+                    if module == Module.FACE_MATCH and reference_template is not None
+                    else None,
+                )
+                futures[module] = self._enqueue_locked(job, media_lease)
         if futures:
             wait(futures.values(), timeout=max(0.0, deadline - perf_counter()))
         for module, future in futures.items():

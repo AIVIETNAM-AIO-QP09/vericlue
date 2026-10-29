@@ -184,7 +184,31 @@ rẽ nhánh. Cùng bảo vệ bước quyết định cuối, không đổi hợ
 - **Trang xác minh** `/forensic/verify`: dán JSON hoặc tải PDF + chữ ký → hợp lệ hay không.
 
 **Tiêu chí hoàn thành:**
-- [ ] Sửa 1 ký tự trong báo cáo → xác minh thất bại.
-- [ ] (Từ REV-01) Neo **hash cuối chuỗi** `review_events` của ca liên quan vào báo cáo đã ký, để phát hiện việc cắt bớt đuôi nhật ký (`verify_chain()` chỉ bắt được sửa/xóa giữa chuỗi).
+- [x] Gói PDF/JSON: sửa byte PDF hoặc JSON → xác minh thất bại, có CLI với key đã pin (test).
+- [x] (Từ REV-01) Neo **hash cuối chuỗi** `review_events` của ca gắn vật chứng vào HTML/JSON/PDF đã ký; verifier phát hiện cắt đuôi ngay cả khi verify_chain còn đạt. Kiểm byte nguồn, duyệt trước AI, append hợp lệ và chống hạ mốc (test tổng hợp).
 - [ ] Bảng thang lời được kiểm tra lại với tài liệu ENFSI 2015 trước khi dùng.
-- [ ] Mục giới hạn luôn có mặt (test).
+- [x] Mục giới hạn luôn có mặt trong HTML/PDF và manifest không được trống (test, PDF tổng hợp đã render kiểm trực quan).
+
+**Lát cắt xuất artifact 26/10 (doing):** Đã có endpoint StaffBearer xuất ZIP
+PDF/JSON/signature, Node/Chromium opt-in, protocol domain riêng dùng khóa report
+PLAT-06 và CLI kiểm offline. Chỉ done/real, mock không được ký; không thêm LR
+hoặc thang lời từ điểm MVP. PDF có nhãn thử nghiệm. Phần này độc lập với các phụ
+thuộc hiệu chỉnh chưa xong; không mở chốt mô hình. Còn neo audit/ảnh/phổ/calib/LR/
+ENFSI và UI do thành viên khác làm. Xem `docs/architecture/forensic-pdf-bundle.md`.
+
+**Bổ sung ảnh/phổ 26/10 (doing):** HTML/PDF có minh họa opt-in từ snapshot nguồn
+khớp SHA-256; tối đa ba khoảng/ba giây mỗi khoảng, frame và phổ Hann/mono 16 kHz,
+giới hạn subprocess và format/protocol FFmpeg. Caption ghi giới hạn thời gian,
+không gọi là heatmap hay xác suất AI. Thiếu nguồn/runtime ghi rõ bỏ minh họa,
+không đổi verdict/chữ ký. Test native dùng test-pattern/sóng sin, chặn playlist
+mạng; PDF tổng hợp đã kiểm bố cục. Không đổi schema/UI. Còn neo audit/calib/LR/
+ENFSI và nghiệm thu toàn luồng; xem `docs/architecture/forensic-report-evidence.md`.
+
+**Liên kết và neo nhật ký 26/10 (doing):** `review_case_id` multipart tùy chọn;
+không gửi giữ giám định độc lập. Gửi mã ca phải có quyết định ban đầu và file
+khớp byte role video/audio lưu trong phiên, hỗ trợ SEC-01 encrypted lease. Mốc
+case/session/role/hash/count/tail đi vào chữ ký. Xuất lại chỉ tiến mốc sau kiểm
+prefix, không ký lại nhật ký bị cắt. `/review-audit/verify` xác minh JSON đã ký
+trước DB, phân biệt intact/extended/truncated; không thay kiểm byte PDF. Không
+UPDATE/DELETE review_events trong sản phẩm. Còn calib/LR/ENFSI và nghiệm thu UI/
+vật chứng thật; xem `docs/architecture/forensic-review-audit.md`.

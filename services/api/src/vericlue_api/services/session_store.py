@@ -11,9 +11,11 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
+from vericlue_api.core.retention import ensure_session_retained
 from vericlue_api.core.session_tokens import SessionTokenSigner, token_digest
 from vericlue_api.db.models import DecisionRow, ModuleResultRow, SessionRow, utcnow
 from vericlue_api.schemas.session import Challenge, SessionPurpose
+from vericlue_api.services.session_privacy import SessionPrivacy
 from vericlue_ml.common.result import Module, ModuleResult
 
 
@@ -31,6 +33,8 @@ class Session:
     images: list[Path] = field(default_factory=list)
     video: Path | None = None
     audio: Path | None = None
+    voice_video: Path | None = None
+    voice_audio_offset_ms: int | None = None
     signals: dict = field(default_factory=dict)
     results: dict[Module, ModuleResult] = field(default_factory=dict)
     retries_used: int = 0
@@ -53,23 +57,48 @@ class Session:
     id_front: Path | None = None
     id_back: Path | None = None
     id_fields: dict | None = None
+    # Only populated with SESSION_PRIVACY enabled; persisted inside encrypted snapshot.
+    sensitive_id_number: str | None = field(default=None, repr=False)
+    sensitive_confirmed_id_number: str | None = field(default=None, repr=False)
     id_number_hmac: str | None = None
     id_edited: list[str] = field(default_factory=list)  # trường người dùng sửa khác QR
+    id_source: str | None = None
+    id_confirmed_fields: dict | None = None
+    id_confirmed_number_hmac: str | None = None
+    id_confirmed: bool = False
+    id_scan_count: int = 0
+    id_scan_bytes: int = 0
+    uploaded_media_bytes: int = 0
     purpose: SessionPurpose | None = None
     nonce: str | None = None
     reference_image_id: str | None = None
     device_verified: bool = False  # Never populated from request JSON; SEC-02 owns verification.
+    account_id: str | None = None
+    registered_device_id: str | None = None
+    device_auth_nonce: str | None = field(default=None, repr=False)
+    device_auth_expires_ms: int | None = None
+    created_model_mode: str | None = None
+    result_issuer: str | None = None
+    result_audience: str | None = None
+    media_public_key_spki: str | None = field(default=None, repr=False)
     voice_challenge_id: str | None = None
 
 
 class SessionStore:
-    def __init__(self, db: DBSession) -> None:
+    def __init__(self, db: DBSession, *, privacy: SessionPrivacy | None = None) -> None:
         self.db = db
+        self.privacy = privacy
         self._loaded: dict[str, tuple[Session, SessionRow]] = {}
 
     @staticmethod
     def _snapshot(session: Session) -> dict:
         return jsonable_encoder(session, exclude={"token"})
+
+    def _stored_snapshot(self, session: Session) -> dict:
+        value = self._snapshot(session)
+        return (
+            self.privacy.seal_json(session.session_id, "session", value) if self.privacy else value
+        )
 
     def create(
         self,
@@ -88,7 +117,7 @@ class SessionStore:
         )
         session.token = signer.issue(session.session_id, session.token_expires_at)
         session.token_hash = token_digest(session.token)
-        row = SessionRow(session_id=session.session_id, payload=self._snapshot(session))
+        row = SessionRow(session_id=session.session_id, payload=self._stored_snapshot(session))
         self.db.add(row)
         self.db.flush()
         self._loaded[session.session_id] = (session, row)
@@ -101,16 +130,24 @@ class SessionStore:
             select(SessionRow).where(SessionRow.session_id == session_id).with_for_update()
         )
         # Unsigned legacy credentials are revoked, not silently upgraded.
-        if row is None or not row.payload.get("token_hash"):
+        if row is None:
             return None
-        data = dict(row.payload)
+        if self.privacy is not None:
+            ensure_session_retained(self.privacy.settings, row)
+        data = dict(
+            self.privacy.open_json(session_id, "session", row.payload)
+            if self.privacy
+            else row.payload
+        )
+        if not data.get("token_hash"):
+            return None
         data.pop("token", None)
         data["token_expires_at"] = datetime.fromisoformat(data["token_expires_at"])
         for key in ("created_at", "otp_expires_at", "voice_expires_at"):
             data[key] = datetime.fromisoformat(data[key]) if data.get(key) else None
         data["challenge"] = Challenge.model_validate(data["challenge"])
         data["images"] = [Path(p) for p in data["images"]]
-        for key in ("video", "audio", "id_front", "id_back"):
+        for key in ("video", "audio", "voice_video", "id_front", "id_back"):
             data[key] = Path(data[key]) if data.get(key) else None
         data["results"] = {
             Module(k): ModuleResult.model_validate(v) for k, v in data["results"].items()
@@ -121,7 +158,9 @@ class SessionStore:
 
     def save_all(self) -> None:
         for session, row in self._loaded.values():
-            row.payload = self._snapshot(session)
+            if self.privacy is not None:
+                ensure_session_retained(self.privacy.settings, row)
+            row.payload = self._stored_snapshot(session)
             row.last_activity_at = utcnow()
             row.media_deleted_at = None
 
@@ -129,12 +168,21 @@ class SessionStore:
         self, session: Session, action: str, *, thresholds: dict, config_version: str
     ) -> None:
         row = self._loaded[session.session_id][1]
+        if self.privacy is not None:
+            # A request authorized before expiry cannot renew retention by
+            # finishing inference and writing a new decision after its deadline.
+            ensure_session_retained(self.privacy.settings, row)
         row.status = (
             action if action in {"pass", "review", "deny", "recovery_required"} else "incomplete"
         )
         row.ever_review = row.ever_review or action == "review"
-        # Review retention starts only when staff close the case, not at routing time.
-        row.decided_at = utcnow() if action in {"pass", "deny", "recovery_required"} else None
+        # Tools mode keeps staff retention; eKYC has no pending staff case.
+        terminal = action in {"pass", "deny", "recovery_required"} or (
+            action == "review"
+            and self.privacy is not None
+            and self.privacy.settings.product_mode == "ekyc"
+        )
+        row.decided_at = utcnow() if terminal else None
         self.db.add(
             DecisionRow(
                 session_id=session.session_id,
@@ -145,16 +193,22 @@ class SessionStore:
         )
         for result in session.results.values():
             payload = result.to_contract()
+            encrypted = bool(self.privacy and self.privacy.enabled)
+            stored = (
+                self.privacy.seal_json(session.session_id, "result:" + str(result.module), payload)
+                if encrypted
+                else payload
+            )
             self.db.add(
                 ModuleResultRow(
                     session_id=session.session_id,
                     module=str(result.module),
                     model_version=result.model_version,
                     status=str(result.status),
-                    score=result.score,
-                    prob_attack=result.prob_attack,
-                    quality=payload.get("quality", {}),
-                    evidence=payload.get("evidence", []),
-                    payload=payload,
+                    score=None if encrypted else result.score,
+                    prob_attack=None if encrypted else result.prob_attack,
+                    quality={} if encrypted else payload.get("quality", {}),
+                    evidence=[] if encrypted else payload.get("evidence", []),
+                    payload=stored,
                 )
             )

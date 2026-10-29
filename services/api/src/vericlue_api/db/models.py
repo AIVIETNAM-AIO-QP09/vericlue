@@ -2,7 +2,19 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    text,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -32,6 +44,76 @@ class SessionRow(Base):
         DateTime(timezone=True), nullable=True
     )
     payload: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class SessionKeyRow(Base):
+    __tablename__ = "session_keys"
+    session_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    wrapped_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    destroyed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class AccountRow(Base):
+    __tablename__ = "accounts"
+    account_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    source_session_id: Mapped[str] = mapped_column(String(80), unique=True)
+    # Nullable after expiration: live identities are unique; tombstones retain no lookup PII.
+    id_number_hmac: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
+    phone_hmac: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    device_id: Mapped[str] = mapped_column(String(80), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    destroyed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    wrapped_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    encrypted_payload: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class MediaProofUseRow(Base):
+    __tablename__ = "media_proof_uses"
+    nonce_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    session_id: Mapped[str] = mapped_column(String(80), index=True)
+    attempt_id: Mapped[str] = mapped_column(String(80))
+    stage: Mapped[str] = mapped_column(String(10))
+    manifest_sha256: Mapped[str] = mapped_column(String(64))
+    key_fingerprint: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class DeviceProofUseRow(Base):
+    __tablename__ = "device_proof_uses"
+    session_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    message_sha256: Mapped[str] = mapped_column(String(64), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class CredentialIssuanceRow(Base):
+    __tablename__ = "credential_issuances"
+    session_id: Mapped[str] = mapped_column(ForeignKey("sessions.session_id"), primary_key=True)
+    offer_sha256: Mapped[str] = mapped_column(String(64))
+    key_id: Mapped[str] = mapped_column(String(64))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    payload: Mapped[dict] = mapped_column(JSON)
+
+
+class AccountRecoveryRow(Base):
+    __tablename__ = "account_recoveries"
+    session_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    account_id: Mapped[str] = mapped_column(String(80), index=True)
+    previous_device_id: Mapped[str] = mapped_column(String(80), unique=True)
+    device_id: Mapped[str] = mapped_column(String(80), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AccessEventRow(Base):
+    __tablename__ = "access_events"
+    __table_args__ = (Index("uq_access_events_scope_prev", "scope", "prev_hash", unique=True),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    scope: Mapped[str] = mapped_column(String(100), index=True)
+    actor: Mapped[str] = mapped_column(String(100))
+    action: Mapped[str] = mapped_column(String(40))
+    prev_hash: Mapped[str] = mapped_column(String(64))
+    hash: Mapped[str] = mapped_column(String(64), unique=True)
+    payload: Mapped[dict] = mapped_column(JSON)
 
 
 class ModuleResultRow(Base):
@@ -116,6 +198,54 @@ class ForensicSegmentRow(Base):
     signals: Mapped[list] = mapped_column(JSON, default=list)
 
 
+class CredentialTrustKeyRow(Base):
+    __tablename__ = "credential_trust_keys"
+    __table_args__ = (
+        CheckConstraint(
+            "state IN ('staged', 'active', 'verify_only', 'revoked')",
+            name="ck_credential_key_state",
+        ),
+        CheckConstraint(
+            "(state = 'verify_only' AND verify_until IS NOT NULL) OR (state <> 'verify_only' AND verify_until IS NULL)",
+            name="ck_credential_verify_deadline",
+        ),
+        Index(
+            "uq_credential_active_issuer",
+            "issuer",
+            unique=True,
+            sqlite_where=text("state = 'active'"),
+            postgresql_where=text("state = 'active'"),
+        ),
+    )
+    key_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    issuer: Mapped[str] = mapped_column(String(200), index=True)
+    public_key: Mapped[str] = mapped_column(String(128))
+    state: Mapped[str] = mapped_column(String(16))
+    verify_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class CredentialKeyEventRow(Base):
+    __tablename__ = "credential_key_events"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    key_id: Mapped[str] = mapped_column(ForeignKey("credential_trust_keys.key_id"), index=True)
+    from_state: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    to_state: Mapped[str] = mapped_column(String(16))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class CredentialChallengeRow(Base):
+    __tablename__ = "credential_challenges"
+    challenge_id: Mapped[str] = mapped_column(String(22), primary_key=True)
+    audience: Mapped[str] = mapped_column(String(200), index=True)
+    issuer: Mapped[str] = mapped_column(String(200))
+    key_id: Mapped[str] = mapped_column(String(64))
+    nonce: Mapped[str] = mapped_column(String(43))
+    issued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
 class CleanupAuditRow(Base):
     __tablename__ = "cleanup_audits"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -123,3 +253,38 @@ class CleanupAuditRow(Base):
     files: Mapped[list] = mapped_column(JSON, default=list)
     reason: Mapped[str] = mapped_column(String(80), default="media_cleanup")
     details: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class PrivacyEventRow(Base):
+    """Minimal append-only session ledger, with no PII, biometric bytes or bearer plaintext."""
+
+    __tablename__ = "privacy_events"
+    __table_args__ = (
+        CheckConstraint(
+            "kind IN ('consent', 'withdrawal', 'files_erased')", name="ck_privacy_event_kind"
+        ),
+        Index(
+            "uq_privacy_withdrawal",
+            "session_id",
+            unique=True,
+            sqlite_where=text("kind = 'withdrawal'"),
+            postgresql_where=text("kind = 'withdrawal'"),
+        ),
+        Index(
+            "uq_privacy_files_erased",
+            "session_id",
+            unique=True,
+            sqlite_where=text("kind = 'files_erased'"),
+            postgresql_where=text("kind = 'files_erased'"),
+        ),
+    )
+    receipt_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    session_id: Mapped[str] = mapped_column(ForeignKey("sessions.session_id"), index=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    policy_version: Mapped[str] = mapped_column(String(64))
+    categories: Mapped[list] = mapped_column(JSON, default=list)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    token_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

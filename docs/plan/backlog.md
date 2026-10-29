@@ -20,7 +20,7 @@
 | PLAT-03 ★ | FastAPI + vericlue_ml + ModuleResult + mock | M5 | Claude | 1 | S0 | P0 | PLAT-01 | done |
 | PLAT-04 ★ | Chốt API v1, hợp đồng, sinh type cho web | M5 (+M1) | Claude | 1 | S0 | P0 | PLAT-02, PLAT-03 | done |
 | PLAT-05 ★ | DB, Alembic, Docker Compose | M5 | Codex | 1 | S1 | P0 | PLAT-04 | done |
-| PLAT-06 | Token phiên, giới hạn lượt, khóa Ed25519 | M2 | Codex | 1 | S1 | P0 | PLAT-05 | doing |
+| PLAT-06 | HMAC/Ed25519, quota/body/staff; nonce media rollback đúng; còn nghiệm thu thiết bị | M2 | Codex | 1 | S1 | P0 | PLAT-05 | doing |
 | PLAT-07 | CI xanh, branch protection, CODEOWNERS | M2 | | 0,5 | S0 | P0 | PLAT-01, PLAT-02 | todo |
 | PLAT-08 ★ | Orchestrator chạy song song detector | M5 | Codex | 1 | S1 | P0 | PLAT-05 | done |
 | PLAT-09 ★ | Kiểm thử đầu–cuối theo kịch bản (mock) | M1 | | 1 | S2 | P0 | PLAT-08, ROUT-02, CAP-06 | todo |
@@ -57,6 +57,7 @@
 | PRES-02 | ChromaPulse: video/webcam diagnostic; chờ kiểm chứng cổng | M3 | Codex | 2 | S1 | P0 | PRES-01, PLAT-03 | doing |
 | PRES-03 | camprobe.py | M3 | | 0,5 | S1 | P0 | CAP-05, PLAT-03 | todo |
 | PRES-04 | Chạy thử của nhóm, chỉnh ngưỡng (R5) | M1 (+M3) | | 1 | S2 | P0 | PRES-02, PRES-03, CAP-06, REDT-01 | todo |
+| PRES-05 | Lượt thử mặt local liên tục: màu, mắt, quay đầu | M3 | Codex | 1 | S2 | P0 | PLAT-03 | review |
 
 ## E4 — Khuôn mặt · `epics/E4-face.md`
 
@@ -83,7 +84,9 @@
 | VOICE-09 | NES2Net-X: backend + CLI raw diagnostic CPU riêng | M4 | Codex | 1 | S2 | P0 | PLAT-03 | review |
 | VOICE-10 | Ghép NES2Net vào công cụ micro qua worker RAM riêng | M4 | Codex | 1 | S2 | P0 | VOICE-08, VOICE-09 | done |
 | VOICE-11 | Nhịp đọc/CTC trong lab micro, mốc âm tiết RAM và CLI | M4 | Codex | 1 | S2 | P0 | VOICE-10 | done |
-| VOICE-12 | Lab thu A/V một nguồn và khớp môi SyncNet trong RAM | M4 | Codex | 1,5 | S2 | P0 | VOICE-11 | review |
+| VOICE-12 | Lab thu A/V một nguồn và khớp môi SyncNet trong RAM | M4 | Codex | 1,5 | S2 | P0 | VOICE-11 | done |
+| VOICE-13 | NES2Net theo đoạn phủ toàn bản thu trong lab | M4 | Codex | 1 | S2 | P0 | VOICE-12 | done |
+| VOICE-14 | Qwen/CTC/NES2Net/SyncNet API phiên, worker tách runtime | M4 | Codex | 1 | S2 | P0 | VOICE-13 | review |
 
 ## E6 — TrustRouter · `epics/E6-router.md`
 
@@ -105,7 +108,7 @@
 | FOR-01 | API giám định: chia đoạn, chạy bộ não | M5 | | 1,5 | S2 | P0 | PLAT-05, FACE-02, VOICE-01 | todo |
 | FOR-02 | Giao diện giám định | M2 | | 1,5 | S2 | P0 | FOR-01 | todo |
 | FOR-03 | Quét nguồn gốc (AudioSeal, Perth, C2PA) | M3 | | 1 | S2 | P0 | PLAT-03 | todo |
-| FOR-04 | Báo cáo ENFSI có chữ ký | M2 (+M5) | | 1,5 | S2 | P0 | FOR-01, FOR-03, PLAT-06, ROUT-01 | todo |
+| FOR-04 | PDF/JSON ký, ảnh/phổ, liên kết/neo nhật ký ca; còn calib/LR và ENFSI | M2 (+M5) | Codex | 1,5 | S2 | P0 | FOR-01, FOR-03, PLAT-06, ROUT-01 | doing |
 
 ## E8 — Red-team, đánh giá, demo · `epics/E8-eval-demo.md`
 
@@ -124,14 +127,15 @@
 
 | Mã | Task | Vai trò | Người | Ngày công | Sprint | Ưu tiên | Phụ thuộc | Trạng thái |
 |---|---|---|---|---|---|---|---|---|
-| FLOW-01 | Tham số purpose + luật theo luồng | M5 | Codex | 1 | S1 | P0 | ROUT-02, PLAT-08 | doing |
+| FLOW-01 | Purpose/luật theo luồng; kết quả Ed25519 opt-in, chờ nghiệm thu thật | M5 | Codex | 1 | S1 | P0 | ROUT-02, PLAT-08 | doing |
 | FLOW-02 | OTP mô phỏng | M2 | Ngọc Quang+Claude | 0,5 | S1 | P0 | PLAT-05 | doing |
-| FLOW-03 | Chụp CCCD, QR, chân dung, kiểm đã đăng ký | M1 | Ngọc Quang+Claude | 1,5 | S1 | P0 | PLAT-05, FACE-01 | doing |
+| FLOW-03 | Chụp CCCD, QR, chân dung, kiểm đã đăng ký; bảo toàn ảnh khi lỗi | M1 | Ngọc Quang+Claude | 1,5 | S1 | P0 | PLAT-05, FACE-01 | doing |
 | FLOW-04 | Quay đầu, chọn khung RAM, GenD và FS-VFM-L PAD — diagnostic | M1 (+M3) | Codex | 1 | S1 | P0 | CAP-06 | doing |
-| FLOW-05 | So mặt LVFace-B + ba góc lấy từ video — diagnostic | M3 | Codex | 1 | S1 | P0 | FLOW-03, FACE-01 | doing |
-| SEC-01 | Khóa theo phiên, che dữ liệu, nhật ký truy cập | M2 | | 1,5 | S1 | P0 | REV-01, PLAT-05 | todo |
-| SEC-02 ★ | Khóa thiết bị, ký media, nonce một lần | M2 (+M1) | | 1 | S2 | P0 | APP-01, PLAT-06 | todo |
-| APP-01 ★ | App Kotlin: khung, API qua HTTPS, điều hướng 3 luồng | M1 | Ngọc Quang+Claude | 1,5 | S1 | P0 | PLAT-04 | doing |
+| FLOW-05 | LVFace-B/mặt–giọng; ghi danh, receipt, so mẫu đã lưu; giữ chốt luồng thật | M3 | Codex | 1 | S1 | P0 | FLOW-03, FACE-01 | doing |
+| FLOW-06 | Rà workflow mobile và bàn giao tích hợp riêng tư | M5 | Codex | 0,5 | S2 | P0 | PLAT-05 | review |
+| SEC-01 | Khóa theo phiên, che dữ liệu, nhật ký truy cập | M2 | Codex | 1,5 | S1 | P0 | REV-01, PLAT-05 | review |
+| SEC-02 ★ | Ký media, L0 khóa ghi danh; service khôi phục/thu hồi, chờ nghiệm thu máy thật | M2 (+M1) | Codex | 1 | S2 | P0 | APP-01, PLAT-06 | doing |
+| APP-01 ★ | App Kotlin: UI A, receipt/alias và 3 luồng; chờ HTTPS và nghiệm thu tài khoản thật | M1 | Ngọc Quang+Claude+Codex | 1,5 | S1 | P0 | PLAT-04 | doing |
 | APP-02 ★ | App: chụp mặt, quay 3 s, quay đầu ngẫu nhiên | M1 | Ngọc Quang+Claude | 2 | S1–S2 | P0 | APP-01 | doing |
 | APP-03 | App: ghi âm đọc câu (WAV 16 kHz) | M1 | Ngọc Quang+Claude | 1 | S2 | P0 | APP-01 | doing |
 | APP-04 | App: OTP, chụp CCCD, xác nhận thông tin | M2 (+M1) | Ngọc Quang+Claude | 1,5 | S1–S2 | P0 | APP-01 | doing |
@@ -146,9 +150,21 @@
 | LIVE-02 | Dò mắt, chuỗi kiểm mặt và webcam lab — diagnostic | M3 (+M1) | Codex | 1,5 | S2 | P0 | LIVE-01 | doing |
 | LIVE-03 | Ký media theo phiên trên web (WebAuthn), chặn phát lại | M2 (+M1) | | 1 | S2 | P0 | LIVE-01 | todo |
 | LIVE-04 | Kháng lượng tử: đường truyền ML-KEM, ký kết quả ML-DSA | M2 | | 1 | S2 | P0 | FLOW-01 | todo |
-| LIVE-05 | Giấy chứng nhận ZKP cho bên tích hợp | M5 | | 2,5 | S3 | P1 | LIVE-04 | todo |
+| LIVE-05 | BBS API/SDK/HTTP/runtime; bàn giao app sau thống nhất workflow, còn nghiệm thu thật | M5 | Codex | 2,5 | S3 | P1 | PLAT-03 | doing |
 | LIVE-06 | Gia hạn phiên khi gián đoạn, làm lại riêng phần khuôn mặt [contract] | M5 | Ngọc Quang+Claude | 0,5 | S2 | P0 | LIVE-01 | doing |
 | LIVE-07 | Thông báo làm lại theo hai loại (chất lượng · thử thách) | M1 | | 0,5 | S2 | P0 | LIVE-01 | todo |
+
+## E10 — Khắc phục bảo mật · `epics/E10-security-hardening.md`
+
+| Mã | Task | Vai trò | Người | Ngày công | Sprint | Ưu tiên | Phụ thuộc | Trạng thái |
+|---|---|---|---|---|---|---|---|---|
+| SEC-03 | Kiểm quyền trước parser và giới hạn multipart | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | done |
+| SEC-04 | Chuẩn hóa ảnh và vòng đời rescan | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | done |
+| SEC-05 | Profile bảo mật và chặn cấu hình dev dùng nhầm | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | done |
+| SEC-06 | Retention và thao tác riêng tư [contract] | M5 | Codex | 1 | S2 | P0 | PLAT-05 | done |
+| SEC-07 | Vá dependency web và kiểm chứng tích hợp | M2 | Codex | 0,5 | S2 | P0 | PLAT-02, PLAT-05 | doing |
+| SEC-08 | Vòng đời khóa và file tạm cho demo | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | done |
+| SEC-09 | Consent lưu mẫu và logic riêng tư app [contract] | M5 | | 1 | S2 | P0 | SEC-06, FLOW-06 | todo |
 
 ## Tổng hợp tải (chạy `plan_check.py` để có số mới nhất)
 

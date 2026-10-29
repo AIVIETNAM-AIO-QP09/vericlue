@@ -1,5 +1,10 @@
 # VOICE-04 — kiểm câu đọc
 
+VOICE-13 thêm `Nes2NetTimelineDetector` và factory/mock riêng: các cửa sổ 4 giây
+phủ hết bản thu, điểm từng đoạn và độ phủ, không gộp xác suất/đạt. Lab micro/A/V
+dùng mode này; CLI first4s vẫn là mặc định. Xem
+[hướng dẫn toàn bản thu](../../../../docs/architecture/nes2net-timeline-lab.md).
+
 VOICE-12 cung cấp `RamLipSyncDetector` opt-in và `eval.av_lab`: khớp môi trên
 cùng nguồn hình/tiếng, raw offset/cosine luôn unclear; không thay SyncNet của API.
 Xem [lab A/V](../../../../docs/architecture/av-lipsync-lab.md).

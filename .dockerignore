@@ -19,6 +19,8 @@ artifacts
 runs
 outputs
 secrets
+services/credentials/dist
+services/credentials/tmp
 apps/web/public/mediapipe
 **/*.onnx
 **/*.pt

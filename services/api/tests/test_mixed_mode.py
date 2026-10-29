@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import pytest
-from conftest import start_session
+from conftest import staff_test_client, start_session
 from fastapi.testclient import TestClient
+from synthetic_images import synthetic_image
 
 from vericlue_api.core.config import Settings, get_settings
 from vericlue_api.main import create_app
 
-IMAGE = {"image": ("face.jpg", b"\xff\xd8\xff", "image/jpeg")}
+IMAGE = {"image": ("face.jpg", synthetic_image(b"\xff\xd8\xff"), "image/jpeg")}
 SIGNALS = {
     "color_events": [{"index": 0, "rgb": "#ffcc73", "painted_at": 1234.5}],
     "frame_times": [{"capture_time": 1240.2, "presented_frames": 31, "media_time": 0.5}],
@@ -22,7 +23,7 @@ def make_client(monkeypatch, tmp_path, mode: str) -> TestClient:
     monkeypatch.setenv("USE_MOCK_MODELS", mode)
     monkeypatch.setenv("MODELS_DIR", str(models))
     get_settings.cache_clear()
-    return TestClient(create_app())
+    return staff_test_client(create_app())
 
 
 @pytest.fixture

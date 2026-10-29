@@ -17,13 +17,14 @@
 **Đầu ra:**
 - Tạo phiên nhận `purpose`, `nonce` và ảnh tham chiếu (tùy chọn). Đây là PR gắn `[contract]`.
 - Luật quyết định:
-  - `onboarding` và `recovery`: luôn đọc câu; điểm mặt ≥ A thì dừng và chuyển xét duyệt.
+  - `onboarding`: chỉ đọc câu khi điểm mặt lưng chừng (cập nhật 26/10, ADR-0016); `recovery`: luôn đọc câu; điểm mặt ≥ A thì dừng và chuyển xét duyệt.
   - `reauth`: không có thử thách mặc định; điểm lưng chừng thì leo thang sang đọc câu ngẫu nhiên; nghi rõ thì trả `deny`; khóa thiết bị không hợp lệ thì trả `recovery_required`. Người dùng chỉ thấy "Xác thực không thành công, vui lòng thử lại sau".
 - VeriClue là eKYC dùng chung: không có logic riêng của ngành (giao dịch, số tiền, hạn mức) — ADR-0013 §Phạm vi.
 
 **Tiêu chí hoàn thành:**
 - [x] Test cho từng `purpose`. Không có đường nào ra `pass` khi module bắt buộc lỗi.
 - [x] Hợp đồng, API và type web khớp nhau (`gen_openapi --check`).
+- [x] Kết quả Ed25519 opt-in theo quyết định đã commit: phiên/nonce/purpose/bên nhận/hạn gắn server; mock/phiên cũ/thiếu bằng chứng không được ký. Client Android và verifier/CLI đã có; chưa nghiệm thu thật.
 
 **Cập nhật 24/10 — nền backend (`doing`):** Có body opt-in `purpose`/`nonce`/
 `reference_image_id`, chính sách theo luồng và mock xuyên suốt. Tham chiếu mới chỉ
@@ -72,6 +73,14 @@ Chi tiết: `docs/architecture/dynamic-session-api.md`.
 **Tiêu chí hoàn thành:**
 - [ ] Test với ảnh thẻ tổng hợp. Không commit ảnh CCCD thật.
 - [ ] Phát hiện thẻ giả nằm **ngoài phạm vi**; ghi rõ là giới hạn.
+- [x] Bản sửa review PR #65: từ chối đổi thẻ sau media/signals/chấm mặt trước mọi ghi file;
+  lỗi OCR/ghi file/commit DB không đổi ảnh hoặc thông tin đã xác nhận. Quét hoàn thành
+  dùng tên file mới và hủy xác nhận cũ, kể cả trả `retry`.
+
+**Cập nhật 25/10 — sửa review PR #65:** giữ cầu nối CCCD–selfie ngoài `reauth` để không
+đổi policy FLOW-01; test cả mặt và giọng với runtime bật/tắt. Chưa hoàn thành nhận dạng
+theo mẫu đăng ký/SEC-02 hoặc nghiệm thu Android. Chi tiết vận hành tại
+[`identity-integration.md`](../../runbooks/identity-integration.md).
 
 ---
 
@@ -124,13 +133,31 @@ Xem [`head-and-match.md`](../../architecture/head-and-match.md).
 - So cùng khuôn mặt giữa các bước (ADR-0013 nguyên tắc 4).
 
 **Tiêu chí hoàn thành:**
-- [x] Wrapper, mock, registry và hợp đồng; chuẩn hóa RGB/112/[-1,1], so tham chiếu và mọi cặp giữa ba ảnh.
-- [x] Thiếu ngưỡng/ảnh, nhiều mặt hoặc artifact sai phiên bản không được đạt; không lưu embedding.
+- [x] Wrapper, mock, registry và hợp đồng; chuẩn hóa RGB/112/[-1,1], so tham chiếu–chính diện; cosine giữa ba góc riêng.
+- [x] API opt-in dùng LVFace-B thật qua orchestrator, preload/cache/deadline chung; không gọi AdaFace hoặc dùng ngưỡng cũ.
+- [x] API opt-in chọn khung chính diện theo lịch server, kiểm tư thế trên pixel video; không fallback selfie khi thiếu/sai video. Mắt/quay đầu có cổng API riêng, reader dùng chung.
+- [x] Thiếu ngưỡng/ảnh, nhiều mặt hoặc artifact sai phiên bản không được đạt; không đưa embedding vào ModuleResult/HTTP.
+- [x] Nền lưu mẫu/tài khoản mã hóa, DEK độc lập phiên, unique HMAC CCCD/phiên nguồn, gắn public key đã ký, TTL 24 giờ và cleanup có test tổng hợp.
+- [x] `face_continuity` mặt–giọng dùng chung LVFace, ba mẫu theo PTS/offset/WAV thật; protocol/ngưỡng riêng, API opt-in fail-closed, mock/CLI/test tổng hợp. Chưa hiệu chỉnh/đánh giá người thật.
+- [x] Worker trích mẫu dùng chung slot/hàng đợi LVFace và lease, hook ghi danh onboarding opt-in cùng transaction quyết định; quá hạn/lỗi rollback, không mở real/mixed.
+- [x] Receipt theo bearer phiên, client Android và worker so mẫu đã lưu cho reauth/recovery; protocol/ngưỡng riêng, không mở sinh trắc account-bound mock/real/mixed.
 - [ ] Đo VRAM khi chạy cùng bộ mô hình MVP.
 - [ ] Số liệu ngưỡng chạy ra từ code trong repo.
-- [ ] Nối FLOW-03/API và vòng đời mẫu mã hóa/xóa 24 giờ.
+- [ ] Nghiệm thu toàn luồng FLOW-03/API và vòng đời mẫu mã hóa/xóa 24 giờ trên thiết bị thật.
 
-**Lát cắt backend 24/10 (Codex, doing):** diagnostic offline qua `eval.face_match`.
+**Cập nhật 25/10 (Codex, doing):** API opt-in `IDENTITY_LAB_URL` dùng LVFace-B
+thật cho một selfie đầu tiên với ảnh mặt trước CCCD; OCR giữ runtime riêng.
+Version `front-reference-v2` tách so CCCD–front khỏi cosine giữa các góc,
+chặn artifact/kết quả AdaFace hoặc protocol cũ. `IDENTITY_FACE_FROM_VIDEO` đã
+chọn/kiểm chính diện từ video trong API; chưa có ngưỡng thật, mặc định không đạt.
+Nền ghi danh `AccountStore` có migration 0005 và contract template nội bộ;
+`ACCOUNT_ENROLLMENT` đã nối worker và lời gọi sau pass onboarding, mặc định tắt.
+Đã có receipt theo phiên và client; chưa nghiệm thu toàn luồng. Đã có `face_continuity` opt-in kiểm ba mẫu video
+giọng với khung chính diện; cần artifact riêng, thiếu thì không được đạt/ghi
+danh. Không cho mock/mixed tạo tài khoản. Xem
+[`account-enrollment.md`](../../architecture/account-enrollment.md).
+
+**Lát cắt backend 24/10:** diagnostic offline qua `eval.face_match`.
 `eval.video_face_match` nối head_turn → chọn khung và kiểm lại tư thế → LVFace,
 không nhận nhãn góc/ảnh query từ client trong chuỗi này, không ghi khung ra đĩa.
 Ngưỡng không có mặc định: thiếu artifact `calib_ltt` đúng version thì
@@ -142,6 +169,23 @@ chân dung tham chiếu đã cắt do server quản lý. Xem
 [`head-and-match.md`](../../architecture/head-and-match.md).
 
 ---
+
+### FLOW-06 · Rà workflow mobile và bàn giao tích hợp riêng tư
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M5 | 0,5 | S2 | P0 | PLAT-05 |
+
+**Mục tiêu:** theo yêu cầu sau merge PR #105, đối chiếu ba luồng với main,
+trình bày phương án giảm thao tác và xác định việc cần nối ở app. Đây là bước
+chuẩn bị để nhóm thống nhất workflow, không tự thay UI hoặc mở guard sinh trắc.
+
+**Đầu ra:** `docs/architecture/project-workflow.md` và tài liệu bàn giao app.
+
+- [x] Phân biệt rõ code hiện tại, đề xuất rút gọn và đường thật chưa nghiệm thu.
+- [x] Ba luồng nêu việc người dùng/hệ thống làm, tham chiếu danh tính và lúc cần giọng.
+- [x] Ghi thứ tự consent/API, rút lại, hết hạn, retry và phạm vi xóa; không tự gán quyền từ checkbox tùy chọn chưa có contract.
+- [x] Có danh sách quyết định cần nhóm chốt, điểm nối app và checklist kiểm thử; không sửa UI/schema/ADR/ngưỡng.
 
 ### SEC-01 · Riêng tư: khóa theo phiên, che dữ liệu, nhật ký truy cập
 
@@ -159,7 +203,16 @@ chân dung tham chiếu đã cắt do server quản lý. Xem
 - Xóa EXIF của ảnh tải lên.
 
 **Tiêu chí hoàn thành:**
-- [ ] Test: hủy khóa thì không đọc lại được dữ liệu; nhật ký không sửa được.
+- [x] Test: hủy khóa thì không đọc lại được dữ liệu; nhật ký không sửa được.
+
+**Cập nhật 25/10 (Codex, review):** Có vault AES-GCM theo phiên, mã hóa snapshot/
+media/kết quả/ghi chú, hủy wrapped DEK theo TTL và giữ tombstone. Native đọc qua
+file giải mã có lease theo future, không xóa sớm khi HTTP timeout. Cờ opt-in không
+tự chuyển kho cũ. Có credential nhân viên riêng, access audit chỉ ghi thêm, API
+che CCCD/ngày sinh và thao tác reveal có nhật ký, loại EXIF ảnh; contract/type web
+cập nhật, không sửa UI. Test dữ liệu tổng hợp bao gồm sửa tag/sai AAD/khóa, hủy
+khóa, URL mã hóa, CORS và job trả muộn. Xem `session-privacy.md`. Chưa nghiệm thu
+UI nhân viên, backup/KMS/crash cleanup hay vận hành production; không chứng nhận tuân thủ.
 
 ---
 
@@ -177,7 +230,20 @@ chân dung tham chiếu đã cắt do server quản lý. Xem
 - Server kiểm chữ ký và đánh dấu nonce đã dùng (nullifier).
 
 **Tiêu chí hoàn thành:**
-- [ ] Test: dùng lại nonce, chữ ký sai, media bị đổi sau khi ký.
+- [x] Test: dùng lại nonce, chữ ký sai, media bị đổi sau khi ký.
+- [x] L0: khóa đã ghi danh, thử thách mới, claim DB một lần; sai khóa/phiên/hạn/replay không cấp device_verified.
+- [x] Service khôi phục kiểm đúng số điện thoại/mẫu mặt đã lưu; thay khóa/thu hồi phiên cũ cùng transaction, test tổng hợp và cạnh tranh PostgreSQL.
+- [ ] Nghiệm thu Keystore/account context/khôi phục toàn luồng trên điện thoại thật; kết quả có chữ ký cho bên tích hợp.
+
+**Cập nhật 25/10 (Codex, doing):** Đã có ràng buộc public key P-256 theo phiên,
+nonce server theo stage/lượt, ký hash byte/format/offset ở Android LiveFlow và
+kiểm trước lưu file, claim nullifier bằng PK DB (migration 0004). Test giả lập
+khóa thật: sửa byte, sai khóa/phiên/suffix/offset, replay, refresh/retry; mẫu
+canonical/signature chung Python–Kotlin. Cờ mặc định tắt, không sửa UI.
+**Bổ sung 26/10:** Đã có L0/receipt, service khôi phục/thu hồi và lớp API/flow
+Android; không đổi UI, không cấp device_verified cho khóa tự khai. Chốt sinh
+trắc thật/mixed và account-bound mock còn giữ, chưa nghiệm thu Keystore phần
+cứng. Xem `media-proof.md` và `account-authentication.md`.
 
 ---
 
@@ -199,8 +265,15 @@ chân dung tham chiếu đã cắt do server quản lý. Xem
 
 **Tiêu chí hoàn thành:**
 - [x] Build được APK bằng Gradle trên máy Windows; README có các bước cài Android Studio/SDK.
-- [ ] Tạo phiên và nhận kết quả từ API thật trên điện thoại thật.
-- [ ] CI không bắt buộc build Android ở bước này; ghi rõ trong PR.
+- [x] Trau chuốt UI 26/10: giữ Be Vietnam Pro; thang chữ, màu sáng/tối, phản hồi nút/OTP/CCCD/thành công, chuyển màn và rung nhẹ; có chính sách tắt chuyển động trang trí theo cài đặt máy.
+- [x] So ảnh Paparazzi cho 10 màn yêu cầu ở cả sáng/tối; test tương phản (kể cả lúc nút chuyển màu), giảm chuyển động và `CitizenCopyTest`.
+- [x] Áp hướng A · Tối giản ấm: nền trắng ngà, pill navy, Canvas CCCD, nội dung không đóng hộp, tấm đáy/số tài khoản mẫu; so ảnh sáng/tối và A1–A3 với thiết kế.
+- [x] Tạo phiên và nhận kết quả từ API thật trên điện thoại thật. (27/10, Galaxy S24 FE, API mock qua `adb reverse`; bàn giao `2026-10-27-2000-app-01`)
+- [x] CI chạy unit test và build Android. Kiểm thêm tại máy với `signedMedia=true`.
+- [x] Client lưu receipt cùng alias Keystore; nhận receipt sau finalize không giọng;
+  đăng nhập lại mở đúng khóa đã lưu; khôi phục tạo khóa mới và chỉ xóa khóa cũ sau
+  ghi bền. Test hồi quy HTTP 409/503, mất khóa, hết hạn và lỗi lưu; chưa nghiệm thu
+  tài khoản trên điện thoại thật vì server còn chặn sinh trắc account-bound (FLOW-05/SEC-02).
 
 ---
 
@@ -255,7 +328,7 @@ chân dung tham chiếu đã cắt do server quản lý. Xem
 - Màn hình xác nhận thông tin.
 
 **Tiêu chí hoàn thành:**
-- [ ] Đi hết giai đoạn A trên điện thoại thật.
+- [x] Đi hết giai đoạn A trên điện thoại thật. (27/10, Galaxy S24 FE, thẻ CCCD gắn chip; bàn giao `2026-10-27-2000-app-01`)
 
 ---
 
@@ -578,18 +651,61 @@ không chứng minh chống phát lại video được gắn mã mới (LIVE-03/
 
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
 |---|---|---|---|---|
-| M5 | 2,5 | S3 | P1 | LIVE-04 |
+| M5 | 2,5 | S3 | P1 | PLAT-03 |
 
 **Mục tiêu:** bên tích hợp biết "đã xác minh, trên 18 tuổi" mà không nhận video, ảnh hay số CCCD.
 
-**Đầu ra:**
-- VeriClue cấp giấy chứng nhận: từng thuộc tính được cam kết bằng hàm băm, ký ML-DSA.
-- Bằng chứng zk-STARK cho câu "trên 18 tuổi" và "đã xác minh". Thư viện Apache/MIT (ví dụ RISC Zero, Winterfell); không dùng circom/snarkjs (GPL). Kiểm giấy phép trước khi chép.
-- Tạo bằng chứng trên laptop demo là chấp nhận được; ghi rõ giới hạn.
+**Cập nhật trưởng nhóm 27/10:** chọn BBS, holder binding và bí danh theo dịch vụ;
+SD-JWT+KB đối chứng. ADR-0018 thay lựa chọn zk-STARK/ML-DSA ở ADR-0016 mục 5.
+PQC là hướng riêng, không là phụ thuộc của lab này. Không mở cổng sinh trắc thật.
 
-**Tiêu chí hoàn thành:**
-- [ ] Test: bằng chứng đúng thì qua; người dưới 18 tuổi hoặc bằng chứng bị sửa thì không qua.
-- [ ] Nếu không kịp: đổi trạng thái `cut`, chuyển phần trình bày vào báo cáo như lộ trình.
+**Đầu ra:** `services/credentials` (Node CLI/library, persona tổng hợp, không UI).
+Blind issuance chỉ nhận commitment, holder giữ secret; verifier pin key, nonce/
+audience/policy/hạn và dùng lượt một lần. BBS proof không lộ signature/PII;
+JWT+PoP và SD-JWT+KB cùng policy để so sánh. `age_over_18` là boolean issuer ký,
+không nhận là range proof hoặc W3C VC hoàn chỉnh. Xem README package và ADR-0018.
+
+**Tiêu chí bản thử nghiệm:**
+- [x] Cấp/giữ/xuất trình/kiểm proof BBS bằng mật mã thật, trao đổi JSON theo schema.
+- [x] Test vector công khai upstream; khóa sai, sửa proof/claim/context, thiếu
+      holder secret hoặc minor không qua policy adult; replay/cạnh tranh bị chặn.
+- [x] Bí danh ổn định trong dịch vụ và đổi giữa dịch vụ; không đưa stable holder
+      public key vào proof. Đối chứng JWT+PoP/SD-JWT+KB; phép đo có từng mẫu.
+- [x] Secret chỉ RAM, output không credential/PII, header/claim synthetic-demo;
+      luật real/mixed/account-bound mock và UI giữ nguyên. Lint/test vào CI.
+
+**Còn để hoàn tất tính năng tích hợp (giữ doing):**
+- [x] API opt-in cấp từ cổng quyết định server đã commit, khóa thiết bị ký consent
+      cho commitment, cache mã hóa/unique session/rollback/retry; Node BBS thật và
+      holder SDK profile riêng, không thêm tuổi hoặc mở chốt sinh trắc thật.
+- [x] SDK ví RAM trình duyệt: kiểm Ed25519/context/pins, consent bắt buộc, đối chiếu
+      byte trước ký P-256, kiểm credential và BBS proof theo origin. Chromium thực
+      kiểm tương thích Python-signature/Node-issuer/verifier, chưa là HTTP xuyên suốt.
+- [x] Điều phối SDK giữ offer/body ký khi thử lại, timeout/abort, hủy phản hồi muộn;
+      Chromium–HTTP FastAPI–worker BBS xuyên suốt phần chứng nhận reauth/recovery
+      với quyết định/khóa ghi danh tổng hợp phía server, không mở chốt sinh trắc.
+- [ ] Màn consent và tích hợp UI/Android với khóa thiết bị đã ghi danh;
+      SDK headless không thay được đồng ý hoặc nghiệm thu người dùng/thiết bị thật.
+- [x] Đóng gói Node/BBS/schema/holder bundle trong image API; overlay mount khóa
+      read-only, CLI preflight không ký verdict/cấp credential hoặc mở DB.
+      CI kiểm image non-root, read-only/network none và khóa tạm trong tmpfs.
+- [x] HTTP verifier dùng nonce DB qua nhiều worker/restart, origin theo credential
+      tích hợp riêng, worker chỉ có public pin; hạn kiểm trước/sau crypto và commit
+      trước response. PostgreSQL khóa hàng/advisory quota, SQLite BEGIN IMMEDIATE.
+- [x] Registry public issuer key opt-in: staged/active/verify_only/revoked, xoay
+      khóa nguyên tử, key cũ tin tối đa 60 giây, thu hồi theo key và CLI operator.
+      Không đổi BBS header/proof hoặc thêm định danh thu hồi cá nhân.
+- [ ] Nghiệm thu quyết định/thiết bị thật; thu hồi riêng từng credential nếu
+      cần phải có thiết kế giữ riêng tư. Không gọi secret RAM là phần cứng hoặc BBS là PQC.
+
+Chi tiết lát cắt API: `docs/architecture/private-credential-issuance.md`.
+API kiểm proof: `docs/architecture/private-credential-verifier.md`.
+Vòng đời khóa: `docs/architecture/private-credential-keys.md`.
+SDK holder không UI: `docs/architecture/private-credential-holder.md`.
+Runtime/bàn giao: `docs/runbooks/bbs-demo.md`.
+Trao đổi 28/10: nhóm có app iOS/Android; thống nhất/rút gọn workflow trước khi
+chỉnh UI. Không coi các mục UI/nguồn thật đã hoàn thành chỉ vì BBS kỹ thuật có test.
+Workflow đối chiếu: `docs/architecture/project-workflow.md`.
 
 ---
 

@@ -1,5 +1,30 @@
 # third_party — Ghi nhận mã nguồn dùng lại
 
+## LIVE-05 — Chứng nhận riêng tư
+
+`services/credentials` dùng nguyên bản package npm, không chép primitive mật mã:
+
+| Nguồn | Giấy phép | Dùng ở đâu | Task |
+|---|---|---|---|
+| `@digitalbazaar/bbs-signatures` 3.1.0 | BSD-3-Clause | Primitive BBS/blind/pseudonym; adapter import API nội bộ đã pin, không sửa code upstream | LIVE-05 |
+| `@noble/curves` 2.4.0, `@noble/hashes` 2.4.0 | MIT | Phụ thuộc BBS theo lockfile | LIVE-05 |
+| `ajv` 8.20.0 | MIT | Kiểm JSON Schema ở từng vai trò | LIVE-05 |
+| `esbuild` 0.28.2 | MIT | Công cụ build SDK trình duyệt; khóa bằng package-lock | LIVE-05 |
+
+Bundle holder dùng adapter Web Crypto nguyên bản của BBS, không chép primitive.
+`npm run build:holder` xuất đầy đủ license BBS, noble, AJV và esbuild vào
+`dist/LICENSES.txt`; khi phân phối phải kèm file này với `dist/holder.mjs`.
+
+Image API dùng Node.js 22 từ image chính thức `node:22-bookworm-slim`, giữ license
+của bản phân phối trong `/usr/local/share/doc/node/LICENSE`. Package BBS/noble/AJV
+nguyên bản và holder bundle giữ các license npm; không đưa private key vào image.
+
+Vector public `packages/contracts/test-vectors/bbs-nym-public-v1.json` trích các
+input xác minh của fixture Digital Bazaar (BSD-3-Clause), pin source/revision và
+SHA-256 trong JSON. Chỉ public key/proof/context/message; không chép SK/holder
+secret hoặc code test. License nguyên bản ở `licenses/bbs-signatures-BSD-3-Clause.txt`.
+Đây là bộ test mật mã công khai, không có dữ liệu sinh trắc/người thật.
+
 Mọi đoạn code **chép** từ dự án khác phải được ghi vào bảng dưới đây, và file chép phải giữ nguyên dòng giấy phép ở đầu. Đây là điều kiện bắt buộc của giấy phép Apache-2.0 và MIT.
 
 | Nguồn | Giấy phép | Chép vào đâu | Đã sửa gì | Task |

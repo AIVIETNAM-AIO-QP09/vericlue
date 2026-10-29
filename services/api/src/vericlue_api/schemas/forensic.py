@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
 JobStatus = Literal["queued", "running", "done", "failed"]
 Verdict = Literal["authentic", "suspect", "inconclusive"]
@@ -95,6 +95,21 @@ class ForensicProvenance(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
+class ReviewAuditAnchor(BaseModel):
+    """Server-verified media binding and append-only review checkpoint, signed in reports."""
+
+    model_config = ConfigDict(extra="forbid")
+    version: Literal[1]
+    case_id: str = Field(pattern=r"^case_[A-Za-z0-9_-]{1,64}$")
+    session_id: str = Field(pattern=r"^ses_[A-Za-z0-9_-]{1,72}$")
+    source_role: Literal["face_video", "voice_audio", "voice_video"]
+    source_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    captured_at: AwareDatetime
+    event_count: int = Field(ge=1, le=4096)
+    tail_event_id: int = Field(ge=1)
+    tail_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
 class ForensicJob(BaseModel):
     job_id: str
     status: JobStatus
@@ -108,12 +123,70 @@ class ForensicJob(BaseModel):
     unavailable_modules: list[UnavailableModule] = Field(default_factory=list)
     provenance: ForensicProvenance | None = None
     verdict_reason: str | None = None
+    review_audit: ReviewAuditAnchor | None = None
+
+    @model_validator(mode="after")
+    def same_source_hash(self):
+        if self.review_audit is not None and self.review_audit.source_sha256 != self.file_sha256:
+            raise ValueError("Review source does not match forensic material")
+        return self
 
 
 class VerifyRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     report_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
-    signature: str
+    signature: str = Field(
+        max_length=160, description="Chữ ký Ed25519 base64 chuẩn cho hash HTML; MOCK không hợp lệ"
+    )
+
+
+class PdfReportManifest(BaseModel):
+    """Canonical JSON accompanying the exact PDF, not an ENFSI assessment."""
+
+    model_config = ConfigDict(extra="forbid")
+    version: Literal[1]
+    protocol: Literal["vericlue-forensic-pdf-bundle-v1"]
+    algorithm: Literal["Ed25519"]
+    data_mode: Literal["real"]
+    key_id: str = Field(pattern=r"^[0-9a-f]{64}$")
+    job: ForensicJob
+    filename: str = Field(max_length=4096)
+    job_created_at: AwareDatetime
+    tool_version: str = Field(min_length=1, max_length=100)
+    model_versions: dict[str, str] = Field(max_length=256)
+    pdf_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    limitations: list[Annotated[str, Field(min_length=1, max_length=2000)]] = Field(
+        min_length=1, max_length=32
+    )
 
 
 class VerifyResponse(BaseModel):
     valid: bool
+
+
+AuditStatus = Literal[
+    "intact",
+    "extended",
+    "invalid_signature",
+    "unlinked",
+    "case_unavailable",
+    "chain_invalid",
+    "tail_truncated",
+    "anchor_mismatch",
+]
+
+
+class ReviewAuditVerifyRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    report_json: str = Field(min_length=1, max_length=4194304)
+    signature: str = Field(min_length=1, max_length=160)
+
+
+class ReviewAuditVerifyResponse(BaseModel):
+    scope: Literal["signed_json_review_audit"] = "signed_json_review_audit"
+    signature_valid: bool
+    ok: bool
+    status: AuditStatus
+    anchored_count: int | None = Field(default=None, ge=1)
+    current_count: int | None = Field(default=None, ge=0)
+    appended_count: int | None = Field(default=None, ge=0)

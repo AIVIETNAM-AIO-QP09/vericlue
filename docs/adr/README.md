@@ -19,3 +19,4 @@ Mỗi ADR ghi lại **một** quyết định quan trọng: bối cảnh, quyế
 | [0013](0013-hai-luong-ekyc.md) | Ba luồng eKYC trên điện thoại (đăng ký, đăng nhập lại, khôi phục); 6 câu hỏi, 8 nguyên tắc; riêng tư và bảo mật | Chấp nhận (18/10) |
 | [0014](0014-demo-bang-app-android.md) | Bản demo cho người dân là app Android (thay ADR-0003 cho luồng người dân); cách làm app chờ chốt | Chấp nhận (18/10) |
 | [0015](0015-mo-hinh-va-tinh-chinh.md) | Giữ GenD, AntiDeepfake, PhoWhisper…; thêm AdaFace và DINOv2; tinh chỉnh trên Colab/Kaggle, không thu dữ liệu tay | Chấp nhận (18/10) |
+| [0018](0018-chung-nhan-rieng-tu-bbs.md) | BBS blind issuance, holder binding và bí danh dịch vụ; lab độc lập, SD-JWT+KB đối chứng | Chấp nhận cho bản thử nghiệm (27/10), thay 0016 mục 5 |

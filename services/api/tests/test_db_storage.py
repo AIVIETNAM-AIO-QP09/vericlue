@@ -6,10 +6,11 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
-from fastapi.testclient import TestClient
+from conftest import staff_test_client
 from sqlalchemy import func, inspect, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import DBAPIError, SQLAlchemyError
+from synthetic_images import synthetic_image
 
 from vericlue_api.core.config import Settings, get_settings
 from vericlue_api.db.database import Database
@@ -166,7 +167,7 @@ def test_restart_keeps_session_media_signals_review_and_forensic(database, monke
     monkeypatch.setenv("DATABASE_URL", str(database.engine.url))
     get_settings.cache_clear()
     app = create_app()
-    with TestClient(app) as client:
+    with staff_test_client(app) as client:
         body = client.post("/v1/sessions", headers={"X-Mock-Scenario": "print"}).json()
         sid = body["session_id"]
         headers = {"Authorization": f"Bearer {body['token']}"}
@@ -174,7 +175,7 @@ def test_restart_keeps_session_media_signals_review_and_forensic(database, monke
             client.post(
                 f"/v1/sessions/{sid}/media",
                 headers=headers,
-                files={"image": ("face.jpg", b"synthetic", "image/jpeg")},
+                files={"image": ("face.jpg", synthetic_image(b"synthetic"), "image/jpeg")},
             ).status_code
             == 200
         )
@@ -206,7 +207,7 @@ def test_restart_keeps_session_media_signals_review_and_forensic(database, monke
         ).json()
         job_id = job["job_id"]
         report_before = client.get(f"/v1/forensic/jobs/{job_id}/report")
-    with TestClient(create_app()) as restarted:
+    with staff_test_client(create_app()) as restarted:
         with restarted.app.state.vericlue.transaction() as state:
             session = state.sessions.get(sid)
             assert session.signals["frame_times"][0]["presented_frames"] == 31
@@ -365,7 +366,7 @@ def test_new_upload_resets_deleted_marker(client):
     response = client.post(
         f"/v1/sessions/{identifier}/media",
         headers={"Authorization": f"Bearer {created['token']}"},
-        files={"image": ("face.jpg", b"new media", "image/jpeg")},
+        files={"image": ("face.jpg", synthetic_image(b"new media"), "image/jpeg")},
     )
     assert response.status_code == 200
     with database.sessions() as connection:

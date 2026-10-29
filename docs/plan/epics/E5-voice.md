@@ -313,3 +313,55 @@ lab nội bộ bằng camera và micro của cùng một nguồn A/V, dùng lạ
 
 Không nghiệm thu timestamp phần cứng/độ chính xác tiếng Việt/khả năng phát hiện
 deepfake, không gán lệch thiết bị thành tấn công; chưa dùng kết quả cho xác minh.
+
+---
+
+### VOICE-13 · NES2Net theo đoạn phủ toàn bản thu
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M4 | 1 | S2 | P0 | VOICE-12 |
+
+**Mục tiêu:** tiếp tục tính năng sau PR #67: bỏ giới hạn chỉ xem 4 giây đầu
+trong lab micro/A/V, dùng lại NES2Net worker/model nạp một lần. Đây là protocol
+diagnostic mới, không gắn số benchmark của recipe 4 giây đầu cho toàn câu.
+
+**Tiêu chí kỹ thuật:**
+- [x] Chia cửa sổ 4 giây có giới hạn, neo cửa sổ cuối ở cuối bản thu; phủ toàn
+      input, không bỏ đuôi ngắn hoặc nối các vùng tiếng; version riêng.
+- [x] Mỗi đoạn có vị trí trên bản thu, logits/margin hoặc trạng thái thiếu tiếng/lỗi;
+      tính độ phủ bằng hợp các đoạn đo được, không cộng trùng vùng chồng lấn.
+- [x] Không gộp điểm thô thành xác suất/đạt; mọi kết quả luôn unclear, lỗi một
+      đoạn không xóa các đoạn khác hoặc giả thành đã chấm.
+- [x] Worker/client kiểm version và timeline gắn đúng hash/số mẫu; timeout/hủy
+      vẫn dọn worker; giữ CLI first4s mặc định, opt-in CLI toàn câu và lab cập nhật.
+- [x] Mock/factory/config, test không thiết bị/trọng số, smoke CPU tổng hợp,
+      hướng dẫn/bàn giao/lint/plan_check; không thay API/ngưỡng/UI sản phẩm.
+
+Đánh giá accuracy/parity/calibration để sau theo yêu cầu người dùng. Độ phủ
+thời gian không phải độ chính xác phát hiện hay bằng chứng toàn bản thu thật.
+
+---
+
+### VOICE-14 · Nối Qwen, CTC, NES2Net và SyncNet vào API phiên
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M4 | 1 | S2 | P0 | VOICE-13 |
+
+**Mục tiêu:** tiếp tục hoàn thiện tính năng theo yêu cầu người dùng; dùng các lõi
+lab trong API với runtime tương thích, không sửa UI hay tạo số liệu/ngưỡng.
+
+**Tiêu chí kỹ thuật:**
+- [x] Cờ opt-in tạo worker Qwen/CTC/SyncNet và NES2Net riêng, offline/CPU, nạp
+      lười/cache; CTC dùng chung giữa nhịp đọc và khớp môi; lỗi không về mock.
+- [x] IPC có giới hạn, timeout gồm thời gian chờ, dọn worker; request/reply gắn
+      mã lượt/hash/version và media trong kho server không đổi trước/sau inference.
+- [x] Qwen nhận dạng độc lập với câu đề bài; CTC có trạng thái/evidence riêng;
+      NES2Net/CTC/SyncNet chưa hiệu chỉnh không cấp đạt/xác suất.
+- [x] SyncNet dùng đúng `audio_offset_ms` trên timestamp decoder; version mới
+      không nhận calibrator cũ; không tuyên bố đồng bộ phần cứng đã kiểm chứng.
+- [x] Mock/registry/config, test giả lập, tài liệu runtime, lint/bàn giao/plan_check.
+
+Phần kỹ thuật này không hoàn tất calibration, kiểm thử sinh trắc tiếng Việt,
+nguồn thu đã ký hoặc SLO 5 giây. Luồng real/mixed chưa tự mở.

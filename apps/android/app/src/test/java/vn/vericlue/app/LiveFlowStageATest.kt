@@ -31,7 +31,7 @@ class LiveFlowStageATest {
     @Before
     fun setUp() {
         server = MockWebServer().apply { start() }
-        flow = LiveFlow(SessionApi(server.url("/").toString()))
+        flow = LiveFlow(SessionApi(server.url("/").toString()), mediaSigner = null)
     }
 
     @After

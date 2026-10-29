@@ -21,6 +21,15 @@
 
 ## Quy ước bắt buộc
 
+PRES-05 thêm `eval.presence_lab`: một lượt ánh sáng → mắt → quay đầu, cùng
+camera/reader/đồng hồ, giữ các số đo độc lập và chỉ chấm ba ảnh khi motion đủ.
+Không kết luận xác minh/API; xem [hướng dẫn](../docs/architecture/presence-lab.md).
+
+VOICE-13 thêm `Nes2NetTimelineDetector` opt-in: lab micro/A/V chấm các đoạn phủ
+hết bản thu, giữ raw margin từng đoạn, thống kê hợp các khoảng đã đo, không
+gộp thành điểm toàn câu. CLI bật bằng `--whole-utterance`, mặc định first4s cũ
+vẫn giữ. Không đổi API/ngưỡng; xem [hướng dẫn](../docs/architecture/nes2net-timeline-lab.md).
+
 VOICE-12 thêm `eval.av_lab` (Windows): một nguồn thu camera+micro, preview và
 tab Khớp môi; cùng audio cho Qwen/NES2Net/CTC/SyncNet. Media chỉ trong RAM,
 raw lipsync luôn unclear; runtime CPU riêng, không thay UI/API sản phẩm. Xem
@@ -62,7 +71,11 @@ API. Chạy bằng môi trường riêng để giữ dependency CUDA/OpenCV hi�
 FLOW-04/FLOW-05 thêm diagnostic `head_turn` và `face_match` (LVFace-B + SCRFD).
 Kiểm thứ tự quay đầu và tương đồng danh tính là hai kết quả riêng; chưa chứng
 minh chiều sâu. Thiếu ngưỡng hiệu chỉnh thì so mặt luôn `degraded/unclear`.
-Full vẫn 9 module, MVP vẫn 7; chưa bật hai module này trong quyết định HTTP.
+Full mặc định vẫn 9 module, MVP vẫn 7. Opt-in `IDENTITY_LAB_URL` nạp riêng
+LVFace-B thật trong orchestrator HTTP để so CCCD với một selfie, dùng artifact
+`IDENTITY_FACE_CALIBRATION`; thiếu ngưỡng vẫn không đạt. Quay đầu chưa nối HTTP.
+So tham chiếu chỉ dùng front; cosine giữa ba góc được báo riêng, chưa xác nhận
+nhất quán và không so CCCD với ảnh nghiêng.
 `eval.video_face_match` đã ghép quay đầu → chọn/kiểm khung từ video → so mặt
 trong RAM, không nhận ba ảnh query rời và không ghi khung ra đĩa.
 Thêm `--with-gend` để chấm deepfake trên chính các khung đó; cần extra gend,

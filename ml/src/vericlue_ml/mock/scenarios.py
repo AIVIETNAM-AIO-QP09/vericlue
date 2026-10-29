@@ -43,6 +43,7 @@ GENUINE: dict[Module, Spec] = {
     Module.GAZE_TRACKING: {"status": "ok", "gate": "pass"},
     Module.HEAD_TURN: {"status": "ok", "gate": "pass"},
     Module.FACE_MATCH: {"status": "ok", "gate": "pass"},
+    Module.FACE_CONTINUITY: {"status": "ok", "gate": "pass"},
     Module.QUALITY: {
         "status": "ok",
         "gate": "pass",

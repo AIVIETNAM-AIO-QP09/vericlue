@@ -4,6 +4,10 @@ Công cụ **nội bộ cho người phát triển**, nằm trong `ml/eval`, kh�
 diện web/Android/iOS. Chạy model thật tại máy, không gọi API và không xác minh
 đăng ký tài khoản. Không cần CCCD để thử các chức năng này.
 
+PRES-05 thêm [lượt thử mặt liên tục](presence-lab.md): một nút cho ánh sáng →
+mắt → quay đầu, dùng chung camera và lịch đo. Chạy `eval.presence_lab` để dùng;
+`eval.webcam_lab` bên dưới vẫn giữ hai lượt riêng.
+
 ## Mở cửa sổ
 
 Tại gốc repo, dùng môi trường CPU đã cài theo
@@ -47,7 +51,7 @@ opencv-contrib-python có GUI trong runtime riêng, không thay OpenCV của API
    bỏ dữ liệu giữ trong worker. Camera được giải phóng sau lượt đọc hiện tại.
    Đóng cửa sổ để thoát cả tiến trình.
 
-`face_match.score` là khoảng cách `1-min_cosine`, nhỏ hơn nghĩa gần tham chiếu
+`face_match.score` là khoảng cách `1-cosine(reference,front)`, nhỏ hơn nghĩa gần tham chiếu
 hơn. Thiếu ngưỡng hiệu chỉnh vẫn `degraded/unclear`, không phải xác minh đạt.
 `face_pad` và `face_deepfake` là điểm tấn công thô chưa hiệu chỉnh, không dùng
 ngưỡng 0,5 để tự kết luận. Có thể đọc từng module nhưng không hợp nhất thành

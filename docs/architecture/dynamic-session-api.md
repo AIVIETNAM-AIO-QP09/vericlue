@@ -7,9 +7,12 @@ kiểm thử xuyên suốt bằng mock. **Luồng có `purpose` hiện chỉ ch�
 `USE_MOCK_MODELS=true`**. Real/mixed trả `503 flow_unavailable`, kể cả với phiên
 mock đã lưu trước khi chuyển cấu hình. Không có cờ để bỏ qua chốt này.
 
-Đây chưa phải luồng đăng ký tài khoản hoàn chỉnh: OTP/CCCD, so mặt, đo ánh mắt,
-quay đầu/độ sâu, liên tục cùng một người, khóa thiết bị và chữ ký media vẫn thuộc
-FLOW-02…05, LIVE-02/03, SEC-02. `reference_image_id` là điểm nối; chưa có resolver
+Đây chưa phải luồng đăng ký tài khoản hoàn chỉnh. OTP mô phỏng, QR/OCR và so
+CCCD–selfie bằng LVFace-B đã có đường opt-in; xem
+[`identity-integration.md`](../runbooks/identity-integration.md). Chọn/kiểm ảnh chính
+diện từ video, nối đo ánh mắt/quay đầu, chiều sâu, liên tục cùng một người, mẫu đăng
+ký, khóa thiết bị và chữ ký media vẫn còn ở FLOW-03…05, LIVE-02/03, SEC-02.
+`reference_image_id` là điểm nối; chưa có resolver
 ảnh và chưa được dùng để kết luận đúng người. Không nhận đường dẫn/URL từ client.
 
 Luồng MVP hiện tại không gửi body vẫn hoạt động như trước. Chỉ file type API
@@ -96,7 +99,8 @@ upload `image` đơn lẻ là đủ để chấm toàn bộ Dynamic Liveness ở
 | Luồng | Luật |
 |---|---|
 | Không có body | Giữ nguyên MVP: mặt đạt có thể pass; vùng giữa mới đọc câu |
-| `onboarding` / `recovery` | Mặt đạt vẫn phải đọc câu; lỗi bắt buộc/nghi rõ chuyển review; giọng không thể xóa quyết định review của mặt |
+| `onboarding` | Mặt rõ đạt → pass (ghi danh tại `finalize`, biên nhận qua `GET .../account`); vùng giữa → đọc câu; lỗi bắt buộc/nghi rõ → review. Cập nhật 26/10, ADR-0016 |
+| `recovery` | Mặt đạt vẫn phải đọc câu; lỗi bắt buộc/nghi rõ chuyển review; giọng không thể xóa quyết định review của mặt |
 | `reauth` | Khóa chưa được server xác minh → `recovery_required`; khi có xác minh thật, mặt rõ đạt → pass, vùng giữa → đọc câu, nghi/lỗi → deny; không mở ca nhân viên |
 
 Hiện SEC-02 chưa có, nên reauth qua HTTP luôn `recovery_required`, **không giả vờ

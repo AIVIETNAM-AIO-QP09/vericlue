@@ -15,12 +15,19 @@ from sqlalchemy.orm import Session as DBSession
 
 from vericlue_api.core.config import Settings
 from vericlue_api.db.database import Database
+from vericlue_api.services.accounts import AccountStore
+from vericlue_api.services.enrollment import EnrollmentService
+from vericlue_api.services.file_changes import file_changes
 from vericlue_api.services.forensic_service import ForensicStore
 from vericlue_api.services.identity_steps import IdentitySteps
 from vericlue_api.services.orchestrator import Orchestrator
+from vericlue_api.services.report_evidence import ReportEvidenceBuilder
+from vericlue_api.services.review_audit_link import ReviewAuditLinker
 from vericlue_api.services.review_store import ReviewStore
 from vericlue_api.services.session_flow import SessionFlow
+from vericlue_api.services.session_privacy import SessionPrivacy
 from vericlue_api.services.session_store import SessionStore
+from vericlue_api.services.signed_results import SignedResultService
 
 
 @dataclass
@@ -34,11 +41,35 @@ class AppState:
     forensic: ForensicStore = field(init=False)
     flow: SessionFlow = field(init=False)
     identity: IdentitySteps = field(init=False)
+    privacy: SessionPrivacy = field(init=False)
+    accounts: AccountStore = field(init=False)
+    enrollment: EnrollmentService = field(init=False)
+    signed_results: SignedResultService = field(init=False)
+    review_audit: ReviewAuditLinker = field(init=False)
 
     def __post_init__(self) -> None:
-        runner = partial(self.orchestrator.run, deadline=self.inference_deadline)
-        self.sessions = SessionStore(self.db)
-        self.reviews = ReviewStore(self.db, runner=runner)
+        self.privacy = SessionPrivacy(self.settings, self.db)
+        self.accounts = AccountStore(self.settings, self.db)
+        self.signed_results = SignedResultService(self.settings, self.db, self.accounts)
+        self.enrollment = EnrollmentService(
+            self.accounts,
+            self.privacy,
+            self.orchestrator.extract_template,
+            deadline=self.inference_deadline,
+        )
+        base_runner = partial(self.orchestrator.run, deadline=self.inference_deadline)
+
+        def runner(modules, *, session_id, **kwargs):
+            prepared, lease = self.privacy.prepare(session_id, kwargs)
+            try:
+                return base_runner(modules, session_id=session_id, **prepared, media_lease=lease)
+            finally:
+                if lease is not None:
+                    lease.release()
+
+        self.sessions = SessionStore(self.db, privacy=self.privacy)
+        self.reviews = ReviewStore(self.db, runner=runner, privacy=self.privacy)
+        self.review_audit = ReviewAuditLinker(self.settings, self.db, self.privacy)
         self.forensic = ForensicStore(
             self.settings.router_config.face.b,
             self.settings.router_config.face.a,
@@ -47,6 +78,9 @@ class AppState:
             runner=runner,
             # true → bản mock; false/mixed → phân tích thật
             mock=self.settings.use_mock_models is True,
+            report_signer=lambda: self.settings.report_signer,
+            review_links=self.review_audit,
+            evidence_builder=ReportEvidenceBuilder(self.settings).build,
         )
         self.flow = SessionFlow(
             self.settings,
@@ -54,8 +88,11 @@ class AppState:
             self.reviews,
             runner=runner,
             router=self.orchestrator.router,
+            privacy=self.privacy,
+            enroll=self.enrollment.complete,
+            accounts=self.accounts,
         )
-        self.identity = IdentitySteps(self.settings)
+        self.identity = IdentitySteps(self.settings, privacy=self.privacy)
 
 
 class ApplicationState:
@@ -69,19 +106,43 @@ class ApplicationState:
 
     @contextmanager
     def transaction(
-        self, *, lock_timeout_seconds: float | None = None, inference_deadline: float | None = None
+        self,
+        *,
+        lock_timeout_seconds: float | None = None,
+        inference_deadline: float | None = None,
+        serialize_sqlite: bool = False,
     ) -> Iterator[AppState]:
-        with self.database.sessions.begin() as db:
-            if lock_timeout_seconds is not None and db.bind.dialect.name == "postgresql":
-                db.execute(
-                    text("SELECT set_config('lock_timeout', :timeout, true)"),
-                    {"timeout": f"{max(1, round(lock_timeout_seconds * 1000))}ms"},
-                )
-            state = AppState(self.settings, db, self.orchestrator, inference_deadline)
-            yield state
-            state.sessions.save_all()
-            state.reviews.save_all()
-            db.flush()
+        db = self.database.sessions()
+        changes = file_changes(db, self.settings.media_dir)
+        try:
+            with db.begin():
+                self._transaction_body_begin(db, serialize_sqlite, lock_timeout_seconds)
+                state = AppState(self.settings, db, self.orchestrator, inference_deadline)
+                yield state
+                state.sessions.save_all()
+                state.reviews.save_all()
+                db.flush()
+        except BaseException:
+            changes.rollback()
+            raise
+        else:
+            changes.commit()
+        finally:
+            db.close()
+
+    @staticmethod
+    def _transaction_body_begin(
+        db: DBSession, serialize_sqlite: bool, lock_timeout_seconds: float | None
+    ) -> None:
+        if serialize_sqlite and db.bind.dialect.name == "sqlite":
+            # Acquire the write transaction before reading eligibility/device snapshots.
+            # pysqlite's legacy SELECT transaction mode does not serialize stale readers.
+            db.execute(text("BEGIN IMMEDIATE"))
+        if lock_timeout_seconds is not None and db.bind.dialect.name == "postgresql":
+            db.execute(
+                text("SELECT set_config('lock_timeout', :timeout, true)"),
+                {"timeout": f"{max(1, round(lock_timeout_seconds * 1000))}ms"},
+            )
 
     def initialize(self) -> None:
         with self._initializing:
@@ -89,7 +150,7 @@ class ApplicationState:
                 return
             self.orchestrator.start()
             with self.transaction() as state:
-                if self.settings.use_mock_models:
+                if self.settings.use_mock_models and self.settings.product_mode == "tools":
                     state.reviews.seed_demo()
                 else:
                     from sqlalchemy import select
@@ -97,7 +158,10 @@ class ApplicationState:
                     from vericlue_api.db.models import SessionRow
 
                     state.db.execute(select(SessionRow.session_id).limit(1))
-                if self.settings.use_mock_models is not True:
+                if (
+                    self.settings.use_mock_models is not True
+                    and self.settings.product_mode == "tools"
+                ):
                     state.forensic.fail_interrupted()  # job giám định dở dang của lần chạy trước
             self._initialized = True
 
@@ -105,7 +169,14 @@ class ApplicationState:
 def get_state(request: Request) -> Iterator[AppState]:
     # Leave 200 ms for policy/flush/commit/serialization under a healthy DB.
     root = request.app.state.vericlue
-    inference_deadline = perf_counter() + root.settings.inference_budget_seconds
+    budget = (
+        root.settings.session_model_timeout_seconds + 0.8
+        if root.settings.session_face_models
+        or root.settings.session_voice_models
+        or root.settings.identity_voice_continuity
+        else root.settings.inference_budget_seconds
+    )
+    inference_deadline = perf_counter() + budget
     root.initialize()
     route = request.scope.get("route")
     guarded = request.method == "POST" and getattr(route, "path", "") in {
@@ -113,7 +184,18 @@ def get_state(request: Request) -> Iterator[AppState]:
         "/v1/sessions/{session_id}/voice",
     }
     timeout = root.settings.db_lock_timeout_seconds if guarded else None
+    # SessionStore.save_all writes a loaded snapshot even on a read endpoint.
+    # Serialize all session routes, so refresh/signals/GET cannot restore stale
+    # counters while an upload commits. PostgreSQL already uses row locks.
+    route_path = getattr(route, "path", "")
+    serialized_write = route_path == "/v1/sessions/{session_id}" or route_path.startswith(
+        "/v1/sessions/{session_id}/"
+    )
     with root.transaction(
-        lock_timeout_seconds=timeout, inference_deadline=inference_deadline if guarded else None
+        lock_timeout_seconds=timeout,
+        inference_deadline=inference_deadline if guarded else None,
+        serialize_sqlite=serialized_write,
     ) as state:
+        state.reviews.actor = getattr(request.state, "staff_actor", "staff-unverified")
+        state.review_audit.actor = state.reviews.actor
         yield state

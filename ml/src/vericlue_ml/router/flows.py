@@ -22,8 +22,9 @@ def route_face(
         return decision
     if purpose not in {"onboarding", "recovery"}:
         raise ValueError("Unknown session purpose")
-    # A voice recording cannot clear review; retaining that decision is the API's job.
-    if decision.status == "pass":
+    # Onboarding reads a sentence only when the face is unclear (B < face < A, from the router);
+    # recovery, the account-takeover path, always reads. Voice cannot clear review: the API keeps it.
+    if purpose == "recovery" and decision.status == "pass":
         return replace(decision, status="voice_challenge", reason="voice required by purpose")
     return decision
 

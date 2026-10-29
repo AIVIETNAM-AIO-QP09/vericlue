@@ -7,6 +7,7 @@ import pytest
 from contract_utils import validate
 from fastapi.testclient import TestClient
 from sqlalchemy import select
+from synthetic_images import synthetic_image
 
 from vericlue_api.core.config import get_settings
 from vericlue_api.db.models import DecisionRow, ReviewCaseRow, SessionRow
@@ -14,7 +15,7 @@ from vericlue_api.main import create_app
 from vericlue_api.services.dynamic_challenge import generate_dynamic_challenge
 from vericlue_ml.common.result import Gate, Module, ModuleResult, Status
 
-IMAGE = {"image": ("face.jpg", b"synthetic image", "image/jpeg")}
+IMAGE = {"image": ("face.jpg", synthetic_image(b"synthetic image"), "image/jpeg")}
 AUDIO = {"audio": ("voice.wav", b"synthetic audio", "audio/wav")}
 NONCE = "integration_nonce_12345678"
 
@@ -73,9 +74,24 @@ def edit_session(client, created, **patch):
         row.payload = {**row.payload, **patch}
 
 
+def test_onboarding_with_a_clear_face_passes_without_a_sentence(client):
+    created, auth = create(client, "onboarding", scenario="genuine")
+    result = submit_face(client, created, auth)
+    assert result == {"status": "pass"}
+    response = submit_voice(client, created, auth, created["challenge"]["dynamic"])
+    assert response.status_code == 409  # nothing to read: no shortcut through /voice
+    with client.app.state.vericlue.database.sessions() as db:
+        actions = db.scalars(
+            select(DecisionRow.action).where(DecisionRow.session_id == created["session_id"])
+        ).all()
+        assert actions == ["pass"]
+
+
 @pytest.mark.parametrize("purpose", ["onboarding", "recovery"])
 def test_full_mock_flow_requires_voice_and_uses_preissued_prompt(client, purpose):
-    created, auth = create(client, purpose)
+    # Onboarding reads only when the face is unclear (voice_clone: B < face < A); recovery always.
+    scenario = "voice_clone" if purpose == "onboarding" else "genuine"
+    created, auth = create(client, purpose, scenario=scenario)
     plan = created["challenge"]["dynamic"]
     assert plan["session_id"] == created["session_id"] and plan["nonce"] == NONCE
     assert created["purpose"] == purpose and created["nonce"] == NONCE
@@ -84,6 +100,8 @@ def test_full_mock_flow_requires_voice_and_uses_preissued_prompt(client, purpose
     assert result["status"] == "voice_challenge"
     assert result["voice_prompt"] == plan["voice_prompt"]
     assert result["voice_challenge_id"] == plan["voice_challenge_id"]
+    if purpose == "onboarding":
+        edit_session(client, created, scenario="genuine")  # ambiguous face, then a genuine voice
     response = submit_voice(client, created, auth, result)
     validate(response.json(), "session", "VoiceResponse")
     assert response.json() == {"status": "pass"}
@@ -170,7 +188,7 @@ def test_face_retry_rotates_every_challenge_and_rejects_old_data(client):
 
 
 def test_reread_rotates_prompt_and_id_and_is_limited(client):
-    created, auth = create(client, scenario="genuine")
+    created, auth = create(client, "recovery", scenario="genuine")
     result = submit_face(client, created, auth)
 
     class WrongPhraseDetector:
@@ -204,7 +222,17 @@ def test_voice_cannot_clear_face_review(client, scenario):
     assert submit_voice(client, created, auth, created["challenge"]["dynamic"]).status_code == 409
 
 
-def test_unverified_reauth_requires_recovery_without_staff_case(client):
+@pytest.mark.parametrize("identity_runtime", [False, True])
+def test_unverified_reauth_requires_recovery_without_staff_case(
+    client, identity_runtime, monkeypatch
+):
+    if identity_runtime:
+        client.app.state.vericlue.settings.identity_lab_url = "http://127.0.0.1:8010"
+
+    def unexpected_match(*_):
+        pytest.fail("Reauth must not use the card/selfie runtime")
+
+    monkeypatch.setattr("vericlue_ml.face.match.FaceMatchDetector.predict", unexpected_match)
     created, auth = create(client, purpose="reauth")
     assert "dynamic" not in created["challenge"]
     result = submit_face(client, created, auth)
@@ -230,7 +258,17 @@ def test_unverified_reauth_requires_recovery_without_staff_case(client):
     "scenario,expected",
     [("genuine", "pass"), ("print", "deny"), ("error", "deny"), ("voice_clone", "voice_challenge")],
 )
-def test_reauth_with_server_verified_context_has_no_review_case(client, scenario, expected):
+@pytest.mark.parametrize("identity_runtime", [False, True])
+def test_reauth_with_server_verified_context_has_no_review_case(
+    client, scenario, expected, identity_runtime, monkeypatch
+):
+    if identity_runtime:
+        client.app.state.vericlue.settings.identity_lab_url = "http://127.0.0.1:8010"
+
+    def unexpected_match(*_):
+        pytest.fail("Reauth must not use the card/selfie runtime")
+
+    monkeypatch.setattr("vericlue_ml.face.match.FaceMatchDetector.predict", unexpected_match)
     created, auth = create(client, purpose="reauth", scenario=scenario)
     # Until SEC-02 exists, only a server-owned test fixture can grant this context.
     edit_session(client, created, device_verified=True)
@@ -238,6 +276,27 @@ def test_reauth_with_server_verified_context_has_no_review_case(client, scenario
     assert result["status"] == expected
     if expected == "voice_challenge":
         assert submit_voice(client, created, auth, result).json() == {"status": "deny"}
+    with client.app.state.vericlue.database.sessions() as db:
+        assert (
+            db.scalar(
+                select(ReviewCaseRow).where(ReviewCaseRow.session_id == created["session_id"])
+            )
+            is None
+        )
+
+
+@pytest.mark.parametrize("identity_runtime", [False, True])
+def test_reauth_genuine_voice_after_escalation_does_not_require_a_card(client, identity_runtime):
+    if identity_runtime:
+        client.app.state.vericlue.settings.identity_lab_url = "http://127.0.0.1:8010"
+    created, auth = create(client, purpose="reauth", scenario="voice_clone")
+    edit_session(client, created, device_verified=True)
+    result = submit_face(client, created, auth)
+    assert result["status"] == "voice_challenge"
+    # Server-owned fixture: ambiguous face, followed by genuine voice model results.
+    edit_session(client, created, scenario="genuine")
+    response = submit_voice(client, created, auth, result)
+    assert response.json() == {"status": "pass"}
     with client.app.state.vericlue.database.sessions() as db:
         assert (
             db.scalar(
@@ -295,7 +354,7 @@ def test_expired_challenge_does_not_receive_media(client):
 
 
 def test_persistence_across_api_restart_and_no_scores_in_plan(client):
-    created, auth = create(client)
+    created, auth = create(client, "recovery")
     encoded = json.dumps(created, ensure_ascii=False).lower()
     assert all(word not in encoded for word in ('"score"', '"prob_attack"', "giả mạo"))
     with TestClient(create_app()) as restarted:

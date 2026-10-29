@@ -5,7 +5,8 @@
   chồng lấn 50% và chạy bộ phát hiện THẬT; `GET /jobs/{id}` trả tiến độ. Module chưa có mô hình thật
   hiện là `unavailable`, không bao giờ được giả lập; thiếu bước bắt buộc → `inconclusive`.
 
-Chữ ký báo cáo vẫn là MOCK (Ed25519 là việc PLAT-06/FOR-04). SHA-256 tính trên byte gốc trước mọi bước
+PLAT-06 ký HTML của job real bằng Ed25519, mock không được xác minh là chữ ký thật.
+Đây chưa phải gói PDF/JSON ENFSI của FOR-04. SHA-256 tính trên byte gốc trước mọi bước
 đọc/chuyển mã (AGENTS.md, ADR-0008).
 """
 
@@ -20,16 +21,26 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
+from vericlue_api.core.errors import ApiError
+from vericlue_api.core.report_signing import ReportSigner
 from vericlue_api.db.models import ForensicJobRow, ForensicSegmentRow
-from vericlue_api.schemas.forensic import ForensicJob, ForensicSegment, SegmentSignal, Verdict
+from vericlue_api.schemas.forensic import (
+    ForensicJob,
+    ForensicSegment,
+    ReviewAuditAnchor,
+    SegmentSignal,
+    Verdict,
+)
 from vericlue_api.services.detection import run_detectors
+from vericlue_api.services.report_evidence import ReportEvidence
+from vericlue_api.services.review_audit_link import ReviewAuditLinker
 from vericlue_api.services.storage import save_generated, save_upload
 from vericlue_ml.common.result import Module, ModuleResult, Status
 
 FORENSIC_MODULES = (Module.FACE_DEEPFAKE, Module.VOICE_SPOOF, Module.LIPSYNC, Module.PROVENANCE)
 SEGMENT_SECONDS = 5.0  # chỉ cho bản mock
 SEGMENTS = 2  # chỉ cho bản mock
-MOCK_SIGNATURE_PREFIX = "MOCK-"  # TẠM — chữ ký thật là Ed25519
+MOCK_SIGNATURE_PREFIX = "MOCK-"  # Checksum mô phỏng, không phải chữ ký được tin cậy.
 
 _STATUS_LABELS_VI = {
     "not_applicable": "không áp dụng",
@@ -69,19 +80,41 @@ class ForensicStore:
         *,
         runner: Callable = run_detectors,
         mock: bool = True,
+        report_signer: Callable[[], ReportSigner] | None = None,
+        review_links: ReviewAuditLinker | None = None,
+        evidence_builder: Callable[[ForensicJob, ForensicJobRow], ReportEvidence | None]
+        | None = None,
     ) -> None:
         self._b, self._a = b, a
         self._run = runner
         self.mock = mock
         self.db, self.media_dir = db, media_dir
+        self._report_signer = report_signer
+        self._review_links = review_links
+        self._evidence_builder = evidence_builder
 
     # --- tạo job ------------------------------------------------------------
-    def create(self, data: bytes, filename: str | None, scenario: str) -> ForensicJob:
+    def create(
+        self, data: bytes, filename: str | None, scenario: str, *, review_case_id: str | None = None
+    ) -> ForensicJob:
+        anchor = None
+        if review_case_id is not None:
+            if self.mock:
+                raise ApiError(
+                    409,
+                    "review_link_unavailable",
+                    "Bản mô phỏng không cấp liên kết vật chứng đã kiểm.",
+                )
+            if self._review_links is None:
+                raise ApiError(503, "review_link_unavailable", "Chưa thể liên kết hồ sơ.")
+            anchor = self._review_links.bind(review_case_id, data)
         if not self.mock:
-            return self._create_queued(data, filename)
+            return self._create_queued(data, filename, review_audit=anchor)
         return self._create_mock(data, filename, scenario)
 
-    def _create_queued(self, data: bytes, filename: str | None) -> ForensicJob:
+    def _create_queued(
+        self, data: bytes, filename: str | None, *, review_audit: ReviewAuditAnchor | None = None
+    ) -> ForensicJob:
         """Tiếp nhận: hash TRÊN BYTE GỐC, lưu file nguyên vẹn, xếp hàng. Chưa đọc/giải mã gì cả."""
         job = ForensicJob(
             job_id=f"job_{secrets.token_hex(6)}",
@@ -89,6 +122,7 @@ class ForensicStore:
             file_sha256=hashlib.sha256(data).hexdigest(),
             verdict=None,
             segments=[],
+            review_audit=review_audit,
         )
         path = save_upload(self.media_dir, "forensic/" + job.job_id, "source", filename, data)
         self.db.add(
@@ -292,18 +326,28 @@ class ForensicStore:
         return ForensicJob.model_validate(record.payload["job"]) if record else None
 
     def report(self, job_id: str) -> tuple[str, str, str] | None:
-        """(html, sha256 của html, chữ ký mock)."""
-        job = self.get(job_id)
+        """HTML, SHA-256 of exact UTF-8 bytes and detached signature (MOCK for mock jobs)."""
+        job = self.report_job(job_id)
         if job is None:
             return None
+        if job.status != "done":
+            raise ApiError(
+                409, "job_not_ready", "Job chưa hoàn tất hoặc đã thất bại; chưa có báo cáo."
+            )
         record = self.db.get(ForensicJobRow, job_id)
         if record.payload.get("mode") == "real":
-            html = self._report_real(job, record.payload)
+            signer = self.report_signer()
+            html = self._report_real(
+                job, record.payload, signer.key_id, evidence=self.report_evidence(job, record)
+            )
         else:
+            signer = None
             html = self._report_mock(job, record)
         digest = hashlib.sha256(html.encode("utf-8")).hexdigest()
         row = self.db.get(ForensicJobRow, job_id)
-        row.signature = f"{MOCK_SIGNATURE_PREFIX}{digest}"
+        row.signature = (
+            signer.sign(digest) if signer is not None else f"{MOCK_SIGNATURE_PREFIX}{digest}"
+        )
         row.media_deleted_at = None
         row.report_path = str(
             save_generated(
@@ -341,12 +385,22 @@ class ForensicStore:
             '<!doctype html><html lang="vi"><meta charset="utf-8"><title>Báo cáo giám định</title>'
             f"<h1>Báo cáo giám định (bản mock)</h1><p>Mã: {escape(job.job_id)}</p>"
             f"<p>SHA-256 file: {job.file_sha256}</p><p>Kết luận: {job.verdict}</p>"
-            f"<table>{rows}</table></html>"
+            f"<table>{rows}</table><h2>Giới hạn</h2>"
+            "<p>Dữ liệu mô phỏng, không phải kết quả giám định.</p><ul>"
+            + "".join(f"<li>{escape(item)}</li>" for item in LIMITATIONS_VI)
+            + "</ul></html>"
         )
 
     @staticmethod
-    def _report_real(job: ForensicJob, payload: dict[str, Any]) -> str:
-        """Khung báo cáo giữ nguyên nhãn MOCK cho chữ ký; phần dữ liệu là kết quả thật."""
+    def _report_real(
+        job: ForensicJob,
+        payload: dict[str, Any],
+        key_id: str,
+        *,
+        pdf_bundle: bool = False,
+        evidence: ReportEvidence | None = None,
+    ) -> str:
+        """HTML with a pinned-key identifier; signature covers exact rendered bytes."""
         e = escape
 
         def cell(sig: SegmentSignal) -> str:
@@ -394,25 +448,101 @@ class ForensicStore:
                 + (f"<p>C2PA: {e(str(c2pa))}</p>" if c2pa else "")
                 + "".join(f"<p><em>{e(n)}</em></p>" for n in prov.notes)
             )
+        signature_note = (
+            "Chữ ký Ed25519 tách rời trên JSON và hash PDF; không phải chữ ký nhúng PAdES."
+            if pdf_bundle
+            else "Chữ ký: Ed25519 - ký toàn vẹn báo cáo HTML, không chứng nhận kết luận mô hình."
+        )
+        pdf_style = (
+            """<style>body{font-family:Arial,'DejaVu Sans',sans-serif;font-size:10pt;line-height:1.5;color:#202d3d}h1{font-size:20pt;color:#142f4d;margin:0 0 12px}h2{font-size:12pt;color:#142f4d;margin:18px 0 6px;break-after:avoid}p{margin:6px 0;overflow-wrap:anywhere}ul{padding-left:20px}li{margin:4px 0;overflow-wrap:anywhere}table{width:100%;border-collapse:collapse;margin-top:8px;font-size:8.5pt;table-layout:fixed}td,th{border:1px solid #cbd5e1;padding:4px;vertical-align:top;overflow-wrap:anywhere}td:first-child,th:first-child{width:12%}th{background:#eaf0f6;text-align:left}thead{display:table-header-group}tr{break-inside:avoid}strong{color:#92400e}.report-limitations{break-inside:avoid}</style>"""
+            if pdf_bundle
+            else ""
+        )
+        report_context = payload.get("pdf_report_context", {}) if pdf_bundle else {}
+        context_html = (
+            f"<p>Thời điểm tạo job: {e(str(report_context['job_created_at']))}<br>"
+            f"Phiên bản VeriClue: {e(str(report_context['tool_version']))}</p>"
+            if report_context
+            else ""
+        )
+        anchor = job.review_audit
+        link_html = (
+            "<h2>Hồ sơ liên kết và mốc nhật ký</h2>"
+            f"<p>Ca: {e(anchor.case_id)}; phiên: {e(anchor.session_id)}; bản ghi: {e(anchor.source_role)}.</p>"
+            f"<p>SHA-256 bản ghi đã đối chiếu: {anchor.source_sha256}</p>"
+            f"<p>Mốc gồm {anchor.event_count} sự kiện; ID cuối: {anchor.tail_event_id}.<br>"
+            f"Hash cuối: {anchor.tail_hash}<br>Ghi nhận mốc: {e(anchor.captured_at.isoformat())}</p>"
+            "<p>Mốc được ký cùng báo cáo để đối chiếu phần nhật ký đã có. Sự kiện thêm sau mốc "
+            "không làm mất hiệu lực phần đã neo; chữ ký không chứng nhận danh tính hoặc kết luận AI.</p>"
+            if anchor is not None
+            else "<h2>Liên kết hồ sơ</h2><p>Giám định file độc lập.</p>"
+        )
+        evidence_html = (
+            "<style>.report-illustration{margin:12px 0;break-inside:avoid}"
+            ".report-illustration img{display:block;max-width:100%;height:auto}"
+            ".report-frame img{max-height:55mm;width:auto}"
+            ".report-spectrum img{width:100%}"
+            ".report-illustration figcaption{font-size:9pt;margin-top:5px;overflow-wrap:anywhere}</style>"
+            + evidence.html()
+            if evidence is not None
+            else ""
+        )
         return (
             '<!doctype html><html lang="vi"><meta charset="utf-8"><title>Báo cáo giám định</title>'
+            f"{pdf_style}"
             "<h1>Báo cáo giám định</h1>"
-            "<p><strong>Chữ ký: MOCK</strong> — chưa ký Ed25519 thật (PLAT-06/FOR-04).</p>"
+            f"<p><strong>{signature_note}</strong></p>"
+            + (
+                "<p><strong>BẢN THỬ NGHIỆM - chưa có hiệu chỉnh giám định và thang lời ENFSI.</strong></p>"
+                if pdf_bundle
+                else ""
+            )
+            + "<p>Chữ ký không chứng nhận kết luận mô hình.</p>"
+            + f"<p>Dấu vân tay khóa (SHA-256 SPKI): {e(key_id)}</p>"
+            f"{context_html}"
             f"<p>Mã: {e(job.job_id)}</p><p>Tên file: {e(str(payload.get('filename', '')))}</p>"
             f"<p>SHA-256 file (byte gốc): {job.file_sha256}</p>"
+            f"{link_html}"
             f"<h2>Thông số file</h2><ul>{media_rows}</ul>"
             f"<h2>Kết luận</h2><p>Kết luận: {job.verdict}</p>"
             f"<p>{e(_VERDICT_LABELS_VI.get(job.verdict or '', ''))}. {e(job.verdict_reason or '')}</p>"
             f"<h2>Khoảng nghi giả (±1 giây)</h2>{'<ul>' + intervals + '</ul>' if intervals else '<p>Không có.</p>'}"
-            f"<h2>Kết quả theo đoạn</h2><table>{rows}</table>"
-            f"{prov_html}"
+            "<h2>Kết quả theo đoạn</h2><table>"
+            + (
+                (
+                    "<thead><tr><th>Thời gian</th>"
+                    + f'<th colspan="{max((len(s.signals) for s in job.segments), default=1)}">Tín hiệu mô hình (chưa phải LR đã hiệu chỉnh)</th></tr></thead>'
+                )
+                if pdf_bundle
+                else ""
+            )
+            + f"{rows}</table>"
+            + evidence_html
+            + f"{prov_html}"
             f"<h2>Bước không chạy</h2>{'<ul>' + unavailable + '</ul>' if unavailable else '<p>Không có.</p>'}"
-            f"<h2>Phiên bản mô hình</h2><ul>{versions}</ul>"
-            "<h2>Giới hạn</h2><ul>"
+            f"<h2>Phiên bản mô hình</h2>{'<ul>' + versions + '</ul>' if versions else '<p>Không có dữ liệu phiên bản mô hình.</p>'}"
+            '<section class="report-limitations"><h2>Giới hạn</h2><ul>'
             + "".join(f"<li>{e(item)}</li>" for item in LIMITATIONS_VI)
-            + "</ul></html>"
+            + "</ul></section></html>"
         )
 
-    @staticmethod
-    def verify(report_sha256: str, signature: str) -> bool:
-        return signature == f"{MOCK_SIGNATURE_PREFIX}{report_sha256}"
+    def report_job(self, job_id: str) -> ForensicJob | None:
+        """Refresh linked checkpoints only through prefix validation, before signing either format."""
+        job = self.get(job_id)
+        if job is None or job.status != "done" or job.review_audit is None:
+            return job
+        if self._review_links is None:
+            raise ApiError(503, "review_link_unavailable", "Chưa thể đối chiếu nhật ký hồ sơ.")
+        return self._review_links.refresh(job, self.db.get(ForensicJobRow, job_id))
+
+    def report_evidence(self, job: ForensicJob, row: ForensicJobRow) -> ReportEvidence | None:
+        """Server-generated illustrations only; disabled unless explicitly configured."""
+        return self._evidence_builder(job, row) if self._evidence_builder else None
+
+    def report_signer(self) -> ReportSigner:
+        """Require a configured report key independently of mock/real model startup."""
+        if self._report_signer is None:
+            raise ApiError(
+                503, "report_signing_unavailable", "Chưa thể ký hoặc kiểm tra báo cáo lúc này."
+            )
+        return self._report_signer()

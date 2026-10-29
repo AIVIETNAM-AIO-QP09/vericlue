@@ -1,0 +1,8 @@
+{
+  "protocol": "vericlue-media-v1",
+  "seed": "0000000000000000000000000000000000000000000000000000000000000000",
+  "canonical": "{\"attempt_id\":\"ch_golden\",\"audio_offset_ms\":null,\"challenge_id\":\"ch_golden\",\"client_nonce\":\"synthetic_nonce_1234\",\"files\":{\"image\":{\"sha256\":\"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\",\"size\":3,\"suffix\":\".jpg\"}},\"nonce\":\"37d2e36a73bd65470a141ef9551bcd4ad81cb27220f4ec6842255909dc187dc7\",\"protocol\":\"vericlue-media-v1\",\"purpose\":\"onboarding\",\"session_id\":\"ses_golden\",\"stage\":\"face\"}",
+  "sha256": "751bb8d1f32630fffac5aecfa1759c99a72f0c3229cd1ed4a0e9ac9696b755bc",
+  "public_key_spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEmX2VIsZRcdz/VFrCWqN4BXXHM4DWIcQdmBzAXPjsVLG0iOQnLQM6mi7gEpx4+3+okeL5VUjnnKuE9vKe6zXwbw==",
+  "signature": "MEYCIQDwX4OnXteYfDGFH8mIIisYCJIoNg/xjyyFt6eFip/CngIhAJthb1mr6KGfQaouKfo0DvShUKq3sGIOJ3Nk62nAAmCa"
+}

@@ -7,7 +7,9 @@ from vericlue_ml.common.result import Module
 
 RouterProfileName = Literal["full", "mvp"]
 FACE_MODULES = (Module.FACE_PAD, Module.FACE_DEEPFAKE)
-DIAGNOSTIC_MODULES = frozenset({Module.GAZE_TRACKING, Module.HEAD_TURN, Module.FACE_MATCH})
+DIAGNOSTIC_MODULES = frozenset(
+    {Module.GAZE_TRACKING, Module.HEAD_TURN, Module.FACE_MATCH, Module.FACE_CONTINUITY}
+)
 
 
 @dataclass(frozen=True)

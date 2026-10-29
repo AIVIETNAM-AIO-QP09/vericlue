@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from conftest import start_session
 from contract_utils import validate
+from synthetic_images import synthetic_image
 
 from vericlue_api.services.identity_steps import parse_cccd_qr
 
@@ -19,8 +20,8 @@ FINALIZE = "/v1/sessions/{sid}/finalize"
 # Dữ liệu bịa, không phải thẻ thật.
 QR = "001099012345|123456789|Nguyễn Văn An|01011995|Nam|12 Phố Huế, Hà Nội|15062021"
 FILES = {
-    "front": ("front.jpg", b"synthetic front", "image/jpeg"),
-    "back": ("back.jpg", b"synthetic back", "image/jpeg"),
+    "front": ("front.jpg", synthetic_image(b"synthetic front"), "image/jpeg"),
+    "back": ("back.jpg", synthetic_image(b"synthetic back"), "image/jpeg"),
 }
 
 
@@ -181,7 +182,9 @@ def test_edited_fields_become_a_note_for_the_reviewer(client):
     )
     assert res.json() == {"received": True}
     client.post(
-        f"/v1/sessions/{sid}/media", headers=auth, files={"image": ("f.jpg", b"x", "image/jpeg")}
+        f"/v1/sessions/{sid}/media",
+        headers=auth,
+        files={"image": ("f.jpg", synthetic_image(b"x"), "image/jpeg")},
     )
     client.post(FINALIZE.format(sid=sid), headers=auth)
     cases = client.get("/v1/review/cases").json()["items"]

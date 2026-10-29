@@ -99,12 +99,13 @@ một lần; worker NES2Net tự trỏ về cùng mã nguồn của công cụ �
 
 1. **Thu âm** → chờ ĐANG THU → đọc ngay câu → **Dừng & kiểm** (tối đa 20 giây).
    Cùng bản thu trong RAM được kiểm nội dung trước, rồi chấm raw NES2Net.
-2. Tab **Câu đọc** giữ transcript/WER/độ giống hiện có. Tab **Giọng AI · 4 giây
-   đầu** chỉ hiện margin thô và giới hạn. Hai kết quả độc lập: khớp câu không
+2. Tab **Câu đọc** giữ transcript/WER/độ giống hiện có. Tab **Giọng AI · theo đoạn**
+   hiện margin thô từng đoạn và độ phủ. Hai kết quả độc lập: khớp câu không
    có nghĩa giọng thật, margin NES2Net không được đổi thành xác suất/pass.
-3. NES2Net chỉ chấm **4 giây đầu của bản thu**, phần ngắn hơn được lặp; vì vậy
-   cần bắt đầu đọc khi có báo ĐANG THU. Vẫn giữ degraded/unclear, chưa parity
-   frontend hoặc calibration tiếng Việt; phần sau giây 4 chưa được đánh giá.
+3. VOICE-13 kiểm các cửa sổ 4 giây phủ hết bản thu, neo cửa sổ cuối ở cuối;
+   đoạn thiếu tiếng/lỗi hiện riêng. Không gộp thành điểm toàn câu. Xem
+   [protocol theo đoạn](nes2net-timeline-lab.md). Chưa parity frontend hoặc
+   calibration tiếng Việt; luôn unclear, không dùng để kết luận xác minh.
 4. **Hủy/Esc** bỏ cả lượt, dừng worker NES2Net; nếu Qwen native đang chạy vẫn phải
    chờ Qwen kết thúc trước lượt mới như trước. Đóng cửa sổ dừng worker thuộc công
    cụ này. Lượt sau sau khi hủy/timeout sẽ cần nạp lại NES2Net; bình thường giữ

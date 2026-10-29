@@ -1,11 +1,20 @@
 # face/ — mô-đun khuôn mặt
 
+## Cùng người mặt–giọng: `continuity.py` (FLOW-05, opt-in)
+
+`face_continuity` dùng chung LVFace/SCRFD với `face_match`, so khung chính diện
+đã kiểm với ba khung ở 10/50/90% WAV, có xét offset và PTS thật. Ngưỡng protocol
+riêng, thiếu thì `degraded/unclear`; không thay ngưỡng CCCD/ba góc hay profile
+mặc định. [Spec, API và CLI](../../../../docs/architecture/face-voice-continuity.md).
+
 ## So mặt: `match.py` (FLOW-05, diagnostic)
 
 `FaceMatchDetector` dùng session SCRFD chung + LVFace-B ONNX gốc, căn 5 điểm
-về 112×112 RGB [-1,1], so tham chiếu và mọi cặp front/left/right. Chưa có
-ngưỡng hiệu chỉnh thực, nên mặc định `degraded/unclear`; không bật trong
-full/MVP hoặc quyết định HTTP. Không lưu vector, không chứng minh sống/chiều
+về 112×112 RGB [-1,1], so tham chiếu với front. Ba cosine giữa các góc được
+ghi riêng, chưa có kết luận nhất quán; không so CCCD với ảnh nghiêng. Chưa có
+ngưỡng hiệu chỉnh thực, nên mặc định `degraded/unclear`. Không bật trong
+full/MVP mặc định; API opt-in `IDENTITY_LAB_URL` dùng trực tiếp module này thay AdaFace.
+Không lưu vector, không chứng minh sống/chiều
 sâu. Giấy phép trọng số nghiên cứu phi thương mại, hash/revision trong
 `models/manifest.yaml`. Lệnh chạy và hợp đồng:
 [`head-and-match.md`](../../../../docs/architecture/head-and-match.md).
@@ -13,6 +22,11 @@ sâu. Giấy phép trọng số nghiên cứu phi thương mại, hash/revision 
 `predict_frames` nhận pixel BGR đã được server chọn trong RAM và dùng đúng cùng
 tiền xử lý/phép so như ảnh rời; không thêm trường JSON/HTTP mới. Chuỗi
 `presence.video_identity` chọn và kiểm tư thế khung từ video trước khi gọi.
+
+`VideoFaceMatchDetector.enrollment_template` trích artifact nội bộ sau khi chấm
+lại và đối chiếu hash video/pixel; không đưa vector vào `ModuleResult` hay HTTP.
+Nền lưu mã hóa và TTL 24 giờ: [`account-enrollment.md`](../../../../docs/architecture/account-enrollment.md).
+Chưa nối lời gọi trong request; caller phải giữ lease/deadline của worker.
 
 ## PAD: `pad.py` (FACE-01, bước 1 — bọc mô hình)
 

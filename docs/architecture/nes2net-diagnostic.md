@@ -49,15 +49,17 @@ degraded/unclear. Chưa chứng minh điểm phân biệt được tiếng Việ
 Report ghi rõ `truncated`, `repeated_to_four_seconds`, `input_seconds`,
 `scored_start_s=0`, `scored_seconds=4`. Với file dài, **phần sau 4 giây không
 được chấm**. Không được dùng thử nghiệm này để kết luận cả video/câu nói sạch.
-Muốn xử lý toàn câu cần thiết kế và đánh giá protocol riêng/version mới.
+VOICE-13 thêm protocol/version riêng [theo đoạn toàn bản thu](nes2net-timeline-lab.md)
+trong lab và CLI `--whole-utterance`. Bản first4s ở đây vẫn giữ nguyên;
+protocol mới cũng chưa được đánh giá accuracy hoặc calibration.
 
 ## Chuẩn bị và chạy
 
 VOICE-10 ghép worker NES2Net với cửa sổ micro Qwen: thu một lần, hai kết quả
 riêng, PCM qua RAM pipe và child runtime riêng. Chạy theo
 [hướng dẫn thử kép](qwen-asr-diagnostic.md#thu-một-lần-kiểm-cả-qwen-và-nes2net-voice-10).
-Vẫn giữ các giới hạn parity/hiệu chỉnh/4 giây đầu ở trên; CLI file dưới đây
-tiếp tục hoạt động độc lập.
+Lab hiện dùng timeline VOICE-13; giới hạn parity/hiệu chỉnh vẫn giữ. CLI file
+dưới đây tiếp tục dùng first4s mặc định, thêm `--whole-utterance` để bật timeline.
 
 PowerShell từ gốc checkout; giữ nguyên runtime Qwen, webcam và CUDA:
 

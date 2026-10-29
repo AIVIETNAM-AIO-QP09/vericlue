@@ -3,10 +3,18 @@ package vn.vericlue.app.flow
 import java.io.File
 import java.security.SecureRandom
 import java.util.Base64
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import vn.vericlue.app.security.MediaSigner
+import vn.vericlue.app.security.MediaProof
+import vn.vericlue.app.security.AndroidMediaSigner
+import vn.vericlue.app.security.DeviceProof
+import vn.vericlue.app.BuildConfig
 import vn.vericlue.app.capture.CamProbe
 import vn.vericlue.app.capture.RegionFrame
 import vn.vericlue.app.data.api.ApiError
 import vn.vericlue.app.data.api.ApiResult
+import vn.vericlue.app.data.api.AccountReceipt
 import vn.vericlue.app.data.api.Challenge
 import vn.vericlue.app.data.api.ColorEvent
 import vn.vericlue.app.data.api.CreateSessionResponse
@@ -15,6 +23,7 @@ import vn.vericlue.app.data.api.IdCardFields
 import vn.vericlue.app.data.api.FrameTime
 import vn.vericlue.app.data.api.SessionApi
 import vn.vericlue.app.data.api.Signals
+import vn.vericlue.app.capture.VideoResult
 
 /** Where the flow goes after a server call: a route, or an error screen. */
 sealed interface Next {
@@ -27,11 +36,21 @@ sealed interface Next {
  * create session → media → signals → finalize → (voice). The server decides; this class only
  * carries data and maps statuses to screens. Anything unexpected becomes [Next.Fail].
  */
-class LiveFlow(private val api: SessionApi) {
+class LiveFlow(
+    private val api: SessionApi,
+    private val mediaSigner: MediaSigner? = if (BuildConfig.SIGNED_MEDIA) AndroidMediaSigner() else null,
+) {
     var session: CreateSessionResponse? = null
         private set
     var challenge: Challenge? = null
         private set
+    var accountReceipt: AccountReceipt? = null
+        private set
+    private var sessionPurpose: String? = null
+    private var sessionAccount: AccountReceipt? = null
+
+    /** Saved account this session is for (reauth/recovery); sent when the session is created. */
+    var boundAccount: AccountReceipt? = null
     var frontalJpeg: ByteArray? = null
     val colorEvents = mutableListOf<ColorEvent>()
     var voicePrompt: String? = null
@@ -64,6 +83,10 @@ class LiveFlow(private val api: SessionApi) {
     fun reset() {
         session = null
         challenge = null
+        accountReceipt = null
+        sessionPurpose = null
+        sessionAccount = null
+        boundAccount = null
         frontalJpeg = null
         colorEvents.clear()
         otpSms = null
@@ -96,17 +119,56 @@ class LiveFlow(private val api: SessionApi) {
      * flow: a `dynamic` schedule for onboarding/recovery, purpose rules on the server. Null keeps the
      * old MVP session.
      */
-    suspend fun ensureSession(mockScenario: String?, purpose: String? = null): ApiError? {
-        if (session != null) return null
-        val request = purpose?.let { CreateSessionRequest(it, newNonce()) }
+    suspend fun ensureSession(mockScenario: String?, purpose: String? = null, account: AccountReceipt? = boundAccount): ApiError? {
+        if (session != null) return if (purpose == sessionPurpose && account == sessionAccount) null else ApiError.BadResponse
+        if (mediaSigner != null && purpose !in setOf("onboarding", "recovery", "reauth")) return ApiError.BadResponse
+        if (purpose == "reauth" && (account == null || mediaSigner == null)) return ApiError.BadResponse
+        if (account != null && purpose !in setOf("reauth", "recovery")) return ApiError.BadResponse
+        if (account != null && mediaSigner == null) return ApiError.BadResponse
+        val spki = if (purpose == "reauth") null else mediaSigner?.let { signer -> withContext(Dispatchers.IO) {
+            runCatching { signer.publicKeySpki }.getOrNull()
+        } }
+        if (mediaSigner != null && spki == null && purpose != "reauth") return ApiError.Server
+        val nonce = newNonce()
+        val request = purpose?.let { CreateSessionRequest(it, nonce, spki, account?.accountId, account?.deviceId?.takeIf { purpose == "reauth" }) }
         return when (val r = api.createSession(mockScenario, request)) {
             is ApiResult.Ok -> {
+                if (mediaSigner != null && r.value.challenge.mediaNonce == null) return ApiError.BadResponse
+                if (purpose == "reauth") {
+                    val signature = withContext(Dispatchers.IO) {
+                        runCatching { requireNotNull(mediaSigner).sign(DeviceProof.payload(r.value, requireNotNull(account), nonce)) }.getOrNull()
+                    } ?: return ApiError.BadResponse
+                    when (val proof = api.proveDevice(r.value.sessionId, r.value.token, signature)) {
+                        is ApiResult.Err -> return proof.error
+                        is ApiResult.Ok -> if (!proof.value.received) return ApiError.BadResponse
+                    }
+                } else if (r.value.deviceChallenge != null) return ApiError.BadResponse
                 session = r.value
                 challenge = r.value.challenge
+                sessionPurpose = purpose
+                sessionAccount = account
                 null
             }
             is ApiResult.Err -> r.error
         }
+    }
+
+    /** Recover a committed receipt after the voice HTTP response was lost. No biometrics returned. */
+    suspend fun fetchAccountReceipt(): ApiError? {
+        val current = session ?: return ApiError.BadResponse
+        return when (val result = api.accountReceipt(current.sessionId, current.token)) {
+            is ApiResult.Err -> result.error
+            is ApiResult.Ok -> { accountReceipt = result.value; null }
+        }
+    }
+
+    /**
+     * The receipt to keep after a pass: from the voice step, or from GET /account when onboarding
+     * passed at finalize without a sentence (FLOW-01). Null when the server enrolled nothing.
+     */
+    suspend fun receiptAfterPass(): AccountReceipt? {
+        if (accountReceipt == null && session != null) fetchAccountReceipt()
+        return accountReceipt
     }
 
     /**
@@ -118,6 +180,7 @@ class LiveFlow(private val api: SessionApi) {
         return when (val r = api.refreshChallenge(s.sessionId, s.token)) {
             is ApiResult.Ok -> {
                 // The old token stops working (PLAT-06): carry on with the new one.
+                if (mediaSigner != null && r.value.challenge.mediaNonce == null) return ApiError.BadResponse
                 session = s.copy(token = r.value.token, expiresAt = r.value.expiresAt)
                 challenge = r.value.challenge
                 colorEvents.clear()
@@ -180,9 +243,12 @@ class LiveFlow(private val api: SessionApi) {
         }
     }
 
-    suspend fun confirmIdCard(fields: IdCardFields): ApiError? {
-        val s = session ?: return ApiError.Expired
-        return (api.confirmIdCard(s.sessionId, s.token, fields) as? ApiResult.Err)?.error
+    /** Null when the server took the fields; otherwise the error with its code (e.g. 422 `identity_incomplete`). */
+    suspend fun confirmIdCard(fields: IdCardFields): ApiResult.Err? {
+        val s = session ?: return ApiResult.Err(ApiError.Expired)
+        val error = api.confirmIdCard(s.sessionId, s.token, fields) as? ApiResult.Err
+        if (error == null) idFields = fields
+        return error
     }
 
     /**
@@ -201,7 +267,16 @@ class LiveFlow(private val api: SessionApi) {
         val jpeg = frontalJpeg ?: return Next.Fail(ApiError.BadResponse)
         val challengeId = challenge?.challengeId
         if (!mediaAcked) {
-            api.uploadMedia(s.sessionId, s.token, jpeg, video, challengeId).ackOrFail()?.let { return it }
+            val proof = withContext(Dispatchers.IO) { runCatching {
+                mediaSigner?.let { signer ->
+                    val c = requireNotNull(challenge)
+                    val files = mutableMapOf("image" to MediaProof.digest("face.jpg", jpeg))
+                    video?.let { files["video"] = MediaProof.digest(it) }
+                    signer.sign(MediaProof.manifest(s, c, "face", c.challengeId, files))
+                }
+            } }
+            if (proof.isFailure) return Next.Fail(ApiError.Server)
+            api.uploadMedia(s.sessionId, s.token, jpeg, video, challengeId, proof.getOrNull()).ackOrFail()?.let { return it }
             mediaAcked = true
             onMediaAcked() // the server has the video: the local copy can go
         }
@@ -241,11 +316,22 @@ class LiveFlow(private val api: SessionApi) {
     suspend fun submitVoice(wav: ByteArray, video: File? = null, audioOffsetMs: Int? = null, onAccepted: () -> Unit = {}): Next {
         val s = session ?: return Next.Fail(ApiError.Expired)
         if (wav.isEmpty()) return Next.To(Routes.NoVoice)
-        return when (val r = api.sendVoice(s.sessionId, s.token, wav, video, audioOffsetMs, voiceChallengeId)) {
+        val proof = withContext(Dispatchers.IO) { runCatching {
+            mediaSigner?.let { signer ->
+                val files = mutableMapOf("audio" to MediaProof.digest("voice.wav", wav))
+                video?.let { files["video"] = MediaProof.digest(it) }
+                signer.sign(MediaProof.manifest(s, requireNotNull(challenge), "voice",
+                    requireNotNull(voiceChallengeId), files,
+                    if (video != null) audioOffsetMs?.coerceIn(-5000, 5000) else null))
+            }
+        } }
+        if (proof.isFailure) return Next.Fail(ApiError.Server)
+        return when (val r = api.sendVoice(s.sessionId, s.token, wav, video, audioOffsetMs, voiceChallengeId, proof.getOrNull())) {
             is ApiResult.Err -> Next.Fail(r.error)
             is ApiResult.Ok -> {
                 pendingWav = null
                 voiceChecked = true
+                if (r.value.status == "pass") accountReceipt = r.value.account
                 onAccepted()
                 if (r.value.status == "voice_challenge") {
                     // A re-read has a new sentence and a new id; the old recording cannot be resent.
@@ -265,6 +351,8 @@ class LiveFlow(private val api: SessionApi) {
     private fun <T> ApiResult<T>.ackOrFail(): Next? {
         val err = this as? ApiResult.Err ?: return null
         if (err.error == ApiError.Conflict && err.code == "step_already_received") return null
+        // Nothing of this attempt reached the server yet: a fresh challenge and a new recording fix it.
+        if (err.error == ApiError.Conflict && err.code == "challenge_expired" && !mediaAcked) return Next.To(Routes.FaceExpired)
         return Next.Fail(err.error)
     }
 
@@ -274,8 +362,16 @@ class LiveFlow(private val api: SessionApi) {
     }
 }
 
+/** Do not start any upload while the recording is still being finalized locally. */
+internal suspend fun submitWithVideo(video: VideoResult, submit: suspend (File?) -> Next): Next = when (video) {
+    is VideoResult.Ready -> submit(video.file)
+    VideoResult.NotRecorded -> submit(null)
+    VideoResult.Timeout -> Next.To(Routes.UploadFailed)
+}
+
 /** Error → screen. Every branch is an error screen; none is a pass (AGENTS.md §6 rule 4). */
 fun errorRoute(error: ApiError): String = when (error) {
+    ApiError.RecoveryRequired -> Routes.RecoveryRequired
     ApiError.Network -> Routes.ErrorNetwork
     ApiError.Unauthorized, ApiError.Expired -> Routes.ErrorSession
     ApiError.Busy, ApiError.Server -> Routes.ErrorService

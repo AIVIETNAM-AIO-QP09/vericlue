@@ -6,6 +6,15 @@
 
 ## 1. Tổng quan
 
+**SEC-03…08 (28/10):** profile sản phẩm `PRODUCT_MODE=ekyc` phục vụ app qua API,
+ẩn toàn bộ route review/forensic và không tạo ca nhân viên. Mode mặc định `tools`
+giữ các công cụ bên dưới cho lab/future work; sơ đồ lịch sử không có nghĩa phải
+triển khai web hoặc bàn duyệt trong sản phẩm. Protected Compose không tự bật
+Next.js cũ. Thiết kế bổ sung: [ingress](session-ingress.md),
+[upload](upload-image-safety.md), [consent theo phiên](session-privacy-consent.md),
+[profile và retention](../runbooks/protected-profile.md),
+[vòng đời master key](../runbooks/master-key-lifecycle.md).
+
 ```
  Trình duyệt (Next.js)                      Máy chủ (FastAPI)                         Bộ não (vericlue_ml)
  ┌──────────────────────┐   HTTPS/JSON     ┌──────────────────────────┐   gọi hàm   ┌──────────────────────────┐
@@ -65,6 +74,51 @@ Data4Life/
 
 ## 3. Giao diện chung của mô-đun AI
 
+LIVE-05 có lab chứng nhận BBS độc lập trong `services/credentials`: blind issuance,
+holder binding, bí danh dịch vụ, verifier nonce một lần và đối chứng JWT/SD-JWT+KB.
+Chỉ persona tổng hợp với domain synthetic-demo, chưa nối HTTP/eKYC thật hoặc UI.
+Xem [ADR-0018](../adr/0018-chung-nhan-rieng-tu-bbs.md) và
+[README package](../../services/credentials/README.md). PQC là hướng riêng.
+
+Sau PR #96, API có cổng cấp BBS opt-in từ quyết định server, thiết bị ký chấp
+thuận commitment, cache mã hóa và worker Node/key riêng. Profile `server-decision`
+tách khỏi lab, không thêm tuổi hoặc mở chốt sinh trắc thật. Xem
+[cấp chứng nhận BBS](private-credential-issuance.md).
+
+Sau PR #97 có [HTTP verifier BBS](private-credential-verifier.md): credential
+tích hợp → origin cố định, public-key-only worker, nonce DB dùng một lần qua
+nhiều worker/restart. Không lưu proof/nym; không thay chốt sinh trắc thật.
+
+Sau PR #99 thêm [vòng đời issuer key](private-credential-keys.md): public registry
+DB opt-in, staging/active/grace/revocation và công cụ operator. Không có HTTP
+quản trị key; giữ khóa tin cậy xuyên suốt cấp/kiểm để phối hợp thu hồi.
+
+Sau PR #100 thêm [SDK holder trình duyệt](private-credential-holder.md), không UI:
+kiểm chữ ký nguồn/context, consent trước commitment, đối chiếu byte trước khi ký
+P-256 và tạo BBS proof theo origin đã đồng ý. Secret chỉ RAM; Chromium kiểm bằng
+crypto thật. Chưa nối màn consent/Android hoặc nghiệm thu pass sinh trắc thật.
+
+Sau PR #101 SDK thêm điều phối cấp qua callback: giữ offer/body đã ký khi thử lại,
+timeout mạng, hủy khi logout. Có kiểm Chromium–HTTP FastAPI–Node BBS xuyên suốt
+phần chứng nhận cho reauth/recovery, nguồn quyết định tổng hợp phía server.
+Không có endpoint seed/pass hoặc thay đổi chốt sinh trắc; UI/Android còn riêng.
+
+Runtime API có Node/BBS, schema và holder bundle, overlay khóa read-only cùng CLI
+preflight không cấp credential hoặc mở DB. Xem [chạy BBS](../runbooks/bbs-demo.md).
+Workflow nghiệp vụ từng bước, các guard còn lại và nội dung cần thống nhất trước
+khi rút gọn app: [workflow dự án](project-workflow.md).
+
+FLOW-05 thêm hook ghi danh onboarding opt-in `ACCOUNT_ENROLLMENT`: trích mẫu qua
+worker/hàng đợi `face_match` đã nạp, giữ lease tới khi native xong, ghi mẫu mã hóa
+trong cùng transaction với quyết định. Vector không vào ModuleResult/snapshot/HTTP;
+lỗi rollback thay vì trả pass dở dang. Không mở chốt luồng thật/mixed. Xem
+[ghi danh tài khoản](account-enrollment.md).
+
+FLOW-05 thêm `face_continuity` opt-in: `reference_video` nội bộ giữ video bước
+mặt, `video` là bản ghi đọc câu. Dùng chung backend LVFace, protocol ba mẫu
+theo WAV/PTS/offset và ngưỡng riêng, không ghi đè `face_match`. Xem
+[so cùng người mặt–giọng](face-voice-continuity.md). Không mở luồng thật/mixed.
+
 VOICE-12 thêm A/V lab opt-in: một DirectShow input có hai track, PCM/JPEG và PTS
 chung trong RAM, tái dùng CTC/SCRFD/Stable SyncNet. Kết quả `lipsync` version riêng
 luôn unclear, không score/prob_attack; không thay HTTP hoặc kết luận xác minh.
@@ -98,12 +152,19 @@ Mô-đun này dùng gate thử nghiệm, chưa ở profile full/MVP và chưa th
 Ngưỡng/chiều tọa độ chưa nghiệm thu trên điện thoại; không bỏ chốt real/mixed.
 
 FLOW-04/FLOW-05 thêm `head_turn` (kiểm thứ tự/thời gian, chưa kiểm chiều sâu)
-và `face_match` (SCRFD + LVFace-B, so tham chiếu và các ảnh giữa bước).
-Cả ba module nằm trong `DIAGNOSTIC_MODULES`, bị loại khỏi full/MVP; chưa được
-orchestrator HTTP nạp/chạy. Đầu vào so mặt bổ sung hợp đồng nội bộ
+và `face_match` (SCRFD + LVFace-B, so tham chiếu với ảnh chính diện; evidence
+nhất quán ba góc riêng). Cả ba vẫn bị loại khỏi profile full/MVP mặc định.
+Khi bật `IDENTITY_LAB_URL`, orchestrator HTTP nạp/chạy riêng LVFace-B thật để
+so CCCD–selfie, có chung deadline/hàng đợi và báo preload lỗi qua health.
+Runtime identity bên ngoài chỉ còn được API gọi để đọc QR/OCR. Đầu vào so mặt dùng hợp đồng nội bộ
 `detector_input.schema.json` cho `image_roles` và `reference_image` do server
 quản lý. Thiếu ngưỡng hiệu chỉnh đúng version luôn `degraded/unclear`. Xem
 [`head-and-match.md`](head-and-match.md).
+
+FLOW-05/LIVE-02 thêm opt-in chọn/kiểm khung chính diện từ video và hai cổng
+mắt/quay đầu trong orchestrator, cùng task MediaPipe và deadline hiện hành. Xem
+[`session-verification.md`](session-verification.md). Đây chưa phải toàn bộ các lớp
+xác minh thật; không gỡ chặn dynamic real/mixed.
 
 Mọi bộ phát hiện (kể cả cổng chất lượng `quality`) đều trả một `ModuleResult` (schema: `packages/contracts/schemas/module_result.schema.json`):
 
@@ -191,8 +252,15 @@ Chính sách dọn (quyết định trưởng nhóm 15/10):
 - Giám định: `FORENSIC_TTL_DAYS` để trống mặc định = **không tự xóa**. Số ngày dương là opt-in; nhóm phải phê duyệt chính sách chứng cứ trước khi bật.
 - Job dọn chạy lúc API khởi động và mỗi `MEDIA_CLEANUP_INTERVAL_SECONDS=300`; mỗi lượt ghi audit DB và một dòng log, gồm cả lượt không xóa được file. Lỗi giữa chừng vẫn ghi các file đã xóa thành công. DB metadata/audit không bị dọn theo TTL media.
 
-Token hiện vẫn là token tạm PLAT-04, không thêm HMAC/TTL enforcement/409 mới/429 ở task này.
-Nhật ký ghi actor `staff-unverified` vì xác thực nhân viên thuộc PLAT-06; không coi đây là chữ ký giám định thật.
+PLAT-06 đã có HMAC/TTL, chặn lặp bước, quota tạo phiên và giới hạn tổng body.
+Review/forensic bắt buộc StaffBearer ở mọi chế độ, độc lập với SESSION_PRIVACY;
+thiếu credential trả 401, thiếu/sai cấu hình trả 503 trước đọc upload. Actor quyết
+định review lấy từ cấu hình server; dữ liệu `staff-unverified` cũ không tự viết
+lại. HTML forensic đã có chữ ký Ed25519 với khóa report riêng; gói PDF/JSON ký
+đã có ở FOR-04, thêm [ảnh/phổ minh họa opt-in](forensic-report-evidence.md) và
+[gắn hồ sơ/neo nhật ký](forensic-review-audit.md), còn LR/ENFSI. Xem
+[gói PDF/JSON](forensic-pdf-bundle.md), [giao thức HTML](forensic-report-signing.md) và
+[`services/api/README.md`](../../services/api/README.md#truy-cập-nhân-viên-plat-06).
 
 ## 6. Luồng một phiên eKYC
 

@@ -1,8 +1,10 @@
 # FLOW-04/FLOW-05 — Diagnostic quay đầu và so mặt
 
 Hai module backend có thể chạy độc lập trước khi FLOW-03/CAP-06 hoàn thành.
-Không sửa UI. Chưa nối vào quyết định xác minh: full/MVP vẫn giữ 9/7 module;
-luồng purpose mới vẫn bị chặn ở real/mixed cho đến khi đủ các gate bắt buộc.
+Không sửa UI. Full/MVP mặc định vẫn giữ 9/7 module; opt-in `IDENTITY_LAB_URL`
+nạp riêng LVFace-B trong API cho CCCD–selfie, thay cầu nối AdaFace. Luồng purpose
+mới vẫn bị chặn ở real/mixed cho đến khi đủ các gate bắt buộc. Xem
+[`identity-integration.md`](../runbooks/identity-integration.md).
 
 ## 1. Quay đầu: `head_turn`
 
@@ -39,16 +41,20 @@ HTTP tương lai phải lấy lịch từ kho phiên, không tin lịch client g
 
 ## 2. So mặt: `face_match`
 
-Nhận ảnh chân dung tham chiếu đã cắt + một ảnh front hoặc đủ front/left/right.
+Nhận ảnh tham chiếu (chân dung đã cắt, hoặc ảnh mặt trước CCCD do API lưu) + một
+ảnh front hoặc đủ front/left/right; SCRFD phải tìm được đúng một mặt trong mỗi ảnh.
 Đường dẫn và nhãn ảnh do server quản lý qua `DetectorInput`; không cho client
-trỏ đường dẫn server. Chưa có endpoint mới hay OCR CCCD trong lát cắt này.
+trỏ đường dẫn server. Diagnostic không tự đọc thông tin CCCD; OCR thuộc cầu nối
+trong runbook tích hợp.
 
 SCRFD dùng session ONNX chung với các module mặt hiện có. Mỗi ảnh phải có đúng
 một mặt đủ lớn và 5 landmark. Căn bằng phép đồng dạng 2D về 112×112, RGB/CHW
 float32 và chuẩn hóa về [-1,1]. LVFace-B ONNX gốc trả 512 chiều; chuẩn hóa L2,
-so cosine với tham chiếu và **mọi cặp ảnh**: ba ảnh tạo 6 phép so, lấy giá trị
-nhỏ nhất để xét ngưỡng. Ảnh query trùng byte pixel bị từ chối để bắt lỗi lấy
-lặp một khung. Embedding chỉ ở RAM, không xuất vào report.
+chỉ so cosine **tham chiếu ↔ front** để xét ngưỡng. Với ba ảnh, ba cosine giữa
+front/left/right được ghi riêng ở `view_cosine_similarities`, chưa có ngưỡng hay
+kết luận nhất quán (`consistency_verified=false`). Không so CCCD với ảnh nghiêng,
+không gộp các cosine góc vào quyết định so CCCD. Ảnh query trùng byte pixel với
+nhau hoặc với ảnh tham chiếu bị từ chối. Embedding chỉ ở RAM, không xuất vào report.
 
 Khi chạy `eval.face_match` với ảnh rời, nhãn left/right vẫn là đầu vào tin cậy
 chưa được module nhận dạng tự xác thực. Chuỗi video mục 2a tự chọn khung và
@@ -61,7 +67,7 @@ PAD, GenD, chứng minh chiều sâu hay tính thật của CCCD.
 ```
 
 Không có ngưỡng mặc định. Chưa có artifact → vẫn trả cosine, nhưng
-`status=degraded`, `gate=unclear`, `prob_attack=null`. Điểm thô `score=1-min_cosine`
+`status=degraded`, `gate=unclear`, `prob_attack=null`. Điểm thô `score=1-cosine(reference,front)`
 là khoảng cách, **không phải xác suất giả mạo**. Cosine/diagnostic chỉ dành cho
 người phát triển/người duyệt; không gửi cho màn hình người dân.
 
@@ -73,8 +79,9 @@ là JSON gồm: `model_version` đúng `MATCH_VERSION`, `preprocessing` đúng
 PR này. Artifact phải sinh từ dữ liệu chia theo người và không dùng tập test
 để chọn ngưỡng. Kiểm schema chỉ kiểm metadata, không chứng nhận dữ liệu đúng
 hay chứng minh đạt chỉ tiêu thống kê. Cần nghiệm thu trước khi bật API.
-Khi đánh giá phải đo cả phiên có nhiều phép so; ngưỡng chọn trên cặp ảnh đơn
-không tự bảo đảm cùng tỷ lệ lỗi cho quy tắc lấy min của 6 phép so.
+Protocol mới có hậu tố version `+front-reference-v2`, không dùng artifact min sáu
+phép so của bản cũ. Hiệu chỉnh trên cặp tham chiếu–chính diện; đánh giá nhất quán
+giữa các góc cần protocol/ngưỡng riêng. Không chuyển ngưỡng AdaFace sang LVFace.
 
 ## 2a. Chuỗi video → ba khung trong RAM → so mặt
 

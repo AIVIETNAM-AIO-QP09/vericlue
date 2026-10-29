@@ -21,6 +21,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/credential-signing-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Credential Key */
+        get: operations["credential_key_v1_credential_signing_key_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/credentials/challenges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Challenge */
+        post: operations["challenge_v1_credentials_challenges_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/credentials/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify */
+        post: operations["verify_v1_credentials_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/forensic/jobs": {
         parameters: {
             query?: never;
@@ -72,6 +123,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/forensic/jobs/{job_id}/report-bundle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download Report Bundle */
+        get: operations["download_report_bundle_v1_forensic_jobs__job_id__report_bundle_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/forensic/review-audit/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Signed Review Audit
+         * @description Verify signed JSON first, then compare its checkpoint with DB; does not verify PDF bytes.
+         */
+        post: operations["verify_signed_review_audit_v1_forensic_review_audit_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/forensic/signing-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Signing Key
+         * @description Staff-only public key; does not connect to DB or start any model.
+         */
+        get: operations["signing_key_v1_forensic_signing_key_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/forensic/verify": {
         parameters: {
             query?: never;
@@ -83,6 +191,23 @@ export interface paths {
         put?: never;
         /** Verify Report */
         post: operations["verify_report_v1_forensic_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/result-signing-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Result Key */
+        get: operations["result_key_v1_result_signing_key_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -177,6 +302,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/review/cases/{case_id}/identity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Identity */
+        get: operations["get_identity_v1_review_cases__case_id__identity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/review/cases/{case_id}/identity/reveal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reveal Identity
+         * @description Explicit staff action; an access event is committed before any full fields are sent.
+         */
+        post: operations["reveal_identity_v1_review_cases__case_id__identity_reveal_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/review/cases/{case_id}/initial": {
         parameters: {
             query?: never;
@@ -231,6 +393,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/sessions/{session_id}/account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Account Receipt */
+        get: operations["account_receipt_v1_sessions__session_id__account_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/sessions/{session_id}/challenge": {
         parameters: {
             query?: never;
@@ -245,6 +424,57 @@ export interface paths {
          * @description Thử thách mới cho phần khuôn mặt và gia hạn token (ADR-0017 §2, giới hạn tổng 15 phút).
          */
         post: operations["refresh_challenge_v1_sessions__session_id__challenge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sessions/{session_id}/credential": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Issue Credential */
+        post: operations["issue_credential_v1_sessions__session_id__credential_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sessions/{session_id}/credential-authorization": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Credential Authorization */
+        post: operations["credential_authorization_v1_sessions__session_id__credential_authorization_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sessions/{session_id}/device-proof": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Device Proof */
+        post: operations["device_proof_v1_sessions__session_id__device_proof_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -359,6 +589,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/sessions/{session_id}/privacy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Privacy */
+        get: operations["get_privacy_v1_sessions__session_id__privacy_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sessions/{session_id}/privacy/consent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Grant Consent */
+        post: operations["grant_consent_v1_sessions__session_id__privacy_consent_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sessions/{session_id}/privacy/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Withdraw Consent */
+        post: operations["withdraw_consent_v1_sessions__session_id__privacy_withdraw_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sessions/{session_id}/result": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Signed Result */
+        get: operations["signed_result_v1_sessions__session_id__result_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/sessions/{session_id}/signals": {
         parameters: {
             query?: never;
@@ -397,6 +695,18 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AccountReceipt */
+        AccountReceipt: {
+            /** Account Id */
+            account_id: string;
+            /** Device Id */
+            device_id: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
         /** AuditVerification */
         AuditVerification: {
             /** Bad Index */
@@ -417,6 +727,11 @@ export interface components {
              * @description Video hoặc âm thanh cần giám định
              */
             file: string;
+            /**
+             * Review Case Id
+             * @description Tùy chọn: ca đã có quyết định ban đầu; server đối chiếu byte media
+             */
+            review_case_id?: string | null;
         };
         /** Body_upload_id_card_v1_sessions__session_id__id_card_post */
         Body_upload_id_card_v1_sessions__session_id__id_card_post: {
@@ -449,6 +764,11 @@ export interface components {
              */
             image: string;
             /**
+             * Media Signature
+             * @description SEC-02: chữ ký DER ECDSA P-256/SHA-256 base64 của manifest media
+             */
+            media_signature?: string | null;
+            /**
              * Video
              * @description Đoạn video lúc phát màu
              */
@@ -466,6 +786,11 @@ export interface components {
              * @description Thời điểm WAV bắt đầu, tính bằng ms từ khung hình đầu của video (dương = WAV bắt đầu sau). Dùng để căn khớp môi; chỉ có khi gửi video.
              */
             audio_offset_ms?: number | null;
+            /**
+             * Media Signature
+             * @description SEC-02: chữ ký manifest gồm audio/video và audio_offset_ms
+             */
+            media_signature?: string | null;
             /**
              * Video
              * @description Video lúc đọc câu
@@ -508,6 +833,8 @@ export interface components {
             dynamic?: components["schemas"]["DynamicChallenge"] | null;
             /** Expires At */
             expires_at?: string | null;
+            /** Media Nonce */
+            media_nonce?: string | null;
         };
         /** ChallengeResponse */
         ChallengeResponse: {
@@ -539,6 +866,12 @@ export interface components {
         };
         /** CreateSessionRequest */
         CreateSessionRequest: {
+            /** Account Id */
+            account_id?: string | null;
+            /** Device Id */
+            device_id?: string | null;
+            /** Device Public Key Spki */
+            device_public_key_spki?: string | null;
             /** Nonce */
             nonce: string;
             /**
@@ -552,6 +885,7 @@ export interface components {
         /** CreateSessionResponse */
         CreateSessionResponse: {
             challenge: components["schemas"]["Challenge"];
+            device_challenge?: components["schemas"]["DeviceChallenge"] | null;
             /**
              * Expires At
              * Format: date-time
@@ -570,6 +904,59 @@ export interface components {
              */
             token: string;
         };
+        /** CredentialAuthorization */
+        CredentialAuthorization: {
+            /**
+             * Algorithm
+             * @default ES256-DER
+             * @constant
+             */
+            algorithm: "ES256-DER";
+            /** Expires At */
+            expires_at: number;
+            /** Message */
+            message: string;
+        };
+        /** CredentialChallengeRequest */
+        CredentialChallengeRequest: {
+            /** Key Id */
+            key_id?: string | null;
+        };
+        /** CredentialIssueRequest */
+        CredentialIssueRequest: {
+            /** Commitment */
+            commitment: string;
+            /**
+             * Consent
+             * @constant
+             */
+            consent: true;
+            /** Device Signature */
+            device_signature: string;
+        };
+        /** CredentialKey */
+        CredentialKey: {
+            /**
+             * Algorithm
+             * @default BBS-BLS12-381-SHA-256-NYM
+             * @constant
+             */
+            algorithm: "BBS-BLS12-381-SHA-256-NYM";
+            /** Key Id */
+            key_id: string;
+            /** Public Key */
+            public_key: string;
+        };
+        /** CredentialOfferRequest */
+        CredentialOfferRequest: {
+            /** Commitment */
+            commitment: string;
+            /**
+             * Consent
+             * @constant
+             */
+            consent: true;
+        };
         /** DecisionResponse */
         DecisionResponse: {
             /** Case Id */
@@ -579,6 +966,30 @@ export interface components {
              * @enum {string}
              */
             status: "open" | "initial_decided" | "closed";
+        };
+        /** DeviceChallenge */
+        DeviceChallenge: {
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Message */
+            message: string;
+        };
+        /** DeviceProofRequest */
+        DeviceProofRequest: {
+            /** Signature */
+            signature: string;
+        };
+        /** DeviceProofResponse */
+        DeviceProofResponse: {
+            /**
+             * Received
+             * @default true
+             * @constant
+             */
+            received: true;
         };
         /** DynamicChallenge */
         DynamicChallenge: {
@@ -670,6 +1081,7 @@ export interface components {
             media?: components["schemas"]["ForensicMedia"] | null;
             progress?: components["schemas"]["ForensicProgress"] | null;
             provenance?: components["schemas"]["ForensicProvenance"] | null;
+            review_audit?: components["schemas"]["ReviewAuditAnchor"] | null;
             /** Segments */
             segments: components["schemas"]["ForensicSegment"][];
             /**
@@ -874,6 +1286,78 @@ export interface components {
              */
             status: "pass" | "retry";
         };
+        /** PrivacyConsentRequest */
+        PrivacyConsentRequest: {
+            /** Categories */
+            categories: ("contact" | "id_document" | "face_biometrics" | "voice_biometrics")[];
+            /**
+             * Consent
+             * @constant
+             */
+            consent: true;
+            /** Policy Version */
+            policy_version: string;
+        };
+        /** PrivacyState */
+        PrivacyState: {
+            /**
+             * Account Data Erased
+             * @default false
+             * @constant
+             */
+            account_data_erased: false;
+            /** Categories */
+            categories: ("contact" | "id_document" | "face_biometrics" | "voice_biometrics")[];
+            /** Consent Receipt Id */
+            consent_receipt_id?: string | null;
+            /** Consented At */
+            consented_at?: string | null;
+            /**
+             * Credential Revocation
+             * @default not_performed
+             * @constant
+             */
+            credential_revocation: "not_performed";
+            /** Policy Version */
+            policy_version: string;
+            /**
+             * Processing Cleanup
+             * @default not_applicable
+             * @enum {string}
+             */
+            processing_cleanup: "not_applicable" | "not_verified";
+            /**
+             * Scope
+             * @default session
+             * @constant
+             */
+            scope: "session";
+            /** Session Id */
+            session_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "not_granted" | "granted" | "withdrawn";
+            /**
+             * Storage Erasure
+             * @default not_requested
+             * @enum {string}
+             */
+            storage_erasure: "not_requested" | "key_destroyed" | "files_deleted";
+            /** Withdrawal Receipt Id */
+            withdrawal_receipt_id?: string | null;
+            /** Withdrawn At */
+            withdrawn_at?: string | null;
+        };
+        /** PrivacyWithdrawalRequest */
+        PrivacyWithdrawalRequest: {
+            /**
+             * Confirm
+             * @constant
+             */
+            confirm: true;
+        };
         /** ReasonCode */
         ReasonCode: {
             /** Code */
@@ -901,6 +1385,70 @@ export interface components {
              * @enum {string}
              */
             suggestion: "pass" | "review" | "retry";
+        };
+        /**
+         * ReviewAuditAnchor
+         * @description Server-verified media binding and append-only review checkpoint, signed in reports.
+         */
+        ReviewAuditAnchor: {
+            /**
+             * Captured At
+             * Format: date-time
+             */
+            captured_at: string;
+            /** Case Id */
+            case_id: string;
+            /** Event Count */
+            event_count: number;
+            /** Session Id */
+            session_id: string;
+            /**
+             * Source Role
+             * @enum {string}
+             */
+            source_role: "face_video" | "voice_audio" | "voice_video";
+            /** Source Sha256 */
+            source_sha256: string;
+            /** Tail Event Id */
+            tail_event_id: number;
+            /** Tail Hash */
+            tail_hash: string;
+            /**
+             * Version
+             * @constant
+             */
+            version: 1;
+        };
+        /** ReviewAuditVerifyRequest */
+        ReviewAuditVerifyRequest: {
+            /** Report Json */
+            report_json: string;
+            /** Signature */
+            signature: string;
+        };
+        /** ReviewAuditVerifyResponse */
+        ReviewAuditVerifyResponse: {
+            /** Anchored Count */
+            anchored_count?: number | null;
+            /** Appended Count */
+            appended_count?: number | null;
+            /** Current Count */
+            current_count?: number | null;
+            /** Ok */
+            ok: boolean;
+            /**
+             * Scope
+             * @default signed_json_review_audit
+             * @constant
+             */
+            scope: "signed_json_review_audit";
+            /** Signature Valid */
+            signature_valid: boolean;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "intact" | "extended" | "invalid_signature" | "unlinked" | "case_unavailable" | "chain_invalid" | "tail_truncated" | "anchor_mismatch";
         };
         /** ReviewCase */
         ReviewCase: {
@@ -991,6 +1539,25 @@ export interface components {
             /** Reason Code */
             reason_code?: string | null;
         };
+        /** ReviewIdentity */
+        ReviewIdentity: {
+            /** Address */
+            address?: string | null;
+            /** Case Id */
+            case_id: string;
+            /** Date Of Birth */
+            date_of_birth?: string | null;
+            /** Edited Fields */
+            edited_fields: string[];
+            /** Full Name */
+            full_name?: string | null;
+            /** Id Number */
+            id_number?: string | null;
+            /** Masked */
+            masked: boolean;
+            /** Sex */
+            sex?: string | null;
+        };
         /** SegmentSignal */
         SegmentSignal: {
             /** Applicable */
@@ -1021,6 +1588,33 @@ export interface components {
             }[];
         } & {
             [key: string]: unknown;
+        };
+        /** SignedResult */
+        SignedResult: {
+            /**
+             * Algorithm
+             * @constant
+             */
+            algorithm: "Ed25519";
+            /** Key Id */
+            key_id: string;
+            /** Payload */
+            payload: string;
+            /** Signature */
+            signature: string;
+        };
+        /** SigningKey */
+        SigningKey: {
+            /**
+             * Algorithm
+             * @default Ed25519
+             * @constant
+             */
+            algorithm: "Ed25519";
+            /** Key Id */
+            key_id: string;
+            /** Public Key Spki */
+            public_key_spki: string;
         };
         /** StepAck */
         StepAck: {
@@ -1068,11 +1662,164 @@ export interface components {
             /** Error Type */
             type: string;
         };
+        /** VerificationAccepted */
+        VerificationAccepted: {
+            /**
+             * Assurance
+             * @default server-decision
+             * @constant
+             */
+            assurance: "server-decision";
+            disclosed: components["schemas"]["VerificationDisclosed"];
+            /** Pseudonym */
+            pseudonym: string;
+            /**
+             * Valid
+             * @default true
+             * @constant
+             */
+            valid: true;
+        };
+        /** VerificationChallenge */
+        VerificationChallenge: {
+            /** Audience */
+            audience: string;
+            /** Expires At */
+            expires_at: number;
+            /**
+             * Format
+             * @default bbs-nym
+             * @constant
+             */
+            format: "bbs-nym";
+            /** Id */
+            id: string;
+            /** Issued At */
+            issued_at: number;
+            /** Nonce */
+            nonce: string;
+            /**
+             * Policy
+             * @default verified
+             * @constant
+             */
+            policy: "verified";
+        };
+        /** VerificationClaims */
+        VerificationClaims: {
+            /** Account Id */
+            account_id: string;
+            /**
+             * Assurance
+             * @default server-decision
+             * @constant
+             */
+            assurance: "server-decision";
+            /** Device Id */
+            device_id: string;
+            /** Issuer */
+            issuer: string;
+            /**
+             * Policy Version
+             * @default vericlue-session-result-v1
+             * @constant
+             */
+            policy_version: "vericlue-session-result-v1";
+            /**
+             * Protocol
+             * @default vericlue-private-verification-v1
+             * @constant
+             */
+            protocol: "vericlue-private-verification-v1";
+            /**
+             * Source Purpose
+             * @enum {string}
+             */
+            source_purpose: "reauth" | "recovery";
+            /** Source Result Id */
+            source_result_id: string;
+            /** Valid From */
+            valid_from: number;
+            /** Valid Until */
+            valid_until: number;
+            /**
+             * Verification Completed
+             * @default true
+             * @constant
+             */
+            verification_completed: true;
+        };
+        /** VerificationCredential */
+        VerificationCredential: {
+            claims: components["schemas"]["VerificationClaims"];
+            /** Key Id */
+            key_id: string;
+            /** Signature */
+            signature: string;
+            /** Signer Entropy */
+            signer_entropy: string;
+        };
+        /** VerificationDisclosed */
+        VerificationDisclosed: {
+            /**
+             * Assurance
+             * @constant
+             */
+            assurance: "server-decision";
+            /** Issuer */
+            issuer: string;
+            /**
+             * Policy Version
+             * @constant
+             */
+            policy_version: "vericlue-session-result-v1";
+            /**
+             * Protocol
+             * @constant
+             */
+            protocol: "vericlue-private-verification-v1";
+            /** Valid From */
+            valid_from: number;
+            /** Valid Until */
+            valid_until: number;
+            /**
+             * Verification Completed
+             * @constant
+             */
+            verification_completed: true;
+        };
+        /** VerificationPresentation */
+        VerificationPresentation: {
+            /** Challenge Id */
+            challenge_id: string;
+            disclosed: components["schemas"]["VerificationDisclosed"];
+            /** Proof */
+            proof: string;
+            /**
+             * Protocol
+             * @constant
+             */
+            protocol: "vericlue-private-verification-v1";
+            /** Pseudonym */
+            pseudonym: string;
+        };
+        /** VerificationRejected */
+        VerificationRejected: {
+            /**
+             * Valid
+             * @default false
+             * @constant
+             */
+            valid: false;
+        };
         /** VerifyRequest */
         VerifyRequest: {
             /** Report Sha256 */
             report_sha256: string;
-            /** Signature */
+            /**
+             * Signature
+             * @description Chữ ký Ed25519 base64 chuẩn cho hash HTML; MOCK không hợp lệ
+             */
             signature: string;
         };
         /** VerifyResponse */
@@ -1082,6 +1829,7 @@ export interface components {
         };
         /** VoiceResponse */
         VoiceResponse: {
+            account?: components["schemas"]["AccountReceipt"] | null;
             /** Attempts Left */
             attempts_left?: number | null;
             /**
@@ -1132,6 +1880,155 @@ export interface operations {
             };
         };
     };
+    credential_key_v1_credential_signing_key_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CredentialKey"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    challenge_v1_credentials_challenges_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CredentialChallengeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerificationChallenge"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    verify_v1_credentials_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerificationPresentation"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerificationAccepted"] | components["schemas"]["VerificationRejected"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     create_job_v1_forensic_jobs_post: {
         parameters: {
             query?: never;
@@ -1157,6 +2054,42 @@ export interface operations {
                     "application/json": components["schemas"]["JobCreated"];
                 };
             };
+            /** @description Thiếu hoặc sai credential nhân viên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Không tìm thấy ca cần liên kết */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Ca chưa có quyết định ban đầu, file không khớp hoặc nhật ký không hợp lệ */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Media của hồ sơ đã hết thời hạn lưu trữ */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -1168,6 +2101,15 @@ export interface operations {
             };
             /** @description forensic_busy: hàng đợi giám định đang đầy */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Credential nhân viên, khóa report hoặc kho dữ liệu chưa sẵn sàng */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1197,6 +2139,15 @@ export interface operations {
                     "application/json": components["schemas"]["ForensicJob"];
                 };
             };
+            /** @description Thiếu hoặc sai credential nhân viên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Không có job này */
             404: {
                 headers: {
@@ -1215,6 +2166,15 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
+            /** @description Credential nhân viên, khóa report hoặc kho dữ liệu chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     get_report_v1_forensic_jobs__job_id__report_get: {
@@ -1228,13 +2188,22 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Báo cáo HTML; chữ ký trong header X-VeriClue-Signature */
+            /** @description HTML; job real ký Ed25519, mock không có chữ ký hợp lệ; metadata trong X-VeriClue-Signature/Signature-Algorithm/Key-Id/Report-SHA256 */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "text/html": string;
+                };
+            };
+            /** @description Thiếu hoặc sai credential nhân viên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/html": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Không có job này */
@@ -1264,6 +2233,171 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
+            /** @description Credential nhân viên, khóa report hoặc kho dữ liệu chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/html": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    download_report_bundle_v1_forensic_jobs__job_id__report_bundle_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ZIP gồm report.pdf, report.json chuẩn hóa và report.sig Ed25519 tách rời; không phải PAdES/ENFSI */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": string;
+                };
+            };
+            /** @description Thiếu hoặc sai credential nhân viên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Không có job này */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Job chưa xong hoặc chỉ là bản mô phỏng */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Credential nhân viên, khóa report hoặc kho dữ liệu chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    verify_signed_review_audit_v1_forensic_review_audit_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewAuditVerifyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewAuditVerifyResponse"];
+                };
+            };
+            /** @description Thiếu hoặc sai credential nhân viên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Credential nhân viên, khóa report hoặc kho dữ liệu chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    signing_key_v1_forensic_signing_key_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SigningKey"];
+                };
+            };
+            /** @description Thiếu hoặc sai credential nhân viên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Credential nhân viên, khóa report hoặc kho dữ liệu chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     verify_report_v1_forensic_verify_post: {
@@ -1288,6 +2422,15 @@ export interface operations {
                     "application/json": components["schemas"]["VerifyResponse"];
                 };
             };
+            /** @description Thiếu hoặc sai credential nhân viên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -1295,6 +2438,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Credential nhân viên, khóa report hoặc kho dữ liệu chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    result_key_v1_result_signing_key_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SigningKey"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -1320,6 +2501,24 @@ export interface operations {
                     "application/json": components["schemas"]["ReviewCaseList"];
                 };
             };
+            /** @description Thiếu hoặc sai credential nhân viên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Dữ liệu hết thời hạn lưu trữ */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -1327,6 +2526,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -1351,8 +2559,26 @@ export interface operations {
                     "application/json": components["schemas"]["ReviewCase"];
                 };
             };
+            /** @description Thiếu hoặc sai credential nhân viên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Không có ca này */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Dữ liệu hết thời hạn lưu trữ */
+            410: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1367,6 +2593,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -1391,6 +2626,15 @@ export interface operations {
                     "application/json": components["schemas"]["ReviewAiOpinion"];
                 };
             };
+            /** @description Thiếu hoặc sai credential nhân viên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Không có ca này */
             404: {
                 headers: {
@@ -1409,6 +2653,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Dữ liệu hết thời hạn lưu trữ */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -1416,6 +2669,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -1440,8 +2702,26 @@ export interface operations {
                     "application/json": components["schemas"]["AuditVerification"];
                 };
             };
+            /** @description Thiếu hoặc sai credential nhân viên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Không có ca này */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Dữ liệu hết thời hạn lưu trữ */
+            410: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1456,6 +2736,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -1484,6 +2773,15 @@ export interface operations {
                     "application/json": components["schemas"]["DecisionResponse"];
                 };
             };
+            /** @description Thiếu hoặc sai credential nhân viên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Không có ca này */
             404: {
                 headers: {
@@ -1502,8 +2800,160 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Dữ liệu hết thời hạn lưu trữ */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description invalid_reason_code */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_identity_v1_review_cases__case_id__identity_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewIdentity"];
+                };
+            };
+            /** @description Thiếu hoặc sai credential nhân viên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Không có ca này */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Dữ liệu hết thời hạn lưu trữ */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    reveal_identity_v1_review_cases__case_id__identity_reveal_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewIdentity"];
+                };
+            };
+            /** @description Thiếu hoặc sai credential nhân viên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Không có ca này */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Dữ liệu hết thời hạn lưu trữ */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1537,6 +2987,15 @@ export interface operations {
                     "application/json": components["schemas"]["DecisionResponse"];
                 };
             };
+            /** @description Thiếu hoặc sai credential nhân viên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Không có ca này */
             404: {
                 headers: {
@@ -1555,6 +3014,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Dữ liệu hết thời hạn lưu trữ */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -1562,6 +3030,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -1582,6 +3059,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReasonCodeList"];
+                };
+            };
+            /** @description Thiếu hoặc sai credential nhân viên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Dữ liệu hết thời hạn lưu trữ */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Credential nhân viên, kho dữ liệu hoặc chức năng riêng tư chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -1621,6 +3125,64 @@ export interface operations {
                 };
             };
             /** @description Luồng purpose chưa hỗ trợ mô hình thật */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    account_receipt_v1_sessions__session_id__account_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountReceipt"];
+                };
+            };
+            /** @description Thiếu hoặc sai token phiên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sai trạng thái, phiên đã kết thúc, thiếu bước hoặc sai/hết hạn mã thử thách; bước gửi trùng cũng trả 409. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Kho dữ liệu hoặc luồng xác minh chưa sẵn sàng */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -1676,6 +3238,192 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    issue_credential_v1_sessions__session_id__credential_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CredentialIssueRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerificationCredential"];
+                };
+            };
+            /** @description Thiếu hoặc sai token phiên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sai trạng thái, phiên đã kết thúc, thiếu bước hoặc sai/hết hạn mã thử thách; bước gửi trùng cũng trả 409. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Kho dữ liệu hoặc luồng xác minh chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    credential_authorization_v1_sessions__session_id__credential_authorization_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CredentialOfferRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CredentialAuthorization"];
+                };
+            };
+            /** @description Thiếu hoặc sai token phiên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sai trạng thái, phiên đã kết thúc, thiếu bước hoặc sai/hết hạn mã thử thách; bước gửi trùng cũng trả 409. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Kho dữ liệu hoặc luồng xác minh chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    device_proof_v1_sessions__session_id__device_proof_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeviceProofRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceProofResponse"];
+                };
+            };
+            /** @description Thiếu hoặc sai token phiên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sai trạng thái, phiên đã kết thúc, thiếu bước hoặc sai/hết hạn mã thử thách; bước gửi trùng cũng trả 409. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Kho dữ liệu hoặc luồng xác minh chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -2012,6 +3760,327 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_privacy_v1_sessions__session_id__privacy_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrivacyState"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gone */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    grant_consent_v1_sessions__session_id__privacy_consent_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PrivacyConsentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrivacyState"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gone */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    withdraw_consent_v1_sessions__session_id__privacy_withdraw_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PrivacyWithdrawalRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrivacyState"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gone */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    signed_result_v1_sessions__session_id__result_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignedResult"];
+                };
+            };
+            /** @description Thiếu hoặc sai token phiên */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sai trạng thái, phiên đã kết thúc, thiếu bước hoặc sai/hết hạn mã thử thách; bước gửi trùng cũng trả 409. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Kho dữ liệu hoặc luồng xác minh chưa sẵn sàng */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

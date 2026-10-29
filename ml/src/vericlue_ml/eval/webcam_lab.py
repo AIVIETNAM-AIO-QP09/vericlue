@@ -47,6 +47,7 @@ class WebcamLab:
 
         self.root, self.tk = root, tk
         self.models_dir, self.camera, self.preview = models_dir, camera, preview
+        self.preview_size = (320, 210)
         self.events = queue.SimpleQueue()
         self.lock = threading.Lock()
         self.latest = None
@@ -529,9 +530,11 @@ class WebcamLab:
             _, acquired, frame, row, color = current
             self.last_seen = acquired
             rgb = Image.fromarray(frame[:, :, ::-1])
-            rgb.thumbnail((320, 210))
+            rgb.thumbnail(self.preview_size)
             self.photo = ImageTk.PhotoImage(rgb)
-            self.video.configure(image=self.photo, text="", width=320, height=210)
+            self.video.configure(
+                image=self.photo, text="", width=self.preview_size[0], height=self.preview_size[1]
+            )
 
             def fmt(v):
                 return "—" if v is None else f"{v:.2f}"

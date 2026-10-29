@@ -39,19 +39,33 @@ class WebcamTrial:
     path: tuple[tuple[float, float], ...] = field(
         default_factory=lambda: tuple(secrets.SystemRandom().sample(list(TARGETS), len(TARGETS)))
     )
+    gaze_start_ms: float = 5000.0
 
     @property
     def gaze_plan(self) -> GazePlan:
-        return GazePlan(tuple(float(t) for t in range(5000, 12001, 1000)), self.path)
+        return GazePlan(tuple(self.gaze_start_ms + t for t in range(0, 7001, 1000)), self.path)
 
     @property
     def head_plan(self) -> HeadPlan:
-        return HeadPlan(12000.0, 18000.0, self.order, 1000.0)
+        return HeadPlan(self.gaze_start_ms + 7000, self.duration_ms, self.order, 1000.0)
+
+    @property
+    def duration_ms(self) -> float:
+        return self.gaze_start_ms + 13000
+
+    def __post_init__(self) -> None:
+        if (
+            isinstance(self.gaze_start_ms, bool)
+            or not isinstance(self.gaze_start_ms, (int, float))
+            or not math.isfinite(self.gaze_start_ms)
+            or not 5000 <= self.gaze_start_ms <= 10000
+        ):
+            raise ValueError("Invalid local motion schedule")
 
     def add(self, acquired: float, frame: np.ndarray, observation: FaceObservation) -> None:
         """Use the host acquisition clock; bound RAM, never synthesize missing samples."""
         elapsed = (acquired - self.started) * 1000
-        if not math.isfinite(elapsed) or not 0 <= elapsed <= 18200:
+        if not math.isfinite(elapsed) or not 0 <= elapsed <= self.duration_ms + 200:
             return
         if self.observations and elapsed <= self.observations[-1].at_ms:
             return
@@ -59,21 +73,24 @@ class WebcamTrial:
             return
         row = replace(observation, at_ms=elapsed)
         self.observations.append(row)
-        if (abs(elapsed - 1000) <= 100 or 11500 <= elapsed <= 18000) and len(self.frames) < 75:
+        if (
+            abs(elapsed - 1000) <= 100
+            or self.head_plan.start_ms - 500 <= elapsed <= self.duration_ms
+        ) and len(self.frames) < 75:
             self.frames.append((elapsed, frame.copy(), row))
 
     def cue(self, elapsed: float) -> tuple[str, tuple[float, float] | None]:
         """Return human instructions and the intended target in canvas coordinates."""
-        if elapsed < 5000:
+        if elapsed < self.gaze_start_ms:
             return "Giữ đầu thẳng, nhìn vào camera", None
-        if elapsed < 12000:
+        if elapsed < self.head_plan.start_ms:
             plan = self.gaze_plan
             return "Giữ đầu yên, chỉ đưa mắt theo chấm sáng", tuple(
                 float(np.interp(elapsed, plan.times, np.asarray(plan.points)[:, axis]))
                 for axis in (0, 1)
             )
-        if elapsed < 18000:
-            role = self.order[min(2, int((elapsed - 12000) // 2000))]
+        if elapsed < self.duration_ms:
+            role = self.order[min(2, int((elapsed - self.head_plan.start_ms) // 2000))]
             return {
                 "left": "Quay sang trái của bạn, giữ nhẹ",
                 "right": "Quay sang phải của bạn, giữ nhẹ",

@@ -32,8 +32,8 @@ MAX_SECONDS = 30
 MAX_BYTES = 32 * 1024 * 1024
 
 
-def prepare_samples(samples: np.ndarray, sample_rate: int) -> np.ndarray:
-    """Require bounded native 16 kHz PCM; do not silently resample/normalize/trim."""
+def validate_samples(samples: np.ndarray, sample_rate: int) -> None:
+    """Require bounded native 16 kHz PCM without changing its samples."""
     if (
         type(sample_rate) is not int
         or sample_rate != SAMPLE_RATE
@@ -45,6 +45,11 @@ def prepare_samples(samples: np.ndarray, sample_rate: int) -> np.ndarray:
         or np.any(np.abs(samples) > 1)
     ):
         raise DecodeError("Expected bounded mono float32 PCM at 16 kHz")
+
+
+def prepare_samples(samples: np.ndarray, sample_rate: int) -> np.ndarray:
+    """Keep the upstream first-four-second repeat/crop recipe unchanged."""
+    validate_samples(samples, sample_rate)
     if len(samples) < SAMPLE_RATE:
         raise SpeechNotFound("Less than one second")
     window = np.tile(samples, (WINDOW_SAMPLES + len(samples) - 1) // len(samples))[:WINDOW_SAMPLES]
