@@ -357,6 +357,9 @@ hiện tại 640×480; chưa đo độ chính xác hoặc tốc độ giải mã
 Neo 2. Có quan sát bộ đọc trả kết quả, nhưng chưa chốt độ nhạy hay toàn luồng:
 một số khung decoded=true/qrRead=false, cần tách ROI/format nếu tiếp tục lỗi.
 Mốc này là review code/cấu hình; nghiệm thu thẻ thật/camera trước còn chờ.
+Phản hồi sau cập nhật: người dùng đánh giá tạm ổn nhưng chưa đủ nhạy, yêu cầu
+tạm giữ bản hiện tại. Dừng tối ưu thêm; ghi là hạn chế demo, không đánh dấu đã
+giải quyết hoàn toàn hoặc tự đặt số liệu cải thiện.
 
 ---
 
