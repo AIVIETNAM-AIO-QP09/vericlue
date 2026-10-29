@@ -332,6 +332,32 @@ cứng. Xem `media-proof.md` và `account-authentication.md`.
 
 ---
 
+### APP-05 · Đóng gói Android test từ xa qua mạng riêng
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M2 | 0,5 | S2 | P0 | PLAT-05 |
+
+**Mục tiêu:** theo yêu cầu test Android từ xa sau PR105, cho laptop chạy API
+test tách biệt và tạo APK từ source hiện có, không cần Android SDK trên laptop.
+Không thay UI, contract, guard sinh trắc, ngưỡng hoặc dùng dữ liệu triển khai.
+
+- [x] API test mã hóa, chỉ loopback; Tailscale Serve HTTPS riêng, không Funnel.
+- [x] CI nhận URL HTTPS riêng qua cấu hình, bật ký media, chạy unit test và build APK có checksum/metadata nguồn; không nhúng khóa hoặc token mạng riêng vào APK.
+- [x] Kiểm HTTP qua HTTPS bằng dữ liệu tổng hợp và chữ ký; artifact trỏ đúng endpoint.
+- [x] Có hướng dẫn cài/chọn API, QR mẫu/kịch bản mock, dừng/restart và giới hạn chưa nghiệm thu điện thoại.
+
+Hướng dẫn: [android-remote-test.md](../../runbooks/android-remote-test.md).
+Probe HTTPS tổng hợp qua 3 kịch bản; CI run `40725003348` tạo APK, kiểm
+BuildConfig/DEX và checksum sau tải khớp. Người test xác nhận Chrome Android
+đã mở được HTTPS health. Chưa nghiệm thu camera/micro/luồng app từ xa hoặc AI thật.
+
+**29/10:** người test báo đi hết luồng mock qua APK. Đã chuẩn bị profile AI mặt
+từng phần bằng cờ hiện có, DB/khóa riêng, Serve 8421; probe native và HTTP/HTTPS
+tổng hợp qua. Chưa có lượt camera Android với profile AI. Qwen thiếu RAM, giọng
+chưa bật; không nhận là eKYC thật xuyên suốt. Chi tiết ở mục 6 của runbook và
+bàn giao `2026-10-29-0029-app-05-codex.md`. Giữ `review`, không mở guard hoặc sửa ngưỡng.
+
 ## App iOS (bản thêm, ADR-0014 cập nhật 24/10)
 
 Kế hoạch chi tiết từng bước: [`apps/ios/docs/plan-ios.md`](../../../apps/ios/docs/plan-ios.md). App Android (APP-01..04) là đặc tả hành vi và câu chữ.

@@ -139,6 +139,7 @@
 | APP-02 ★ | App: chụp mặt, quay 3 s, quay đầu ngẫu nhiên | M1 | Ngọc Quang+Claude | 2 | S1–S2 | P0 | APP-01 | doing |
 | APP-03 | App: ghi âm đọc câu (WAV 16 kHz) | M1 | Ngọc Quang+Claude | 1 | S2 | P0 | APP-01 | doing |
 | APP-04 | App: OTP, chụp CCCD, xác nhận thông tin | M2 (+M1) | Ngọc Quang+Claude | 1,5 | S1–S2 | P0 | APP-01 | doing |
+| APP-05 | Đóng gói Android test từ xa qua mạng riêng | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | review |
 | IOS-01 | App iOS: khung SwiftUI, theme, toàn bộ màn, điều hướng 3 luồng, chế độ demo | M1 | Lý Anh Quân | 2 | S2 | P1 | APP-01 | todo |
 | IOS-02 | App iOS: client API, LiveFlow, FlowRules + test | M1 | Lý Anh Quân | 1,5 | S2 | P1 | FLOW-01 | todo |
 | IOS-03 | App iOS: OTP, chụp CCCD (nét, lóa, QR bằng Vision), xác nhận thông tin | M1 | Lý Anh Quân | 1,5 | S2 | P1 | IOS-01, IOS-02, FLOW-02, FLOW-03 | todo |
