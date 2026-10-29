@@ -277,6 +277,60 @@ cứng. Xem `media-proof.md` và `account-authentication.md`.
 
 ---
 
+### APP-07 · Đồng bộ UI phần mặt giữa Giả lập và API
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M1 | 0,5 | S2 | P0 | PLAT-04 |
+
+**Mục tiêu:** dùng bộ UI A mới nhất đã có trên main (FaceScreens tại commit
+4417e25), không dựng thiết kế khác cho API thật. Bản sửa độc lập trên nền APK
+APP-06; không đổi API, lịch thử thách, ngưỡng hoặc quyết định của server.
+
+**Tiêu chí hoàn thành:**
+- [x] Giả lập và API dùng cùng màn trình bày màu, ánh mắt và quay đầu; giữ khung
+      oval, chữ/mũi tên và nút dừng theo bộ UI hiện có.
+- [x] API vẫn dùng lịch và tọa độ chấm toàn màn hình từ server, tính từ frame
+      đầu của một video; preview chỉ có một View, không gắn lại khi đổi pha.
+- [x] Có test lịch Giả lập, hình học preview, ảnh UI pha sáng/tối và màn nhỏ;
+      unit/build/lint đạt; ghi rõ phần chưa nghiệm thu trên thiết bị thật.
+- [x] README, backlog và bàn giao cập nhật; plan_check không có lỗi.
+
+**Kiểm chứng 29/10:** mã 605db48 qua 11 checks CI, report UI có 131 test không lỗi
+và 36 ảnh mới; đã xem pha giữ yên/màu/mắt/quay đầu ở màn nhỏ và chữ 200%.
+Task giữ review: chưa cài bản sửa, chưa nghiệm thu CameraX/video liên tục trên
+điện thoại. APK CI mới khác certificate bản USB hiện cài; không gỡ app hoặc
+xóa dữ liệu/Keystore để cài đè. Không suy accuracy từ kiểm tra UI.
+
+---
+
+### APP-08 · Quét CCCD tự động bằng QR và chân dung
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M1 | 1 | S2 | P0 | PLAT-04 |
+
+Theo yêu cầu 29/10: bỏ OCR trong luồng quét CCCD app/server; dùng QR lấy thông
+tin, ảnh chân dung làm tham chiếu so mặt. Camera nhận diện liên tục, một gợi ý,
+không nút chụp mặc định; tự chụp ảnh tĩnh rõ và gửi, xác nhận thông tin trước mặt.
+Mặt sau chỉ cần khi mặt trước chưa có QR. Timeout có hướng dẫn, chụp thủ công
+hoặc dừng; không dùng nhân viên/OCR làm fallback. Không thay AI/ngưỡng mặt.
+Bổ sung theo yêu cầu: một app/package và một server, bỏ bridge HTTP; một
+workflow APK, chữ ký ổn định, một lệnh chạy, lưu trữ launcher cũ và giữ DB/khóa.
+
+- [x] Contract hỗ trợ mặt sau tùy chọn và retry thiếu chân dung, tương thích client cũ.
+- [x] Backend QR-only, không dùng trường OCR/client QR để cứu ảnh không đọc được.
+- [x] Android không dùng OCR kích hoạt chụp; QR/chân dung được kiểm lại trên ảnh
+      tĩnh, không ghép kết quả cũ giữa các thẻ/lượt; chất lượng, timeout và lỗi rõ.
+- [x] Tự gửi, xác nhận thông tin trước quay mặt; xử lý retry có giới hạn.
+- [x] Bộ đọc trong API dùng chung SCRFD; chỉ một package/workflow APK và lệnh chạy server.
+- [x] Kiểm APK ký ổn định tại laptop (khóa không lên CI), source/hash/pin.
+- Chuyển bản cài và nghiệm thu camera khi người dùng tiếp tục test; hiện tạm dừng theo yêu cầu.
+- [x] Unit/API/contract/build/lint/snapshot đạt, kiểm runtime QR-only; tài liệu,
+      bàn giao và plan_check; ghi rõ phạm vi nghiệm thu điện thoại.
+
+---
+
 ### APP-02 ★ · App: chụp mặt, quay 3 giây, quay đầu ngẫu nhiên
 
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
@@ -357,6 +411,36 @@ từng phần bằng cờ hiện có, DB/khóa riêng, Serve 8421; probe native 
 tổng hợp qua. Chưa có lượt camera Android với profile AI. Qwen thiếu RAM, giọng
 chưa bật; không nhận là eKYC thật xuyên suốt. Chi tiết ở mục 6 của runbook và
 bàn giao `2026-10-29-0029-app-05-codex.md`. Giữ `review`, không mở guard hoặc sửa ngưỡng.
+
+### APP-06 · Android test server qua USB
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M2 | 0,5 | S2 | P0 | PLAT-05 |
+
+**Mục tiêu:** theo yêu cầu 29/10, dùng điện thoại Android cắm USB để test API
+trên laptop qua ADB reverse; giữ APK Tailscale và dữ liệu app hiện có.
+
+- [x] Debug APK riêng `vn.vericlue.app.usbtest`, tên VeriClue USB, gọi đúng
+  `http://localhost:8421/`, bắt buộc ký media; không có release USB.
+- [x] CI chạy unit test/build và kiểm APK/manifest/checksum/source metadata.
+- [x] Cài ADB chính thức, nhận quyền thiết bị, reverse cổng 8421 và kiểm health
+  từ điện thoại; không mở API LAN, Funnel hoặc ADB TCP legacy.
+- [x] Cài/khởi động bản USB trên thiết bị được cho phép; không gỡ bản cũ hoặc
+  xóa dữ liệu. Có runbook, cách bỏ reverse và giới hạn AI từng phần.
+
+Không đổi UI flow, API/ML/contract/ngưỡng hoặc guard. API mặt thật vẫn là profile
+nội bộ từng phần; đổi đường truyền không làm OTP/CCCD hoặc giọng thành thật.
+
+**29/10:** CI 10 checks xanh ở commit `92555d0`; run USB `40796808317` kiểm
+package/label/URL/release guard. Artifact tải về khớp SHA-256; đã cài mới và mở
+trên Samsung SM-S721B SDK36 ARM64, app cũ giữ nguyên. Chủ máy xác nhận health
+trong Chrome qua localhost/USB; chưa nghiệm thu capture và AI từ app mới.
+
+**Bổ sung theo yêu cầu 29/10:** cáp mất kết nối nhiều lần; chuyển sang Wireless
+debugging TLS ghép đôi bằng mã, giữ APK. Đã kiểm route Wi-Fi, reverse và mở app;
+chủ máy xác nhận health ok sau rút cáp, không còn transport USB. Không dùng cổng
+5555 legacy hoặc lưu mã pairing. Hướng dẫn ở cuối runbook; chưa nghiệm thu AI.
 
 ## App iOS (bản thêm, ADR-0014 cập nhật 24/10)
 

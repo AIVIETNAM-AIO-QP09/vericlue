@@ -246,7 +246,7 @@ def test_image_content_is_sanitized_regardless_name_and_storage_mode(client, pri
 
 @pytest.mark.parametrize("data", [b"not an image", b"GIF89a", b"%PDF-1.7"])
 def test_invalid_card_is_rejected_before_ocr_or_storage(client, monkeypatch, data):
-    client.app.state.vericlue.settings.identity_lab_url = "http://127.0.0.1:8010"
+    client.app.state.vericlue.settings.identity_card_enabled = True
     seen = []
     monkeypatch.setattr(IdentityRuntime, "scan", lambda *_: seen.append(True))
     body, auth = start_session(client)
@@ -285,7 +285,7 @@ def test_orientation_is_applied_and_animated_images_are_rejected():
 @pytest.mark.parametrize("private", [False, True])
 def test_ocr_and_storage_share_same_sanitized_card(client, monkeypatch, private):
     configure(client, private)
-    client.app.state.vericlue.settings.identity_lab_url = "http://127.0.0.1:8010"
+    client.app.state.vericlue.settings.identity_card_enabled = True
     seen = []
 
     def scan(_, front, back):

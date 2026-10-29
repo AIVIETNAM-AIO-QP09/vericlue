@@ -330,16 +330,19 @@ async def upload_id_card(
     session: SessionDep,
     state: StateDep,
     front: Annotated[UploadFile, File(description="Ảnh mặt trước CCCD")],
-    back: Annotated[UploadFile, File(description="Ảnh mặt sau CCCD (có QR)")],
+    back: Annotated[
+        UploadFile | None, File(description="Ảnh mặt sau, chỉ cần khi mặt trước chưa đọc được QR")
+    ] = None,
     qr: Annotated[
-        str | None, Form(description="Chuỗi QR app đã đọc ở mặt sau; thiếu thì trả retry")
+        str | None,
+        Form(description="Gợi ý QR từ app chỉ dành cho mock; bridge thật luôn đọc lại từ ảnh"),
     ] = None,
 ) -> IdCardResponse:
     state.flow.ensure_open(session)
     state.identity.ensure_card_upload_allowed(session)
     limit = state.settings.max_upload_mb
     front_bytes = await read_limited(front, limit)
-    back_bytes = await read_limited(back, limit)
+    back_bytes = await read_limited(back, limit) if back is not None else None
     return await run_in_threadpool(
         state.identity.accept_images,
         session,
@@ -347,7 +350,7 @@ async def upload_id_card(
         back_bytes,
         qr,
         front_filename=front.filename,
-        back_filename=back.filename,
+        back_filename=back.filename if back is not None else None,
     )
 
 

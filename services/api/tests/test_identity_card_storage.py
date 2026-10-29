@@ -35,7 +35,7 @@ def snapshot(client, sid):
 
 
 def confirmed_card(client, monkeypatch):
-    client.app.state.vericlue.settings.identity_lab_url = "http://127.0.0.1:8010"
+    client.app.state.vericlue.settings.identity_card_enabled = True
     monkeypatch.setattr(IdentityRuntime, "scan", lambda *_: {"qr_values": [QR], "fields": {}})
     created, auth = start_session(client)
     sid = created["session_id"]

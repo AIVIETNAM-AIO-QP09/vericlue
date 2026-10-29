@@ -19,6 +19,7 @@ from vericlue_api.services.accounts import AccountStore
 from vericlue_api.services.enrollment import EnrollmentService
 from vericlue_api.services.file_changes import file_changes
 from vericlue_api.services.forensic_service import ForensicStore
+from vericlue_api.services.identity_runtime import IdentityRuntime
 from vericlue_api.services.identity_steps import IdentitySteps
 from vericlue_api.services.orchestrator import Orchestrator
 from vericlue_api.services.report_evidence import ReportEvidenceBuilder
@@ -36,6 +37,7 @@ class AppState:
     db: DBSession
     orchestrator: Orchestrator
     inference_deadline: float | None = None
+    identity_runtime: IdentityRuntime | None = None
     sessions: SessionStore = field(init=False)
     reviews: ReviewStore = field(init=False)
     forensic: ForensicStore = field(init=False)
@@ -92,7 +94,9 @@ class AppState:
             enroll=self.enrollment.complete,
             accounts=self.accounts,
         )
-        self.identity = IdentitySteps(self.settings, privacy=self.privacy)
+        self.identity = IdentitySteps(
+            self.settings, privacy=self.privacy, runtime=self.identity_runtime
+        )
 
 
 class ApplicationState:
@@ -101,6 +105,7 @@ class ApplicationState:
         _ = settings.router_config  # Freeze the raw-file snapshot once for this application.
         self.database = Database(settings.database_url)
         self.orchestrator = Orchestrator(settings)
+        self.identity_runtime = IdentityRuntime(settings)
         self._initialized = False
         self._initializing = Lock()
 
@@ -117,7 +122,13 @@ class ApplicationState:
         try:
             with db.begin():
                 self._transaction_body_begin(db, serialize_sqlite, lock_timeout_seconds)
-                state = AppState(self.settings, db, self.orchestrator, inference_deadline)
+                state = AppState(
+                    self.settings,
+                    db,
+                    self.orchestrator,
+                    inference_deadline,
+                    identity_runtime=self.identity_runtime,
+                )
                 yield state
                 state.sessions.save_all()
                 state.reviews.save_all()

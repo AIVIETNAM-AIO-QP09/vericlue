@@ -450,7 +450,7 @@
         "status"
       ],
       "additionalProperties": false,
-      "description": "Kết quả nhận ảnh CCCD. 'retry' chỉ nói về chất lượng ảnh hoặc QR, không kết luận thẻ thật/giả (phát hiện thẻ giả nằm ngoài phạm vi)",
+      "description": "Kết quả quét CCCD bằng QR từ ảnh. Mặt trước bắt buộc; chỉ cần thêm mặt sau khi QR không đọc được từ mặt trước. Không dùng OCR để trích xuất thông tin. 'retry' chỉ nói về chất lượng ảnh, chân dung hoặc QR, không chứng minh tính xác thực của thẻ.",
       "properties": {
         "status": {
           "type": "string",
@@ -470,7 +470,8 @@
           "enum": [
             null,
             "QR_UNREADABLE",
-            "QR_INVALID"
+            "QR_INVALID",
+            "PORTRAIT_UNREADABLE"
           ]
         }
       }

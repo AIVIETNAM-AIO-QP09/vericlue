@@ -58,7 +58,7 @@ def scheduler(action, *, queue=0, mock=False):
     settings = Settings(
         _env_file=None,
         use_mock_models=mock,
-        identity_lab_url="http://127.0.0.1:1",
+        identity_card_enabled=True,
         identity_face_from_video=True,
         detector_queue_size=queue,
         session_model_timeout_seconds=2,

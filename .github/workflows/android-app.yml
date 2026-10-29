@@ -1,0 +1,86 @@
+name: Android VeriClue APK
+
+on:
+  pull_request:
+    paths:
+      - apps/android/**
+      - scripts/sign_android.py
+      - .github/workflows/android-app.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-app-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    name: VeriClue APK (one package, local signing)
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/android
+    env:
+      VERICLUE_API_BASE_URL: ${{ vars.VERICLUE_REMOTE_API_URL || 'http://localhost:8421/' }}
+      SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Validate server endpoint
+        run: |
+          python - <<'PY'
+          import os, re
+          url = os.environ['VERICLUE_API_BASE_URL']
+          if url != 'http://localhost:8421/' and not re.fullmatch(r'https://[a-z0-9-]+(?:\.[a-z0-9-]+)*\.ts\.net/', url):
+              raise SystemExit('Use localhost:8421 or the private Tailscale HTTPS endpoint')
+          PY
+      - name: Test and build the unsigned APK
+        run: |
+          ./gradlew --no-daemon testDebugUnitTest assembleDebug \
+            "-Pvericlue.apiBaseUrl=$VERICLUE_API_BASE_URL" \
+            -Pvericlue.signedMedia=true -Pvericlue.deferSigning=true
+      - name: Check package and prepare local signing input
+        run: |
+          python - <<'PY'
+          import hashlib, json, os, re, shutil
+          from pathlib import Path
+          apk = Path('app/build/outputs/apk/debug/app-arm64-v8a-debug-unsigned.apk')
+          assert apk.is_file()
+          sdk = Path(os.environ.get('ANDROID_HOME') or os.environ['ANDROID_SDK_ROOT'])
+          tools = sorted((sdk / 'build-tools').iterdir())[-1]
+          import subprocess
+          badging = subprocess.check_output([str(tools / 'aapt'), 'dump', 'badging', str(apk)], text=True)
+          assert "package: name='vn.vericlue.app'" in badging
+          assert "application-label:'VeriClue'" in badging
+          url = os.environ['VERICLUE_API_BASE_URL']
+          generated = list(Path('app/build/generated').rglob('BuildConfig.java'))
+          assert any(url in p.read_text() and re.search(r'SIGNED_MEDIA\s*=\s*true', p.read_text()) for p in generated)
+          # Keep credentials on the laptop. CI exports only the unsigned build and public SDK tool.
+          out = Path('vericlue-build')
+          out.mkdir()
+          shutil.copy2(apk, out / 'VeriClue-unsigned.apk')
+          shutil.copy2(tools / 'lib/apksigner.jar', out / 'apksigner.jar')
+          shutil.copy2(tools / 'NOTICE.txt', out / 'ANDROID-BUILD-TOOLS-NOTICE.txt')
+          (out / 'build-info.json').write_text(json.dumps({
+              'source_sha': os.environ['GITHUB_SHA'], 'source_head_sha': os.environ['SOURCE_HEAD_SHA'],
+              'run_id': os.environ['GITHUB_RUN_ID'], 'application_id': 'vn.vericlue.app',
+              'api_base_url': url, 'label': 'VeriClue', 'signed_media': True,
+              'signing': 'required_on_laptop', 'hardware_acceptance': 'not_verified',
+          }, indent=2) + '\n')
+          names = ['VeriClue-unsigned.apk', 'apksigner.jar', 'ANDROID-BUILD-TOOLS-NOTICE.txt', 'build-info.json']
+          (out / 'SHA256SUMS.txt').write_text(''.join(hashlib.sha256((out / n).read_bytes()).hexdigest() + '  ' + n + '\n' for n in names))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vericlue-android
+          path: apps/android/vericlue-build/
+          if-no-files-found: error
+          retention-days: 7

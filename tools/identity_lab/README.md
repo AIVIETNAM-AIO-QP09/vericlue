@@ -1,5 +1,15 @@
 # OCR CCCD và face matching — công cụ thử nghiệm trong repo
 
+## Luồng app hiện tại: một server, QR-only (APP-08)
+
+Bộ đọc nằm trong `services/api/.../services/card_scanner.py`, được ApplicationState
+giữ và dùng lại qua `IdentityRuntime`. QR dùng ZXing-C++/OpenCV; SCRFD dùng chung
+session với các module mặt theo model/device. Không có bridge HTTP/cổng QR riêng.
+`qr_scanner.py` và `card_scanner.py` trong tools chỉ là import tương thích lịch sử.
+Không dùng OCR cho luồng app; xem [demo một bản](../../docs/runbooks/vericlue-demo.md).
+
+Các phần OCR bên dưới là công cụ nghiên cứu lịch sử, không nằm trong luồng app.
+
 **Bắt đầu tại [HANDOFF.md](HANDOFF.md):** bản được giữ lại, checkpoint cần chia sẻ,
 kết quả thử VinText và ranh giới tích hợp UI/UX. Các thí nghiệm bên dưới là lịch sử
 phát triển, không phải tất cả đều được chọn làm mặc định.

@@ -108,11 +108,11 @@ class Orchestrator:
             )
         if (
             module == Module.FACE_MATCH
-            and self.settings.identity_lab_url
+            and self.settings.identity_card_enabled
             or module == Module.FACE_CONTINUITY
             and self.settings.identity_voice_continuity
         ):
-            # Identity opt-in is deliberately hybrid: OCR and face matching are real,
+            # Identity opt-in uses real QR/portrait and face matching in this process,
             # even when the remaining API detectors are mocked for the demo.
             artifact = self.settings.identity_face_calibration
             if self._identity_matcher is None and self.settings.identity_face_from_video:
@@ -170,7 +170,7 @@ class Orchestrator:
             if self._started:
                 return
             modules = list(self.router.profile.modules)
-            if self.settings.identity_lab_url:
+            if self.settings.identity_card_enabled:
                 modules.append(Module.FACE_MATCH)
             if self.settings.identity_voice_continuity:
                 modules.append(Module.FACE_CONTINUITY)
@@ -496,7 +496,7 @@ class Orchestrator:
                 module = Module(value)
                 if module not in self.router.profile.modules and not (
                     module == Module.FACE_MATCH
-                    and self.settings.identity_lab_url
+                    and self.settings.identity_card_enabled
                     or module == Module.FACE_CONTINUITY
                     and self.settings.identity_voice_continuity
                     or module in {Module.GAZE_TRACKING, Module.HEAD_TURN}

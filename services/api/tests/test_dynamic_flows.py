@@ -227,7 +227,7 @@ def test_unverified_reauth_requires_recovery_without_staff_case(
     client, identity_runtime, monkeypatch
 ):
     if identity_runtime:
-        client.app.state.vericlue.settings.identity_lab_url = "http://127.0.0.1:8010"
+        client.app.state.vericlue.settings.identity_card_enabled = True
 
     def unexpected_match(*_):
         pytest.fail("Reauth must not use the card/selfie runtime")
@@ -263,7 +263,7 @@ def test_reauth_with_server_verified_context_has_no_review_case(
     client, scenario, expected, identity_runtime, monkeypatch
 ):
     if identity_runtime:
-        client.app.state.vericlue.settings.identity_lab_url = "http://127.0.0.1:8010"
+        client.app.state.vericlue.settings.identity_card_enabled = True
 
     def unexpected_match(*_):
         pytest.fail("Reauth must not use the card/selfie runtime")
@@ -288,7 +288,7 @@ def test_reauth_with_server_verified_context_has_no_review_case(
 @pytest.mark.parametrize("identity_runtime", [False, True])
 def test_reauth_genuine_voice_after_escalation_does_not_require_a_card(client, identity_runtime):
     if identity_runtime:
-        client.app.state.vericlue.settings.identity_lab_url = "http://127.0.0.1:8010"
+        client.app.state.vericlue.settings.identity_card_enabled = True
     created, auth = create(client, purpose="reauth", scenario="voice_clone")
     edit_session(client, created, device_verified=True)
     result = submit_face(client, created, auth)

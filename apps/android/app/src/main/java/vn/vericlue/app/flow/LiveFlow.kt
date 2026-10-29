@@ -232,7 +232,7 @@ class LiveFlow(
     }
 
     /** Sends both photos and the QR text. Returns null when the server read the card, else a retry hint or error. */
-    suspend fun sendIdCard(front: ByteArray, back: ByteArray, qr: String?): Pair<String?, ApiError?> {
+    suspend fun sendIdCard(front: ByteArray, back: ByteArray?, qr: String?): Pair<String?, ApiError?> {
         val s = session ?: return null to ApiError.Expired
         return when (val r = api.uploadIdCard(s.sessionId, s.token, front, back, qr)) {
             is ApiResult.Ok -> {

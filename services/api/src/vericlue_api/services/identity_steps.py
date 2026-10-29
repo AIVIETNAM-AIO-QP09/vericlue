@@ -57,10 +57,12 @@ class IdentitySteps:
         channel: OtpChannel | None = None,
         *,
         privacy: SessionPrivacy | None = None,
+        runtime: IdentityRuntime | None = None,
     ) -> None:
         self.settings = settings
         self.channel = channel or SimulatedSms()
         self.privacy = privacy
+        self.runtime = runtime or IdentityRuntime(settings)
 
     def _key(self) -> str:
         return self.settings.id_hmac_key.get_secret_value()
@@ -120,7 +122,7 @@ class IdentitySteps:
         self,
         session: Session,
         front: bytes,
-        back: bytes,
+        back: bytes | None,
         client_qr: str | None,
         *,
         front_filename: str | None = None,
@@ -131,20 +133,30 @@ class IdentitySteps:
             raise ApiError(
                 409, "id_card_scan_limit", "Đã quét lại nhiều lần. Vui lòng bắt đầu phiên mới."
             )
-        incoming_bytes = len(front) + len(back)
+        incoming_bytes = len(front) + (len(back) if back is not None else 0)
         limit = self.settings.max_id_card_total_mb * 1024 * 1024
         if session.id_scan_bytes + incoming_bytes > limit:
             raise ApiError(
                 413, "id_card_quota_exceeded", "Dữ liệu ảnh thẻ vượt giới hạn của phiên."
             )
-        prepared_front, prepared_back = prepare_image(front), prepare_image(back)
-        accounted_bytes = incoming_bytes + len(prepared_front.data) + len(prepared_back.data)
+        prepared_front = prepare_image(front)
+        prepared_back = prepare_image(back) if back is not None else None
+        accounted_bytes = (
+            incoming_bytes
+            + len(prepared_front.data)
+            + (len(prepared_back.data) if prepared_back is not None else 0)
+        )
         if session.id_scan_bytes + accounted_bytes > limit:
             raise ApiError(
                 413, "id_card_quota_exceeded", "Dữ liệu ảnh thẻ vượt giới hạn của phiên."
             )
         reserve_media(session, self.settings, accounted_bytes)
-        response = self._scan_images(session, prepared_front.data, prepared_back.data, client_qr)
+        response = self._scan_images(
+            session,
+            prepared_front.data,
+            prepared_back.data if prepared_back is not None else None,
+            client_qr,
+        )
         changes = file_changes(self.privacy.db, self.settings.media_dir) if self.privacy else None
         previous = [session.id_front, session.id_back]
         # Never overwrite a committed reference: DB rollback cannot undo file writes.
@@ -161,16 +173,20 @@ class IdentitySteps:
             prepared_image=prepared_front,
             changes=changes,
         )
-        back_path = save_upload(
-            self.settings.media_dir,
-            session.session_id,
-            f"id_back_{scan_id}",
-            back_filename,
-            back,
-            privacy=self.privacy,
-            image_role=True,
-            prepared_image=prepared_back,
-            changes=changes,
+        back_path = (
+            save_upload(
+                self.settings.media_dir,
+                session.session_id,
+                f"id_back_{scan_id}",
+                back_filename,
+                back,
+                privacy=self.privacy,
+                image_role=True,
+                prepared_image=prepared_back,
+                changes=changes,
+            )
+            if back is not None
+            else None
         )
         session.id_front, session.id_back = front_path, back_path
         session.id_scan_count += 1
@@ -180,7 +196,7 @@ class IdentitySteps:
         return response
 
     def _scan_images(
-        self, session: Session, front: bytes, back: bytes, client_qr: str | None
+        self, session: Session, front: bytes, back: bytes | None, client_qr: str | None
     ) -> IdCardResponse:
         # A completed rescan, including a retry response, invalidates prior confirmation.
         # Exceptions roll the request transaction back, preserving the previous card.
@@ -194,11 +210,14 @@ class IdentitySteps:
         session.id_confirmed_fields = None
         session.id_confirmed_number_hmac = None
         session.results.pop(Module.FACE_MATCH, None)
-        if not self.settings.identity_lab_url:
-            if self.settings.use_mock_models is not True:
+        if not self.settings.identity_card_enabled:
+            if (
+                self.settings.use_mock_models is not True
+                or self.settings.identity_card_portrait_required
+            ):
                 raise ApiError(503, "identity_unavailable", "Dịch vụ đọc thẻ chưa sẵn sàng.")
             return self.accept_id_card(session, client_qr)
-        data = IdentityRuntime(self.settings).scan(front, back)
+        data = self.runtime.scan(front, back)
         codes = data.get("qr_values", [])
         if not isinstance(codes, list) or not all(isinstance(v, str) for v in codes):
             raise ApiError(503, "identity_unavailable", "Dịch vụ đọc thẻ chưa sẵn sàng.")
@@ -206,29 +225,17 @@ class IdentitySteps:
         distinct = {value.model_dump_json() for value in candidates}
         if len(distinct) > 1:
             return IdCardResponse(status="retry", retry_hint="QR_INVALID")
-        if candidates:
-            fields, source = candidates[0], "server_qr"
-        else:
-            raw = data.get("fields", {})
-            if not isinstance(raw, dict):
+        if not candidates:
+            return IdCardResponse(
+                status="retry", retry_hint="QR_INVALID" if codes else "QR_UNREADABLE"
+            )
+        if self.settings.identity_card_portrait_required:
+            usable = data.get("portrait_usable")
+            if type(usable) is not bool:
                 raise ApiError(503, "identity_unavailable", "Dịch vụ đọc thẻ chưa sẵn sàng.")
-            try:
-                fields = IdCardFields(
-                    full_name=raw.get("name"),
-                    id_number=raw.get("id"),
-                    date_of_birth=raw.get("dob"),
-                    sex=raw.get("gender") if raw.get("gender") in {"Nam", "Nữ"} else None,
-                    address=", ".join(
-                        str(raw[k]) for k in ("current_place1", "current_place2") if raw.get(k)
-                    )
-                    or None,
-                )
-            except ValueError:
-                return IdCardResponse(status="retry", retry_hint="QR_UNREADABLE")
-            if not any(fields.model_dump().values()):
-                return IdCardResponse(status="retry", retry_hint="QR_UNREADABLE")
-            source = "ocr"
-        return self._accept_fields(session, fields, source)
+            if not usable:
+                return IdCardResponse(status="retry", retry_hint="PORTRAIT_UNREADABLE")
+        return self._accept_fields(session, candidates[0], "server_qr")
 
     def _accept_fields(self, session: Session, fields: IdCardFields, source: str) -> IdCardResponse:
         session.id_source = source
@@ -259,7 +266,7 @@ class IdentitySteps:
             )
         submitted = confirmed.model_dump(mode="json", exclude_unset=True, exclude={"id_number"})
         given = {**session.id_fields, **submitted}
-        if self.settings.identity_lab_url and not all(
+        if self.settings.identity_card_enabled and not all(
             (
                 confirmed.full_name and confirmed.full_name.strip(),
                 confirmed.id_number,

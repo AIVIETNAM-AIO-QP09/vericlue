@@ -469,7 +469,7 @@ fun ConfirmInfoScreen(
         },
     ) {
         if (afterFace) Banner("Đã quay xong. Xem lại thông tin, rồi bấm \"Thông tin đúng\" để gửi.", tone = Tone.Ok)
-        TitleBlock("Kiểm tra thông tin", "Thông tin đọc từ ảnh hoặc mã QR trên CCCD. Hãy kiểm tra và sửa những mục chưa đúng.")
+        TitleBlock("Kiểm tra thông tin", "Thông tin đọc từ mã QR trên CCCD. Hãy kiểm tra trước khi xác nhận.")
         Column(
             Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(14.dp),

@@ -13,6 +13,10 @@ import vn.vericlue.app.flow.Purpose
 import vn.vericlue.app.flow.Routes
 
 class FlowRulesTest {
+    @org.junit.Test fun confirmationBeforeRecordingStartsTheFacePart() {
+        org.junit.Assert.assertEquals(vn.vericlue.app.flow.Routes.FaceReady,
+            vn.vericlue.app.flow.FlowRules.afterConfirm(vn.vericlue.app.flow.Purpose.Onboarding, true, faceCaptured = false))
+    }
     @Test
     fun cardQrFallsBackToTheFront() {
         assertEquals("front", FlowRules.cardQr("front", null))

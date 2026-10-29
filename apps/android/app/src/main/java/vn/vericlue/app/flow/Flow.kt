@@ -115,7 +115,8 @@ object FlowRules {
     }
 
     /** After the confirm screen: live sends the rest (finalize must come after the confirm, see can-chot.md H30). */
-    fun afterConfirm(purpose: Purpose, live: Boolean): String = if (live) Routes.Uploading else afterTurnHead(purpose)
+    fun afterConfirm(purpose: Purpose, live: Boolean, faceCaptured: Boolean = true): String =
+        if (!faceCaptured) Routes.FaceReady else if (live) Routes.Uploading else afterTurnHead(purpose)
 
     fun afterChecking(outcome: DemoOutcome): String = when (outcome) {
         DemoOutcome.Pass -> Routes.Success

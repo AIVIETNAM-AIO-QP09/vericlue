@@ -21,7 +21,7 @@ FILES = {
 
 
 def enable(client, monkeypatch, payload):
-    client.app.state.vericlue.settings.identity_lab_url = "http://127.0.0.1:8010"
+    client.app.state.vericlue.settings.identity_card_enabled = True
     monkeypatch.setattr(IdentityRuntime, "scan", lambda self, front, back: payload)
     body, auth = start_session(client)
     return body["session_id"], auth
@@ -41,16 +41,19 @@ def test_server_qr_wins_over_forged_client_qr(client, monkeypatch):
         assert state.sessions.get(sid).id_source == "server_qr"
 
 
-def test_ocr_partial_fields_can_be_corrected_and_persisted(client, monkeypatch):
-    sid, auth = enable(client, monkeypatch, {"qr_values": [], "fields": {"name": "An"}})
-    assert client.post(f"/v1/sessions/{sid}/id-card", headers=auth, files=FILES).json()[
-        "fields"
-    ] == {"full_name": "An"}
+def test_qr_fields_can_be_corrected_and_rescan_clears_confirmation(client, monkeypatch):
+    sid, auth = enable(client, monkeypatch, {"qr_values": [QR], "fields": {"name": "ignored"}})
+    assert (
+        client.post(f"/v1/sessions/{sid}/id-card", headers=auth, files=FILES).json()["fields"][
+            "full_name"
+        ]
+        == QR.split("|")[2]
+    )
     endpoint = f"/v1/sessions/{sid}/id-card/confirm"
     assert client.post(endpoint, headers=auth, json={"full_name": "An"}).status_code == 422
     given = {
         "full_name": "Nguyễn Văn An",
-        "id_number": "001099012345",
+        "id_number": "001099999999",
         "date_of_birth": "1995-01-01",
         "sex": "Nam",
         "address": "12 Phố Huế",
@@ -58,7 +61,7 @@ def test_ocr_partial_fields_can_be_corrected_and_persisted(client, monkeypatch):
     assert client.post(endpoint, headers=auth, json=given).status_code == 200
     with client.app.state.vericlue.transaction() as state:
         session = state.sessions.get(sid)
-        assert session.id_confirmed and session.id_fields["full_name"] == "An"
+        assert session.id_confirmed and session.id_fields["full_name"] == QR.split("|")[2]
         assert session.id_confirmed_fields["full_name"] == given["full_name"]
         assert "id_number" in session.id_edited
         assert "001099012345" not in repr(session)
@@ -82,6 +85,37 @@ def test_conflicting_qr_is_not_arbitrarily_selected(client, monkeypatch):
         client.post(f"/v1/sessions/{sid}/id-card", headers=auth, files=FILES).json()["status"]
         == "retry"
     )
+
+
+def test_ocr_fields_are_not_a_fallback(client, monkeypatch):
+    sid, auth = enable(
+        client, monkeypatch, {"qr_values": [], "fields": {"name": "Text", "id": "001099012345"}}
+    )
+    response = client.post(f"/v1/sessions/{sid}/id-card", headers=auth, files=FILES)
+    assert response.status_code == 200
+    assert response.json()["status"] == "retry"
+    assert response.json().get("fields") is None
+
+
+@pytest.mark.parametrize("portrait,expected", [(True, "ok"), (False, "retry"), (None, "error")])
+def test_front_only_card_requires_server_portrait_when_enabled(
+    client, monkeypatch, portrait, expected
+):
+    reply = {"qr_values": [QR]}
+    if portrait is not None:
+        reply["portrait_usable"] = portrait
+    sid, auth = enable(client, monkeypatch, reply)
+    client.app.state.vericlue.settings.identity_card_portrait_required = True
+    response = client.post(
+        f"/v1/sessions/{sid}/id-card", headers=auth, files={"front": FILES["front"]}
+    )
+    if expected == "error":
+        assert response.status_code == 503
+    else:
+        assert response.status_code == 200
+        assert response.json()["status"] == expected
+        if not portrait:
+            assert response.json()["retry_hint"] == "PORTRAIT_UNREADABLE"
 
 
 @pytest.mark.parametrize(
