@@ -315,12 +315,16 @@ tin, ảnh chân dung làm tham chiếu so mặt. Camera nhận diện liên t�
 không nút chụp mặc định; tự chụp ảnh tĩnh rõ và gửi, xác nhận thông tin trước mặt.
 Mặt sau chỉ cần khi mặt trước chưa có QR. Timeout có hướng dẫn, chụp thủ công
 hoặc dừng; không dùng nhân viên/OCR làm fallback. Không thay AI/ngưỡng mặt.
+Bổ sung theo yêu cầu: một app/package và một server, bỏ bridge HTTP; một
+workflow APK, chữ ký ổn định, một lệnh chạy, lưu trữ launcher cũ và giữ DB/khóa.
 
 - [x] Contract hỗ trợ mặt sau tùy chọn và retry thiếu chân dung, tương thích client cũ.
 - [x] Backend QR-only, không dùng trường OCR/client QR để cứu ảnh không đọc được.
 - [x] Android không dùng OCR kích hoạt chụp; QR/chân dung được kiểm lại trên ảnh
       tĩnh, không ghép kết quả cũ giữa các thẻ/lượt; chất lượng, timeout và lỗi rõ.
 - [x] Tự gửi, xác nhận thông tin trước quay mặt; xử lý retry có giới hạn.
+- [x] Bộ đọc trong API dùng chung SCRFD; chỉ một package/workflow APK và lệnh chạy server.
+- [ ] Xuất APK bằng chữ ký ổn định sau chấp thuận cấu hình signing secrets; chuyển bản cài khi test lại.
 - [x] Unit/API/contract/build/lint/snapshot đạt, kiểm runtime QR-only; tài liệu,
       bàn giao và plan_check; ghi rõ phạm vi nghiệm thu điện thoại.
 

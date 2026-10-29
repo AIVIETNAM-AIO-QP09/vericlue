@@ -1,5 +1,9 @@
 # services/api — Máy chủ API (FastAPI)
 
+**APP-08 (29/10):** Một app VeriClue, một server API cổng 8421. Bộ đọc QR/chân dung
+chạy trong tiến trình API và dùng chung SCRFD; không cần identity HTTP bridge.
+Hướng dẫn hiện tại: [demo một bản](../../docs/runbooks/vericlue-demo.md).
+
 SEC-06 bổ sung API consent/rút lại theo phiên (migration `0010_privacy_receipts`)
 và retention hữu hạn khi `PRODUCT_MODE=ekyc`. Mode này không đăng ký route
 review/forensic, không tạo ca chờ nhân viên; `review` là chưa thể xác minh, không

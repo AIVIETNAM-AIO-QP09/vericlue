@@ -4,6 +4,9 @@
 !.env.example
 *.pem
 *.key
+*.p12
+*.jks
+*.keystore
 secrets/
 
 # ── Dữ liệu, mô hình, mã nguồn bên ngoài (KHÔNG commit) ─────

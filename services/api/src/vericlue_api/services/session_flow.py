@@ -485,7 +485,7 @@ class SessionFlow:
         outcome = route_face(outcome, session.purpose, device_verified=session.device_verified)
         # This bridge compares a newly scanned card. Reauth uses enrolled identity/device
         # context (FLOW-05/SEC-02), not a fresh CCCD or the staff-review card gate.
-        if session.account_id or s.identity_lab_url and session.purpose != "reauth":
+        if session.account_id or s.identity_card_enabled and session.purpose != "reauth":
             if session_valid:
                 identity = self.account_auth.current(session) if session.account_id else None
                 session.results.update(
@@ -663,7 +663,11 @@ class SessionFlow:
             session_valid=session_valid and self._valid_time(session, voice_challenge=True),
         )
         outcome = route_voice(outcome, session.purpose)
-        if session.account_id or self.settings.identity_lab_url and session.purpose != "reauth":
+        if (
+            session.account_id
+            or self.settings.identity_card_enabled
+            and session.purpose != "reauth"
+        ):
             outcome = self._identity_gate(session, outcome)
         if continuity_enabled:
             outcome = self._continuity_gate(session, outcome)

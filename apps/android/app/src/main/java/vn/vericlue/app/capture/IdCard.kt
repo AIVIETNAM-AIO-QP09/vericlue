@@ -45,9 +45,8 @@ object CardText {
 }
 
 /**
- * Takes the ID photo by itself once [needed] frames in a row are sharp, glare-free and show card
- * words, so the user does not have to hold the phone still and tap. The shutter button stays as a
- * fallback. A wrong shot is caught by the pause after each side and the review screen, not here.
+ * Requests a still photo after [needed] fresh frames show the portrait/QR with usable quality.
+ * The captured still is checked again before upload; timeout/manual controls belong to the UI.
  */
 class IdAutoCapture(private val needed: Int = 2, private val back: Boolean = false) {
     private var good = 0

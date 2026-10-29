@@ -11,8 +11,10 @@ kiểm lại trên chính bitmap rồi gửi JPEG. Không dùng frame phân tíc
 ảnh chính. Front có QR thì gửi một mặt; thiếu thì thu mặt còn lại. Server đọc
 lại QR và kiểm chân dung, không OCR. Tự gửi, xác nhận thông tin trước quay mặt.
 20 giây hoặc ba lần chụp chưa đủ thì hiện chụp thủ công/dừng; không vòng lặp gửi
-server tự động. `vericlue.qrTest=true` cùng usbTest tạo **VeriClue QR**, package
-`vn.vericlue.app.qrtest`, giữ nguyên app/Keystore cũ. Hardware acceptance còn chờ.
+server tự động. Chỉ một package **vn.vericlue.app**, nhãn **VeriClue**;
+bỏ các profile USB/QR/remote riêng. Workflow `Android VeriClue APK` xuất
+`VeriClue.apk` với chữ ký demo ổn định khi đã được cấp phép cấu hình.
+Hardware acceptance còn chờ. Xem [demo một bản](../../docs/runbooks/vericlue-demo.md).
 
 APP-07: luồng đầy đủ Giả lập và API dùng chung `FaceTimelineScreen` và bộ UI A
 hiện có (khung oval lúc giữ yên, hướng dẫn quay đầu trên camera). Giả lập tạo
@@ -45,7 +47,7 @@ Chọn lại luồng ở màn bắt đầu luôn tạo LiveFlow mới. Server hi
 `503 flow_unavailable` ở bước sinh trắc của reauth/recovery có tài khoản (ra màn "Dịch vụ
 chưa sẵn sàng"), kể cả mock. Đăng ký cần `ACCOUNT_ENROLLMENT=true` và đầy đủ cấu hình
 mô hình thật/mã hóa/các cổng ghi danh mới có receipt; bật cờ trên API mock không đủ.
-`signedMedia` vẫn mặc định **false**; bản thử tài khoản phải build với
+`signedMedia` mặc định **true**; bản thử tài khoản phải build với
 `-Pvericlue.signedMedia=true`. Manifest ký đã nhận `reauth`, không mở chốt server.
 Không có màn hình mới. Xem
 [`account-authentication.md`](../../docs/architecture/account-authentication.md).
@@ -54,7 +56,7 @@ Không có màn hình mới. Xem
 - **Bản dựng khung camera, micro, API** (nhánh `feat/APP-02-camera-mic-scaffold`): đã chạy hết luồng trên máy ảo với API mock.
 - **Điện thoại thật (27/10):** Galaxy S24 FE, bản debug qua `adb reverse`, API mock nhánh FLOW-01: đăng ký `genuine` → đạt không đọc câu, `low_quality` → chụp lại, `voice_clone` → đọc câu → chờ duyệt. Chưa thử qua HTTPS và bản release; chưa kiểm chiều quay đầu, rung, gián đoạn. Chi tiết: `docs/status/handoffs/2026-10-27-2000-app-01-ng-c-quang-claude.md`.
 - **Việc cần trưởng nhóm duyệt/chốt:** [`docs/can-chot.md`](docs/can-chot.md) (33 mục, có cột trả lời; nhóm H là luồng gọn, nhóm I là khi chạy identity lab).
-- **Luồng đăng ký gọn (24/10, Figma "Đề xuất · Luồng gọn"):** Điều khoản + đồng ý (1 màn) → Số điện thoại → OTP (tự điền, vẫn gõ tay được) → CCCD tự chụp mặt trước, dừng 1 nhịp → mặt sau → Xem lại 2 mặt → Chuẩn bị → Căn mặt → phần mặt (1 video) → **Kiểm tra thông tin** (bấm "Thông tin đúng" xong mới gửi video) → Đọc câu → Kết quả. Không còn màn Giới thiệu và Xin quyền: camera xin lúc mở camera, micro xin ở bước đọc câu. App gửi `id-card/confirm` trước media và `finalize` (server nhánh FLOW-05 không nhận xác nhận sau media).
+- **Luồng đăng ký gọn (24/10, Figma "Đề xuất · Luồng gọn"):** Điều khoản + đồng ý (1 màn) → Số điện thoại → OTP (tự điền, vẫn gõ tay được) → CCCD tự chụp mặt trước → mặt sau chỉ khi thiếu QR → tự gửi → **Kiểm tra thông tin** → Chuẩn bị → Căn mặt → phần mặt (1 video) → Đọc câu → Kết quả. Không còn màn Giới thiệu và Xin quyền: camera xin lúc mở camera, micro xin ở bước đọc câu. App gửi `id-card/confirm` trước media và `finalize` (server nhánh FLOW-05 không nhận xác nhận sau media).
 - **Kế hoạch đầy đủ:** [`docs/plan-camera-mic.md`](docs/plan-camera-mic.md) (giai đoạn, thư viện, đồng hồ thời gian, câu hỏi cần chốt). Mục 11 của file đó ghi đã làm tới đâu.
 
 | Phần | Đã thật | Còn giả hoặc chưa làm |

@@ -1,8 +1,9 @@
-"""Private QR/OCR runtime bridge; face matching runs locally through the ML orchestrator."""
+"""One application-owned QR/portrait scanner; no HTTP bridge or OCR fallback."""
 
 from __future__ import annotations
 
-import httpx
+from threading import Lock
+from typing import Any
 
 from vericlue_api.core.config import Settings
 from vericlue_api.core.errors import ApiError
@@ -11,31 +12,40 @@ from vericlue_api.core.errors import ApiError
 class IdentityRuntime:
     def __init__(self, settings: Settings):
         self.settings = settings
+        self._scanner: Any = None
+        self._initializing = Lock()
 
-    def _post(self, endpoint: str, images: dict[str, bytes]) -> dict:
-        try:
-            with httpx.Client(
-                timeout=self.settings.identity_lab_timeout_seconds, trust_env=False
-            ) as client:
-                response = client.post(
-                    self.settings.identity_lab_url.rstrip("/") + endpoint,
-                    files={
-                        name: (name + ".jpg", value, "application/octet-stream")
-                        for name, value in images.items()
-                    },
-                )
-                response.raise_for_status()
-                body = response.json()
-                if not isinstance(body, dict):
-                    raise ValueError("Invalid runtime response")
-                return body
-        except (httpx.HTTPError, ValueError) as exc:
-            raise ApiError(
-                503, "identity_unavailable", "Không thể xử lý ảnh lúc này. Vui lòng thử lại."
-            ) from exc
+    def _create_scanner(self):
+        from vericlue_api.services.card_scanner import CardScanner
+
+        return CardScanner(models_dir=self.settings.models_dir, device=self.settings.device)
+
+    def preload(self) -> None:
+        """Load once on demand, or explicitly before starting the demo server."""
+        with self._initializing:
+            if self._scanner is not None:
+                return
+            try:
+                scanner = self._create_scanner()
+                scanner.preload()
+            except Exception:
+                raise ApiError(
+                    503, "identity_unavailable", "Dịch vụ đọc thẻ chưa sẵn sàng."
+                ) from None
+            self._scanner = scanner
 
     def scan(self, front: bytes, back: bytes | None) -> dict:
-        images = {"front": front}
-        if back is not None:
-            images["back"] = back
-        return self._post("/internal/id-card", images)
+        """Read uploaded images locally; only sanitized errors leave this boundary."""
+        self.preload()
+        from vericlue_api.services.card_scanner import InputError
+
+        try:
+            return self._scanner.scan(front, back)
+        except InputError:
+            raise ApiError(
+                422, "invalid_id_card", "Ảnh thẻ chưa phù hợp. Vui lòng chụp lại."
+            ) from None
+        except Exception:
+            raise ApiError(
+                503, "identity_unavailable", "Không thể xử lý ảnh lúc này. Vui lòng thử lại."
+            ) from None

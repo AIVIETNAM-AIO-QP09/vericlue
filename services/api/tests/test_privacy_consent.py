@@ -189,7 +189,7 @@ def test_policy_change_cannot_reuse_collected_document_for_face_match(private_cl
     collect_document(client, sid, auth)
     assert upload_face(client, sid, auth).status_code == 200
     root = client.app.state.vericlue
-    root.settings.identity_lab_url = "http://identity.invalid"
+    root.settings.identity_card_enabled = True
     root.settings.privacy_policy_version = "test-v2"
     assert grant(client, sid, auth, ["face_biometrics"], "test-v2").status_code == 200
 

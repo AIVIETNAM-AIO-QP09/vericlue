@@ -24,7 +24,7 @@ from vericlue_ml.face.video_match import VideoFaceMatchDetector
 def enabled(monkeypatch):
     monkeypatch.setenv("SESSION_PRIVACY", "true")
     monkeypatch.setenv("SESSION_MASTER_KEY", base64.b64encode(secrets.token_bytes(32)).decode())
-    monkeypatch.setenv("IDENTITY_LAB_URL", "http://127.0.0.1:8010")
+    monkeypatch.setenv("IDENTITY_CARD_ENABLED", "true")
     monkeypatch.setenv("IDENTITY_FACE_FROM_VIDEO", "true")
     monkeypatch.setenv("IDENTITY_VOICE_CONTINUITY", "true")
     instances, inputs = [], []

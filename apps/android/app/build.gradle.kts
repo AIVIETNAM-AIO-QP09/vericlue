@@ -6,22 +6,16 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
-// API address. Emulator → host machine is 10.0.2.2. Override with
+// One package for every connection method; developers may override the endpoint with
 // ./gradlew assembleRelease -Pvericlue.apiBaseUrl=https://<tunnel>/  (never hard-code the tunnel)
-val apiBaseUrl = (project.findProperty("vericlue.apiBaseUrl") as String?) ?: "http://10.0.2.2:8000/"
-val signedMedia = (project.findProperty("vericlue.signedMedia") as String?)?.toBooleanStrict() ?: false
-val usbTest = (project.findProperty("vericlue.usbTest") as String?)?.toBooleanStrict() ?: false
-val qrTest = (project.findProperty("vericlue.qrTest") as String?)?.toBooleanStrict() ?: false
-if (qrTest && !usbTest) throw GradleException("QR test requires the signed localhost USB profile.")
-if (usbTest && (apiBaseUrl != "http://localhost:8421/" || !signedMedia)) {
-    throw GradleException("USB test requires localhost:8421 and signed media.")
-}
-
+val apiBaseUrl = (project.findProperty("vericlue.apiBaseUrl") as String?) ?: "http://localhost:8421/"
+val signedMedia = (project.findProperty("vericlue.signedMedia") as String?)?.toBooleanStrict() ?: true
+val demoStore = System.getenv("VERICLUE_ANDROID_KEYSTORE_PATH")
+val demoStorePassword = System.getenv("VERICLUE_ANDROID_KEYSTORE_PASSWORD")
 // A release build only talks HTTPS: stop it when the address is not https:// (debug may use http).
 val checkReleaseApiUrl by tasks.registering {
     val url = apiBaseUrl
     doLast {
-        if (usbTest) throw GradleException("USB test is debug-only.")
         if (!url.startsWith("https://")) {
             throw GradleException("Release cần -Pvericlue.apiBaseUrl=https://… (đang là \"$url\").")
         }
@@ -37,21 +31,27 @@ android {
         applicationId = "vn.vericlue.app"
         minSdk = 29 // Android 10 (ADR-0014)
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.2.0-scaffold"
+        versionCode = 2
+        versionName = "0.3.0"
         manifestPlaceholders["appLabel"] = "@string/app_name"
 
         buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
         buildConfigField("boolean", "SIGNED_MEDIA", signedMedia.toString())
     }
 
+    if (!demoStore.isNullOrBlank()) {
+        require(!demoStorePassword.isNullOrBlank()) { "Missing demo signing password." }
+        signingConfigs.create("vericlueDemo") {
+            storeFile = file(demoStore)
+            storeType = "PKCS12"
+            storePassword = demoStorePassword
+            keyAlias = "vericlue-demo"
+            keyPassword = demoStorePassword
+        }
+    }
     buildTypes {
         debug {
-            if (usbTest) {
-                applicationIdSuffix = if (qrTest) ".qrtest" else ".usbtest"
-                versionNameSuffix = if (qrTest) "-qr" else "-usb"
-                manifestPlaceholders["appLabel"] = if (qrTest) "VeriClue QR" else "VeriClue USB"
-            }
+            if (!demoStore.isNullOrBlank()) signingConfig = signingConfigs.getByName("vericlueDemo")
         }
         release {
             // R8 removes unused code (most of material-icons-extended) and resources.
@@ -59,7 +59,7 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             // Demo only: signed with the local debug key so it installs. Use a real key before any release.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName(if (demoStore.isNullOrBlank()) "debug" else "vericlueDemo")
         }
     }
     compileOptions {

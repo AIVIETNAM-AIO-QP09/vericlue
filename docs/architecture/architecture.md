@@ -1,5 +1,9 @@
 # Kiến trúc kỹ thuật VeriClue
 
+**APP-08 (29/10):** Một app VeriClue, một server API cổng 8421. Bộ đọc QR/chân dung
+chạy trong tiến trình API và dùng chung SCRFD; không cần identity HTTP bridge.
+Hướng dẫn hiện tại: [demo một bản](../runbooks/vericlue-demo.md).
+
 > **Nguồn sự thật về thiết kế kỹ thuật.** Khi code khác tài liệu này, hoặc sửa code cho đúng, hoặc mở ADR mới (`docs/adr/`) rồi cập nhật tài liệu này **trong cùng PR**.
 > Bản hình ảnh cho người không chuyên: `docs/architecture/architecture.html`.
 > Yêu cầu sản phẩm: `docs/proposal/proposal.md`.

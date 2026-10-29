@@ -21,7 +21,7 @@ FILES = {
 
 
 def enable(client, monkeypatch, payload):
-    client.app.state.vericlue.settings.identity_lab_url = "http://127.0.0.1:8010"
+    client.app.state.vericlue.settings.identity_card_enabled = True
     monkeypatch.setattr(IdentityRuntime, "scan", lambda self, front, back: payload)
     body, auth = start_session(client)
     return body["session_id"], auth

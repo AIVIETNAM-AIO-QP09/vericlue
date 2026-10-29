@@ -179,9 +179,8 @@ class Settings(BaseSettings):
     otp_max_sends: int = 3  # số lần gửi mã mỗi phiên
     # Khóa HMAC cho số điện thoại và số CCCD (FLOW-03). Mặc định chỉ để chạy dev; máy demo đặt ID_HMAC_KEY.
     id_hmac_key: SecretStr = SecretStr("dev-only-not-secret")
-    # Opt-in identity flow: remote QR/OCR, local SCRFD + LVFace-B via the orchestrator.
-    identity_lab_url: str | None = None
-    identity_lab_timeout_seconds: float = Field(default=90, gt=0, le=180)
+    # In-process QR/SCRFD reader and LVFace identity matching; no second HTTP service.
+    identity_card_enabled: bool = False
     identity_card_portrait_required: bool = False
     identity_face_calibration: str | None = None
     identity_account_calibration: str | None = None
@@ -203,10 +202,10 @@ class Settings(BaseSettings):
         if self.identity_consistency_required and not self.identity_face_from_video:
             raise ValueError("IDENTITY_CONSISTENCY_REQUIRED requires IDENTITY_FACE_FROM_VIDEO")
         if self.identity_voice_continuity and (
-            not self.identity_face_from_video or not self.identity_lab_url
+            not self.identity_face_from_video or not self.identity_card_enabled
         ):
             raise ValueError(
-                "IDENTITY_VOICE_CONTINUITY requires video identity and IDENTITY_LAB_URL"
+                "IDENTITY_VOICE_CONTINUITY requires video identity and IDENTITY_CARD_ENABLED"
             )
         return self
 

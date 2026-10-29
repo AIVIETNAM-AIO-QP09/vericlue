@@ -1,13 +1,15 @@
 import numpy as np
 import pytest
-from qr_scanner import CardScanner, InputError
+
+from vericlue_api.services.card_scanner import CardScanner, InputError
 
 QR = "001099012345||Test Person|01011995|Nam|Test Address|15062021"
 
 
 def test_valid_qr_uses_no_ocr(monkeypatch):
     monkeypatch.setattr(
-        "qr_scanner.decode_image", lambda _: np.zeros((100, 100, 3), dtype=np.uint8)
+        "vericlue_api.services.card_scanner.decode_image",
+        lambda _: np.zeros((100, 100, 3), dtype=np.uint8),
     )
     scanner = CardScanner(portrait_check=lambda _: True)
     monkeypatch.setattr(scanner, "qr_values", lambda _: [QR])
@@ -17,7 +19,8 @@ def test_valid_qr_uses_no_ocr(monkeypatch):
 
 def test_missing_qr_never_falls_back_to_text(monkeypatch):
     monkeypatch.setattr(
-        "qr_scanner.decode_image", lambda _: np.zeros((100, 100, 3), dtype=np.uint8)
+        "vericlue_api.services.card_scanner.decode_image",
+        lambda _: np.zeros((100, 100, 3), dtype=np.uint8),
     )
 
     def forbidden(_):
@@ -30,7 +33,8 @@ def test_missing_qr_never_falls_back_to_text(monkeypatch):
 
 def test_conflicting_qr_candidates_are_preserved_for_api_validation(monkeypatch):
     monkeypatch.setattr(
-        "qr_scanner.decode_image", lambda _: np.zeros((100, 100, 3), dtype=np.uint8)
+        "vericlue_api.services.card_scanner.decode_image",
+        lambda _: np.zeros((100, 100, 3), dtype=np.uint8),
     )
     scanner = CardScanner(portrait_check=lambda _: True)
     values = [QR, QR.replace("001099012345", "001099999999")]

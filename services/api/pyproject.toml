@@ -15,6 +15,7 @@ dependencies = [
   "psycopg[binary]>=3.2,<4",
   "cryptography>=50.0.2,<51",
   "pillow>=10,<13",
+  "zxing-cpp>=3.1,<4",
 ]
 
 [tool.uv.sources]

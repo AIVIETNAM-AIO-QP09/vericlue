@@ -57,10 +57,12 @@ class IdentitySteps:
         channel: OtpChannel | None = None,
         *,
         privacy: SessionPrivacy | None = None,
+        runtime: IdentityRuntime | None = None,
     ) -> None:
         self.settings = settings
         self.channel = channel or SimulatedSms()
         self.privacy = privacy
+        self.runtime = runtime or IdentityRuntime(settings)
 
     def _key(self) -> str:
         return self.settings.id_hmac_key.get_secret_value()
@@ -205,14 +207,14 @@ class IdentitySteps:
         session.id_confirmed_fields = None
         session.id_confirmed_number_hmac = None
         session.results.pop(Module.FACE_MATCH, None)
-        if not self.settings.identity_lab_url:
+        if not self.settings.identity_card_enabled:
             if (
                 self.settings.use_mock_models is not True
                 or self.settings.identity_card_portrait_required
             ):
                 raise ApiError(503, "identity_unavailable", "Dịch vụ đọc thẻ chưa sẵn sàng.")
             return self.accept_id_card(session, client_qr)
-        data = IdentityRuntime(self.settings).scan(front, back)
+        data = self.runtime.scan(front, back)
         codes = data.get("qr_values", [])
         if not isinstance(codes, list) or not all(isinstance(v, str) for v in codes):
             raise ApiError(503, "identity_unavailable", "Dịch vụ đọc thẻ chưa sẵn sàng.")
@@ -261,7 +263,7 @@ class IdentitySteps:
             )
         submitted = confirmed.model_dump(mode="json", exclude_unset=True, exclude={"id_number"})
         given = {**session.id_fields, **submitted}
-        if self.settings.identity_lab_url and not all(
+        if self.settings.identity_card_enabled and not all(
             (
                 confirmed.full_name and confirmed.full_name.strip(),
                 confirmed.id_number,

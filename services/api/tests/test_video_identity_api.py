@@ -21,7 +21,7 @@ from vericlue_ml.presence.views import SelectedFrame
 
 def test_api_uses_bound_video_frame_even_when_uploaded_still_is_not_an_image(monkeypatch):
     cv2 = pytest.importorskip("cv2")
-    monkeypatch.setenv("IDENTITY_LAB_URL", "http://127.0.0.1:8010")
+    monkeypatch.setenv("IDENTITY_CARD_ENABLED", "true")
     monkeypatch.setenv("IDENTITY_FACE_FROM_VIDEO", "true")
     monkeypatch.delenv("FACE_MATCH_CALIBRATION", raising=False)
     monkeypatch.delenv("IDENTITY_FACE_CALIBRATION", raising=False)
@@ -126,7 +126,7 @@ def test_opt_in_detectors_share_one_task_owner():
 
     orchestrator = orchestration.Orchestrator(
         Settings(
-            identity_lab_url="http://127.0.0.1:8010",
+            identity_card_enabled=True,
             identity_face_from_video=True,
             session_face_checks=True,
         )

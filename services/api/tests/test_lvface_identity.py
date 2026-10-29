@@ -32,7 +32,7 @@ def identity_app(monkeypatch, tmp_path, request):
     instances = []
     mode = options.get("calibration")
     monkeypatch.delenv("FACE_MATCH_CALIBRATION", raising=False)
-    monkeypatch.setenv("IDENTITY_LAB_URL", "http://127.0.0.1:8010")
+    monkeypatch.setenv("IDENTITY_CARD_ENABLED", "true")
     # The old AdaFace variable must never become an implicit LVFace threshold.
     monkeypatch.setenv("IDENTITY_FACE_THRESHOLD", "0.40")
     if mode:
@@ -88,13 +88,12 @@ def identity_app(monkeypatch, tmp_path, request):
             self.inputs.append(inp.model_copy(deep=True))
             return super().predict(inp)
 
-    def remote(self, endpoint, images):
-        assert endpoint == "/internal/id-card", "Face matching must not call AdaFace over HTTP"
-        assert set(images) == {"front", "back"}
+    def local_scan(self, front, back):
+        assert front and back
         return {"qr_values": [QR], "fields": {}}
 
     monkeypatch.setattr(orchestration, "FaceMatchDetector", SyntheticLVFace)
-    monkeypatch.setattr(IdentityRuntime, "_post", remote)
+    monkeypatch.setattr(IdentityRuntime, "scan", local_scan)
     get_settings.cache_clear()
     with TestClient(create_app()) as client:
         yield client, instances
