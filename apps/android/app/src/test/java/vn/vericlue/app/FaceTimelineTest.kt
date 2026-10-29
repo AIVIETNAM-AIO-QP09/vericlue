@@ -12,6 +12,19 @@ import java.io.File
 
 /** The FLOW-01 schedule runs on the server's marks, from the recording's first frame. */
 class FaceTimelineTest {
+    @Test fun offlineTimelineHasAllPhasesAndReturnsToCenter() {
+        val order = listOf(vn.vericlue.app.flow.TurnDir.Right, vn.vericlue.app.flow.TurnDir.Left)
+        val tl = FaceTimeline.demo(order)
+        assertTrue(vn.vericlue.app.capture.ColorSchedule.isSafe(tl.slots))
+        assertEquals(8, tl.gaze.size)
+        assertEquals(tl.coloursEndMs, tl.gaze.first().atMs)
+        assertTrue(tl.gaze.zipWithNext().all { (a, b) -> a.atMs < b.atMs })
+        assertTrue(tl.phaseAt(tl.gaze[1].atMs.toDouble()) is Phase.Gaze)
+        assertEquals(order + listOf(null), tl.headTurns)
+        assertEquals(Phase.Head(2, null), tl.phaseAt(tl.endMs - 1.0))
+        assertEquals(Phase.Done, tl.phaseAt(tl.endMs.toDouble()))
+    }
+
     private val json = Json { ignoreUnknownKeys = true }
 
     /** The contract's own example (packages/contracts/examples), so the app follows the real shape. */

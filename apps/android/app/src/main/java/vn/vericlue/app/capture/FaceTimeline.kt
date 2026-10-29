@@ -57,6 +57,18 @@ class FaceTimeline(
     }
 
     companion object {
+        /** Offline preview only. Never used to replace a missing/invalid server challenge. */
+        fun demo(order: List<TurnDir>): FaceTimeline {
+            val slots = ColorSchedule.demo().dropLast(1)
+            val start = slots.sumOf { it.durationMs }
+            val random = kotlin.random.Random.Default
+            val marks = List(8) { i ->
+                GazeMark(random.nextDouble(0.15, 0.85), random.nextDouble(0.3, 0.7), start + i * 850)
+            }
+            return FaceTimeline(slots, 500, marks, order + listOf(null),
+                marks.last().atMs, (order.size + 1) * 2000)
+        }
+
         /**
          * Re-auth (FLOW-01): the server sends no schedule and wants passive capture only: no colour,
          * dot or head turn. A short steady recording with the frontal still at 0.5 s.

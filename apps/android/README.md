@@ -4,6 +4,15 @@
 
 ## Trạng thái
 
+APP-07: luồng đầy đủ Giả lập và API dùng chung `FaceTimelineScreen` và bộ UI A
+hiện có (khung oval lúc giữ yên, hướng dẫn quay đầu trên camera). Giả lập tạo
+lịch cục bộ; API luôn theo lịch/tọa độ toàn màn hình do server cấp, không rơi về
+lịch mẫu khi lỗi. `StableCameraScene` giữ một PreviewView, chỉ biến đổi lớp hiển
+thị qua các cửa sổ camera, không gắn lại View hoặc đổi kích thước layout trong
+lúc quay. Màn quay đầu riêng trong gallery chỉ phục vụ xem màn. Snapshot mới
+bao phủ các pha ở sáng/tối, 375dp và chữ 200%; nghiệm thu video liên tục trên máy
+thật vẫn phải kiểm riêng. Activity hiện khóa dọc, không bổ sung flow xoay ngang.
+
 SEC-02 opt-in: build thêm `-Pvericlue.signedMedia=true` để `LiveFlow` dùng khóa
 Android Keystore ký media mặt/giọng và gửi public key lúc tạo phiên. Không đổi
 giao diện. API cần migration 0004; nonce/manifest và giới hạn xem
