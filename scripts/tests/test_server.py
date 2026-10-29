@@ -1,10 +1,13 @@
 """A single server entry point must not start duplicates or kill unrelated processes."""
 
+from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
 import pytest
 
-from scripts import server
+_spec = spec_from_file_location("vericlue_server_cli", Path(__file__).parents[1] / "server.py")
+server = module_from_spec(_spec)
+_spec.loader.exec_module(server)
 
 
 def test_startup_is_exclusive_and_releases_after_error(tmp_path):

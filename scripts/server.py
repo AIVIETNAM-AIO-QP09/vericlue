@@ -191,7 +191,14 @@ def _start(runtime: Path) -> None:
         time.sleep(1)
     # The Popen handle identifies our own child, even before it writes a PID file.
     if child.poll() is None:
-        child.terminate()
+        if os.name == "nt":
+            subprocess.run(
+                ["taskkill", "/PID", str(child.pid), "/T", "/F"], capture_output=True, check=True
+            )
+        else:
+            import signal
+
+            os.killpg(child.pid, signal.SIGTERM)
         child.wait(timeout=15)
     raise SystemExit("Server chưa sẵn sàng; kiểm log riêng, không chạy thêm bản khác.")
 
