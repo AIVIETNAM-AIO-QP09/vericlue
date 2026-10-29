@@ -107,17 +107,17 @@ fun FaceReadyScreen(onBack: () -> Unit, onReady: () -> Unit, onSkipFlash: () -> 
         onBack = onBack,
         step = 2,
         actions = {
-            PrimaryButton("Tôi đã sẵn sàng", onReady)
-            LinkButton("Bỏ qua nháy màu, chờ nhân viên xác minh", onSkipFlash)
+            PrimaryButton("Bắt đầu", onReady)
+            LinkButton("Tôi không thể tiếp tục", onSkipFlash)
         },
     ) {
-        TitleBlock("Tiếp theo: quay khuôn mặt", "Giữ điện thoại cách mặt khoảng 25 đến 40 cm, ở nơi đủ sáng.")
+        TitleBlock("Xác minh khuôn mặt", "Đặt điện thoại ngang tầm mắt, tại nơi đủ sáng.")
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            NumberedRow(1, "1 · Giữ đầu yên".substringAfter(" · "), "Nhìn thẳng. Màn hình sẽ đổi màu nhạt, rồi một chấm sáng chạy: chỉ đưa mắt theo.")
-            NumberedRow(2, "2 · Quay trái, quay phải".substringAfter(" · "), "Làm theo mũi tên.", last = true)
+            NumberedRow(1, "1 · Giữ đầu thẳng".substringAfter(" · "), "Nhìn thẳng khi màn hình đổi màu, sau đó đưa mắt theo chấm sáng.")
+            NumberedRow(2, "2 · Quay đầu theo hướng dẫn".substringAfter(" · "), "Làm theo mũi tên.", last = true)
         }
         Banner(
-            "Màn hình sẽ đổi màu nhạt trong vài giây. Người nhạy cảm với ánh sáng nhấp nháy không nên tiếp tục. Bạn có thể bấm Dừng bất cứ lúc nào.",
+            "Màn hình sẽ đổi màu trong lúc xác minh. Nếu nhạy cảm với ánh sáng nhấp nháy, hãy dừng tại đây.",
             tone = Tone.Warn,
         )
     }
@@ -191,14 +191,14 @@ fun FramingScreen(
                 Box(Modifier.fillMaxWidth().offset(y = oval.bottom + 24.dp), contentAlignment = Alignment.TopCenter) {
                     when (state) {
                         FramingState.NoFace -> GuidanceChip("Đưa khuôn mặt vào khung", Icons.Outlined.CenterFocusWeak)
-                        FramingState.LowLight -> GuidanceChip("Ra chỗ sáng hơn", Icons.Outlined.WbSunny, Tone.Warn)
-                        FramingState.TooFar -> GuidanceChip("Lại gần hơn", Icons.Outlined.OpenInFull)
+                        FramingState.LowLight -> GuidanceChip("Chọn nơi đủ sáng", Icons.Outlined.WbSunny, Tone.Warn)
+                        FramingState.TooFar -> GuidanceChip("Đưa điện thoại lại gần hơn", Icons.Outlined.OpenInFull)
                         FramingState.OffCenter -> GuidanceChip("Đưa khuôn mặt vào giữa khung hình", Icons.Outlined.CenterFocusWeak)
-                        FramingState.Good -> GuidanceChip("Tốt, giữ nguyên", Icons.Outlined.Check, Tone.Ok)
+                        FramingState.Good -> GuidanceChip("Giữ yên khuôn mặt", Icons.Outlined.Check, Tone.Ok)
                     }
                 }
                 Text(
-                    if (good) "Đang tự chụp…" else "Ảnh sẽ tự chụp khi đủ điều kiện",
+                    if (good) "Đang tự chụp…" else "Giữ khuôn mặt trong khung",
                     style = VcType.bodySmall,
                     color = Color.White.copy(alpha = 0.85f),
                     textAlign = TextAlign.Center,
@@ -476,8 +476,8 @@ private fun TurnHeadContent(
                 ) {
                     GuidanceChip(when {
                         dir == null -> "Giữ yên, nhìn thẳng vào camera"
-                        returnToCenter -> "Từ từ, rồi quay lại nhìn thẳng"
-                        else -> "Từ từ, theo hướng mũi tên"
+                        returnToCenter -> "Quay chậm, sau đó nhìn thẳng"
+                        else -> "Quay chậm theo hướng mũi tên"
                     })
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         repeat(total) { i ->

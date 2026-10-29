@@ -90,6 +90,9 @@ object FlowRules {
     fun cardQr(frontQr: String?, backQr: String?): String? =
         backQr?.takeIf(String::isNotBlank) ?: frontQr?.takeIf(String::isNotBlank)
 
+    /** Retry with a back image only after the server actually needs an unread front QR. */
+    fun needsCardBack(hint: String?, hasBack: Boolean): Boolean = hint == "QR_UNREADABLE" && !hasBack
+
     /** After OTP: re-auth skips the ID card (ADR-0013). */
     fun afterOtp(purpose: Purpose): String =
         if (purpose == Purpose.Reauth) Routes.FaceReady else Routes.IdFront
@@ -287,17 +290,8 @@ object OtpRules {
         text?.let { Regex("(?<!\\d)\\d{$LENGTH}(?!\\d)").find(it)?.value }
 }
 
-/**
- * Terms must be scrolled to the end before the box can be ticked. Immutable so it can sit in
- * a single Compose state: every change recomposes the button too.
- */
-data class Agreement(val readToEnd: Boolean = false, val accepted: Boolean = false) {
-    fun reachedEnd(): Agreement = copy(readToEnd = true)
-
-    fun toggle(): Agreement = if (readToEnd) copy(accepted = !accepted) else this
-
-    val canContinue: Boolean get() = readToEnd && accepted
-
-    /** Terms and consent share one screen: the button also needs every required consent item. */
-    fun canContinueWith(consented: Set<Int>, required: Set<Int>): Boolean = canContinue && consented.containsAll(required)
+/** Explicit UI consent; reading or scrolling alone never enables continuing. */
+data class Agreement(val accepted: Boolean = false) {
+    fun toggle(): Agreement = copy(accepted = !accepted)
+    val canContinue: Boolean get() = accepted
 }

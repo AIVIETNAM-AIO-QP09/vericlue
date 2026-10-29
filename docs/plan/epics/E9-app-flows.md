@@ -331,6 +331,31 @@ workflow APK, chữ ký ổn định, một lệnh chạy, lưu trữ launcher c
 
 ---
 
+### APP-09 · Tối ưu đăng ký và ngôn từ Android
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M1 | 1,5 | S2 | P0 | PLAT-04 |
+
+Yêu cầu 29/10: redesign điều khoản/đồng ý, bỏ chữ phụ không giúp thao tác,
+chuẩn hóa ngôn từ lịch sự và chính xác. Người dùng chốt một mặt khi đủ QR và
+chân dung, chỉ thêm mặt sau khi cần; không OCR. Một app/server như APP-08.
+Xuất ảnh Compose thật theo thứ tự đăng ký để người dùng góp ý; dữ liệu giả lập,
+không dùng ảnh căn cước/người dùng thật, không cài điện thoại hoặc mở server.
+
+- [x] Điều khoản một vùng cuộn, tóm tắt dữ liệu/mục đích, chi tiết mở khi cần;
+      không ép cuộn/giả định đã đọc, không tick sẵn hoặc giả tùy chọn lưu trữ.
+- [x] Rà ngôn từ toàn luồng đăng ký; giữ gợi ý hữu ích, quyền người dùng, lỗi và
+      dữ kiện cần thiết; bỏ thời hạn/nhân viên/cài đặt chưa được triển khai.
+- [x] Thử đọc mặt trước trước khi xin mặt sau; xác nhận thông tin trước khuôn mặt;
+      QR/portrait thiếu/lỗi không thành đạt, không QR mẫu/OCR cứu ảnh.
+- [x] Test logic điều hướng/đồng ý, build/lint; render ảnh từ code Compose đã sửa
+      theo thứ tự; kiểm sáng/tối, màn nhỏ, chữ lớn và ghi rõ phạm vi chưa kiểm.
+- [x] Runbook/backlog/handoff cập nhật; plan_check không lỗi. Bản dựa APP-08
+      chưa merge, không thay package/model/ngưỡng/contract hoặc khóa.
+
+---
+
 ### APP-02 ★ · App: chụp mặt, quay 3 giây, quay đầu ngẫu nhiên
 
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |

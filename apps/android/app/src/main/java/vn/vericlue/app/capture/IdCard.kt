@@ -83,7 +83,7 @@ class IdAutoCapture(private val needed: Int = 2, private val back: Boolean = fal
 
 /** A single actionable message; detection is an input-quality check, never identity approval. */
 fun idScanHint(q: IdQuality?, back: Boolean): String = when {
-    q == null -> "Đưa thẻ vào khung hình"
+    q == null -> if (back) "Đưa mặt có mã QR vào khung" else "Đưa mặt có ảnh chân dung vào khung"
     q.brightness < 45 -> "Đưa thẻ đến nơi sáng hơn"
     !q.noGlare -> "Nghiêng nhẹ thẻ để tránh lóa"
     q.tilted -> "Giữ thẻ thẳng và song song với camera"

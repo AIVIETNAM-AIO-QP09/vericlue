@@ -1,6 +1,7 @@
 package vn.vericlue.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +15,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
+import androidx.compose.material.icons.outlined.Badge
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.QrCode2
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -44,34 +50,51 @@ fun IdScanScreen(
     VcTheme(dark = true) {
         val c = Vc.colors
         VcScreen(onBack = onBack, step = 1, actions = {
-            if (timedOut) PrimaryButton("Chụp thủ công", onManual, enabled = !taking)
-            LinkButton("Dừng quét", onStop)
+            if (timedOut) PrimaryButton("Chụp ảnh thẻ", onManual, enabled = !taking)
+            LinkButton("Dừng xác minh", onStop)
         }) {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(if (back) "Lật thẻ để đọc mã QR" else "Đưa mặt có chân dung vào khung", style = VcType.titleLarge, color = c.ink)
+                Text(if (back) "Quét thêm mặt có mã QR" else "Quét thẻ căn cước", style = VcType.titleLarge, color = c.ink)
                 Box(Modifier.fillMaxWidth().aspectRatio(1.586f).clip(RoundedCornerShape(12.dp))) {
-                    CameraFeed()
+                    CameraFeed(placeholder = { CardGuide(back) })
                     if (taking) Box(Modifier.fillMaxSize().background(c.background.copy(alpha = 0.65f)), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = c.accent)
                     }
                 }
-                Text(if (taking) "Đang chụp ảnh rõ nét" else hint ?: idScanHint(quality, back), style = VcType.bodyStrong, color = c.ink)
-                ScanCheck("Đã đọc mã QR", CccdQr.parse(quality?.qr) != null)
-                if (!back) ScanCheck("Đã thấy ảnh chân dung", quality?.portraitPresent == true)
-                Text("Ứng dụng tự chụp và gửi khi đủ điều kiện. Bạn không cần bấm nút chụp.", style = VcType.bodySmall, color = c.muted)
-                if (timedOut) Banner("Giữ đủ bốn góc thẻ trong khung, lau ống kính và tránh phản chiếu đèn. Bạn có thể chụp thủ công; ảnh vẫn cần đọc được QR.")
+                Text(if (taking) "Đang chụp ảnh" else hint ?: idScanHint(quality, back), style = VcType.bodyStrong, color = c.ink)
+                ScanCheck("Đã đọc mã QR", "Đang tìm mã QR", CccdQr.parse(quality?.qr) != null)
+                if (!back) ScanCheck("Đã tìm thấy ảnh chân dung", "Đang tìm ảnh chân dung", quality?.portraitPresent == true)
+                if (timedOut) Banner("Đặt đủ bốn góc thẻ trong khung và tránh ánh sáng phản chiếu. Bạn có thể chụp ảnh để thử lại.")
             }
         }
     }
 }
 
+/** A schematic guide for preview/no camera permission, never a real ID or readable QR. */
 @Composable
-private fun ScanCheck(text: String, found: Boolean) {
+private fun CardGuide(back: Boolean) {
+    val c = Vc.colors
+    Box(Modifier.fillMaxSize().background(c.surface).padding(18.dp), contentAlignment = Alignment.Center) {
+        Row(Modifier.fillMaxSize().border(1.dp, c.border, RoundedCornerShape(10.dp)).padding(18.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+            Icon(if (back) Icons.Outlined.Badge else Icons.Outlined.Person, contentDescription = null,
+                modifier = Modifier.size(64.dp), tint = c.muted)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                repeat(3) { Box(Modifier.fillMaxWidth(if (it == 2) 0.65f else 1f).height(6.dp)
+                    .background(c.border, RoundedCornerShape(3.dp))) }
+            }
+            Icon(Icons.Outlined.QrCode2, contentDescription = null, modifier = Modifier.size(34.dp), tint = c.muted)
+        }
+    }
+}
+
+@Composable
+private fun ScanCheck(foundText: String, pendingText: String, found: Boolean) {
     val c = Vc.colors
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(if (found) Icons.Outlined.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
             contentDescription = null, tint = if (found) c.ok else c.muted, modifier = Modifier.size(22.dp))
-        Text(if (found) text else text.removePrefix("Đã ").replaceFirstChar { it.uppercase() } + " — đang tìm", style = VcType.bodySmall, color = c.ink)
+        Text(if (found) foundText else pendingText, style = VcType.bodySmall, color = c.ink)
     }
 }
 
@@ -86,8 +109,8 @@ fun IdProcessingScreen(onStop: () -> Unit, onRetake: () -> Unit, error: String? 
             verticalArrangement = Arrangement.spacedBy(20.dp)) {
             Spacer(Modifier.height(24.dp))
             if (error == null) CircularProgressIndicator(color = c.accent)
-            Text(if (error == null) "Đang đọc thông tin trên thẻ" else "Chưa thể đọc đủ thông tin", style = VcType.titleLarge, color = c.ink)
-            Text(error ?: "Ảnh đã được gửi. Vui lòng giữ ứng dụng mở trong giây lát.", style = VcType.body, color = c.muted)
+            Text(if (error == null) "Đang đọc thông tin thẻ" else "Chưa đọc được thông tin", style = VcType.titleLarge, color = c.ink)
+            if (error != null) Text(error, style = VcType.body, color = c.ink)
         }
     }
 }

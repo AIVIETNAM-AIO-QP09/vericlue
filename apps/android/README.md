@@ -4,11 +4,29 @@
 
 ## Trạng thái
 
+APP-09: màn đồng ý tóm tắt dữ liệu cần sử dụng, mở chi tiết trong cùng vùng cuộn,
+không tick sẵn hay bắt cuộn hết. Xác nhận đồng ý hiện nằm trong luồng UI; chưa
+thay thế receipt/chính sách đồng ý của backend. Các lựa chọn lưu trữ không có
+hiệu lực thực tế đã được bỏ. Giữ cảnh báo nháy sáng và hướng dẫn/lỗi cần thiết;
+không hứa SMS, nhân viên duyệt, thời hạn lưu hoặc tài khoản đã sẵn sàng khi
+chưa có bằng chứng từ API. Chỉ báo thành công sau kết quả đạt; không đánh dấu
+giọng nói đã đạt khi phiên không yêu cầu đọc câu.
+
+Quét mặt có chân dung trước và để server thử QR trên ảnh chụp đầy đủ. Chỉ lỗi
+`qr_unreadable` khi chưa thu mặt còn lại mới yêu cầu quét thêm mặt có QR;
+lỗi chân dung, QR sai định dạng hoặc lỗi mạng không tự biến thành yêu cầu
+chụp mặt sau. Luôn xem/xác nhận thông tin trước khuôn mặt. Không có nút bỏ qua
+chụp mặt/quay đầu trong luồng chuẩn; chế độ Giả lập vẫn ở gallery debug.
+Ảnh review mới dùng `OnboardingJourneySnapshotTest` (Paparazzi), dữ liệu minh họa;
+bao phủ sáng/tối, 375dp, chữ 200% và bố cục ngang để kiểm lỗi. Activity vẫn khóa
+dọc. Ảnh render không chứng minh camera, QR, AI hoặc tương tác trên máy thật.
+
 APP-08 thay quét thẻ bằng QR/chân dung, bỏ dependency ML Kit Text Recognition.
 Camera sau phân tích liên tục QR/ảnh chân dung trong khung, một gợi ý chất lượng;
 đủ điều kiện thì chụp ImageCapture, xoay/crop vùng thẻ và giới hạn cạnh 2560px,
 kiểm lại trên chính bitmap rồi gửi JPEG. Không dùng frame phân tích 480×640 làm
-ảnh chính. Front có QR thì gửi một mặt; thiếu thì thu mặt còn lại. Server đọc
+ảnh chính. Đủ QR và chân dung trên một mặt thì dùng một mặt; thiếu QR mới thu
+mặt còn lại. Server đọc
 lại QR và kiểm chân dung, không OCR. Tự gửi, xác nhận thông tin trước quay mặt.
 20 giây hoặc ba lần chụp chưa đủ thì hiện chụp thủ công/dừng; không vòng lặp gửi
 server tự động. Chỉ một package **vn.vericlue.app**, nhãn **VeriClue**;
@@ -97,7 +115,9 @@ cd apps/android
 ./gradlew recordPaparazziDebug   # chụp ảnh mọi màn trên máy tính (không cần giả lập), ra app/src/test/snapshots/images
 ```
 
-Địa chỉ API mặc định là `http://10.0.2.2:8000/` (máy ảo gọi về máy tính). Đổi khi build, không ghi cứng địa chỉ đường hầm vào code:
+Địa chỉ API mặc định là `http://localhost:8421/` cho ADB reverse (qua USB hoặc
+Wi-Fi). Máy ảo có thể truyền `http://10.0.2.2:8421/`. Đổi khi build, không ghi
+cứng địa chỉ đường hầm vào code:
 
 ```bash
 ./gradlew assembleDebug -Pvericlue.apiBaseUrl=https://<địa-chỉ-cloudflared>/
@@ -111,8 +131,8 @@ Test trên điện thoại ở xa, laptop làm server: xem
 [hướng dẫn Tailscale và APK nội bộ](../../docs/runbooks/android-remote-test.md).
 Workflow đóng gói ký media và endpoint HTTPS riêng; API test vẫn là mock.
 
-Test trực tiếp bằng cáp: [bản VeriClue USB và ADB reverse](../../docs/runbooks/android-usb-test.md).
-Bản USB có package riêng, ký media và chỉ gọi localhost qua cáp; không gỡ bản đang dùng.
+Test bằng ADB reverse qua USB hoặc Wi-Fi: dùng cùng app VeriClue và server
+8421. Không tạo package USB/QR riêng. Xem [demo một bản](../../docs/runbooks/vericlue-demo.md).
 
 | File | Dùng cho |
 |---|---|
@@ -135,7 +155,9 @@ uv run --frozen uvicorn vericlue_api.main:app --app-dir services/api/src --host 
 
 Trong app (bản debug): màn ngân hàng mẫu → **"Xem tất cả màn (bản demo giao diện)"** → chọn **"API thật"** và một kịch bản mock (`genuine`, `low_quality`, `voice_clone`, `error`…) → mở **"Chuẩn bị"** → "Tôi đã sẵn sàng".
 
-Máy ảo không có mặt người trước camera nên bản debug có nút **"Chụp ngay (debug)"** ở màn căn mặt và **"Bỏ qua (debug)"** ở màn quay đầu. Camera máy ảo cũng không đọc được QR, nên màn xem lại CCCD có nút **"Dùng mã QR mẫu (debug)"**: thay chuỗi QR và ảnh mặt sau bằng ảnh QR mẫu (dữ liệu giả, `src/debug/res/raw/sample_cccd_qr.jpg`), dùng được cả khi server bật identity lab. Các nút này không có trong bản release. Mở máy ảo với `-camera-back virtualscene` để camera sau có hình.
+Máy ảo không có mặt người: dùng gallery/chế độ Giả lập để xem UI, hoặc
+Paparazzi để render. Luồng chuẩn tự chụp theo cổng chất lượng, không có nút
+chụp ngay/bỏ qua để vượt bước. Không dùng QR mẫu cứu lượt quét thẻ thật.
 
 Kết quả đã thử trên máy ảo (23–24/10): `genuine` → thành công; `voice_clone` → đọc câu → chờ duyệt; `low_quality` → chụp lại (câu nhắc và số lần còn lại lấy từ server); `error`, `print` → chờ duyệt. Server nhận được ảnh JPEG, video MP4 và tín hiệu.
 
@@ -165,7 +187,8 @@ app/src/main/java/vn/vericlue/app/
 - Mọi mốc thời gian gửi server dùng `CaptureClock` (elapsedRealtime, ms). Xem mục 4 của kế hoạch.
 - Màn camera và màn nháy màu **không có hiệu ứng trang trí**; chỉ chấm sáng, mũi tên quay đầu và thanh tiến độ được chuyển động.
 - Màu và cỡ chữ lấy từ `ui/theme`, không viết mã màu trong màn.
-- Ảnh CCCD 2 mặt và chuỗi QR gửi ở `id-card` (QR mặt sau, không có thì QR mặt trước).
+- `id-card` nhận ảnh mặt có chân dung và QR; ảnh mặt còn lại chỉ gửi khi cần
+  lấy QR. Server luôn đọc/kiểm lại; QR không chứng minh tính thật của thẻ.
 - Phông Be Vietnam Pro (SIL OFL 1.1) đóng gói trong `res/font`, chạy offline. Giấy phép: `third_party/licenses/BeVietnamPro-OFL.txt`.
 - Phong cách **A · Tối giản ấm**: nền trắng ngà, nút navy dạng pill, điểm nhấn cam nhỏ; nội dung tách bằng khoảng trắng/đường kẻ, nút chính trong tấm đáy. Minh họa CCCD vẽ bằng Canvas, không thêm ảnh hay thư viện.
 - Kiểu chữ dùng `VcType`: tiêu đề 32 sp/Bold, dòng 1,2; thân chữ 15 sp, dòng 1,5. Các màn căn mặt/nháy màu/quay đầu/đọc câu giữ cỡ chữ và bố cục camera cũ (`cameraTitle`, `cameraButton`, `Banner(cameraLayout = true)`). Mọi kiểu chữ Material cũng dùng Be Vietnam Pro.
