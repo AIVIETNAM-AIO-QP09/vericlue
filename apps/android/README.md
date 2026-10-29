@@ -4,6 +4,20 @@
 
 ## Trạng thái
 
+APP-10: quét thẻ yêu cầu ảnh phân tích tối đa 1920×1440, fallback theo khả năng
+CameraX/thiết bị; camera trước dùng cấu hình cũ. Bước lấy QR không chạy thêm
+face detector. ML Kit trả cả vùng nghi là QR và có thể đề nghị zoom; chỉ bước
+QR được zoom, giới hạn theo phần cứng và tối đa 3×, reset khi mở bước khác.
+Hai lần đọc cùng QR trong 1,5 giây có thể cách nhau các khung chưa đọc được;
+kết quả đổi/quá hạn/reset không nối thành lượt cũ. Dấu đọc QR được giữ ngắn
+hạn cho UI, không dùng làm bằng chứng cho ảnh chụp mới. Ảnh tự chụp ở bước QR
+phải tự giải mã được; chụp thủ công vẫn có thể gửi ảnh rõ để server thử bộ đọc
+độc lập. QR đã giải mã không bị chặn bởi tỷ lệ điểm trắng trên toàn khung.
+Không nới điều kiện kiểm danh tính/đọc lại QR của server. Log debug tag
+`VeriClueCardScan` chỉ gồm kích thước, thời gian và cờ boolean, không có ảnh,
+nội dung QR hoặc thông tin cá nhân. Cần nghiệm thu thực tế, không suy tốc độ
+hay độ chính xác từ cấu hình độ phân giải.
+
 APP-09: màn đồng ý tóm tắt dữ liệu cần sử dụng, mở chi tiết trong cùng vùng cuộn,
 không tick sẵn hay bắt cuộn hết. Xác nhận đồng ý hiện nằm trong luồng UI; chưa
 thay thế receipt/chính sách đồng ý của backend. Các lựa chọn lưu trữ không có

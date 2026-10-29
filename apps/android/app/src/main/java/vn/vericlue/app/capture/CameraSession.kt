@@ -6,6 +6,8 @@ import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.hardware.camera2.CameraCharacteristics
 import android.os.SystemClock
+import android.util.Log
+import android.util.Size
 import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.CameraSelector
@@ -14,6 +16,9 @@ import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
+import androidx.camera.core.resolutionselector.AspectRatioStrategy
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.video.FileOutputOptions
 import androidx.camera.video.Recording
 import androidx.camera.video.VideoRecordEvent
@@ -24,6 +29,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
+import com.google.mlkit.vision.barcode.ZoomSuggestionOptions
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.FaceDetection
@@ -39,6 +45,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import vn.vericlue.app.data.api.FrameTime
+import vn.vericlue.app.BuildConfig
 
 /**
  * One camera session for the whole face part: the front camera stays on from framing to the
@@ -64,9 +71,23 @@ class CameraSession(private val context: Context) {
     private val _idQuality = MutableStateFlow<IdQuality?>(null)
     val idQuality: StateFlow<IdQuality?> = _idQuality
     private val qrScanner = BarcodeScanning.getClient(
-        BarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build(),
+        BarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+            .enableAllPotentialBarcodes()
+            .setZoomSuggestionOptions(ZoomSuggestionOptions.Builder(::suggestQrZoom)
+                .setMaxSupportedZoomRatio(3f).build())
+            .build(),
     )
     @Volatile private var backMode = false
+    @Volatile private var idQrOnly = false
+    private var lastQrZoomMs = 0L
+    private var lastCardDiagnosticMs = 0L
+    private val cardResolution = ResolutionSelector.Builder()
+        .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
+        .setResolutionStrategy(ResolutionStrategy(Size(1920, 1440),
+            ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER))
+        .setResolutionFilter { sizes, _ -> sizes.filter { it.width.toLong() * it.height <= 1920L * 1440 }
+            .ifEmpty { sizes } }
+        .build()
     private var idRequest: CompletableDeferred<Pair<ByteArray, IdQuality>>? = null
     private val qrState = QrCaptureState()
 
@@ -114,10 +135,11 @@ class CameraSession(private val context: Context) {
      * when the device cannot record alongside analysis, and returns false when no camera can be
      * opened, so the caller shows an error screen instead of crashing.
      */
-    suspend fun start(owner: LifecycleOwner, back: Boolean): Boolean {
+    suspend fun start(owner: LifecycleOwner, back: Boolean, idQrOnly: Boolean = false): Boolean {
         if (!awaitInitialized()) return false
         if (backMode != back) clearQr()
         backMode = back
+        this.idQrOnly = back && idQrOnly
         val preferred = if (back) CameraSelector.DEFAULT_BACK_CAMERA else CameraSelector.DEFAULT_FRONT_CAMERA
         val other = if (back) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
         val selector = listOf(preferred, other).firstOrNull { runCatching { controller.hasCamera(it) }.getOrDefault(false) }
@@ -128,8 +150,10 @@ class CameraSession(private val context: Context) {
         }
         val choices = if (back) listOf(CameraController.IMAGE_ANALYSIS or CameraController.IMAGE_CAPTURE)
             else listOf(CameraController.IMAGE_ANALYSIS or CameraController.VIDEO_CAPTURE, CameraController.IMAGE_ANALYSIS)
-        for (useCases in choices) {
+        val resolutions = if (back) listOf(cardResolution, null) else listOf(null)
+        for (resolution in resolutions) for (useCases in choices) {
             val ok = runCatching {
+                controller.imageAnalysisResolutionSelector = resolution
                 controller.setEnabledUseCases(useCases)
                 controller.cameraSelector = selector
                 if (!bound) controller.bindToLifecycle(owner)
@@ -138,10 +162,27 @@ class CameraSession(private val context: Context) {
                 bound = true
                 videoEnabled = useCases and CameraController.VIDEO_CAPTURE != 0
                 usedFallbackCamera = selector != preferred
+                runCatching { controller.setZoomRatio(1f) }
+                lastQrZoomMs = 0L
+                lastCardDiagnosticMs = 0L
                 return true
             }
         }
         return false
+    }
+
+    /** ML Kit invokes this on the main thread. Never zoom the portrait or face-video step. */
+    private fun suggestQrZoom(suggestion: Float): Boolean {
+        if (!bound || !backMode || !idQrOnly) return false
+        val state = controller.zoomState.value ?: return false
+        val target = suggestion.coerceIn(1f, minOf(3f, state.maxZoomRatio))
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastQrZoomMs < 700 || kotlin.math.abs(target - state.zoomRatio) < 0.1f) return false
+        return runCatching {
+            controller.setZoomRatio(target)
+            lastQrZoomMs = now
+            true
+        }.getOrDefault(false)
     }
 
     private suspend fun awaitInitialized(): Boolean = suspendCancellableCoroutine { cont ->
@@ -179,13 +220,13 @@ class CameraSession(private val context: Context) {
                     }
                     image.close()
                     val qrTask = qrScanner.process(InputImage.fromBitmap(bitmap, 0))
-                    val faceTask = cardFaceDetector.process(InputImage.fromBitmap(bitmap, 0))
-                    Tasks.whenAllComplete(qrTask, faceTask).addOnCompleteListener(analysisExecutor) {
+                    val faceTask = if (idQrOnly) null else cardFaceDetector.process(InputImage.fromBitmap(bitmap, 0))
+                    Tasks.whenAllComplete(listOfNotNull(qrTask, faceTask)).addOnCompleteListener(analysisExecutor) {
                         try {
                             if (generation != qrState.generation() || !req.isActive) { req.cancel(); return@addOnCompleteListener }
-                            if (!qrTask.isSuccessful || !faceTask.isSuccessful) throw IllegalStateException("Card analysis unavailable")
+                            if (!qrTask.isSuccessful || faceTask?.isSuccessful == false) throw IllegalStateException("Card analysis unavailable")
                             val qr = qrTask.result.firstNotNullOfOrNull { it.rawValue?.takeIf { raw -> CccdQr.parse(raw) != null } }
-                            val faces = faceTask.result
+                            val faces = faceTask?.result.orEmpty()
                             val q = bitmapQuality(bitmap).copy(qr = qr, portraitPresent = faces.size == 1,
                                 tilted = faces.singleOrNull()?.let { kotlin.math.abs(it.headEulerAngleZ) > 15f } ?: false,
                                 looksLikeCard = faces.size == 1 || qr != null)
@@ -464,6 +505,7 @@ class CameraSession(private val context: Context) {
     @androidx.annotation.OptIn(ExperimentalGetImage::class)
     private fun analyzeIdFrame(proxy: ImageProxy, media: android.media.Image, rotation: Int) {
         val generation = qrState.generation()
+        val started = SystemClock.elapsedRealtime()
         val luma = meanLuma(proxy).toDouble()
         val plane = proxy.planes[0]
         val buf = plane.buffer.duplicate()
@@ -471,26 +513,31 @@ class CameraSession(private val context: Context) {
         val sharp = ImageChecks.laplacianVariance(bytes, proxy.width, proxy.height, plane.rowStride)
         val glare = ImageChecks.glareFraction(bytes, proxy.width, proxy.height, plane.rowStride)
         val qrTask = qrScanner.process(InputImage.fromMediaImage(media, rotation))
-        val faceTask = cardFaceDetector.process(InputImage.fromMediaImage(media, rotation))
+        val faceTask = if (idQrOnly) null else cardFaceDetector.process(InputImage.fromMediaImage(media, rotation))
         val width = if (rotation % 180 == 0) proxy.width else proxy.height
         val height = if (rotation % 180 == 0) proxy.height else proxy.width
         val cardHeight = minOf(height.toFloat(), width / 1.586f)
         val top = (height - cardHeight) / 2f
-        Tasks.whenAllComplete(qrTask, faceTask).addOnCompleteListener(analysisExecutor) {
+        Tasks.whenAllComplete(listOfNotNull(qrTask, faceTask)).addOnCompleteListener(analysisExecutor) {
             try {
                 if (generation != qrState.generation() || !backMode) return@addOnCompleteListener
                 if ((_idQuality.value?.frameTimeNs ?: 0L) >= proxy.imageInfo.timestamp) return@addOnCompleteListener
-                if (!qrTask.isSuccessful || !faceTask.isSuccessful) { _idQuality.value = null; return@addOnCompleteListener }
+                if (!qrTask.isSuccessful || faceTask?.isSuccessful == false) { _idQuality.value = null; return@addOnCompleteListener }
                 val qr = qrTask.result.firstNotNullOfOrNull { code ->
                     val box = code.boundingBox
                     code.rawValue?.takeIf { raw -> box != null && box.top >= top && box.bottom <= top + cardHeight && CccdQr.parse(raw) != null }
                 }
-                val faces = faceTask.result.filter { it.boundingBox.top >= top && it.boundingBox.bottom <= top + cardHeight }
-                qrState.update(generation, qr)
+                val faces = faceTask?.result.orEmpty().filter { it.boundingBox.top >= top && it.boundingBox.bottom <= top + cardHeight }
+                qrState.update(generation, qr, proxy.imageInfo.timestamp)
                 _idQuality.value = IdQuality(sharp, glare, qr, faces.size == 1 || qr != null,
                     portraitPresent = faces.size == 1, brightness = luma,
                     tilted = faces.singleOrNull()?.let { kotlin.math.abs(it.headEulerAngleZ) > 15f } ?: false,
-                    frameTimeNs = proxy.imageInfo.timestamp)
+                    frameTimeNs = proxy.imageInfo.timestamp,
+                    qrRecentlySeen = qrState.recentlySeen(generation, proxy.imageInfo.timestamp))
+                if (BuildConfig.DEBUG && started - lastCardDiagnosticMs >= 1000) {
+                    lastCardDiagnosticMs = started
+                    Log.d("VeriClueCardScan", "size=${proxy.width}x${proxy.height} qrOnly=$idQrOnly candidate=${qrTask.result.any { it.boundingBox != null }} decoded=${qrTask.result.any { it.rawValue != null }} qrRead=${qr != null} portrait=${faces.size == 1} sharp=${sharp >= IdQuality.MIN_SHARPNESS} glareClear=${glare <= IdQuality.MAX_GLARE} bright=${luma >= 45} elapsedMs=${SystemClock.elapsedRealtime() - started}")
+                }
             } finally { proxy.close() }
         }
     }

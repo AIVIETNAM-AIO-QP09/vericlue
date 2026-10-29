@@ -62,7 +62,7 @@ fun IdScanScreen(
                     }
                 }
                 Text(if (taking) "Đang chụp ảnh" else hint ?: idScanHint(quality, back), style = VcType.bodyStrong, color = c.ink)
-                ScanCheck("Đã đọc mã QR", "Đang tìm mã QR", CccdQr.parse(quality?.qr) != null)
+                ScanCheck("Đã đọc mã QR", "Đang tìm mã QR", CccdQr.parse(quality?.qr) != null || quality?.qrRecentlySeen == true)
                 if (!back) ScanCheck("Đã tìm thấy ảnh chân dung", "Đang tìm ảnh chân dung", quality?.portraitPresent == true)
                 if (timedOut) Banner("Đặt đủ bốn góc thẻ trong khung và tránh ánh sáng phản chiếu. Bạn có thể chụp ảnh để thử lại.")
             }

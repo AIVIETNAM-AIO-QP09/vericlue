@@ -10,6 +10,7 @@ import vn.vericlue.app.capture.CccdQr
 import vn.vericlue.app.capture.IdAutoCapture
 import vn.vericlue.app.capture.IdQuality
 import vn.vericlue.app.capture.ImageChecks
+import vn.vericlue.app.capture.idCaptureUsable
 import vn.vericlue.app.ui.screens.idRetakeHint
 
 class IdCardTest {
@@ -92,6 +93,44 @@ class IdCardTest {
     @Test fun frontDoesNotCaptureAReadableQrWithoutAPortrait() {
         val auto = IdAutoCapture()
         repeat(3) { assertFalse(auto.offer(IdQuality(500.0, 0.0, qr))) }
+    }
+
+    @Test fun readableQrIsNotBlockedByWholeFrameQualityHeuristics() {
+        val auto = IdAutoCapture(back = true)
+        val read = IdQuality(1.0, 0.7, qr, brightness = 20.0, frameTimeNs = 1)
+        assertFalse(auto.offer(read))
+        assertTrue(auto.offer(read.copy(frameTimeNs = 2)))
+        assertTrue(idCaptureUsable(read, back = true, manual = false))
+        assertFalse(idCaptureUsable(read.copy(qr = null), back = true, manual = false))
+    }
+
+    @Test fun intermittentMatchingReadsCanCompleteWithinTheShortWindow() {
+        val auto = IdAutoCapture(back = true)
+        val read = IdQuality(500.0, 0.0, qr, frameTimeNs = 1)
+        assertFalse(auto.offer(read))
+        assertFalse(auto.offer(read.copy(qr = null, frameTimeNs = 100_000_001)))
+        assertTrue(auto.offer(read.copy(frameTimeNs = 300_000_001)))
+    }
+
+    @Test fun expiredChangedOrResetQrCannotCompleteThePreviousRun() {
+        val auto = IdAutoCapture(back = true)
+        val read = IdQuality(500.0, 0.0, qr, frameTimeNs = 1)
+        assertFalse(auto.offer(read))
+        val later = read.copy(frameTimeNs = IdAutoCapture.QR_HOLD_NS + 2)
+        assertFalse(auto.offer(later))
+        val different = later.copy(qr = qr.replace("001095012345", "001095012346"), frameTimeNs = later.frameTimeNs + 1)
+        assertFalse(auto.offer(different))
+        auto.reset()
+        assertFalse(auto.offer(different.copy(frameTimeNs = different.frameTimeNs + 1)))
+    }
+
+    @Test fun retainedQrFeedbackCannotApproveANewPhoto() {
+        val noQr = IdQuality(500.0, 0.0, null, qrRecentlySeen = true)
+        assertFalse(idCaptureUsable(noQr, back = true, manual = false))
+        // Manual fallback may send a clear photo to the server's independent decoder.
+        assertTrue(idCaptureUsable(noQr, back = true, manual = true))
+        assertFalse(idCaptureUsable(noQr.copy(sharpness = 1.0), back = true, manual = true))
+        assertFalse(idCaptureUsable(noQr, back = false, manual = false))
     }
 
     @Test
