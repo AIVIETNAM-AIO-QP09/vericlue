@@ -52,3 +52,28 @@ def test_checksum_path_traversal_is_rejected(build):
         out.write("0" * 64 + "  ../private-key.p12\n")
     with pytest.raises(ValueError, match="checksum"):
         signer.check_build(build, SHA)
+
+
+@pytest.mark.parametrize(("scheme", "prefix"), [("v2", "Signer #1"), ("v3", "V3.0 Signer:")])
+def test_sdk_signer_output_formats(scheme, prefix):
+    pin = "a" * 64
+    signer.require_pinned_signature(
+        f"Verified using {scheme} scheme (APK Signature Scheme): true\n"
+        f"{prefix} certificate SHA-256 digest: {pin}\n",
+        pin,
+    )
+
+
+def test_different_certificate_cannot_pass():
+    with pytest.raises(ValueError, match="Chữ ký"):
+        signer.require_pinned_signature(
+            "Verified using v3 scheme: true\nV3.0 Signer: certificate SHA-256 digest: " + "b" * 64,
+            "a" * 64,
+        )
+
+
+def test_certificate_alone_without_verified_modern_signature_cannot_pass():
+    with pytest.raises(ValueError, match="Chữ ký"):
+        signer.require_pinned_signature(
+            "Signer #1 certificate SHA-256 digest: " + "a" * 64, "a" * 64
+        )

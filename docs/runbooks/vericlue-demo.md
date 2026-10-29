@@ -16,7 +16,7 @@ lấy từ `VERICLUE_REMOTE_API_URL`, mặc định localhost:8421 nếu chưa c
 **Khóa ký giữ trên laptop.** CI không nhận keystore hoặc mật khẩu, không cần
 signing secrets. Bản chưa ký chỉ là đầu vào build, chưa cài lên điện thoại.
 `scripts/sign_android.py` kiểm đủ checksum, commit/package/cấu hình trước khi
-ký bằng khóa hiện có; sau đó kiểm chữ ký APK v2 và fingerprint công khai tại
+ký bằng khóa hiện có; sau đó kiểm chữ ký APK v2/v3 và fingerprint công khai tại
 `apps/android/demo-signing-cert.sha256`. Không tạo khóa thay thế nếu thiếu khóa.
 Mật khẩu đọc từ file riêng, không truyền giá trị qua command line hoặc log.
 
@@ -83,3 +83,12 @@ tài khoản trong thay đổi gom server. QR/chân dung không chứng minh th�
 chip/NFC hoặc dữ liệu nhà nước. Toàn bộ regression API, test engine/khởi động
 và native QR bằng ảnh tổng hợp đã đạt; chưa nghiệm thu camera thật. Người dùng
 tạm ngưng test thiết bị; server hiện dừng.
+
+### Kết quả ký trên laptop
+
+Đầu vào từ CI run **40838096774**, head **d6a61c5**: APK package `vn.vericlue.app`,
+được SDK xác minh chữ ký v3, fingerprint khớp public pin và checksum cuối đã ghi.
+File cài tại `D:/Projects/Data4Life/tmp/vericlue-app/VeriClue.apk`. Không cài
+điện thoại, không mở server; hardware_acceptance vẫn not_verified. Khóa không
+được upload lên GitHub. Bản sửa helper đọc một file mật khẩu đúng một lần,
+nhận dạng đầu ra SDK v2/v3; không bỏ kiểm chứng chữ ký hoặc pin.

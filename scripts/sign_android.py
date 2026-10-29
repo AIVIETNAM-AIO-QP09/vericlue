@@ -61,6 +61,14 @@ def run_tool(java: Path, jar: Path, args: list[str]) -> str:
     return result.stdout
 
 
+def require_pinned_signature(report: str, pin: str) -> None:
+    """Handle SDK output for v2/v3 signers; require only the pinned certificate."""
+    certs = re.findall(r"certificate SHA-256 digest: ([a-f0-9]{64})", report)
+    modern = re.search(r"Verified using v[23](?:\.\d+)? scheme[^\n]*: true", report)
+    if set(certs) != {pin} or not modern:
+        raise ValueError("Chữ ký APK không đúng khóa đã chốt hoặc thiếu v2/v3.")
+
+
 def sign_build(folder: Path, expected_source: str, java: Path, store: Path, output: Path) -> Path:
     info = check_build(folder, expected_source)
     key = store / "vericlue-demo.p12"
@@ -87,8 +95,6 @@ def sign_build(folder: Path, expected_source: str, java: Path, store: Path, outp
                 "vericlue-demo",
                 "--ks-pass",
                 "file:" + str(password),
-                "--key-pass",
-                "file:" + str(password),
                 "--v2-signing-enabled",
                 "true",
                 "--out",
@@ -97,9 +103,7 @@ def sign_build(folder: Path, expected_source: str, java: Path, store: Path, outp
             ],
         )
         verified = run_tool(java, jar, ["verify", "--verbose", "--print-certs", str(apk)])
-        certs = re.findall(r"Signer #\d+ certificate SHA-256 digest: ([a-f0-9]+)", verified)
-        if certs != [pin] or not re.search(r"Verified using v2 scheme[^\n]*: true", verified):
-            raise ValueError("Chữ ký APK không đúng khóa đã chốt hoặc thiếu v2.")
+        require_pinned_signature(verified, pin)
         digest = hashlib.sha256(apk.read_bytes()).hexdigest()
         info.update({"signing": "signed_on_laptop", "signer_sha256": pin, "apk_sha256": digest})
         (Path(temporary) / "build-info.json").write_text(
