@@ -56,7 +56,7 @@ class IdAutoCapture(private val needed: Int = 2, private val back: Boolean = fal
 
     /** True when this frame completes the run: take it. */
     fun offer(q: IdQuality): Boolean {
-        if (q.frameTimeNs > 0 && q.frameTimeNs == lastFrame) return false
+        if (q.frameTimeNs > 0 && q.frameTimeNs <= lastFrame) return false
         lastFrame = q.frameTimeNs
         val qr = CccdQr.parse(q.qr)
         val visible = if (back) qr != null else q.portraitPresent

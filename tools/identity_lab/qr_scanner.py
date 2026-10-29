@@ -53,6 +53,10 @@ class CardScanner:
 
     def preload(self):
         """Load only the existing SCRFD portrait finder; never load a text model."""
+        import zxingcpp
+
+        if not callable(zxingcpp.read_barcodes):
+            raise RuntimeError("QR decoder unavailable")
         if self._portrait_check is not None or self._finder is not None:
             return
         from vericlue_ml.face.pad import ScrfdFaceFinder, _models_root, shared_scrfd_session

@@ -86,6 +86,7 @@ class IdCardTest {
         assertFalse(auto.offer(first))
         assertFalse(auto.offer(first))
         assertTrue(auto.offer(first.copy(frameTimeNs = 2)))
+        assertFalse(auto.offer(first)) // late asynchronous result cannot complete a new observation
     }
 
     @Test fun frontDoesNotCaptureAReadableQrWithoutAPortrait() {

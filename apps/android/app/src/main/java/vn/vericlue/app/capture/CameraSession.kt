@@ -479,6 +479,7 @@ class CameraSession(private val context: Context) {
         Tasks.whenAllComplete(qrTask, faceTask).addOnCompleteListener(analysisExecutor) {
             try {
                 if (generation != qrState.generation() || !backMode) return@addOnCompleteListener
+                if ((_idQuality.value?.frameTimeNs ?: 0L) >= proxy.imageInfo.timestamp) return@addOnCompleteListener
                 if (!qrTask.isSuccessful || !faceTask.isSuccessful) { _idQuality.value = null; return@addOnCompleteListener }
                 val qr = qrTask.result.firstNotNullOfOrNull { code ->
                     val box = code.boundingBox
