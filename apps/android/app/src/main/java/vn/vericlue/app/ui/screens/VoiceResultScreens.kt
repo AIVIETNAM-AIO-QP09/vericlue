@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.CloudUpload
@@ -93,7 +94,7 @@ private fun CameraStillOn() {
                 Box(Modifier.size(6.dp).clip(CircleShape).background(c.ok))
                 Text("Camera", style = VcType.labelXs, color = c.ink)
             }
-            Text("Camera vẫn bật. Giữ mặt trong khung khi đọc.", style = VcType.caption, color = c.muted)
+            Text("Giữ khuôn mặt trong khung khi đọc.", style = VcType.caption, color = c.muted)
         }
     }
 }
@@ -133,31 +134,7 @@ fun VoiceScreen(
 ) {
     val c = Vc.colors
     var recording by remember { mutableStateOf(startRecording) }
-    VcScreen(onBack = onBack, step = 3) {
-        CameraStillOn()
-        if (again) {
-            TitleBlock("Hãy đọc lại", "Chuyển đến nơi yên tĩnh hơn và đọc to, rõ ràng câu mới bên dưới.", titleStyle = VcType.cameraTitle)
-        } else {
-            Text("Đọc to câu sau", style = VcType.cameraTitle, color = c.ink)
-        }
-        Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surfaceInfo).padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Icon(Icons.Outlined.FormatQuote, contentDescription = null, tint = c.accent, modifier = Modifier.size(22.dp))
-            Text(
-                sentence?.let { "“$it”" }
-                    ?: if (again) "“Tôi xác nhận mở tài khoản, mã số tám ba năm một.”" else "“Tôi xác nhận mở tài khoản, mã số bốn bảy hai chín.”",
-                style = VcType.titleMedium,
-                color = c.ink,
-            )
-        }
-        Text(
-            if (again) "Số lần đọc lại còn lại: 1" else "Đọc rõ ràng, ở nơi yên tĩnh. Câu thay đổi mỗi lần.",
-            style = VcType.caption,
-            color = c.muted,
-        )
-        Spacer(Modifier.height(24.dp))
+    VcScreen(onBack = onBack, step = 3, actions = {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(
                 Modifier.size(76.dp).clip(CircleShape).background(if (recording) Palette.LogoNavy else c.primary)
@@ -180,94 +157,79 @@ fun VoiceScreen(
             }
             if (recording) Waveform(level)
             Text(
-                if (recording) "Đang nghe… bấm để dừng" else "Bấm để bắt đầu đọc",
+                if (recording) "Đang ghi âm · Chạm để kết thúc" else "Chạm để bắt đầu đọc",
                 style = VcType.caption,
                 color = c.muted,
             )
         }
+    }) {
+        CameraStillOn()
+        if (again) {
+            TitleBlock("Đọc lại câu xác nhận", "Chọn nơi yên tĩnh và đọc rõ câu bên dưới.", titleStyle = VcType.cameraTitle)
+        } else {
+            Text("Đọc câu xác nhận", style = VcType.cameraTitle, color = c.ink)
+        }
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surfaceInfo).padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(Icons.Outlined.FormatQuote, contentDescription = null, tint = c.accent, modifier = Modifier.size(22.dp))
+            Text(
+                sentence?.let { "“$it”" }
+                    ?: if (again) "“Tôi xác nhận danh tính, mã số tám ba năm một.”" else "“Tôi xác nhận danh tính, mã số bốn bảy hai chín.”",
+                style = VcType.titleMedium,
+                color = c.ink,
+            )
+        }
+        Text(
+            if (again) "Còn 1 lần đọc lại" else "Đọc rõ từng từ tại nơi yên tĩnh.",
+            style = VcType.caption,
+            color = c.muted,
+        )
     }
 }
 
 // ── Checking (stage D) ───────────────────────────────────────────────────────
 
-/** Shows progress per step, never a per-detector verdict (a tick means "processed"). */
+/** Indeterminate feedback; module completion is not invented from a local timer. */
 @Composable
 fun CheckingScreen(purpose: Purpose, onDone: () -> Unit, auto: Boolean = true) {
-    val labels = if (purpose == Purpose.Reauth) listOf("Khuôn mặt", "Thiết bị") else listOf("Ảnh giấy tờ", "Khuôn mặt", "Giọng nói")
-    var done by remember { mutableIntStateOf(1) }
     LaunchedEffect(auto) {
-        if (!auto) return@LaunchedEffect
-        while (done < labels.size) {
-            delay(1300)
-            done++
-        }
-        delay(900)
-        onDone()
+        if (auto) { delay(2500); onDone() }
     }
     VcScreen(centered = true) {
         StatusBadge(null, spinning = true)
-        TitleBlock("Đang kiểm tra", "Thường mất vài giây. Đừng tắt ứng dụng.", centered = true)
-        ChecklistCard(
-            title = null,
-            rows = labels.mapIndexed { i, l ->
-                Triple(null, l, if (i < done) RowState.Done else if (i == done) RowState.Doing else RowState.Waiting)
-            },
-        )
+        TitleBlock("Đang xác minh", "Giữ ứng dụng mở đến khi có kết quả.", centered = true)
     }
 }
 
 // ── Results ──────────────────────────────────────────────────────────────────
 
 @Composable
-fun SuccessScreen(purpose: Purpose, onContinue: () -> Unit, auto: Boolean = true, checked: List<String>? = null) {
+fun SuccessScreen(purpose: Purpose, onContinue: () -> Unit, auto: Boolean = false, checked: List<String>? = null) {
     CompletionHaptic(true)
-    LaunchedEffect(auto) {
-        if (auto) {
-            delay(2600)
-            onContinue()
-        }
-    }
-    val rows = checked ?: listOf("Ảnh giấy tờ", "Khuôn mặt", "Giọng nói")
-    VcScreen(centered = purpose != Purpose.Onboarding, actions = if (purpose == Purpose.Onboarding) {
-        { SampleAccount(rows); PrimaryButton("Vào ứng dụng", onContinue) }
-    } else null) {
-        if (purpose == Purpose.Onboarding) Spacer(Modifier.height(96.dp))
+    LaunchedEffect(auto) { if (auto) { delay(2600); onContinue() } }
+    VcScreen(centered = true, actions = { PrimaryButton("Hoàn tất", onContinue) }) {
         SuccessBadge()
-        when (purpose) {
-            Purpose.Onboarding -> {
-                TitleBlock("Tài khoản\nđã sẵn sàng", "Đang quay lại ứng dụng ngân hàng…")
-            }
-            Purpose.Reauth -> {
-                TitleBlock("Đăng nhập thành công", "Danh tính của bạn đã được xác nhận. Thiết bị này đã được liên kết với tài khoản.", centered = true)
-                ChecklistCard("Thiết bị đã liên kết", listOf(Triple(Icons.Outlined.PhoneAndroid, "Điện thoại Android này", null)), trailing = listOf("Vừa xong"))
-            }
-            Purpose.Recovery -> {
-                TitleBlock("Khôi phục thành công", "Danh tính của bạn đã được xác nhận.", centered = true)
-                ChecklistCard("Bước tiếp theo", listOf(Triple(Icons.Outlined.PhoneAndroid, "Đặt lại cách đăng nhập", null)), trailing = listOf("[chờ nhóm chốt]"))
-            }
-        }
+        TitleBlock("Xác minh thành công", centered = true)
+        if (!checked.isNullOrEmpty()) ChecklistCard(null, checked.map { Triple(null, it, RowState.Done) })
     }
 }
 
 @Composable
 fun ReviewScreen(onBackToBank: () -> Unit) {
-    VcScreen(centered = true, actions = { PrimaryButton("Quay lại ứng dụng ngân hàng", onBackToBank) }) {
-        StatusBadge(Icons.Outlined.Schedule)
-        TitleBlock("Hồ sơ đang được xác minh thêm", "Nhân viên sẽ kiểm tra hồ sơ của bạn. Bạn sẽ nhận tin nhắn khi có kết quả.", centered = true)
-        ChecklistCard(
-            "Bạn sẽ nhận kết quả qua",
-            listOf(Triple(Icons.Outlined.Sms, "Tin nhắn SMS", null), Triple(Icons.Outlined.NotificationsNone, "Thông báo của ứng dụng ngân hàng", null)),
-        )
+    VcScreen(centered = true, actions = { PrimaryButton("Về màn hình chính", onBackToBank) }) {
+        StatusBadge(Icons.Outlined.Info, tone = Tone.Warn)
+        TitleBlock("Chưa hoàn tất xác minh", "Thông tin hiện tại chưa đủ để hoàn tất yêu cầu. Bạn có thể bắt đầu lại.", centered = true)
     }
 }
 
-/** Quality retry (ADR-0017 §1): specific, with how to fix it, and attempts left. */
 @Composable
 fun RetryQualityScreen(onBack: () -> Unit, onRetake: () -> Unit, hint: String? = null, attemptsLeft: Int? = 1, hintCode: String? = null) {
     val audio = hintCode == "QUIET_PLACE"
     VcScreen(onBack = onBack, step = 2, centered = true, actions = { PrimaryButton(if (audio) "Thử lại" else "Chụp lại", onRetake) }) {
         StatusBadge(retryHintIcon(hintCode), Tone.Warn)
-        TitleBlock(if (audio) "Chưa nghe rõ" else "Ảnh chưa đủ rõ", hint ?: "Hãy ra chỗ sáng hơn và giữ điện thoại ngang tầm mặt.", centered = true)
+        TitleBlock(if (audio) "Chưa thu rõ giọng nói" else "Chưa thu rõ khuôn mặt", hint ?: "Hãy ra chỗ sáng hơn và giữ điện thoại ngang tầm mặt.", centered = true)
         if (attemptsLeft != null) Text("Còn $attemptsLeft lần chụp lại", style = VcType.caption, color = Vc.colors.muted)
     }
 }
@@ -287,7 +249,7 @@ fun retryHintIcon(code: String?): ImageVector = when (code) {
 fun RetryChallengeScreen(onBack: () -> Unit, onRetry: () -> Unit, attemptsLeft: Int? = 1) {
     VcScreen(onBack = onBack, step = 2, centered = true, actions = { PrimaryButton("Thử lại", onRetry) }) {
         StatusBadge(Icons.Outlined.Refresh)
-        TitleBlock("Chúng ta thử lại nhé", "Giữ đầu yên, chỉ đưa mắt theo chấm sáng. Khi quay đầu, quay chậm rồi quay lại nhìn thẳng.", centered = true)
+        TitleBlock("Thực hiện lại thử thách", "Giữ đầu yên, chỉ đưa mắt theo chấm sáng. Khi quay đầu, quay chậm rồi quay lại nhìn thẳng.", centered = true)
         if (attemptsLeft != null) Text("Còn $attemptsLeft lần thử", style = VcType.caption, color = Vc.colors.muted)
     }
 }
@@ -330,14 +292,14 @@ object Messages {
     )
 
     @Composable fun Network(onRetry: () -> Unit, onBack: () -> Unit) = MessageScreen(
-        Icons.Outlined.WifiOff, "Không kết nối được",
-        "Hãy kiểm tra kết nối mạng rồi thử lại. Các bước bạn đã làm vẫn được giữ.", "Thử lại" to onRetry, onBack = onBack,
+        Icons.Outlined.WifiOff, "Chưa thể kết nối",
+        "Kiểm tra kết nối mạng rồi thử lại.", "Thử lại" to onRetry, onBack = onBack,
     )
 
     @Composable fun SessionExpired(onBank: () -> Unit) = MessageScreen(
         Icons.Outlined.Schedule, "Phiên đã hết hạn",
-        "Vì an toàn, phiên xác minh chỉ dùng trong một thời gian ngắn. Hãy bắt đầu lại từ ứng dụng ngân hàng.",
-        "Quay lại ứng dụng ngân hàng" to onBank,
+        "Phiên xác minh đã hết thời gian. Hãy bắt đầu lại.",
+        "Về màn hình chính" to onBank,
     )
 
     /** [redoesFace]: "resume" restarts the face part (stage B/C) instead of going back to the last screen. */
@@ -349,15 +311,15 @@ object Messages {
 
     /** "Bỏ qua nháy màu": the face part cannot be done in the app. Promises nothing (nothing was sent). */
     @Composable fun FlashSkipped(onBank: () -> Unit) = MessageScreen(
-        Icons.Outlined.PhoneAndroid, "Cần xác minh theo cách khác",
-        "Phần khuôn mặt cần màn hình đổi màu nhạt trong vài giây. Nếu bạn không xem được, vui lòng liên hệ ngân hàng để được hướng dẫn cách xác minh khác.",
-        "Quay lại ứng dụng ngân hàng" to onBank,
+        Icons.Outlined.PhoneAndroid, "Cần cách xác minh khác",
+        "Phiên này cần thử thách đổi màu màn hình. Hãy dừng và liên hệ đơn vị cung cấp dịch vụ nếu bạn cần cách xác minh khác.",
+        "Về màn hình chính" to onBank,
     )
 
     @Composable fun Stopped(onBank: () -> Unit) = MessageScreen(
         Icons.Outlined.StopCircle, "Đã dừng xác minh",
-        "Phiên xác minh đã dừng. Khi sẵn sàng, bạn có thể bắt đầu lại từ ứng dụng ngân hàng.",
-        "Quay lại ứng dụng ngân hàng" to onBank,
+        "Khi sẵn sàng, bạn có thể bắt đầu một phiên xác minh mới.",
+        "Về màn hình chính" to onBank,
     )
 
     @Composable fun Uploading(onStop: () -> Unit, onDone: () -> Unit, auto: Boolean = true) {
@@ -382,35 +344,35 @@ object Messages {
     )
 
     @Composable fun Slow(onWait: () -> Unit, onStop: () -> Unit) = MessageScreen(
-        Icons.Outlined.HourglassEmpty, "Đang mất nhiều thời gian hơn",
+        Icons.Outlined.HourglassEmpty, "Đang chờ kết quả",
         "Hệ thống chưa trả kết quả xác minh. Bạn có thể tiếp tục chờ hoặc dừng phiên.",
         "Tiếp tục chờ" to onWait, "Dừng xác minh" to onStop, onBack = onStop,
     )
 
     /** FLOW-01 `deny`: a clear failure. Says nothing about why (AGENTS.md §6 rule 3). */
     @Composable fun Denied(onBank: () -> Unit) = MessageScreen(
-        Icons.Outlined.Dns, "Xác thực không thành công",
+        Icons.Outlined.Dns, "Chưa hoàn tất xác minh",
         "Vui lòng thử lại sau.",
-        "Quay lại ứng dụng ngân hàng" to onBank,
+        "Về màn hình chính" to onBank,
     )
 
     /** FLOW-01 re-auth without a verified device key (SEC-02): the user must recover instead. */
     @Composable fun RecoveryRequired(onBank: () -> Unit) = MessageScreen(
         Icons.Outlined.PhoneAndroid, "Cần xác minh lại đầy đủ",
         "Thiết bị này chưa được liên kết. Hãy làm theo hướng dẫn khôi phục tài khoản trong ứng dụng ngân hàng.",
-        "Quay lại ứng dụng ngân hàng" to onBank,
+        "Về màn hình chính" to onBank,
     )
 
     @Composable fun ServiceDown(onBank: () -> Unit) = MessageScreen(
         Icons.Outlined.Dns, "Tạm thời chưa thể xác minh",
         "Dịch vụ chưa phản hồi. Vui lòng thử lại sau. Lúc này chưa có kết quả xác minh.",
-        "Quay lại ứng dụng ngân hàng" to onBank,
+        "Về màn hình chính" to onBank,
     )
 
     @Composable fun DeviceNotReady(onCheck: () -> Unit, onBank: () -> Unit, onBack: () -> Unit) = MessageScreen(
-        Icons.Outlined.PhoneAndroid, "Thiết bị chưa đáp ứng",
+        Icons.Outlined.PhoneAndroid, "Chưa thể sử dụng camera hoặc micro",
         "Camera hoặc micro chưa hoạt động ổn định, hoặc thiết bị chưa đáp ứng yêu cầu. Hãy kiểm tra quyền, đóng ứng dụng đang dùng thiết bị rồi thử lại.",
-        "Kiểm tra quyền truy cập" to onCheck, "Quay lại ứng dụng ngân hàng" to onBank, onBack = onBack,
+        "Kiểm tra quyền truy cập" to onCheck, "Về màn hình chính" to onBank, onBack = onBack,
     )
 
     /** ADR-0017 §2: stage B/C interrupted → redo only the face part with a new challenge. */

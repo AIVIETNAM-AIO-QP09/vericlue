@@ -118,22 +118,21 @@ class FlowRulesTest {
     }
 
     @Test
-    fun termsCannotBeAcceptedBeforeReadingToTheEnd() {
-        var a = Agreement().toggle()
-        assertFalse(a.accepted)
-        assertFalse(a.canContinue)
-        a = a.reachedEnd().toggle()
-        assertTrue(a.canContinue)
-        assertFalse(a.toggle().canContinue)
+    fun termsRequireExplicitAgreement() {
+        val initial = Agreement()
+        assertFalse(initial.accepted)
+        assertFalse(initial.canContinue)
+        assertTrue(initial.toggle().canContinue)
+        assertFalse(initial.toggle().toggle().canContinue)
     }
 
     @Test
-    fun termsAndConsentShareOneButton() {
-        val read = Agreement().reachedEnd().toggle()
-        assertFalse(read.canContinueWith(consented = emptySet(), required = setOf(0)))
-        assertFalse(read.canContinueWith(consented = setOf(1, 2), required = setOf(0)))
-        assertTrue(read.canContinueWith(consented = setOf(0), required = setOf(0)))
-        assertFalse(Agreement().canContinueWith(consented = setOf(0), required = setOf(0)))
+    fun backOfCardIsRequestedOnlyWhenServerNeedsItsQr() {
+        assertTrue(FlowRules.needsCardBack("QR_UNREADABLE", hasBack = false))
+        assertFalse(FlowRules.needsCardBack("QR_UNREADABLE", hasBack = true))
+        assertFalse(FlowRules.needsCardBack("PORTRAIT_UNREADABLE", hasBack = false))
+        assertFalse(FlowRules.needsCardBack("QR_INVALID", hasBack = false))
+        assertFalse(FlowRules.needsCardBack(null, hasBack = false))
     }
 
     @Test

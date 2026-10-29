@@ -105,7 +105,7 @@ fun PhoneScreen(onBack: () -> Unit, onSend: (String) -> Unit) {
             )
         },
     ) {
-        TitleBlock("Số điện thoại của bạn", "Chúng tôi gửi mã xác nhận gồm 6 số.")
+        TitleBlock("Nhập số điện thoại", "Nhận mã xác nhận để tiếp tục.")
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Số điện thoại", style = VcType.label, color = c.ink)
             Row(
@@ -122,10 +122,7 @@ fun PhoneScreen(onBack: () -> Unit, onSend: (String) -> Unit) {
                     color = if (phone.isEmpty()) c.muted else c.ink,
                 )
             }
-            if (valid) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                CheckMark()
-                Text("Số điện thoại hợp lệ", style = VcType.label, color = c.ok)
-            }
+
         }
     }
 }
@@ -180,10 +177,9 @@ fun OtpScreen(
         actions = { PrimaryButton("Xác nhận", submit, enabled = OtpRules.isComplete(code) && !error) },
         bottom = { NumericKeypad(onDigit = ::type, onBackspace = { code = code.dropLast(1); error = false }, onDone = { if (OtpRules.isComplete(code) && !error) submit() }) },
     ) {
-        Banner("SMS mô phỏng · " + (sms ?: "Mã xác nhận VeriClue của bạn là [6 SỐ]. Không chia sẻ mã này."), icon = Icons.Outlined.ChatBubbleOutline)
+        OtpRules.codeIn(sms)?.let { Banner("Mã dùng thử: $it", icon = Icons.Outlined.ChatBubbleOutline) }
         Text("Nhập mã xác nhận", style = VcType.titleLarge, color = c.ink)
         OtpBoxes(code, error)
-        if (filled && !error) Text("Đã tự điền mã từ tin nhắn. Bạn có thể sửa bằng bàn phím.", style = VcType.caption, color = c.muted)
         if (error) Banner(serverError ?: "Mã chưa đúng. Bạn còn 2 lần thử.", tone = Tone.Warn)
         Text(
             if (seconds > 0) "Gửi lại mã sau 0:${seconds.toString().padStart(2, '0')}" else "Gửi lại mã",
@@ -429,10 +425,10 @@ fun idRetakeHint(back: Boolean, q: IdQuality?): String? = when {
 fun idFields(info: CccdInfo?): List<Pair<String, String>> = info?.let {
     listOf(
         "Họ và tên" to it.fullName.uppercase(),
-        "Số CCCD" to CccdQr.groupId(it.idNumber),
+        "Số định danh cá nhân" to CccdQr.groupId(it.idNumber),
         "Ngày sinh" to it.dateOfBirth,
         "Giới tính" to it.gender,
-        "Nơi thường trú" to it.address,
+        "Nơi cư trú" to it.address,
     )
 } ?: sampleIdFields
 
@@ -441,10 +437,10 @@ fun idFields(info: CccdInfo?): List<Pair<String, String>> = info?.let {
 /** Sample data only (shown as such); real values come from the QR code (FLOW-03). */
 val sampleIdFields = listOf(
     "Họ và tên" to "NGUYỄN VĂN A",
-    "Số CCCD" to "001 095 012 345",
+    "Số định danh cá nhân" to "001 095 012 345",
     "Ngày sinh" to "01/01/1995",
     "Giới tính" to "Nam",
-    "Nơi thường trú" to "Số 1 Đại Cồ Việt, Hai Bà Trưng, Hà Nội",
+    "Nơi cư trú" to "Số 1 Đại Cồ Việt, Hai Bà Trưng, Hà Nội",
 )
 
 /**
@@ -464,19 +460,19 @@ fun ConfirmInfoScreen(
         onBack = onBack,
         step = if (afterFace) 2 else 1,
         actions = {
-            PrimaryButton("Thông tin đúng", onCorrect, enabled = FlowRules.validIdentityValues(fields.map { it.second }))
-            LinkButton("Sửa thông tin", onEdit)
+            PrimaryButton("Xác nhận thông tin", onCorrect, enabled = FlowRules.validIdentityValues(fields.map { it.second }))
+            LinkButton("Chỉnh sửa", onEdit)
         },
     ) {
-        if (afterFace) Banner("Đã quay xong. Xem lại thông tin, rồi bấm \"Thông tin đúng\" để gửi.", tone = Tone.Ok)
-        TitleBlock("Kiểm tra thông tin", "Thông tin đọc từ mã QR trên CCCD. Hãy kiểm tra trước khi xác nhận.")
+        if (afterFace) Banner("Kiểm tra thông tin trước khi tiếp tục.", tone = Tone.Ok)
+        TitleBlock("Kiểm tra thông tin", "Đối chiếu với thông tin trên thẻ trước khi xác nhận.")
         Column(
             Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             if (fields === sampleIdFields) {
                 Text(
-                    "Dữ liệu mẫu",
+                    "Thông tin minh họa",
                     style = VcType.labelXs,
                     color = c.warn,
                     modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(c.warnBg).padding(horizontal = 8.dp, vertical = 3.dp),
@@ -508,10 +504,10 @@ fun EditInfoScreen(
         step = 1,
         actions = {
             PrimaryButton("Lưu và tiếp tục", { onSave(values.map { it.value.trim() }) }, enabled = FlowRules.validIdentityValues(values.map { it.value.trim() }))
-            LinkButton("Chụp lại CCCD", onRetake)
+            LinkButton("Quét lại thẻ", onRetake)
         },
     ) {
-        TitleBlock("Chỉnh sửa thông tin", "Điền thông tin đúng như trên CCCD. Nội dung thay đổi sẽ được kiểm tra lại.")
+        TitleBlock("Chỉnh sửa thông tin", "Nhập đúng thông tin trên thẻ. Thông tin thay đổi cần được xác minh lại.")
         hint?.let { Banner(it, tone = Tone.Warn) }
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             fields.forEachIndexed { i, (label, _) ->

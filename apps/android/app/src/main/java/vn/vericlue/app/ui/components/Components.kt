@@ -19,6 +19,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -27,6 +28,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -159,7 +161,7 @@ fun StepProgress(step: Int, label: String, total: Int = 3) {
 fun stepLabel(step: Int): String = when (step) {
     1 -> "Danh tính"
     2 -> "Khuôn mặt"
-    else -> "Giọng nói"
+    else -> "Xác minh bổ sung"
 }
 
 /**
@@ -181,22 +183,20 @@ fun VcScreen(
     Column(Modifier.fillMaxSize().background(background).statusBarsPadding()) {
         TopBar(onBack, showLogo)
         if (step != null) StepProgress(step, stepLabel(step))
-        val body = if (centered) {
-            Modifier.weight(1f).fillMaxWidth().padding(horizontal = 20.dp, vertical = 24.dp)
-        } else {
-            Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 24.dp)
+        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+            val minimumHeight = if (centered) (maxHeight - 48.dp).coerceAtLeast(0.dp) else 0.dp
+            Column(
+                Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 24.dp).heightIn(min = minimumHeight),
+                verticalArrangement = if (centered) {
+                    Arrangement.spacedBy(24.dp, Alignment.CenterVertically)
+                } else {
+                    Arrangement.spacedBy(24.dp)
+                },
+                horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start,
+                content = content,
+            )
         }
-        Column(
-            body,
-            verticalArrangement = if (centered) {
-                Arrangement.spacedBy(24.dp, Alignment.CenterVertically)
-            } else {
-                Arrangement.spacedBy(24.dp)
-            },
-            horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start,
-            content = content,
-        )
         if (actions != null) {
             ActionPanel(navigationInset = bottom == null, content = actions)
         }
@@ -254,7 +254,7 @@ fun PrimaryButton(
     Button(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier.fillMaxWidth().height(56.dp).scale(if (motion.enabled) scale else 1f),
+        modifier = modifier.fillMaxWidth().heightIn(min = 56.dp).scale(if (motion.enabled) scale else 1f),
         interactionSource = interactions,
         shape = CircleShape,
         colors = ButtonDefaults.buttonColors(
@@ -275,7 +275,7 @@ fun SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modi
     val scale by animateFloatAsState(if (pressed) 0.97f else 1f, motion.tween(110), label = "secondary-press")
     TextButton(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth().height(52.dp).scale(if (motion.enabled) scale else 1f),
+        modifier = modifier.fillMaxWidth().heightIn(min = 52.dp).scale(if (motion.enabled) scale else 1f),
         interactionSource = interactions,
         shape = CircleShape,
         colors = ButtonDefaults.textButtonColors(contentColor = c.accent),
@@ -425,7 +425,6 @@ private fun StateIcon(state: RowState) {
 @Composable
 fun NumericKeypad(onDigit: (Char) -> Unit, onBackspace: () -> Unit, onDone: () -> Unit) {
     val c = Vc.colors
-    val letters = mapOf('2' to "ABC", '3' to "DEF", '4' to "GHI", '5' to "JKL", '6' to "MNO", '7' to "PQRS", '8' to "TUV", '9' to "WXYZ", '0' to "+")
     val rows = listOf("123", "456", "789")
     Column(
         Modifier.fillMaxWidth().background(c.keypad).padding(6.dp),
@@ -433,14 +432,14 @@ fun NumericKeypad(onDigit: (Char) -> Unit, onBackspace: () -> Unit, onDone: () -
     ) {
         rows.forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                row.forEach { d -> Key(Modifier.weight(1f), c.key, { onDigit(d) }) { DigitLabel(d, letters[d]) } }
+                row.forEach { d -> Key(Modifier.weight(1f), c.key, { onDigit(d) }) { DigitLabel(d) } }
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Key(Modifier.weight(1f), c.border, onBackspace) {
                 Icon(Icons.AutoMirrored.Outlined.Backspace, contentDescription = "Xóa", tint = c.ink)
             }
-            Key(Modifier.weight(1f), c.key, { onDigit('0') }) { DigitLabel('0', letters['0']) }
+            Key(Modifier.weight(1f), c.key, { onDigit('0') }) { DigitLabel('0') }
             Key(Modifier.weight(1f), c.primary, onDone) {
                 Icon(Icons.Outlined.Check, contentDescription = "Xong", tint = c.onPrimary)
             }
@@ -455,19 +454,15 @@ private fun Key(modifier: Modifier, color: Color, onClick: () -> Unit, content: 
     val pressed by interactions.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.97f else 1f, motion.tween(110), label = "key-press")
     Box(
-        modifier.height(50.dp).scale(if (motion.enabled) scale else 1f).clip(RoundedCornerShape(8.dp)).background(color)
+        modifier.heightIn(min = 50.dp).scale(if (motion.enabled) scale else 1f).clip(RoundedCornerShape(8.dp)).background(color)
             .clickable(interactionSource = interactions, indication = LocalIndication.current, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { content() }
 }
 
 @Composable
-private fun DigitLabel(d: Char, sub: String?) {
-    val c = Vc.colors
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(d.toString(), style = VcType.titleMedium.copy(fontWeight = FontWeight.Medium), color = c.ink)
-        if (sub != null) Text(sub, style = VcType.footnote.copy(fontSize = VcType.footnote.fontSize * 0.75f), color = c.muted)
-    }
+private fun DigitLabel(d: Char) {
+    Text(d.toString(), style = VcType.titleMedium.copy(fontWeight = FontWeight.Medium), color = Vc.colors.ink)
 }
 
 /** Six OTP boxes; amber when the code was wrong (never red). */
@@ -485,7 +480,7 @@ fun OtpBoxes(code: String, error: Boolean) {
                 else -> c.surface to c.border
             }
             Box(
-                Modifier.weight(1f).height(56.dp).clip(RoundedCornerShape(10.dp)).background(bg)
+                Modifier.weight(1f).heightIn(min = 56.dp).clip(RoundedCornerShape(10.dp)).background(bg)
                     .border(if (active && !error) 2.dp else 1.dp, border, RoundedCornerShape(10.dp)),
                 contentAlignment = Alignment.Center,
             ) {

@@ -297,7 +297,7 @@ fun VeriClueApp() {
                     faceCaptured = false
                     captured = true
                     delay(450)
-                    if (back || CccdQr.parse(q.qr) != null) camera.unbind()
+                    camera.unbind()
                     onDone()
                 } catch (cancelled: kotlinx.coroutines.CancellationException) {
                     throw cancelled
@@ -513,9 +513,10 @@ fun VeriClueApp() {
         composable(Routes.OtpError) {
             OtpScreen(onBack = { nav.popBackStack() }, onVerified = { nav.go(FlowRules.afterOtp(flow.purpose)) }, startWithError = true)
         }
-        // A retake from the review screen goes back to it; the first pass goes front → back → review.
-        composable(Routes.IdFront) { IdCaptureRoute(back = false) { if (CccdQr.parse(idFront?.second?.qr) != null) toIdReview() else nav.go(Routes.IdBack) } }
-        composable(Routes.IdFrontGlare) { IdCaptureScreen(back = false, glare = true, onBack = { nav.popBackStack() }, onCapture = { nav.go(Routes.IdFront) }) }
+        // Let the server decode the front before asking for another side.
+        composable(Routes.IdFront) { IdCaptureRoute(back = false) { toIdReview() } }
+        composable(Routes.IdFrontGlare) { IdScanScreen(false, IdQuality(500.0, 0.5, null),
+            onBack = { nav.popBackStack() }, onStop = exit, onManual = { nav.go(Routes.IdFront) }) }
         composable(Routes.IdBack) { IdCaptureRoute(back = true) { toIdReview() } }
         composable(Routes.IdReview) {
             var failure by remember { mutableStateOf<String?>(null) }
@@ -531,11 +532,19 @@ fun VeriClueApp() {
                 val (hint, error) = live.sendIdCard(front, idBack?.first, qr)
                 when {
                     error != null -> nav.go(errorRoute(error))
+                    FlowRules.needsCardBack(hint, idBack != null) -> nav.navigate(Routes.IdBack) {
+                        popUpTo(Routes.IdReview) { inclusive = true }
+                    }
                     hint != null -> failure = idScanErrorText(hint)
                     else -> {
-                        live.idFields?.let { cccd = FlowRules.cccdFrom(it) }
-                        idConfirmed = false
-                        nav.go(Routes.Confirm)
+                        val fields = live.idFields
+                        if (fields == null) {
+                            failure = "Chưa đọc được thông tin trên thẻ. Hãy quét lại."
+                        } else {
+                            cccd = FlowRules.cccdFrom(fields)
+                            idConfirmed = false
+                            nav.go(Routes.Confirm)
+                        }
                     }
                 }
             }
@@ -638,16 +647,6 @@ fun VeriClueApp() {
                 onExit = exit,
                 onCaptured = { nav.go(Routes.HoldStill) },
                 live = gate,
-                onDebugCapture = if (BuildConfig.DEBUG && hasCamera) {
-                    {
-                        scope.launch {
-                            live.frontalJpeg = withTimeoutOrNull(3000) { camera.captureJpeg() }
-                            nav.go(Routes.HoldStill)
-                        }
-                    }
-                } else {
-                    null
-                },
             )
         }
         composable(Routes.HoldStill) {
@@ -697,11 +696,6 @@ fun VeriClueApp() {
                 onExit = exit,
                 onDone = { faceCaptured = true; nav.go(FlowRules.afterFace(flow.purpose, idConfirmed, flow.live)) },
                 yaw = if (hasCamera) face?.yaw else null,
-                onDebugSkip = if (BuildConfig.DEBUG && hasCamera) {
-                    { faceCaptured = true; nav.go(FlowRules.afterFace(flow.purpose, idConfirmed, flow.live)) }
-                } else {
-                    null
-                },
             )
         }
 
@@ -841,14 +835,14 @@ private fun GalleryScreen(nav: NavHostController, flow: FlowState) {
         "Bắt đầu" to listOf("Màn chào" to Routes.Splash, "Đăng nhập / Đăng ký" to Routes.Auth, "Điều khoản và đồng ý" to Routes.Terms),
         "Danh tính" to listOf(
             "Số điện thoại" to Routes.Phone, "OTP" to Routes.Otp, "OTP nhập sai" to Routes.OtpError,
-            "CCCD mặt trước" to Routes.IdFront, "CCCD bị lóa" to Routes.IdFrontGlare, "CCCD mặt sau" to Routes.IdBack,
-            "Xem lại 2 mặt CCCD" to Routes.IdReview, "Kiểm tra thông tin" to Routes.Confirm, "Sửa thông tin" to Routes.EditInfo,
+            "Quét mặt có chân dung" to Routes.IdFront, "CCCD bị lóa" to Routes.IdFrontGlare, "Quét thêm mã QR khi cần" to Routes.IdBack,
+            "Đọc thông tin thẻ" to Routes.IdReview, "Kiểm tra thông tin" to Routes.Confirm, "Sửa thông tin" to Routes.EditInfo,
         ),
         "Khuôn mặt" to listOf("Chuẩn bị" to Routes.FaceReady, "Căn mặt" to Routes.Framing, "Giữ yên + nháy màu + chấm sáng" to Routes.HoldStill, "Quay đầu" to Routes.TurnHead),
         "Giọng nói" to listOf("Đọc câu" to Routes.Voice, "Đọc lại câu mới" to Routes.VoiceAgain),
         "Kết quả" to listOf(
             "Đang gửi" to Routes.Uploading, "Đang kiểm tra" to Routes.Checking, "Thành công" to Routes.Success,
-            "Chờ duyệt" to Routes.Review, "Chụp lại" to Routes.RetryQuality, "Làm lại thử thách" to Routes.RetryChallenge,
+            "Chưa hoàn tất xác minh" to Routes.Review, "Chụp lại" to Routes.RetryQuality, "Làm lại thử thách" to Routes.RetryChallenge,
         ),
         "Lỗi và gián đoạn" to listOf(
             "Chưa cho camera" to Routes.ErrorCamera, "Chưa cho micro" to Routes.ErrorMic, "Mất mạng" to Routes.ErrorNetwork,

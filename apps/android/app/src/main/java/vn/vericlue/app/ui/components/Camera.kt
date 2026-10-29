@@ -119,9 +119,12 @@ fun FullCamera(faceScale: Float = 1f, ringColor: Color = Color.White, progress: 
 val LocalCameraFeed = androidx.compose.runtime.staticCompositionLocalOf<(@Composable (Modifier) -> Unit)?> { null }
 
 @Composable
-fun CameraFeed(modifier: Modifier = Modifier, faceScale: Float = 1f, dim: Float = 0f) {
+fun CameraFeed(modifier: Modifier = Modifier, faceScale: Float = 1f, dim: Float = 0f,
+               placeholder: (@Composable () -> Unit)? = null) {
     val live = LocalCameraFeed.current
-    if (live != null) live(modifier.fillMaxSize()) else FakeCameraFeed(modifier, faceScale, dim)
+    if (live != null) live(modifier.fillMaxSize())
+    else if (placeholder != null) Box(modifier.fillMaxSize()) { placeholder() }
+    else FakeCameraFeed(modifier, faceScale, dim)
 }
 
 /** The session's single PreviewView, moved into whichever screen is showing it. */
