@@ -288,13 +288,19 @@ cứng. Xem `media-proof.md` và `account-authentication.md`.
 APP-06; không đổi API, lịch thử thách, ngưỡng hoặc quyết định của server.
 
 **Tiêu chí hoàn thành:**
-- [ ] Giả lập và API dùng cùng màn trình bày màu, ánh mắt và quay đầu; giữ khung
+- [x] Giả lập và API dùng cùng màn trình bày màu, ánh mắt và quay đầu; giữ khung
       oval, chữ/mũi tên và nút dừng theo bộ UI hiện có.
-- [ ] API vẫn dùng lịch và tọa độ chấm toàn màn hình từ server, tính từ frame
+- [x] API vẫn dùng lịch và tọa độ chấm toàn màn hình từ server, tính từ frame
       đầu của một video; preview chỉ có một View, không gắn lại khi đổi pha.
-- [ ] Có test lịch Giả lập, hình học preview, ảnh UI pha sáng/tối và màn nhỏ;
+- [x] Có test lịch Giả lập, hình học preview, ảnh UI pha sáng/tối và màn nhỏ;
       unit/build/lint đạt; ghi rõ phần chưa nghiệm thu trên thiết bị thật.
-- [ ] README, backlog và bàn giao cập nhật; plan_check không có lỗi.
+- [x] README, backlog và bàn giao cập nhật; plan_check không có lỗi.
+
+**Kiểm chứng 29/10:** mã 605db48 qua 11 checks CI, report UI có 131 test không lỗi
+và 36 ảnh mới; đã xem pha giữ yên/màu/mắt/quay đầu ở màn nhỏ và chữ 200%.
+Task giữ review: chưa cài bản sửa, chưa nghiệm thu CameraX/video liên tục trên
+điện thoại. APK CI mới khác certificate bản USB hiện cài; không gỡ app hoặc
+xóa dữ liệu/Keystore để cài đè. Không suy accuracy từ kiểm tra UI.
 
 ---
 
