@@ -1,0 +1,56 @@
+{
+  "status": "retry",
+  "retry_hint": "MORE_LIGHT",
+  "attempts_left": 1,
+  "challenge": {
+    "challenge_id": "chl_b25e08d4",
+    "baseline_ms": 1000,
+    "color_sequence": [
+      {
+        "rgb": "#ffb3eb",
+        "hold_ms": 530,
+        "transition_ms": 150
+      },
+      {
+        "rgb": "#ffcc73",
+        "hold_ms": 470,
+        "transition_ms": 150
+      },
+      {
+        "rgb": "#80e09e",
+        "hold_ms": 620,
+        "transition_ms": 150
+      },
+      {
+        "rgb": "#73d9ff",
+        "hold_ms": 400,
+        "transition_ms": 150
+      },
+      {
+        "rgb": "#ffcc73",
+        "hold_ms": 580,
+        "transition_ms": 150
+      },
+      {
+        "rgb": "#ffb3eb",
+        "hold_ms": 650,
+        "transition_ms": 150
+      },
+      {
+        "rgb": "#73d9ff",
+        "hold_ms": 440,
+        "transition_ms": 150
+      },
+      {
+        "rgb": "#80e09e",
+        "hold_ms": 510,
+        "transition_ms": 150
+      }
+    ],
+    "capture_at_ms": [
+      2900,
+      4400
+    ],
+    "expires_at": "2026-10-15T08:34:30Z"
+  }
+}

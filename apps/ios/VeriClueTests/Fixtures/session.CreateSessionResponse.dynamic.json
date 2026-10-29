@@ -1,0 +1,116 @@
+{
+  "session_id": "ses_example",
+  "token": "example-token-not-valid",
+  "expires_at": "2026-10-24T06:05:00Z",
+  "purpose": "onboarding",
+  "nonce": "integration_nonce_12345678",
+  "challenge": {
+    "challenge_id": "ch_db65b5f913ba64fbfe6fb9f3e585986f",
+    "baseline_ms": 1000,
+    "color_sequence": [
+      {
+        "rgb": "#80e09e",
+        "hold_ms": 440,
+        "transition_ms": 150
+      },
+      {
+        "rgb": "#ffcc73",
+        "hold_ms": 526,
+        "transition_ms": 150
+      },
+      {
+        "rgb": "#80e09e",
+        "hold_ms": 582,
+        "transition_ms": 150
+      },
+      {
+        "rgb": "#ffb3eb",
+        "hold_ms": 561,
+        "transition_ms": 150
+      },
+      {
+        "rgb": "#ffcc73",
+        "hold_ms": 629,
+        "transition_ms": 150
+      },
+      {
+        "rgb": "#80e09e",
+        "hold_ms": 623,
+        "transition_ms": 150
+      },
+      {
+        "rgb": "#ffcc73",
+        "hold_ms": 512,
+        "transition_ms": 150
+      },
+      {
+        "rgb": "#ffb3eb",
+        "hold_ms": 461,
+        "transition_ms": 150
+      }
+    ],
+    "capture_at_ms": [
+      4023,
+      4799
+    ],
+    "expires_at": "2026-10-24T06:00:24.413079Z",
+    "dynamic": {
+      "version": 1,
+      "session_id": "ses_example",
+      "nonce": "integration_nonce_12345678",
+      "gaze_points": [
+        {
+          "x": 0.5,
+          "y": 0.5,
+          "at_ms": 6534
+        },
+        {
+          "x": 0.39,
+          "y": 0.8,
+          "at_ms": 7534
+        },
+        {
+          "x": 0.48,
+          "y": 0.5,
+          "at_ms": 8534
+        },
+        {
+          "x": 0.68,
+          "y": 0.37,
+          "at_ms": 9534
+        },
+        {
+          "x": 0.31,
+          "y": 0.53,
+          "at_ms": 10534
+        },
+        {
+          "x": 0.65,
+          "y": 0.79,
+          "at_ms": 11534
+        },
+        {
+          "x": 0.31,
+          "y": 0.33,
+          "at_ms": 12534
+        },
+        {
+          "x": 0.75,
+          "y": 0.77,
+          "at_ms": 13534
+        }
+      ],
+      "head_turns": [
+        "right",
+        "left",
+        "center"
+      ],
+      "head_start_at_ms": 13534,
+      "head_duration_ms": 6000,
+      "voice_start_at_ms": 19534,
+      "voice_prompt": "Chín mươi tám cộng bảy mươi hai bằng một trăm bảy mươi.",
+      "voice_challenge_id": "vc_c2d673d5875e9ca37814c5a31f161237",
+      "frontal_capture_at_ms": 500
+    }
+  }
+}
