@@ -13,7 +13,8 @@ lại QR và kiểm chân dung, không OCR. Tự gửi, xác nhận thông tin t
 20 giây hoặc ba lần chụp chưa đủ thì hiện chụp thủ công/dừng; không vòng lặp gửi
 server tự động. Chỉ một package **vn.vericlue.app**, nhãn **VeriClue**;
 bỏ các profile USB/QR/remote riêng. Workflow `Android VeriClue APK` xuất
-`VeriClue.apk` với chữ ký demo ổn định khi đã được cấp phép cấu hình.
+bản chưa ký để ký trên laptop bằng khóa demo ổn định; file cài cuối là
+`VeriClue.apk`. Không cần đưa khóa/mật khẩu lên GitHub.
 Hardware acceptance còn chờ. Xem [demo một bản](../../docs/runbooks/vericlue-demo.md).
 
 APP-07: luồng đầy đủ Giả lập và API dùng chung `FaceTimelineScreen` và bộ UI A

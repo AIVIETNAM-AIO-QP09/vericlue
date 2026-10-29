@@ -10,8 +10,7 @@ plugins {
 // ./gradlew assembleRelease -Pvericlue.apiBaseUrl=https://<tunnel>/  (never hard-code the tunnel)
 val apiBaseUrl = (project.findProperty("vericlue.apiBaseUrl") as String?) ?: "http://localhost:8421/"
 val signedMedia = (project.findProperty("vericlue.signedMedia") as String?)?.toBooleanStrict() ?: true
-val demoStore = System.getenv("VERICLUE_ANDROID_KEYSTORE_PATH")
-val demoStorePassword = System.getenv("VERICLUE_ANDROID_KEYSTORE_PASSWORD")
+val deferSigning = (project.findProperty("vericlue.deferSigning") as String?)?.toBooleanStrict() ?: false
 // A release build only talks HTTPS: stop it when the address is not https:// (debug may use http).
 val checkReleaseApiUrl by tasks.registering {
     val url = apiBaseUrl
@@ -39,19 +38,9 @@ android {
         buildConfigField("boolean", "SIGNED_MEDIA", signedMedia.toString())
     }
 
-    if (!demoStore.isNullOrBlank()) {
-        require(!demoStorePassword.isNullOrBlank()) { "Missing demo signing password." }
-        signingConfigs.create("vericlueDemo") {
-            storeFile = file(demoStore)
-            storeType = "PKCS12"
-            storePassword = demoStorePassword
-            keyAlias = "vericlue-demo"
-            keyPassword = demoStorePassword
-        }
-    }
     buildTypes {
         debug {
-            if (!demoStore.isNullOrBlank()) signingConfig = signingConfigs.getByName("vericlueDemo")
+            if (deferSigning) signingConfig = null
         }
         release {
             // R8 removes unused code (most of material-icons-extended) and resources.
@@ -59,7 +48,7 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             // Demo only: signed with the local debug key so it installs. Use a real key before any release.
-            signingConfig = signingConfigs.getByName(if (demoStore.isNullOrBlank()) "debug" else "vericlueDemo")
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {

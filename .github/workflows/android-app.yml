@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - apps/android/**
+      - scripts/sign_android.py
       - .github/workflows/android-app.yml
   workflow_dispatch:
 
@@ -16,7 +17,7 @@ concurrency:
 
 jobs:
   apk:
-    name: VeriClue APK (one package, stable signer)
+    name: VeriClue APK (one package, local signing)
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -25,7 +26,7 @@ jobs:
         working-directory: apps/android
     env:
       VERICLUE_API_BASE_URL: ${{ vars.VERICLUE_REMOTE_API_URL || 'http://localhost:8421/' }}
-      VERICLUE_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.VERICLUE_ANDROID_KEYSTORE_PASSWORD }}
+      SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -33,77 +34,53 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
-      - name: Restore the persistent demo signer
-        id: signer
-        env:
-          SIGNING_STORE: ${{ secrets.VERICLUE_ANDROID_KEYSTORE_B64 }}
+      - name: Validate server endpoint
         run: |
           python - <<'PY'
-          import base64, os, re
-          from pathlib import Path
+          import os, re
           url = os.environ['VERICLUE_API_BASE_URL']
           if url != 'http://localhost:8421/' and not re.fullmatch(r'https://[a-z0-9-]+(?:\.[a-z0-9-]+)*\.ts\.net/', url):
               raise SystemExit('Use localhost:8421 or the private Tailscale HTTPS endpoint')
-          ready = bool(os.environ.get('SIGNING_STORE') and os.environ.get('VERICLUE_ANDROID_KEYSTORE_PASSWORD'))
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
-              out.write('ready=' + str(ready).lower() + '\n')
-          if not ready:
-              print('::notice::Build/test only: publishing waits for explicit approval to configure the stable signing secrets')
-              raise SystemExit(0)
-          path = Path(os.environ['RUNNER_TEMP']) / 'vericlue-demo.p12'
-          path.write_bytes(base64.b64decode(os.environ['SIGNING_STORE'], validate=True))
-          path.chmod(0o600)
-          with open(os.environ['GITHUB_ENV'], 'a') as out:
-              out.write('VERICLUE_ANDROID_KEYSTORE_PATH=' + str(path) + '\n')
           PY
-      - name: Test and build VeriClue
+      - name: Test and build the unsigned APK
         run: |
           ./gradlew --no-daemon testDebugUnitTest assembleDebug \
-            "-Pvericlue.apiBaseUrl=$VERICLUE_API_BASE_URL" -Pvericlue.signedMedia=true
-      - name: Check package, signer, endpoint and artifact checksum
-        if: steps.signer.outputs.ready == 'true'
+            "-Pvericlue.apiBaseUrl=$VERICLUE_API_BASE_URL" \
+            -Pvericlue.signedMedia=true -Pvericlue.deferSigning=true
+      - name: Check package and prepare local signing input
         run: |
           python - <<'PY'
-          import hashlib, json, os, re, shutil, subprocess, zipfile
+          import hashlib, json, os, re, shutil
           from pathlib import Path
-          apk = Path('app/build/outputs/apk/debug/app-arm64-v8a-debug.apk')
+          apk = Path('app/build/outputs/apk/debug/app-arm64-v8a-debug-unsigned.apk')
+          assert apk.is_file()
           sdk = Path(os.environ.get('ANDROID_HOME') or os.environ['ANDROID_SDK_ROOT'])
           tools = sorted((sdk / 'build-tools').iterdir())[-1]
+          import subprocess
           badging = subprocess.check_output([str(tools / 'aapt'), 'dump', 'badging', str(apk)], text=True)
           assert "package: name='vn.vericlue.app'" in badging
           assert "application-label:'VeriClue'" in badging
-          cert = subprocess.check_output([str(tools / 'apksigner'), 'verify', '--print-certs', str(apk)], text=True)
-          signer = re.search(r'Signer #1 certificate SHA-256 digest: ([0-9a-f]+)', cert).group(1)
-          assert signer == Path('demo-signing-cert.sha256').read_text().strip()
-          generated = list(Path('app/build/generated').rglob('BuildConfig.java'))
           url = os.environ['VERICLUE_API_BASE_URL']
+          generated = list(Path('app/build/generated').rglob('BuildConfig.java'))
           assert any(url in p.read_text() and re.search(r'SIGNED_MEDIA\s*=\s*true', p.read_text()) for p in generated)
-          with zipfile.ZipFile(apk) as archive:
-              assert not any('text-recognition' in name for name in archive.namelist())
-          out = Path('vericlue-apk')
+          # Keep credentials on the laptop. CI exports only the unsigned build and public SDK tool.
+          out = Path('vericlue-build')
           out.mkdir()
-          target = out / 'VeriClue.apk'
-          shutil.copy2(apk, target)
-          digest = hashlib.sha256(target.read_bytes()).hexdigest()
-          (out / 'SHA256SUMS.txt').write_text(digest + '  VeriClue.apk\n')
+          shutil.copy2(apk, out / 'VeriClue-unsigned.apk')
+          shutil.copy2(tools / 'lib/apksigner.jar', out / 'apksigner.jar')
+          shutil.copy2(tools / 'NOTICE.txt', out / 'ANDROID-BUILD-TOOLS-NOTICE.txt')
           (out / 'build-info.json').write_text(json.dumps({
-              'source_sha': os.environ['GITHUB_SHA'], 'run_id': os.environ['GITHUB_RUN_ID'],
-              'api_base_url': url, 'application_id': 'vn.vericlue.app', 'label': 'VeriClue',
-              'signed_media': True, 'signer_sha256': signer, 'hardware_acceptance': 'not_verified',
+              'source_sha': os.environ['GITHUB_SHA'], 'source_head_sha': os.environ['SOURCE_HEAD_SHA'],
+              'run_id': os.environ['GITHUB_RUN_ID'], 'application_id': 'vn.vericlue.app',
+              'api_base_url': url, 'label': 'VeriClue', 'signed_media': True,
+              'signing': 'required_on_laptop', 'hardware_acceptance': 'not_verified',
           }, indent=2) + '\n')
+          names = ['VeriClue-unsigned.apk', 'apksigner.jar', 'ANDROID-BUILD-TOOLS-NOTICE.txt', 'build-info.json']
+          (out / 'SHA256SUMS.txt').write_text(''.join(hashlib.sha256((out / n).read_bytes()).hexdigest() + '  ' + n + '\n' for n in names))
           PY
       - uses: actions/upload-artifact@v4
-        if: steps.signer.outputs.ready == 'true'
         with:
           name: vericlue-android
-          path: apps/android/vericlue-apk/
+          path: apps/android/vericlue-build/
           if-no-files-found: error
           retention-days: 7
-      - name: Remove temporary signing material
-        if: always()
-        run: |
-          python - <<'PY'
-          import os
-          from pathlib import Path
-          (Path(os.environ['RUNNER_TEMP']) / 'vericlue-demo.p12').unlink(missing_ok=True)
-          PY

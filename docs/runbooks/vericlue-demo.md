@@ -7,18 +7,30 @@ không có server OCR hoặc API mock riêng trong cấu hình demo này.
 
 ## App
 
-Chỉ workflow **Android VeriClue APK** xuất một artifact `vericlue-android`,
-gồm **VeriClue.apk**, SHA256SUMS và build-info. Đã bỏ workflow/package riêng
-USB, QR và remote. USB/Wi-Fi ADB hoặc Tailscale là cách kết nối tới cùng API,
-không tạo thêm ứng dụng. Endpoint build chính lấy từ `VERICLUE_REMOTE_API_URL`
-của repo, mặc định localhost:8421 nếu không cấu hình HTTPS riêng.
+Chỉ workflow **Android VeriClue APK** xuất artifact `vericlue-android` chứa bản
+chưa ký, metadata/checksum và công cụ apksigner của Android SDK kèm NOTICE.
+Package duy nhất `vn.vericlue.app`, nhãn VeriClue. USB/Wi-Fi ADB và Tailscale
+là kết nối tới cùng API, không phải các bản ứng dụng khác nhau. Endpoint build
+lấy từ `VERICLUE_REMOTE_API_URL`, mặc định localhost:8421 nếu chưa cấu hình.
 
-APK xuất bản phải dùng khóa ký demo ổn định, kiểm bằng
-`apps/android/demo-signing-cert.sha256`. Khóa riêng/mật khẩu chỉ nằm trong thư
-mục riêng của chủ máy; chuyển lên encrypted Actions secrets cần chấp thuận rõ.
-Chưa cấu hình secrets thì CI chỉ build/test, không xuất APK có chữ ký ngẫu nhiên.
-Hai secrets cần cho bước xuất APK là `VERICLUE_ANDROID_KEYSTORE_B64` và
-`VERICLUE_ANDROID_KEYSTORE_PASSWORD`. Không in khóa/mật khẩu, đưa vào Git hoặc artifact.
+**Khóa ký giữ trên laptop.** CI không nhận keystore hoặc mật khẩu, không cần
+signing secrets. Bản chưa ký chỉ là đầu vào build, chưa cài lên điện thoại.
+`scripts/sign_android.py` kiểm đủ checksum, commit/package/cấu hình trước khi
+ký bằng khóa hiện có; sau đó kiểm chữ ký APK v2 và fingerprint công khai tại
+`apps/android/demo-signing-cert.sha256`. Không tạo khóa thay thế nếu thiếu khóa.
+Mật khẩu đọc từ file riêng, không truyền giá trị qua command line hoặc log.
+
+Sau khi đối chiếu run/commit trên GitHub, tải artifact rồi ký cục bộ:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/sign_android.py --build-dir <artifact-directory> --expected-source <full-head-sha> --java <java.exe> --store-dir <private-signer-directory> --output-dir tmp/vericlue-app
+```
+
+File cài duy nhất là **tmp/vericlue-app/VeriClue.apk**, kèm SHA256SUMS và
+build-info chứa commit nguồn, fingerprint và trạng thái nghiệm thu. Các lần
+cập nhật tiếp theo dùng cùng khóa. JRE portable chỉ là công cụ ký, không phải
+server hoặc app mới. Laptop này giữ khóa tại `tmp/vericlue-signing` với ACL riêng;
+JRE tại `tmp/vericlue-java`, nguồn [Temurin](https://adoptium.net/installation/ci-scripts).
 
 Khi test lại: đối chiếu hash/source/signer rồi cài **một package duy nhất**.
 Các bản test cũ đã cài trên điện thoại chưa được gỡ vì người dùng tạm ngưng

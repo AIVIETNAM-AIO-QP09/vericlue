@@ -324,7 +324,7 @@ workflow APK, chữ ký ổn định, một lệnh chạy, lưu trữ launcher c
       tĩnh, không ghép kết quả cũ giữa các thẻ/lượt; chất lượng, timeout và lỗi rõ.
 - [x] Tự gửi, xác nhận thông tin trước quay mặt; xử lý retry có giới hạn.
 - [x] Bộ đọc trong API dùng chung SCRFD; chỉ một package/workflow APK và lệnh chạy server.
-- [ ] Xuất APK bằng chữ ký ổn định sau chấp thuận cấu hình signing secrets; chuyển bản cài khi test lại.
+- [ ] Kiểm APK ký ổn định tại laptop (khóa không lên CI), source/hash/pin; chuyển bản cài khi test lại.
 - [x] Unit/API/contract/build/lint/snapshot đạt, kiểm runtime QR-only; tài liệu,
       bàn giao và plan_check; ghi rõ phạm vi nghiệm thu điện thoại.
 
