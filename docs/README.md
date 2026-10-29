@@ -22,6 +22,7 @@ SDK holder trình duyệt, không UI: [private-credential-holder.md](architectur
 Chạy/bàn giao BBS và runtime container: [bbs-demo.md](runbooks/bbs-demo.md).
 Workflow từng bước và cơ sở rút gọn đăng ký: [project-workflow.md](architecture/project-workflow.md).
 Bàn giao consent/rút lại và checklist nối app: [mobile-privacy-integration.md](architecture/mobile-privacy-integration.md).
+Test Android từ xa qua laptop và mạng riêng: [android-remote-test.md](runbooks/android-remote-test.md).
 
 Chữ ký và kiểm tệp báo cáo HTML: [forensic-report-signing.md](architecture/forensic-report-signing.md).
 
