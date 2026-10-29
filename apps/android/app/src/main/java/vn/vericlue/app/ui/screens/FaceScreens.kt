@@ -78,6 +78,7 @@ import vn.vericlue.app.ui.components.LinkButton
 import vn.vericlue.app.ui.components.PrimaryButton
 import vn.vericlue.app.ui.components.NumberedRow
 import vn.vericlue.app.ui.components.StepProgress
+import vn.vericlue.app.ui.components.StableCameraScene
 import vn.vericlue.app.ui.components.SystemBarIcons
 import vn.vericlue.app.ui.components.TitleBlock
 import vn.vericlue.app.ui.components.Tone
@@ -237,14 +238,15 @@ fun HoldStillScreen(
     onColorsDone: () -> Unit = {},
     onBaselineDone: () -> Unit = {},
     onDotDone: () -> Unit = {},
+    frozenSlot: Int? = null,
 ) {
     var dotFinished by remember { mutableStateOf(false) }
-    val frozen = when {
+    val frozen = frozenSlot ?: when {
         startPhase == 0 -> 0
         startPhase in 1..4 -> slots.indexOfFirst { it.index == startPhase - 1 }.coerceAtLeast(0)
         else -> -1
     }
-    var slot by remember { mutableIntStateOf(if (auto) 0 else frozen) }
+    var slot by remember(auto, frozen) { mutableIntStateOf(if (auto) 0 else frozen) }
     LaunchedEffect(auto) {
         if (!auto) return@LaunchedEffect
         // Let the screen transition finish first: the camera reconfigures when the preview moves
@@ -422,12 +424,20 @@ fun TurnHeadScreen(
         onDone()
     }
     val dir = order[index]
+    TurnHeadContent(dir, index, order.size, onExit, onDebugSkip, returnToCenter = true)
+}
+
+/** The latest demo's camera layout, shared with each server-scheduled head segment. */
+@Composable
+private fun TurnHeadContent(
+    dir: TurnDir?, index: Int, total: Int, onExit: () -> Unit,
+    onDebugSkip: (() -> Unit)? = null,
+    returnToCenter: Boolean = false,
+) {
     val shift = if (Vc.motion.enabled) {
-        val nudge = rememberInfiniteTransition(label = "nudge")
-        val value by nudge.animateFloat(
-            initialValue = 0f, targetValue = 1f,
-            animationSpec = infiniteRepeatable(tween(700, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "shift",
-        )
+        val nudge = rememberInfiniteTransition(label = "turn-nudge")
+        val value by nudge.animateFloat(0f, 1f,
+            infiniteRepeatable(tween(700, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "turn-shift")
         value
     } else 0f
     CameraScaffold(onExit) {
@@ -435,7 +445,11 @@ fun TurnHeadScreen(
             FullCamera()
             CameraArea { oval ->
                 Text(
-                    if (dir == TurnDir.Left) "Quay sang trái" else "Quay sang phải",
+                    when (dir) {
+                        TurnDir.Left -> "Quay sang trái"
+                        TurnDir.Right -> "Quay sang phải"
+                        null -> "Nhìn thẳng"
+                    },
                     style = VcType.titleMedium,
                     color = Color.White,
                     textAlign = TextAlign.Center,
@@ -443,7 +457,7 @@ fun TurnHeadScreen(
                 )
                 val sign = if (dir == TurnDir.Left) -1 else 1
                 val x = if (dir == TurnDir.Left) oval.left - 28.dp else oval.left + oval.width - 36.dp
-                Box(
+                if (dir != null) Box(
                     Modifier.offset(x = x + (8 * shift * sign).dp, y = oval.centerY - 32.dp).size(64.dp)
                         .clip(CircleShape).background(Palette.LogoNavy.copy(alpha = 0.55f)),
                     contentAlignment = Alignment.Center,
@@ -460,17 +474,21 @@ fun TurnHeadScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
-                    GuidanceChip("Từ từ, rồi quay lại nhìn thẳng")
+                    GuidanceChip(when {
+                        dir == null -> "Giữ yên, nhìn thẳng vào camera"
+                        returnToCenter -> "Từ từ, rồi quay lại nhìn thẳng"
+                        else -> "Từ từ, theo hướng mũi tên"
+                    })
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        order.indices.forEach { i ->
+                        repeat(total) { i ->
                             Box(Modifier.size(6.dp).clip(CircleShape).background(if (i == index) Color.White else Color.White.copy(alpha = 0.35f)))
-                            if (i == index) Text("${index + 1} / ${order.size}", style = VcType.labelXs, color = Color.White)
+                            if (i == index) Text("${index + 1} / $total", style = VcType.labelXs, color = Color.White)
                         }
                     }
                 }
                 if (onDebugSkip != null) DebugButton("Bỏ qua (debug)", onDebugSkip, Modifier.align(Alignment.BottomCenter).padding(bottom = 56.dp))
                 Text(
-                    "Ảnh sẽ tự chụp khi bạn quay đủ",
+                    "Camera đang ghi hình. Bạn không cần bấm chụp.",
                     style = VcType.bodySmall,
                     color = Color.White.copy(alpha = 0.85f),
                     textAlign = TextAlign.Center,
@@ -488,7 +506,7 @@ fun TurnHeadScreen(
  * still at its mark), colour steps, the dot path over the whole screen, then the head turns. Times
  * run from the recording's first frame, so the server can cut the video on the same marks; nothing
  * waits for the user. [recordingStartMs] gives that first frame on the capture clock (null until it
- * exists). Used only in live mode with a `dynamic` challenge; the demo keeps HoldStill + TurnHead.
+ * exists). Both offline and API flows use this screen; only their schedule source differs.
  */
 @Composable
 fun FaceTimelineScreen(
@@ -548,40 +566,23 @@ fun FaceTimelineScreen(
     }
     BackHandler(onBack = onStop)
     FullBrightness(enabled = true)
-    CompositionLocalProvider(LocalVcColors provides LightColors) {
-        Box(Modifier.fillMaxSize()) {
-            when (val p = phase) {
-                is FaceTimeline.Phase.Colour -> TimelineColour(timeline, p.slot, onStop)
-                FaceTimeline.Phase.Gap, is FaceTimeline.Phase.Gaze -> TimelineGaze(p as? FaceTimeline.Phase.Gaze, onStop)
-                is FaceTimeline.Phase.Head -> TimelineHead(p.dir, p.segment, timeline.headTurns.size, onStop)
-                FaceTimeline.Phase.Done -> TimelineHead(null, timeline.headTurns.lastIndex, timeline.headTurns.size, onStop)
-            }
-            // ONE camera preview for the whole recording, never moved: re-attaching the PreviewView
-            // makes CameraX reconfigure the camera and cancels the recording (ERROR_SOURCE_INACTIVE).
-            Box(
-                Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 64.dp, end = 16.dp)
-                    .size(width = 96.dp, height = 128.dp).clip(RoundedCornerShape(14.dp))
-                    .border(2.dp, Palette.Border, RoundedCornerShape(14.dp)),
-            ) { CameraFeed() }
-        }
-    }
+    FaceChallengeContent(timeline, phase, onStop)
 }
 
+/** Shared presentation, independently snapshot-tested without opening a camera or starting work. */
 @Composable
-private fun TimelineColour(timeline: FaceTimeline, slot: Int, onStop: () -> Unit) {
-    val current = timeline.slots.getOrNull(slot)
-    val bg = current?.let { Color(ColorSchedule.parse(it.rgb)) } ?: Color.White
-    SystemBarIcons(bg)
-    Column(Modifier.fillMaxSize().background(bg).statusBarsPadding()) {
-        TopBar(onStop)
-        StepProgress(2, stepLabel(2))
-        Column(
-            Modifier.weight(1f).fillMaxWidth().padding(horizontal = 20.dp, vertical = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
-        ) {
-            Text(if (current?.index == null) "Giữ yên, nhìn thẳng" else "Giữ yên", style = VcType.titleMedium, color = Palette.Ink)
-            Spacer(Modifier.weight(1f))
-            Banner("Màn hình sẽ nhấp nháy màu nhạt vài giây. Người nhạy cảm với ánh sáng nhấp nháy không nên tiếp tục.", cameraLayout = true)
+fun FaceChallengeContent(timeline: FaceTimeline, phase: FaceTimeline.Phase, onStop: () -> Unit) {
+    StableCameraScene {
+        when (phase) {
+            is FaceTimeline.Phase.Colour -> HoldStillScreen(
+                onStop, {}, auto = false, slots = timeline.slots, frozenSlot = phase.slot,
+            )
+            FaceTimeline.Phase.Gap, is FaceTimeline.Phase.Gaze ->
+                TimelineGaze(phase as? FaceTimeline.Phase.Gaze, onStop)
+            is FaceTimeline.Phase.Head ->
+                TurnHeadContent(phase.dir, phase.segment, timeline.headTurns.size, onStop)
+            FaceTimeline.Phase.Done ->
+                TurnHeadContent(null, timeline.headTurns.lastIndex.coerceAtLeast(0), timeline.headTurns.size, onStop)
         }
     }
 }
@@ -590,16 +591,26 @@ private fun TimelineColour(timeline: FaceTimeline, slot: Int, onStop: () -> Unit
 @Composable
 private fun TimelineGaze(gaze: FaceTimeline.Phase.Gaze?, onStop: () -> Unit) {
     SystemBarIcons(Color.White)
-    BoxWithConstraints(Modifier.fillMaxSize().background(Color.White)) {
+    CompositionLocalProvider(LocalVcColors provides LightColors) {
+      BoxWithConstraints(Modifier.fillMaxSize().background(Color.White)) {
         Column(Modifier.fillMaxWidth().statusBarsPadding()) {
             TopBar(onStop)
+            StepProgress(2, stepLabel(2))
             Text(
                 "Giữ đầu yên, chỉ đưa mắt theo chấm sáng",
                 style = VcType.titleMedium,
                 color = Palette.Ink,
-                modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 128.dp),
+                modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 128.dp, top = 20.dp),
             )
         }
+        Box(Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 132.dp, end = 16.dp)
+            .size(width = 96.dp, height = 128.dp).clip(RoundedCornerShape(14.dp))
+            .border(2.dp, Palette.Border, RoundedCornerShape(14.dp))) { CameraFeed() }
+        Button(onStop, modifier = Modifier.align(Alignment.BottomCenter)
+            .navigationBarsPadding().padding(20.dp).fillMaxWidth().height(52.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Palette.Primary),
+        ) { Text("Dừng", style = VcType.cameraButton) }
         if (gaze != null) {
             val x = maxWidth * gaze.x.toFloat()
             val y = maxHeight * gaze.y.toFloat()
@@ -609,45 +620,6 @@ private fun TimelineGaze(gaze: FaceTimeline.Phase.Gaze?, onStop: () -> Unit) {
                 contentAlignment = Alignment.Center,
             ) { Box(Modifier.size(28.dp).clip(CircleShape).background(Palette.Primary)) }
         }
-    }
-}
-
-@Composable
-private fun TimelineHead(dir: TurnDir?, segment: Int, segments: Int, onStop: () -> Unit) {
-    SystemBarIcons(Color.White)
-    Column(Modifier.fillMaxSize().background(Color.White).statusBarsPadding()) {
-        TopBar(onStop)
-        StepProgress(2, stepLabel(2))
-        Column(
-            Modifier.weight(1f).fillMaxWidth().padding(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            if (dir != null) {
-                Box(
-                    Modifier.size(96.dp).clip(CircleShape).background(Palette.LogoNavy.copy(alpha = 0.12f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        if (dir == TurnDir.Left) Icons.AutoMirrored.Outlined.ArrowBack else Icons.AutoMirrored.Outlined.ArrowForward,
-                        contentDescription = null,
-                        tint = Palette.LogoNavy,
-                        modifier = Modifier.size(48.dp),
-                    )
-                }
-            }
-            Text(
-                when (dir) {
-                    TurnDir.Left -> "Quay sang trái"
-                    TurnDir.Right -> "Quay sang phải"
-                    null -> "Nhìn thẳng"
-                },
-                style = VcType.cameraTitle,
-                color = Palette.Ink,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 20.dp),
-            )
-            Text("Quay từ từ theo mũi tên · ${segment + 1} / $segments", style = VcType.bodySmall, color = Palette.Ink, modifier = Modifier.padding(top = 8.dp))
-        }
+      }
     }
 }
