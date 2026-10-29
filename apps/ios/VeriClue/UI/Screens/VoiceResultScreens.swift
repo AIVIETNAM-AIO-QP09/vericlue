@@ -174,6 +174,7 @@ struct SuccessScreen: View {
             }
             VcPrimaryButton(title: purpose == .onboarding ? "Tiếp tục" : "Quay lại ứng dụng ngân hàng", action: onContinue)
         }
+        .completionFeedback(completed: true, event: "verification-success")
     }
 }
 

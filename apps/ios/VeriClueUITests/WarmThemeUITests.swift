@@ -9,6 +9,53 @@ final class WarmThemeUITests: XCTestCase {
     @MainActor func testDarkAccessibilityTextAndReducedMotion() throws { try inspect(theme: "dark", large: true) }
 
     @MainActor
+    func testDarkLargeGalleryButtonTransparentPaddingIsTappable() throws {
+        let app = XCUIApplication()
+        app.launchArguments += ["--vc-theme", "dark", "--vc-text-size", "accessibility3", "--vc-reduce-motion"]
+        app.launch()
+        let gallery = app.buttons["debug-gallery-button"]
+        XCTAssertTrue(gallery.waitForExistence(timeout: 15))
+        XCTAssertTrue(gallery.isHittable)
+        XCTAssertGreaterThanOrEqual(gallery.frame.minY, 0)
+        XCTAssertLessThanOrEqual(gallery.frame.maxY, app.frame.maxY)
+        // One tap in the label's transparent horizontal padding, not on a glyph.
+        gallery.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5))
+            .withOffset(CGVector(dx: 8, dy: 0)).tap()
+        XCTAssertTrue(app.staticTexts["debug-gallery-title"].waitForExistence(timeout: 15))
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(gallery.waitForExistence(timeout: 15))
+    }
+
+    @MainActor
+    func testSystemOTPInputDoesNotAutomaticallyVerify() throws {
+        let app = XCUIApplication()
+        app.launch()
+        XCTAssertTrue(app.buttons["debug-gallery-button"].waitForExistence(timeout: 15))
+        app.buttons["debug-gallery-button"].tap()
+        XCTAssertTrue(app.staticTexts["debug-gallery-title"].waitForExistence(timeout: 15))
+        bringIntoView(app.buttons["OTP"], app: app)
+        app.buttons["OTP"].tap()
+        let openInput = app.buttons["otp-open-system-input"]
+        XCTAssertTrue(openInput.waitForExistence(timeout: 15))
+        bringIntoView(openInput, app: app)
+        openInput.tap()
+        let field = app.textFields["otp-system-input"]
+        XCTAssertTrue(field.waitForExistence(timeout: 15))
+        field.tap()
+        field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 6) + "111111")
+        XCTAssertEqual(field.value as? String, "111111")
+        app.navigationBars["Nhập mã SMS"].buttons["Xong"].tap()
+        let closed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in !field.exists }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [closed], timeout: 10), .completed)
+        let code = app.descendants(matching: .any).matching(identifier: "otp-code").firstMatch
+        XCTAssertEqual(code.value as? String, "111111")
+        XCTAssertTrue(app.buttons["Xác nhận"].isEnabled)
+        XCTAssertFalse(app.staticTexts["Chụp mặt trước CCCD"].exists)
+        app.buttons["Xác nhận"].tap()
+        XCTAssertTrue(app.staticTexts["Mã chưa đúng. Bạn còn 4 lần thử."].waitForExistence(timeout: 15))
+    }
+
+    @MainActor
     private func inspect(theme: String, large: Bool) throws {
         let app = XCUIApplication()
         app.launchArguments += ["--vc-theme", theme, "--vc-navigation-trace"]
@@ -100,20 +147,38 @@ final class WarmThemeUITests: XCTestCase {
             if name == "terms" {
                 // Repeat the actual native Back/push cycle, not a fallback tap.
                 for _ in 0..<2 {
-                    app.navigationBars.buttons.element(boundBy: 0).tap()
+                    termsBack(app)
                     XCTAssertTrue(app.navigationBars["Xem tất cả màn"].waitForExistence(timeout: 10))
                     bringIntoView(app.buttons[label], app: app)
                     app.buttons[label].tap()
                     XCTAssertTrue(app.staticTexts[heading].waitForExistence(timeout: 15))
                 }
             }
-            let back = app.navigationBars.buttons.element(boundBy: 0)
-            XCTAssertTrue(back.exists && back.isHittable)
-            back.tap()
+            if name == "terms" { termsBack(app) }
+            else {
+                let back = app.navigationBars.buttons.element(boundBy: 0)
+                XCTAssertTrue(back.exists && back.isHittable)
+                back.tap()
+            }
             // Assert the current navigation bar, not a heading that may be outside
             // the restored scroll viewport. One Back tap only; never retry it.
             XCTAssertTrue(app.navigationBars["Xem tất cả màn"].waitForExistence(timeout: 10))
         }
+    }
+
+    @MainActor
+    private func termsBack(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
+        let bar = app.navigationBars["Điều khoản"]
+        let back = bar.buttons.element(boundBy: 0)
+        // The body heading can enter AX before the previous navigation bar leaves.
+        // Never resolve a global first button against Gallery's outgoing bar.
+        let active = NSPredicate { _, _ in
+            bar.exists && !app.navigationBars["Xem tất cả màn"].exists && back.isHittable
+        }
+        let ready = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: active, object: nil)], timeout: 10)
+        XCTAssertEqual(ready, .completed, "Terms must own the native Back button", file: file, line: line)
+        guard ready == .completed else { return }
+        back.tap()
     }
 
     @MainActor

@@ -45,6 +45,7 @@ final class CaptureFlows: ObservableObject {
         expiryMonitor = Task { [weak self, weak live] in
             while !Task.isCancelled {
                 guard let self, let live, let session = live.session else { return }
+                if live.hasVerifiedPass { return } // Receipt metadata cannot turn a pass into expiry.
                 if voice ? self.voice.stage == .completed : self.face.stage == .completed { return }
                 if FlowRules.sessionExpired(session.expiresAt) {
                     self.restartFace(live: live)

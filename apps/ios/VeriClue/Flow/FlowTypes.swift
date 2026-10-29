@@ -1,4 +1,4 @@
-enum Purpose: String, CaseIterable, Identifiable {
+enum Purpose: String, CaseIterable, Identifiable, Sendable {
     case onboarding
     case reauth
     case recovery

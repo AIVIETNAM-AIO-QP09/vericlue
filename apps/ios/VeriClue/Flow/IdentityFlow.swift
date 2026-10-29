@@ -14,6 +14,9 @@ struct OTPResendClock {
 @MainActor
 final class IdentityFlow: ObservableObject {
     private let api: SessionApi?
+    private let accountFlow: AccountFlow
+    private var accountEntry: AccountEntry?
+    @Published private(set) var accountHint: String?
     private var live: LiveFlow?
     private var generation = 0
     private var purpose = Purpose.onboarding
@@ -42,20 +45,16 @@ final class IdentityFlow: ObservableObject {
     @Published var draftValues: [String] = []
     private var originallyShown: [String] = []
 
-    init(api: SessionApi? = nil) {
+    init(api: SessionApi? = nil, accountFlow: AccountFlow? = nil) {
         self.api = api ?? Self.configuredAPI()
+        self.accountFlow = accountFlow ?? AccountFlow()
         live = self.api.map { LiveFlow(api: $0) }
     }
 
     private static func configuredAPI() -> SessionApi? {
-        guard let raw = Bundle.main.object(forInfoDictionaryKey: "API_BASE_URL") as? String,
-              !raw.contains("<"), !raw.contains(">"),
-              let url = URL(string: raw), let host = url.host, !host.isEmpty else { return nil }
-        #if DEBUG
-        guard ["http", "https"].contains(url.scheme ?? "") else { return nil }
-        #else
-        guard url.scheme == "https" else { return nil }
-        #endif
+        guard let url = APIEndpointPolicy.baseURL(
+            Bundle.main.object(forInfoDictionaryKey: "API_BASE_URL") as? String,
+            requiresHTTPS: APIEndpointPolicy.requiresHTTPS) else { return nil }
         return SessionApi(baseURL: url)
     }
 
@@ -65,9 +64,30 @@ final class IdentityFlow: ObservableObject {
         self.scenario = scenario
     }
 
+    func beginAccount(purpose: Purpose, scenario: String?, signingEnabled: Bool = SigningConfiguration.enabled) async -> AccountEntry? {
+        guard !busy else { return nil }
+        reset()
+        let current = generation
+        busy = true
+        defer { if current == generation { busy = false } }
+        guard let api else { errorText = "Ứng dụng chưa được cấu hình địa chỉ máy chủ hợp lệ."; return nil }
+        do {
+            let entry = try await accountFlow.begin(purpose, signingEnabled: signingEnabled)
+            guard current == generation, !Task.isCancelled else { return nil }
+            self.purpose = entry.purpose; self.scenario = scenario
+            accountEntry = entry; accountHint = entry.hint
+            live = LiveFlow(api: api, accountEntry: entry, accountFlow: accountFlow)
+            return entry
+        } catch {
+            if current == generation, !Task.isCancelled { errorText = "Chưa thể mở thông tin thiết bị. Vui lòng thử lại sau." }
+            return nil
+        }
+    }
+
     func reset() {
         generation += 1
         live?.reset()
+        accountEntry = nil; accountHint = nil
         live = api.map { LiveFlow(api: $0) }
         phone = ""
         sessionPhone = nil
@@ -100,6 +120,13 @@ final class IdentityFlow: ObservableObject {
         code = OtpRules.append(code, digit)
     }
 
+    func replaceCode(_ value: String) {
+        guard !busy, !otpLocked, !otpVerified, OtpRules.acceptsInput(value), value != code else { return }
+        code = value
+        otpHasError = false
+        errorText = nil
+    }
+
     func eraseCode() {
         guard !busy, !otpVerified else { return }
         if !code.isEmpty { code.removeLast() }
@@ -117,7 +144,7 @@ final class IdentityFlow: ObservableObject {
         if sessionPhone == phone && resendClock.remaining(at: now) > 0 { return .otp }
         if let sessionPhone, sessionPhone != phone {
             live?.reset()
-            live = api.map { LiveFlow(api: $0) }
+            live = api.map { LiveFlow(api: $0, accountEntry: accountEntry, accountFlow: accountFlow) }
             otpVerified = false
             otpSMS = nil
             code = ""
@@ -127,7 +154,10 @@ final class IdentityFlow: ObservableObject {
             resendClock = OTPResendClock()
             clearPhotos()
         }
-        guard let live else { errorText = "Dịch vụ chưa phản hồi. Vui lòng thử lại sau."; return nil }
+        guard let live else {
+            errorText = "Ứng dụng chưa được cấu hình địa chỉ máy chủ hợp lệ. Vui lòng liên hệ nhóm demo."
+            return nil
+        }
         sessionPhone = phone
         let current = generation
         busy = true
@@ -292,6 +322,7 @@ final class IdentityFlow: ObservableObject {
         case .conflict(let code):
             if !otp && (code?.hasPrefix("otp_") == true) { return .errorService }
             switch code {
+            case "recovery_required": return .recoveryRequired
             case "otp_already_verified": otpVerified = true; return .otp
             case "otp_expired", "otp_locked":
                 otpHasError = true

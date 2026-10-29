@@ -1,6 +1,6 @@
 import Foundation
 
-enum Route: String, CaseIterable, Hashable, Identifiable {
+enum Route: String, CaseIterable, Hashable, Identifiable, Sendable {
     case bankStart = "bank_start"
     case bankOpened = "bank_opened"
     case gallery

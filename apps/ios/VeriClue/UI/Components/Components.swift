@@ -168,6 +168,7 @@ struct VcPrimaryButton: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 20).padding(.vertical, 12)
                 .frame(maxWidth: .infinity, minHeight: cameraLayout ? 52 : 56)
+                .contentShape(Rectangle())
         }
             .buttonStyle(VcPressStyle(filled: true, enabled: enabled))
             .disabled(!enabled)
@@ -189,6 +190,8 @@ struct VcSecondaryButton: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 16).padding(.vertical, 12)
                 .frame(maxWidth: .infinity, minHeight: 52)
+                // Include transparent padding and gaps between wrapped lines in hit testing.
+                .contentShape(Rectangle())
         }
             .buttonStyle(VcPressStyle(filled: false))
     }

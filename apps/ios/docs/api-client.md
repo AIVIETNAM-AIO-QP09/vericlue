@@ -2,8 +2,14 @@
 
 ## Phạm vi
 
+Cập nhật account parity: thêm optional fields public key/account/device/media_nonce/
+device_challenge, POST device-proof, GET result opaque và media_signature cho media/
+voice theo Android upstream 54acaad. Đã nối qua AccountEntry opt-in; mặc định tắt.
+Không đổi schema/backend local, không dùng signed result hoặc ACK L0 thay pass.
+Xem [binding và luồng tài khoản](account-binding.md); test wiring mới chưa chạy.
+
 `Data/API/Models.swift` dùng Codable và codec `SessionJSON` để giữ tên JSON snake_case.
-`Data/API/SessionApi.swift` cung cấp 10 endpoint POST và GET account receipt. `Flow/LiveFlow.swift` giữ trạng
+`Data/API/SessionApi.swift` cung cấp các endpoint phiên, gồm POST device-proof và GET account/result. `Flow/LiveFlow.swift` giữ trạng
 thái một phiên; `Flow/FlowRules.swift` quyết định route/câu nhắc từ kết quả server.
 Màn live và camera/micro đã được nối qua IOS-03..06. Demo IOS-01 vẫn chạy độc lập.
 

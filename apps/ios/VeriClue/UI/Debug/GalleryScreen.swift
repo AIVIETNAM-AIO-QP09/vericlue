@@ -15,6 +15,7 @@ struct GalleryScreen: View {
     @EnvironmentObject private var captures: CaptureFlows
     @Environment(\.vcColors) private var colors
     @State private var showFrontCameraCheckpoint = false
+    @State private var showDeviceKeyCheckpoint = false
     @State private var ownedCaptureFiles: Int?
 
     private let groups = [
@@ -52,6 +53,9 @@ struct GalleryScreen: View {
                 .font(VcType.label)
                 .accessibilityIdentifier("debug-front-camera-checkpoint")
             ReceiptKeychainCheckpoint()
+            Button("Kiểm tra khóa ký · DEBUG") { showDeviceKeyCheckpoint = true }
+                .font(VcType.label)
+                .accessibilityIdentifier("debug-device-key-checkpoint")
             Button("Kiểm tra file tạm · IOS-06") { ownedCaptureFiles = CaptureFileStore.ownedFileCount() }
                 .font(VcType.label)
             if let count = ownedCaptureFiles {
@@ -119,6 +123,7 @@ struct GalleryScreen: View {
         .sheet(isPresented: $showFrontCameraCheckpoint) {
             FaceCameraCheckpointScreen(camera: face.camera, onClose: { showFrontCameraCheckpoint = false })
         }
+        .sheet(isPresented: $showDeviceKeyCheckpoint) { DeviceKeychainCheckpoint() }
     }
 }
 #endif

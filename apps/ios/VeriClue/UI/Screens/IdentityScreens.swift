@@ -102,6 +102,7 @@ struct OTPDemoScreen: View {
     @State private var hasError: Bool
     @State private var attemptsLeft: Int
     @State private var resendClock = OTPResendClock()
+    @State private var showSystemInput = false
     @Environment(\.vcColors) private var colors
 
     init(startsWithError: Bool = false, onVerified: @escaping () -> Void) {
@@ -121,6 +122,10 @@ struct OTPDemoScreen: View {
             VcBanner(text: "Dữ liệu mẫu · SMS mô phỏng: 654321. Không phải mã từ server.", systemImage: "message")
             Text("Nhập mã xác nhận").font(VcType.titleLarge).foregroundStyle(colors.ink)
             VcOTPBoxes(code: code, hasError: hasError)
+            Button("Dùng mã SMS hoặc bàn phím hệ thống") { showSystemInput = true }
+                .font(VcType.caption)
+                .disabled(attemptsLeft == 0)
+                .accessibilityIdentifier("otp-open-system-input")
             if hasError { VcBanner(text: FlowRules.otpWrongText(attemptsLeft), tone: .warning) }
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 let seconds = resendClock.remaining(at: context.date)
@@ -143,6 +148,12 @@ struct OTPDemoScreen: View {
             }
             .padding(.top, 8)
             .background(colors.background)
+        }
+        .sheet(isPresented: $showSystemInput) {
+            OTPSystemInputSheet(code: Binding(get: { code }, set: { value in
+                guard attemptsLeft > 0, OtpRules.acceptsInput(value), value != code else { return }
+                code = value; hasError = false
+            }), enabled: attemptsLeft > 0)
         }
     }
 

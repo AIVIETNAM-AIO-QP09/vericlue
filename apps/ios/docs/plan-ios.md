@@ -571,7 +571,7 @@ Chữ cho 2 route mới:
 
 ### 13.1 Checklist trên iPhone thật với server mock
 
-- [ ] `genuine`, onboarding: đi hết luồng → đọc câu → "Xác minh thành công", chỉ tích phần server đã kiểm.
+- [ ] `genuine`, onboarding: đi hết luồng; `pass` → "Xác minh thành công" không đọc câu; chỉ `voice_challenge` mới đọc câu. Chỉ tích phần server đã kiểm.
 - [ ] `low_quality`: "Chụp lại" với câu nhắc và "Còn N lần chụp lại" lấy từ server; lượt sau dùng challenge mới.
 - [ ] `voice_clone`: đọc câu → "Hồ sơ đang được xác minh thêm".
 - [ ] Tắt Wi-Fi lúc gửi → "Không kết nối được"; "Thử lại" khi vẫn mất mạng → vẫn báo lỗi; bật lại → đi tiếp đúng.

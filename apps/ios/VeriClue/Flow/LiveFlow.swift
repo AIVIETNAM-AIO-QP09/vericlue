@@ -10,9 +10,14 @@ enum Next: Equatable {
 final class LiveFlow: ObservableObject {
     private let api: SessionApi
     private let accountStore: AccountStore
+    private let accountEntry: AccountEntry?
+    private let accountFlow: AccountFlow?
+    private var mediaSigner: (any MediaSigner)? { accountEntry?.signer }
+    @Published private(set) var bindingOutcome: AccountPersistenceOutcome?
     @Published private(set) var accountReceipt: AccountReceipt?
     @Published private(set) var receiptIssue: ReceiptIssue?
     private var verificationPassed = false
+    var hasVerifiedPass: Bool { verificationPassed }
     private var receiptSaved = false
     private var receiptCollection: Task<Void, Never>?
     private var receiptCollectionID: UUID?
@@ -42,12 +47,15 @@ final class LiveFlow: ObservableObject {
     private var requestedPurpose: Purpose?
     private var readyRetryChallenge = false
     private var activeOperation: UUID?
+    private var operationLease: OperationLease?
     private var cancelRequest: (() -> Void)?
     private(set) var requiresFreshChallenge = false
 
-    init(api: SessionApi, accountStore: AccountStore = .shared) {
+    init(api: SessionApi, accountStore: AccountStore = .shared,
+         accountEntry: AccountEntry? = nil, accountFlow: AccountFlow? = nil) {
         self.api = api
         self.accountStore = accountStore
+        self.accountEntry = accountEntry; self.accountFlow = accountFlow
     }
 
     enum ReceiptIssue: Equatable { case api(ApiError), invalidReceipt, storage }
@@ -79,6 +87,7 @@ final class LiveFlow: ObservableObject {
     func cancelPendingRequests() { abandonOperation() }
 
     private func abandonOperation() {
+        operationLease?.invalidate(); operationLease = nil
         let cancel = cancelRequest
         cancelRequest = nil
         activeOperation = nil
@@ -89,11 +98,13 @@ final class LiveFlow: ObservableObject {
         guard activeOperation == nil else { return nil }
         let id = UUID()
         activeOperation = id
+        operationLease = OperationLease()
         return id
     }
 
     private func endOperation(_ id: UUID) {
         guard activeOperation == id else { return }
+        operationLease?.invalidate(); operationLease = nil
         activeOperation = nil; cancelRequest = nil
     }
 
@@ -117,6 +128,7 @@ final class LiveFlow: ObservableObject {
         accountReceipt = nil
         receiptIssue = nil
         receiptSaved = false
+        bindingOutcome = nil
         frontalJpeg = nil
         colorEvents.removeAll()
         pendingFaceVideo = nil
@@ -144,7 +156,18 @@ final class LiveFlow: ObservableObject {
     }
 
     private func ensureSession(purpose: Purpose?, scenario: String?, operation: UUID) async -> ApiError? {
-        if session != nil { return nil }
+        if session != nil { return purpose == nil || requestedPurpose == purpose ? nil : .badResponse }
+        if let entry = accountEntry {
+            guard entry.purpose == purpose, entry.route != .recoveryRequired,
+                  entry.receipt?.isUsable() ?? true else { return .conflict(code: "recovery_required") }
+            if entry.receipt != nil && mediaSigner == nil { return .badResponse }
+            if purpose == .reauth && (entry.receipt == nil || mediaSigner == nil) { return .badResponse }
+            if mediaSigner != nil {
+                guard let alias = entry.keyAlias, KeyAliases.valid(alias),
+                      purpose == .reauth || accountFlow != nil else { return .badResponse }
+            }
+        }
+        if mediaSigner != nil && purpose == nil { return .badResponse }
         var body: CreateSessionRequest?
         if let purpose {
             var bytes = [UInt8](repeating: 0, count: 18)
@@ -153,12 +176,37 @@ final class LiveFlow: ObservableObject {
                 .replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_")
                 .replacingOccurrences(of: "=", with: "")
             body = CreateSessionRequest(purpose: purpose.rawValue, nonce: nonce)
+            body?.accountId = accountEntry?.receipt?.accountId
+            if purpose == .reauth { body?.deviceId = accountEntry?.receipt?.deviceId }
+            else if let mediaSigner {
+                do { body?.devicePublicKeySpki = try await mediaSigner.publicKeySPKI() }
+                catch { return activeOperation == operation ? .server : .network }
+                guard body?.devicePublicKeySpki?.isEmpty == false else { return .badResponse }
+            }
         }
+        guard activeOperation == operation, !Task.isCancelled else { return .network }
         let bodyToSend = body
         switch await request(operation, { await self.api.createSession(request: bodyToSend, mockScenario: scenario) }) {
         case .failure(let error): return error
         case .success(let value):
             guard !value.sessionId.isEmpty, !value.token.isEmpty, !value.challenge.challengeId.isEmpty else { return .badResponse }
+            if let mediaSigner {
+                guard let nonce = bodyToSend?.nonce, value.nonce == nonce, value.purpose == purpose?.rawValue,
+                      let seed = value.challenge.mediaNonce, MediaProof.matches(seed, "[0-9a-f]{64}") else { return .badResponse }
+                if purpose == .reauth {
+                    guard let account = accountEntry?.receipt else { return .badResponse }
+                    let signature: String
+                    do {
+                        let bytes = try DeviceProof.payload(session: value, account: account, nonce: nonce)
+                        signature = try await mediaSigner.sign(bytes)
+                    } catch { return activeOperation == operation ? .badResponse : .network }
+                    guard activeOperation == operation, !Task.isCancelled, !signature.isEmpty else { return .network }
+                    switch await request(operation, { await self.api.proveDevice(sessionId: value.sessionId, token: value.token, signature: signature) }) {
+                    case .failure(let error): return error
+                    case .success(let proof): guard proof.received else { return .badResponse }
+                    }
+                } else if value.deviceChallenge != nil { return .badResponse }
+            } else if value.deviceChallenge != nil { return .badResponse }
             session = value
             challenge = value.challenge
             requestedPurpose = purpose
@@ -173,12 +221,16 @@ final class LiveFlow: ObservableObject {
         guard let operation = beginOperation() else { return .busy }
         defer { endOperation(operation) }
         guard var current = session else { return await ensureSession(purpose: purpose, scenario: scenario, operation: operation) }
+        guard purpose == nil || requestedPurpose == purpose else { return .badResponse }
         if readyRetryChallenge, !requiresFreshChallenge { readyRetryChallenge = false; return nil }
         let sessionToRefresh = current
         switch await request(operation, { await self.api.refreshChallenge(sessionId: sessionToRefresh.sessionId, token: sessionToRefresh.token) }) {
         case .failure(let error): return error
         case .success(let value):
             guard !value.token.isEmpty, !value.challenge.challengeId.isEmpty else { return .badResponse }
+            if mediaSigner != nil {
+                guard let seed = value.challenge.mediaNonce, MediaProof.matches(seed, "[0-9a-f]{64}") else { return .badResponse }
+            }
             dropFaceAttempt()
             current.token = value.token
             current.expiresAt = value.expiresAt
@@ -273,9 +325,14 @@ final class LiveFlow: ObservableObject {
         guard let signals = pendingSignals else { return .fail(.badResponse) }
         if !mediaAcked {
             let image = pendingFaceImage ?? jpeg, video = pendingFaceVideo
+            let proof = await signature(session: current, challenge: active, stage: "face", attemptID: active.challengeId,
+                files: video.map { ["image": ("face.jpg", image), "video": ("face.mp4", $0)] } ?? ["image": ("face.jpg", image)])
+            guard activeOperation == operation, !Task.isCancelled else { return .fail(.network) }
+            let mediaSignature: String?
+            switch proof { case .failure(let error): return .fail(error); case .success(let value): mediaSignature = value }
             let ack = await request(operation) {
                 await self.api.sendMedia(sessionId: current.sessionId, token: current.token, imageJpeg: image,
-                                         video: video, challengeId: active.challengeId)
+                                         video: video, challengeId: active.challengeId, mediaSignature: mediaSignature)
             }
             if let error = acknowledgmentError(ack, step: "media") { return .fail(error) }
             mediaAcked = true
@@ -293,6 +350,9 @@ final class LiveFlow: ObservableObject {
             guard let route = FlowRules.routeForStatus(value.status, retryHint: value.retryHint) else { return .fail(.badResponse) }
             if value.status == "retry" {
                 guard let next = value.challenge, !next.challengeId.isEmpty else { return .fail(.badResponse) }
+                if mediaSigner != nil {
+                    guard let seed = next.mediaNonce, MediaProof.matches(seed, "[0-9a-f]{64}") else { return .fail(.badResponse) }
+                }
                 dropFaceAttempt()
                 challenge = next
                 session?.challenge = next
@@ -307,6 +367,7 @@ final class LiveFlow: ObservableObject {
             retryHint = value.retryHint
             attemptsLeft = value.attemptsLeft
             verificationPassed = value.status == "pass"
+            if verificationPassed, !(await persistBeforeSuccess(operation: operation, current: current)) { return .fail(.network) }
             return .to(route)
         }
     }
@@ -327,8 +388,15 @@ final class LiveFlow: ObservableObject {
         guard let recording = pendingWav, !recording.isEmpty else { return .to(.noVoice) }
         guard (current.purpose == nil && requestedPurpose == nil) || !(voiceChallengeId ?? "").isEmpty else { return .fail(.badResponse) }
         let video = pendingVoiceVideo, offset = self.audioOffsetMs, voiceID = voiceChallengeId
+        guard let active = challenge else { return .fail(.badResponse) }
+        let proof = await signature(session: current, challenge: active, stage: "voice", attemptID: voiceID ?? "",
+            files: video.map { ["audio": ("voice.wav", recording), "video": ("voice.mp4", $0)] } ?? ["audio": ("voice.wav", recording)],
+            audioOffsetMs: offset)
+        guard activeOperation == operation, !Task.isCancelled else { return .fail(.network) }
+        let mediaSignature: String?
+        switch proof { case .failure(let error): return .fail(error); case .success(let value): mediaSignature = value }
         switch await request(operation, { await self.api.sendVoice(sessionId: current.sessionId, token: current.token, wav: recording,
-                                   video: video, audioOffsetMs: offset, voiceChallengeId: voiceID) }) {
+                                   video: video, audioOffsetMs: offset, voiceChallengeId: voiceID, mediaSignature: mediaSignature) }) {
         case .failure(let error): return .fail(error)
         case .success(let value):
             guard let route = FlowRules.routeForStatus(value.status, inVoiceStep: true) else { return .fail(.badResponse) }
@@ -355,6 +423,7 @@ final class LiveFlow: ObservableObject {
                 receiptSaved = false
             }
             onAccepted()
+            if verificationPassed, !(await persistBeforeSuccess(operation: operation, current: current)) { return .fail(.network) }
             return .to(route)
         }
     }
@@ -362,7 +431,7 @@ final class LiveFlow: ObservableObject {
     // Survives Success -> BankOpened, but reset/abandon cancels it. No biometrics
     // are retried, and a stale collector cannot unlock a newer collector's lease.
     func collectReceiptAfterPass() {
-        guard verificationPassed, receiptCollection == nil else { return }
+        guard accountEntry == nil, verificationPassed, receiptCollection == nil else { return }
         let id = UUID()
         receiptCollectionID = id
         receiptCollection = Task { [weak self] in
@@ -378,6 +447,13 @@ final class LiveFlow: ObservableObject {
     // Receipt failure is separate from a confirmed pass; retry this GET/save only.
     @discardableResult
     func receiptAfterPass() async -> AccountReceipt? {
+        if let accountEntry {
+            guard verificationPassed, accountEntry.keyAlias != nil, accountEntry.purpose != .reauth,
+                  let current = session, let operation = beginOperation() else { return nil }
+            defer { endOperation(operation) }
+            guard await persistBeforeSuccess(operation: operation, current: current) else { return nil }
+            return receiptSaved ? accountReceipt : nil
+        }
         guard !Task.isCancelled, verificationPassed, let current = session,
               ["onboarding", "recovery"].contains(current.purpose ?? requestedPurpose?.rawValue ?? ""),
               let operation = beginOperation() else { return nil }
@@ -406,6 +482,51 @@ final class LiveFlow: ObservableObject {
             receiptSaved = true
         }
         return receipt
+    }
+
+    private func signature(session: CreateSessionResponse, challenge: Challenge, stage: String,
+        attemptID: String, files: [String: (String, Data)], audioOffsetMs: Int? = nil) async -> Result<String?, ApiError> {
+        guard let mediaSigner else { return .success(nil) }
+        do {
+            let message = try await Task.detached(priority: .userInitiated) {
+                try Task.checkCancellation()
+                let digests = try files.mapValues { try MediaProof.digest(name: $0.0, bytes: $0.1) }
+                return try MediaProof.manifest(session: session, challenge: challenge, stage: stage,
+                    attemptID: attemptID, files: digests, audioOffsetMs: audioOffsetMs)
+            }.value
+            let value = try await mediaSigner.sign(message)
+            guard !value.isEmpty else { return .failure(.server) }
+            return .success(value)
+        } catch { return .failure(.server) } // Never downgrade a signed session to unsigned.
+    }
+
+    private func persistBeforeSuccess(operation: UUID, current: CreateSessionResponse) async -> Bool {
+        guard let entry = accountEntry, entry.keyAlias != nil, entry.purpose != .reauth else {
+            return activeOperation == operation && !Task.isCancelled
+        }
+        guard let accountFlow, let lease = operationLease, activeOperation == operation,
+              !Task.isCancelled else { return false }
+        if receiptSaved { return true }
+        receiptIssue = nil
+        if accountReceipt?.isUsable() != true {
+            switch await request(operation, { await self.api.accountReceipt(sessionId: current.sessionId, token: current.token) }) {
+            case .failure(let error):
+                if activeOperation == operation { receiptIssue = .api(error); bindingOutcome = .unavailable }
+                return activeOperation == operation && !Task.isCancelled
+            case .success(let receipt):
+                guard receipt.isUsable() else { receiptIssue = .invalidReceipt; bindingOutcome = .unavailable; return true }
+                accountReceipt = receipt
+            }
+        }
+        guard activeOperation == operation, !Task.isCancelled else { return false }
+        do {
+            let outcome = try await accountFlow.persist(accountReceipt, entry: entry, lease: lease)
+            guard activeOperation == operation, !Task.isCancelled else { return false }
+            bindingOutcome = outcome
+            receiptSaved = outcome == .saved || outcome == .oldKeyCleanup
+            if !receiptSaved { receiptIssue = outcome == .storage ? .storage : .invalidReceipt }
+        } catch { return false }
+        return true // Metadata/storage failure cannot undo a server pass.
     }
 
     private func acknowledgmentError(_ result: Result<StepAck, ApiError>, step: String) -> ApiError? {

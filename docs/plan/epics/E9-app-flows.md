@@ -330,6 +330,18 @@ ghi tại [tài liệu đồng bộ](../../../apps/ios/docs/android-alignment.md
 
 ---
 
+**Account parity theo yêu cầu sếp (cập nhật 29/10, chưa chốt toàn bộ):** đã nối
+AccountBindingStore/AccountFlow, Auth/L0 và ký media/voice opt-in theo Android
+`54acaad`, `SIGNED_MEDIA=NO` mặc định. Receipt+alias ghi nguyên tử; recovery lưu
+bền trước xóa khóa cũ; lỗi metadata giữ pass, response trễ bị revoke. Giữ recovery
+bỏ CCCD và tổng OTP sai/phiên. Suite binding 15/15 và protocol đã đạt trong các
+lượt regression; lượt sau sửa hash/nút đạt 184/185, còn UI light AX3 Back, đã siết
+đồng bộ đúng navigation bar và đang kiểm bản mới. Sếp xác nhận ký mặt/giọng có
+biên nhận backend, checkpoint khóa thử qua đóng/mở, native OTP không auto verify
+và rung đạt trên iPhone. SMS thật, binding/receipt/account-bound backend còn chờ.
+Xem [binding](../../../apps/ios/docs/account-binding.md) và
+[bàn giao 29/10](../../status/handoffs/2026-10-29-0134-ios-02-l-anh-qu-n-codex.md).
+
 ### IOS-03 · App iOS: OTP, chụp CCCD (nét, lóa, QR bằng Vision), xác nhận thông tin
 
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
@@ -448,6 +460,15 @@ giới hạn bằng chứng và phục hồi phiên mới khi đổi quyền, gh
 | M1 | 1 | S2 | P1 | IOS-03, IOS-05, IOS-06 |
 
 **Mục tiêu:** Bản iOS demo được trên iPhone thật.
+
+**Triển khai 28/10 (`doing`):** phạm vi mức 1 theo Android upstream `54acaad`:
+Release HTTPS, ẩn debug, README/checklist và số đo. Đã viết guard URL khi build,
+plist Release riêng và scheme không attach debugger. Cập nhật 29/10: build Release
+không ký/artifact check đạt trên bản có native OTP/rung, không ATS/local-network/
+marker Debug. URL .invalid chỉ để compile. Chưa nghiệm thu Release trên iPhone;
+sếp xác nhận chưa có domain HTTPS được duyệt, số đo kết nối thật vẫn pending.
+Không gộp receipt binding/device proof/media signing (SEC-02). Xem
+[checklist IOS-07](../../../apps/ios/docs/ios07-release-device-checklist.md).
 
 **Đầu ra:**
 - Release chỉ HTTPS (cloudflared), ẩn nút debug; `apps/ios/README.md`; số đo thật trong bàn giao.

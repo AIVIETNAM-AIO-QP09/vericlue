@@ -79,3 +79,4 @@ temp/
 apps/ios/**/xcuserdata/
 apps/ios/**/*.xcuserstate
 apps/ios/build/
+apps/ios/Config/Release.local.xcconfig

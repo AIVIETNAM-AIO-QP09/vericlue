@@ -64,11 +64,24 @@ final class SessionApi {
         return await call(request)
     }
 
-    func sendMedia(sessionId: String, token: String, imageJpeg: Data, video: Data?, challengeId: String?) async -> Result<StepAck, ApiError> {
+    func proveDevice(sessionId: String, token: String, signature: String) async -> Result<DeviceProofResponse, ApiError> {
+        await json(sessionId, "device-proof", token, DeviceProofRequest(signature: signature))
+    }
+
+    func signedResult(sessionId: String, token: String) async -> Result<SignedResult, ApiError> {
+        var request = post(["v1", "sessions", sessionId, "result"], token: token)
+        request.httpMethod = "GET"
+        request.setValue(nil, forHTTPHeaderField: "Content-Type")
+        request.setValue("no-store", forHTTPHeaderField: "Cache-Control")
+        return await call(request)
+    }
+
+    func sendMedia(sessionId: String, token: String, imageJpeg: Data, video: Data?, challengeId: String?, mediaSignature: String? = nil) async -> Result<StepAck, ApiError> {
         var body = MultipartBody()
         body.file("image", filename: "face.jpg", contentType: "image/jpeg", data: imageJpeg)
         if let video { body.file("video", filename: "face.mp4", contentType: "video/mp4", data: video) }
         if let challengeId { body.field("challenge_id", challengeId) }
+        if let mediaSignature { body.field("media_signature", mediaSignature) }
         return await multipart(sessionId, "media", token, body)
     }
 
@@ -81,7 +94,7 @@ final class SessionApi {
         return await call(post(["v1", "sessions", sessionId, "finalize"], token: token))
     }
 
-    func sendVoice(sessionId: String, token: String, wav: Data, video: Data?, audioOffsetMs: Int?, voiceChallengeId: String?) async -> Result<VoiceResponse, ApiError> {
+    func sendVoice(sessionId: String, token: String, wav: Data, video: Data?, audioOffsetMs: Int?, voiceChallengeId: String?, mediaSignature: String? = nil) async -> Result<VoiceResponse, ApiError> {
         guard audioOffsetMs.map({ (-5000...5000).contains($0) }) ?? true else { return .failure(.badResponse) }
         guard video != nil || audioOffsetMs == nil else { return .failure(.badResponse) }
         var body = MultipartBody()
@@ -91,6 +104,7 @@ final class SessionApi {
             if let audioOffsetMs { body.field("audio_offset_ms", String(audioOffsetMs)) }
         }
         if let voiceChallengeId { body.field("voice_challenge_id", voiceChallengeId) }
+        if let mediaSignature { body.field("media_signature", mediaSignature) }
         return await multipart(sessionId, "voice", token, body)
     }
 
@@ -131,6 +145,8 @@ final class SessionApi {
     }
 
     private func call<Response: Decodable>(_ request: URLRequest) async -> Result<Response, ApiError> {
+        guard APIEndpointPolicy.baseURL(request.url?.absoluteString,
+            requiresHTTPS: APIEndpointPolicy.requiresHTTPS) != nil else { return .failure(.badResponse) }
         do {
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else { return .failure(.badResponse) }

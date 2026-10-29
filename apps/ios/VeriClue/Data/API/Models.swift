@@ -28,6 +28,7 @@ struct Challenge: Codable, Equatable, Sendable {
     var captureAtMs: [Int]? = nil
     var expiresAt: String? = nil
     var dynamic: DynamicChallenge? = nil
+    var mediaNonce: String? = nil
 }
 
 struct GazePoint: Codable, Equatable, Sendable {
@@ -54,6 +55,9 @@ struct CreateSessionRequest: Codable, Equatable, Sendable {
     let purpose: String
     let nonce: String
     var referenceImageId: String? = nil
+    var devicePublicKeySpki: String? = nil
+    var accountId: String? = nil
+    var deviceId: String? = nil
 }
 
 struct CreateSessionResponse: Codable, Equatable, Sendable {
@@ -63,6 +67,27 @@ struct CreateSessionResponse: Codable, Equatable, Sendable {
     var challenge: Challenge
     var purpose: String? = nil
     var nonce: String? = nil
+    var deviceChallenge: DeviceChallenge? = nil
+}
+
+struct DeviceChallenge: Codable, Equatable, Sendable {
+    let message: String
+    let expiresAt: String
+}
+struct DeviceProofRequest: Codable, Equatable, Sendable { let signature: String }
+struct DeviceProofResponse: Codable, Equatable, Sendable { let received: Bool }
+
+// Opaque integrator result; decoding a signed envelope is NOT a pass decision.
+struct SignedResult: Codable, Equatable, Sendable {
+    let algorithm: String
+    let keyId: String
+    let payload: String
+    let signature: String
+}
+struct SigningKey: Codable, Equatable, Sendable {
+    let algorithm: String
+    let keyId: String
+    let publicKeySpki: String
 }
 
 struct ChallengeResponse: Codable, Equatable, Sendable {
@@ -190,7 +215,7 @@ extension VoiceResponse {
 
 // Published contract at Android reference f034fa9, session.schema.json $defs.AccountReceipt.
 // A reference to an enrollment, NOT a credential or a bank account number.
-struct AccountReceipt: Codable, Equatable, Sendable {
+nonisolated struct AccountReceipt: Codable, Equatable, Sendable {
     let accountId: String
     let deviceId: String
     let expiresAt: String

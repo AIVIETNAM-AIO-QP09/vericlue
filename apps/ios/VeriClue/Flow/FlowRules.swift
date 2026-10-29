@@ -116,7 +116,8 @@ enum FlowRules {
         case .network: .errorNetwork
         case .unauthorized, .expired: .errorSession
         case .conflict(let code):
-            ["session_closed", "session_too_long"].contains(code ?? "") ? .errorSession : .errorService
+            code == "recovery_required" ? .recoveryRequired :
+                (["session_closed", "session_too_long"].contains(code ?? "") ? .errorSession : .errorService)
         case .busy, .badResponse, .server: .errorService
         }
     }
@@ -134,6 +135,9 @@ enum PhoneRules {
     }
 }
 enum OtpRules {
+    static func acceptsInput(_ value: String) -> Bool {
+        value.count <= 6 && value.allSatisfy { $0.isASCII && $0.isNumber }
+    }
     static func simulatedCode(in sms: String?) -> String? {
         guard let sms, let regex = try? NSRegularExpression(pattern: #"(?<!\p{N})[0-9]{6}(?!\p{N})"#) else { return nil }
         let matches = regex.matches(in: sms, range: NSRange(sms.startIndex..., in: sms))

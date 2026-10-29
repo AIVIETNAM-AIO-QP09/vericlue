@@ -2,6 +2,12 @@
 
 ## Nguồn hợp đồng và phạm vi
 
+**Cập nhật nối tài khoản:** receipt-only trong tài liệu này vẫn là kho legacy,
+không được tự gán alias để đăng nhập. Bản mới có kho binding riêng và đã nối
+Auth/L0/media signing opt-in, mặc định tắt, chưa chạy test wiring/nghiệm thu.
+Xem [account-binding.md](account-binding.md); lịch sử kiểm chứng dưới đây không
+chứng minh bản wiring mới đã hoàn tất.
+
 Đối chiếu `packages/contracts/schemas/session.schema.json` và OpenAPI tại commit
 Android `f034fa9406ea9aef1ee86365ce82142de517d553`:
 `account_id` là `acct_` + 32 ký tự hex thường, `device_id` là `dev_` + 32 ký tự

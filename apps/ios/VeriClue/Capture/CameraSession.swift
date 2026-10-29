@@ -29,9 +29,26 @@ private final class RearCameraWorker: NSObject, AVCapturePhotoCaptureDelegate, A
             queue.async {
                 do {
                     if !self.configured {
-                        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
+                        let devices = AVCaptureDevice.DiscoverySession(
+                            deviceTypes: [.builtInUltraWideCamera, .builtInWideAngleCamera],
+                            mediaType: .video,
+                            position: .back
+                        ).devices
+                        // Prefer close-focusing Ultra Wide; retain Wide on unsupported devices.
+                        let ultraWide = devices.first {
+                            $0.deviceType == .builtInUltraWideCamera &&
+                            $0.isFocusModeSupported(.continuousAutoFocus)
+                        }
+                        guard let device = ultraWide ?? devices.first(where: {
+                            $0.deviceType == .builtInWideAngleCamera
+                        }) else {
                             throw CameraError.unavailable
                         }
+                        try device.lockForConfiguration()
+                        if device.isFocusModeSupported(.continuousAutoFocus) {
+                            device.focusMode = .continuousAutoFocus
+                        }
+                        device.unlockForConfiguration()
                         let input = try AVCaptureDeviceInput(device: device)
                         self.session.beginConfiguration()
                         defer { self.session.commitConfiguration() }

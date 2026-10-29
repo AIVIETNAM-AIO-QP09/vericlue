@@ -44,6 +44,7 @@ struct IdentityPhoneScreen: View {
 struct IdentityOTPScreen: View {
     @EnvironmentObject private var identity: IdentityFlow
     @Environment(\.vcColors) private var colors
+    @State private var showSystemInput = false
     let onNext: (Route) -> Void
     var onRestart: (() -> Void)? = nil
 
@@ -58,6 +59,10 @@ struct IdentityOTPScreen: View {
             }
             Text("Nhập mã xác nhận").font(VcType.titleLarge)
             VcOTPBoxes(code: identity.code, hasError: identity.otpHasError)
+            Button("Dùng mã SMS hoặc bàn phím hệ thống") { showSystemInput = true }
+                .font(VcType.caption)
+                .disabled(identity.busy || identity.otpLocked)
+                .accessibilityIdentifier("otp-open-system-input")
             if let attempts = identity.attemptsLeft {
                 Text("Bạn còn \(attempts) lần thử.").font(VcType.caption).foregroundStyle(colors.muted)
             }
@@ -97,6 +102,10 @@ struct IdentityOTPScreen: View {
             .background(colors.background)
         }
         .navigationBarBackButtonHidden(identity.busy)
+        .sheet(isPresented: $showSystemInput) {
+            OTPSystemInputSheet(code: Binding(get: { identity.code }, set: identity.replaceCode),
+                enabled: !identity.busy && !identity.otpLocked && !identity.otpVerified)
+        }
     }
 
     private var canVerify: Bool {
@@ -182,6 +191,7 @@ struct IdentityCaptureScreen: View {
             } else { cancelPending(); camera.stop() }
         }
         .onChange(of: camera.shouldAutoCapture) { ready in if ready { capture() } }
+        .completionFeedback(completed: heldPhoto != nil, event: isBack ? "id-back" : "id-front")
         .onDisappear { cancelPending(); camera.stop() }
     }
 

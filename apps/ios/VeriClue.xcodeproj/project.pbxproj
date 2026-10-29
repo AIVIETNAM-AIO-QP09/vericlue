@@ -124,6 +124,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 04FAA2EC308D2F680054A9E0 /* Build configuration list for PBXNativeTarget "VeriClue" */;
 			buildPhases = (
+				10F007AA0000000000000001 /* Check Release endpoint */,
 				04FAA2C7308D2F650054A9E0 /* Sources */,
 				04FAA2C8308D2F650054A9E0 /* Frameworks */,
 				04FAA2C9308D2F650054A9E0 /* Resources */,
@@ -255,6 +256,25 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		10F007AA0000000000000001 /* Check Release endpoint */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/../../scripts/check_ios_release.py",
+			);
+			name = "Check Release endpoint";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "PYTHONDONTWRITEBYTECODE=1 /usr/bin/python3 \"$SRCROOT/../../scripts/check_ios_release.py\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		04FAA2C7308D2F650054A9E0 /* Sources */ = {
@@ -427,9 +447,13 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = VeriClue/Info.plist;
+				INFOPLIST_KEY_NSCameraUsageDescription = "VeriClue dùng camera để chụp giấy tờ và quay khuôn mặt khi xác minh danh tính.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "VeriClue kết nối với máy chủ demo trong cùng mạng Wi-Fi để xác minh danh tính.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "VeriClue dùng micro để ghi giọng đọc một câu ngắn khi xác minh.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiresFullScreen = YES;
 				INFOPLIST_KEY_UIStatusBarStyle = "";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
@@ -440,6 +464,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = vn.vericlue.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SIGNED_MEDIA = NO;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -461,10 +486,13 @@
 				DEVELOPMENT_TEAM = VTZRDTJ8X9;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = VeriClue/Info.plist;
+				INFOPLIST_FILE = "Config/Release-Info.plist";
+				INFOPLIST_KEY_NSCameraUsageDescription = "VeriClue dùng camera để chụp giấy tờ và quay khuôn mặt khi xác minh danh tính.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "VeriClue dùng micro để ghi giọng đọc một câu ngắn khi xác minh.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiresFullScreen = YES;
 				INFOPLIST_KEY_UIStatusBarStyle = "";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
@@ -475,6 +503,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = vn.vericlue.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SIGNED_MEDIA = NO;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;

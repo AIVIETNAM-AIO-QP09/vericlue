@@ -9,6 +9,8 @@ struct RouteScreen: View {
     @EnvironmentObject private var face: FaceCaptureFlow
     @EnvironmentObject private var voice: VoiceCaptureFlow
     @EnvironmentObject private var captures: CaptureFlows
+    @State private var authTask: Task<Void, Never>?
+    @State private var authBusy = false
 
     private var usesLiveIdentity: Bool { flow.useLiveAPI && !flow.previewMode }
 
@@ -28,12 +30,20 @@ struct RouteScreen: View {
             SplashScreen(onDone: { navigation.replaceTop(with: .auth) }, autoAdvance: !flow.previewMode)
         case .auth:
             AuthScreen(
-                onRegister: { beginIdentity(.onboarding); navigation.go(.terms) },
-                onLogin: { beginIdentity(.reauth); navigation.go(.phone) },
-                onRecover: { beginIdentity(.recovery); navigation.go(.phone) }
+                onRegister: { beginIdentity(.onboarding) },
+                onLogin: { beginIdentity(.reauth) },
+                onRecover: { beginIdentity(.recovery) }
             )
+            .disabled(authBusy)
+            .overlay { if authBusy { ProgressView("Đang chuẩn bị…") } }
+            .onDisappear {
+                if authTask != nil { authTask?.cancel(); authTask = nil; authBusy = false; identity.cancelPendingRequests() }
+            }
         case .terms:
             TermsScreen(onAccept: { navigation.go(.phone) })
+                .safeAreaInset(edge: .top) {
+                    if usesLiveIdentity, let hint = identity.accountHint { VcBanner(text: hint).padding(.horizontal, 20) }
+                }
         case .phone:
             if usesLiveIdentity { IdentityPhoneScreen(onNext: followIdentity) }
             else { PhoneScreen { _ in navigation.go(.otp) } }
@@ -209,9 +219,23 @@ struct RouteScreen: View {
     private func requestCaptureExit() { captures.showExitConfirmation = true }
 
     private func beginIdentity(_ purpose: Purpose) {
-        flow.purpose = purpose
+        guard !authBusy else { return }
         flow.idConfirmed = false
-        if usesLiveIdentity { identity.begin(purpose: purpose, scenario: flow.mockScenario) }
+        if !usesLiveIdentity {
+            flow.purpose = purpose
+            navigation.go(purpose == .onboarding ? .terms : .phone)
+            return
+        }
+        captures.leaveFlow(live: identity.liveFlow)
+        authBusy = true
+        authTask = Task {
+            let entry = await identity.beginAccount(purpose: purpose, scenario: flow.mockScenario)
+            guard !Task.isCancelled else { return }
+            authTask = nil; authBusy = false
+            guard let entry else { navigation.go(.errorService); return }
+            flow.purpose = entry.purpose
+            navigation.go(entry.route)
+        }
     }
 
     private func followIdentity(_ route: Route) {
