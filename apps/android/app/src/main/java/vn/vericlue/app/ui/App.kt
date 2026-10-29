@@ -60,6 +60,7 @@ import vn.vericlue.app.capture.CccdQr
 import vn.vericlue.app.capture.IdAutoCapture
 import vn.vericlue.app.capture.IdQuality
 import vn.vericlue.app.ui.screens.idFields
+import vn.vericlue.app.capture.CaptureClock
 import vn.vericlue.app.capture.ColorSchedule
 import vn.vericlue.app.capture.QualityGate
 import vn.vericlue.app.capture.WavRecorder
@@ -672,54 +673,46 @@ fun VeriClueApp() {
         }
         composable(Routes.HoldStill) {
             val challenge = live.challenge
-            if (flow.live) {
-                // Live: the server's FLOW-01 schedule on one recording (colours → dot → head turns),
-                // or passive capture for re-auth. No schedule where one is due is a bad response.
-                val timeline = remember(challenge) {
-                    challenge?.let { FaceTimeline.from(it) } ?: if (flow.purpose == Purpose.Reauth) FaceTimeline.passive() else null
+            // One presentation in both modes. Only API mode consumes a server challenge;
+            // a missing/invalid server schedule must never fall back to the offline demo.
+            val timeline = remember(challenge, flow.live, flow.purpose, flow.turnOrder) {
+                if (!flow.live) {
+                    if (flow.purpose == Purpose.Reauth) FaceTimeline.passive() else FaceTimeline.demo(flow.turnOrder)
+                } else {
+                    challenge?.let { FaceTimeline.from(it) }
+                        ?: if (flow.purpose == Purpose.Reauth) FaceTimeline.passive() else null
                 }
-                LaunchedEffect(timeline) {
-                    if (timeline == null || !ColorSchedule.isSafe(timeline.slots)) nav.go(Routes.ErrorService)
-                }
-                if (timeline != null) {
-                    FaceTimelineScreen(
-                        timeline,
-                        onStop = exit,
-                        onStart = {
-                            live.colorEvents.clear()
-                            if (hasCamera) camera.startRecording()
-                        },
-                        recordingStartMs = { camera.recordingStartMs() },
-                        onPainted = { slot, t -> slot.index?.let { live.colorEvents += ColorEvent(it, slot.rgb, t) } },
-                        // The frontal still is taken at the server's mark, on the grey screen (ADR-0016).
-                        onFrontal = { scope.launch { withTimeoutOrNull(1500) { camera.captureJpeg() }?.let { live.frontalJpeg = it } } },
-                        onBaselineDone = { camera.lockAeAwb(true) },
-                        onColorsDone = { camera.lockAeAwb(false) },
-                        onDone = {
-                            camera.stopRecording()
-                            faceCaptured = true
-                            val next = FlowRules.afterFace(flow.purpose, idConfirmed, live = true)
-                            // The video waits on the phone until the confirm; the upload screen sends it.
-                            nav.navigate(next) { if (next == Routes.Confirm) popUpTo(Routes.FaceReady) { inclusive = true } }
-                        },
-                        onNoRecording = { nav.go(Routes.ErrorDevice) },
-                    )
-                }
-            } else {
-                HoldStillScreen(
+            }
+            var demoStart by remember { mutableStateOf<Double?>(null) }
+            LaunchedEffect(timeline) {
+                if (timeline == null || !ColorSchedule.isSafe(timeline.slots)) nav.go(Routes.ErrorService)
+            }
+            if (timeline != null) {
+                FaceTimelineScreen(
+                    timeline,
                     onStop = exit,
-                    onDone = { nav.go(Routes.TurnHead) },
-                    slots = remember { ColorSchedule.demo() },
-                    onColorsStart = { if (hasCamera) camera.startRecording() },
+                    onStart = {
+                        live.colorEvents.clear()
+                        if (hasCamera) camera.startRecording() else if (!flow.live) demoStart = CaptureClock.nowMs()
+                    },
+                    recordingStartMs = { if (hasCamera || flow.live) camera.recordingStartMs() else demoStart },
+                    onPainted = { slot, t -> slot.index?.let { live.colorEvents += ColorEvent(it, slot.rgb, t) } },
+                    onFrontal = { if (hasCamera) scope.launch { withTimeoutOrNull(1500) { camera.captureJpeg() }?.let { live.frontalJpeg = it } } },
                     onBaselineDone = { camera.lockAeAwb(true) },
                     onColorsDone = { camera.lockAeAwb(false) },
-                    onDotDone = { camera.stopRecording() },
+                    onDone = {
+                        camera.stopRecording()
+                        faceCaptured = true
+                        val next = FlowRules.afterFace(flow.purpose, idConfirmed, live = flow.live)
+                        nav.navigate(next) { if (next == Routes.Confirm) popUpTo(Routes.FaceReady) { inclusive = true } }
+                    },
+                    onNoRecording = { nav.go(Routes.ErrorDevice) },
                 )
             }
         }
         composable(Routes.TurnHead) {
             val face by camera.face.collectAsState()
-            // Demo only: live runs the head turns inside FaceTimelineScreen, on the server's schedule.
+            // Gallery preview only: both full flows run the turns inside FaceTimelineScreen.
             TurnHeadScreen(
                 flow.turnOrder,
                 onExit = exit,
