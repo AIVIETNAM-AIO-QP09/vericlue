@@ -89,6 +89,9 @@ Test trên điện thoại ở xa, laptop làm server: xem
 [hướng dẫn Tailscale và APK nội bộ](../../docs/runbooks/android-remote-test.md).
 Workflow đóng gói ký media và endpoint HTTPS riêng; API test vẫn là mock.
 
+Test trực tiếp bằng cáp: [bản VeriClue USB và ADB reverse](../../docs/runbooks/android-usb-test.md).
+Bản USB có package riêng, ký media và chỉ gọi localhost qua cáp; không gỡ bản đang dùng.
+
 | File | Dùng cho |
 |---|---|
 | `app-arm64-v8a-*.apk` | Hầu hết điện thoại Android hiện nay |

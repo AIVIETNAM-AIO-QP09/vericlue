@@ -10,11 +10,16 @@ plugins {
 // ./gradlew assembleRelease -Pvericlue.apiBaseUrl=https://<tunnel>/  (never hard-code the tunnel)
 val apiBaseUrl = (project.findProperty("vericlue.apiBaseUrl") as String?) ?: "http://10.0.2.2:8000/"
 val signedMedia = (project.findProperty("vericlue.signedMedia") as String?)?.toBooleanStrict() ?: false
+val usbTest = (project.findProperty("vericlue.usbTest") as String?)?.toBooleanStrict() ?: false
+if (usbTest && (apiBaseUrl != "http://localhost:8421/" || !signedMedia)) {
+    throw GradleException("USB test requires localhost:8421 and signed media.")
+}
 
 // A release build only talks HTTPS: stop it when the address is not https:// (debug may use http).
 val checkReleaseApiUrl by tasks.registering {
     val url = apiBaseUrl
     doLast {
+        if (usbTest) throw GradleException("USB test is debug-only.")
         if (!url.startsWith("https://")) {
             throw GradleException("Release cần -Pvericlue.apiBaseUrl=https://… (đang là \"$url\").")
         }
@@ -32,12 +37,20 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.2.0-scaffold"
+        manifestPlaceholders["appLabel"] = "@string/app_name"
 
         buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
         buildConfigField("boolean", "SIGNED_MEDIA", signedMedia.toString())
     }
 
     buildTypes {
+        debug {
+            if (usbTest) {
+                applicationIdSuffix = ".usbtest"
+                versionNameSuffix = "-usb"
+                manifestPlaceholders["appLabel"] = "VeriClue USB"
+            }
+        }
         release {
             // R8 removes unused code (most of material-icons-extended) and resources.
             isMinifyEnabled = true
