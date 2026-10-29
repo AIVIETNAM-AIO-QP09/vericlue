@@ -1,8 +1,9 @@
-# Test Android qua USB — APP-06
+# Test Android qua ADB (USB hoặc Wi-Fi TLS) — APP-06
 
 Điện thoại Android 10+ nối laptop bằng cáp truyền dữ liệu, bật USB debugging và
 chủ máy chấp nhận dấu vân tay RSA của laptop. Dùng ADB chính thức trong Android
-Platform-Tools, không cần Android Studio hoặc mở ADB qua TCP/Wi-Fi.
+Platform-Tools, không cần Android Studio. Cấu hình USB ở dưới; cách chuyển sang
+Wireless debugging có ghép đôi TLS nằm ở cuối tài liệu.
 
 Tài liệu: [ADB](https://developer.android.com/tools/adb),
 [Platform-Tools](https://developer.android.com/tools/releases/platform-tools).
@@ -76,3 +77,41 @@ Kết thúc test, chỉ xóa mapping của đợt này:
 
 Có thể tắt USB debugging/rút dây sau test. Không dùng `--remove-all`, `kill-server`
 hoặc xóa dữ liệu app để tránh tác động tới công việc khác.
+
+## ADB Wi-Fi có ghép đôi TLS
+
+Theo yêu cầu chủ máy 29/10 khi cáp liên tục mất kết nối, giữ nguyên APK VeriClue
+USB và URL localhost, chuyển transport sang Wireless debugging của Android 11+.
+Không dùng `adb tcpip 5555`. [Hướng dẫn Android](https://developer.android.com/tools/adb#connect-to-a-device-over-wi-fi).
+
+1. Điện thoại và laptop cùng Wi-Fi. Bật **Gỡ lỗi Wi-Fi / Gỡ lỗi không dây** trong
+   Tùy chọn nhà phát triển rồi mở **Ghép đôi bằng mã**.
+2. Giữ màn đó mở, dùng đúng IP:cổng pairing và nhập mã ở prompt. Không lưu mã
+   vào script/log/repo. Endpoint mDNS phải thuộc đúng điện thoại đã được cho phép.
+3. Sau khi pair, lấy **cổng kết nối** từ màn chính Wireless debugging hoặc
+   `_adb-tls-connect._tcp`; cổng này khác cổng pairing và có thể đổi.
+
+```powershell
+& $adb pair '<IP-WIFI>:<PAIR-PORT>'
+# Nhập mã ở prompt, không ghi mã trong lệnh hoặc tài liệu.
+& $adb connect '<IP-WIFI>:<CONNECT-PORT>'
+& $adb -s '<IP-WIFI>:<CONNECT-PORT>' get-state
+& $adb -s '<IP-WIFI>:<CONNECT-PORT>' reverse tcp:8421 tcp:8421
+& $adb -s '<IP-WIFI>:<CONNECT-PORT>' shell am start -n vn.vericlue.app.usbtest/vn.vericlue.app.MainActivity
+```
+
+Khi Wi-Fi ở trạng thái device, rút cáp và tải lại
+`http://localhost:8421/healthz` trong Chrome điện thoại. Dùng `-s` endpoint Wi-Fi
+cho lệnh tiếp theo; `-d` chỉ chọn USB. Không cần build/cài lại app, mở API ra LAN,
+đổi firewall hoặc đổi kho/khóa backend khi chỉ đổi transport.
+
+Lượt cấu hình 29/10 đã pair TLS, reverse qua Wi-Fi, kiểm đúng model và route card
+Wi-Fi laptop; không còn transport USB. Chủ máy xác nhận health ok sau rút cáp,
+app đã mở qua ADB Wi-Fi. Endpoint giữ cục bộ trong
+`tmp/android-usb-tools/wifi-device.json`, không có mã pairing. Chưa từ đó suy ra
+accuracy hoặc đã nghiệm thu toàn bộ luồng AI.
+
+Giữ Wi-Fi và Wireless debugging trong buổi test. Khi đổi mạng/bật tắt debugging,
+kiểm lại IP/cổng và nối lại. Kết thúc bằng `reverse --remove tcp:8421` trên đúng
+endpoint; có thể tắt Wireless debugging hoặc Forget đúng laptop trong Paired
+devices. Không revoke toàn bộ thiết bị khác.

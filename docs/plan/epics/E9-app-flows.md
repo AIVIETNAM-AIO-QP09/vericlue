@@ -371,7 +371,7 @@ trên laptop qua ADB reverse; giữ APK Tailscale và dữ liệu app hiện có
   `http://localhost:8421/`, bắt buộc ký media; không có release USB.
 - [x] CI chạy unit test/build và kiểm APK/manifest/checksum/source metadata.
 - [x] Cài ADB chính thức, nhận quyền thiết bị, reverse cổng 8421 và kiểm health
-  từ điện thoại; không mở API LAN, Funnel hoặc ADB TCP mạng.
+  từ điện thoại; không mở API LAN, Funnel hoặc ADB TCP legacy.
 - [x] Cài/khởi động bản USB trên thiết bị được cho phép; không gỡ bản cũ hoặc
   xóa dữ liệu. Có runbook, cách bỏ reverse và giới hạn AI từng phần.
 
@@ -382,6 +382,11 @@ nội bộ từng phần; đổi đường truyền không làm OTP/CCCD hoặc 
 package/label/URL/release guard. Artifact tải về khớp SHA-256; đã cài mới và mở
 trên Samsung SM-S721B SDK36 ARM64, app cũ giữ nguyên. Chủ máy xác nhận health
 trong Chrome qua localhost/USB; chưa nghiệm thu capture và AI từ app mới.
+
+**Bổ sung theo yêu cầu 29/10:** cáp mất kết nối nhiều lần; chuyển sang Wireless
+debugging TLS ghép đôi bằng mã, giữ APK. Đã kiểm route Wi-Fi, reverse và mở app;
+chủ máy xác nhận health ok sau rút cáp, không còn transport USB. Không dùng cổng
+5555 legacy hoặc lưu mã pairing. Hướng dẫn ở cuối runbook; chưa nghiệm thu AI.
 
 ## App iOS (bản thêm, ADR-0014 cập nhật 24/10)
 
