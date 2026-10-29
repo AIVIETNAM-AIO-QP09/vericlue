@@ -1,0 +1,56 @@
+{
+  "session_id": "ses_01k8x4m2q9",
+  "token": "tok_ses_01k8x4m2q9.5f2c9a",
+  "expires_at": "2026-10-15T08:35:00Z",
+  "challenge": {
+    "challenge_id": "chl_7f3a91c2",
+    "baseline_ms": 1000,
+    "color_sequence": [
+      {
+        "rgb": "#ffcc73",
+        "hold_ms": 450,
+        "transition_ms": 150
+      },
+      {
+        "rgb": "#73d9ff",
+        "hold_ms": 520,
+        "transition_ms": 150
+      },
+      {
+        "rgb": "#ffb3eb",
+        "hold_ms": 600,
+        "transition_ms": 150
+      },
+      {
+        "rgb": "#80e09e",
+        "hold_ms": 410,
+        "transition_ms": 150
+      },
+      {
+        "rgb": "#73d9ff",
+        "hold_ms": 640,
+        "transition_ms": 150
+      },
+      {
+        "rgb": "#ffcc73",
+        "hold_ms": 480,
+        "transition_ms": 150
+      },
+      {
+        "rgb": "#80e09e",
+        "hold_ms": 560,
+        "transition_ms": 150
+      },
+      {
+        "rgb": "#ffb3eb",
+        "hold_ms": 500,
+        "transition_ms": 150
+      }
+    ],
+    "capture_at_ms": [
+      2600,
+      4100
+    ],
+    "expires_at": "2026-10-15T08:32:00Z"
+  }
+}

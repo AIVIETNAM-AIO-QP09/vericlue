@@ -1,0 +1,4 @@
+{
+  "error_code": "unauthorized",
+  "message": "Thiếu mã truy cập hoặc mã đã hết hạn."
+}

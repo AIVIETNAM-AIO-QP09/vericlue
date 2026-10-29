@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>API_BASE_URL</key>
+	<string>$(API_BASE_URL)</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>SIGNED_MEDIA</key>
+	<string>$(SIGNED_MEDIA)</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>be_vietnam_pro_regular.ttf</string>
+		<string>be_vietnam_pro_medium.ttf</string>
+		<string>be_vietnam_pro_semibold.ttf</string>
+		<string>be_vietnam_pro_bold.ttf</string>
+	</array>
+</dict>
+</plist>

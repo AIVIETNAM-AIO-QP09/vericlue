@@ -375,7 +375,20 @@ Kế hoạch chi tiết từng bước: [`apps/ios/docs/plan-ios.md`](../../../a
 - Đủ route như Android, thêm `deny`, `recovery_required`; màn "Xem tất cả màn" chỉ ở Debug.
 
 **Tiêu chí hoàn thành:**
-- [ ] Đi hết luồng demo của 3 `purpose` trên Simulator.
+- [x] Đi hết luồng demo của 3 `purpose` trên Simulator.
+
+**Đồng bộ 28/10 (`review`):** đã gộp Terms/consent demo, bỏ ba route cũ, recovery
+bỏ CCCD sau OTP và cập nhật Gallery. Checkbox trên thuộc baseline, không chứng
+minh bản đồng bộ đã nghiệm thu. Confirm sau mặt đã chốt chặng 4 (148/148).
+Theme ấm đã triển khai; lượt toàn bộ mới 159/159 bài đạt (186 lần thực thi),
+Release không ký build được. Sau sửa demo binding/keypad/confirm, **lượt cuối
+159/159 (186 lần thực thi) xanh**, 0 bỏ qua; 12 vòng Back Terms → Gallery và
+OTP/confirm AX3 đã kiểm. Bundle `/tmp/vericlue-ios-theme-final-20261028.xcresult`.
+Lịch sử lỗi vẫn nằm trong bàn giao. Sếp xác nhận iPhone bản mới nhất đạt cả
+A/B/C/D: theme/Back/chữ lớn, CCCD, quay/confirm/offline/thứ tự API và dừng/dọn
+file. Đây là xác nhận thủ công của sếp, không phải agent tự chạy thiết bị.
+Chuyển review, còn PR; task chưa done/đã merge. Xem
+[bàn giao theme](../../status/handoffs/2026-10-28-1608-ios-01-l-anh-qu-n-codex.md).
 
 ---
 
@@ -391,10 +404,42 @@ Kế hoạch chi tiết từng bước: [`apps/ios/docs/plan-ios.md`](../../../a
 - `Models.swift`, `SessionApi.swift` (URLSession async/await, multipart), `LiveFlow.swift`, `FlowRules.swift`.
 - Port test `LiveFlowTest`, `LiveFlowRetryTest`, `LiveFlowStageATest`, `FlowRulesTest`; giải mã các ví dụ trong `packages/contracts/examples`.
 
+**Bổ sung 28/10/2026 (`doing`):** chặng 0 đồng bộ Android đã khóa nền IOS-06
+`6aef3ac` và nguồn `feat/APP-01-account-flow` tại `f034fa9`, tạo nhánh
+`feat/IOS-02-android-alignment`. Receipt làm riêng trước, không ký media/device
+proof; recovery bỏ CCCD là mục tiêu chặng sau. Chặng 1 đã nối model/GET/storage
+receipt sau pass, thêm 19 hàm test với mock. Build test bundle Simulator và Release
+iPhone không ký thành công. Một lượt test: unit/receipt xanh, tổng 123/124 đạt,
+UI từng timeout đã kiểm lại riêng 1/1 xanh, không sửa assertion. Sếp xác nhận probe Keychain trên iPhone và giữ thành
+công sau GET account 409 đạt; chưa kiểm chứng GET 200 receipt thật.
+Xem [bảng đối chiếu và lệch contract/backend](../../../apps/ios/docs/android-alignment.md).
+Checkbox test nền cũ bên dưới không chứng minh phần receipt mới đã được làm/test.
+Xem [bàn giao receipt](../../status/handoffs/2026-10-28-0413-ios-02-l-anh-qu-n-codex.md).
+
+**Rà cấu trúc 28/10:** chuyển model/client/multipart vào `Data/API`, theme vào
+`UI/Theme`; tách `UI/App.swift`, `UI/AppRoutes.swift`, Gallery Debug và
+`Flow/CaptureFlows.swift` khỏi navigation. Domain types chung ở `Flow/FlowTypes.swift`.
+Nền đối chiếu mới là upstream/main `24895c3`; không merge main, không thay
+capture/retry/receipt hay luật recovery/OTP riêng. Đây là refactor cấu trúc,
+không phải hoàn tất confirm sau mặt hoặc theme mới. Kết quả build và giới hạn
+ghi tại [tài liệu đồng bộ](../../../apps/ios/docs/android-alignment.md).
+
 **Tiêu chí hoàn thành:**
-- [ ] `xcodebuild test` xanh, không test nào gọi mạng thật.
+- [x] `xcodebuild test` xanh, không test nào gọi mạng thật.
 
 ---
+
+**Account parity theo yêu cầu sếp (cập nhật 29/10, chưa chốt toàn bộ):** đã nối
+AccountBindingStore/AccountFlow, Auth/L0 và ký media/voice opt-in theo Android
+`54acaad`, `SIGNED_MEDIA=NO` mặc định. Receipt+alias ghi nguyên tử; recovery lưu
+bền trước xóa khóa cũ; lỗi metadata giữ pass, response trễ bị revoke. Giữ recovery
+bỏ CCCD và tổng OTP sai/phiên. Suite binding 15/15 và protocol đã đạt trong các
+lượt regression; lượt sau sửa hash/nút đạt 184/185, còn UI light AX3 Back, đã siết
+đồng bộ đúng navigation bar và đang kiểm bản mới. Sếp xác nhận ký mặt/giọng có
+biên nhận backend, checkpoint khóa thử qua đóng/mở, native OTP không auto verify
+và rung đạt trên iPhone. SMS thật, binding/receipt/account-bound backend còn chờ.
+Xem [binding](../../../apps/ios/docs/account-binding.md) và
+[bàn giao 29/10](../../status/handoffs/2026-10-29-0134-ios-02-l-anh-qu-n-codex.md).
 
 ### IOS-03 · App iOS: OTP, chụp CCCD (nét, lóa, QR bằng Vision), xác nhận thông tin
 
@@ -408,7 +453,21 @@ Kế hoạch chi tiết từng bước: [`apps/ios/docs/plan-ios.md`](../../../a
 - Màn số điện thoại, OTP (SMS mô phỏng), camera sau chụp hai mặt, xem lại, xác nhận/sửa thông tin.
 
 **Tiêu chí hoàn thành:**
-- [ ] Trên iPhone thật với API mock: OTP sai/đúng đúng câu; server nhận 2 ảnh CCCD và trả thông tin từ QR.
+- [x] Trên iPhone thật với API mock: OTP sai/đúng đúng câu; server nhận 2 ảnh CCCD và trả thông tin từ QR.
+
+Nghiệm thu thao tác do Lý Anh Quân xác nhận ngày 25/10/2026; Codex kiểm tra thêm hai JPEG và `id_edited` ở server local. Chi tiết, kết quả test và giới hạn nằm trong [bàn giao IOS-03](../../status/handoffs/2026-10-25-1004-ios-03-l-anh-qu-n-codex.md). Chưa commit/push/merge PR; không coi checkbox nghiệm thu là đã tích hợp vào main.
+
+**Đồng bộ 28/10 (`review`):** chặng 2–3 thêm OTP tự điền không tự verify, auto/manual
+CCCD có nội dung thẻ, pause, review hai mặt và retake giữ mặt còn lại. Sếp đã
+xác nhận 4 ca camera/QR/retake/Home chặng 3 đạt. Chặng 4 đã nối giữ MP4 đã đóng
+và binding phiên/challenge, confirm sau mặt rồi mới upload; thêm test thứ tự,
+mạng/expiry/rotation/late reply/cleanup. Sếp xác nhận nhóm A/B/C/D; DB xác nhận
+tên/ngày sửa, ISO và ID gốc khớp. Sau sửa ba lỗi, lượt toàn bộ cuối đạt 148/148,
+0 lỗi/0 bỏ qua (174/174 tính tham số), chốt chặng 4 xanh. Chưa commit/push/merge,
+chưa đổi theme và không tuyên bố account-bound auth/receipt thật đã hoàn chỉnh.
+Xem [checklist mới](../../../apps/ios/docs/post-face-confirm-device-checklist.md)
+và [bàn giao](../../status/handoffs/2026-10-28-1106-ios-03-l-anh-qu-n-codex.md).
+Không dùng checkbox/test nền cũ để nghiệm thu code mới.
 
 ---
 
@@ -423,8 +482,17 @@ Kế hoạch chi tiết từng bước: [`apps/ios/docs/plan-ios.md`](../../../a
 **Đầu ra:**
 - AVCaptureSession + AVAssetWriter (MP4 không lật), Vision dò mặt, khóa AE/AWB, `color_events`, `frame_times`, `camprobe` iOS.
 
+**Bàn giao review (25/10/2026):** đã triển khai 5.1–5.11, gồm full camprobe và năm vùng da + nền. Checkpoint camera/quality/writer được sếp nghiệm thu; yaw thẳng gần 0°, trái −20°, phải +20° trên máy thử, không phải quy ước chung mọi thiết bị. Chi tiết [checkpoints IOS-04](../../../apps/ios/docs/ios04-device-checkpoints.md) và [checklist Cổng 5](../../../apps/ios/docs/ios04-live-checklist.md).
+
+**Nghiệm thu cập nhật:** sếp cung cấp phiên `ses_339f14675babe6e8` có 8 màu,
+585 frame, 282 mẫu vùng, app 30 FPS/JPEG 226.288 byte, AE/AWB 1/1;
+video 19.501,667ms so với lịch 19.460ms. Sếp xác nhận JPEG/MP4/câu đọc,
+low_quality/gián đoạn/mất kết nối đạt. Bản cuối sau sửa stop re-entry đạt 78/78 unit
+và 4/4 lượt UI test trên Simulator. Review mã không phát hiện lỗi chặn bàn giao;
+chuyển `review`, chưa commit/push/merge PR. Thu giọng thật thuộc IOS-05.
+
 **Tiêu chí hoàn thành:**
-- [ ] Trên iPhone thật: `genuine` gửi đủ JPEG, MP4 (dài bằng lịch) và signals; `low_quality` ra chụp lại.
+- [x] Trên iPhone thật: `genuine` gửi đủ JPEG, MP4 (dài bằng lịch) và signals; `low_quality` ra chụp lại. (Output genuine và xác nhận nghiệm thu của sếp trong chat.)
 
 ---
 
@@ -439,8 +507,21 @@ Kế hoạch chi tiết từng bước: [`apps/ios/docs/plan-ios.md`](../../../a
 **Đầu ra:**
 - `WavRecorder.swift` (AVAudioEngine → 16 kHz mono), video cùng lúc, `voice_challenge_id`, `audio_offset_ms`.
 
+**Cập nhật 26/10/2026 (`review`):** đã nối thu WAV/MP4 thật dùng chung camera IOS-04,
+chờ frame video đầu rồi bật AVAudioEngine; offset lấy từ host timestamp của mẫu âm
+đầu, không lấy lúc bấm nút. Header WAV PCM 44 byte, mono 16 kHz Int16, RMS,
+giới hạn 8 giây, chờ đóng cả hai trước `/voice`. Giữ payload khi mất mạng; câu
+đọc lại dùng ID mới từ server, tối đa một lần. Một lượt toàn bộ test sau yêu cầu
+của sếp: 89/89 unit và 4/4 lượt UI đạt trên Simulator. Đã kiểm file/DB `voice_clone`
+ra review; đủ ba lượt WAV 8,000s/MP4 8,200s, offset app 113/107/114ms. Sếp xác
+nhận ca lỗi đạt và chấp thuận bỏ qua tiếng WAV nhỏ trong lần bàn giao này
+(chưa sửa gain, không coi mock review là chứng minh giọng rõ/ASR thật đạt).
+Codex review cuối chưa thấy lỗi chặn bàn giao; chờ commit/PR/merge, chưa ghi done.
+Theo [checklist IOS-05](../../../apps/ios/docs/ios05-device-checklist.md) và
+[bàn giao IOS-05](../../status/handoffs/2026-10-26-0018-ios-05-l-anh-qu-n-codex.md).
+
 **Tiêu chí hoàn thành:**
-- [ ] `voice_clone` → đọc câu → chờ duyệt; server lưu WAV và MP4.
+- [x] `voice_clone` → đọc câu → chờ duyệt; server lưu WAV và MP4. (Kiểm file/DB local và nghiệm thu của sếp; giới hạn tiếng nhỏ được chấp thuận như trên.)
 
 ---
 
@@ -455,6 +536,17 @@ Kế hoạch chi tiết từng bước: [`apps/ios/docs/plan-ios.md`](../../../a
 **Đầu ra:**
 - Xuống nền khi đang quay → "Xác minh bị gián đoạn", lượt sau gọi `/challenge`; thử lại chỉ gửi phần chưa nhận; xóa file tạm.
 
+**Cập nhật 27/10/2026 (`doing`):** triển khai trên nền IOS-05 `58c36fd`, không
+gộp luồng/giao diện Android mới. Scene background, lỗi camera/audio và Back
+được xử lý có chủ sở hữu; bỏ lượt thu buộc về chuẩn bị mặt và lấy challenge mới.
+LiveFlow hủy request/bỏ reply cũ bằng operation UUID; retry mạng giữ ack/payload.
+File vào namespace riêng, dọn orphan lúc mở app và không quét rộng tmp.
+Cập nhật 28/10/2026: lượt mới nhất sau sửa Gallery/path binding toàn bộ scheme
+Passed, 105 test (122 lượt tính tham số), 0 lỗi/0 bỏ qua trên Simulator. Hai lượt
+104/105 trước sửa được giữ trong bàn giao. Sếp chấp nhận nghiệm thu mười ca với
+giới hạn bằng chứng và phục hồi phiên mới khi đổi quyền, ghi tại
+[checklist IOS-06](../../../apps/ios/docs/ios06-device-checklist.md).
+
 **Tiêu chí hoàn thành:**
 - [ ] Các mục tương ứng trong checklist mục 13 của `apps/ios/docs/plan-ios.md` đạt.
 
@@ -467,6 +559,15 @@ Kế hoạch chi tiết từng bước: [`apps/ios/docs/plan-ios.md`](../../../a
 | M1 | 1 | S2 | P1 | IOS-03, IOS-05, IOS-06 |
 
 **Mục tiêu:** Bản iOS demo được trên iPhone thật.
+
+**Triển khai 28/10 (`doing`):** phạm vi mức 1 theo Android upstream `54acaad`:
+Release HTTPS, ẩn debug, README/checklist và số đo. Đã viết guard URL khi build,
+plist Release riêng và scheme không attach debugger. Cập nhật 29/10: build Release
+không ký/artifact check đạt trên bản có native OTP/rung, không ATS/local-network/
+marker Debug. URL .invalid chỉ để compile. Chưa nghiệm thu Release trên iPhone;
+sếp xác nhận chưa có domain HTTPS được duyệt, số đo kết nối thật vẫn pending.
+Không gộp receipt binding/device proof/media signing (SEC-02). Xem
+[checklist IOS-07](../../../apps/ios/docs/ios07-release-device-checklist.md).
 
 **Đầu ra:**
 - Release chỉ HTTPS (cloudflared), ẩn nút debug; `apps/ios/README.md`; số đo thật trong bàn giao.

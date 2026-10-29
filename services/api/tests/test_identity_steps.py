@@ -39,6 +39,43 @@ def _wrong(code: str) -> str:
 
 
 # --- OTP -----------------------------------------------------------------------------------------
+def test_resend_preserves_session_attempt_budget_and_lock(client):
+    sid, auth = _session(client)
+    first = client.post(OTP.format(sid=sid), headers=auth, json={"phone": "0912345678"})
+    assert first.status_code == 200
+    code = _code(first.json()["simulated_sms"])
+    for remaining in (4, 3):
+        res = client.post(VERIFY.format(sid=sid), headers=auth, json={"code": _wrong(code)})
+        assert res.status_code == 200
+        assert res.json() == {"status": "retry", "attempts_left": remaining}
+    resent = client.post(OTP.format(sid=sid), headers=auth, json={"phone": "0912345678"})
+    assert resent.status_code == 200
+    assert resent.json()["attempts_left"] == 3
+    code = _code(resent.json()["simulated_sms"])
+    for remaining in (2, 1, 0):
+        res = client.post(VERIFY.format(sid=sid), headers=auth, json={"code": _wrong(code)})
+        assert res.status_code == 200
+        assert res.json()["attempts_left"] == remaining
+    for path, body in ((OTP, {"phone": "0912345678"}), (VERIFY, {"code": code})):
+        locked = client.post(path.format(sid=sid), headers=auth, json=body)
+        assert locked.status_code == 409
+        assert locked.json()["error_code"] == "otp_locked"
+
+
+def test_fewer_attempts_survive_resend_then_valid_code_passes(client):
+    sid, auth = _session(client)
+    sent = client.post(OTP.format(sid=sid), headers=auth, json={"phone": "0912345678"})
+    code = _code(sent.json()["simulated_sms"])
+    wrong = client.post(VERIFY.format(sid=sid), headers=auth, json={"code": _wrong(code)})
+    assert wrong.json()["attempts_left"] == 4
+    resent = client.post(OTP.format(sid=sid), headers=auth, json={"phone": "0912345678"})
+    assert resent.json()["attempts_left"] == 4
+    code = _code(resent.json()["simulated_sms"])
+    passed = client.post(VERIFY.format(sid=sid), headers=auth, json={"code": code})
+    assert passed.status_code == 200
+    assert passed.json() == {"status": "pass", "attempts_left": 4}
+
+
 def test_otp_pass_with_the_right_code(client):
     sid, auth = _session(client)
     sent = client.post(OTP.format(sid=sid), headers=auth, json={"phone": "0912345678"})
