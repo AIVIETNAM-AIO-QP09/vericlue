@@ -144,6 +144,7 @@
 | APP-07 | Đồng bộ UI phần mặt Giả lập/API, chờ nghiệm thu video trên máy thật | M1 | Codex | 0,5 | S2 | P0 | PLAT-04 | review |
 | APP-08 | Một app/server, quét CCCD QR/chân dung, bỏ OCR | M1 | Codex | 1 | S2 | P0 | PLAT-04 | review |
 | APP-09 | Gọn luồng đăng ký, điều khoản, ngôn từ và ảnh UI Android | M1 | Codex | 1,5 | S2 | P0 | PLAT-04 | review |
+| APP-10 | Tăng độ nhạy quét QR và kiểm chứng trên Android | M1 | Codex | 1 | S2 | P0 | PLAT-04 | doing |
 | IOS-01 | App iOS: khung SwiftUI, theme, toàn bộ màn, điều hướng 3 luồng, chế độ demo | M1 | Lý Anh Quân | 2 | S2 | P1 | APP-01 | todo |
 | IOS-02 | App iOS: client API, LiveFlow, FlowRules + test | M1 | Lý Anh Quân | 1,5 | S2 | P1 | FLOW-01 | todo |
 | IOS-03 | App iOS: OTP, chụp CCCD (nét, lóa, QR bằng Vision), xác nhận thông tin | M1 | Lý Anh Quân | 1,5 | S2 | P1 | IOS-01, IOS-02, FLOW-02, FLOW-03 | todo |

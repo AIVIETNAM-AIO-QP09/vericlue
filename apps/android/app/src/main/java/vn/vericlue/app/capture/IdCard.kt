@@ -14,6 +14,8 @@ data class IdQuality(
     val brightness: Double = 128.0,
     val tilted: Boolean = false,
     val frameTimeNs: Long = 0,
+    /** UI feedback only; never a replacement for a QR decoded from this frame/photo. */
+    val qrRecentlySeen: Boolean = false,
 ) {
     val sharp: Boolean get() = sharpness >= MIN_SHARPNESS
     val noGlare: Boolean get() = glareFraction <= MAX_GLARE
@@ -52,16 +54,23 @@ class IdAutoCapture(private val needed: Int = 2, private val back: Boolean = fal
     private var good = 0
     private var lastFrame = -1L
     private var lastQr: String? = null
+    private var lastReadNs = 0L
 
     /** True when this frame completes the run: take it. */
     fun offer(q: IdQuality): Boolean {
         if (q.frameTimeNs > 0 && q.frameTimeNs <= lastFrame) return false
         lastFrame = q.frameTimeNs
-        val qr = CccdQr.parse(q.qr)
-        val visible = if (back) qr != null else q.portraitPresent
-        val changed = back && lastQr != null && lastQr != q.qr
-        lastQr = q.qr
-        good = if (q.good && q.brightness >= 45 && !q.tilted && visible && !changed) good + 1 else 0
+        if (back) {
+            val expired = q.frameTimeNs > 0 && lastReadNs > 0 && q.frameTimeNs - lastReadNs > QR_HOLD_NS
+            if (expired) { good = 0; lastQr = null }
+            if (CccdQr.parse(q.qr) == null) return false
+            // A real decode is stronger evidence of QR readability than white-pixel heuristics.
+            good = if (lastQr == q.qr) good + 1 else 1
+            lastQr = q.qr
+            lastReadNs = q.frameTimeNs
+        } else {
+            good = if (q.good && q.brightness >= 45 && !q.tilted && q.portraitPresent) good + 1 else 0
+        }
         return good >= needed
     }
 
@@ -69,6 +78,7 @@ class IdAutoCapture(private val needed: Int = 2, private val back: Boolean = fal
         good = 0
         lastFrame = -1L
         lastQr = null
+        lastReadNs = 0L
     }
 
     companion object {
@@ -78,12 +88,15 @@ class IdAutoCapture(private val needed: Int = 2, private val back: Boolean = fal
 
         /** The photo stays on screen this long before the next side (one beat to look at it). */
         const val PAUSE_MS = 1500L
+        const val QR_HOLD_NS = 1_500_000_000L
     }
 }
 
 /** A single actionable message; detection is an input-quality check, never identity approval. */
 fun idScanHint(q: IdQuality?, back: Boolean): String = when {
     q == null -> if (back) "Đưa mặt có mã QR vào khung" else "Đưa mặt có ảnh chân dung vào khung"
+    back && CccdQr.parse(q.qr) != null -> "Giữ yên, ứng dụng đang tự chụp"
+    back && q.qrRecentlySeen -> "Giữ mã QR trong khung"
     q.brightness < 45 -> "Đưa thẻ đến nơi sáng hơn"
     !q.noGlare -> "Nghiêng nhẹ thẻ để tránh lóa"
     q.tilted -> "Giữ thẻ thẳng và song song với camera"
@@ -91,6 +104,13 @@ fun idScanHint(q: IdQuality?, back: Boolean): String = when {
     !back && !q.portraitPresent -> "Đưa mặt có ảnh chân dung vào khung"
     back && CccdQr.parse(q.qr) == null -> "Đưa mã QR lại gần và giữ trong khung"
     else -> "Giữ yên, ứng dụng đang tự chụp"
+}
+
+/** Validate the fresh still, not the live scanner's retained state. Server checks it again. */
+fun idCaptureUsable(q: IdQuality, back: Boolean, manual: Boolean): Boolean {
+    if (back && CccdQr.parse(q.qr) != null) return true
+    if (back && !manual) return false
+    return q.good && q.brightness >= 45 && (back || manual || q.portraitPresent)
 }
 
 fun idScanErrorText(hint: String?): String = when (hint) {

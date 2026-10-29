@@ -275,7 +275,7 @@ fun VeriClueApp() {
             if (!hasCamera) askPermissions.launch(arrayOf(Manifest.permission.CAMERA))
         }
         LaunchedEffect(hasCamera) {
-            if (hasCamera && !camera.start(lifecycleOwner, back = true)) nav.go(Routes.ErrorDevice)
+            if (hasCamera && !camera.start(lifecycleOwner, back = true, idQrOnly = back)) nav.go(Routes.ErrorDevice)
         }
         fun capture(manual: Boolean) {
             if (taking || captured) return
@@ -286,7 +286,7 @@ fun VeriClueApp() {
                     val shot = withTimeoutOrNull(8000) { camera.captureId() }
                     if (shot == null) { timedOut = true; return@launch }
                     val q = shot.second
-                    if (!q.good || q.brightness < 45 || (!manual && !back && !q.portraitPresent)) {
+                    if (!vn.vericlue.app.capture.idCaptureUsable(q, back, manual)) {
                         idHint = idScanHint(q, back)
                         if (attempts >= 3) timedOut = true
                         return@launch

@@ -331,6 +331,30 @@ workflow APK, chữ ký ổn định, một lệnh chạy, lưu trữ launcher c
 
 ---
 
+### APP-10 · Độ nhạy QR và điều kiện tự chụp Android
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M1 | 1 | S2 | P0 | PLAT-04 |
+
+Người dùng báo QR khó bắt trên nubia Neo 2 (29/10). Đã đo stream phân tích
+hiện tại 640×480; chưa đo độ chính xác hoặc tốc độ giải mã trên tập thẻ.
+
+- [ ] Cấu hình ảnh phân tích riêng khi quét thẻ, có giới hạn/fallback thiết bị;
+      giữ cấu hình camera trước và video mặt hiện có.
+- [ ] Bước QR bỏ tìm khuôn mặt không cần thiết; hỗ trợ QR nhỏ bằng tính năng
+      ML Kit có sẵn, zoom giới hạn ở bước QR và reset khi đổi bước.
+- [ ] Hai lần đọc QR ổn định có khoảng đệm ngắn, chống kết quả cũ/QR đổi;
+      giữ phản hồi ngắn hạn nhưng không dùng cache thay QR trong ảnh chụp mới.
+- [ ] QR thực đọc được không bị chặn bởi lóa/nét toàn khung; ảnh chụp mới và
+      server vẫn phải kiểm lại. Không dùng OCR, QR mẫu hay nới chốt xác minh.
+- [ ] Test trường hợp âm/thời gian/đổi QR/reset; lint/build và kiểm cấu hình
+      camera trên thiết bị khi cài cập nhật. Ghi rõ phần chưa được nghiệm thu.
+- [ ] Tài liệu, backlog, bàn giao và plan_check hoàn tất; một app/server,
+      không thay model, ngưỡng ML, contract hoặc khóa ký.
+
+---
+
 ### APP-09 · Tối ưu đăng ký và ngôn từ Android
 
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
