@@ -143,13 +143,13 @@
 | APP-06 | Android localhost qua USB/Wi-Fi TLS, cấu hình test ảnh CCCD | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | review |
 | APP-07 | Đồng bộ UI phần mặt Giả lập/API, chờ nghiệm thu video trên máy thật | M1 | Codex | 0,5 | S2 | P0 | PLAT-04 | review |
 | APP-08 | Một app/server, quét CCCD QR/chân dung, bỏ OCR | M1 | Codex | 1 | S2 | P0 | PLAT-04 | review |
-| IOS-01 | App iOS: khung SwiftUI, theme, toàn bộ màn, điều hướng 3 luồng, chế độ demo | M1 | Lý Anh Quân | 2 | S2 | P1 | APP-01 | todo |
-| IOS-02 | App iOS: client API, LiveFlow, FlowRules + test | M1 | Lý Anh Quân | 1,5 | S2 | P1 | FLOW-01 | todo |
-| IOS-03 | App iOS: OTP, chụp CCCD (nét, lóa, QR bằng Vision), xác nhận thông tin | M1 | Lý Anh Quân | 1,5 | S2 | P1 | IOS-01, IOS-02, FLOW-02, FLOW-03 | todo |
-| IOS-04 | App iOS: camera trước, lịch phần mặt một video (màu, chấm, quay đầu), signals, camprobe | M1 | Lý Anh Quân | 3 | S2 | P1 | IOS-02, LIVE-01 | todo |
-| IOS-05 | App iOS: đọc câu, WAV 16 kHz + MP4, audio_offset_ms | M1 | Lý Anh Quân | 1 | S2 | P1 | IOS-04 | todo |
-| IOS-06 | App iOS: gián đoạn, thử lại khi mất mạng, xóa file tạm | M1 | Lý Anh Quân | 1 | S2 | P1 | IOS-04 | todo |
-| IOS-07 | App iOS: bản Release HTTPS, đo trên máy thật, README, bàn giao | M1 | Lý Anh Quân | 1 | S2 | P1 | IOS-03, IOS-05, IOS-06 | todo |
+| IOS-01 | App iOS: SwiftUI, theme ấm, điều hướng 3 luồng; đã nghiệm thu iPhone, chờ review PR | M1 | Lý Anh Quân | 2 | S2 | P1 | APP-01 | review |
+| IOS-02 | App iOS: API, LiveFlow, binding và ký media; chờ chốt test và backend tài khoản thật | M1 | Lý Anh Quân | 1,5 | S2 | P1 | FLOW-01 | doing |
+| IOS-03 | App iOS: OTP, CCCD auto/manual, review hai mặt, xác nhận sau quay mặt; chờ review PR | M1 | Lý Anh Quân | 1,5 | S2 | P1 | IOS-01, IOS-02, FLOW-02, FLOW-03 | review |
+| IOS-04 | App iOS: camera trước, timeline mặt, video liên tục, signals và camprobe | M1 | Lý Anh Quân | 3 | S2 | P1 | IOS-02, LIVE-01 | review |
+| IOS-05 | App iOS: đọc câu, WAV 16 kHz, MP4 và audio_offset_ms | M1 | Lý Anh Quân | 1 | S2 | P1 | IOS-04 | review |
+| IOS-06 | App iOS: xử lý gián đoạn, retry theo acknowledgment và dọn file tạm | M1 | Lý Anh Quân | 1 | S2 | P1 | IOS-04 | doing |
+| IOS-07 | App iOS: đóng gói Release HTTPS, README và bàn giao; chờ domain và số đo iPhone | M1 | Lý Anh Quân | 1 | S2 | P1 | IOS-03, IOS-05, IOS-06 | doing |
 | LIVE-01 | Gói thử thách động theo phiên (màu, chấm sáng, quay đầu, câu) [contract] | M5 | Codex | 1 | S2 | P0 | FLOW-01 | doing |
 | LIVE-02 | Dò mắt, chuỗi kiểm mặt và webcam lab — diagnostic | M3 (+M1) | Codex | 1,5 | S2 | P0 | LIVE-01 | doing |
 | LIVE-03 | Ký media theo phiên trên web (WebAuthn), chặn phát lại | M2 (+M1) | | 1 | S2 | P0 | LIVE-01 | todo |
