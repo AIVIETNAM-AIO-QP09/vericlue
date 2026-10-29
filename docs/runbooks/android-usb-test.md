@@ -117,52 +117,50 @@ kiểm lại IP/cổng và nối lại. Kết thúc bằng `reverse --remove tcp
 endpoint; có thể tắt Wireless debugging hoặc Forget đúng laptop trong Paired
 devices. Không revoke toàn bộ thiết bị khác.
 
-## Đọc CCCD từ ảnh thật, OTP vẫn mô phỏng
+## Quét CCCD tự động bằng QR, không OCR — APP-08
 
-Theo yêu cầu chủ máy ngày 29/10, runtime cục bộ đã bật đường tích hợp có sẵn;
-không đổi APK hoặc hợp đồng API. Bắt đầu phiên mới trong **API thật**. Chụp rõ
-hai mặt thẻ của người đồng ý tham gia test; **không bấm “Dùng mã QR mẫu (debug)”**
-vì nút này thay ảnh gửi lên bằng ảnh QR tổng hợp. Kiểm tra thông tin trả về trước
-khi tiếp tục bước khuôn mặt. Không gửi ảnh/thông tin thẻ lên chat hoặc GitHub.
+Workflow **Android QR test APK** tạo artifact `vericlue-android-qr-test`: APK
+`vericlue-qr-debug-arm64-v8a.apk`, SHA256SUMS và build-info. Package riêng
+**`vn.vericlue.app.qrtest`**, nhãn **VeriClue QR**, localhost:8421, ký media bật.
+Cài song song; không gỡ app USB/Tailscale hoặc xóa Keystore để khắc phục khác chữ ký.
 
-- Bộ đọc riêng ở `tmp/identity-real`, interpreter `tmp/identity-ocr-runtime`, chỉ
-  nghe `127.0.0.1:8010`. Dùng `CardScanner` hiện có: OpenCV đọc QR từ pixel, nếu
-  không có QR hợp lệ thì detector trường CCCD của nhóm + VietOCR vgg_seq2seq đọc
-  ảnh. Ảnh gửi vào bộ đọc nằm trong RAM, không ghi ảnh/nội dung OCR vào log.
-- Gói detector lấy từ link trong `tools/identity_lab/HANDOFF.md`; hash ZIP và
-  `best.pt` đã khớp bản bàn giao. VietOCR dùng trọng số cục bộ. Không gửi thẻ ra
-  dịch vụ OCR bên ngoài. Không commit trọng số, môi trường hoặc dữ liệu test.
-- API vẫn ở `tmp/remote-android-ai`, khóa/kho giữ nguyên. Chỉ đổi
-  `IDENTITY_LAB_URL=http://127.0.0.1:8010`, `IDENTITY_LAB_TIMEOUT_SECONDS=45` và
-  `IDENTITY_FACE_FROM_VIDEO=true`. Bridge bỏ qua QR client tự khai, đọc từ ảnh.
-  LVFace-B + SCRFD so ảnh trên thẻ với khung hình chính diện do server chọn từ
-  video; không đem từng góc nghiêng so trực tiếp với ảnh thẻ.
-- Giữ mã hóa phiên/media và yêu cầu ký media; TTL media đang là một giờ cho cả
-  phiên đạt và chưa đạt. OTP tiếp tục mô phỏng; quality/CamProbe còn mock, voice
-  chưa bật. Chưa có calibration chấp nhận danh tính, chưa bật tạo tài khoản hoặc
-  đồng ý lưu mẫu qua API. Lượt này kiểm tra xử lý dữ liệu thật trong nội bộ,
-  chưa phải cấu hình triển khai chính thức.
+Luồng mới trong **API thật**, bắt đầu phiên mới:
 
-VietOCR 0.3.13 được cài `--no-deps` cùng tập dependency suy luận đã kiểm tra
-native, giữ Pillow 12.3.0; metadata upstream còn pin dependency cũ và yêu cầu
-training extras. Đây là môi trường suy luận riêng có giới hạn, không tuyên bố
-đạt `pip check` hoặc hỗ trợ mọi chức năng training của VietOCR.
+1. Đưa mặt có ảnh chân dung vào camera. App hiện một gợi ý, tự quan sát QR và
+   chân dung; không có nút chụp mặc định. Chỉ khóa kết quả từ ảnh tĩnh đã kiểm lại.
+2. Nếu mặt trước đã đọc được QR thì tự gửi; nếu chưa có, app hướng dẫn lật mặt
+   có QR. Không dùng ảnh QR mẫu trong lượt test thẻ thật.
+3. Server dùng ZXing-C++/OpenCV đọc QR và SCRFD kiểm chân dung. Không đọc được
+   QR thì chụp lại hoặc dừng, không fallback OCR/nhân viên. Timeout có chụp thủ công,
+   nhưng ảnh vẫn phải đọc được QR. QR không xác minh thẻ do cơ quan nhà nước cấp.
+4. Kiểm tra/xác nhận thông tin trước khi chuyển sang bước khuôn mặt. Các mô hình
+   mặt, ngưỡng và chốt tạo tài khoản giữ nguyên; OTP tiếp tục mô phỏng.
 
-Sau khi khởi động lại laptop, mở bộ đọc trước rồi mở API, kiểm cả hai health:
+### Runtime trên laptop này
+
+- Bộ đọc mới: `tmp/identity-qr`, venv `tmp/identity-qr-runtime` Python 3.12,
+  `127.0.0.1:8010`. Source là `qr_app`/`qr_scanner` trong worktree APP-08.
+  Chỉ nạp SCRFD, không nạp Torch/VietOCR. `uv pip check` đạt cho 24 package.
+- API: `tmp/remote-android-ai`, cổng 8421, dùng source APP-08. Giữ nguyên DB,
+  khóa, mã hóa phiên/media, signed media và retention; thêm
+  `IDENTITY_CARD_PORTRAIT_REQUIRED=true`. `IDENTITY_LAB_URL` vẫn trỏ 8010.
+- Bộ đọc OCR cũ `tmp/identity-real` đã dừng. Không dùng helper khởi động OCR cũ
+  cho luồng app. Trọng số/dữ liệu cũ được giữ, không đưa vào Git.
+- Người dùng tạm ngưng test thiết bị ngày 29/10 để tiếp tục điều chỉnh app.
+  API chưa khởi động lại vì RAM trống dưới 3 GiB; dịch vụ QR test cũng đã dừng.
+  Khi test lại, đóng bớt ứng dụng, mở bộ đọc trước rồi API; không bỏ chốt bộ nhớ.
 
 ```powershell
-& .venv/Scripts/python.exe tmp/identity-real/start.py
+& .venv/Scripts/python.exe tmp/identity-qr/start.py 8010
 & .venv/Scripts/python.exe tmp/remote-android-ai/start.py
 ```
 
-Các helper trên là cấu hình cục bộ ngoài Git. Nếu cổng đang hoạt động, kiểm tra
-thay vì chạy thêm instance. Chỉ dừng đúng PID đã xác minh thuộc runtime này;
-không xóa DB/khóa để khắc phục lỗi. Kiểm lại ADB reverse sau khi đổi kết nối.
+Kiểm `8010/health` có `mode=qr_only`, `ocr_enabled=false`, `portrait_loaded=true`,
+rồi `8421/healthz`; nối lại ADB đúng thiết bị và reverse cổng 8421. Các helper
+cục bộ không nằm trong Git. Không xóa DB/khóa hoặc chạy thêm instance khi cổng đang bận.
 
-Kiểm tra đã chạy: detector/VietOCR suy luận native trên ảnh tổng hợp, QR đọc
-từ ảnh, ảnh trắng không sinh trường. Qua HTTP API: ảnh trắng kèm QR client hợp
-lệ vẫn `retry`; ảnh có QR tổng hợp trả trường từ QR trong ảnh; video không có
-mặt kết thúc `review`. Payload phiên/kết quả trong DB có mã hóa, phiên ghi nhận
-version LVFace thật. Chưa dùng thẻ thật để đo accuracy hoặc xác nhận toàn luồng
-trên camera điện thoại. Đọc đúng thông tin không chứng minh thẻ do cơ quan nhà
-nước cấp; chưa có đối chiếu cơ sở dữ liệu nhà nước hoặc kiểm chứng chip/NFC.
+Native bridge và HTTP đã đọc QR tổng hợp, từ chối ảnh trắng/ảnh lỗi/thiếu chân dung;
+không dùng thẻ thật cho các phép kiểm này. CI e19f481 có đủ 12 kiểm tra thành công,
+gồm API/contract, Android build/unit/lint/snapshot và ba loại APK test.
+Chưa nghiệm thu lấy nét, crop/xoay, lóa, thời gian đọc hoặc chuyển bước trên camera
+thật. Chưa kết luận chất lượng quét hoặc độ chính xác eKYC từ kết quả CI.

@@ -316,12 +316,12 @@ không nút chụp mặc định; tự chụp ảnh tĩnh rõ và gửi, xác nh
 Mặt sau chỉ cần khi mặt trước chưa có QR. Timeout có hướng dẫn, chụp thủ công
 hoặc dừng; không dùng nhân viên/OCR làm fallback. Không thay AI/ngưỡng mặt.
 
-- [ ] Contract hỗ trợ mặt sau tùy chọn và retry thiếu chân dung, tương thích client cũ.
-- [ ] Backend QR-only, không dùng trường OCR/client QR để cứu ảnh không đọc được.
-- [ ] Android không dùng OCR kích hoạt chụp; QR/chân dung được kiểm lại trên ảnh
+- [x] Contract hỗ trợ mặt sau tùy chọn và retry thiếu chân dung, tương thích client cũ.
+- [x] Backend QR-only, không dùng trường OCR/client QR để cứu ảnh không đọc được.
+- [x] Android không dùng OCR kích hoạt chụp; QR/chân dung được kiểm lại trên ảnh
       tĩnh, không ghép kết quả cũ giữa các thẻ/lượt; chất lượng, timeout và lỗi rõ.
-- [ ] Tự gửi, xác nhận thông tin trước quay mặt; xử lý retry có giới hạn.
-- [ ] Unit/API/contract/build/lint/snapshot đạt, kiểm runtime QR-only; tài liệu,
+- [x] Tự gửi, xác nhận thông tin trước quay mặt; xử lý retry có giới hạn.
+- [x] Unit/API/contract/build/lint/snapshot đạt, kiểm runtime QR-only; tài liệu,
       bàn giao và plan_check; ghi rõ phạm vi nghiệm thu điện thoại.
 
 ---
