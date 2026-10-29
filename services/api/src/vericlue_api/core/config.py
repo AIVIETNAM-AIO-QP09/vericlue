@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     _mock_session_key: bytes = PrivateAttr(default_factory=lambda: secrets.token_bytes(32))
 
     app_name: str = "VeriClue API"
+    # Synthetic stays compatible with labs; protected must pass startup checks.
+    security_profile: Literal["synthetic", "protected"] = "synthetic"
     api_cors_origins: str = "http://localhost:3000"
     use_mock_models: bool | Literal["mixed"] = True  # mixed: module có mô hình thật dùng thật
     router_profile: Literal["full", "mvp"] = "full"
@@ -205,6 +207,9 @@ class Settings(BaseSettings):
 
     max_retries: int = Field(default=2, ge=0, le=2)
     max_upload_mb: int = Field(default=50, ge=1)
+    max_session_media_mb: int = Field(default=256, ge=1, le=1024)
+    max_id_card_scans: int = Field(default=5, ge=1, le=20)
+    max_id_card_total_mb: int = Field(default=128, ge=1, le=512)
     # Total HTTP body, including all files and multipart framing (PLAT-06).
     max_request_mb: int = Field(default=128, ge=1)
     session_create_limit: int = Field(default=3, ge=1, le=1000)

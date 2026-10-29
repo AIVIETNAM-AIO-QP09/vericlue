@@ -1,0 +1,308 @@
+{
+  "checked_on": "2026-10-24",
+  "timezone": "Asia/Saigon",
+  "scope": "Kiểm chứng nguồn công khai, tên checkpoint, HTTP HEAD sau chuyển hướng, cấu hình và mã suy luận. Không phải benchmark.",
+  "limitations": [
+    "Không tải toàn bộ trọng số hoặc chạy inference trong đợt rà soát này.",
+    "HTTP 200 xác nhận endpoint phục vụ file tại thời điểm kiểm tra; chưa xác nhận toàn bộ byte tải xuống, khả năng nạp hoặc hiệu quả.",
+    "SHA-256 bên dưới do Hugging Face công bố, chưa tính lại từ file tải về.",
+    "Chưa xuất hoặc đo tốc độ ONNX/FP16 của các checkpoint mới."
+  ],
+  "selected_direction": {
+    "face_pad": "fs-vfm-vit-l-fas",
+    "face_deepfake": "gend-clip-l14",
+    "selection_basis": "Người dùng chọn tạm hai bản Large; chưa kết luận tốt hơn bản nhỏ trên dữ liệu VeriClue.",
+    "optimization_status": "Đề xuất, chưa chuyển đổi hoặc benchmark",
+    "optimization_order": [
+      "Đo bản gốc với dtype chính thức, tách chi phí tiền xử lý, suy luận và toàn luồng; cố định dữ liệu đầu vào và giao thức. Không mặc định mọi model đều bắt đầu ở FP32.",
+      "Thử FP16 hoặc BF16/mixed precision phù hợp từng model; giữ lớp nhạy cảm ở độ chính xác cao hơn nếu cần. Qwen3-ASR-0.6B-hf đã là BF16.",
+      "Tối ưu attention và runtime không huấn luyện lại: ưu tiên ONNX Runtime/TensorRT cho vision có shape ổn định, PyTorch SDPA/torch.compile cho model phù hợp. Kiểm tra parity sau export trước khi gộp các tối ưu.",
+      "Nếu vẫn thiếu tài nguyên, thử INT8 PTQ chọn lọc với kernel thực sự được backend hỗ trợ. FP8 là nhánh bổ sung nếu tương thích, chưa có bằng chứng tốt hơn INT8 cho PAD/GenD của VeriClue. Calibration dùng train/calib_fit, không dùng calib_ltt hoặc test để chọn cấu hình.",
+      "Phân nhánh theo vấn đề: QAT nếu PTQ đủ nhanh/nhẹ nhưng giảm chất lượng; KD sang mạng nhỏ nếu vẫn cần giảm kiến trúc/số tham số. Hai nhánh không bắt buộc chạy nối tiếp. Sau KD có thể thử lại precision/runtime/PTQ.",
+      "Structured pruning, sparsity và token reduction là nghiên cứu sau nếu các bước trước chưa đủ. Không mặc định zero mask, giảm khung hình hoặc giảm độ phân giải giữ nguyên hiệu quả hay tăng tốc. Dừng khi đạt ngân sách triển khai và chất lượng đã định trước."
+    ],
+    "first_experiments": ["fs-vfm-vit-l-fas", "gend-clip-l14"],
+    "first_experiments_basis": "Ưu tiên nghiên cứu do hai backbone Large chạy trên nhiều khung hình; chưa kết luận là nút thắt đo được. Các model còn lại xếp thứ tự sau profiling.",
+    "local_preflight": {
+      "gpu": "NVIDIA GeForce RTX 4050 Laptop GPU",
+      "vram_mib": 6141,
+      "compute_capability": "8.9",
+      "torch": "2.14.1+cu130",
+      "torch_cuda": "13.0",
+      "onnxruntime": "1.31.0",
+      "reported_ort_providers": ["TensorrtExecutionProvider", "CUDAExecutionProvider", "CPUExecutionProvider"],
+      "limitations": "Chỉ kiểm tra tên GPU, phiên bản và provider được liệt kê. Chưa tạo session CUDA/TensorRT hay benchmark; provider xuất hiện không chứng minh đầy đủ thư viện phụ thuộc hoặc model tương thích."
+    },
+    "acceptance": "Định trước mức suy giảm cho phép; đánh giá APCER/BPCER hoặc tỷ lệ lọt/chặn nhầm theo từng loại tấn công, độ trễ và bộ nhớ. Chọn cấu hình trên dữ liệu phát triển, khóa model/ngưỡng trước test cuối. Không mặc định tương đương sau chuyển đổi."
+  },
+  "models": [
+    {
+      "id": "fs-vfm-vit-l-fas",
+      "tasks": ["face_pad"],
+      "http_head": 200,
+      "repo": "Wolowolo/fsfm-3c",
+      "revision": "59f7b50a1865d53b0cc1c80ec620022c39b11c9a",
+      "file": "finetuned_models/FS-VFM_extensions/cross_domain_FAS/ViT-L_VF2_600e/MCIO_protocol/OCI2M/msu_vit_0_shot_checkpoint_run_0.pth.tar",
+      "size_bytes": 1215435159,
+      "publisher_sha256": "c51bb148d49742cc951e5baa8062ccf9bddada78c92b8e2c5649fa6bcadbdaf2",
+      "code_revision": "b84aafa2507c30bb4986564de8262969647e450c",
+      "inference_architecture": "fsvfm/finetune/cross_domain_FAS/fas.py::fas_model_fix, args.model=vit_large_patch16",
+      "checkpoint_key": "state_dict",
+      "notes": [
+        "Checkpoint Large cụ thể đã xác minh nguồn và HTTP HEAD; chưa tải/nạp/chạy thử.",
+        "OCI2M run_0 là file xác minh tính sẵn có, chưa được lựa chọn vì thắng trên dữ liệu nhóm.",
+        "Giữ đủ backbone, embedder, classifier và chuẩn hóa tương ứng; không dùng loader ViT thường.",
+        "CC BY-NC 4.0."
+      ]
+    },
+    {
+      "id": "scrfd-10g-kps",
+      "tasks": [
+        "face_detection",
+        "alignment_landmarks",
+        "id_portrait_crop"
+      ],
+      "http_head": 200,
+      "official_pack": "https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_l.zip",
+      "file": "det_10g.onnx",
+      "referenced_download": "https://huggingface.co/datasets/theanhntp/Liblib/resolve/ae4357741af379482690fe3e0f2fa6fd32ba33b4/insightface/models/buffalo_l/det_10g.onnx",
+      "inference_source": "https://github.com/deepinsight/insightface/blob/master/detection/scrfd/tools/scrfd.py",
+      "notes": [
+        "Có ONNX và mã suy luận. Chọn biến thể có 5 điểm mốc.",
+        "Trọng số InsightFace: nghiên cứu phi thương mại; code MIT."
+      ]
+    },
+    {
+      "id": "fs-vfm-vit-b-fas",
+      "tasks": [
+        "face_pad"
+      ],
+      "http_head": 200,
+      "repo": "Wolowolo/fsfm-3c",
+      "revision": "59f7b50a1865d53b0cc1c80ec620022c39b11c9a",
+      "file": "finetuned_models/FS-VFM_extensions/cross_domain_FAS/ViT-B_VF2_600e/MCIO_protocol/OCI2M/msu_vit_0_shot_checkpoint_run_0.pth.tar",
+      "size_bytes": 344838775,
+      "publisher_sha256": "f685fb80ff310f8115d343eb092ffce20aca15b86b0eeaa52ee06216f2e10497",
+      "code_revision": "b84aafa2507c30bb4986564de8262969647e450c",
+      "inference_architecture": "fsvfm/finetune/cross_domain_FAS/fas.py::fas_model_fix",
+      "checkpoint_key": "state_dict",
+      "notes": [
+        "File cụ thể để xác minh tính sẵn có, chưa được chọn vì thắng trên dữ liệu VeriClue.",
+        "Phải nạp backbone, embedder và classifier; không dùng loader ViT 2 lớp của model card cho checkpoint này.",
+        "Giữ đúng chuẩn hóa VGGFace2 từ pretrain_ds_mean_std.txt.",
+        "Mã eval dùng xác suất class 1 như điểm bona fide; cần kiểm chiều nhãn trước khi chuyển sang prob_attack.",
+        "Có checkpoint và mã đánh giá; cần wrapper inference. Không có bằng chứng ONNX chính thức cho file này.",
+        "CC BY-NC 4.0."
+      ]
+    },
+    {
+      "id": "fsfm-unified-v1",
+      "tasks": [
+        "face_pad",
+        "face_deepfake",
+        "diffusion_face_detection"
+      ],
+      "http_head": 200,
+      "repo": "Wolowolo/fsfm-3c",
+      "revision": "59f7b50a1865d53b0cc1c80ec620022c39b11c9a",
+      "file": "finetuned_models/Unified-detector/v1_Fine-tuned_on_4_classes/checkpoint-min_train_loss.pth",
+      "size_bytes": 1029818789,
+      "publisher_sha256": "803f2eb06cda9cc4ee9ba6165001992623473eec374422284ccbaee9edee9550",
+      "inference_source": "https://huggingface.co/spaces/Wolowolo/FSFM-deepfake_diffusion_spoof_face_detection/blob/83b35fefc6b921ad35d56d6a9ab7a8d0ac2fe172/app.py",
+      "checkpoint_key": "model",
+      "class_order": [
+        "Real or Bonafide",
+        "Deepfake",
+        "Diffusion or AIGC generated",
+        "Spoofing or Presentation-attack"
+      ],
+      "notes": [
+        "Một checkpoint thực sự cho nhiều nhiệm vụ, khác với hai checkpoint tinh chỉnh riêng.",
+        "Bản FSFM ViT-B/16; không đồng nhất với FS-VFM FAS chuyên biệt.",
+        "Space ghi sửa chuẩn hóa suy luận sang FSFM/VGGFace2 ngày 2026-04-30.",
+        "Chưa có bằng chứng thay được FS-VFM PAD + GenD trên dữ liệu nhóm.",
+        "CC BY-NC 4.0."
+      ]
+    },
+    {
+      "id": "lvface-b",
+      "tasks": [
+        "id_face_match",
+        "three_view_identity"
+      ],
+      "http_head": 200,
+      "repo": "bytedance-research/LVFace",
+      "revision": "b12702ab1f5c721748e054a66dc90e1edd1f0724",
+      "file": "LVFace-B_Glint360K/LVFace-B_Glint360K.onnx",
+      "size_bytes": 455533594,
+      "publisher_sha256": "9d834ed8e927fd35b9123b2bf97c40aad05785b1f9ecfb1c4c1f6242d38d1382",
+      "inference_source": "https://github.com/bytedance/LVFace/blob/main/inference_onnx.py",
+      "notes": [
+        "Có ONNX chính thức và lớp suy luận.",
+        "Hàm suy luận resize/chuẩn hóa, không tự tìm và căn mặt; caller phải chuẩn bị mặt đúng.",
+        "HF ghi MIT nhưng README tác giả nêu trọng số nghiên cứu phi thương mại; chưa coi quyền thương mại là đã rõ."
+      ]
+    },
+    {
+      "id": "gend-clip-l14",
+      "tasks": [
+        "face_deepfake"
+      ],
+      "http_head": 200,
+      "repo": "yermandy/GenD_CLIP_L_14",
+      "revision": "891ce014a0308386c4d7d25b3dcf436a22db5504",
+      "file": "model.safetensors",
+      "inference_source": "https://huggingface.co/yermandy/GenD_CLIP_L_14/blob/main/modeling_gend.py",
+      "notes": [
+        "Có trọng số, config, custom model code.",
+        "requirements.txt: torch 2.8.0, transformers 4.56.2.",
+        "Custom loader khởi tạo thêm openai/clip-vit-large-patch14; cần cache cả backbone/processor để chạy offline.",
+        "Không mặc định ví dụ tự sinh from transformers import GenD là API chuẩn đã kiểm tra."
+      ]
+    },
+    {
+      "id": "qwen3-asr-06b-hf",
+      "tasks": [
+        "spoken_content_verification"
+      ],
+      "http_head": 200,
+      "repo": "Qwen/Qwen3-ASR-0.6B-hf",
+      "revision": "7f1569a48a89f3e3f4dc3a5c9d28bddd903bc76c",
+      "file": "model.safetensors",
+      "inference_source": "https://huggingface.co/Qwen/Qwen3-ASR-0.6B-hf",
+      "notes": [
+        "Có processor/tokenizer/config và ví dụ suy luận; hỗ trợ Vietnamese.",
+        "Bản native -hf yêu cầu transformers >=5.13.0 theo model card.",
+        "Tách khỏi bộ phụ thuộc GenD 4.56.2 hoặc làm công việc tương thích riêng.",
+        "Qwen ForcedAligner là model khác, chưa công bố hỗ trợ tiếng Việt.",
+        "Apache-2.0."
+      ]
+    },
+    {
+      "id": "mms-ctc-aligner",
+      "tasks": [
+        "reading_timing",
+        "speech_span_selection"
+      ],
+      "http_head": 200,
+      "repo": "MahmoudAshraf/mms-300m-1130-forced-aligner",
+      "revision": "49402e9577b1158620820667c218cd494cc44486",
+      "file": "model.safetensors",
+      "inference_source": "https://github.com/MahmoudAshraf97/ctc-forced-aligner",
+      "notes": [
+        "Có safetensors, config, tokenizer và mã căn thời gian.",
+        "Căn thời gian không tự chứng minh người dùng đọc đúng; kiểm nội dung bằng ASR riêng.",
+        "Trọng số CC BY-NC 4.0; code aligner BSD-2-Clause."
+      ]
+    },
+    {
+      "id": "nes2net-x-xlsr",
+      "tasks": [
+        "voice_spoof"
+      ],
+      "http_head": 200,
+      "checkpoint_download": "https://drive.usercontent.google.com/download?id=1tjuSdbzgCnJSfy_eE_P52jRAonHY4YUT&export=download&confirm=t",
+      "frontend_download": "https://dl.fbaipublicfiles.com/fairseq/wav2vec/xlsr2_300m.pt",
+      "frontend_http_head": 200,
+      "inference_source": "https://github.com/Liu-Tianchi/Nes2Net_ASVspoof_ITW/blob/main/easy_inference_demo.py",
+      "architecture_source": "https://github.com/Liu-Tianchi/Nes2Net_ASVspoof_ITW/blob/main/model_scripts/wav2vec2_Nes2Net_X.py",
+      "notes": [
+        "Checkpoint single-model được README công bố cho ASVspoof 2021 DF; chưa chọn vì kết quả VeriClue.",
+        "Khởi tạo cần thêm xlsr2_300m.pt; CLI model_name=wav2vec2_Nes2Net_X.",
+        "Môi trường mẫu Python 3.7.16, torch 1.8.1 và Fairseq cũ; cần môi trường riêng hoặc port.",
+        "Backend 511k tham số không phải toàn bộ model.",
+        "Repo nói Apache-2.0 cho code/model, còn điều khoản các phụ thuộc phải kiểm riêng."
+      ]
+    },
+    {
+      "id": "synchformer-lrs3",
+      "tasks": [
+        "audio_visual_synchronization"
+      ],
+      "http_head": 200,
+      "file": "23-12-23T18-33-57.pt",
+      "checkpoint_download": "https://a3s.fi/swift/v1/AUTH_a235c0f452d648828f745589cde1219a/sync/sync_models/23-12-23T18-33-57/23-12-23T18-33-57.pt",
+      "config_download": "https://a3s.fi/swift/v1/AUTH_a235c0f452d648828f745589cde1219a/sync/sync_models/23-12-23T18-33-57/cfg-23-12-23T18-33-57.yaml",
+      "config_http_head": 200,
+      "inference_source": "https://github.com/v-iashin/Synchformer/blob/main/example.py",
+      "notes": [
+        "Có checkpoint, YAML và example.py.",
+        "Đúng checkpoint LRS3 full-scene, 25fps, audio 16kHz; cấu hình cửa sổ 5 giây.",
+        "example.py patch bỏ đường dẫn tuyệt đối feature-extractor vì trọng số đã trong checkpoint.",
+        "Đo lệch hình-tiếng, không tự chứng minh nội dung thật.",
+        "Chưa có bằng chứng đã xuất ONNX cho checkpoint này; mã chính tham chiếu môi trường Linux cũ."
+      ]
+    },
+    {
+      "id": "mediapipe-face-landmarker",
+      "tasks": [
+        "face_landmarks",
+        "relative_eye_tracking",
+        "head_pose",
+        "skin_regions",
+        "mouth_regions"
+      ],
+      "http_head": 200,
+      "file": "face_landmarker.task",
+      "checkpoint_download": "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+      "inference_source": "https://developers.google.com/edge/mediapipe/solutions/vision/face_landmarker",
+      "notes": [
+        "Gói task có sẵn; chưa phải bộ chấm liveness hay gaze trên màn hình hoàn chỉnh.",
+        "Các điểm 3D là ước lượng, không phải đo chiều sâu thật."
+      ]
+    },
+    {
+      "id": "ppocrv5-mobile-det",
+      "tasks": [
+        "id_text_detection"
+      ],
+      "http_head": 200,
+      "repo": "PaddlePaddle/PP-OCRv5_mobile_det",
+      "revision": "0d63e78e2b680928f6b1747d76a08db6e645efb7",
+      "file": "inference.pdiparams",
+      "size_bytes": 4692937,
+      "publisher_sha256": "afa1820cb16c1fd0dad589d0f8b389139061c1ef6d68019685fd07be997dda5b",
+      "notes": [
+        "Có inference.json và inference.yml đi kèm.",
+        "Dùng TextDetection(model_name='PP-OCRv5_mobile_det'), chỉ tìm vùng chữ.",
+        "Apache-2.0 theo model card."
+      ]
+    },
+    {
+      "id": "vietocr-vgg-seq2seq",
+      "tasks": [
+        "id_vietnamese_text_recognition"
+      ],
+      "http_head": 200,
+      "file": "vgg_seq2seq.pth",
+      "checkpoint_download": "https://vocr.vn/data/vietocr/vgg_seq2seq.pth",
+      "config_source": "https://github.com/pbcquoc/vietocr/blob/master/config/vgg-seq2seq.yml",
+      "inference_source": "https://github.com/pbcquoc/vietocr/blob/master/vietocr/tool/predictor.py",
+      "notes": [
+        "Endpoint cấu hình vgg-seq2seq.yml cũng đọc được.",
+        "Cfg.load_config_from_name hiện tải YAML từ vocr.vn; khi tích hợp phải giữ config và weights cục bộ.",
+        "Cần cắt dòng chữ từ detector và tự trích xuất các trường CCCD.",
+        "Repo code Apache-2.0; chưa có đánh giá CCCD của nhóm."
+      ]
+    },
+    {
+      "id": "zxing-cpp-reader",
+      "tasks": [
+        "id_qr_decode"
+      ],
+      "requires_checkpoint": false,
+      "inference_source": "https://github.com/zxing-cpp/zxing-cpp",
+      "notes": [
+        "Thư viện giải mã, không phải model AI.",
+        "Chỉ cần reader; bản 3.x có writer backend Zint nên phải kiểm cấu hình phụ thuộc theo luật giấy phép của repo."
+      ]
+    }
+  ],
+  "still_custom": [
+    "Đối chiếu chuyển động mắt với đường chấm theo thời gian.",
+    "Đối chiếu phản xạ ánh sáng với thử thách; kiểm chứng với thiết bị và tấn công thật.",
+    "Kiểm thứ tự quay đầu và liên tục danh tính; kiểm thị sai chưa phải phép đo chiều sâu.",
+    "Căn phối cảnh, phân loại bố cục và trích xuất trường CCCD; OCR/QR không xác thực thẻ thật.",
+    "Fusion, calibration và ngưỡng quyết định theo split dữ liệu của VeriClue."
+  ]
+}
