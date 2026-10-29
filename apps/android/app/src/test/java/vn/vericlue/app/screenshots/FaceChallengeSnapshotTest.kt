@@ -14,6 +14,19 @@ import vn.vericlue.app.ui.theme.VcTheme
 abstract class FaceChallengeSnapshots(device: DeviceConfig) {
     @get:Rule val paparazzi = Paparazzi(deviceConfig = device)
 
+    @Test fun qrCardStates() {
+        val q = vn.vericlue.app.capture.IdQuality(500.0, 0.0, null, portraitPresent = true)
+        paparazzi.snapshot("card_auto") { VcTheme(motionEnabled = false) {
+            vn.vericlue.app.ui.screens.IdScanScreen(false, q, {}, {}, {})
+        } }
+        paparazzi.snapshot("card_timeout") { VcTheme(motionEnabled = false) {
+            vn.vericlue.app.ui.screens.IdScanScreen(true, q, {}, {}, {}, timedOut = true)
+        } }
+        paparazzi.snapshot("card_server_retry") { VcTheme(motionEnabled = false) {
+            vn.vericlue.app.ui.screens.IdProcessingScreen({}, {}, vn.vericlue.app.capture.idScanErrorText("QR_UNREADABLE"))
+        } }
+    }
+
     @Test fun allFacePhases() {
         val timeline = FaceTimeline.demo(listOf(TurnDir.Left, TurnDir.Right))
         val phases = listOf(

@@ -10,6 +10,10 @@ data class IdQuality(
     val qr: String?,
     /** Card words read on the rear camera in the last moment ([CardText]); null = not checked. */
     val looksLikeCard: Boolean? = null,
+    val portraitPresent: Boolean = false,
+    val brightness: Double = 128.0,
+    val tilted: Boolean = false,
+    val frameTimeNs: Long = 0,
 ) {
     val sharp: Boolean get() = sharpness >= MIN_SHARPNESS
     val noGlare: Boolean get() = glareFraction <= MAX_GLARE
@@ -45,17 +49,27 @@ object CardText {
  * words, so the user does not have to hold the phone still and tap. The shutter button stays as a
  * fallback. A wrong shot is caught by the pause after each side and the review screen, not here.
  */
-class IdAutoCapture(private val needed: Int = 2) {
+class IdAutoCapture(private val needed: Int = 2, private val back: Boolean = false) {
     private var good = 0
+    private var lastFrame = -1L
+    private var lastQr: String? = null
 
     /** True when this frame completes the run: take it. */
     fun offer(q: IdQuality): Boolean {
-        good = if (q.good && q.looksLikeCard == true) good + 1 else 0
+        if (q.frameTimeNs > 0 && q.frameTimeNs == lastFrame) return false
+        lastFrame = q.frameTimeNs
+        val qr = CccdQr.parse(q.qr)
+        val visible = if (back) qr != null else q.portraitPresent
+        val changed = back && lastQr != null && lastQr != q.qr
+        lastQr = q.qr
+        good = if (q.good && q.brightness >= 45 && !q.tilted && visible && !changed) good + 1 else 0
         return good >= needed
     }
 
     fun reset() {
         good = 0
+        lastFrame = -1L
+        lastQr = null
     }
 
     companion object {
@@ -66,6 +80,24 @@ class IdAutoCapture(private val needed: Int = 2) {
         /** The photo stays on screen this long before the next side (one beat to look at it). */
         const val PAUSE_MS = 1500L
     }
+}
+
+/** A single actionable message; detection is an input-quality check, never identity approval. */
+fun idScanHint(q: IdQuality?, back: Boolean): String = when {
+    q == null -> "Đưa thẻ vào khung hình"
+    q.brightness < 45 -> "Đưa thẻ đến nơi sáng hơn"
+    !q.noGlare -> "Nghiêng nhẹ thẻ để tránh lóa"
+    q.tilted -> "Giữ thẻ thẳng và song song với camera"
+    !q.sharp -> "Giữ yên thẻ và điện thoại để lấy nét"
+    !back && !q.portraitPresent -> "Đưa mặt có ảnh chân dung vào khung"
+    back && CccdQr.parse(q.qr) == null -> "Đưa mã QR lại gần và giữ trong khung"
+    else -> "Giữ yên, ứng dụng đang tự chụp"
+}
+
+fun idScanErrorText(hint: String?): String = when (hint) {
+    "PORTRAIT_UNREADABLE" -> "Chưa thấy rõ chân dung trên thẻ. Hãy quét lại mặt có ảnh chân dung."
+    "QR_INVALID" -> "Mã QR chưa có đủ thông tin phù hợp. Hãy quét lại đúng thẻ."
+    else -> "Chưa đọc được mã QR từ ảnh. Hãy đưa thẻ gần hơn, tránh lóa rồi quét lại."
 }
 
 object ImageChecks {

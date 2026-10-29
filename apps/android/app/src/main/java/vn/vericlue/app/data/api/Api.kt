@@ -290,10 +290,10 @@ class SessionApi(
     suspend fun verifyOtp(sessionId: String, token: String, code: String): ApiResult<OtpVerifyResponse> =
         call(post(url("v1", "sessions", sessionId, "otp", "verify"), json.encodeToString(OtpVerifyRequest.serializer(), OtpVerifyRequest(code)).toRequestBody(JSON), token))
 
-    suspend fun uploadIdCard(sessionId: String, token: String, front: ByteArray, back: ByteArray, qr: String?): ApiResult<IdCardResponse> {
+    suspend fun uploadIdCard(sessionId: String, token: String, front: ByteArray, back: ByteArray?, qr: String?): ApiResult<IdCardResponse> {
         val body = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart("front", "front.jpg", front.toRequestBody(JPEG))
-            .addFormDataPart("back", "back.jpg", back.toRequestBody(JPEG))
+            .apply { back?.let { addFormDataPart("back", "back.jpg", it.toRequestBody(JPEG)) } }
             .apply { if (!qr.isNullOrBlank()) addFormDataPart("qr", qr) }
             .build()
         return call(post(url("v1", "sessions", sessionId, "id-card"), body, token))

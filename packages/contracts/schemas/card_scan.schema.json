@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vericlue.local/schemas/card_scan.schema.json",
+  "title": "Kết quả bridge đọc QR CCCD nội bộ",
+  "description": "Không gửi trực tiếp ra app. Đọc QR trên ảnh trước và ảnh sau tùy chọn; không có dữ liệu OCR. Chân dung chỉ kiểm khả năng xử lý, không xác minh thẻ thật.",
+  "type": "object",
+  "required": ["qr_values", "portrait_usable"],
+  "properties": {
+    "qr_values": {"type": "array", "items": {"type": "string"}},
+    "portrait_usable": {"type": "boolean"}
+  },
+  "additionalProperties": false
+}

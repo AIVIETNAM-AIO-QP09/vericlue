@@ -304,6 +304,28 @@ xóa dữ liệu/Keystore để cài đè. Không suy accuracy từ kiểm tra U
 
 ---
 
+### APP-08 · Quét CCCD tự động bằng QR và chân dung
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M1 | 1 | S2 | P0 | PLAT-04 |
+
+Theo yêu cầu 29/10: bỏ OCR trong luồng quét CCCD app/server; dùng QR lấy thông
+tin, ảnh chân dung làm tham chiếu so mặt. Camera nhận diện liên tục, một gợi ý,
+không nút chụp mặc định; tự chụp ảnh tĩnh rõ và gửi, xác nhận thông tin trước mặt.
+Mặt sau chỉ cần khi mặt trước chưa có QR. Timeout có hướng dẫn, chụp thủ công
+hoặc dừng; không dùng nhân viên/OCR làm fallback. Không thay AI/ngưỡng mặt.
+
+- [ ] Contract hỗ trợ mặt sau tùy chọn và retry thiếu chân dung, tương thích client cũ.
+- [ ] Backend QR-only, không dùng trường OCR/client QR để cứu ảnh không đọc được.
+- [ ] Android không dùng OCR kích hoạt chụp; QR/chân dung được kiểm lại trên ảnh
+      tĩnh, không ghép kết quả cũ giữa các thẻ/lượt; chất lượng, timeout và lỗi rõ.
+- [ ] Tự gửi, xác nhận thông tin trước quay mặt; xử lý retry có giới hạn.
+- [ ] Unit/API/contract/build/lint/snapshot đạt, kiểm runtime QR-only; tài liệu,
+      bàn giao và plan_check; ghi rõ phạm vi nghiệm thu điện thoại.
+
+---
+
 ### APP-02 ★ · App: chụp mặt, quay 3 giây, quay đầu ngẫu nhiên
 
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |

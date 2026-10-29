@@ -104,10 +104,17 @@
       "Body_upload_id_card_v1_sessions__session_id__id_card_post": {
         "properties": {
           "back": {
-            "contentMediaType": "application/octet-stream",
-            "description": "Ảnh mặt sau CCCD (có QR)",
-            "title": "Back",
-            "type": "string"
+            "anyOf": [
+              {
+                "contentMediaType": "application/octet-stream",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Ảnh mặt sau, chỉ cần khi mặt trước chưa đọc được QR",
+            "title": "Back"
           },
           "front": {
             "contentMediaType": "application/octet-stream",
@@ -124,13 +131,12 @@
                 "type": "null"
               }
             ],
-            "description": "Chuỗi QR app đã đọc ở mặt sau; thiếu thì trả retry",
+            "description": "Gợi ý QR từ app chỉ dành cho mock; bridge thật luôn đọc lại từ ảnh",
             "title": "Qr"
           }
         },
         "required": [
-          "front",
-          "back"
+          "front"
         ],
         "title": "Body_upload_id_card_v1_sessions__session_id__id_card_post",
         "type": "object"
@@ -1629,7 +1635,8 @@
               {
                 "enum": [
                   "QR_UNREADABLE",
-                  "QR_INVALID"
+                  "QR_INVALID",
+                  "PORTRAIT_UNREADABLE"
                 ],
                 "type": "string"
               },

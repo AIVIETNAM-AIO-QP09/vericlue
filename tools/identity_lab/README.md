@@ -1,5 +1,19 @@
 # OCR CCCD và face matching — công cụ thử nghiệm trong repo
 
+## Luồng app hiện tại: QR-only (APP-08)
+
+Bridge cho app là `qr_app:app`, bind loopback, không dùng VietOCR/Paddle/Torch.
+`qr_scanner.py` đọc QR bằng ZXing-C++ và OpenCV; giữ các mã xung đột để API quyết
+định retry, không tùy chọn một mã. SCRFD kiểm một chân dung đủ kích thước trên
+ảnh mặt trước; không xác nhận thẻ thật. Trả theo `card_scan.schema.json`.
+Mặt sau tùy chọn khi QR đã có ở mặt trước. Không nhận trường OCR làm fallback.
+
+Runtime riêng: `requirements-qr.txt`, `PYTHONPATH` gồm `tools/identity_lab` và
+`ml/src`, `MODELS_DIR` trỏ model đã kiểm hash. Chạy
+`python -m uvicorn qr_app:app --host 127.0.0.1 --port 8010 --no-access-log`.
+API chính bật `IDENTITY_LAB_URL` và `IDENTITY_CARD_PORTRAIT_REQUIRED=true`.
+Các phần OCR bên dưới là công cụ nghiên cứu lịch sử, không nằm trong luồng app.
+
 **Bắt đầu tại [HANDOFF.md](HANDOFF.md):** bản được giữ lại, checkpoint cần chia sẻ,
 kết quả thử VinText và ranh giới tích hợp UI/UX. Các thí nghiệm bên dưới là lịch sử
 phát triển, không phải tất cả đều được chọn làm mặc định.

@@ -63,7 +63,7 @@ class IdCardTest {
 
     @Test
     fun autoCaptureNeedsTwoGoodFramesInARow() {
-        val sharp = IdQuality(500.0, 0.0, null, looksLikeCard = true)
+        val sharp = IdQuality(500.0, 0.0, null, looksLikeCard = true, portraitPresent = true)
         val auto = IdAutoCapture()
         assertFalse(auto.offer(sharp))
         assertFalse(auto.offer(IdQuality(10.0, 0.0, null, true))) // blurry frame breaks the run
@@ -77,6 +77,20 @@ class IdCardTest {
         assertTrue(auto.offer(sharp))
         auto.reset()
         assertFalse(auto.offer(sharp))
+    }
+
+    @Test fun rearSideNeedsReadableQrAndDistinctFrames() {
+        val auto = IdAutoCapture(back = true)
+        assertFalse(auto.offer(IdQuality(500.0, 0.0, null)))
+        val first = IdQuality(500.0, 0.0, qr, frameTimeNs = 1)
+        assertFalse(auto.offer(first))
+        assertFalse(auto.offer(first))
+        assertTrue(auto.offer(first.copy(frameTimeNs = 2)))
+    }
+
+    @Test fun frontDoesNotCaptureAReadableQrWithoutAPortrait() {
+        val auto = IdAutoCapture()
+        repeat(3) { assertFalse(auto.offer(IdQuality(500.0, 0.0, qr))) }
     }
 
     @Test

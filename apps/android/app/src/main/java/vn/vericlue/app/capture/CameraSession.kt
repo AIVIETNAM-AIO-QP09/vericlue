@@ -10,6 +10,8 @@ import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ExperimentalGetImage
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.video.FileOutputOptions
@@ -26,8 +28,7 @@ import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import com.google.android.gms.tasks.Tasks
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.concurrent.Executors
@@ -56,13 +57,12 @@ class CameraSession(private val context: Context) {
             .build(),
     )
 
-    // Text read in the background on the rear camera, like the QR code: tells a card from a sharp
-    // room before auto-capture. A capture never waits for it (OCR can take seconds on slow devices).
-    private val textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-    @Volatile private var textBusy = false
-    @Volatile private var lastTextAt = 0L
-    @Volatile private var cardSeenAt = 0L
-
+    private val cardFaceDetector = FaceDetection.getClient(
+        FaceDetectorOptions.Builder().setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
+            .setMinFaceSize(0.05f).build(),
+    )
+    private val _idQuality = MutableStateFlow<IdQuality?>(null)
+    val idQuality: StateFlow<IdQuality?> = _idQuality
     private val qrScanner = BarcodeScanning.getClient(
         BarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build(),
     )
@@ -74,7 +74,7 @@ class CameraSession(private val context: Context) {
     val qr: StateFlow<String?> = qrState.qr
 
     /** Clears a card side's QR and rejects scanner callbacks from before this reset. */
-    fun clearQr() = qrState.clear()
+    fun clearQr() { qrState.clear(); _idQuality.value = null }
 
     private val _face = MutableStateFlow<FaceSignal?>(null)
     val face: StateFlow<FaceSignal?> = _face
@@ -126,7 +126,9 @@ class CameraSession(private val context: Context) {
             controller.imageAnalysisBackpressureStrategy = ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST
             controller.setImageAnalysisAnalyzer(analysisExecutor, ::analyze)
         }
-        for (useCases in listOf(CameraController.IMAGE_ANALYSIS or CameraController.VIDEO_CAPTURE, CameraController.IMAGE_ANALYSIS)) {
+        val choices = if (back) listOf(CameraController.IMAGE_ANALYSIS or CameraController.IMAGE_CAPTURE)
+            else listOf(CameraController.IMAGE_ANALYSIS or CameraController.VIDEO_CAPTURE, CameraController.IMAGE_ANALYSIS)
+        for (useCases in choices) {
             val ok = runCatching {
                 controller.setEnabledUseCases(useCases)
                 controller.cameraSelector = selector
@@ -156,10 +158,53 @@ class CameraSession(private val context: Context) {
      * a tap on the shutter.
      */
     suspend fun captureId(): Pair<ByteArray, IdQuality> {
-        val req = synchronized(this) {
-            idRequest ?: CompletableDeferred<Pair<ByteArray, IdQuality>>().also { idRequest = it }
+        val generation = qrState.generation()
+        val pair = synchronized(this) {
+            idRequest?.let { it to false } ?: (CompletableDeferred<Pair<ByteArray, IdQuality>>().also { idRequest = it } to true)
         }
-        return req.await()
+        val req = pair.first
+        if (pair.second) {
+            controller.takePicture(analysisExecutor, object : ImageCapture.OnImageCapturedCallback() {
+                override fun onCaptureSuccess(image: ImageProxy) {
+                    if (!req.isActive || generation != qrState.generation()) { image.close(); req.cancel(); return }
+                    val bitmap = try {
+                        var b = image.toBitmap()
+                        val rotation = image.imageInfo.rotationDegrees
+                        if (rotation != 0) b = Bitmap.createBitmap(b, 0, 0, b.width, b.height, Matrix().apply { postRotate(rotation.toFloat()) }, true)
+                        // CameraController's viewport may already crop the capture; the center crop
+                        // below also bounds devices which return the full sensor image.
+                        cropCardBitmap(b)
+                    } catch (_: Exception) {
+                        req.completeExceptionally(IllegalStateException("Card capture unavailable")); image.close(); return
+                    }
+                    image.close()
+                    val qrTask = qrScanner.process(InputImage.fromBitmap(bitmap, 0))
+                    val faceTask = cardFaceDetector.process(InputImage.fromBitmap(bitmap, 0))
+                    Tasks.whenAllComplete(qrTask, faceTask).addOnCompleteListener(analysisExecutor) {
+                        try {
+                            if (generation != qrState.generation() || !req.isActive) { req.cancel(); return@addOnCompleteListener }
+                            if (!qrTask.isSuccessful || !faceTask.isSuccessful) throw IllegalStateException("Card analysis unavailable")
+                            val qr = qrTask.result.firstNotNullOfOrNull { it.rawValue?.takeIf { raw -> CccdQr.parse(raw) != null } }
+                            val faces = faceTask.result
+                            val q = bitmapQuality(bitmap).copy(qr = qr, portraitPresent = faces.size == 1,
+                                tilted = faces.singleOrNull()?.let { kotlin.math.abs(it.headEulerAngleZ) > 15f } ?: false,
+                                looksLikeCard = faces.size == 1 || qr != null)
+                            val bytes = ByteArrayOutputStream().use { out -> bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out); out.toByteArray() }
+                            req.complete(bytes to q)
+                        } catch (_: Exception) {
+                            req.completeExceptionally(IllegalStateException("Card analysis unavailable"))
+                        } finally { bitmap.recycle() }
+                    }
+                }
+                override fun onError(exception: ImageCaptureException) {
+                    req.completeExceptionally(IllegalStateException("Card capture unavailable"))
+                }
+            })
+        }
+        try { return req.await() } finally {
+            if (req.isActive) req.cancel()
+            synchronized(this) { if (idRequest === req) idRequest = null }
+        }
     }
 
     fun unbind() {
@@ -418,53 +463,56 @@ class CameraSession(private val context: Context) {
 
     @androidx.annotation.OptIn(ExperimentalGetImage::class)
     private fun analyzeIdFrame(proxy: ImageProxy, media: android.media.Image, rotation: Int) {
-        val qrGeneration = qrState.generation()
-        val request = synchronized(this) { idRequest.also { idRequest = null } }
-        val now = SystemClock.elapsedRealtime()
-        if (request != null) {
-            val plane = proxy.planes[0]
-            val buf = plane.buffer.duplicate()
-            val luma = ByteArray(buf.remaining()).also { buf.get(it) }
-            val quality = IdQuality(
-                sharpness = ImageChecks.laplacianVariance(luma, proxy.width, proxy.height, plane.rowStride),
-                glareFraction = ImageChecks.glareFraction(luma, proxy.width, proxy.height, plane.rowStride),
-                qr = qr.value,
-                looksLikeCard = cardSeenAt > 0 && now - cardSeenAt <= CARD_SEEN_MS,
-            )
-            request.complete(toJpeg(proxy, rotation) to quality)
+        val generation = qrState.generation()
+        val luma = meanLuma(proxy).toDouble()
+        val plane = proxy.planes[0]
+        val buf = plane.buffer.duplicate()
+        val bytes = ByteArray(buf.remaining()).also { buf.get(it) }
+        val sharp = ImageChecks.laplacianVariance(bytes, proxy.width, proxy.height, plane.rowStride)
+        val glare = ImageChecks.glareFraction(bytes, proxy.width, proxy.height, plane.rowStride)
+        val qrTask = qrScanner.process(InputImage.fromMediaImage(media, rotation))
+        val faceTask = cardFaceDetector.process(InputImage.fromMediaImage(media, rotation))
+        val width = if (rotation % 180 == 0) proxy.width else proxy.height
+        val height = if (rotation % 180 == 0) proxy.height else proxy.width
+        val cardHeight = minOf(height.toFloat(), width / 1.586f)
+        val top = (height - cardHeight) / 2f
+        Tasks.whenAllComplete(qrTask, faceTask).addOnCompleteListener(analysisExecutor) {
+            try {
+                if (generation != qrState.generation() || !backMode) return@addOnCompleteListener
+                if (!qrTask.isSuccessful || !faceTask.isSuccessful) { _idQuality.value = null; return@addOnCompleteListener }
+                val qr = qrTask.result.firstNotNullOfOrNull { code ->
+                    val box = code.boundingBox
+                    code.rawValue?.takeIf { raw -> box != null && box.top >= top && box.bottom <= top + cardHeight && CccdQr.parse(raw) != null }
+                }
+                val faces = faceTask.result.filter { it.boundingBox.top >= top && it.boundingBox.bottom <= top + cardHeight }
+                qrState.update(generation, qr)
+                _idQuality.value = IdQuality(sharp, glare, qr, faces.size == 1 || qr != null,
+                    portraitPresent = faces.size == 1, brightness = luma,
+                    tilted = faces.singleOrNull()?.let { kotlin.math.abs(it.headEulerAngleZ) > 15f } ?: false,
+                    frameTimeNs = proxy.imageInfo.timestamp)
+            } finally { proxy.close() }
         }
-        val image = InputImage.fromMediaImage(media, rotation)
-        val qrTask = qrScanner.process(image)
-            .addOnSuccessListener { codes -> qrState.update(qrGeneration, codes.firstNotNullOfOrNull { it.rawValue }) }
-        // OCR can take seconds on a slow phone: read a small copy so the camera frame goes back at once.
-        val readText = (!textBusy || now - lastTextAt > TEXT_STUCK_MS) && now - lastTextAt >= TEXT_EVERY_MS
-        val copy = if (readText) runCatching { scaled(proxy.toBitmap()) }.getOrNull() else null
-        qrTask.addOnCompleteListener { proxy.close() }
-        if (copy == null) return
-        textBusy = true
-        lastTextAt = now
-        textRecognizer.process(InputImage.fromBitmap(copy, rotation))
-            .addOnSuccessListener { if (CardText.looksLikeCard(it.text)) cardSeenAt = SystemClock.elapsedRealtime() }
-            .addOnCompleteListener { textBusy = false }
     }
 
-    private companion object {
-        /** How often the rear camera reads text, and how long a card stays "seen" after that. */
-        const val TEXT_EVERY_MS = 700L
-        const val CARD_SEEN_MS = 1500L
-
-        /** A read that never finishes must not stop the next ones for good. */
-        const val TEXT_STUCK_MS = 15_000L
-
-        /** Longest side of the copy given to OCR: enough for the printed headings. */
-        const val TEXT_MAX_SIDE = 960
+    private fun cropCardBitmap(source: Bitmap): Bitmap {
+        val targetHeight = minOf(source.height, (source.width / 1.586f).toInt())
+        val targetWidth = minOf(source.width, (targetHeight * 1.586f).toInt())
+        val crop = Bitmap.createBitmap(source, (source.width - targetWidth) / 2, (source.height - targetHeight) / 2, targetWidth, targetHeight)
+        val ratio = minOf(1f, 2560f / maxOf(crop.width, crop.height))
+        return if (ratio == 1f) crop else Bitmap.createScaledBitmap(crop, (crop.width * ratio).toInt(), (crop.height * ratio).toInt(), true)
     }
 
-    private fun scaled(b: Bitmap): Bitmap {
-        val side = maxOf(b.width, b.height)
-        if (side <= TEXT_MAX_SIDE) return b
-        val k = TEXT_MAX_SIDE.toFloat() / side
-        return Bitmap.createScaledBitmap(b, (b.width * k).toInt(), (b.height * k).toInt(), true)
+    private fun bitmapQuality(bitmap: Bitmap): IdQuality {
+        val ratio = minOf(1f, 640f / maxOf(bitmap.width, bitmap.height))
+        val small = Bitmap.createScaledBitmap(bitmap, (bitmap.width * ratio).toInt(), (bitmap.height * ratio).toInt(), true)
+        val pixels = IntArray(small.width * small.height)
+        small.getPixels(pixels, 0, small.width, 0, 0, small.width, small.height)
+        val luma = ByteArray(pixels.size) { i -> val c = pixels[i]; (((c shr 16 and 255) * 77 + (c shr 8 and 255) * 150 + (c and 255) * 29) shr 8).toByte() }
+        val q = IdQuality(ImageChecks.laplacianVariance(luma, small.width, small.height, small.width),
+            ImageChecks.glareFraction(luma, small.width, small.height, small.width), null,
+            brightness = luma.sumOf { it.toInt() and 255 }.toDouble() / luma.size)
+        if (small !== bitmap) small.recycle()
+        return q
     }
 
     private fun meanLuma(proxy: ImageProxy): Float {

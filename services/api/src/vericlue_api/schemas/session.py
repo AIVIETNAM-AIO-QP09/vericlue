@@ -176,7 +176,7 @@ class IdCardFields(BaseModel):
 class IdCardResponse(BaseModel):
     status: Literal["ok", "retry"]
     fields: IdCardFields | None = None
-    retry_hint: Literal["QR_UNREADABLE", "QR_INVALID"] | None = None
+    retry_hint: Literal["QR_UNREADABLE", "QR_INVALID", "PORTRAIT_UNREADABLE"] | None = None
 
 
 class IdCardConfirmResponse(BaseModel):

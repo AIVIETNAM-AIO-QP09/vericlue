@@ -98,6 +98,10 @@ import vn.vericlue.app.ui.screens.FramingScreen
 import vn.vericlue.app.ui.screens.HoldStillScreen
 import vn.vericlue.app.ui.screens.IdCaptureScreen
 import vn.vericlue.app.ui.screens.IdReviewScreen
+import vn.vericlue.app.ui.screens.IdScanScreen
+import vn.vericlue.app.ui.screens.IdProcessingScreen
+import vn.vericlue.app.capture.idScanHint
+import vn.vericlue.app.capture.idScanErrorText
 import vn.vericlue.app.ui.screens.Messages
 import vn.vericlue.app.ui.screens.OtpScreen
 import vn.vericlue.app.ui.screens.PhoneScreen
@@ -256,71 +260,67 @@ fun VeriClueApp() {
      */
     @Composable
     fun IdCaptureRoute(back: Boolean, onDone: () -> Unit) {
+        val observation by camera.idQuality.collectAsState()
+        var captured by remember { mutableStateOf(false) }
+        var taking by remember { mutableStateOf(false) }
+        var timedOut by remember { mutableStateOf(false) }
+        var attempts by remember { mutableStateOf(0) }
+        var captureJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+        DisposableEffect(Unit) {
+            onDispose { captureJob?.cancel() }
+        }
         LaunchedEffect(Unit) {
             camera.clearQr()
+            idHint = null
             if (!hasCamera) askPermissions.launch(arrayOf(Manifest.permission.CAMERA))
         }
         LaunchedEffect(hasCamera) {
             if (hasCamera && !camera.start(lifecycleOwner, back = true)) nav.go(Routes.ErrorDevice)
         }
-        var shot by remember { mutableStateOf<Pair<ByteArray, IdQuality>?>(null) }
-        var captured by remember { mutableStateOf(false) }
-        var glare by remember { mutableStateOf(false) }
-        fun keep(s: Pair<ByteArray, IdQuality>) {
-            if (back) {
-                idBack = s
-            } else {
-                idFront = s
+        fun capture(manual: Boolean) {
+            if (taking || captured) return
+            taking = true
+            attempts++
+            captureJob = scope.launch {
+                try {
+                    val shot = withTimeoutOrNull(8000) { camera.captureId() }
+                    if (shot == null) { timedOut = true; return@launch }
+                    val q = shot.second
+                    if (!q.good || q.brightness < 45 || (!manual && !back && !q.portraitPresent)) {
+                        idHint = idScanHint(q, back)
+                        if (attempts >= 3) timedOut = true
+                        return@launch
+                    }
+                    if (back) idBack = shot else { idFront = shot; idBack = null }
+                    cccd = CccdQr.parse(FlowRules.cardQr(idFront?.second?.qr, idBack?.second?.qr))
+                    idConfirmed = false
+                    faceCaptured = false
+                    captured = true
+                    delay(450)
+                    if (back || CccdQr.parse(q.qr) != null) camera.unbind()
+                    onDone()
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    timedOut = true
+                } finally { taking = false }
             }
-            cccd = CccdQr.parse(FlowRules.cardQr(idFront?.second?.qr, idBack?.second?.qr))
-            shot = s
-            captured = true
-            idHint = null
         }
+        LaunchedEffect(Unit) { delay(20_000); timedOut = true }
         LaunchedEffect(hasCamera, captured) {
             if (!hasCamera || captured) return@LaunchedEffect
-            val auto = IdAutoCapture()
+            val auto = IdAutoCapture(back = back)
             delay(IdAutoCapture.START_DELAY_MS)
-            while (true) {
-                val s = withTimeoutOrNull(3000) { camera.captureId() }
-                if (s != null) {
-                    glare = !s.second.noGlare
-                    if (auto.offer(s.second)) {
-                        keep(s)
-                        break
-                    }
-                }
-                delay(IdAutoCapture.SAMPLE_MS)
+            while (!captured) {
+                val q = camera.idQuality.value
+                if (!timedOut && !taking && q != null && auto.offer(q)) capture(manual = false)
+                delay(250)
             }
         }
-        LaunchedEffect(captured) {
-            if (!captured) return@LaunchedEffect
-            delay(IdAutoCapture.PAUSE_MS)
-            onDone()
-        }
-        IdCaptureScreen(
-            back = back,
-            glare = glare,
-            onBack = { nav.popBackStack() },
-            onCapture = {
-                if (!hasCamera) {
-                    captured = true // demo without a camera: the placeholder card
-                } else {
-                    scope.launch { withTimeoutOrNull(3000) { camera.captureId() }?.let(::keep) }
-                }
-            },
-            captured = captured,
-            photo = shot?.first,
-            capturedOk = shot?.second?.good ?: true,
-            hint = idHint,
-            onRetake = {
-                camera.clearQr()
-                if (back) idBack = null else idFront = null
-                cccd = CccdQr.parse(FlowRules.cardQr(idFront?.second?.qr, idBack?.second?.qr))
-                shot = null
-                captured = false
-            },
-        )
+        IdScanScreen(back, observation,
+            onBack = { camera.clearQr(); nav.popBackStack() }, onStop = exit,
+            onManual = { capture(manual = true) }, timedOut = timedOut,
+            taking = taking || captured, hint = idHint)
     }
 
     fun startFace() {
@@ -514,57 +514,36 @@ fun VeriClueApp() {
             OtpScreen(onBack = { nav.popBackStack() }, onVerified = { nav.go(FlowRules.afterOtp(flow.purpose)) }, startWithError = true)
         }
         // A retake from the review screen goes back to it; the first pass goes front → back → review.
-        composable(Routes.IdFront) { IdCaptureRoute(back = false) { if (idBack != null) toIdReview() else nav.go(Routes.IdBack) } }
+        composable(Routes.IdFront) { IdCaptureRoute(back = false) { if (CccdQr.parse(idFront?.second?.qr) != null) toIdReview() else nav.go(Routes.IdBack) } }
         composable(Routes.IdFrontGlare) { IdCaptureScreen(back = false, glare = true, onBack = { nav.popBackStack() }, onCapture = { nav.go(Routes.IdFront) }) }
         composable(Routes.IdBack) { IdCaptureRoute(back = true) { toIdReview() } }
         composable(Routes.IdReview) {
-            IdReviewScreen(
-                onBack = { nav.popBackStack() },
-                onRetakeFront = { nav.go(Routes.IdFront) },
-                onRetakeBack = { nav.go(Routes.IdBack) },
-                onContinue = {
-                    val front = idFront?.first
-                    val backPhoto = idBack?.first
-                    if (!flow.live) {
-                        nav.go(FlowRules.afterIdReview(faceCaptured))
-                    } else if (front == null || backPhoto == null) {
-                        nav.go(Routes.IdFront)
-                    } else {
-                        once {
-                            val qr = FlowRules.cardQr(idFront?.second?.qr, idBack?.second?.qr)
-                            val (hint, error) = live.sendIdCard(front, backPhoto, qr)
-                            when {
-                                error != null -> nav.go(errorRoute(error))
-                                // Ask to retake without claiming which side should contain the QR.
-                                hint != null -> {
-                                    idHint = "Chưa đọc được mã QR trên thẻ. Hãy đưa thẻ lại gần hơn rồi chụp lại."
-                                    nav.go(Routes.IdBack)
-                                }
-                                else -> {
-                                    live.idFields?.let { cccd = FlowRules.cccdFrom(it) }
-                                    idConfirmed = false
-                                    nav.go(FlowRules.afterIdReview(faceCaptured))
-                                }
-                            }
-                        }
+            var failure by remember { mutableStateOf<String?>(null) }
+            LaunchedEffect(Unit) {
+                if (!flow.live) {
+                    delay(500)
+                    nav.go(Routes.Confirm)
+                    return@LaunchedEffect
+                }
+                val front = idFront?.first
+                if (front == null) { nav.go(Routes.IdFront); return@LaunchedEffect }
+                val qr = FlowRules.cardQr(idFront?.second?.qr, idBack?.second?.qr)
+                val (hint, error) = live.sendIdCard(front, idBack?.first, qr)
+                when {
+                    error != null -> nav.go(errorRoute(error))
+                    hint != null -> failure = idScanErrorText(hint)
+                    else -> {
+                        live.idFields?.let { cccd = FlowRules.cccdFrom(it) }
+                        idConfirmed = false
+                        nav.go(Routes.Confirm)
                     }
-                },
-                front = idFront,
-                back = idBack,
-                onDebugQr = if (BuildConfig.DEBUG) {
-                    {
-                        // The photo too: with the FLOW-05 identity bridge the server reads the QR from the image.
-                        val sample = context.resources.getIdentifier("sample_cccd_qr", "raw", context.packageName)
-                            .takeIf { it != 0 }?.let { id -> context.resources.openRawResource(id).use { it.readBytes() } }
-                        idBack?.let { (photo, q) ->
-                            idBack = (sample ?: photo) to q.copy(qr = DEBUG_SAMPLE_QR)
-                            cccd = CccdQr.parse(FlowRules.cardQr(idFront?.second?.qr, idBack?.second?.qr))
-                        }
-                    }
-                } else {
-                    null
-                },
-            )
+                }
+            }
+            IdProcessingScreen(onStop = exit, onRetake = {
+                idFront = null; idBack = null; cccd = null
+                idConfirmed = false; faceCaptured = false
+                nav.navigate(Routes.IdFront) { popUpTo(Routes.IdFront) { inclusive = true } }
+            }, error = failure)
         }
         composable(Routes.Confirm) {
             // After the face part, going back would restart the recording: ask whether to stop instead.
@@ -575,14 +554,14 @@ fun VeriClueApp() {
                     val fields = live.idFields
                     if (!flow.live) {
                         idConfirmed = true
-                        nav.go(FlowRules.afterConfirm(flow.purpose, flow.live))
+                        nav.go(FlowRules.afterConfirm(flow.purpose, flow.live, faceCaptured))
                     } else if (fields == null) {
                         nav.go(Routes.IdFront)
                     } else {
                         once {
                             live.confirmIdCard(fields)?.let(::confirmFailed) ?: run {
                                 idConfirmed = true
-                                nav.go(FlowRules.afterConfirm(flow.purpose, flow.live))
+                                nav.go(FlowRules.afterConfirm(flow.purpose, flow.live, faceCaptured))
                             }
                         }
                     }
@@ -599,7 +578,7 @@ fun VeriClueApp() {
                     val fields = live.idFields
                     if (!flow.live) {
                         idConfirmed = true
-                        nav.go(FlowRules.afterConfirm(flow.purpose, flow.live))
+                        nav.go(FlowRules.afterConfirm(flow.purpose, flow.live, faceCaptured))
                     } else if (fields == null) {
                         nav.go(Routes.IdFront)
                     } else {
@@ -608,7 +587,7 @@ fun VeriClueApp() {
                         once {
                             live.confirmIdCard(confirmed)?.let(::confirmFailed) ?: run {
                                 idConfirmed = true
-                                nav.go(FlowRules.afterConfirm(flow.purpose, flow.live))
+                                nav.go(FlowRules.afterConfirm(flow.purpose, flow.live, faceCaptured))
                             }
                         }
                     }

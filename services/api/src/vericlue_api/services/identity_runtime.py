@@ -34,5 +34,8 @@ class IdentityRuntime:
                 503, "identity_unavailable", "Không thể xử lý ảnh lúc này. Vui lòng thử lại."
             ) from exc
 
-    def scan(self, front: bytes, back: bytes) -> dict:
-        return self._post("/internal/id-card", {"front": front, "back": back})
+    def scan(self, front: bytes, back: bytes | None) -> dict:
+        images = {"front": front}
+        if back is not None:
+            images["back"] = back
+        return self._post("/internal/id-card", images)

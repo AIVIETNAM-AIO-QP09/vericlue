@@ -182,6 +182,7 @@ class Settings(BaseSettings):
     # Opt-in identity flow: remote QR/OCR, local SCRFD + LVFace-B via the orchestrator.
     identity_lab_url: str | None = None
     identity_lab_timeout_seconds: float = Field(default=90, gt=0, le=180)
+    identity_card_portrait_required: bool = False
     identity_face_calibration: str | None = None
     identity_account_calibration: str | None = None
     identity_recovery_calibration: str | None = None

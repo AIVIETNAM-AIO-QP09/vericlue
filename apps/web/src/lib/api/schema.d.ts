@@ -737,9 +737,9 @@ export interface components {
         Body_upload_id_card_v1_sessions__session_id__id_card_post: {
             /**
              * Back
-             * @description Ảnh mặt sau CCCD (có QR)
+             * @description Ảnh mặt sau, chỉ cần khi mặt trước chưa đọc được QR
              */
-            back: string;
+            back?: string | null;
             /**
              * Front
              * @description Ảnh mặt trước CCCD
@@ -747,7 +747,7 @@ export interface components {
             front: string;
             /**
              * Qr
-             * @description Chuỗi QR app đã đọc ở mặt sau; thiếu thì trả retry
+             * @description Gợi ý QR từ app chỉ dành cho mock; bridge thật luôn đọc lại từ ảnh
              */
             qr?: string | null;
         };
@@ -1214,7 +1214,7 @@ export interface components {
         IdCardResponse: {
             fields?: components["schemas"]["IdCardFields"] | null;
             /** Retry Hint */
-            retry_hint?: ("QR_UNREADABLE" | "QR_INVALID") | null;
+            retry_hint?: ("QR_UNREADABLE" | "QR_INVALID" | "PORTRAIT_UNREADABLE") | null;
             /**
              * Status
              * @enum {string}

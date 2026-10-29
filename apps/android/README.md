@@ -4,6 +4,16 @@
 
 ## Trạng thái
 
+APP-08 thay quét thẻ bằng QR/chân dung, bỏ dependency ML Kit Text Recognition.
+Camera sau phân tích liên tục QR/ảnh chân dung trong khung, một gợi ý chất lượng;
+đủ điều kiện thì chụp ImageCapture, xoay/crop vùng thẻ và giới hạn cạnh 2560px,
+kiểm lại trên chính bitmap rồi gửi JPEG. Không dùng frame phân tích 480×640 làm
+ảnh chính. Front có QR thì gửi một mặt; thiếu thì thu mặt còn lại. Server đọc
+lại QR và kiểm chân dung, không OCR. Tự gửi, xác nhận thông tin trước quay mặt.
+20 giây hoặc ba lần chụp chưa đủ thì hiện chụp thủ công/dừng; không vòng lặp gửi
+server tự động. `vericlue.qrTest=true` cùng usbTest tạo **VeriClue QR**, package
+`vn.vericlue.app.qrtest`, giữ nguyên app/Keystore cũ. Hardware acceptance còn chờ.
+
 APP-07: luồng đầy đủ Giả lập và API dùng chung `FaceTimelineScreen` và bộ UI A
 hiện có (khung oval lúc giữ yên, hướng dẫn quay đầu trên camera). Giả lập tạo
 lịch cục bộ; API luôn theo lịch/tọa độ toàn màn hình do server cấp, không rơi về

@@ -11,6 +11,8 @@ plugins {
 val apiBaseUrl = (project.findProperty("vericlue.apiBaseUrl") as String?) ?: "http://10.0.2.2:8000/"
 val signedMedia = (project.findProperty("vericlue.signedMedia") as String?)?.toBooleanStrict() ?: false
 val usbTest = (project.findProperty("vericlue.usbTest") as String?)?.toBooleanStrict() ?: false
+val qrTest = (project.findProperty("vericlue.qrTest") as String?)?.toBooleanStrict() ?: false
+if (qrTest && !usbTest) throw GradleException("QR test requires the signed localhost USB profile.")
 if (usbTest && (apiBaseUrl != "http://localhost:8421/" || !signedMedia)) {
     throw GradleException("USB test requires localhost:8421 and signed media.")
 }
@@ -46,9 +48,9 @@ android {
     buildTypes {
         debug {
             if (usbTest) {
-                applicationIdSuffix = ".usbtest"
-                versionNameSuffix = "-usb"
-                manifestPlaceholders["appLabel"] = "VeriClue USB"
+                applicationIdSuffix = if (qrTest) ".qrtest" else ".usbtest"
+                versionNameSuffix = if (qrTest) "-qr" else "-usb"
+                manifestPlaceholders["appLabel"] = if (qrTest) "VeriClue QR" else "VeriClue USB"
             }
         }
         release {
@@ -99,7 +101,6 @@ dependencies {
     implementation(libs.androidx.camera.video)
     implementation(libs.mlkit.face.detection)
     implementation(libs.mlkit.barcode.scanning)
-    implementation(libs.mlkit.text.recognition) // card words before ID auto-capture
     implementation(libs.play.services.auth.api.phone) // SMS User Consent: fills the OTP from a real SMS
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
