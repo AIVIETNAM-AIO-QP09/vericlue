@@ -69,6 +69,7 @@
 | FACE-04 | Tinh chỉnh GenD và PAD trên dữ liệu VN | M3 | | 2 | S2 | P0 | FACE-01, FACE-02, DATA-04, DATA-05 | doing |
 | FACE-05 | Tối ưu tốc độ | M3 | | 0,5 | S2 | P1 | FACE-04 | todo |
 | FACE-06 | ONNX FP32 FS-VFM-L/GenD-L, đối chiếu CPU; GPU và hiệu năng có giới hạn | M3 | Codex | 1 | S2 | P0 | PLAT-03 | review |
+| FACE-07 | Thử GenD FP16 GPU: Torch/ONNX so FP32, tốc độ/bộ nhớ và sai lệch | M3 | Codex | 0,5 | S2 | P0 | FACE-06 | doing |
 
 ## E5 — Giọng nói · `epics/E5-voice.md`
 

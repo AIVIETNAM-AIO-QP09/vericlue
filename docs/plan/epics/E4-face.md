@@ -163,3 +163,21 @@ nghiệm thu bảo mật của FACE-05. Không đổi API, ngưỡng, tiền x�
 Kết quả/giới hạn: `docs/research/2026-10-30-onnx-fp32.md` và JSON kèm theo.
 CPU cả hai đạt đối chiếu; GPU GenD đạt nhưng chậm hơn, FS-VFM chưa đạt so
 nhánh Torch CUDA mặc định. Không phê duyệt triển khai chỉ từ tensor tổng hợp.
+
+---
+
+### FACE-07 · Thử GenD FP16 trên GPU
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M3 | 0,5 | S2 | P0 | FACE-06 |
+
+Người dùng đồng ý thử GenD trước: so PyTorch FP16 và ONNX FP16 với FP32 trên
+cùng GPU. PR FACE-06 đang review nhưng code/model đã có để làm thử độc lập.
+Giữ LayerNorm và head ở FP32, backbone FP16; I/O vẫn FP32. Không đổi server,
+API, schema hoặc ngưỡng. Chưa coi mẫu tổng hợp là nghiệm thu chống giả mạo.
+
+- [ ] Công cụ tái lập, kiểm nguồn FP32/checksum, test dtype và lỗi số học.
+- [ ] Xuất model thật, đối chiếu số học theo budget đặt trước và giữ ca lỗi.
+- [ ] Đo p50/p95, RSS, snapshot VRAM cho Torch/ONNX FP32/FP16 riêng tiến trình.
+- [ ] Tài liệu, số liệu kèm commit/model/số mẫu, lint/test và bàn giao.
