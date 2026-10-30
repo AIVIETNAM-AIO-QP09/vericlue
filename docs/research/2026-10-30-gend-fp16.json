@@ -1,0 +1,1367 @@
+{
+  "policy": {
+    "probability_atol": 0.001,
+    "logits_atol": 0.01,
+    "logits_rtol": 0.001,
+    "argmax_agreement": 1.0
+  },
+  "hardware_gpu": "NVIDIA GeForce RTX 4050 Laptop GPU, 616.56, 6141 MiB",
+  "fp32_source": {
+    "format": 1,
+    "model": "gend",
+    "model_id": "gend-clip-l14",
+    "attack_index": 1,
+    "dtype": "float32",
+    "input_shape": [
+      1,
+      3,
+      224,
+      224
+    ],
+    "opset": 18,
+    "samples": 8,
+    "seed": 20261030,
+    "input_kind": "synthetic_rgb_patterns_not_faces",
+    "source_revisions": {
+      "gend-clip-l14": "891ce014a0308386c4d7d25b3dcf436a22db5504",
+      "clip-vit-large-patch14": "32bd64288804d66eefd0ccbe215aa642df71cc41"
+    },
+    "provenance": {
+      "source_commit": "f64dd3dde24c13c400a959958d683ca032b67037",
+      "source_dirty": false,
+      "source_sha256": {
+        "ml/src/vericlue_ml/eval/onnx_export.py": "06f25d3d1d61a73b70fac3f37f5a6db1fd7d6d63f469117c2d152ec6f2fa08ac",
+        "ml/src/vericlue_ml/eval/onnx_metrics.py": "4ab0d56adfe9dc6f9f9e923f8721438af8ecf59197d02963310d2482a22b7701",
+        "ml/src/vericlue_ml/eval/onnx_networks.py": "177dd44286fb268f445e87bd17537011609d28a0c663837e90c803ce7f8ecfc2",
+        "ml/src/vericlue_ml/face/fsvfm.py": "190bbe5dee6a7901bc1a14d3bac5a76ca4b977bd8f4f4dc5700c8b7969b8159a",
+        "ml/src/vericlue_ml/face/fsvfm_network.py": "70216b477e7cbb9d17082520273f964dd81c1354c22cafcc6e195ccb8cc9765a",
+        "ml/src/vericlue_ml/face/gend.py": "1b5c7aa597f369c01adb7d6bbb62a3c8365cd07211396e40bae62ee4a63c4199"
+      }
+    },
+    "environment": {
+      "python": "3.12.14",
+      "platform": "Windows-11-10.0.26200-SP0",
+      "packages": {
+        "torch": "2.14.1+cpu",
+        "onnx": "1.23.2",
+        "onnxscript": "0.7.2",
+        "onnxruntime": "1.31.0",
+        "numpy": "2.5.4",
+        "transformers": "4.57.6"
+      }
+    },
+    "files": {
+      "inputs.npy": "070f5e2e167efbf758bf1a53e25c4411405264bf7760fa3533d3f97804b92c6c",
+      "reference.npz": "4a15e11e10aa2d648b7d1342c432c267e4475b75f06ab251a7e3755db3bfb15a",
+      "model.onnx": "896c1a5c8304cec3e92b67ed4266fd93c3e72f2f7b3193e92225fb3c4d79a752",
+      "model.onnx.data": "4b31490a678d18641d238ba08d06e0a8708a350a4d4ead6eef07d653f09e5d54"
+    },
+    "onnx_bytes": 1217700820,
+    "export_seconds": 126.28813559998525,
+    "memory": {
+      "rss_start_mib": 220.77734375,
+      "rss_peak_sampled_mib": 1561.8125,
+      "rss_end_mib": 1525.79296875,
+      "sampling_interval_ms": 20
+    },
+    "status": "exported_not_yet_runtime_verified",
+    "biometric_accuracy_evaluated": false
+  },
+  "current": {
+    "artifact": {
+      "format": 1,
+      "model": "gend",
+      "variant": "residual",
+      "precision": "fp16_linear_fp32_residual_attention_embedding_norm_head_io",
+      "input_dtype": "float32",
+      "output_dtype": "float32",
+      "input_shape": [
+        1,
+        3,
+        224,
+        224
+      ],
+      "samples": 8,
+      "policy": {
+        "probability_atol": 0.001,
+        "logits_atol": 0.01,
+        "logits_rtol": 0.001,
+        "argmax_agreement": 1.0
+      },
+      "source_fp32_bundle_sha256": "4e25711651ab5965993a8958edf10ff6a14f58b92e0beeb986f11b3567e96333",
+      "source_input_sha256": "070f5e2e167efbf758bf1a53e25c4411405264bf7760fa3533d3f97804b92c6c",
+      "source_reference_output_sha256": "75740152c2cb81a3c052dfef35a5a446c90ba081715076d330255e7aad769cca",
+      "source_revisions": {
+        "gend": "891ce014a0308386c4d7d25b3dcf436a22db5504",
+        "clip": "32bd64288804d66eefd0ccbe215aa642df71cc41"
+      },
+      "files": {
+        "inputs.npy": "070f5e2e167efbf758bf1a53e25c4411405264bf7760fa3533d3f97804b92c6c",
+        "fp32-reference.npz": "75740152c2cb81a3c052dfef35a5a446c90ba081715076d330255e7aad769cca",
+        "model.onnx": "bc6356f5a9e1dda3cd807744259f2426860e1179047b1291e81a508536a36c7d",
+        "model.onnx.data": "5110c3047e69bbcf5e80ff6874597d0104a702ea32423a9965ab00d6d2d13556"
+      },
+      "initializer_elements_by_dtype": {
+        "FLOAT": 970754,
+        "INT64": 257,
+        "FLOAT16": 302211072
+      },
+      "onnx_bytes": 616734244,
+      "export_seconds": 25.626925199991092,
+      "torch_fp16_parity": {
+        "passed": true,
+        "samples": 8,
+        "atol": 0.01,
+        "rtol": 0.001,
+        "outputs": {
+          "logits": {
+            "passed": true,
+            "max_abs_error": 0.0017579197883605957,
+            "mean_abs_error": 0.0005750060081481934
+          },
+          "probabilities": {
+            "passed": true,
+            "max_abs_error": 0.0008575618267059326,
+            "mean_abs_error": 0.0002726651728153229
+          }
+        },
+        "argmax_agreement": 1.0,
+        "biometric_accuracy_evaluated": false,
+        "policy": {
+          "probability_atol": 0.001,
+          "logits_atol": 0.01,
+          "logits_rtol": 0.001,
+          "argmax_agreement": 1.0
+        },
+        "reference": "verified_same_device_pytorch_fp32"
+      },
+      "memory": {
+        "rss_start_mib": 554.1953125,
+        "rss_peak_sampled_mib": 1967.3203125,
+        "rss_end_mib": 1686.16015625,
+        "sampling_interval_ms": 20
+      },
+      "environment": {
+        "python": "3.12.14",
+        "platform": "Windows-11-10.0.26200-SP0",
+        "packages": {
+          "torch": "2.14.1+cu130",
+          "onnx": "1.23.2",
+          "onnxscript": "0.7.2",
+          "onnxruntime": null,
+          "onnxruntime-gpu": "1.31.0",
+          "numpy": "2.5.4",
+          "transformers": "4.57.6"
+        }
+      },
+      "provenance": {
+        "source_commit": "135e4ebeeb4b1bd2fa526262a2934ec58c28c50a",
+        "source_dirty": true,
+        "source_sha256": {
+          "ml/src/vericlue_ml/eval/onnx_export.py": "aeaf34d89c80b5bbe128b4d1cf07b0ce3b26c249f19e6ce3bbe88b78ab76636a",
+          "ml/src/vericlue_ml/eval/onnx_metrics.py": "4ab0d56adfe9dc6f9f9e923f8721438af8ecf59197d02963310d2482a22b7701",
+          "ml/src/vericlue_ml/eval/onnx_networks.py": "177dd44286fb268f445e87bd17537011609d28a0c663837e90c803ce7f8ecfc2",
+          "ml/src/vericlue_ml/face/fsvfm.py": "190bbe5dee6a7901bc1a14d3bac5a76ca4b977bd8f4f4dc5700c8b7969b8159a",
+          "ml/src/vericlue_ml/face/fsvfm_network.py": "70216b477e7cbb9d17082520273f964dd81c1354c22cafcc6e195ccb8cc9765a",
+          "ml/src/vericlue_ml/face/gend.py": "1b5c7aa597f369c01adb7d6bbb62a3c8365cd07211396e40bae62ee4a63c4199"
+        },
+        "fp16_source_sha256": {
+          "fp16_gend.py": "2c6ef344175dda59d4005300f7d28431dd35d4c579a952a483440afadd0a1b80",
+          "fp16_networks.py": "d989ee2aa3db3f6e1bd7b870d803ec13ea4a702ebe520b40959346ed3ac26418"
+        }
+      },
+      "biometric_accuracy_evaluated": false,
+      "deployment_approved": false
+    },
+    "engines": {
+      "torch32": {
+        "status": "ok",
+        "engine": "torch32",
+        "model": "gend",
+        "precision": "float32",
+        "device": "cuda",
+        "providers": [
+          "pytorch:cuda"
+        ],
+        "ort_optimization": "all",
+        "input_sha256": "070f5e2e167efbf758bf1a53e25c4411405264bf7760fa3533d3f97804b92c6c",
+        "reference_output_sha256": "75740152c2cb81a3c052dfef35a5a446c90ba081715076d330255e7aad769cca",
+        "fp16_bundle_sha256": "9f9470147acf1cd28b48db3a5ae51b8f81b8f094733caef17410d7dfba0bc195",
+        "threads": 4,
+        "warmup": 3,
+        "latency": {
+          "runs": 30,
+          "p50_ms": 82.12064999679569,
+          "p95_ms": 87.24751499976264,
+          "mean_ms": 82.74698666743159,
+          "min_ms": 78.19040000322275,
+          "max_ms": 87.96199999051169
+        },
+        "latency_trials_ms": [
+          81.99800000875257,
+          87.96199999051169,
+          87.42900000652298,
+          84.03960001305677,
+          82.28050000616349,
+          80.30780000262894,
+          78.19040000322275,
+          81.33590000215918,
+          82.24329998483881,
+          80.206199985696,
+          79.99399999971502,
+          79.49520001420751,
+          85.13439999660477,
+          86.24609999242239,
+          87.0256999915,
+          84.46870002080686,
+          84.03690002160147,
+          79.78349999757484,
+          79.55260001472197,
+          81.88919999520294,
+          81.6933999885805,
+          81.42129998304881,
+          80.5656999873463,
+          81.54329998069443,
+          84.13329999893904,
+          85.15190001344308,
+          86.00770001066849,
+          83.60670000547543,
+          83.91270000720397,
+          80.75459999963641
+        ],
+        "load_seconds_excluding_bundle_validation": 13.90118960000109,
+        "memory": {
+          "rss_start_mib": 43.33203125,
+          "rss_peak_sampled_mib": 1932.328125,
+          "rss_end_mib": 1117.71484375,
+          "sampling_interval_ms": 20
+        },
+        "gpu_whole_device_used_mib": {
+          "before": 0.0,
+          "after_load": 1243.0,
+          "after_run": 1287.0,
+          "scope": "snapshots_include_other_processes_not_peak_vram"
+        },
+        "parity": {
+          "passed": true,
+          "samples": 8,
+          "atol": 1e-05,
+          "rtol": 0.0001,
+          "outputs": {
+            "logits": {
+              "passed": true,
+              "max_abs_error": 0.0,
+              "mean_abs_error": 0.0
+            },
+            "probabilities": {
+              "passed": true,
+              "max_abs_error": 0.0,
+              "mean_abs_error": 0.0
+            }
+          },
+          "argmax_agreement": 1.0,
+          "biometric_accuracy_evaluated": false
+        },
+        "environment": {
+          "python": "3.12.14",
+          "platform": "Windows-11-10.0.26200-SP0",
+          "packages": {
+            "torch": "2.14.1+cu130",
+            "onnx": "1.23.2",
+            "onnxscript": "0.7.2",
+            "onnxruntime": null,
+            "onnxruntime-gpu": "1.31.0",
+            "numpy": "2.5.4",
+            "transformers": "4.57.6"
+          }
+        },
+        "provenance": {
+          "source_commit": "24a34b708141360c8503118bcb0aa074f4fde613",
+          "source_dirty": true,
+          "source_sha256": {
+            "ml/src/vericlue_ml/eval/onnx_export.py": "6879e073310fbff7a67244bae7bfc05445f9ed147210576ce8728e6f11ffb4e6",
+            "ml/src/vericlue_ml/eval/onnx_metrics.py": "4ab0d56adfe9dc6f9f9e923f8721438af8ecf59197d02963310d2482a22b7701",
+            "ml/src/vericlue_ml/eval/onnx_networks.py": "177dd44286fb268f445e87bd17537011609d28a0c663837e90c803ce7f8ecfc2",
+            "ml/src/vericlue_ml/face/fsvfm.py": "190bbe5dee6a7901bc1a14d3bac5a76ca4b977bd8f4f4dc5700c8b7969b8159a",
+            "ml/src/vericlue_ml/face/fsvfm_network.py": "70216b477e7cbb9d17082520273f964dd81c1354c22cafcc6e195ccb8cc9765a",
+            "ml/src/vericlue_ml/face/gend.py": "1b5c7aa597f369c01adb7d6bbb62a3c8365cd07211396e40bae62ee4a63c4199"
+          },
+          "fp16_source_sha256": {
+            "fp16_gend.py": "dd9e7d4a6ce4f3ca2122ab975f5015f1a86720e6538f0e3000c1af87a34fa2e6",
+            "fp16_networks.py": "d989ee2aa3db3f6e1bd7b870d803ec13ea4a702ebe520b40959346ed3ac26418"
+          }
+        },
+        "timing_scope": "network_only_numpy_to_gpu_and_back_excludes_capture_detection_alignment",
+        "biometric_accuracy_evaluated": false,
+        "deployment_approved": false
+      },
+      "torch16": {
+        "status": "ok",
+        "engine": "torch16",
+        "model": "gend",
+        "precision": "fp16_linear_fp32_residual_attention_embedding_norm_head_io",
+        "device": "cuda",
+        "providers": [
+          "pytorch:cuda"
+        ],
+        "ort_optimization": "all",
+        "input_sha256": "070f5e2e167efbf758bf1a53e25c4411405264bf7760fa3533d3f97804b92c6c",
+        "reference_output_sha256": "75740152c2cb81a3c052dfef35a5a446c90ba081715076d330255e7aad769cca",
+        "fp16_bundle_sha256": "9f9470147acf1cd28b48db3a5ae51b8f81b8f094733caef17410d7dfba0bc195",
+        "threads": 4,
+        "warmup": 3,
+        "latency": {
+          "runs": 30,
+          "p50_ms": 30.62130000034813,
+          "p95_ms": 32.33361999737099,
+          "mean_ms": 30.85672333254479,
+          "min_ms": 29.411700001219288,
+          "max_ms": 33.06630000588484
+        },
+        "latency_trials_ms": [
+          31.045900017488748,
+          31.918599997879937,
+          31.340999994426966,
+          32.31140002026223,
+          30.87940000114031,
+          30.05119998124428,
+          30.59959999518469,
+          30.411899992031977,
+          30.797699990216643,
+          30.264200002420694,
+          30.34349999506958,
+          30.837400001473725,
+          30.68239998538047,
+          32.058099983260036,
+          30.615199997555465,
+          31.59369999775663,
+          31.40409998013638,
+          32.35179997864179,
+          31.382999994093552,
+          30.447400000412017,
+          30.627400003140792,
+          30.092400003923103,
+          30.54760000668466,
+          30.02180001931265,
+          30.4502000217326,
+          30.162200011545792,
+          30.102899996563792,
+          29.881700000260025,
+          29.411700001219288,
+          33.06630000588484
+        ],
+        "load_seconds_excluding_bundle_validation": 12.754841400019359,
+        "memory": {
+          "rss_start_mib": 43.34375,
+          "rss_peak_sampled_mib": 1931.390625,
+          "rss_end_mib": 1385.1328125,
+          "sampling_interval_ms": 20
+        },
+        "gpu_whole_device_used_mib": {
+          "before": 0.0,
+          "after_load": 1257.0,
+          "after_run": 1273.0,
+          "scope": "snapshots_include_other_processes_not_peak_vram"
+        },
+        "parity": {
+          "passed": true,
+          "samples": 8,
+          "atol": 0.01,
+          "rtol": 0.001,
+          "outputs": {
+            "logits": {
+              "passed": true,
+              "max_abs_error": 0.0017579197883605957,
+              "mean_abs_error": 0.0005750060081481934
+            },
+            "probabilities": {
+              "passed": true,
+              "max_abs_error": 0.0008575618267059326,
+              "mean_abs_error": 0.0002726651728153229
+            }
+          },
+          "argmax_agreement": 1.0,
+          "biometric_accuracy_evaluated": false,
+          "policy": {
+            "probability_atol": 0.001,
+            "logits_atol": 0.01,
+            "logits_rtol": 0.001,
+            "argmax_agreement": 1.0
+          },
+          "reference": "verified_same_device_pytorch_fp32"
+        },
+        "environment": {
+          "python": "3.12.14",
+          "platform": "Windows-11-10.0.26200-SP0",
+          "packages": {
+            "torch": "2.14.1+cu130",
+            "onnx": "1.23.2",
+            "onnxscript": "0.7.2",
+            "onnxruntime": null,
+            "onnxruntime-gpu": "1.31.0",
+            "numpy": "2.5.4",
+            "transformers": "4.57.6"
+          }
+        },
+        "provenance": {
+          "source_commit": "24a34b708141360c8503118bcb0aa074f4fde613",
+          "source_dirty": true,
+          "source_sha256": {
+            "ml/src/vericlue_ml/eval/onnx_export.py": "6879e073310fbff7a67244bae7bfc05445f9ed147210576ce8728e6f11ffb4e6",
+            "ml/src/vericlue_ml/eval/onnx_metrics.py": "4ab0d56adfe9dc6f9f9e923f8721438af8ecf59197d02963310d2482a22b7701",
+            "ml/src/vericlue_ml/eval/onnx_networks.py": "177dd44286fb268f445e87bd17537011609d28a0c663837e90c803ce7f8ecfc2",
+            "ml/src/vericlue_ml/face/fsvfm.py": "190bbe5dee6a7901bc1a14d3bac5a76ca4b977bd8f4f4dc5700c8b7969b8159a",
+            "ml/src/vericlue_ml/face/fsvfm_network.py": "70216b477e7cbb9d17082520273f964dd81c1354c22cafcc6e195ccb8cc9765a",
+            "ml/src/vericlue_ml/face/gend.py": "1b5c7aa597f369c01adb7d6bbb62a3c8365cd07211396e40bae62ee4a63c4199"
+          },
+          "fp16_source_sha256": {
+            "fp16_gend.py": "dd9e7d4a6ce4f3ca2122ab975f5015f1a86720e6538f0e3000c1af87a34fa2e6",
+            "fp16_networks.py": "d989ee2aa3db3f6e1bd7b870d803ec13ea4a702ebe520b40959346ed3ac26418"
+          }
+        },
+        "timing_scope": "network_only_numpy_to_gpu_and_back_excludes_capture_detection_alignment",
+        "biometric_accuracy_evaluated": false,
+        "deployment_approved": false
+      },
+      "onnx32": {
+        "status": "ok",
+        "engine": "onnx32",
+        "model": "gend",
+        "precision": "float32",
+        "device": "cuda",
+        "providers": [
+          "CUDAExecutionProvider",
+          "CPUExecutionProvider"
+        ],
+        "ort_optimization": "all",
+        "input_sha256": "070f5e2e167efbf758bf1a53e25c4411405264bf7760fa3533d3f97804b92c6c",
+        "reference_output_sha256": "75740152c2cb81a3c052dfef35a5a446c90ba081715076d330255e7aad769cca",
+        "fp16_bundle_sha256": "9f9470147acf1cd28b48db3a5ae51b8f81b8f094733caef17410d7dfba0bc195",
+        "threads": 4,
+        "warmup": 3,
+        "latency": {
+          "runs": 30,
+          "p50_ms": 82.98159998957999,
+          "p95_ms": 89.48967999895103,
+          "mean_ms": 84.25510333230098,
+          "min_ms": 80.52449999377131,
+          "max_ms": 89.8031999822706
+        },
+        "latency_trials_ms": [
+          89.8031999822706,
+          86.68879998731427,
+          81.78310000221245,
+          81.52969999355264,
+          81.37540001189336,
+          81.54859999194741,
+          82.33809997909702,
+          80.52449999377131,
+          81.4503000001423,
+          86.12500000162981,
+          88.37099999072962,
+          89.38649998162873,
+          89.57410001312383,
+          84.99890001257882,
+          82.03690001391806,
+          83.11509998748079,
+          81.90249998006038,
+          81.87729999190196,
+          81.52880001580343,
+          82.5087999983225,
+          84.28159999311902,
+          86.17890000459738,
+          88.04249999229796,
+          88.07480000541545,
+          86.62230000481941,
+          83.68700000573881,
+          84.24260001629591,
+          82.83130000927486,
+          82.37740001641214,
+          82.84809999167919
+        ],
+        "load_seconds_excluding_bundle_validation": 5.508965500019258,
+        "memory": {
+          "rss_start_mib": 43.4921875,
+          "rss_peak_sampled_mib": 1671.94921875,
+          "rss_end_mib": 797.37109375,
+          "sampling_interval_ms": 20
+        },
+        "gpu_whole_device_used_mib": {
+          "before": 0.0,
+          "after_load": 2133.0,
+          "after_run": 2143.0,
+          "scope": "snapshots_include_other_processes_not_peak_vram"
+        },
+        "parity": {
+          "passed": true,
+          "samples": 8,
+          "atol": 1e-05,
+          "rtol": 0.0001,
+          "outputs": {
+            "logits": {
+              "passed": true,
+              "max_abs_error": 2.86102294921875e-06,
+              "mean_abs_error": 1.471489667892456e-06
+            },
+            "probabilities": {
+              "passed": true,
+              "max_abs_error": 1.3709068298339844e-06,
+              "mean_abs_error": 6.26780092716217e-07
+            }
+          },
+          "argmax_agreement": 1.0,
+          "biometric_accuracy_evaluated": false
+        },
+        "environment": {
+          "python": "3.12.14",
+          "platform": "Windows-11-10.0.26200-SP0",
+          "packages": {
+            "torch": "2.14.1+cu130",
+            "onnx": "1.23.2",
+            "onnxscript": "0.7.2",
+            "onnxruntime": null,
+            "onnxruntime-gpu": "1.31.0",
+            "numpy": "2.5.4",
+            "transformers": "4.57.6"
+          }
+        },
+        "provenance": {
+          "source_commit": "24a34b708141360c8503118bcb0aa074f4fde613",
+          "source_dirty": true,
+          "source_sha256": {
+            "ml/src/vericlue_ml/eval/onnx_export.py": "6879e073310fbff7a67244bae7bfc05445f9ed147210576ce8728e6f11ffb4e6",
+            "ml/src/vericlue_ml/eval/onnx_metrics.py": "4ab0d56adfe9dc6f9f9e923f8721438af8ecf59197d02963310d2482a22b7701",
+            "ml/src/vericlue_ml/eval/onnx_networks.py": "177dd44286fb268f445e87bd17537011609d28a0c663837e90c803ce7f8ecfc2",
+            "ml/src/vericlue_ml/face/fsvfm.py": "190bbe5dee6a7901bc1a14d3bac5a76ca4b977bd8f4f4dc5700c8b7969b8159a",
+            "ml/src/vericlue_ml/face/fsvfm_network.py": "70216b477e7cbb9d17082520273f964dd81c1354c22cafcc6e195ccb8cc9765a",
+            "ml/src/vericlue_ml/face/gend.py": "1b5c7aa597f369c01adb7d6bbb62a3c8365cd07211396e40bae62ee4a63c4199"
+          },
+          "fp16_source_sha256": {
+            "fp16_gend.py": "dd9e7d4a6ce4f3ca2122ab975f5015f1a86720e6538f0e3000c1af87a34fa2e6",
+            "fp16_networks.py": "d989ee2aa3db3f6e1bd7b870d803ec13ea4a702ebe520b40959346ed3ac26418"
+          }
+        },
+        "timing_scope": "network_only_numpy_to_gpu_and_back_excludes_capture_detection_alignment",
+        "biometric_accuracy_evaluated": false,
+        "deployment_approved": false
+      },
+      "onnx16": {
+        "status": "numerical_mismatch",
+        "engine": "onnx16",
+        "parity": {
+          "passed": false,
+          "samples": 8,
+          "atol": 0.01,
+          "rtol": 0.001,
+          "outputs": {
+            "logits": {
+              "passed": true,
+              "max_abs_error": 0.0036696791648864746,
+              "mean_abs_error": 0.0011587701737880707
+            },
+            "probabilities": {
+              "passed": false,
+              "max_abs_error": 0.0017331838607788086,
+              "mean_abs_error": 0.0005038678646087646
+            }
+          },
+          "argmax_agreement": 1.0,
+          "biometric_accuracy_evaluated": false,
+          "policy": {
+            "probability_atol": 0.001,
+            "logits_atol": 0.01,
+            "logits_rtol": 0.001,
+            "argmax_agreement": 1.0
+          },
+          "reference": "verified_same_device_pytorch_fp32"
+        },
+        "provenance": {
+          "source_commit": "135e4ebeeb4b1bd2fa526262a2934ec58c28c50a",
+          "source_dirty": true,
+          "source_sha256": {
+            "ml/src/vericlue_ml/eval/onnx_export.py": "aeaf34d89c80b5bbe128b4d1cf07b0ce3b26c249f19e6ce3bbe88b78ab76636a",
+            "ml/src/vericlue_ml/eval/onnx_metrics.py": "4ab0d56adfe9dc6f9f9e923f8721438af8ecf59197d02963310d2482a22b7701",
+            "ml/src/vericlue_ml/eval/onnx_networks.py": "177dd44286fb268f445e87bd17537011609d28a0c663837e90c803ce7f8ecfc2",
+            "ml/src/vericlue_ml/face/fsvfm.py": "190bbe5dee6a7901bc1a14d3bac5a76ca4b977bd8f4f4dc5700c8b7969b8159a",
+            "ml/src/vericlue_ml/face/fsvfm_network.py": "70216b477e7cbb9d17082520273f964dd81c1354c22cafcc6e195ccb8cc9765a",
+            "ml/src/vericlue_ml/face/gend.py": "1b5c7aa597f369c01adb7d6bbb62a3c8365cd07211396e40bae62ee4a63c4199"
+          },
+          "fp16_source_sha256": {
+            "fp16_gend.py": "2c6ef344175dda59d4005300f7d28431dd35d4c579a952a483440afadd0a1b80",
+            "fp16_networks.py": "d989ee2aa3db3f6e1bd7b870d803ec13ea4a702ebe520b40959346ed3ac26418"
+          }
+        }
+      },
+      "onnx16-noopt": {
+        "status": "ok",
+        "engine": "onnx16",
+        "model": "gend",
+        "precision": "fp16_linear_fp32_residual_attention_embedding_norm_head_io",
+        "device": "cuda",
+        "providers": [
+          "CUDAExecutionProvider",
+          "CPUExecutionProvider"
+        ],
+        "ort_optimization": "disabled",
+        "input_sha256": "070f5e2e167efbf758bf1a53e25c4411405264bf7760fa3533d3f97804b92c6c",
+        "reference_output_sha256": "75740152c2cb81a3c052dfef35a5a446c90ba081715076d330255e7aad769cca",
+        "fp16_bundle_sha256": "9f9470147acf1cd28b48db3a5ae51b8f81b8f094733caef17410d7dfba0bc195",
+        "threads": 4,
+        "warmup": 3,
+        "latency": {
+          "runs": 30,
+          "p50_ms": 40.93039999133907,
+          "p95_ms": 43.343550006102305,
+          "mean_ms": 41.121360001852736,
+          "min_ms": 38.36509998654947,
+          "max_ms": 44.11729998537339
+        },
+        "latency_trials_ms": [
+          39.847100008046255,
+          44.11729998537339,
+          38.44319999916479,
+          39.58399998373352,
+          39.310699998168275,
+          40.07459999411367,
+          38.36509998654947,
+          41.80010000709444,
+          40.984799998113886,
+          42.042899993248284,
+          40.78230002778582,
+          40.42840001056902,
+          43.39170001912862,
+          42.01370000373572,
+          43.219000013777986,
+          39.8843000002671,
+          40.84480000892654,
+          41.63120000157505,
+          41.66099999565631,
+          42.29730000952259,
+          40.79400000046007,
+          41.718099993886426,
+          40.87599998456426,
+          41.3280000211671,
+          40.475399990100414,
+          40.67409998970106,
+          42.30600001756102,
+          43.28469999018125,
+          42.31180000351742,
+          39.149200019892305
+        ],
+        "load_seconds_excluding_bundle_validation": 2.6945167999947444,
+        "memory": {
+          "rss_start_mib": 43.4296875,
+          "rss_peak_sampled_mib": 1024.46875,
+          "rss_end_mib": 1025.140625,
+          "sampling_interval_ms": 20
+        },
+        "gpu_whole_device_used_mib": {
+          "before": 0.0,
+          "after_load": 1107.0,
+          "after_run": 1123.0,
+          "scope": "snapshots_include_other_processes_not_peak_vram"
+        },
+        "parity": {
+          "passed": true,
+          "samples": 8,
+          "atol": 0.01,
+          "rtol": 0.001,
+          "outputs": {
+            "logits": {
+              "passed": true,
+              "max_abs_error": 0.0014942288398742676,
+              "mean_abs_error": 0.0006929561495780945
+            },
+            "probabilities": {
+              "passed": true,
+              "max_abs_error": 0.0007070302963256836,
+              "mean_abs_error": 0.00031075533479452133
+            }
+          },
+          "argmax_agreement": 1.0,
+          "biometric_accuracy_evaluated": false,
+          "policy": {
+            "probability_atol": 0.001,
+            "logits_atol": 0.01,
+            "logits_rtol": 0.001,
+            "argmax_agreement": 1.0
+          },
+          "reference": "verified_same_device_pytorch_fp32"
+        },
+        "environment": {
+          "python": "3.12.14",
+          "platform": "Windows-11-10.0.26200-SP0",
+          "packages": {
+            "torch": "2.14.1+cu130",
+            "onnx": "1.23.2",
+            "onnxscript": "0.7.2",
+            "onnxruntime": null,
+            "onnxruntime-gpu": "1.31.0",
+            "numpy": "2.5.4",
+            "transformers": "4.57.6"
+          }
+        },
+        "provenance": {
+          "source_commit": "24a34b708141360c8503118bcb0aa074f4fde613",
+          "source_dirty": true,
+          "source_sha256": {
+            "ml/src/vericlue_ml/eval/onnx_export.py": "6879e073310fbff7a67244bae7bfc05445f9ed147210576ce8728e6f11ffb4e6",
+            "ml/src/vericlue_ml/eval/onnx_metrics.py": "4ab0d56adfe9dc6f9f9e923f8721438af8ecf59197d02963310d2482a22b7701",
+            "ml/src/vericlue_ml/eval/onnx_networks.py": "177dd44286fb268f445e87bd17537011609d28a0c663837e90c803ce7f8ecfc2",
+            "ml/src/vericlue_ml/face/fsvfm.py": "190bbe5dee6a7901bc1a14d3bac5a76ca4b977bd8f4f4dc5700c8b7969b8159a",
+            "ml/src/vericlue_ml/face/fsvfm_network.py": "70216b477e7cbb9d17082520273f964dd81c1354c22cafcc6e195ccb8cc9765a",
+            "ml/src/vericlue_ml/face/gend.py": "1b5c7aa597f369c01adb7d6bbb62a3c8365cd07211396e40bae62ee4a63c4199"
+          },
+          "fp16_source_sha256": {
+            "fp16_gend.py": "dd9e7d4a6ce4f3ca2122ab975f5015f1a86720e6538f0e3000c1af87a34fa2e6",
+            "fp16_networks.py": "d989ee2aa3db3f6e1bd7b870d803ec13ea4a702ebe520b40959346ed3ac26418"
+          }
+        },
+        "timing_scope": "network_only_numpy_to_gpu_and_back_excludes_capture_detection_alignment",
+        "biometric_accuracy_evaluated": false,
+        "deployment_approved": false
+      }
+    }
+  },
+  "previous": [
+    {
+      "artifact": {
+        "format": 1,
+        "model": "gend",
+        "variant": "residual",
+        "precision": "fp16_linear_fp32_residual_attention_embedding_norm_head_io",
+        "input_dtype": "float32",
+        "output_dtype": "float32",
+        "input_shape": [
+          1,
+          3,
+          224,
+          224
+        ],
+        "samples": 8,
+        "policy": {
+          "probability_atol": 0.001,
+          "logits_atol": 0.01,
+          "logits_rtol": 0.001,
+          "argmax_agreement": 1.0
+        },
+        "source_fp32_bundle_sha256": "4e25711651ab5965993a8958edf10ff6a14f58b92e0beeb986f11b3567e96333",
+        "source_input_sha256": "070f5e2e167efbf758bf1a53e25c4411405264bf7760fa3533d3f97804b92c6c",
+        "source_reference_output_sha256": "75740152c2cb81a3c052dfef35a5a446c90ba081715076d330255e7aad769cca",
+        "source_revisions": {
+          "gend": "891ce014a0308386c4d7d25b3dcf436a22db5504",
+          "clip": "32bd64288804d66eefd0ccbe215aa642df71cc41"
+        },
+        "files": {
+          "inputs.npy": "070f5e2e167efbf758bf1a53e25c4411405264bf7760fa3533d3f97804b92c6c",
+          "fp32-reference.npz": "75740152c2cb81a3c052dfef35a5a446c90ba081715076d330255e7aad769cca",
+          "model.onnx": "cbd583ebe114838548374292c38d1e8e2f13f07ab763cd591e3ee42f7ed21df3",
+          "model.onnx.data": "5110c3047e69bbcf5e80ff6874597d0104a702ea32423a9965ab00d6d2d13556"
+        },
+        "initializer_elements_by_dtype": {
+          "FLOAT": 970754,
+          "INT64": 257,
+          "FLOAT16": 302211072
+        },
+        "onnx_bytes": 613959575,
+        "export_seconds": 35.410489599977154,
+        "torch_fp16_parity": {
+          "passed": true,
+          "samples": 8,
+          "atol": 0.01,
+          "rtol": 0.001,
+          "outputs": {
+            "logits": {
+              "passed": true,
+              "max_abs_error": 0.0017579197883605957,
+              "mean_abs_error": 0.0005750060081481934
+            },
+            "probabilities": {
+              "passed": true,
+              "max_abs_error": 0.0008575618267059326,
+              "mean_abs_error": 0.0002726651728153229
+            }
+          },
+          "argmax_agreement": 1.0,
+          "biometric_accuracy_evaluated": false,
+          "policy": {
+            "probability_atol": 0.001,
+            "logits_atol": 0.01,
+            "logits_rtol": 0.001,
+            "argmax_agreement": 1.0
+          },
+          "reference": "verified_same_device_pytorch_fp32"
+        },
+        "memory": {
+          "rss_start_mib": 553.90625,
+          "rss_peak_sampled_mib": 1970.44140625,
+          "rss_end_mib": 1667.875,
+          "sampling_interval_ms": 20
+        },
+        "environment": {
+          "python": "3.12.14",
+          "platform": "Windows-11-10.0.26200-SP0",
+          "packages": {
+            "torch": "2.14.1+cu130",
+            "onnx": "1.23.2",
+            "onnxscript": "0.7.2",
+            "onnxruntime": null,
+            "onnxruntime-gpu": "1.31.0",
+            "numpy": "2.5.4",
+            "transformers": "4.57.6"
+          }
+        },
+        "provenance": {
+          "source_commit": "6c491f933be34462ab456ab9b66138c0453bd59f",
+          "source_dirty": true,
+          "source_sha256": {
+            "ml/src/vericlue_ml/eval/onnx_export.py": "aeaf34d89c80b5bbe128b4d1cf07b0ce3b26c249f19e6ce3bbe88b78ab76636a",
+            "ml/src/vericlue_ml/eval/onnx_metrics.py": "4ab0d56adfe9dc6f9f9e923f8721438af8ecf59197d02963310d2482a22b7701",
+            "ml/src/vericlue_ml/eval/onnx_networks.py": "177dd44286fb268f445e87bd17537011609d28a0c663837e90c803ce7f8ecfc2",
+            "ml/src/vericlue_ml/face/fsvfm.py": "190bbe5dee6a7901bc1a14d3bac5a76ca4b977bd8f4f4dc5700c8b7969b8159a",
+            "ml/src/vericlue_ml/face/fsvfm_network.py": "70216b477e7cbb9d17082520273f964dd81c1354c22cafcc6e195ccb8cc9765a",
+            "ml/src/vericlue_ml/face/gend.py": "1b5c7aa597f369c01adb7d6bbb62a3c8365cd07211396e40bae62ee4a63c4199"
+          },
+          "fp16_source_sha256": {
+            "fp16_gend.py": "2c6ef344175dda59d4005300f7d28431dd35d4c579a952a483440afadd0a1b80",
+            "fp16_networks.py": "975fc87257d784088453a6499f2a22469cb29d3c735e65fc69712946fc980a7e"
+          }
+        },
+        "biometric_accuracy_evaluated": false,
+        "deployment_approved": false
+      },
+      "engines": {
+        "torch32": {
+          "status": "ok",
+          "engine": "torch32",
+          "model": "gend",
+          "precision": "float32",
+          "device": "cuda",
+          "providers": [
+            "pytorch:cuda"
+          ],
+          "input_sha256": "070f5e2e167efbf758bf1a53e25c4411405264bf7760fa3533d3f97804b92c6c",
+          "reference_output_sha256": "75740152c2cb81a3c052dfef35a5a446c90ba081715076d330255e7aad769cca",
+          "fp16_bundle_sha256": "a28fa183e05c213a73a95b965856f46d0df5eaee9e641eb50d3b3b2ea9e79844",
+          "threads": 4,
+          "warmup": 3,
+          "latency": {
+            "runs": 30,
+            "p50_ms": 81.22040001035202,
+            "p95_ms": 86.47667998593533,
+            "mean_ms": 82.00152000063099,
+            "min_ms": 79.12859998759814,
+            "max_ms": 87.07219999632798
+          },
+          "latency_trials_ms": [
+            81.42960001714528,
+            87.07219999632798,
+            86.26349997939542,
+            83.28369999071583,
+            81.91119998809882,
+            79.98930002213456,
+            79.35770001495257,
+            79.12859998759814,
+            79.89240001188591,
+            79.7418000001926,
+            79.88490001298487,
+            81.00050000939518,
+            83.47080001840368,
+            84.89709999412298,
+            86.65109999128617,
+            83.38130000629462,
+            80.01969999168068,
+            80.5289999989327,
+            80.10030002333224,
+            80.92459998442791,
+            80.3676999930758,
+            80.15880000311881,
+            80.74579999083653,
+            81.8444000033196,
+            83.42599999741651,
+            84.45249998476356,
+            85.03809999092482,
+            82.40690000820905,
+            81.66490000439808,
+            81.01120000355877
+          ],
+          "load_seconds_excluding_bundle_validation": 13.763869999995222,
+          "memory": {
+            "rss_start_mib": 43.40625,
+            "rss_peak_sampled_mib": 1940.65234375,
+            "rss_end_mib": 1118.91796875,
+            "sampling_interval_ms": 20
+          },
+          "gpu_whole_device_used_mib": {
+            "before": 0.0,
+            "after_load": 1243.0,
+            "after_run": 1287.0,
+            "scope": "snapshots_include_other_processes_not_peak_vram"
+          },
+          "parity": {
+            "passed": true,
+            "samples": 8,
+            "atol": 1e-05,
+            "rtol": 0.0001,
+            "outputs": {
+              "logits": {
+                "passed": true,
+                "max_abs_error": 0.0,
+                "mean_abs_error": 0.0
+              },
+              "probabilities": {
+                "passed": true,
+                "max_abs_error": 0.0,
+                "mean_abs_error": 0.0
+              }
+            },
+            "argmax_agreement": 1.0,
+            "biometric_accuracy_evaluated": false
+          },
+          "environment": {
+            "python": "3.12.14",
+            "platform": "Windows-11-10.0.26200-SP0",
+            "packages": {
+              "torch": "2.14.1+cu130",
+              "onnx": "1.23.2",
+              "onnxscript": "0.7.2",
+              "onnxruntime": null,
+              "onnxruntime-gpu": "1.31.0",
+              "numpy": "2.5.4",
+              "transformers": "4.57.6"
+            }
+          },
+          "provenance": {
+            "source_commit": "6c491f933be34462ab456ab9b66138c0453bd59f",
+            "source_dirty": true,
+            "source_sha256": {
+              "ml/src/vericlue_ml/eval/onnx_export.py": "aeaf34d89c80b5bbe128b4d1cf07b0ce3b26c249f19e6ce3bbe88b78ab76636a",
+              "ml/src/vericlue_ml/eval/onnx_metrics.py": "4ab0d56adfe9dc6f9f9e923f8721438af8ecf59197d02963310d2482a22b7701",
+              "ml/src/vericlue_ml/eval/onnx_networks.py": "177dd44286fb268f445e87bd17537011609d28a0c663837e90c803ce7f8ecfc2",
+              "ml/src/vericlue_ml/face/fsvfm.py": "190bbe5dee6a7901bc1a14d3bac5a76ca4b977bd8f4f4dc5700c8b7969b8159a",
+              "ml/src/vericlue_ml/face/fsvfm_network.py": "70216b477e7cbb9d17082520273f964dd81c1354c22cafcc6e195ccb8cc9765a",
+              "ml/src/vericlue_ml/face/gend.py": "1b5c7aa597f369c01adb7d6bbb62a3c8365cd07211396e40bae62ee4a63c4199"
+            },
+            "fp16_source_sha256": {
+              "fp16_gend.py": "2c6ef344175dda59d4005300f7d28431dd35d4c579a952a483440afadd0a1b80",
+              "fp16_networks.py": "975fc87257d784088453a6499f2a22469cb29d3c735e65fc69712946fc980a7e"
+            }
+          },
+          "timing_scope": "network_only_numpy_to_gpu_and_back_excludes_capture_detection_alignment",
+          "biometric_accuracy_evaluated": false,
+          "deployment_approved": false
+        },
+        "torch16": {
+          "status": "ok",
+          "engine": "torch16",
+          "model": "gend",
+          "precision": "fp16_linear_fp32_residual_attention_embedding_norm_head_io",
+          "device": "cuda",
+          "providers": [
+            "pytorch:cuda"
+          ],
+          "input_sha256": "070f5e2e167efbf758bf1a53e25c4411405264bf7760fa3533d3f97804b92c6c",
+          "reference_output_sha256": "75740152c2cb81a3c052dfef35a5a446c90ba081715076d330255e7aad769cca",
+          "fp16_bundle_sha256": "a28fa183e05c213a73a95b965856f46d0df5eaee9e641eb50d3b3b2ea9e79844",
+          "threads": 4,
+          "warmup": 3,
+          "latency": {
+            "runs": 30,
+            "p50_ms": 28.930500004207715,
+            "p95_ms": 30.868215010559652,
+            "mean_ms": 29.308050000690855,
+            "min_ms": 27.910900011193007,
+            "max_ms": 34.81500002089888
+          },
+          "latency_trials_ms": [
+            29.46489999885671,
+            27.910900011193007,
+            28.59649999300018,
+            28.474599996116012,
+            28.935000009369105,
+            29.004599986365065,
+            28.793900011805817,
+            28.313799994066358,
+            28.00690001458861,
+            28.63179999985732,
+            28.262300009373575,
+            28.886499989312142,
+            28.253500000573695,
+            28.380599978845567,
+            28.76970000215806,
+            28.925999999046326,
+            29.3610000226181,
+            28.252399992197752,
+            29.272699990542606,
+            28.8392000074964,
+            31.047900003613904,
+            29.668099974514917,
+            29.693499993300065,
+            30.065400002058595,
+            30.6486000190489,
+            29.832400003215298,
+            30.460999987553805,
+            34.81500002089888,
+            30.12239999952726,
+            29.55040000961162
+          ],
+          "load_seconds_excluding_bundle_validation": 14.622773800016148,
+          "memory": {
+            "rss_start_mib": 43.58984375,
+            "rss_peak_sampled_mib": 1946.09375,
+            "rss_end_mib": 1384.27734375,
+            "sampling_interval_ms": 20
+          },
+          "gpu_whole_device_used_mib": {
+            "before": 0.0,
+            "after_load": 1257.0,
+            "after_run": 1273.0,
+            "scope": "snapshots_include_other_processes_not_peak_vram"
+          },
+          "parity": {
+            "passed": true,
+            "samples": 8,
+            "atol": 0.01,
+            "rtol": 0.001,
+            "outputs": {
+              "logits": {
+                "passed": true,
+                "max_abs_error": 0.0017579197883605957,
+                "mean_abs_error": 0.0005750060081481934
+              },
+              "probabilities": {
+                "passed": true,
+                "max_abs_error": 0.0008575618267059326,
+                "mean_abs_error": 0.0002726651728153229
+              }
+            },
+            "argmax_agreement": 1.0,
+            "biometric_accuracy_evaluated": false,
+            "policy": {
+              "probability_atol": 0.001,
+              "logits_atol": 0.01,
+              "logits_rtol": 0.001,
+              "argmax_agreement": 1.0
+            },
+            "reference": "verified_same_device_pytorch_fp32"
+          },
+          "environment": {
+            "python": "3.12.14",
+            "platform": "Windows-11-10.0.26200-SP0",
+            "packages": {
+              "torch": "2.14.1+cu130",
+              "onnx": "1.23.2",
+              "onnxscript": "0.7.2",
+              "onnxruntime": null,
+              "onnxruntime-gpu": "1.31.0",
+              "numpy": "2.5.4",
+              "transformers": "4.57.6"
+            }
+          },
+          "provenance": {
+            "source_commit": "6c491f933be34462ab456ab9b66138c0453bd59f",
+            "source_dirty": true,
+            "source_sha256": {
+              "ml/src/vericlue_ml/eval/onnx_export.py": "aeaf34d89c80b5bbe128b4d1cf07b0ce3b26c249f19e6ce3bbe88b78ab76636a",
+              "ml/src/vericlue_ml/eval/onnx_metrics.py": "4ab0d56adfe9dc6f9f9e923f8721438af8ecf59197d02963310d2482a22b7701",
+              "ml/src/vericlue_ml/eval/onnx_networks.py": "177dd44286fb268f445e87bd17537011609d28a0c663837e90c803ce7f8ecfc2",
+              "ml/src/vericlue_ml/face/fsvfm.py": "190bbe5dee6a7901bc1a14d3bac5a76ca4b977bd8f4f4dc5700c8b7969b8159a",
+              "ml/src/vericlue_ml/face/fsvfm_network.py": "70216b477e7cbb9d17082520273f964dd81c1354c22cafcc6e195ccb8cc9765a",
+              "ml/src/vericlue_ml/face/gend.py": "1b5c7aa597f369c01adb7d6bbb62a3c8365cd07211396e40bae62ee4a63c4199"
+            },
+            "fp16_source_sha256": {
+              "fp16_gend.py": "2c6ef344175dda59d4005300f7d28431dd35d4c579a952a483440afadd0a1b80",
+              "fp16_networks.py": "975fc87257d784088453a6499f2a22469cb29d3c735e65fc69712946fc980a7e"
+            }
+          },
+          "timing_scope": "network_only_numpy_to_gpu_and_back_excludes_capture_detection_alignment",
+          "biometric_accuracy_evaluated": false,
+          "deployment_approved": false
+        },
+        "onnx32": {
+          "status": "ok",
+          "engine": "onnx32",
+          "model": "gend",
+          "precision": "float32",
+          "device": "cuda",
+          "providers": [
+            "CUDAExecutionProvider",
+            "CPUExecutionProvider"
+          ],
+          "input_sha256": "070f5e2e167efbf758bf1a53e25c4411405264bf7760fa3533d3f97804b92c6c",
+          "reference_output_sha256": "75740152c2cb81a3c052dfef35a5a446c90ba081715076d330255e7aad769cca",
+          "fp16_bundle_sha256": "a28fa183e05c213a73a95b965856f46d0df5eaee9e641eb50d3b3b2ea9e79844",
+          "threads": 4,
+          "warmup": 3,
+          "latency": {
+            "runs": 30,
+            "p50_ms": 82.55329998792149,
+            "p95_ms": 86.56971999444067,
+            "mean_ms": 83.1439699967935,
+            "min_ms": 79.45190000464208,
+            "max_ms": 87.59229999850504
+          },
+          "latency_trials_ms": [
+            87.59229999850504,
+            83.42079998692498,
+            81.07909999671392,
+            80.62429999699816,
+            80.79750000615604,
+            81.06599998427555,
+            79.45190000464208,
+            82.33319999999367,
+            83.80500000203028,
+            84.6878000011202,
+            86.23429998988286,
+            86.76249999552965,
+            86.1643000098411,
+            84.01669998420402,
+            82.46019997750409,
+            82.19679998001084,
+            81.29360000020824,
+            81.0005999810528,
+            80.50589999766089,
+            82.2735000110697,
+            83.60000001266599,
+            85.26990000973456,
+            86.08700000331737,
+            86.3340999931097,
+            84.52979999128729,
+            83.35770000121556,
+            82.6463999983389,
+            81.99139998760074,
+            81.77499999874271,
+            80.96150000346825
+          ],
+          "load_seconds_excluding_bundle_validation": 6.251409300020896,
+          "memory": {
+            "rss_start_mib": 43.38671875,
+            "rss_peak_sampled_mib": 1686.046875,
+            "rss_end_mib": 798.1015625,
+            "sampling_interval_ms": 20
+          },
+          "gpu_whole_device_used_mib": {
+            "before": 0.0,
+            "after_load": 2137.0,
+            "after_run": 2147.0,
+            "scope": "snapshots_include_other_processes_not_peak_vram"
+          },
+          "parity": {
+            "passed": true,
+            "samples": 8,
+            "atol": 1e-05,
+            "rtol": 0.0001,
+            "outputs": {
+              "logits": {
+                "passed": true,
+                "max_abs_error": 2.86102294921875e-06,
+                "mean_abs_error": 1.471489667892456e-06
+              },
+              "probabilities": {
+                "passed": true,
+                "max_abs_error": 1.3709068298339844e-06,
+                "mean_abs_error": 6.26780092716217e-07
+              }
+            },
+            "argmax_agreement": 1.0,
+            "biometric_accuracy_evaluated": false
+          },
+          "environment": {
+            "python": "3.12.14",
+            "platform": "Windows-11-10.0.26200-SP0",
+            "packages": {
+              "torch": "2.14.1+cu130",
+              "onnx": "1.23.2",
+              "onnxscript": "0.7.2",
+              "onnxruntime": null,
+              "onnxruntime-gpu": "1.31.0",
+              "numpy": "2.5.4",
+              "transformers": "4.57.6"
+            }
+          },
+          "provenance": {
+            "source_commit": "6c491f933be34462ab456ab9b66138c0453bd59f",
+            "source_dirty": true,
+            "source_sha256": {
+              "ml/src/vericlue_ml/eval/onnx_export.py": "aeaf34d89c80b5bbe128b4d1cf07b0ce3b26c249f19e6ce3bbe88b78ab76636a",
+              "ml/src/vericlue_ml/eval/onnx_metrics.py": "4ab0d56adfe9dc6f9f9e923f8721438af8ecf59197d02963310d2482a22b7701",
+              "ml/src/vericlue_ml/eval/onnx_networks.py": "177dd44286fb268f445e87bd17537011609d28a0c663837e90c803ce7f8ecfc2",
+              "ml/src/vericlue_ml/face/fsvfm.py": "190bbe5dee6a7901bc1a14d3bac5a76ca4b977bd8f4f4dc5700c8b7969b8159a",
+              "ml/src/vericlue_ml/face/fsvfm_network.py": "70216b477e7cbb9d17082520273f964dd81c1354c22cafcc6e195ccb8cc9765a",
+              "ml/src/vericlue_ml/face/gend.py": "1b5c7aa597f369c01adb7d6bbb62a3c8365cd07211396e40bae62ee4a63c4199"
+            },
+            "fp16_source_sha256": {
+              "fp16_gend.py": "2c6ef344175dda59d4005300f7d28431dd35d4c579a952a483440afadd0a1b80",
+              "fp16_networks.py": "975fc87257d784088453a6499f2a22469cb29d3c735e65fc69712946fc980a7e"
+            }
+          },
+          "timing_scope": "network_only_numpy_to_gpu_and_back_excludes_capture_detection_alignment",
+          "biometric_accuracy_evaluated": false,
+          "deployment_approved": false
+        },
+        "onnx16": {
+          "status": "numerical_mismatch",
+          "engine": "onnx16",
+          "parity": {
+            "passed": false,
+            "samples": 8,
+            "atol": 0.01,
+            "rtol": 0.001,
+            "outputs": {
+              "logits": {
+                "passed": true,
+                "max_abs_error": 0.0036696791648864746,
+                "mean_abs_error": 0.0011587701737880707
+              },
+              "probabilities": {
+                "passed": false,
+                "max_abs_error": 0.0017331838607788086,
+                "mean_abs_error": 0.0005038678646087646
+              }
+            },
+            "argmax_agreement": 1.0,
+            "biometric_accuracy_evaluated": false,
+            "policy": {
+              "probability_atol": 0.001,
+              "logits_atol": 0.01,
+              "logits_rtol": 0.001,
+              "argmax_agreement": 1.0
+            },
+            "reference": "verified_same_device_pytorch_fp32"
+          },
+          "provenance": {
+            "source_commit": "6c491f933be34462ab456ab9b66138c0453bd59f",
+            "source_dirty": true,
+            "source_sha256": {
+              "ml/src/vericlue_ml/eval/onnx_export.py": "aeaf34d89c80b5bbe128b4d1cf07b0ce3b26c249f19e6ce3bbe88b78ab76636a",
+              "ml/src/vericlue_ml/eval/onnx_metrics.py": "4ab0d56adfe9dc6f9f9e923f8721438af8ecf59197d02963310d2482a22b7701",
+              "ml/src/vericlue_ml/eval/onnx_networks.py": "177dd44286fb268f445e87bd17537011609d28a0c663837e90c803ce7f8ecfc2",
+              "ml/src/vericlue_ml/face/fsvfm.py": "190bbe5dee6a7901bc1a14d3bac5a76ca4b977bd8f4f4dc5700c8b7969b8159a",
+              "ml/src/vericlue_ml/face/fsvfm_network.py": "70216b477e7cbb9d17082520273f964dd81c1354c22cafcc6e195ccb8cc9765a",
+              "ml/src/vericlue_ml/face/gend.py": "1b5c7aa597f369c01adb7d6bbb62a3c8365cd07211396e40bae62ee4a63c4199"
+            },
+            "fp16_source_sha256": {
+              "fp16_gend.py": "2c6ef344175dda59d4005300f7d28431dd35d4c579a952a483440afadd0a1b80",
+              "fp16_networks.py": "975fc87257d784088453a6499f2a22469cb29d3c735e65fc69712946fc980a7e"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "rejected_before_export": [
+    {
+      "trial": "gend-mixed-fp16-b1",
+      "status": "numerical_mismatch",
+      "parity": {
+        "passed": false,
+        "samples": 8,
+        "atol": 0.01,
+        "rtol": 0.001,
+        "outputs": {
+          "logits": {
+            "passed": true,
+            "max_abs_error": 0.0034738779067993164,
+            "mean_abs_error": 0.0010801814496517181
+          },
+          "probabilities": {
+            "passed": false,
+            "max_abs_error": 0.0015635490417480469,
+            "mean_abs_error": 0.00048655644059181213
+          }
+        },
+        "argmax_agreement": 1.0,
+        "biometric_accuracy_evaluated": false,
+        "policy": {
+          "probability_atol": 0.001,
+          "logits_atol": 0.01,
+          "logits_rtol": 0.001,
+          "argmax_agreement": 1.0
+        },
+        "reference": "verified_same_device_pytorch_fp32"
+      },
+      "provenance": {
+        "source_commit": "698d7dfd457345756b3531fda4dc64b3d3a2e7f1",
+        "source_dirty": true,
+        "source_sha256": {
+          "ml/src/vericlue_ml/eval/onnx_export.py": "aeaf34d89c80b5bbe128b4d1cf07b0ce3b26c249f19e6ce3bbe88b78ab76636a",
+          "ml/src/vericlue_ml/eval/onnx_metrics.py": "4ab0d56adfe9dc6f9f9e923f8721438af8ecf59197d02963310d2482a22b7701",
+          "ml/src/vericlue_ml/eval/onnx_networks.py": "177dd44286fb268f445e87bd17537011609d28a0c663837e90c803ce7f8ecfc2",
+          "ml/src/vericlue_ml/face/fsvfm.py": "190bbe5dee6a7901bc1a14d3bac5a76ca4b977bd8f4f4dc5700c8b7969b8159a",
+          "ml/src/vericlue_ml/face/fsvfm_network.py": "70216b477e7cbb9d17082520273f964dd81c1354c22cafcc6e195ccb8cc9765a",
+          "ml/src/vericlue_ml/face/gend.py": "1b5c7aa597f369c01adb7d6bbb62a3c8365cd07211396e40bae62ee4a63c4199"
+        },
+        "fp16_source_sha256": {
+          "fp16_gend.py": "1e66ab6bbe5a3cbe33fd76d17e36ef04041405eff9b4c26730f29ae9c6c8e4d0",
+          "fp16_networks.py": "36139e84a2b9cde7c2ec10ac9b71acb79441317e008419edce8edbf01622a513"
+        }
+      }
+    },
+    {
+      "trial": "gend-mixed-fp16-encoder-b1",
+      "status": "numerical_mismatch",
+      "parity": {
+        "passed": false,
+        "samples": 8,
+        "atol": 0.01,
+        "rtol": 0.001,
+        "outputs": {
+          "logits": {
+            "passed": true,
+            "max_abs_error": 0.003359079360961914,
+            "mean_abs_error": 0.001177232712507248
+          },
+          "probabilities": {
+            "passed": false,
+            "max_abs_error": 0.0015285313129425049,
+            "mean_abs_error": 0.0005626622587442398
+          }
+        },
+        "argmax_agreement": 1.0,
+        "biometric_accuracy_evaluated": false,
+        "policy": {
+          "probability_atol": 0.001,
+          "logits_atol": 0.01,
+          "logits_rtol": 0.001,
+          "argmax_agreement": 1.0
+        },
+        "reference": "verified_same_device_pytorch_fp32"
+      },
+      "provenance": {
+        "source_commit": "c281ad95127af4a8e7c46edb25912d1c0e7bd95b",
+        "source_dirty": true,
+        "source_sha256": {
+          "ml/src/vericlue_ml/eval/onnx_export.py": "aeaf34d89c80b5bbe128b4d1cf07b0ce3b26c249f19e6ce3bbe88b78ab76636a",
+          "ml/src/vericlue_ml/eval/onnx_metrics.py": "4ab0d56adfe9dc6f9f9e923f8721438af8ecf59197d02963310d2482a22b7701",
+          "ml/src/vericlue_ml/eval/onnx_networks.py": "177dd44286fb268f445e87bd17537011609d28a0c663837e90c803ce7f8ecfc2",
+          "ml/src/vericlue_ml/face/fsvfm.py": "190bbe5dee6a7901bc1a14d3bac5a76ca4b977bd8f4f4dc5700c8b7969b8159a",
+          "ml/src/vericlue_ml/face/fsvfm_network.py": "70216b477e7cbb9d17082520273f964dd81c1354c22cafcc6e195ccb8cc9765a",
+          "ml/src/vericlue_ml/face/gend.py": "1b5c7aa597f369c01adb7d6bbb62a3c8365cd07211396e40bae62ee4a63c4199"
+        },
+        "fp16_source_sha256": {
+          "fp16_gend.py": "8257650c8ba8854e55fa783a1cb1f98eea0216828376d4aa7fc9b428aac83874",
+          "fp16_networks.py": "e24e197828d3cc04d4b382d651fda18cae3be2f9e91af2b7a968cd286ddb2c50"
+        }
+      }
+    }
+  ],
+  "provenance": {
+    "source_commit": "24a34b708141360c8503118bcb0aa074f4fde613",
+    "source_dirty": true,
+    "source_sha256": {
+      "ml/src/vericlue_ml/eval/onnx_export.py": "6879e073310fbff7a67244bae7bfc05445f9ed147210576ce8728e6f11ffb4e6",
+      "ml/src/vericlue_ml/eval/onnx_metrics.py": "4ab0d56adfe9dc6f9f9e923f8721438af8ecf59197d02963310d2482a22b7701",
+      "ml/src/vericlue_ml/eval/onnx_networks.py": "177dd44286fb268f445e87bd17537011609d28a0c663837e90c803ce7f8ecfc2",
+      "ml/src/vericlue_ml/face/fsvfm.py": "190bbe5dee6a7901bc1a14d3bac5a76ca4b977bd8f4f4dc5700c8b7969b8159a",
+      "ml/src/vericlue_ml/face/fsvfm_network.py": "70216b477e7cbb9d17082520273f964dd81c1354c22cafcc6e195ccb8cc9765a",
+      "ml/src/vericlue_ml/face/gend.py": "1b5c7aa597f369c01adb7d6bbb62a3c8365cd07211396e40bae62ee4a63c4199"
+    },
+    "fp16_source_sha256": {
+      "fp16_gend.py": "dd9e7d4a6ce4f3ca2122ab975f5015f1a86720e6538f0e3000c1af87a34fa2e6",
+      "fp16_networks.py": "d989ee2aa3db3f6e1bd7b870d803ec13ea4a702ebe520b40959346ed3ac26418"
+    }
+  },
+  "biometric_accuracy_evaluated": false,
+  "deployment_approved": false,
+  "report_source_sha256": "fb7581358d2959648fa26897183f578633744627e1edd41852f92c87e7e6915e"
+}

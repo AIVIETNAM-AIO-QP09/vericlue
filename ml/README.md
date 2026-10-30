@@ -2,6 +2,8 @@
 
 FACE-06: công cụ xuất/đối chiếu ONNX FP32 cho FS-VFM-L và GenD-L nằm trong
 `eval/onnx_export.py`; xem [hướng dẫn](../docs/runbooks/onnx-export.md).
+FACE-07: [thí nghiệm GenD mixed FP16 trên GPU](../docs/runbooks/gend-fp16.md),
+so PyTorch và ONNX với bản FP32 cùng thiết bị.
 Chưa thay backend của API hoặc kết quả đánh giá trên dữ liệu thật.
 
 **Phụ trách:** M3 (face/, presence/), M4 (voice/, forensic/provenance), M5 (router/, eval/)
