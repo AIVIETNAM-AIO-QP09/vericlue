@@ -154,8 +154,12 @@ Yêu cầu người dùng 30/10: xuất hai model gốc đã tải, giữ FP32 t
 giảm độ chính xác. Đây là kiểm chứng chuyển đổi, không thay kết quả AUC/R6 hoặc
 nghiệm thu bảo mật của FACE-05. Không đổi API, ngưỡng, tiền xử lý hay server.
 
-- [ ] Có CLI xuất đúng loader gốc, metadata và checksum; giữ bản gốc.
-- [ ] Đối chiếu logits/xác suất/nhãn giả trên cùng dữ liệu tổng hợp, có test âm.
-- [ ] Xuất thực hai model, ghi kết quả số học và p50/p95, RAM; ghi rõ khả năng
+- [x] Có CLI xuất đúng loader gốc, metadata và checksum; giữ bản gốc.
+- [x] Đối chiếu logits/xác suất/nhãn giả trên cùng dữ liệu tổng hợp, có test âm.
+- [x] Xuất thực hai model, ghi kết quả số học và p50/p95, RAM; ghi rõ khả năng
       đo GPU và phạm vi phép đo, không gọi kết quả tổng hợp là APCER/BPCER/AUC.
-- [ ] Lint/test/kế hoạch, tài liệu tái lập và bàn giao; không commit trọng số.
+- [x] Lint/test/kế hoạch, tài liệu tái lập và bàn giao; không commit trọng số.
+
+Kết quả/giới hạn: `docs/research/2026-10-30-onnx-fp32.md` và JSON kèm theo.
+CPU cả hai đạt đối chiếu; GPU GenD đạt nhưng chậm hơn, FS-VFM chưa đạt so
+nhánh Torch CUDA mặc định. Không phê duyệt triển khai chỉ từ tensor tổng hợp.

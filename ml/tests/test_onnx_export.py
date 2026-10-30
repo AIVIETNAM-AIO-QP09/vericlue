@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from vericlue_ml.eval.onnx_export import _bundle, _cuda_reference, summarize
+from vericlue_ml.eval.onnx_export import _bundle, _cuda_reference, _ort_run, summarize
 from vericlue_ml.eval.onnx_metrics import (
     ATTACK_INDICES,
     compare_outputs,
@@ -125,6 +125,24 @@ def test_cuda_reference_rejects_changed_outputs(tmp_path):
     )
     with pytest.raises(ValueError, match="reference is required"):
         _cuda_reference(tmp_path, metadata)
+
+
+def test_cuda_fallback_cannot_be_reported_as_gpu(monkeypatch, tmp_path):
+    import sys
+
+    session = SimpleNamespace(
+        disable_fallback=lambda: None, get_providers=lambda: ["CPUExecutionProvider"]
+    )
+    fake = SimpleNamespace(
+        get_available_providers=lambda: ["CUDAExecutionProvider", "CPUExecutionProvider"],
+        preload_dlls=lambda: None,
+        SessionOptions=SimpleNamespace,
+        GraphOptimizationLevel=SimpleNamespace(ORT_ENABLE_ALL=99),
+        InferenceSession=lambda *args, **kwargs: session,
+    )
+    monkeypatch.setitem(sys.modules, "onnxruntime", fake)
+    with pytest.raises(ValueError, match="refusing a CPU-labelled-as-GPU"):
+        _ort_run(tmp_path, "cuda", 4)
 
 
 def test_small_fas_onnx_retains_unusual_head_and_attack_class(tmp_path):
