@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from vericlue_ml.eval.onnx_export import _bundle, summarize
+from vericlue_ml.eval.onnx_export import _bundle, _cuda_reference, summarize
 from vericlue_ml.eval.onnx_metrics import (
     ATTACK_INDICES,
     compare_outputs,
@@ -102,6 +102,29 @@ def test_summary_rejects_comparing_different_artifacts(tmp_path):
     (tmp_path / "onnx-cpu.json").write_text(json.dumps(report))
     with pytest.raises(ValueError, match="settings differ"):
         summarize(SimpleNamespace(bundle=tmp_path, device="cpu"))
+
+
+def test_cuda_reference_rejects_changed_outputs(tmp_path):
+    np.savez(tmp_path / "torch-cuda-outputs.npz", **outputs())
+    (tmp_path / "bundle.json").write_text("{}")
+    reference = {
+        "status": "ok",
+        "engine": "torch",
+        "device": "cuda",
+        "bundle_sha256": sha256(tmp_path / "bundle.json"),
+        "input_sha256": "inputs",
+        "output_sha256": sha256(tmp_path / "torch-cuda-outputs.npz"),
+        "parity": {"passed": True},
+    }
+    (tmp_path / "torch-cuda.json").write_text(json.dumps(reference))
+    metadata = {"files": {"inputs.npy": "inputs"}}
+    assert _cuda_reference(tmp_path, metadata)[0]["logits"].shape == (2, 2)
+    np.savez(
+        tmp_path / "torch-cuda-outputs.npz",
+        **{key: value + 0.1 for key, value in outputs().items()},
+    )
+    with pytest.raises(ValueError, match="reference is required"):
+        _cuda_reference(tmp_path, metadata)
 
 
 def test_small_fas_onnx_retains_unusual_head_and_attack_class(tmp_path):

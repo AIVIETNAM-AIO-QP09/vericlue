@@ -38,6 +38,11 @@ model Large đồng thời trên laptop RAM hạn chế. Dựng graph cần RAM 
 trường GPU. Provider không kích hoạt thì báo lỗi, không ghi số CPU thành GPU.
 Một số phép toán vẫn có thể được giao về CPU dù provider CUDA đã kích hoạt.
 
+CUDA phải chạy bản Torch trước: ONNX GPU được đối chiếu với Torch trên cùng
+GPU, kiểm hash bản tham chiếu. `cpu_reference_parity` ghi riêng độ lệch so với
+bản CPU lúc xuất; không trộn thay đổi phần cứng với sai lệch chuyển đổi. Bản
+Torch GPU còn được kiểm với classifier gốc trên GPU, không tự coi đạt nếu lỗi.
+
 ## Kết quả và giới hạn
 
 - Giữ `model.onnx` và external data cùng thư mục.

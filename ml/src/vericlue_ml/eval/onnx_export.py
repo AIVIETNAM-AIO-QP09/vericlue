@@ -283,6 +283,9 @@ def benchmark(args) -> None:
     directory = args.bundle.resolve()
     metadata, images = _bundle(directory)
     expected = _read_outputs(directory / "reference.npz")
+    cuda_reference_hash = None
+    if args.device == "cuda" and args.engine == "onnx":
+        expected, cuda_reference_hash = _cuda_reference(directory, metadata)
     before_gpu = _gpu_used() if args.device == "cuda" else None
     started = time.perf_counter()
     with _Memory() as memory:
@@ -290,7 +293,9 @@ def benchmark(args) -> None:
             from vericlue_ml.eval.onnx_networks import load_network
 
             _torch_settings(args.device, args.threads)
-            network, _, _ = load_network(metadata["model"], args.models_dir.resolve(), args.device)
+            network, classifier, _ = load_network(
+                metadata["model"], args.models_dir.resolve(), args.device
+            )
             import torch
 
             torch.set_num_threads(args.threads)
@@ -302,11 +307,32 @@ def benchmark(args) -> None:
         after_load_gpu = _gpu_used() if args.device == "cuda" else None
         actual = _collect(run, images)
         parity = compare_outputs(expected, actual, atol=args.atol, rtol=args.rtol)
+        cpu_reference_parity = compare_outputs(
+            _read_outputs(directory / "reference.npz"), actual, atol=args.atol, rtol=args.rtol
+        )
+        if args.device == "cuda" and args.engine == "torch":
+            native = np.asarray(
+                [classifier.p_fake(frame[None])[0] for frame in images], dtype=np.float32
+            )
+            scores = actual["probabilities"][:, ATTACK_INDICES[metadata["model"]]]
+            parity = {
+                "passed": bool(np.allclose(scores, native, atol=args.atol, rtol=args.rtol)),
+                "scope": "export_adapter_vs_original_classifier_on_same_cuda_device",
+                "samples": len(images),
+                "max_abs_error": float(np.abs(scores - native).max()),
+                "atol": args.atol,
+                "rtol": args.rtol,
+                "biometric_accuracy_evaluated": False,
+            }
         np.savez(directory / f"{args.engine}-{args.device}-outputs.npz", **actual)
         if not parity["passed"]:
             write_json(
                 directory / f"{args.engine}-{args.device}.json",
-                {"status": "numerical_mismatch", "parity": parity},
+                {
+                    "status": "numerical_mismatch",
+                    "parity": parity,
+                    "cpu_reference_parity": cpu_reference_parity,
+                },
             )
             raise ValueError("Numerical equivalence check failed; benchmark not accepted")
         for index in range(args.warmup):
@@ -340,6 +366,9 @@ def benchmark(args) -> None:
             "scope": "snapshots_include_other_processes_not_peak_vram",
         },
         "parity": parity,
+        "cpu_reference_parity": cpu_reference_parity,
+        "cuda_reference_output_sha256": cuda_reference_hash,
+        "output_sha256": sha256(directory / f"{args.engine}-{args.device}-outputs.npz"),
         "environment": _versions(),
         "provenance": _provenance(),
         "timing_scope": "network_only_numpy_to_device_and_back_excludes_camera_detection_alignment_io",
@@ -360,6 +389,24 @@ def benchmark(args) -> None:
     )
 
 
+def _cuda_reference(directory: Path, metadata: dict) -> tuple[dict, str]:
+    """Compare conversion on the same device; preserve cross-device drift separately."""
+    reference = json.loads((directory / "torch-cuda.json").read_text(encoding="utf-8"))
+    output = directory / "torch-cuda-outputs.npz"
+    digest = sha256(output)
+    if (
+        reference.get("status") != "ok"
+        or reference.get("engine") != "torch"
+        or reference.get("device") != "cuda"
+        or reference.get("bundle_sha256") != sha256(directory / "bundle.json")
+        or reference.get("input_sha256") != metadata["files"]["inputs.npy"]
+        or reference.get("output_sha256") != digest
+        or not reference.get("parity", {}).get("passed")
+    ):
+        raise ValueError("A verified matching PyTorch CUDA reference is required")
+    return _read_outputs(output), digest
+
+
 def summarize(args) -> None:
     directory = args.bundle.resolve()
     results = [
@@ -367,6 +414,10 @@ def summarize(args) -> None:
         for engine in ("torch", "onnx")
     ]
     first, second = results
+    if args.device == "cuda" and second.get("cuda_reference_output_sha256") != first.get(
+        "output_sha256"
+    ):
+        raise ValueError("CUDA comparison uses a stale PyTorch reference")
     for field in (
         "model",
         "device",
