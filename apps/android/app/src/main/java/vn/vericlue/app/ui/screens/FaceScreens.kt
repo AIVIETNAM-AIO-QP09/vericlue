@@ -441,10 +441,14 @@ private fun TurnHeadContent(
 ) {
     val view = androidx.compose.ui.platform.LocalView.current
     val liveAssist = face != null
-    val holdTracker = remember(index, dir) { vn.vericlue.app.capture.SegmentHoldTracker() }
+    val segmentStartMs = remember(index, dir) { android.os.SystemClock.elapsedRealtime() }
+    val activeFace = face?.takeIf { it.timestampNs <= 0L || it.timestampNs / 1_000_000L >= segmentStartMs }
+    val holdTracker = remember(index, dir) {
+        vn.vericlue.app.capture.SegmentHoldTracker(segmentStartMs = segmentStartMs)
+    }
     var segmentCompleted by remember(index, dir) { mutableStateOf(false) }
-    LaunchedEffect(face, index, dir) {
-        val current = face ?: return@LaunchedEffect
+    LaunchedEffect(activeFace, index, dir) {
+        val current = activeFace ?: return@LaunchedEffect
         val nowMs = if (current.timestampNs > 0L) {
             current.timestampNs / 1_000_000L
         } else {
@@ -454,7 +458,7 @@ private fun TurnHeadContent(
             segmentCompleted = true
         }
     }
-    val poseState = HeadTurnGuide.evaluatePose(dir, face, segmentCompleted)
+    val poseState = HeadTurnGuide.evaluatePose(dir, activeFace, segmentCompleted)
     // Each hint vibrates at most once per segment, even if the estimated angle oscillates.
     val notifiedStates = remember(index, dir) { mutableSetOf<vn.vericlue.app.capture.TurnPoseState>() }
     val toneGen = remember(liveAssist) {
@@ -479,6 +483,7 @@ private fun TurnHeadContent(
             when (poseState) {
                 vn.vericlue.app.capture.TurnPoseState.Hold -> {
                     view.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+                    toneGen?.startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 65)
                 }
                 vn.vericlue.app.capture.TurnPoseState.Completed -> {
                     view.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
@@ -507,7 +512,7 @@ private fun TurnHeadContent(
     val titleText = when {
         poseState == vn.vericlue.app.capture.TurnPoseState.Warn -> "Điều chỉnh tư thế"
         poseState == vn.vericlue.app.capture.TurnPoseState.Completed ->
-            if (face != null && kotlin.math.abs(face.yaw) > HeadTurnGuide.CENTER_MAX_DEG) "Quay về nhìn thẳng"
+            if (activeFace != null && kotlin.math.abs(activeFace.yaw) > HeadTurnGuide.CENTER_MAX_DEG) "Tạm giữ đủ góc, nhìn thẳng"
             else "Giữ yên, nhìn thẳng"
         poseState == vn.vericlue.app.capture.TurnPoseState.Hold && dir != null -> "Giữ yên góc này"
         dir == TurnDir.Left -> "Quay sang trái"
@@ -565,7 +570,7 @@ private fun TurnHeadContent(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 if (remainingSeconds != null) Text("Còn $remainingSeconds giây", style = VcType.label, color = Color.White)
-                val chipText = HeadTurnGuide.guidanceText(dir, face, returnToCenter, remainingSeconds, segmentCompleted)
+                val chipText = HeadTurnGuide.guidanceText(dir, activeFace, returnToCenter, remainingSeconds, segmentCompleted)
                 when (poseState) {
                     vn.vericlue.app.capture.TurnPoseState.Hold,
                     vn.vericlue.app.capture.TurnPoseState.Completed ->

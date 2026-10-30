@@ -155,7 +155,7 @@ object HeadTurnGuide {
                     signedYaw > TURN_MAX_SAFE_DEG || abs(face.yaw) > TURN_MAX_SAFE_DEG -> "Quay vừa phải, giữ mặt trong khung"
                     offFrame -> "Quay vừa phải, giữ mặt trong khung"
                     segmentCompleted -> if (abs(face.yaw) > CENTER_MAX_DEG) {
-                        "Đã ghi nhận, quay về nhìn thẳng"
+                        "Tạm giữ đủ góc, nhìn thẳng"
                     } else {
                         "Giữ yên, nhìn thẳng chờ bước tiếp"
                     }
@@ -177,7 +177,10 @@ object HeadTurnGuide {
  * Tracks whether the user has held the requested side angle long enough within a single
  * scheduled head-turn segment so the UI can cue them to return to center early.
  */
-class SegmentHoldTracker(private val requiredHoldMs: Long = HeadTurnGuide.HOLD_COMPLETE_MS) {
+class SegmentHoldTracker(
+    private val requiredHoldMs: Long = HeadTurnGuide.HOLD_COMPLETE_MS,
+    private val segmentStartMs: Long = 0L,
+) {
     private var holdStartMs: Long? = null
     private var lastFrameMs: Long? = null
     var completed: Boolean = false
@@ -186,13 +189,22 @@ class SegmentHoldTracker(private val requiredHoldMs: Long = HeadTurnGuide.HOLD_C
     /** Returns true on the transition frame where the hold completes. */
     fun update(dir: TurnDir?, face: FaceSignal?, nowMs: Long): Boolean {
         if (dir == null || completed) return false
+        val frameMs = if (face != null && face.timestampNs > 0L) {
+            face.timestampNs / 1_000_000L
+        } else {
+            nowMs
+        }
+        if (nowMs < segmentStartMs || frameMs < segmentStartMs) {
+            holdStartMs = null
+            return false
+        }
         val previous = lastFrameMs
-        if (previous != null && (nowMs <= previous || nowMs - previous > 300L)) holdStartMs = null
-        lastFrameMs = nowMs
+        if (previous != null && (frameMs <= previous || frameMs - previous > 300L)) holdStartMs = null
+        lastFrameMs = frameMs
         val state = HeadTurnGuide.evaluatePose(dir, face, segmentCompleted = false)
         if (state == TurnPoseState.Hold) {
-            val start = holdStartMs ?: nowMs.also { holdStartMs = it }
-            if (nowMs - start >= requiredHoldMs) {
+            val start = holdStartMs ?: frameMs.also { holdStartMs = it }
+            if (frameMs - start >= requiredHoldMs) {
                 completed = true
                 return true
             }

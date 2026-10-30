@@ -148,13 +148,32 @@ class CaptureTest {
         )
         // Once the segment hold completes, cue the user to return to center and wait for the next step.
         assertEquals(
-            "Đã ghi nhận, quay về nhìn thẳng",
+            "Tạm giữ đủ góc, nhìn thẳng",
             HeadTurnGuide.guidanceText(TurnDir.Right, face(yaw = -26f), remainingSeconds = 2, segmentCompleted = true),
         )
         assertEquals(
             "Giữ yên, nhìn thẳng chờ bước tiếp",
             HeadTurnGuide.guidanceText(TurnDir.Right, face(yaw = -3f), remainingSeconds = 2, segmentCompleted = true),
         )
+    }
+
+    @Test
+    fun staleFrameCannotCompleteNewSegmentHold() {
+        val tracker = SegmentHoldTracker(requiredHoldMs = 850L, segmentStartMs = 4_000L)
+        val stale = FaceSignal(
+            faces = 1,
+            widthFraction = 0.4f,
+            centerX = 0.5f,
+            centerY = 0.45f,
+            yaw = 26f,
+            pitch = 0f,
+            roll = 0f,
+            luma = 120f,
+            timestampNs = 3_900_000_000L,
+        )
+        assertFalse(tracker.update(TurnDir.Left, stale, nowMs = 3_900L))
+        assertFalse(tracker.update(TurnDir.Left, stale, nowMs = 4_900L))
+        assertFalse(tracker.completed)
     }
 
     @Test
