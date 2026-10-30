@@ -68,6 +68,7 @@
 | FACE-03 | SBI + heatmap | M3 | | 1 | S2 | P0 | FACE-02 | todo |
 | FACE-04 | Tinh chỉnh GenD và PAD trên dữ liệu VN | M3 | | 2 | S2 | P0 | FACE-01, FACE-02, DATA-04, DATA-05 | doing |
 | FACE-05 | Tối ưu tốc độ | M3 | | 0,5 | S2 | P1 | FACE-04 | todo |
+| FACE-06 | Xuất ONNX FP32, đối chiếu và đo FS-VFM-L/GenD-L | M3 | Codex | 1 | S2 | P0 | PLAT-03 | doing |
 
 ## E5 — Giọng nói · `epics/E5-voice.md`
 
