@@ -55,7 +55,7 @@
     ],
     "expires_at": "2026-10-24T06:00:24.413079Z",
     "dynamic": {
-      "version": 1,
+      "version": 2,
       "session_id": "ses_example",
       "nonce": "integration_nonce_12345678",
       "gaze_points": [
@@ -106,8 +106,8 @@
         "center"
       ],
       "head_start_at_ms": 13534,
-      "head_duration_ms": 6000,
-      "voice_start_at_ms": 19534,
+      "head_duration_ms": 12000,
+      "voice_start_at_ms": 25534,
       "voice_prompt": "Chín mươi tám cộng bảy mươi hai bằng một trăm bảy mươi.",
       "voice_challenge_id": "vc_c2d673d5875e9ca37814c5a31f161237",
       "frontal_capture_at_ms": 500

@@ -999,9 +999,9 @@ export interface components {
             gaze_points: components["schemas"]["GazePoint"][];
             /**
              * Head Duration Ms
-             * @constant
+             * @enum {integer}
              */
-            head_duration_ms: 6000;
+            head_duration_ms: 6000 | 12000;
             /** Head Start At Ms */
             head_start_at_ms: number;
             /** Head Turns */
@@ -1012,9 +1012,9 @@ export interface components {
             session_id: string;
             /**
              * Version
-             * @constant
+             * @enum {integer}
              */
-            version: 1;
+            version: 1 | 2;
             /** Voice Challenge Id */
             voice_challenge_id: string;
             /** Voice Prompt */

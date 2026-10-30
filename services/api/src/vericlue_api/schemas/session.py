@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 RetryHint = Literal[
     "MORE_LIGHT",
@@ -64,17 +64,33 @@ class GazePoint(BaseModel):
 class DynamicChallenge(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    version: Literal[1]
+    version: Literal[1, 2]
     session_id: str
     nonce: str
     gaze_points: list[GazePoint] = Field(min_length=8, max_length=8)
     head_turns: list[Literal["left", "right", "center"]] = Field(min_length=3, max_length=3)
     head_start_at_ms: int = Field(ge=0)
-    head_duration_ms: Literal[6000]
+    head_duration_ms: Literal[6000, 12000]
     voice_start_at_ms: int = Field(ge=0)
     voice_prompt: str
     voice_challenge_id: str
     frontal_capture_at_ms: int = Field(ge=0)
+
+    @field_validator("version", mode="before")
+    @classmethod
+    def integer_version(cls, value):
+        if type(value) is not int:
+            raise ValueError("Protocol version must be an integer")
+        return value
+
+    @model_validator(mode="after")
+    def head_timing(self):
+        if self.head_duration_ms != {1: 6000, 2: 12000}[self.version]:
+            raise ValueError("Head duration differs from protocol")
+        end = self.head_start_at_ms + self.head_duration_ms
+        if end > 30000 or self.voice_start_at_ms != end:
+            raise ValueError("Invalid head/voice timeline")
+        return self
 
 
 class FinalizeRequest(BaseModel):

@@ -816,7 +816,10 @@
             "type": "array"
           },
           "head_duration_ms": {
-            "const": 6000,
+            "enum": [
+              6000,
+              12000
+            ],
             "title": "Head Duration Ms",
             "type": "integer"
           },
@@ -848,7 +851,10 @@
             "type": "string"
           },
           "version": {
-            "const": 1,
+            "enum": [
+              1,
+              2
+            ],
             "title": "Version",
             "type": "integer"
           },

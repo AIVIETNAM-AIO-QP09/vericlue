@@ -18,7 +18,7 @@ VOICE_PROMPTS = (
 )
 GAZE_DURATION_MS = 7000
 GAZE_INTERVAL_MS = 1000
-HEAD_DURATION_MS = 6000
+HEAD_DURATION_MS = 12000
 MIN_GAZE_AXIS_SPAN = 0.30
 PROMPT_WORDS = (
     "mây",
@@ -100,7 +100,7 @@ def generate_dynamic_challenge(settings: Settings, *, session_id: str, nonce: st
     turns = ["left", "right"] if secrets.randbelow(2) == 0 else ["right", "left"]
     head_start = gaze_start + GAZE_DURATION_MS
     challenge.dynamic = DynamicChallenge(
-        version=1,
+        version=2,
         session_id=session_id,
         nonce=nonce,
         gaze_points=points,

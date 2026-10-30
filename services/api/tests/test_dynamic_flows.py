@@ -130,7 +130,10 @@ def test_gaze_head_schedule_is_after_safe_color_sequence(client):
     assert plan["head_start_at_ms"] == points[-1]["at_ms"]
     assert set(plan["head_turns"][:2]) == {"left", "right"}
     assert plan["head_turns"][-1] == "center"
-    assert plan["voice_start_at_ms"] == plan["head_start_at_ms"] + 6000
+    assert plan["version"] == 2
+    assert plan["head_duration_ms"] == 12000
+    assert plan["voice_start_at_ms"] == plan["head_start_at_ms"] + 12000
+    assert plan["voice_start_at_ms"] <= 30000
 
 
 def test_challenges_are_distinct_even_with_the_same_caller_nonce(client):
@@ -138,6 +141,21 @@ def test_challenges_are_distinct_even_with_the_same_caller_nonce(client):
     assert len({p["challenge_id"] for p in plans}) == 8
     assert len({p["dynamic"]["voice_challenge_id"] for p in plans}) == 8
     assert len({p["dynamic"]["session_id"] for p in plans}) == 8
+
+
+@pytest.mark.parametrize("hold_ms", [400, 650])
+def test_long_head_schedule_fits_video_at_color_duration_extremes(client, monkeypatch, hold_ms):
+    from vericlue_api.services import dynamic_challenge as schedule
+
+    settings = client.app.state.vericlue.settings
+    base = schedule.generate_challenge(settings)
+    for step in base.color_sequence:
+        step.hold_ms = hold_ms
+    monkeypatch.setattr(schedule, "generate_challenge", lambda _: base.model_copy(deep=True))
+    plan = schedule.generate_dynamic_challenge(settings, session_id="ses_bounds", nonce=NONCE).dynamic
+    assert plan.version == 2
+    assert plan.head_duration_ms == 12000
+    assert plan.voice_start_at_ms == plan.head_start_at_ms + 12000 <= 30000
 
 
 @pytest.mark.parametrize("value", [None, "old_challenge", "ký_tự_khác"])

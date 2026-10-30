@@ -631,7 +631,10 @@
       "properties": {
         "version": {
           "type": "integer",
-          "const": 1
+          "enum": [
+            1,
+            2
+          ]
         },
         "session_id": {
           "type": "string"
@@ -666,7 +669,10 @@
         },
         "head_duration_ms": {
           "type": "integer",
-          "const": 6000
+          "enum": [
+            6000,
+            12000
+          ]
         },
         "voice_start_at_ms": {
           "type": "integer",
@@ -683,7 +689,41 @@
           "minimum": 0
         }
       },
-      "description": "Mọi at_ms tính từ đầu bản ghi giai đoạn B. Thu âm được bắt đầu theo lịch, không cần chờ finalize; chỉ gửi /voice sau khi finalize yêu cầu. Gói này là lệnh, không phải bằng chứng đã làm đúng."
+      "description": "Mọi at_ms tính từ đầu bản ghi giai đoạn B. Thu âm được bắt đầu theo lịch, không cần chờ finalize; chỉ gửi /voice sau khi finalize yêu cầu. Gói này là lệnh, không phải bằng chứng đã làm đúng.",
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "version": {
+                "const": 1
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "head_duration_ms": {
+                "const": 6000
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "version": {
+                "const": 2
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "head_duration_ms": {
+                "const": 12000
+              }
+            }
+          }
+        }
+      ]
     },
     "FinalizeRequest": {
       "type": "object",
