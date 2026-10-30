@@ -50,8 +50,8 @@ fun FakeCameraFeed(modifier: Modifier = Modifier, faceScale: Float = 1f, dim: Fl
 }
 
 /** Geometry of the face oval inside a camera area of the given size. */
-fun ovalRect(width: Float, height: Float, density: Float): Rect {
-    val w = minOf(250f * density, width * 0.66f)
+fun ovalRect(width: Float, height: Float, density: Float, fitHeight: Boolean = false): Rect {
+    val w = minOf(250f * density, width * 0.66f, if (fitHeight) height * 0.85f / 1.32f else Float.MAX_VALUE)
     val h = w * 1.32f
     val left = (width - w) / 2f
     val top = (height - h) * 0.36f
@@ -63,9 +63,9 @@ fun ovalRect(width: Float, height: Float, density: Float): Rect {
  * capture ring just outside it.
  */
 @Composable
-fun OvalOverlay(ringColor: Color, ringWidth: Dp = 2.dp, progress: Float? = null) {
+fun OvalOverlay(ringColor: Color, ringWidth: Dp = 2.dp, progress: Float? = null, fitHeight: Boolean = false) {
     Canvas(Modifier.fillMaxSize()) {
-        val oval = ovalRect(size.width, size.height, density)
+        val oval = ovalRect(size.width, size.height, density, fitHeight)
         val scrim = Path().apply {
             fillType = PathFillType.EvenOdd
             addRect(Rect(Offset.Zero, size))
@@ -90,11 +90,11 @@ fun OvalOverlay(ringColor: Color, ringWidth: Dp = 2.dp, progress: Float? = null)
 
 /** Box that exposes the oval position in dp to place chips and arrows around it. */
 @Composable
-fun CameraArea(modifier: Modifier = Modifier, content: @Composable BoxWithConstraintsScope.(oval: DpRect) -> Unit) {
+fun CameraArea(modifier: Modifier = Modifier, fitHeight: Boolean = false, content: @Composable BoxWithConstraintsScope.(oval: DpRect) -> Unit) {
     BoxWithConstraints(modifier.fillMaxSize()) {
         val w = maxWidth.value
         val h = maxHeight.value
-        val r = ovalRect(w, h, 1f)
+        val r = ovalRect(w, h, 1f, fitHeight)
         content(DpRect(r.left.dp, r.top.dp, r.width.dp, r.height.dp))
     }
 }
@@ -105,10 +105,10 @@ data class DpRect(val left: Dp, val top: Dp, val width: Dp, val height: Dp) {
 }
 
 @Composable
-fun FullCamera(faceScale: Float = 1f, ringColor: Color = Color.White, progress: Float? = null, ringWidth: Dp = 2.dp) {
+fun FullCamera(faceScale: Float = 1f, ringColor: Color = Color.White, progress: Float? = null, ringWidth: Dp = 2.dp, fitHeight: Boolean = false) {
     Box(Modifier.fillMaxSize()) {
         CameraFeed(faceScale = faceScale)
-        OvalOverlay(ringColor = ringColor, ringWidth = ringWidth, progress = progress)
+        OvalOverlay(ringColor = ringColor, ringWidth = ringWidth, progress = progress, fitHeight = fitHeight)
     }
 }
 

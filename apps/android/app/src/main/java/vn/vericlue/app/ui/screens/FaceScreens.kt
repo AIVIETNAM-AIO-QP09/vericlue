@@ -433,6 +433,8 @@ private fun TurnHeadContent(
     dir: TurnDir?, index: Int, total: Int, onExit: () -> Unit,
     onDebugSkip: (() -> Unit)? = null,
     returnToCenter: Boolean = false,
+    remainingSeconds: Int? = null,
+    nextInstruction: String? = null,
 ) {
     val shift = if (Vc.motion.enabled) {
         val nudge = rememberInfiniteTransition(label = "turn-nudge")
@@ -441,59 +443,59 @@ private fun TurnHeadContent(
         value
     } else 0f
     CameraScaffold(onExit) {
-        Box(Modifier.fillMaxSize()) {
-            FullCamera()
-            CameraArea { oval ->
-                Text(
-                    when (dir) {
-                        TurnDir.Left -> "Quay sang trái"
-                        TurnDir.Right -> "Quay sang phải"
-                        null -> "Nhìn thẳng"
-                    },
-                    style = VcType.titleMedium,
-                    color = Color.White,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(top = 18.dp),
-                )
-                val sign = if (dir == TurnDir.Left) -1 else 1
-                val x = if (dir == TurnDir.Left) oval.left - 28.dp else oval.left + oval.width - 36.dp
-                if (dir != null) Box(
-                    Modifier.offset(x = x + (8 * shift * sign).dp, y = oval.centerY - 32.dp).size(64.dp)
-                        .clip(CircleShape).background(Palette.LogoNavy.copy(alpha = 0.55f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        if (dir == TurnDir.Left) Icons.AutoMirrored.Outlined.ArrowBack else Icons.AutoMirrored.Outlined.ArrowForward,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(32.dp),
-                    )
-                }
-                Column(
-                    Modifier.fillMaxWidth().offset(y = oval.bottom + 24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                ) {
-                    GuidanceChip(when {
-                        dir == null -> "Giữ yên, nhìn thẳng vào camera"
-                        returnToCenter -> "Quay chậm, sau đó nhìn thẳng"
-                        else -> "Quay chậm theo hướng mũi tên"
-                    })
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        repeat(total) { i ->
-                            Box(Modifier.size(6.dp).clip(CircleShape).background(if (i == index) Color.White else Color.White.copy(alpha = 0.35f)))
-                            if (i == index) Text("${index + 1} / $total", style = VcType.labelXs, color = Color.White)
-                        }
+        Column(Modifier.fillMaxSize()) {
+            Text(
+                when (dir) {
+                    TurnDir.Left -> "Quay sang trái"
+                    TurnDir.Right -> "Quay sang phải"
+                    null -> "Nhìn thẳng"
+                },
+                style = VcType.titleMedium,
+                color = Color.White,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(top = 18.dp),
+            )
+            Box(Modifier.fillMaxWidth().weight(1f)) {
+                FullCamera(fitHeight = true)
+                CameraArea(fitHeight = true) { oval ->
+                    val sign = if (dir == TurnDir.Left) -1 else 1
+                    val x = if (dir == TurnDir.Left) oval.left - 28.dp else oval.left + oval.width - 36.dp
+                    if (dir != null) Box(
+                        Modifier.offset(x = x + (8 * shift * sign).dp, y = oval.centerY - 32.dp).size(64.dp)
+                            .clip(CircleShape).background(Palette.LogoNavy.copy(alpha = 0.55f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            if (dir == TurnDir.Left) Icons.AutoMirrored.Outlined.ArrowBack else Icons.AutoMirrored.Outlined.ArrowForward,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(32.dp),
+                        )
                     }
                 }
-                if (onDebugSkip != null) DebugButton("Bỏ qua (debug)", onDebugSkip, Modifier.align(Alignment.BottomCenter).padding(bottom = 56.dp))
-                Text(
-                    "Camera đang ghi hình. Bạn không cần bấm chụp.",
-                    style = VcType.bodySmall,
-                    color = Color.White.copy(alpha = 0.85f),
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter).padding(bottom = 24.dp),
-                )
+            }
+            Column(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (remainingSeconds != null) Text("Còn $remainingSeconds giây", style = VcType.label, color = Color.White)
+                GuidanceChip(when {
+                    dir == null -> "Giữ yên, nhìn thẳng vào camera"
+                    returnToCenter -> "Quay chậm, sau đó nhìn thẳng"
+                    remainingSeconds != null -> "Giữ hướng này đến khi đổi hướng dẫn"
+                    else -> "Quay chậm theo hướng mũi tên"
+                })
+                nextInstruction?.let {
+                    Text(it, style = VcType.bodySmall, color = Color.White, textAlign = TextAlign.Center)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    repeat(total) { i ->
+                        Box(Modifier.size(6.dp).clip(CircleShape).background(if (i == index) Color.White else Color.White.copy(alpha = 0.35f)))
+                        if (i == index) Text("${index + 1} / $total", style = VcType.labelXs, color = Color.White)
+                    }
+                }
+                if (onDebugSkip != null) DebugButton("Bỏ qua (debug)", onDebugSkip, Modifier)
             }
         }
     }
@@ -522,6 +524,7 @@ fun FaceTimelineScreen(
     onNoRecording: () -> Unit,
 ) {
     var phase by remember { mutableStateOf<FaceTimeline.Phase>(FaceTimeline.Phase.Colour(0)) }
+    var remainingSeconds by remember { mutableStateOf<Int?>(null) }
     LaunchedEffect(Unit) {
         delay(SETTLE_MS) // let the preview settle before recording (see HoldStillScreen)
         onStart()
@@ -542,6 +545,7 @@ fun FaceTimelineScreen(
             val t = nowMs - start
             val p = timeline.phaseAt(t)
             phase = p
+            remainingSeconds = timeline.headRemainingSeconds(t)
             if (p is FaceTimeline.Phase.Colour && p.slot != lastSlot) {
                 lastSlot = p.slot
                 onPainted(timeline.slots[p.slot], nowMs)
@@ -566,12 +570,20 @@ fun FaceTimelineScreen(
     }
     BackHandler(onBack = onStop)
     FullBrightness(enabled = true)
-    FaceChallengeContent(timeline, phase, onStop)
+    FaceChallengeContent(timeline, phase, remainingSeconds, onStop)
 }
 
 /** Shared presentation, independently snapshot-tested without opening a camera or starting work. */
 @Composable
 fun FaceChallengeContent(timeline: FaceTimeline, phase: FaceTimeline.Phase, onStop: () -> Unit) {
+    val seconds = (phase as? FaceTimeline.Phase.Head)?.let {
+        timeline.headRemainingSeconds(timeline.headStartMs + it.segment * (timeline.headDurationMs / timeline.headTurns.size).toDouble())
+    }
+    FaceChallengeContent(timeline, phase, seconds, onStop)
+}
+
+@Composable
+fun FaceChallengeContent(timeline: FaceTimeline, phase: FaceTimeline.Phase, remainingSeconds: Int?, onStop: () -> Unit) {
     StableCameraScene {
         when (phase) {
             is FaceTimeline.Phase.Colour -> HoldStillScreen(
@@ -580,7 +592,15 @@ fun FaceChallengeContent(timeline: FaceTimeline, phase: FaceTimeline.Phase, onSt
             FaceTimeline.Phase.Gap, is FaceTimeline.Phase.Gaze ->
                 TimelineGaze(phase as? FaceTimeline.Phase.Gaze, onStop)
             is FaceTimeline.Phase.Head ->
-                TurnHeadContent(phase.dir, phase.segment, timeline.headTurns.size, onStop)
+                TurnHeadContent(phase.dir, phase.segment, timeline.headTurns.size, onStop,
+                    remainingSeconds = remainingSeconds,
+                    nextInstruction = if (phase.segment >= timeline.headTurns.lastIndex) "Giữ yên đến khi kết thúc lượt quay" else
+                        "Tiếp theo: " + when (timeline.headTurns[phase.segment + 1]) {
+                            TurnDir.Left -> "Quay sang trái"
+                            TurnDir.Right -> "Quay sang phải"
+                            null -> "Nhìn thẳng"
+                        },
+                )
             FaceTimeline.Phase.Done ->
                 TurnHeadContent(null, timeline.headTurns.lastIndex.coerceAtLeast(0), timeline.headTurns.size, onStop)
         }
