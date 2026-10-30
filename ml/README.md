@@ -1,5 +1,9 @@
 # ml — Bộ não phát hiện giả mạo (gói `vericlue_ml`)
 
+FACE-06: công cụ xuất/đối chiếu ONNX FP32 cho FS-VFM-L và GenD-L nằm trong
+`eval/onnx_export.py`; xem [hướng dẫn](../docs/runbooks/onnx-export.md).
+Chưa thay backend của API hoặc kết quả đánh giá trên dữ liệu thật.
+
 **Phụ trách:** M3 (face/, presence/), M4 (voice/, forensic/provenance), M5 (router/, eval/)
 **Trạng thái:** PLAT-03 đã khởi tạo giao diện, registry và mock; ROUT-01 bổ sung hiệu chỉnh xác suất.
 

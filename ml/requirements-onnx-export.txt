@@ -1,0 +1,5 @@
+# FACE-06: install in an isolated export environment alongside face/gend dependencies.
+onnx==1.23.2
+onnxscript==0.7.2
+onnx-ir==1.1.0
+psutil==7.2.2

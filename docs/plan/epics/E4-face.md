@@ -141,3 +141,25 @@
 **Tiêu chí hoàn thành:**
 - [ ] Đo p50 và p95 trên GPU và CPU; ghi vào R6.
 - [ ] Kết quả sau tối ưu lệch < 0,5 điểm AUC so với bản gốc.
+
+---
+
+### FACE-06 · Xuất ONNX FP32 và đối chiếu FS-VFM-L/GenD-L
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M3 | 1 | S2 | P0 | PLAT-03 |
+
+Yêu cầu người dùng 30/10: xuất hai model gốc đã tải, giữ FP32 trước khi thử
+giảm độ chính xác. Đây là kiểm chứng chuyển đổi, không thay kết quả AUC/R6 hoặc
+nghiệm thu bảo mật của FACE-05. Không đổi API, ngưỡng, tiền xử lý hay server.
+
+- [x] Có CLI xuất đúng loader gốc, metadata và checksum; giữ bản gốc.
+- [x] Đối chiếu logits/xác suất/nhãn giả trên cùng dữ liệu tổng hợp, có test âm.
+- [x] Xuất thực hai model, ghi kết quả số học và p50/p95, RAM; ghi rõ khả năng
+      đo GPU và phạm vi phép đo, không gọi kết quả tổng hợp là APCER/BPCER/AUC.
+- [x] Lint/test/kế hoạch, tài liệu tái lập và bàn giao; không commit trọng số.
+
+Kết quả/giới hạn: `docs/research/2026-10-30-onnx-fp32.md` và JSON kèm theo.
+CPU cả hai đạt đối chiếu; GPU GenD đạt nhưng chậm hơn, FS-VFM chưa đạt so
+nhánh Torch CUDA mặc định. Không phê duyệt triển khai chỉ từ tensor tổng hợp.
