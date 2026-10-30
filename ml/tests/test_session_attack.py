@@ -13,6 +13,25 @@ from vericlue_ml.face import session_attack
 from vericlue_ml.face.session_attack import SessionAttackDetector
 
 
+def attack_input(**kwargs):
+    return DetectorInput(
+        session_id="ses_attack",
+        metadata={
+            "challenge_id": "ch_attack",
+            "expected_challenge": {
+                "challenge_id": "ch_attack",
+                "dynamic": {
+                    "version": 1,
+                    "session_id": "ses_attack",
+                    "head_start_at_ms": 12000,
+                    "head_duration_ms": 6000,
+                },
+            },
+        },
+        **kwargs,
+    )
+
+
 @pytest.mark.parametrize("module", ["face_pad", "face_deepfake"])
 def test_session_view_scores_stay_raw_and_use_exact_selected_arrays(monkeypatch, module):
     frames = {
@@ -39,7 +58,7 @@ def test_session_view_scores_stay_raw_and_use_exact_selected_arrays(monkeypatch,
     monkeypatch.setattr(session_attack, "session_views", lambda *_: (frames, "a" * 64))
     monkeypatch.setattr(session_attack, "video_sha256", lambda *_: "a" * 64)
     result = SessionAttackDetector(Backend(), SimpleNamespace()).predict(
-        DetectorInput(video=Path("server-video.mp4"), images=[Path("not-opened.png")])
+        attack_input(video=Path("server-video.mp4"), images=[Path("not-opened.png")])
     )
     assert result.status == Status.DEGRADED and result.gate == Gate.UNCLEAR
     assert result.score == 0.2 and result.prob_attack is None
@@ -57,7 +76,7 @@ def test_changed_video_discards_attack_measurement(monkeypatch):
     monkeypatch.setattr(session_attack, "session_views", lambda *_: ({}, "a" * 64))
     monkeypatch.setattr(session_attack, "video_sha256", lambda *_: "b" * 64)
     result = SessionAttackDetector(backend, SimpleNamespace()).predict(
-        DetectorInput(video=Path("fake.mp4"))
+        attack_input(video=Path("fake.mp4"))
     )
     assert result.status == Status.ERROR and result.score is None
     assert result.error_code == "E_INTEGRITY"
@@ -102,7 +121,7 @@ def test_valid_fitted_session_artifact_calibrates_raw_score_not_backend_probabil
     backend, store, artifact = fixture_detector(monkeypatch, tmp_path)
     store.save(artifact)
     result = SessionAttackDetector(backend, SimpleNamespace(), calibrators=store).predict(
-        DetectorInput(video=Path("sample.mp4"))
+        attack_input(video=Path("sample.mp4"))
     )
     assert result.status == Status.OK
     assert result.score == 0.2
@@ -133,7 +152,7 @@ def test_unusable_artifact_never_produces_a_probability(monkeypatch, tmp_path, k
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(bad.model_dump_json(), encoding="utf-8")
     result = SessionAttackDetector(backend, SimpleNamespace(), calibrators=store).predict(
-        DetectorInput(video=Path("sample.mp4"))
+        attack_input(video=Path("sample.mp4"))
     )
     assert result.status == Status.DEGRADED and result.prob_attack is None
     assert result.gate == Gate.UNCLEAR
@@ -159,7 +178,7 @@ def test_artifact_never_repairs_unusable_backend_measurement(
     )
     store.save(artifact)
     result = SessionAttackDetector(backend, SimpleNamespace(), calibrators=store).predict(
-        DetectorInput(video=Path("sample.mp4"))
+        attack_input(video=Path("sample.mp4"))
     )
     assert result.status != Status.OK and result.prob_attack is None
 
@@ -167,9 +186,9 @@ def test_artifact_never_repairs_unusable_backend_measurement(
 def test_missing_artifact_is_not_activated_mid_process(monkeypatch, tmp_path):
     backend, store, artifact = fixture_detector(monkeypatch, tmp_path)
     detector = SessionAttackDetector(backend, SimpleNamespace(), calibrators=store)
-    assert detector.predict(DetectorInput(video=Path("sample.mp4"))).prob_attack is None
+    assert detector.predict(attack_input(video=Path("sample.mp4"))).prob_attack is None
     store.save(artifact)
-    assert detector.predict(DetectorInput(video=Path("sample.mp4"))).prob_attack is None
+    assert detector.predict(attack_input(video=Path("sample.mp4"))).prob_attack is None
 
 
 @pytest.mark.parametrize("field,value", [("module", "face_deepfake"), ("model_version", "legacy")])
@@ -179,7 +198,7 @@ def test_backend_identity_mismatch_is_an_integrity_error(monkeypatch, tmp_path, 
     result = backend.predict_frames(None, {})
     backend.predict_frames = lambda *_: result.model_copy(update={field: value})
     measured = SessionAttackDetector(backend, SimpleNamespace(), calibrators=store).predict(
-        DetectorInput(video=Path("sample.mp4"))
+        attack_input(video=Path("sample.mp4"))
     )
     assert measured.status == Status.ERROR and measured.error_code == "E_INTEGRITY"
     assert measured.module == "face_pad" and measured.prob_attack is None

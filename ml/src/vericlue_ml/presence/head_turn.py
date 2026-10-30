@@ -11,6 +11,7 @@ import numpy as np
 from vericlue_ml.common.detector import DetectorInput
 from vericlue_ml.common.result import ErrorCode, Evidence, Gate, Module, ModuleResult, Status
 from vericlue_ml.presence.challenge import expected_dynamic
+from vericlue_ml.presence.head_protocol import head_protocol_version
 from vericlue_ml.presence.landmarks import FaceObservation, FaceObservationReader, LandmarkError
 
 HEAD_VERSION = "head-turn-rules@0.1+face-landmarker-f16-1"
@@ -36,6 +37,7 @@ class HeadPlan:
 
 
 def parse_head_plan(inp: DetectorInput) -> HeadPlan:
+    head_protocol_version(inp)
     dynamic = expected_dynamic(inp)
     start, duration = dynamic.get("head_start_at_ms"), dynamic.get("head_duration_ms")
     frontal = dynamic.get("frontal_capture_at_ms")
@@ -44,7 +46,6 @@ def parse_head_plan(inp: DetectorInput) -> HeadPlan:
         type(start) is not int
         or not BASELINE_MS <= start <= 24_000
         or type(duration) is not int
-        or duration != 6000
         or type(frontal) is not int
         or not 0 <= frontal < start - BASELINE_MS
         or order not in (["left", "right", "center"], ["right", "left", "center"])

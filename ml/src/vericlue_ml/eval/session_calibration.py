@@ -23,6 +23,7 @@ from vericlue_ml.common.result import ErrorCode, Module
 from vericlue_ml.eval.report import git_revision
 from vericlue_ml.face.fsvfm import FsvfmPadDetector
 from vericlue_ml.face.gend import FaceDeepfakeDetector
+from vericlue_ml.presence.head_protocol import head_protocol_version, session_model_version
 from vericlue_ml.presence.head_turn import parse_head_plan
 from vericlue_ml.presence.landmarks import FaceObservationReader, LandmarkError
 from vericlue_ml.presence.session_views import session_views
@@ -88,7 +89,7 @@ class SessionReport(Record):
     @field_validator("model_version")
     @classmethod
     def session_version(cls, value):
-        if not value.endswith(SUFFIX) or value.startswith("mock@"):
+        if not value.endswith((SUFFIX, "+session-video-v2")) or value.startswith("mock@"):
             raise ValueError("Exact session-view model version required")
         return value
 
@@ -188,6 +189,10 @@ def collect(
         raise ValueError("Only session face PAD/GenD are supported")
     before = _sha(manifest)
     samples = load_manifest(manifest, data_root)
+    protocols = {head_protocol_version(_input(sample, data_root)) for sample in samples}
+    if len(protocols) != 1:
+        raise ValueError("A measurement report must contain exactly one capture protocol")
+    protocol = protocols.pop()
     info = Manifest.model_validate(_read(manifest))
     protected = (
         {manifest}
@@ -205,7 +210,7 @@ def collect(
     try:
         if backend.name != module:
             raise ValueError("Backend module differs")
-        version = backend.frames_version + SUFFIX
+        version = session_model_version(backend.frames_version, protocol)
         for sample in samples:
             video, challenge = (
                 _source(data_root, sample.video),
@@ -217,7 +222,7 @@ def collect(
                 inp = _input(sample, data_root)
                 frames, selected_hash = session_views(inp, reader)
                 result = backend.predict_frames(inp, frames)
-                if result.module != module or result.model_version + SUFFIX != version:
+                if result.module != module or result.model_version != backend.frames_version:
                     raise LandmarkError(ErrorCode.E_INTEGRITY)
                 if (
                     selected_hash != video_hash

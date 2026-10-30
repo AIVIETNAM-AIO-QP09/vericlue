@@ -33,7 +33,7 @@ def test_fitted_classifiers_cannot_clear_a_failed_mandatory_motion(
                 dataset="synthetic-integration-only",
             ),
             module=module,
-            model_version=version + "+session-video-v1",
+            model_version=version + "+session-video-v2",
             commit="synthetic",
             n_splits=3,
         )

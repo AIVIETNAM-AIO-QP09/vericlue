@@ -13,6 +13,7 @@ from vericlue_ml.face.match import MATCH_VERSION, FaceMatchDetector, MatchError
 from vericlue_ml.face.pad import PadError
 from vericlue_ml.face.template import FaceTemplate
 from vericlue_ml.presence.challenge import expected_dynamic
+from vericlue_ml.presence.head_protocol import head_protocol_version
 from vericlue_ml.presence.head_turn import CENTER_MAX_DEG, MAX_PITCH_ROLL_DEG
 from vericlue_ml.presence.landmarks import FaceObservationReader, LandmarkError
 from vericlue_ml.presence.session_views import session_views
@@ -36,6 +37,13 @@ class VideoFaceMatchDetector(FaceMatchDetector):
         super().__init__(**kwargs)
         self.reader = reader if reader is not None else FaceObservationReader()
         self.with_consistency = with_consistency
+
+    def _supported_versions(self) -> tuple[str, ...]:
+        return (
+            (self.version, self.version + "+head12s-v2")
+            if self.with_consistency
+            else (self.version,)
+        )
 
     def preload(self, *, models_dir: Path | str | None = None, device: str | None = None) -> None:
         super().preload(models_dir=models_dir, device=device)
@@ -93,8 +101,11 @@ class VideoFaceMatchDetector(FaceMatchDetector):
 
     def predict(self, inp: DetectorInput) -> ModuleResult:
         started = perf_counter()
+        version = self.version
         try:
             dynamic = expected_dynamic(inp)
+            if self.with_consistency and head_protocol_version(inp) == 2:
+                version += "+head12s-v2"
             target = dynamic.get("frontal_capture_at_ms")
             baseline = inp.metadata["expected_challenge"].get("baseline_ms")
             if (
@@ -130,7 +141,11 @@ class VideoFaceMatchDetector(FaceMatchDetector):
                 frames, view_checksum = session_views(inp, self.reader)
                 if view_checksum != checksum or not (frames["front"] == frame.bgr).all():
                     raise LandmarkError(ErrorCode.E_INTEGRITY)
-            result = self.predict_frames(inp, frames)
+            result = (
+                self.predict_frames(inp, frames, result_version=version)
+                if version != self.version
+                else self.predict_frames(inp, frames)
+            )
             if video_sha256(inp.video) != checksum:
                 raise LandmarkError(ErrorCode.E_INTEGRITY)
             result.quality.update(
@@ -158,7 +173,7 @@ class VideoFaceMatchDetector(FaceMatchDetector):
         except Exception as exc:
             return ModuleResult(
                 module=Module.FACE_MATCH,
-                model_version=self.version,
+                model_version=version,
                 status=exc.status if isinstance(exc, (LandmarkError, MatchError)) else Status.ERROR,
                 error_code=exc.code
                 if isinstance(exc, (LandmarkError, PadError))
