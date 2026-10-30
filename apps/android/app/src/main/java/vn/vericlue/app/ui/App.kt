@@ -693,6 +693,7 @@ fun VeriClueApp() {
                     onStart = {
                         live.colorEvents.clear()
                         if (hasCamera) camera.startRecording() else if (!flow.live) demoStart = CaptureClock.nowMs()
+                        camera.debugTrace.bindAttempt(challenge?.challengeId)
                     },
                     recordingStartMs = { if (hasCamera || flow.live) camera.recordingStartMs() else demoStart },
                     onPainted = { slot, t -> slot.index?.let { live.colorEvents += ColorEvent(it, slot.rgb, t) } },
@@ -700,6 +701,7 @@ fun VeriClueApp() {
                     onBaselineDone = { camera.lockAeAwb(true) },
                     onColorsDone = { camera.lockAeAwb(false) },
                     onDone = {
+                        camera.savePresenceDebugTrace()
                         camera.stopRecording()
                         faceCaptured = true
                         val next = FlowRules.afterFace(flow.purpose, idConfirmed, live = flow.live, accountBound = live.boundAccount != null)
@@ -707,6 +709,7 @@ fun VeriClueApp() {
                     },
                     onNoRecording = { nav.go(Routes.ErrorDevice) },
                     face = if (hasCamera) face else null,
+                    debugTrace = camera.debugTrace,
                 )
             }
         }
@@ -733,7 +736,7 @@ fun VeriClueApp() {
                     // A retry comes back here; LiveFlow resends only what the server has not received.
                     val next = submitWithVideo(camera.finishedVideo()) { video ->
                         if (wav != null) {
-                            live.submitVoice(wav, video, live.audioOffsetMs, onAccepted = camera::deleteVideo)
+                            live.submitVoice(wav, video, live.audioOffsetMs, onAccepted = { camera.deleteVideo(preserveDiagnostics = true) })
                         } else {
                             val probe = withContext(Dispatchers.IO) { camera.camProbe() }
                             live.submitFace(
@@ -742,7 +745,7 @@ fun VeriClueApp() {
                                 camera.clientQuality(video),
                                 probe,
                                 camera.regionMeans().ifEmpty { null },
-                                onMediaAcked = camera::deleteVideo,
+                                onMediaAcked = { camera.deleteVideo(preserveDiagnostics = true) },
                             )
                         }
                     }
@@ -852,6 +855,7 @@ fun VeriClueApp() {
                     if (!sending) {
                         requested = true
                         sending = true
+                        camera.clearPresenceDebugTrace()
                         voiceStart.value?.cancel()
                         camera.unbind()
                         recorder.stop()

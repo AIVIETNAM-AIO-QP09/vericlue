@@ -56,8 +56,29 @@ import vn.vericlue.app.BuildConfig
  */
 class CameraSession(
     private val context: Context,
-    val debugTrace: PresenceDebugTrace = PresenceDebugTrace(enabled = false),
+    val debugTrace: PresenceDebugTrace = PresenceDebugTrace(enabled = BuildConfig.DEBUG && BuildConfig.PRESENCE_TRACE_ENABLED),
 ) {
+    private val diagnosticCache = PresenceTraceCache(File(context.cacheDir, "presence-debug.json"))
+    init {
+        // Diagnostic data stays private and short-lived; never survives into a regular build.
+        diagnosticCache.prune()
+        if (!debugTrace.enabled) diagnosticCache.clear()
+    }
+
+    fun savePresenceDebugTrace() {
+        if (debugTrace.enabled) runCatching {
+            diagnosticCache.save(debugTrace)
+            val cache = diagnosticCache
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
+                { cache.prune() }, PresenceTraceCache.TTL_MS,
+            )
+        }
+    }
+
+    fun clearPresenceDebugTrace() {
+        debugTrace.clear()
+        diagnosticCache.clear()
+    }
     val controller = LifecycleCameraController(context)
     private val analysisExecutor = Executors.newSingleThreadExecutor()
     private val detector = FaceDetection.getClient(
@@ -306,6 +327,7 @@ class CameraSession(
             synchronized(frames) { frames.clear() }
             synchronized(regionFrames) { regionFrames.clear() }
             debugTrace.clear()
+            diagnosticCache.clear()
             firstFrameNs = 0L
             recordingFrames = true
         }
@@ -381,7 +403,8 @@ class CameraSession(
         awaitVideoFile(videoFile, finalized, timeoutMs)
 
     /** Deletes every recorded video in the cache: once the server has it, or when the attempt is dropped. */
-    fun deleteVideo() {
+    fun deleteVideo(preserveDiagnostics: Boolean = false) {
+        diagnosticCache.mediaDeleted(preserveDiagnostics)
         videoFile = null
         finalized = null
         debugTrace.clear()

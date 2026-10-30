@@ -145,6 +145,17 @@ def test_unusable_measurements_do_not_produce_a_fit(kind):
     assert not result.series
 
 
+@pytest.mark.parametrize("version", [1, 2])
+def test_supported_dynamic_versions_preserve_the_color_plan(version):
+    inp = inputs()
+    expected = parse_plan(inp)
+    inp.metadata["expected_challenge"]["dynamic"]["version"] = version
+    actual = parse_plan(inp)
+    assert actual.starts == expected.starts
+    assert actual.ends == expected.ends
+    assert actual.colors == expected.colors
+
+
 @pytest.mark.parametrize("kind", ["session", "attempt", "version", "timing", "bool", "rgb", "hold"])
 def test_invalid_or_unbound_server_plan_rejected(kind):
     inp = inputs()
@@ -154,7 +165,7 @@ def test_invalid_or_unbound_server_plan_rejected(kind):
     elif kind == "attempt":
         inp.metadata["challenge_id"] = "other"
     elif kind == "version":
-        challenge["dynamic"]["version"] = 2
+        challenge["dynamic"]["version"] = 3
     elif kind == "timing":
         challenge["dynamic"]["gaze_points"][0]["at_ms"] += 1
     elif kind == "bool":

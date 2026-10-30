@@ -53,5 +53,42 @@ class PresenceDebugTraceTest {
         assertNull(accepted)
         assertEquals(0, trace.snapshot().size)
     }
+
+    @Test fun analyzerTraceUsesFramePhaseAndRecordsDeliveryDelay() {
+        val trace = PresenceDebugTrace(enabled = true)
+        val timeline = vn.vericlue.app.capture.FaceTimeline.demo(listOf(HeadTurnDirection.Left, HeadTurnDirection.Right))
+        val origin = 100_000.0
+        val frameRel = timeline.headStartMs + 3950L
+        val face = vn.vericlue.app.capture.FaceSignal(1, .45f, .5f, .45f, 26f, 120f,
+            ((origin + frameRel) * 1_000_000).toLong())
+        val event = trace.recordAnalyzerFrame(face, timeline, origin, origin + frameRel + 500)!!
+        assertEquals(0, event.segmentIndex) // Frame belongs to previous segment, not its delivery phase.
+        assertEquals(500L, event.frameAgeMs)
+        assertEquals(frameRel, event.frameRelMs)
+        assertEquals(HeadTurnDirection.Left, event.expectedDirection)
+    }
+
+    @Test fun traceJsonKeepsNoNonfiniteNumbersOrPrivateFields() {
+        val trace = PresenceDebugTrace(enabled = true)
+        trace.recordFaceSample(100, Float.NaN, Float.POSITIVE_INFINITY, 0f, null, 0)
+        trace.recordGuidance(120, 0, "Warn", false)
+        val json = kotlinx.serialization.json.Json.parseToJsonElement(trace.toJson()).toString()
+        assertTrue(!json.contains("NaN") && !json.contains("Infinity"))
+        assertTrue(json.contains("Warn"))
+        assertTrue(!json.contains("session_id") && !json.contains("token") && !json.contains("image"))
+        trace.clear()
+        assertTrue(trace.snapshot().isEmpty())
+        assertNull(PresenceDebugTrace(enabled = false).recordGuidance(0, 0, "Hold", false))
+    }
+
+    @Test fun attemptBindingContainsOnlyDigestAndIsCleared() {
+        val trace = PresenceDebugTrace(enabled = true)
+        trace.bindAttempt("synthetic-public-attempt")
+        val value = trace.toJson()
+        assertTrue(value.contains("attempt_sha256"))
+        assertTrue(!value.contains("synthetic-public-attempt"))
+        trace.clear()
+        assertTrue(!trace.toJson().contains("attempt_sha256"))
+    }
 }
 

@@ -96,6 +96,7 @@ object HeadTurnGuide {
     const val CENTER_MAX_DEG = 8f
     const val MAX_TURN_OFFSET = 0.24f
     const val HOLD_COMPLETE_MS = 850L
+    const val MAX_FRAME_AGE_MS = 300L
     // Advisory margin only: ML Kit and server pose estimates are not interchangeable.
     const val MAX_TILT_DEG = 12f
 
@@ -104,6 +105,13 @@ object HeadTurnGuide {
 
     private fun tilted(face: FaceSignal): Boolean =
         abs(face.pitch) > MAX_TILT_DEG || abs(face.roll) > MAX_TILT_DEG
+
+    /** Snapshot fixtures have no sensor timestamp; real analyzer results always have one. */
+    fun freshFace(face: FaceSignal?, nowMs: Long, segmentStartMs: Long): FaceSignal? =
+        face?.takeIf {
+            it.timestampNs <= 0L || (it.timestampNs / 1_000_000L >= segmentStartMs &&
+                nowMs - it.timestampNs / 1_000_000L in 0L..MAX_FRAME_AGE_MS)
+        }
 
     fun evaluatePose(
         dir: TurnDir?,
@@ -194,7 +202,8 @@ class SegmentHoldTracker(
         } else {
             nowMs
         }
-        if (nowMs < segmentStartMs || frameMs < segmentStartMs) {
+        if (nowMs < segmentStartMs || frameMs < segmentStartMs ||
+            nowMs - frameMs !in 0L..HeadTurnGuide.MAX_FRAME_AGE_MS) {
             holdStartMs = null
             return false
         }

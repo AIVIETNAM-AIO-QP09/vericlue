@@ -291,6 +291,13 @@ thiếu. Kế hoạch giao Gemini:
 [ổn định presence](../../superpowers/plans/2026-10-30-presence-demo-stabilization-gemini.md).
 Đây là kế hoạch sửa và nghiệm thu, không phải xác nhận toàn luồng đã đạt.
 
+**Tiếp tục 30/10, 23:25 — Codex:** trace đã nối và có freshness guard;
+182 test Android và4544 test Python qua (80 skip). Lượt thật mới mắt đạt,
+đầu không mất mặt nhưng roll16,2° vượt giới hạn15°, chưa hoàn tất xác minh.
+Đã sửa cleanup trace qua media ACK sau khi mất trace lượt đầu; chờ paired
+trial khi người dùng sẵn sàng. Không đổi ngưỡng hoặc đánh dấu toàn luồng đạt.
+Xem [runbook](../../runbooks/presence-phone-diagnostics.md).
+
 ### APP-07 · Đồng bộ UI phần mặt giữa Giả lập và API
 
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |

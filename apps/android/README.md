@@ -4,6 +4,14 @@
 
 ## Trạng thái
 
+**APP-01 (30/10 tối, chẩn đoán góc mặt):** kết quả analyzer trễ hơn 300ms không
+được dùng đếm giữ hoặc giữ khung xanh; màn hướng dẫn tự kiểm tuổi kết quả mỗi
+100ms. Trace opt-in đã nối camera–timeline–hướng dẫn–chấm được vẽ, gắn digest
+đúng attempt, tắt mặc định/release. Bản kiểm tra dùng
+`-Pvericlue.presenceTrace=true`; dữ liệu số lưu private, giữ qua media ACK,
+xóa khi bỏ lượt/rút đồng ý/lượt mới và dọn theo hạn 15 phút. Không đổi thuật
+toán mắt/ngưỡng server. Hướng dẫn: [chẩn đoán điện thoại](../../docs/runbooks/presence-phone-diagnostics.md).
+
 **APP-01 (30/10, hướng dẫn quay đầu):** oval riêng bước quay đầu rộng hơn,
 co theo chiều cao khi chữ lớn; không đổi video ghi. Gợi ý ML Kit kiểm cả yaw,
 pitch/roll (biên nhắc nhở 12°), không báo xanh khi góc không hữu hạn hoặc đầu

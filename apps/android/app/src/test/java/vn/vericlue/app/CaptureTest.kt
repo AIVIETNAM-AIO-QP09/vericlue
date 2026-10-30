@@ -27,6 +27,24 @@ class CaptureTest {
     private fun face(width: Float = 0.45f, x: Float = 0.5f, y: Float = 0.45f, luma: Float = 120f, faces: Int = 1, yaw: Float = 0f) =
         FaceSignal(faces, width, x, y, yaw, luma, 0L)
 
+    @Test fun guideDiscardsOldFutureAndPreviousSegmentFrames() {
+        val current = face(yaw = 26f).copy(timestampNs = 2_000_000_000L)
+        assertEquals(current, HeadTurnGuide.freshFace(current, 2100, 1000))
+        assertNull(HeadTurnGuide.freshFace(current, 2400, 1000))
+        assertNull(HeadTurnGuide.freshFace(current, 1900, 1000))
+        assertNull(HeadTurnGuide.freshFace(current, 2100, 2050))
+    }
+
+    @Test
+    fun delayedAnalyzerFramesCannotCompleteAHold() {
+        val tracker = SegmentHoldTracker(segmentStartMs = 1000L)
+        val old = face(yaw = 26f).copy(timestampNs = 1100_000_000L)
+        for (offset in 0L..900L step 100L) {
+            assertFalse(tracker.update(TurnDir.Left, old.copy(timestampNs = (1100L + offset) * 1_000_000L), 4000L + offset))
+        }
+        assertFalse(tracker.completed)
+    }
+
     @Test
     fun analyzerGapsOrReversedTimeCannotCompleteAHold() {
         val good = face(yaw = 26f)
