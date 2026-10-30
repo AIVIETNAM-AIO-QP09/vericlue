@@ -19,7 +19,7 @@ from vericlue_ml.common.result import ErrorCode, Evidence, Gate, Module, ModuleR
 from vericlue_ml.presence.challenge import expected_dynamic
 from vericlue_ml.presence.landmarks import FaceObservation, FaceObservationReader, LandmarkError
 
-GAZE_VERSION = "gaze-rules@0.2+face-landmarker-f16-1"
+GAZE_VERSION = "gaze-rules@0.3+face-landmarker-f16-1"
 MIN_VALID_SAMPLES = 45
 MIN_COVERAGE = 0.80
 MAX_GAP_MS = 300
@@ -128,8 +128,18 @@ def evaluate_gaze(observations: list[FaceObservation], plan: GazePlan) -> GazeEv
     if np.any(spans < MIN_IRIS_SPAN):
         return GazeEvaluation(Status.OK, Gate.FAIL, "eyes_not_following", metrics)
     # Compare every candidate lag on exactly the same support, rather than trim to a lucky suffix.
+    if len(actual) >= 3:
+        kernel = np.ones(3, dtype=float) / 3.0
+        smoothed = np.column_stack(
+            [
+                np.convolve(np.pad(actual[:, axis], 1, mode="edge"), kernel, mode="valid")
+                for axis in (0, 1)
+            ]
+        )
+    else:
+        smoothed = actual
     common = ts >= plan.times[0] + MAX_LAG_MS
-    actual = actual[common]
+    actual = smoothed[common]
     target = np.asarray(plan.points)
     best = (-1.0, -1.0, 0)
     for lag in range(0, MAX_LAG_MS + 1, LAG_STEP_MS):
