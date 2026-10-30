@@ -53,6 +53,18 @@ python -m vericlue_ml.eval.fp16_gend benchmark --models-dir $modelRoot --fp32-bu
 python -m vericlue_ml.eval.fp16_gend benchmark --models-dir $modelRoot --fp32-bundle $sourceBundle --bundle $halfBundle --engine onnx16
 ```
 
+**Kết quả thử hiện tại:** ONNX mixed FP16 với tối ưu graph mặc định chưa đạt
+budget. Cấu hình đã đạt dùng `--engine onnx16 --ort-optimization disabled`;
+khi tích hợp phải đặt `SessionOptions.graph_optimization_level = ORT_DISABLE_ALL`
+và CUDA `use_tf32=0`. Không coi việc xuất graph thành công là nghiệm thu runtime.
+Các file `onnx16.json` (chưa đạt) và `onnx16-noopt.json` (đã đạt) được lưu riêng.
+Tối ưu graph tắt có thể làm một số node chạy CPU, dù CUDA provider đã kích hoạt.
+
+Tổng hợp bằng `python -m vericlue_ml.eval.fp16_report --bundle $halfBundle
+--fp32-bundle $sourceBundle --output summary.json`; thêm `--previous-bundle`
+và `--failed-trial` cho các lần thử cũ. Lệnh kiểm checksum, tham chiếu và tính
+lại thống kê từ toàn bộ thời gian đo trước khi ghi báo cáo.
+
 Bundle ghi checksum, revision nguồn, commit/hash code, dtype/số trọng số, dung
 lượng, đối chiếu số học. JSON mỗi engine chứa tất cả thời gian đo, p50/p95,
 RSS và snapshot VRAM toàn GPU. Snapshot gồm ứng dụng khác, **không phải đỉnh

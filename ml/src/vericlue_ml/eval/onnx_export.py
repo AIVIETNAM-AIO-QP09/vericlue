@@ -252,7 +252,7 @@ def export(args) -> None:
     print(json.dumps({"exported": str(directory), "model": args.model}), flush=True)
 
 
-def _ort_run(directory: Path, device: str, threads: int):
+def _ort_run(directory: Path, device: str, threads: int, *, optimize: bool = True):
     import onnxruntime as ort
 
     provider = "CUDAExecutionProvider" if device == "cuda" else "CPUExecutionProvider"
@@ -263,7 +263,11 @@ def _ort_run(directory: Path, device: str, threads: int):
     options = ort.SessionOptions()
     options.intra_op_num_threads = threads
     options.inter_op_num_threads = 1
-    options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+    options.graph_optimization_level = (
+        ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+        if optimize
+        else ort.GraphOptimizationLevel.ORT_DISABLE_ALL
+    )
     providers = [(provider, {"use_tf32": "0"})] if device == "cuda" else [provider]
     session = ort.InferenceSession(
         str(directory / "model.onnx"), sess_options=options, providers=providers

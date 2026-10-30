@@ -192,3 +192,17 @@ def test_bundle_rejects_changed_budget_or_integrity(tmp_path, corruption):
     (tmp_path / "fp16-bundle.json").write_text(json.dumps(metadata), encoding="utf-8")
     with pytest.raises(ValueError):
         load_bundle(tmp_path)
+
+
+@pytest.mark.parametrize("shape", [(2, 4), (1, 3, 4)])
+@pytest.mark.parametrize("bias", [False, True])
+def test_half_gemm_keeps_torch_linear_rounding(shape, bias):
+    torch = pytest.importorskip("torch")
+    from vericlue_ml.eval.fp16_networks import HalfLinearFloatOutput
+
+    original = torch.nn.Linear(4, 3, bias=bias).half().eval()
+    model = HalfLinearFloatOutput(original)
+    values = torch.randn(shape, dtype=torch.float32)
+    with torch.inference_mode():
+        expected = torch.nn.functional.linear(values.half(), original.weight, original.bias).float()
+        assert torch.equal(model(values), expected)

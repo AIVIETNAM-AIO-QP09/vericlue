@@ -214,6 +214,8 @@ def load_bundle(path: Path) -> tuple[dict, np.ndarray, dict]:
 
 
 def benchmark(args) -> None:
+    suffix = "-noopt" if args.ort_optimization == "disabled" else ""
+    report_name = args.engine + suffix
     metadata, images, reference = load_bundle(args.bundle.resolve())
     fp32_meta, _, source_reference, digest = source_bundle(args.fp32_bundle.resolve())
     if (
@@ -244,7 +246,12 @@ def benchmark(args) -> None:
             providers = ["pytorch:cuda"]
         else:
             directory = args.bundle if args.engine == "onnx16" else args.fp32_bundle
-            run, providers = _ort_run(directory.resolve(), "cuda", args.threads)
+            run, providers = _ort_run(
+                directory.resolve(),
+                "cuda",
+                args.threads,
+                optimize=args.ort_optimization != "disabled",
+            )
         load_seconds = time.perf_counter() - started
         gpu_after_load = _gpu_used()
         actual = _collect(run, images)
@@ -253,13 +260,14 @@ def benchmark(args) -> None:
             if args.engine.endswith("16")
             else compare_outputs(reference, actual, atol=1e-5, rtol=1e-4)
         )
-        np.savez(args.bundle / (args.engine + "-outputs.npz"), **actual)
+        np.savez(args.bundle / (report_name + "-outputs.npz"), **actual)
         if not check["passed"]:
             write_json(
-                args.bundle / (args.engine + ".json"),
+                args.bundle / (report_name + ".json"),
                 {
                     "status": "numerical_mismatch",
                     "engine": args.engine,
+                    "ort_optimization": args.ort_optimization,
                     "parity": check,
                     "provenance": provenance(),
                 },
@@ -279,6 +287,7 @@ def benchmark(args) -> None:
         "precision": metadata["precision"] if args.engine.endswith("16") else "float32",
         "device": "cuda",
         "providers": providers,
+        "ort_optimization": args.ort_optimization,
         "input_sha256": metadata["source_input_sha256"],
         "reference_output_sha256": digest,
         "fp16_bundle_sha256": sha256(args.bundle / "fp16-bundle.json"),
@@ -301,7 +310,7 @@ def benchmark(args) -> None:
         "biometric_accuracy_evaluated": False,
         "deployment_approved": False,
     }
-    write_json(args.bundle / (args.engine + ".json"), result)
+    write_json(args.bundle / (report_name + ".json"), result)
     print(
         json.dumps({"engine": args.engine, "p50_ms": result["latency"]["p50_ms"], "parity": True}),
         flush=True,
@@ -321,6 +330,7 @@ def main(argv=None) -> int:
     )
     runner.add_argument("--warmup", type=int, default=3)
     runner.add_argument("--runs", type=int, default=30)
+    runner.add_argument("--ort-optimization", choices=["all", "disabled"], default="all")
     for command in [exporter, runner]:
         command.add_argument("--fp32-bundle", type=Path, required=True)
         command.add_argument("--models-dir", type=Path, required=True)
@@ -330,6 +340,12 @@ def main(argv=None) -> int:
         parser.error("threads must be 1..16")
     if args.command == "benchmark" and (args.warmup < 1 or args.runs < 3):
         parser.error("warmup >=1 and runs >=3 required")
+    if (
+        args.command == "benchmark"
+        and args.engine.startswith("torch")
+        and args.ort_optimization != "all"
+    ):
+        parser.error("ORT optimization option only applies to ONNX")
     {"export": export, "benchmark": benchmark}[args.command](args)
     return 0
 
