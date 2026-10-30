@@ -39,6 +39,10 @@ POLICY = {
     "argmax_agreement": 1.0,
 }
 PRECISION = "fp16_vision_fp32_layernorm_head_io"
+PRECISIONS = {
+    "vision": PRECISION,
+    "encoder": "fp16_encoder_fp32_embedding_layernorm_head_io",
+}
 
 
 def provenance() -> dict:
@@ -96,7 +100,7 @@ def export(args) -> None:
     started = time.perf_counter()
     with _Memory() as memory:
         classifier, revision, clip_revision = _load_classifier(args.models_dir.resolve(), "cuda")
-        network = GendMixedHalf(classifier).eval()
+        network = GendMixedHalf(classifier, preserve_embeddings=args.variant == "encoder").eval()
         actual = _collect(lambda value: _torch_run(network, value, "cuda"), images)
         check = parity(reference, actual)
         np.save(destination / "inputs.npy", images, allow_pickle=False)
@@ -142,7 +146,8 @@ def export(args) -> None:
     result = {
         "format": 1,
         "model": "gend",
-        "precision": PRECISION,
+        "variant": args.variant,
+        "precision": PRECISIONS[args.variant],
         "input_dtype": "float32",
         "output_dtype": "float32",
         "input_shape": metadata["input_shape"],
@@ -177,7 +182,8 @@ def load_bundle(path: Path) -> tuple[dict, np.ndarray, dict]:
     if (
         result["format"] != 1
         or result["model"] != "gend"
-        or result["precision"] != PRECISION
+        or result.get("variant") not in PRECISIONS
+        or result["precision"] != PRECISIONS[result["variant"]]
         or result["policy"] != POLICY
     ):
         raise ValueError("Unsupported FP16 bundle or changed numerical budget")
@@ -224,7 +230,9 @@ def benchmark(args) -> None:
             if args.engine == "torch16":
                 from vericlue_ml.eval.fp16_networks import GendMixedHalf
 
-                network = GendMixedHalf(classifier).eval()
+                network = GendMixedHalf(
+                    classifier, preserve_embeddings=metadata["variant"] == "encoder"
+                ).eval()
             run = lambda value: _torch_run(network, value, "cuda")  # noqa: E731
             providers = ["pytorch:cuda"]
         else:
@@ -261,7 +269,7 @@ def benchmark(args) -> None:
         "status": "ok",
         "engine": args.engine,
         "model": "gend",
-        "precision": PRECISION if args.engine.endswith("16") else "float32",
+        "precision": metadata["precision"] if args.engine.endswith("16") else "float32",
         "device": "cuda",
         "providers": providers,
         "input_sha256": metadata["source_input_sha256"],
@@ -298,6 +306,7 @@ def main(argv=None) -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     exporter = commands.add_parser("export")
     exporter.add_argument("--output", type=Path, required=True)
+    exporter.add_argument("--variant", choices=list(PRECISIONS), default="vision")
     runner = commands.add_parser("benchmark")
     runner.add_argument("--bundle", type=Path, required=True)
     runner.add_argument(
