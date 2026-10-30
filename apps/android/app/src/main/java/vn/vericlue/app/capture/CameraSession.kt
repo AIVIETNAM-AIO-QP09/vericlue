@@ -54,7 +54,10 @@ import vn.vericlue.app.BuildConfig
  * Also collects frame_times, region_means and the camprobe facts sent with the signals.
  * Not done yet: the dot path (waits for LIVE-01) and media signing (SEC-02).
  */
-class CameraSession(private val context: Context) {
+class CameraSession(
+    private val context: Context,
+    val debugTrace: PresenceDebugTrace = PresenceDebugTrace(enabled = false),
+) {
     val controller = LifecycleCameraController(context)
     private val analysisExecutor = Executors.newSingleThreadExecutor()
     private val detector = FaceDetection.getClient(
@@ -302,6 +305,7 @@ class CameraSession(private val context: Context) {
         if (!voice) {
             synchronized(frames) { frames.clear() }
             synchronized(regionFrames) { regionFrames.clear() }
+            debugTrace.clear()
             firstFrameNs = 0L
             recordingFrames = true
         }
@@ -380,6 +384,7 @@ class CameraSession(private val context: Context) {
     fun deleteVideo() {
         videoFile = null
         finalized = null
+        debugTrace.clear()
         context.cacheDir.listFiles { f -> (f.name.startsWith("face_") || f.name.startsWith("voice_")) && f.name.endsWith(".mp4") }
             ?.forEach { it.delete() }
     }

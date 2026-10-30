@@ -612,6 +612,7 @@ fun FaceTimelineScreen(
     onDone: () -> Unit,
     onNoRecording: () -> Unit,
     face: FaceSignal? = null,
+    debugTrace: vn.vericlue.app.capture.PresenceDebugTrace = vn.vericlue.app.capture.PresenceDebugTrace(enabled = false),
 ) {
     var phase by remember { mutableStateOf<FaceTimeline.Phase>(FaceTimeline.Phase.Colour(0)) }
     var remainingSeconds by remember { mutableStateOf<Int?>(null) }
@@ -627,6 +628,7 @@ fun FaceTimelineScreen(
         }
         val start = t0 ?: return@LaunchedEffect onNoRecording()
         var lastSlot = -1
+        var lastHeadSegment = -1
         var frontalDone = false
         var baselineDone = false
         var coloursDone = false
@@ -636,6 +638,22 @@ fun FaceTimelineScreen(
             val p = timeline.phaseAt(t)
             phase = p
             remainingSeconds = timeline.headRemainingSeconds(t)
+            if (p is FaceTimeline.Phase.Gaze) {
+                debugTrace.recordGazeTarget(
+                    recordingRelMs = t.toLong(),
+                    dotX = p.x.toFloat(),
+                    dotY = p.y.toFloat(),
+                )
+            }
+            if (p is FaceTimeline.Phase.Head && p.segment != lastHeadSegment) {
+                lastHeadSegment = p.segment
+                debugTrace.recordPhaseBoundary(
+                    recordingRelMs = t.toLong(),
+                    phase = "head",
+                    segmentIndex = p.segment,
+                    direction = p.dir,
+                )
+            }
             if (p is FaceTimeline.Phase.Colour && p.slot != lastSlot) {
                 lastSlot = p.slot
                 onPainted(timeline.slots[p.slot], nowMs)
