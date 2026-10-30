@@ -439,41 +439,123 @@ private fun TurnHeadContent(
     nextInstruction: String? = null,
     face: FaceSignal? = null,
 ) {
-    val shift = if (Vc.motion.enabled) {
+    val view = androidx.compose.ui.platform.LocalView.current
+    val liveAssist = face != null
+    val holdTracker = remember(index, dir) { vn.vericlue.app.capture.SegmentHoldTracker() }
+    var segmentCompleted by remember(index, dir) { mutableStateOf(false) }
+    LaunchedEffect(face, index, dir) {
+        val current = face ?: return@LaunchedEffect
+        val nowMs = if (current.timestampNs > 0L) {
+            current.timestampNs / 1_000_000L
+        } else {
+            android.os.SystemClock.elapsedRealtime()
+        }
+        if (holdTracker.update(dir, current, nowMs)) {
+            segmentCompleted = true
+        }
+    }
+    val poseState = HeadTurnGuide.evaluatePose(dir, face, segmentCompleted)
+    // Each hint vibrates at most once per segment, even if the estimated angle oscillates.
+    val notifiedStates = remember(index, dir) { mutableSetOf<vn.vericlue.app.capture.TurnPoseState>() }
+    val toneGen = remember(liveAssist) {
+        if (!liveAssist || view.isInEditMode) null
+        else runCatching {
+            android.media.ToneGenerator(android.media.AudioManager.STREAM_NOTIFICATION, 35)
+        }.getOrNull()
+    }
+    androidx.compose.runtime.DisposableEffect(toneGen) {
+        onDispose { runCatching { toneGen?.release() } }
+    }
+    LaunchedEffect(index, dir, liveAssist) {
+        if (!liveAssist) return@LaunchedEffect
+        runCatching {
+            view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+            toneGen?.startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 65)
+        }
+    }
+    LaunchedEffect(poseState, index, liveAssist) {
+        if (!liveAssist || !notifiedStates.add(poseState)) return@LaunchedEffect
+        runCatching {
+            when (poseState) {
+                vn.vericlue.app.capture.TurnPoseState.Hold -> {
+                    view.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+                }
+                vn.vericlue.app.capture.TurnPoseState.Completed -> {
+                    view.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
+                    toneGen?.startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 90)
+                }
+                vn.vericlue.app.capture.TurnPoseState.Warn -> {
+                    view.performHapticFeedback(android.view.HapticFeedbackConstants.REJECT)
+                }
+                vn.vericlue.app.capture.TurnPoseState.TurnMore -> Unit
+            }
+        }
+    }
+    val shift = if (Vc.motion.enabled && poseState == vn.vericlue.app.capture.TurnPoseState.TurnMore) {
         val nudge = rememberInfiniteTransition(label = "turn-nudge")
         val value by nudge.animateFloat(0f, 1f,
             infiniteRepeatable(tween(700, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "turn-shift")
         value
     } else 0f
+    val ringColor = when (poseState) {
+        vn.vericlue.app.capture.TurnPoseState.Hold,
+        vn.vericlue.app.capture.TurnPoseState.Completed -> Palette.OkOnDark
+        vn.vericlue.app.capture.TurnPoseState.Warn -> Palette.WarnBorder
+        vn.vericlue.app.capture.TurnPoseState.TurnMore -> Color.White
+    }
+    val ringWidth = if (poseState == vn.vericlue.app.capture.TurnPoseState.TurnMore) 2.dp else 3.dp
+    val titleText = when {
+        poseState == vn.vericlue.app.capture.TurnPoseState.Warn -> "Điều chỉnh tư thế"
+        poseState == vn.vericlue.app.capture.TurnPoseState.Completed ->
+            if (face != null && kotlin.math.abs(face.yaw) > HeadTurnGuide.CENTER_MAX_DEG) "Quay về nhìn thẳng"
+            else "Giữ yên, nhìn thẳng"
+        poseState == vn.vericlue.app.capture.TurnPoseState.Hold && dir != null -> "Giữ yên góc này"
+        dir == TurnDir.Left -> "Quay sang trái"
+        dir == TurnDir.Right -> "Quay sang phải"
+        else -> "Nhìn thẳng"
+    }
     CameraScaffold(onExit) {
         Column(Modifier.fillMaxSize()) {
             Text(
-                when (dir) {
-                    TurnDir.Left -> "Quay sang trái"
-                    TurnDir.Right -> "Quay sang phải"
-                    null -> "Nhìn thẳng"
-                },
+                titleText,
                 style = VcType.titleMedium,
                 color = Color.White,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth().padding(top = 18.dp),
             )
             Box(Modifier.fillMaxWidth().weight(1f)) {
-                FullCamera(fitHeight = true)
+                FullCamera(ringColor = ringColor, ringWidth = ringWidth, fitHeight = true)
                 CameraArea(fitHeight = true) { oval ->
                     val sign = if (dir == TurnDir.Left) -1 else 1
                     val x = if (dir == TurnDir.Left) oval.left - 28.dp else oval.left + oval.width - 36.dp
-                    if (dir != null) Box(
-                        Modifier.offset(x = x + (8 * shift * sign).dp, y = oval.centerY - 32.dp).size(64.dp)
-                            .clip(CircleShape).background(Palette.LogoNavy.copy(alpha = 0.55f)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            if (dir == TurnDir.Left) Icons.AutoMirrored.Outlined.ArrowBack else Icons.AutoMirrored.Outlined.ArrowForward,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(32.dp),
-                        )
+                    if (dir != null) {
+                        val inZone = poseState == vn.vericlue.app.capture.TurnPoseState.Hold ||
+                            poseState == vn.vericlue.app.capture.TurnPoseState.Completed
+                        val warn = poseState == vn.vericlue.app.capture.TurnPoseState.Warn
+                        val badgeBg = when {
+                            inZone -> Palette.OkText
+                            warn -> Palette.WarnBg
+                            else -> Palette.LogoNavy.copy(alpha = 0.55f)
+                        }
+                        val badgeTint = if (warn) Palette.Warn else Color.White
+                        val badgeIcon = when {
+                            inZone -> Icons.Outlined.Check
+                            warn -> Icons.Outlined.CenterFocusWeak
+                            dir == TurnDir.Left -> Icons.AutoMirrored.Outlined.ArrowBack
+                            else -> Icons.AutoMirrored.Outlined.ArrowForward
+                        }
+                        Box(
+                            Modifier.offset(x = x + (8 * shift * sign).dp, y = oval.centerY - 32.dp).size(64.dp)
+                                .clip(CircleShape).background(badgeBg),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                badgeIcon,
+                                contentDescription = null,
+                                tint = badgeTint,
+                                modifier = Modifier.size(32.dp),
+                            )
+                        }
                     }
                 }
             }
@@ -483,7 +565,16 @@ private fun TurnHeadContent(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 if (remainingSeconds != null) Text("Còn $remainingSeconds giây", style = VcType.label, color = Color.White)
-                GuidanceChip(HeadTurnGuide.guidanceText(dir, face, returnToCenter, remainingSeconds))
+                val chipText = HeadTurnGuide.guidanceText(dir, face, returnToCenter, remainingSeconds, segmentCompleted)
+                when (poseState) {
+                    vn.vericlue.app.capture.TurnPoseState.Hold,
+                    vn.vericlue.app.capture.TurnPoseState.Completed ->
+                        GuidanceChip(chipText, Icons.Outlined.Check, Tone.Ok)
+                    vn.vericlue.app.capture.TurnPoseState.Warn ->
+                        GuidanceChip(chipText, Icons.Outlined.CenterFocusWeak, Tone.Warn)
+                    vn.vericlue.app.capture.TurnPoseState.TurnMore ->
+                        GuidanceChip(chipText)
+                }
                 nextInstruction?.let {
                     Text(it, style = VcType.bodySmall, color = Color.White, textAlign = TextAlign.Center)
                 }

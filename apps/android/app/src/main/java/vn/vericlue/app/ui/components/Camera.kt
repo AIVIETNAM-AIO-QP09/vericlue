@@ -51,7 +51,11 @@ fun FakeCameraFeed(modifier: Modifier = Modifier, faceScale: Float = 1f, dim: Fl
 
 /** Geometry of the face oval inside a camera area of the given size. */
 fun ovalRect(width: Float, height: Float, density: Float, fitHeight: Boolean = false): Rect {
-    val w = minOf(250f * density, width * 0.66f, if (fitHeight) height * 0.85f / 1.32f else Float.MAX_VALUE)
+    val w = if (fitHeight) {
+        minOf(280f * density, width * 0.78f, height * 0.85f / 1.32f)
+    } else {
+        minOf(250f * density, width * 0.66f)
+    }
     val h = w * 1.32f
     val left = (width - w) / 2f
     val top = (height - h) * 0.36f

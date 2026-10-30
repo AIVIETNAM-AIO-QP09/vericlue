@@ -12,6 +12,8 @@ import vn.vericlue.app.capture.ColorSlot
 import vn.vericlue.app.capture.FaceSignal
 import vn.vericlue.app.capture.HeadTurnGuide
 import vn.vericlue.app.capture.QualityGate
+import vn.vericlue.app.capture.SegmentHoldTracker
+import vn.vericlue.app.capture.TurnPoseState
 import vn.vericlue.app.capture.TurnTracker
 import vn.vericlue.app.capture.Wav
 import vn.vericlue.app.data.api.Challenge
@@ -24,6 +26,48 @@ import vn.vericlue.app.flow.TurnDir
 class CaptureTest {
     private fun face(width: Float = 0.45f, x: Float = 0.5f, y: Float = 0.45f, luma: Float = 120f, faces: Int = 1, yaw: Float = 0f) =
         FaceSignal(faces, width, x, y, yaw, luma, 0L)
+
+    @Test
+    fun analyzerGapsOrReversedTimeCannotCompleteAHold() {
+        val good = face(yaw = 26f)
+        for (badTime in listOf(1000L, -100L, 0L)) {
+            val tracker = SegmentHoldTracker()
+            assertFalse(tracker.update(TurnDir.Left, good, 0))
+            assertFalse(tracker.update(TurnDir.Left, good, badTime))
+            assertFalse(tracker.completed)
+        }
+        val tracker = SegmentHoldTracker()
+        assertFalse(tracker.update(TurnDir.Left, good, 0))
+        assertFalse(tracker.update(TurnDir.Left, good, 200))
+        assertFalse(tracker.update(TurnDir.Left, good.copy(roll = 18f), 300))
+        for (time in 400L..1200L step 100L) assertFalse(tracker.update(TurnDir.Left, good, time))
+        assertTrue(tracker.update(TurnDir.Left, good, 1300))
+    }
+
+    @Test
+    fun tiltedHeadCannotShowGreenOrCompleteTheHold() {
+        for (pose in listOf(face(yaw = 26f).copy(pitch = 16f), face(yaw = 26f).copy(roll = -16f))) {
+            assertEquals(TurnPoseState.Warn, HeadTurnGuide.evaluatePose(TurnDir.Left, pose))
+            assertEquals(TurnPoseState.Warn, HeadTurnGuide.evaluatePose(null, pose.copy(yaw = 0f)))
+            assertEquals(TurnPoseState.Warn, HeadTurnGuide.evaluatePose(TurnDir.Left, pose, segmentCompleted = true))
+            assertEquals("Giữ đầu thẳng, tránh nghiêng hoặc cúi/ngẩng", HeadTurnGuide.guidanceText(TurnDir.Left, pose))
+            val tracker = SegmentHoldTracker()
+            assertFalse(tracker.update(TurnDir.Left, pose, 0))
+            assertFalse(tracker.update(TurnDir.Left, pose, 1000))
+            assertFalse(tracker.completed)
+        }
+        assertEquals(TurnPoseState.Hold, HeadTurnGuide.evaluatePose(TurnDir.Left, face(yaw = 26f).copy(pitch = 5f, roll = 5f)))
+    }
+
+    @Test
+    fun invalidAngleNeverShowsGreenOrCompletesHold() {
+        val invalid = face(yaw = Float.NaN)
+        assertEquals(TurnPoseState.Warn, HeadTurnGuide.evaluatePose(TurnDir.Left, invalid))
+        val tracker = SegmentHoldTracker()
+        assertFalse(tracker.update(TurnDir.Left, invalid, 0))
+        assertFalse(tracker.update(TurnDir.Left, invalid, 1000))
+        assertFalse(tracker.completed)
+    }
 
     @Test
     fun headTurnGuideHelpsHoldOrCorrectWithoutDecidingPass() {
@@ -101,6 +145,37 @@ class CaptureTest {
         assertEquals(
             "Giữ yên, nhìn thẳng vào camera",
             HeadTurnGuide.guidanceText(null, face(yaw = 3f), remainingSeconds = 2),
+        )
+        // Once the segment hold completes, cue the user to return to center and wait for the next step.
+        assertEquals(
+            "Đã ghi nhận, quay về nhìn thẳng",
+            HeadTurnGuide.guidanceText(TurnDir.Right, face(yaw = -26f), remainingSeconds = 2, segmentCompleted = true),
+        )
+        assertEquals(
+            "Giữ yên, nhìn thẳng chờ bước tiếp",
+            HeadTurnGuide.guidanceText(TurnDir.Right, face(yaw = -3f), remainingSeconds = 2, segmentCompleted = true),
+        )
+    }
+
+    @Test
+    fun segmentHoldTrackerCompletesAfterSustainedTargetAngle() {
+        val tracker = SegmentHoldTracker(requiredHoldMs = 850L)
+        assertEquals(TurnPoseState.TurnMore, HeadTurnGuide.evaluatePose(TurnDir.Right, null))
+        assertEquals(TurnPoseState.TurnMore, HeadTurnGuide.evaluatePose(TurnDir.Right, face(yaw = -10f)))
+        assertEquals(TurnPoseState.Hold, HeadTurnGuide.evaluatePose(TurnDir.Right, face(yaw = -26f)))
+        assertEquals(TurnPoseState.Warn, HeadTurnGuide.evaluatePose(TurnDir.Right, face(yaw = -42f)))
+
+        assertFalse(tracker.update(TurnDir.Right, face(yaw = -12f), 0L))
+        assertFalse(tracker.update(TurnDir.Right, face(yaw = -26f), 100L))
+        assertFalse(tracker.update(TurnDir.Right, face(yaw = -28f), 300L))
+        assertFalse(tracker.update(TurnDir.Right, face(yaw = -28f), 500L))
+        assertFalse(tracker.update(TurnDir.Right, face(yaw = -28f), 700L))
+        assertTrue(tracker.update(TurnDir.Right, face(yaw = -27f), 950L))
+        assertTrue(tracker.completed)
+        assertFalse(tracker.update(TurnDir.Right, face(yaw = -27f), 1100L))
+        assertEquals(
+            TurnPoseState.Completed,
+            HeadTurnGuide.evaluatePose(TurnDir.Right, face(yaw = -2f), segmentCompleted = tracker.completed),
         )
     }
 

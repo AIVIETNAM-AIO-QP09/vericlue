@@ -27,6 +27,18 @@ abstract class FaceChallengeSnapshots(device: DeviceConfig) {
         } }
     }
 
+    @Test fun headAssistStates() {
+        val timeline = FaceTimeline.demo(listOf(TurnDir.Left, TurnDir.Right))
+        val front = vn.vericlue.app.capture.FaceSignal(1, 0.45f, 0.5f, 0.45f, 26f, 120f, 0)
+        for ((name, face) in listOf("hold" to front, "tilt" to front.copy(roll = 16f), "too_far" to front.copy(yaw = 55f))) {
+            paparazzi.snapshot("assist_$name") {
+                VcTheme(motionEnabled = false) {
+                    FaceChallengeContent(timeline, FaceTimeline.Phase.Head(0, TurnDir.Left), 3, face) {}
+                }
+            }
+        }
+    }
+
     @Test fun allFacePhases() {
         val timeline = FaceTimeline.demo(listOf(TurnDir.Left, TurnDir.Right))
         val phases = listOf(

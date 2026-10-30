@@ -27,6 +27,8 @@ data class FaceSignal(
     val yaw: Float,
     val luma: Float,
     val timestampNs: Long,
+    val pitch: Float = 0f,
+    val roll: Float = 0f,
 )
 
 /** Turns a face signal into the single quality hint shown on the framing screen. */
@@ -68,6 +70,17 @@ class TurnTracker(private val thresholdDeg: Float = 25f, private val holdMs: Lon
     }
 }
 
+enum class TurnPoseState {
+    /** Waiting for user to reach the target angle range. */
+    TurnMore,
+    /** User is inside the safe target angle range (or centered in center phase) — hold steady. */
+    Hold,
+    /** User held the target side angle long enough in this segment and may return to center. */
+    Completed,
+    /** User turned too far, drifted off-frame, or lost face — ease back into frame. */
+    Warn,
+}
+
 /**
  * Assistive live hint during scheduled head turns. Purely advisory UI feedback;
  * never gates completion or overrides the server's detector decision.
@@ -78,20 +91,56 @@ class TurnTracker(private val thresholdDeg: Float = 25f, private val holdMs: Lon
  * user-right (TurnDir.Right) turns toward the left of the unmirrored image (yaw < 0).
  */
 object HeadTurnGuide {
-    const val TURN_MIN_DEG = 18f
-    const val TURN_MAX_SAFE_DEG = 40f
-    const val CENTER_MAX_DEG = 12f
+    const val TURN_MIN_DEG = 20f
+    const val TURN_MAX_SAFE_DEG = 38f
+    const val CENTER_MAX_DEG = 8f
     const val MAX_TURN_OFFSET = 0.24f
+    const val HOLD_COMPLETE_MS = 850L
+    // Advisory margin only: ML Kit and server pose estimates are not interchangeable.
+    const val MAX_TILT_DEG = 12f
+
+    private fun invalidPose(face: FaceSignal): Boolean =
+        !face.yaw.isFinite() || !face.pitch.isFinite() || !face.roll.isFinite()
+
+    private fun tilted(face: FaceSignal): Boolean =
+        abs(face.pitch) > MAX_TILT_DEG || abs(face.roll) > MAX_TILT_DEG
+
+    fun evaluatePose(
+        dir: TurnDir?,
+        face: FaceSignal?,
+        segmentCompleted: Boolean = false,
+    ): TurnPoseState {
+        if (face == null) return TurnPoseState.TurnMore
+        if (face.faces != 1 || invalidPose(face) || tilted(face)) return TurnPoseState.Warn
+        val offFrame = abs(face.centerX - 0.5f) > MAX_TURN_OFFSET || abs(face.centerY - 0.45f) > MAX_TURN_OFFSET
+        if (dir == null) {
+            return when {
+                offFrame -> TurnPoseState.Warn
+                abs(face.yaw) > CENTER_MAX_DEG -> TurnPoseState.TurnMore
+                else -> TurnPoseState.Hold
+            }
+        }
+        val signedYaw = if (dir == TurnDir.Left) face.yaw else -face.yaw
+        return when {
+            signedYaw > TURN_MAX_SAFE_DEG || abs(face.yaw) > TURN_MAX_SAFE_DEG || offFrame -> TurnPoseState.Warn
+            segmentCompleted -> TurnPoseState.Completed
+            signedYaw < TURN_MIN_DEG -> TurnPoseState.TurnMore
+            else -> TurnPoseState.Hold
+        }
+    }
 
     fun guidanceText(
         dir: TurnDir?,
         face: FaceSignal?,
         returnToCenter: Boolean = false,
         remainingSeconds: Int? = null,
+        segmentCompleted: Boolean = false,
     ): String {
         if (face != null) {
             if (face.faces == 0) return "Đưa khuôn mặt vào khung"
             if (face.faces > 1) return "Chỉ để một khuôn mặt trong khung"
+            if (invalidPose(face)) return "Giữ yên để camera nhận khuôn mặt"
+            if (tilted(face)) return "Giữ đầu thẳng, tránh nghiêng hoặc cúi/ngẩng"
             val offFrame = abs(face.centerX - 0.5f) > MAX_TURN_OFFSET || abs(face.centerY - 0.45f) > MAX_TURN_OFFSET
             return if (dir == null) {
                 val absYaw = abs(face.yaw)
@@ -103,9 +152,14 @@ object HeadTurnGuide {
             } else {
                 val signedYaw = if (dir == TurnDir.Left) face.yaw else -face.yaw
                 when {
-                    signedYaw > TURN_MAX_SAFE_DEG -> "Quay vừa phải, giữ mặt trong khung"
-                    signedYaw < TURN_MIN_DEG -> "Quay chậm theo hướng mũi tên"
+                    signedYaw > TURN_MAX_SAFE_DEG || abs(face.yaw) > TURN_MAX_SAFE_DEG -> "Quay vừa phải, giữ mặt trong khung"
                     offFrame -> "Quay vừa phải, giữ mặt trong khung"
+                    segmentCompleted -> if (abs(face.yaw) > CENTER_MAX_DEG) {
+                        "Đã ghi nhận, quay về nhìn thẳng"
+                    } else {
+                        "Giữ yên, nhìn thẳng chờ bước tiếp"
+                    }
+                    signedYaw < TURN_MIN_DEG -> "Quay chậm theo hướng mũi tên"
                     returnToCenter -> "Quay chậm, sau đó nhìn thẳng"
                     else -> "Giữ hướng này đến khi đổi hướng dẫn"
                 }
@@ -116,6 +170,36 @@ object HeadTurnGuide {
             returnToCenter -> "Quay chậm, sau đó nhìn thẳng"
             else -> "Quay chậm theo hướng mũi tên"
         }
+    }
+}
+
+/**
+ * Tracks whether the user has held the requested side angle long enough within a single
+ * scheduled head-turn segment so the UI can cue them to return to center early.
+ */
+class SegmentHoldTracker(private val requiredHoldMs: Long = HeadTurnGuide.HOLD_COMPLETE_MS) {
+    private var holdStartMs: Long? = null
+    private var lastFrameMs: Long? = null
+    var completed: Boolean = false
+        private set
+
+    /** Returns true on the transition frame where the hold completes. */
+    fun update(dir: TurnDir?, face: FaceSignal?, nowMs: Long): Boolean {
+        if (dir == null || completed) return false
+        val previous = lastFrameMs
+        if (previous != null && (nowMs <= previous || nowMs - previous > 300L)) holdStartMs = null
+        lastFrameMs = nowMs
+        val state = HeadTurnGuide.evaluatePose(dir, face, segmentCompleted = false)
+        if (state == TurnPoseState.Hold) {
+            val start = holdStartMs ?: nowMs.also { holdStartMs = it }
+            if (nowMs - start >= requiredHoldMs) {
+                completed = true
+                return true
+            }
+        } else {
+            holdStartMs = null
+        }
+        return false
     }
 }
 

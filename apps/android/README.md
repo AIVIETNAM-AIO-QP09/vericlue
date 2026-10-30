@@ -4,6 +4,15 @@
 
 ## Trạng thái
 
+**APP-01 (30/10, hướng dẫn quay đầu):** oval riêng bước quay đầu rộng hơn,
+co theo chiều cao khi chữ lớn; không đổi video ghi. Gợi ý ML Kit kiểm cả yaw,
+pitch/roll (biên nhắc nhở 12°), không báo xanh khi góc không hữu hạn hoặc đầu
+nghiêng/cúi quá mức. Bộ đếm giữ bắt đầu lại khi nhịp đo gián đoạn trên 300 ms
+hoặc thời gian không tăng. Âm báo chuyển bước/giữ đủ ngắn ở mức 35/100, không phát
+âm cảnh báo; mỗi trạng thái chỉ rung một lần trong đoạn. Tín hiệu giữ đủ là
+hướng dẫn local, không phải kết quả API. Không đổi ngưỡng server; hai bộ ước
+lượng góc khác nhau và chưa có bằng chứng nghiệm thu toàn luồng.
+
 **APP-01 / LIVE-01 (30/10, quay đầu chậm hơn):** backend phát dynamic v2,
 12000 ms cho ba hướng, mỗi hướng 4 giây. App kiểm cặp version/duration, giới
 hạn 30 giây và offset giọng; vẫn nhận v1/6000 ms. Hiện đếm ngược và hướng tiếp

@@ -462,6 +462,8 @@ class CameraSession(private val context: Context) {
                             centerX = b.exactCenterX() / w,
                             centerY = b.exactCenterY() / h,
                             yaw = face.headEulerAngleY,
+                            pitch = face.headEulerAngleX,
+                            roll = face.headEulerAngleZ,
                             luma = luma,
                             timestampNs = ts,
                         )

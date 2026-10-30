@@ -279,6 +279,13 @@ cứng. Xem `media-proof.md` và `account-authentication.md`.
 
 ---
 
+**Cập nhật 30/10 — hướng dẫn quay đầu:** thêm nhắc nghiêng/cúi/ngẩng từ ML Kit
+trước khi báo xanh; oval riêng bước quay đầu rộng hơn, giữ vừa màn chữ lớn.
+Âm báo nhỏ/ngắn, bỏ âm cảnh báo và chống rung lặp cùng trạng thái trong đoạn.
+Không đổi quyết định server, timeline hoặc điều kiện hoàn thành toàn task;
+chờ người dùng nghiệm thu bản APK mới và dữ liệu hiệu chỉnh toàn luồng.
+
+
 ### APP-07 · Đồng bộ UI phần mặt giữa Giả lập và API
 
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
