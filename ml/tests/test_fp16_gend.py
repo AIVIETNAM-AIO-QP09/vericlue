@@ -206,3 +206,37 @@ def test_half_gemm_keeps_torch_linear_rounding(shape, bias):
     with torch.inference_mode():
         expected = torch.nn.functional.linear(values.half(), original.weight, original.bias).float()
         assert torch.equal(model(values), expected)
+
+
+@pytest.mark.parametrize("tamper", [None, "latency", "reference", "parity"])
+def test_report_checks_benchmark_evidence_before_aggregation(tmp_path, monkeypatch, tamper):
+    import json
+
+    from vericlue_ml.eval import fp16_report
+    from vericlue_ml.eval.onnx_metrics import latency_summary, sha256
+
+    (tmp_path / "fp16-bundle.json").write_text("{}", encoding="utf-8")
+    metadata = {"source_input_sha256": "input", "source_reference_output_sha256": "reference"}
+    monkeypatch.setattr(fp16_report, "load_bundle", lambda _: (metadata, None, None))
+    report = {
+        "engine": "torch16",
+        "status": "ok",
+        "parity": {"passed": True},
+        "fp16_bundle_sha256": sha256(tmp_path / "fp16-bundle.json"),
+        "input_sha256": "input",
+        "reference_output_sha256": "reference",
+        "latency_trials_ms": [1.0, 2.0, 3.0],
+        "latency": latency_summary([1.0, 2.0, 3.0]),
+    }
+    if tamper == "latency":
+        report["latency"]["p50_ms"] = 0
+    elif tamper == "reference":
+        report["reference_output_sha256"] = "other"
+    elif tamper == "parity":
+        report["parity"]["passed"] = False
+    (tmp_path / "torch16.json").write_text(json.dumps(report), encoding="utf-8")
+    if tamper is None:
+        assert fp16_report.collect(tmp_path)["engines"]["torch16"] == report
+    else:
+        with pytest.raises(ValueError):
+            fp16_report.collect(tmp_path)

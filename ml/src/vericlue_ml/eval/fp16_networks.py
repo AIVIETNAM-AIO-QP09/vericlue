@@ -62,6 +62,8 @@ class GendMixedHalf(nn.Module):
                 name: HalfLinearFloatOutput(module)
                 for name, module in self.vision.named_modules()
                 if isinstance(module, nn.Linear)
+                and name != "vision_model.embeddings"
+                and not name.startswith("vision_model.embeddings.")
             }
             for name, layer in linear_layers.items():
                 self.vision.set_submodule(name, layer)

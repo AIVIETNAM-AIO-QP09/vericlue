@@ -177,7 +177,11 @@ cùng GPU. PR FACE-06 đang review nhưng code/model đã có để làm thử �
 Giữ LayerNorm và head ở FP32, backbone FP16; I/O vẫn FP32. Không đổi server,
 API, schema hoặc ngưỡng. Chưa coi mẫu tổng hợp là nghiệm thu chống giả mạo.
 
-- [ ] Công cụ tái lập, kiểm nguồn FP32/checksum, test dtype và lỗi số học.
-- [ ] Xuất model thật, đối chiếu số học theo budget đặt trước và giữ ca lỗi.
-- [ ] Đo p50/p95, RSS, snapshot VRAM cho Torch/ONNX FP32/FP16 riêng tiến trình.
-- [ ] Tài liệu, số liệu kèm commit/model/số mẫu, lint/test và bàn giao.
+- [x] Công cụ tái lập, kiểm nguồn FP32/checksum, test dtype và lỗi số học.
+- [x] Xuất model thật, đối chiếu số học theo budget đặt trước và giữ ca lỗi.
+- [x] Đo p50/p95, RSS, snapshot VRAM cho Torch/ONNX FP32/FP16 riêng tiến trình.
+- [x] Tài liệu, số liệu kèm commit/model/số mẫu, lint/test và bàn giao.
+
+Kết quả và tất cả lần chưa đạt: `docs/research/2026-10-30-gend-fp16.md` cùng JSON.
+Mixed FP16 cuối giữ thêm residual/attention/embedding FP32. ORT chỉ đạt budget
+khi tắt tối ưu graph; bản mặc định chưa đạt. Không đổi backend server.

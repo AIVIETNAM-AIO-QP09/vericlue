@@ -49,7 +49,10 @@ def main(argv=None) -> int:
     current = collect(args.bundle)
     if current["artifact"]["source_fp32_bundle_sha256"] != sha256(args.fp32_bundle / "bundle.json"):
         raise ValueError("Mismatched FP32 source")
-    failed = [json.loads(path.read_text(encoding="utf-8")) for path in args.failed_trial]
+    failed = [
+        {"trial": path.parent.name, **json.loads(path.read_text(encoding="utf-8"))}
+        for path in args.failed_trial
+    ]
     if any(item["status"] != "numerical_mismatch" or item["parity"]["passed"] for item in failed):
         raise ValueError("Incorrect rejected-trial record")
     try:
