@@ -66,6 +66,8 @@ import vn.vericlue.app.flow.FramingState
 import vn.vericlue.app.capture.CaptureClock
 import vn.vericlue.app.capture.ColorSchedule
 import vn.vericlue.app.capture.ColorSlot
+import vn.vericlue.app.capture.FaceSignal
+import vn.vericlue.app.capture.HeadTurnGuide
 import vn.vericlue.app.capture.TurnTracker
 import vn.vericlue.app.capture.FaceTimeline
 import vn.vericlue.app.ui.components.CameraFeed
@@ -435,6 +437,7 @@ private fun TurnHeadContent(
     returnToCenter: Boolean = false,
     remainingSeconds: Int? = null,
     nextInstruction: String? = null,
+    face: FaceSignal? = null,
 ) {
     val shift = if (Vc.motion.enabled) {
         val nudge = rememberInfiniteTransition(label = "turn-nudge")
@@ -480,12 +483,7 @@ private fun TurnHeadContent(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 if (remainingSeconds != null) Text("Còn $remainingSeconds giây", style = VcType.label, color = Color.White)
-                GuidanceChip(when {
-                    dir == null -> "Giữ yên, nhìn thẳng vào camera"
-                    returnToCenter -> "Quay chậm, sau đó nhìn thẳng"
-                    remainingSeconds != null -> "Giữ hướng này đến khi đổi hướng dẫn"
-                    else -> "Quay chậm theo hướng mũi tên"
-                })
+                GuidanceChip(HeadTurnGuide.guidanceText(dir, face, returnToCenter, remainingSeconds))
                 nextInstruction?.let {
                     Text(it, style = VcType.bodySmall, color = Color.White, textAlign = TextAlign.Center)
                 }
@@ -522,6 +520,7 @@ fun FaceTimelineScreen(
     onColorsDone: () -> Unit,
     onDone: () -> Unit,
     onNoRecording: () -> Unit,
+    face: FaceSignal? = null,
 ) {
     var phase by remember { mutableStateOf<FaceTimeline.Phase>(FaceTimeline.Phase.Colour(0)) }
     var remainingSeconds by remember { mutableStateOf<Int?>(null) }
@@ -570,7 +569,7 @@ fun FaceTimelineScreen(
     }
     BackHandler(onBack = onStop)
     FullBrightness(enabled = true)
-    FaceChallengeContent(timeline, phase, remainingSeconds, onStop)
+    FaceChallengeContent(timeline, phase, remainingSeconds, face, onStop)
 }
 
 /** Shared presentation, independently snapshot-tested without opening a camera or starting work. */
@@ -579,11 +578,17 @@ fun FaceChallengeContent(timeline: FaceTimeline, phase: FaceTimeline.Phase, onSt
     val seconds = (phase as? FaceTimeline.Phase.Head)?.let {
         timeline.headRemainingSeconds(timeline.headStartMs + it.segment * (timeline.headDurationMs / timeline.headTurns.size).toDouble())
     }
-    FaceChallengeContent(timeline, phase, seconds, onStop)
+    FaceChallengeContent(timeline, phase, seconds, null, onStop)
 }
 
 @Composable
-fun FaceChallengeContent(timeline: FaceTimeline, phase: FaceTimeline.Phase, remainingSeconds: Int?, onStop: () -> Unit) {
+fun FaceChallengeContent(
+    timeline: FaceTimeline,
+    phase: FaceTimeline.Phase,
+    remainingSeconds: Int?,
+    face: FaceSignal? = null,
+    onStop: () -> Unit,
+) {
     StableCameraScene {
         when (phase) {
             is FaceTimeline.Phase.Colour -> HoldStillScreen(
@@ -600,6 +605,7 @@ fun FaceChallengeContent(timeline: FaceTimeline, phase: FaceTimeline.Phase, rema
                             TurnDir.Right -> "Quay sang phải"
                             null -> "Nhìn thẳng"
                         },
+                    face = face,
                 )
             FaceTimeline.Phase.Done ->
                 TurnHeadContent(null, timeline.headTurns.lastIndex.coerceAtLeast(0), timeline.headTurns.size, onStop)

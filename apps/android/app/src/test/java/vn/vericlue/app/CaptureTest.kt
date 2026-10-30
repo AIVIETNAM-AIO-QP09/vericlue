@@ -10,6 +10,7 @@ import org.junit.Test
 import vn.vericlue.app.capture.ColorSchedule
 import vn.vericlue.app.capture.ColorSlot
 import vn.vericlue.app.capture.FaceSignal
+import vn.vericlue.app.capture.HeadTurnGuide
 import vn.vericlue.app.capture.QualityGate
 import vn.vericlue.app.capture.TurnTracker
 import vn.vericlue.app.capture.Wav
@@ -18,10 +19,55 @@ import vn.vericlue.app.data.api.ColorStep
 import vn.vericlue.app.flow.FlowRules
 import vn.vericlue.app.flow.FramingState
 import vn.vericlue.app.flow.Routes
+import vn.vericlue.app.flow.TurnDir
 
 class CaptureTest {
-    private fun face(width: Float = 0.45f, x: Float = 0.5f, y: Float = 0.45f, luma: Float = 120f, faces: Int = 1) =
-        FaceSignal(faces, width, x, y, 0f, luma, 0L)
+    private fun face(width: Float = 0.45f, x: Float = 0.5f, y: Float = 0.45f, luma: Float = 120f, faces: Int = 1, yaw: Float = 0f) =
+        FaceSignal(faces, width, x, y, yaw, luma, 0L)
+
+    @Test
+    fun headTurnGuideHelpsHoldOrCorrectWithoutDecidingPass() {
+        assertEquals(
+            "Giữ hướng này đến khi đổi hướng dẫn",
+            HeadTurnGuide.guidanceText(TurnDir.Left, null, remainingSeconds = 4),
+        )
+        assertEquals(
+            "Đưa khuôn mặt vào khung",
+            HeadTurnGuide.guidanceText(TurnDir.Left, face(faces = 0), remainingSeconds = 3),
+        )
+        assertEquals(
+            "Chỉ để một khuôn mặt trong khung",
+            HeadTurnGuide.guidanceText(TurnDir.Right, face(faces = 2), remainingSeconds = 3),
+        )
+        assertEquals(
+            "Quay chậm theo hướng mũi tên",
+            HeadTurnGuide.guidanceText(TurnDir.Left, face(yaw = 5f), remainingSeconds = 4),
+        )
+        assertEquals(
+            "Giữ hướng này đến khi đổi hướng dẫn",
+            HeadTurnGuide.guidanceText(TurnDir.Left, face(yaw = 26f), remainingSeconds = 3),
+        )
+        assertEquals(
+            "Quay vừa phải, giữ mặt trong khung",
+            HeadTurnGuide.guidanceText(TurnDir.Right, face(yaw = -46f), remainingSeconds = 2),
+        )
+        assertEquals(
+            "Quay vừa phải, giữ mặt trong khung",
+            HeadTurnGuide.guidanceText(TurnDir.Left, face(x = 0.78f, yaw = 28f), remainingSeconds = 2),
+        )
+        assertEquals(
+            "Đưa khuôn mặt vào giữa khung hình",
+            HeadTurnGuide.guidanceText(null, face(x = 0.78f, yaw = 4f), remainingSeconds = 2),
+        )
+        assertEquals(
+            "Quay về giữa, nhìn thẳng vào camera",
+            HeadTurnGuide.guidanceText(null, face(yaw = -24f), remainingSeconds = 4),
+        )
+        assertEquals(
+            "Giữ yên, nhìn thẳng vào camera",
+            HeadTurnGuide.guidanceText(null, face(yaw = 3f), remainingSeconds = 2),
+        )
+    }
 
     @Test
     fun qualityGateGivesOneHintAtATime() {

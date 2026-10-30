@@ -8,12 +8,19 @@
 - Contract/schema/Pydantic/OpenAPI/examples và type web đồng bộ; bộ sinh phát v2, không đổi màu/nhịp nháy hoặc ngưỡng xác minh.
 - ML chọn calibrator theo request/protocol, cache cả trường hợp thiếu theo version; không sửa self.version chung khi request v1/v2 xen kẽ. Collector không gộp protocol. VideoFaceMatch nhiều góc v2 có version riêng, không dùng ngưỡng v1 cho v2.
 - Android có đếm ngược và hướng tiếp theo theo mốc server, giữ video liên tục, không thêm delay/TTS/bước tập. Bố cục đo chiều cao và oval giới hạn theo vùng trống chỉ tại màn quay đầu để chữ lớn không chồng lấn; camera capture không thay đổi.
+- Cải thiện hướng dẫn quay đầu thời gian thực trên Android (`HeadTurnGuide` trong `Signals.kt`, nối `camera.face` vào `FaceTimelineScreen` / `TurnHeadContent`): nhắc khi mất mặt (`faces == 0`), nhiều mặt (`faces > 1`), chưa quay đủ góc (`|yaw| < 18°` → `"Quay chậm theo hướng mũi tên"` thay vì báo giữ tư thế ngay từ đầu đoạn), quay quá xa hoặc sát mép khung (`|yaw| > 40°` hoặc lệch tâm > `0.24` → `"Quay vừa phải, giữ mặt trong khung"`), giữ tư thế khi đã vào vùng góc hợp lệ (`18°..40°`), và quay về giữa ở đoạn nhìn thẳng (`|yaw| > 12°`). Chỉ hỗ trợ hiển thị, không quyết định `pass`.
 - 45 ảnh trước/sau tại tmp/head-turn-4s/{before,after}; đã xem chữ lớn 200%, compact và các trạng thái trái/giữa. Không commit ảnh vào repo.
 
 ## Đang dở
+- Đã kiểm tra chẩn đoán 2 lượt thử v2 thực tế (`ses_da2a3a69f00d32e7`, `ses_c8e4f05fcf439bbc`):
+  - **Đồng hồ video:** `recordingStartMs()` và dấu thời gian MP4 khớp trong khoảng `0–100 ms` (độ dài video `25214 ms` / `25480.5 ms` cho lịch `25184 ms` / `25382 ms`; tương quan mắt đạt đỉnh ở `lag = 0..50 ms`).
+  - **Hướng trái/phải (`yaw_deg`):** video MP4 từ camera trước không lật gương; khi người dùng quay trái (`Seg 0`), mũi dịch sang phải ảnh (`nose_x > eyes_x`) và `yaw_deg > 0` (`+19.7°..+59.5°`); khi quay phải (`Seg 1`), `yaw_deg < 0` (`-26.5°..-61.6°`); khi nhìn thẳng (`Seg 2`), `yaw_deg` về quanh `0°`. Chiều dấu `landmarks.py` / `head_turn.py` đúng.
+  - **Nguyên nhân `head_turn = incomplete_time_window`:** ở bản trước, đầu đoạn quay chip hiện ngay `"Giữ hướng này đến khi đổi hướng dẫn"` khiến người dùng giữ thẳng mặt 2,5–3,4 giây đầu rồi mới quay gấp quá đà (`46°..61°`, vượt `TURN_MAX_DEG = 50°`) làm MediaPipe mất mặt `0,80–1,26 giây` (`> MAX_GAP_MS = 300 ms`).
+  - **Tọa độ mắt (`gaze_tracking = trajectory_mismatch`):** cả hai trục `gaze_x` và `gaze_y` đều tương quan dương với chấm mục tiêu (`corr_x = +0.51..+0.73`, `corr_y = +0.38..+0.54`), không bị ngược trục; tuy nhiên biên độ mống mắt dọc nhỏ (`iris_span_y ≈ 0.019..0.026`) nên chưa vượt ngưỡng thử nghiệm `MIN_AXIS_CORRELATION = 0.60`. Giữ nguyên ngưỡng và thuật toán theo ràng buộc.
+  - **Tách lỗi thu nhận khỏi thiếu hiệu chỉnh AI:** `face_pad`, `face_deepfake` và `face_match` (khi bật `IDENTITY_CONSISTENCY_REQUIRED=true`) gọi `session_views`, nên khi `head_turn` chưa `PASS` thì dừng ở `degraded (E_LOW_QUALITY)`. Riêng khung nhìn thẳng `500 ms` của cả hai phiên đều đạt kiểm tư thế (`yaw = -1.60°` và `-3.48°`, cosine với CCCD `0.4907` và `0.5701`). Kể cả khi `head_turn` đạt, `PAD/GenD` và `face_match` v2 vẫn `degraded` cho tới khi có artifact hiệu chỉnh thật cho giao thức v2 (`+session-video-v2`, `+head12s-v2`).
 - Chưa có artifact hiệu chỉnh thật đúng protocol v2, chưa nghiệm thu đạt toàn luồng và chưa hoàn thiện SEC-09. Lỗi/degraded vẫn không được đạt; guard ghi danh mock/mixed giữ nguyên.
 - iOS hiện kiểm version 1 nên chưa dùng với lịch mới; không sửa iOS trong đợt này.
-- Chưa có lượt thử người dùng sau bản 4 giây/hướng; không tuyên bố đã nghiệm thu chuyển động hoặc đạt xác minh.
+- Chưa có lượt thử người dùng sau bản bổ sung `HeadTurnGuide`; không tuyên bố đã nghiệm thu chuyển động hoặc đạt xác minh.
 
 ## Bước tiếp theo
 1. Sau cập nhật, tạo phiên mới để nhận v2; phiên v1 cũ vẫn 2 giây/hướng.
@@ -40,7 +47,7 @@
 
 ## Test đã chạy
 - Suite Python ML/API/router/contract sau sửa review: 775 test, 0 lỗi/thất bại/bỏ qua (final.xml trong evidence local); có cảnh báo dependency/fixture cũ.
-- Android testDebugUnitTest + assembleDebug: 162 test, 0 lỗi/thất bại/bỏ qua; JUnit đã giữ riêng. CitizenCopyTest và ThemeAccessibilityTest nằm trong suite.
+- Android testDebugUnitTest + assembleDebug: 163 test (thêm `headTurnGuideHelpsHoldOrCorrectWithoutDecidingPass` trong `CaptureTest`), 0 lỗi/thất bại/bỏ qua; JUnit đã giữ riêng. CitizenCopyTest và ThemeAccessibilityTest nằm trong suite.
 - recordPaparazziDebug --tests '*FaceChallengeSnapshotTest*': qua, 45 ảnh before/after; view kiểm đại diện chữ 200%/compact.
 - Ruff phần Python thay đổi: sạch; OpenAPI --check khớp; web npm run typecheck qua.
 - plan_check.py: 0 lỗi, 10 cảnh báo tải công việc/đường găng hiện có; git diff --check qua.
@@ -48,8 +55,8 @@
 
 ## Bàn giao vận hành đã kiểm
 
-- APK tại D:/vericlue/tmp/full-demo-setup/apk/VeriClue-demo-debug.apk; mã Android 1c4f69ac54e468d0be1340a52e3843b47e89b70c.
-- SHA256 a8a44630cd5002e63bda4907821cb24eab1d87af3b0e62c0fa485e36f3d74648. Đã install -r Success trên Samsung SM_A526B qua ADB Wi-Fi; hash base.apk trên máy khớp chính xác. Không gỡ app hoặc xóa Keystore. APK/metadata cũ lưu tại apk/archive-94be648.
-- Launcher hiện có đã stop/start server, giữ DB/.env/khóa. Health ok, failed_modules rỗng, mock_models true đúng do OTP demo.
+- APK tại D:/vericlue/tmp/full-demo-setup/apk/VeriClue-demo-debug.apk; SHA256 mới `b7bdc24ae23574357c87d0a6979f53e04bdcc96ff4da3dc48b7447251f985b93` (bản trước lưu tại `apk/archive-1c4f69a` và `apk/archive-94be648`).
+- Đã `adb install -r` Success trên Samsung SM_A526B qua ADB Wi-Fi; hash `base.apk` trên máy khớp chính xác (`b7bdc24ae23574357c87d0a6979f53e04bdcc96ff4da3dc48b7447251f985b93`). Không gỡ app hoặc xóa Keystore.
+- Launcher hiện có giữ nguyên server, DB/.env/khóa. Health ok, failed_modules rỗng, mock_models true đúng do OTP demo.
 - Smoke HTTP bằng metadata/khóa công khai tổng hợp: nhận version=2, head_duration_ms=12000, mỗi đoạn 4000; voice offset đúng, tổng trong giới hạn 30000; rút phiên synthetic sau thử. Không thu hoặc xuất media người thật.
 - ADB reverse tcp:8421 đã nối lại, app đã mở. Bằng chứng local tại D:/vericlue/tmp/full-demo-setup/head-turn-4s/delivery-smoke.json. Người dùng tự bắt đầu lượt mới để nghiệm thu.

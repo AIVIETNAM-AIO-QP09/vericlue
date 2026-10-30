@@ -3,6 +3,7 @@ package vn.vericlue.app.capture
 import android.os.SystemClock
 import vn.vericlue.app.data.api.Challenge
 import vn.vericlue.app.flow.FramingState
+import vn.vericlue.app.flow.TurnDir
 import kotlin.math.abs
 
 /**
@@ -64,6 +65,51 @@ class TurnTracker(private val thresholdDeg: Float = 25f, private val holdMs: Lon
             return false
         }
         return abs(yaw) <= straightDeg
+    }
+}
+
+/**
+ * Assistive live hint during scheduled head turns. Purely advisory UI feedback;
+ * never gates completion or overrides the server's detector decision.
+ */
+object HeadTurnGuide {
+    const val TURN_MIN_DEG = 18f
+    const val TURN_MAX_SAFE_DEG = 40f
+    const val CENTER_MAX_DEG = 12f
+    const val MAX_TURN_OFFSET = 0.24f
+
+    fun guidanceText(
+        dir: TurnDir?,
+        face: FaceSignal?,
+        returnToCenter: Boolean = false,
+        remainingSeconds: Int? = null,
+    ): String {
+        if (face != null) {
+            if (face.faces == 0) return "Đưa khuôn mặt vào khung"
+            if (face.faces > 1) return "Chỉ để một khuôn mặt trong khung"
+            val offFrame = abs(face.centerX - 0.5f) > MAX_TURN_OFFSET || abs(face.centerY - 0.45f) > MAX_TURN_OFFSET
+            val absYaw = abs(face.yaw)
+            return if (dir == null) {
+                when {
+                    offFrame -> "Đưa khuôn mặt vào giữa khung hình"
+                    absYaw > CENTER_MAX_DEG -> "Quay về giữa, nhìn thẳng vào camera"
+                    else -> "Giữ yên, nhìn thẳng vào camera"
+                }
+            } else {
+                when {
+                    offFrame || absYaw > TURN_MAX_SAFE_DEG -> "Quay vừa phải, giữ mặt trong khung"
+                    absYaw < TURN_MIN_DEG -> "Quay chậm theo hướng mũi tên"
+                    returnToCenter -> "Quay chậm, sau đó nhìn thẳng"
+                    else -> "Giữ hướng này đến khi đổi hướng dẫn"
+                }
+            }
+        }
+        return when {
+            dir == null -> "Giữ yên, nhìn thẳng vào camera"
+            returnToCenter -> "Quay chậm, sau đó nhìn thẳng"
+            remainingSeconds != null -> "Giữ hướng này đến khi đổi hướng dẫn"
+            else -> "Quay chậm theo hướng mũi tên"
+        }
     }
 }
 

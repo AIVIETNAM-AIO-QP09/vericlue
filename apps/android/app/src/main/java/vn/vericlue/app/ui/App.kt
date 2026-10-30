@@ -670,6 +670,7 @@ fun VeriClueApp() {
             )
         }
         composable(Routes.HoldStill) {
+            val face by camera.face.collectAsState()
             val challenge = live.challenge
             // One presentation in both modes. Only API mode consumes a server challenge;
             // a missing/invalid server schedule must never fall back to the offline demo.
@@ -705,6 +706,7 @@ fun VeriClueApp() {
                         nav.navigate(next) { if (next == Routes.Confirm) popUpTo(Routes.FaceReady) { inclusive = true } }
                     },
                     onNoRecording = { nav.go(Routes.ErrorDevice) },
+                    face = if (hasCamera) face else null,
                 )
             }
         }
