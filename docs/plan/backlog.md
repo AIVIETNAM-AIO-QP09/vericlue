@@ -135,7 +135,7 @@
 | FLOW-06 | Rà workflow mobile và bàn giao tích hợp riêng tư | M5 | Codex | 0,5 | S2 | P0 | PLAT-05 | review |
 | SEC-01 | Khóa theo phiên, che dữ liệu, nhật ký truy cập | M2 | Codex | 1,5 | S1 | P0 | REV-01, PLAT-05 | review |
 | SEC-02 ★ | Ký media, L0 khóa ghi danh; service khôi phục/thu hồi, chờ nghiệm thu máy thật | M2 (+M1) | Codex | 1 | S2 | P0 | APP-01, PLAT-06 | doing |
-| APP-01 ★ | App Kotlin: UI A, receipt/alias, hướng dẫn góc mặt và âm báo dịu; chờ HTTPS và nghiệm thu tài khoản thật | M1 | Ngọc Quang+Claude+Codex | 1,5 | S1 | P0 | PLAT-04 | doing |
+| APP-01 ★ | App Kotlin: UI A, receipt/alias, hướng dẫn góc mặt và âm báo dịu; chờ HTTPS và nghiệm thu tài khoản thật | M1 | Ngọc Quang+Claude+Codex+Gemini | 1,5 | S1 | P0 | PLAT-04 | doing |
 | APP-02 ★ | App: chụp mặt, quay 3 s, quay đầu ngẫu nhiên | M1 | Ngọc Quang+Claude | 2 | S1–S2 | P0 | APP-01 | doing |
 | APP-03 | App: ghi âm đọc câu (WAV 16 kHz) | M1 | Ngọc Quang+Claude | 1 | S2 | P0 | APP-01 | doing |
 | APP-04 | App: OTP, chụp CCCD, xác nhận thông tin | M2 (+M1) | Ngọc Quang+Claude | 1,5 | S1–S2 | P0 | APP-01 | doing |
@@ -153,7 +153,7 @@
 | IOS-06 | App iOS: xử lý gián đoạn, retry theo acknowledgment và dọn file tạm | M1 | Lý Anh Quân | 1 | S2 | P1 | IOS-04 | doing |
 | IOS-07 | App iOS: đóng gói Release HTTPS, README và bàn giao; chờ domain và số đo iPhone | M1 | Lý Anh Quân | 1 | S2 | P1 | IOS-03, IOS-05, IOS-06 | doing |
 | LIVE-01 | Gói thử thách động theo phiên v2, quay đầu 4 giây/hướng [contract] | M5 | Codex | 1 | S2 | P0 | FLOW-01 | doing |
-| LIVE-02 | Dò mắt, chuỗi kiểm mặt và webcam lab — diagnostic | M3 (+M1) | Codex | 1,5 | S2 | P0 | LIVE-01 | doing |
+| LIVE-02 | Dò mắt, chuỗi kiểm mặt và webcam lab — diagnostic | M3 (+M1) | Codex+Gemini | 1,5 | S2 | P0 | LIVE-01 | doing |
 | LIVE-03 | Ký media theo phiên trên web (WebAuthn), chặn phát lại | M2 (+M1) | | 1 | S2 | P0 | LIVE-01 | todo |
 | LIVE-04 | Kháng lượng tử: đường truyền ML-KEM, ký kết quả ML-DSA | M2 | | 1 | S2 | P0 | FLOW-01 | todo |
 | LIVE-05 | BBS API/SDK/HTTP/runtime; bàn giao app sau thống nhất workflow, còn nghiệm thu thật | M5 | Codex | 2,5 | S3 | P1 | PLAT-03 | doing |
