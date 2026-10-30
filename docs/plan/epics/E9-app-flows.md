@@ -108,7 +108,8 @@ theo mẫu đăng ký/SEC-02 hoặc nghiệm thu Android. Chi tiết vận hành
 
 **Lát cắt backend 24/10 (Codex, doing):** `head_turn` dùng reader MediaPipe,
 chỉ kiểm chuyển động/thứ tự/thời gian từ video với lịch server gắn phiên/lượt.
-Lịch hiện hành 6 giây theo LIVE-01; các hằng góc/giữ tư thế là thử nghiệm.
+Lượt mới dùng lịch v2 12 giây (4 giây/hướng) từ 30/10; vẫn nhận v1 6 giây.
+Các hằng góc/giữ tư thế là thử nghiệm và không đổi trong lần kéo dài lịch.
 Đã có chuỗi offline lấy ảnh chính diện/nghiêng trong RAM cho LVFace và GenD
 (bật tùy chọn), và PAD FS-VFM-L FAS FP32. PAD dùng SCRFD thay MTCNN, chưa có
 kiểm chứng tương đương/hiệu chỉnh trên dữ liệu thật. Chưa kiểm 3D, chưa nối quyết định API/retry hay sửa UI. Gate pass của module
@@ -739,6 +740,7 @@ Không gộp receipt binding/device proof/media signing (SEC-02). Xem
 **Tiêu chí hoàn thành:**
 - [x] Test: hai phiên có gói/mã khác nhau; gửi lại cùng bước hoặc mã lượt cũ bị từ chối (409).
 - [x] Hợp đồng, API và type web khớp nhau (`gen_openapi --check`).
+- [x] Lịch mới v2/12000 ms đồng bộ API–ML–Android, chặn cặp chéo và tách version hiệu chỉnh; giữ v1/6000. Android có đếm ngược/hướng tiếp theo. Chưa nâng cấp iOS hoặc nghiệm thu đạt toàn luồng thật.
 
 **Cập nhật 24/10 — nền backend (`doing`):** Gói có 8 màu an toàn dùng chung,
 đường chấm sáng 7 giây, thứ tự quay trái/phải rồi về giữa, câu đọc và mã lần đọc;

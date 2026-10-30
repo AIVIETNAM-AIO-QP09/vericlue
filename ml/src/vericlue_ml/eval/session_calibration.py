@@ -189,6 +189,10 @@ def collect(
         raise ValueError("Only session face PAD/GenD are supported")
     before = _sha(manifest)
     samples = load_manifest(manifest, data_root)
+    challenges = {
+        sample.sample_id: _source(data_root, sample.server_response) for sample in samples
+    }
+    challenge_hashes = {key: _sha(path) for key, path in challenges.items()}
     protocols = {head_protocol_version(_input(sample, data_root)) for sample in samples}
     if len(protocols) != 1:
         raise ValueError("A measurement report must contain exactly one capture protocol")
@@ -217,9 +221,13 @@ def collect(
                 _source(data_root, sample.server_response),
             )
             video_hash, challenge_hash = _sha(video), _sha(challenge)
+            if challenge_hash != challenge_hashes[sample.sample_id]:
+                raise ValueError("Server challenge changed after preflight")
+            inp = _input(sample, data_root)
+            if head_protocol_version(inp) != protocol or _sha(challenge) != challenge_hash:
+                raise ValueError("Server challenge protocol changed after preflight")
             status, error, score = "error", "E_INTERNAL", None
             try:
-                inp = _input(sample, data_root)
                 frames, selected_hash = session_views(inp, reader)
                 result = backend.predict_frames(inp, frames)
                 if result.module != module or result.model_version != backend.frames_version:
@@ -262,6 +270,8 @@ def collect(
         reader.close()
     if _sha(manifest) != before:
         raise ValueError("Manifest changed during collection")
+    if any(_sha(path) != challenge_hashes[key] for key, path in challenges.items()):
+        raise ValueError("Server challenge changed during collection")
     if _sha(model_manifest) != model_manifest_hash:
         raise ValueError("Model manifest changed during collection")
     _partition(rows)

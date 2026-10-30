@@ -161,6 +161,37 @@ def test_collect_rejects_mixed_protocol_before_model_loading(monkeypatch, tmp_pa
         sc.collect(path, tmp_path, tmp_path / "models", "face_pad", tmp_path / "out.json")
 
 
+@pytest.mark.parametrize("when", ["model-load", "earlier-sample"])
+@pytest.mark.parametrize("failed_sample", [False, True])
+def test_collector_rejects_challenge_replaced_after_preflight(
+    monkeypatch, tmp_path, when, failed_sample
+):
+    from vericlue_ml.common.result import ErrorCode
+
+    path, _ = write_manifest(tmp_path)
+    fake_runtime(monkeypatch)
+    runtime, views = sc.make_runtime, sc.session_views
+
+    def load(*args):
+        if when == "model-load":
+            rewrite_protocol(tmp_path, [1])
+        return runtime(*args)
+
+    def measure(inp, reader):
+        if inp.video.stem == "0" and when == "earlier-sample":
+            rewrite_protocol(tmp_path, [1])
+        if inp.video.stem == "1" and failed_sample:
+            raise LandmarkError(ErrorCode.E_NO_FACE)
+        return views(inp, reader)
+
+    monkeypatch.setattr(sc, "make_runtime", load)
+    monkeypatch.setattr(sc, "session_views", measure)
+    output = tmp_path / "out.json"
+    with pytest.raises(ValueError):
+        sc.collect(path, tmp_path, tmp_path / "models", "face_pad", output)
+    assert not output.exists()
+
+
 def test_video_match_passes_local_v2_version_to_identity_backend(monkeypatch):
     import numpy as np
     from test_video_frontal_match import inputs as match_input

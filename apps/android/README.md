@@ -4,6 +4,14 @@
 
 ## Trạng thái
 
+**APP-01 / LIVE-01 (30/10, quay đầu chậm hơn):** backend phát dynamic v2,
+12000 ms cho ba hướng, mỗi hướng 4 giây. App kiểm cặp version/duration, giới
+hạn 30 giây và offset giọng; vẫn nhận v1/6000 ms. Hiện đếm ngược và hướng tiếp
+theo, giữ một video liên tục và cùng gốc thời gian. Không thêm thời gian chờ
+vào lịch, hiệu ứng camera hoặc TTS. Bắt đầu phiên mới sau cập nhật để thử v2.
+Không đổi ngưỡng xác minh; lượt vẫn có thể review do dữ liệu/hiệu chỉnh chưa đủ.
+Phiên bản này chưa cập nhật iOS.
+
 **APP-01 / SEC-09 (30/10):** màn đồng ý tạo phiên đúng purpose/khóa, đọc version
 privacy và ghi lựa chọn theo nhóm trước OTP/CCCD/camera/micro. Chỉ chấp nhận
 receipt đúng phiên/phạm vi/version; policy đổi không tự grant. Thông báo đóng

@@ -1,13 +1,22 @@
 # Chuẩn bị quay demo Android trên laptop hiện tại
 
 Ngày 30/10/2026. Đây là kịch bản quay và checklist, không phải biên bản nghiệm thu
-điện thoại. Máy chưa có thiết bị ADB kết nối khi kiểm tra.
+điện thoại. Đã cài bản 4 giây/hướng qua ADB Wi-Fi trên Samsung SM_A526B; hash
+APK trên máy khớp, chưa có lượt nghiệm thu người dùng sau cập nhật.
+
+**Cập nhật lịch quay đầu:** bản mới nhận dynamic v2 với mỗi hướng 4 giây,
+gồm hai hướng ngẫu nhiên rồi nhìn thẳng. Khi app đổi hướng, quay đầu chậm theo
+mũi tên và giữ hướng đó đến hướng dẫn kế tiếp, giữ điện thoại cố định. Nhãn
+đếm ngược/hướng tiếp theo hỗ trợ thao tác, không tự xác nhận động tác đã đạt.
+Sau cài lại/restart server, về màn đầu và tạo phiên mới; phiên v1 cũ vẫn 2
+giây/hướng. iOS chưa hỗ trợ v2. Metadata bản giao nằm tại
+`D:/vericlue/tmp/full-demo-setup/apk/build-info.json`; OTP vẫn mô phỏng.
 
 ## Tệp và server
 
 - APK đã ký debug: `D:/vericlue/tmp/full-demo-setup/apk/VeriClue-demo-debug.apk`.
-- Mã Android trong APK: `94be648`; backend hiện tại: `a1427ac`.
-- SHA256 APK: `17100bd4a076a326e734c37f9cf58ac1920bd0aa12230edc1c4deaf45b2613ec`.
+- Mã Android trong APK: `1c4f69a`; backend gồm lịch mới v2 và bản sửa collector sau review.
+- SHA256 APK: `a8a44630cd5002e63bda4907821cb24eab1d87af3b0e62c0fa485e36f3d74648`.
 - Launcher: `D:/vericlue/tmp/full-demo-setup/VeriClue.cmd start|status|stop`.
 - API chỉ bind localhost:8421. Không chia sẻ `.env`, khóa, DB hoặc log thô.
 

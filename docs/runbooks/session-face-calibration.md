@@ -15,6 +15,11 @@ mã opaque nối cùng người/nguồn liên quan, không gán mỗi clip một
 Cùng nhóm không được giao giữa calib_fit/calib_ltt/test. Nhãn 0 là thật, 1 là
 tấn công theo protocol mô-đun. Ví dụ dưới chỉ là định dạng, không đủ dữ liệu fit:
 
+Từ 30/10, lượt mới là dynamic v2/12000 ms; v1/6000 ms vẫn được nhận. Mỗi
+manifest/report chỉ được chứa một protocol, kể cả các mẫu lỗi. Không gán lịch
+v2 cho video cũ; giữ snapshot lịch thực sự đã dùng. Hai lượt thử điện thoại
+được dùng để chẩn đoán UX, không tự đưa vào kho dữ liệu hiệu chỉnh.
+
 ```json
 {
   "schema_version": 1,
@@ -69,10 +74,16 @@ không tự chứng minh provenance; không sửa metadata để hợp thức h�
 Cấu hình `CALIBRATORS_DIR=<output-calibrators>` rồi restart. Store tìm đúng
 `<module>/<full-version được encode>.json`. Không đổi tên artifact ảnh tĩnh/
 video cũ để dùng cho phiên. Chỉ `Calibrator` fitted non-provisional đúng module
-và full version `...+session-video-v1` mới tạo xác suất. Thiếu/hỏng/sai hoặc
+và full version `...+session-video-v1` (v1/6000) hoặc `...+session-video-v2`
+(v2/12000) mới tạo xác suất. Không mượn artifact giữa hai protocol. Thiếu/hỏng/sai hoặc
 identity/provisional vẫn degraded/unclear, không có xác suất. Nạp/cache một lần;
 thêm/sửa file cần restart. Backend lỗi/score sai/video thay đổi không được nâng
 thành đạt; gate vẫn unclear, router giữ quyền quyết định.
+
+Đối chiếu nhiều góc LVFace v2 có hậu tố `+head12s-v2`; artifact ngưỡng đối
+chiếu và consistency phải khớp đúng version đó. Đối chiếu chỉ khung chính diện
+không thay lịch lấy khung; không tự dùng ngưỡng nhiều góc v1 cho v2. Thiếu bằng
+chứng ghi danh/continuity hoặc guard chưa cho phép thì account vẫn không tạo.
 
 Hiệu chỉnh xác suất không chứng minh chiều sâu/crop parity hay chất lượng ngoài
 tập đánh giá. Guard real/mixed/account-bound giữ nguyên, OTP demo không đổi.
