@@ -10,6 +10,7 @@ import argparse
 import hashlib
 import json
 import math
+import os
 from pathlib import Path, PureWindowsPath
 from types import SimpleNamespace
 from typing import Literal
@@ -197,6 +198,8 @@ def collect(
     commit = git_revision()
     if len(commit) != 40 or commit.endswith("-dirty"):
         raise ValueError("Commit implementation before collecting real measurements")
+    model_manifest = Path(os.environ.get("ML_MODELS_MANIFEST") or ROOT / "models/manifest.yaml")
+    model_manifest_hash = _sha(model_manifest)
     backend, reader = make_runtime(module.value, models_dir, device)
     rows = []
     try:
@@ -254,6 +257,8 @@ def collect(
         reader.close()
     if _sha(manifest) != before:
         raise ValueError("Manifest changed during collection")
+    if _sha(model_manifest) != model_manifest_hash:
+        raise ValueError("Model manifest changed during collection")
     _partition(rows)
     report = SessionReport(
         schema_version=1,
@@ -262,7 +267,7 @@ def collect(
         model_version=version,
         source_commit=commit,
         manifest_sha256=before,
-        model_manifest_sha256=_sha(ROOT / "models/manifest.yaml"),
+        model_manifest_sha256=model_manifest_hash,
         rows=rows,
     )
     output.parent.mkdir(parents=True, exist_ok=True)

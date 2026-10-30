@@ -130,7 +130,7 @@
 | FLOW-01 | Purpose/luật theo luồng; kết quả Ed25519 opt-in, chờ nghiệm thu thật | M5 | Codex | 1 | S1 | P0 | ROUT-02, PLAT-08 | doing |
 | FLOW-02 | OTP mô phỏng | M2 | Ngọc Quang+Claude | 0,5 | S1 | P0 | PLAT-05 | doing |
 | FLOW-03 | Chụp CCCD, QR, chân dung, kiểm đã đăng ký; bảo toàn ảnh khi lỗi | M1 | Ngọc Quang+Claude | 1,5 | S1 | P0 | PLAT-05, FACE-01 | doing |
-| FLOW-04 | Quay đầu, chọn khung RAM, GenD và FS-VFM-L PAD — diagnostic | M1 (+M3) | Codex | 1 | S1 | P0 | CAP-06 | doing |
+| FLOW-04 | Quay đầu, chọn khung RAM, GenD/PAD và công cụ hiệu chỉnh video — chờ dữ liệu | M1 (+M3) | Codex | 1 | S1 | P0 | CAP-06 | doing |
 | FLOW-05 | LVFace-B/mặt–giọng; ghi danh, receipt, so mẫu đã lưu; giữ chốt luồng thật | M3 | Codex | 1 | S1 | P0 | FLOW-03, FACE-01 | doing |
 | FLOW-06 | Rà workflow mobile và bàn giao tích hợp riêng tư | M5 | Codex | 0,5 | S2 | P0 | PLAT-05 | review |
 | SEC-01 | Khóa theo phiên, che dữ liệu, nhật ký truy cập | M2 | Codex | 1,5 | S1 | P0 | REV-01, PLAT-05 | review |

@@ -103,6 +103,7 @@ theo mẫu đăng ký/SEC-02 hoặc nghiệm thu Android. Chi tiết vận hành
 - [x] Chọn ba khung từ video theo timestamp server, kiểm lại tư thế trên đúng pixel, so mặt trong RAM; lỗi/thiếu/trùng khung không được đạt.
 - [x] Đưa đúng ba khung đã chọn vào GenD trong RAM; trả điểm deepfake riêng, version lấy mẫu riêng, không dùng nhầm calibrator video cũ.
 - [x] Tùy chọn FS-VFM-L FAS trên cùng khung RAM; nạp checkpoint gốc có kiểm SHA, điểm PAD thô riêng, không dùng ngưỡng cũ hay thay MiniFASNet của API.
+- [x] Công cụ đo/fit đúng protocol phiên, kiểm provenance/chia người và giữ mẫu lỗi; adapter nhận calibrator fitted đúng full version, từ chối identity/provisional/sai version. Chỉ test tổng hợp; chưa có artifact thực và chưa mở guard.
 - [ ] Test mặt phẳng (biến đổi homography) và kiểm chứng chiều sâu vật lý.
 
 **Lát cắt backend 24/10 (Codex, doing):** `head_turn` dùng reader MediaPipe,

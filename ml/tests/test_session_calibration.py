@@ -185,3 +185,39 @@ def test_fit_rejects_corrupt_or_ineligible_report(monkeypatch, tmp_path, kind):
     report_path.write_text(json.dumps(data), encoding="utf-8")
     with pytest.raises(ValueError):
         sc.fit_report(report_path, tmp_path / "calibrators", n_splits=3)
+
+
+def test_collect_records_effective_model_manifest_override(monkeypatch, tmp_path):
+    path, _ = write_manifest(tmp_path)
+    fake_runtime(monkeypatch)
+    custom = tmp_path / "weights-manifest.yaml"
+    custom.write_text("synthetic-custom-manifest", encoding="utf-8")
+    monkeypatch.setenv("ML_MODELS_MANIFEST", str(custom))
+    report = sc.collect(path, tmp_path, tmp_path / "models", "face_pad", tmp_path / "out.json")
+    assert report["model_manifest_sha256"] == hashlib.sha256(custom.read_bytes()).hexdigest()
+
+
+def test_model_manifest_change_during_measurement_discards_report(monkeypatch, tmp_path):
+    path, _ = write_manifest(tmp_path)
+    fake_runtime(monkeypatch)
+    custom = tmp_path / "weights-manifest.yaml"
+    custom.write_text("synthetic-before", encoding="utf-8")
+    monkeypatch.setenv("ML_MODELS_MANIFEST", str(custom))
+    factory = sc.make_runtime
+
+    def runtime(*args):
+        backend, reader = factory(*args)
+        original = backend.predict_frames
+
+        def changed(*args):
+            custom.write_text("synthetic-changed", encoding="utf-8")
+            return original(*args)
+
+        backend.predict_frames = changed
+        return backend, reader
+
+    monkeypatch.setattr(sc, "make_runtime", runtime)
+    output = tmp_path / "out.json"
+    with pytest.raises(ValueError):
+        sc.collect(path, tmp_path, tmp_path / "models", "face_pad", output)
+    assert not output.exists()
