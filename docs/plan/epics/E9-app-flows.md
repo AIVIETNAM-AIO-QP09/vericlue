@@ -286,6 +286,11 @@ Không đổi quyết định server, timeline hoặc điều kiện hoàn thàn
 chờ người dùng nghiệm thu bản APK mới và dữ liệu hiệu chỉnh toàn luồng.
 
 
+**Rà soát 30/10 tối:** vẫn chưa nghiệm thu mắt/quay đầu; artifact video v2 còn
+thiếu. Kế hoạch giao Gemini:
+[ổn định presence](../../superpowers/plans/2026-10-30-presence-demo-stabilization-gemini.md).
+Đây là kế hoạch sửa và nghiệm thu, không phải xác nhận toàn luồng đã đạt.
+
 ### APP-07 · Đồng bộ UI phần mặt giữa Giả lập và API
 
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
