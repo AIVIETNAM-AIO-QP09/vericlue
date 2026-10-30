@@ -37,6 +37,7 @@ object Routes {
     const val Auth = "auth"
     /** Terms and per-item consent on one screen (short flow, 24/10). */
     const val Terms = "terms"
+    const val PrivacyStop = "privacy_stop"
 
     const val Phone = "phone"
     const val Otp = "otp"
@@ -94,8 +95,10 @@ object FlowRules {
     fun needsCardBack(hint: String?, hasBack: Boolean): Boolean = hint == "QR_UNREADABLE" && !hasBack
 
     /** After OTP: re-auth skips the ID card (ADR-0013). */
-    fun afterOtp(purpose: Purpose): String =
-        if (purpose == Purpose.Reauth) Routes.FaceReady else Routes.IdFront
+    fun afterConsent(purpose: Purpose): String = if (purpose == Purpose.Reauth) Routes.FaceReady else Routes.Phone
+
+    fun afterOtp(purpose: Purpose, accountBound: Boolean = false): String =
+        if (purpose == Purpose.Reauth || purpose == Purpose.Recovery && accountBound) Routes.FaceReady else Routes.IdFront
 
     /** After the head turn: re-auth has no voice step unless escalated (ADR-0013, L3). */
     fun afterTurnHead(purpose: Purpose): String =
@@ -111,8 +114,8 @@ object FlowRules {
      * After the face recording. The confirm screen comes here, not in stage A, so the user reads the
      * card while the video uploads. Re-auth has no card; a retry skips what was already confirmed.
      */
-    fun afterFace(purpose: Purpose, idConfirmed: Boolean, live: Boolean): String = when {
-        purpose != Purpose.Reauth && !idConfirmed -> Routes.Confirm
+    fun afterFace(purpose: Purpose, idConfirmed: Boolean, live: Boolean, accountBound: Boolean = false): String = when {
+        purpose != Purpose.Reauth && !(purpose == Purpose.Recovery && accountBound) && !idConfirmed -> Routes.Confirm
         live -> Routes.Uploading
         else -> afterTurnHead(purpose)
     }

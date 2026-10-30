@@ -143,6 +143,10 @@ class Orchestrator:
             if module == Module.HEAD_TURN:
                 return HeadTurnDetector(self._face_reader)
         if self.settings.session_face_models:
+            if module in {Module.QUALITY, Module.CAMPROBE}:
+                # Keep synthetic OTP independent of these existing server checks.
+                # Missing real dependencies must remain unavailable, never mock pass.
+                return get_detector(module, mock=False)
             if module == Module.FACE_PAD:
                 return SessionAttackDetector(FsvfmPadDetector(), self._face_reader)
             if module == Module.FACE_DEEPFAKE:

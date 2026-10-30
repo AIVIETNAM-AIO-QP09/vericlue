@@ -4,6 +4,10 @@
 chạy trong tiến trình API và dùng chung SCRFD; không cần identity HTTP bridge.
 Hướng dẫn hiện tại: [demo một bản](../../docs/runbooks/vericlue-demo.md).
 
+**APP-01 (30/10):** opt-in `SESSION_FACE_MODELS=true` cũng chọn Quality SCRFD và
+CamProbe rules thật khi nền vẫn mock để dùng OTP mô phỏng; không fallback mock
+nếu mô-đun thật lỗi. Không đổi schema, policy/ngưỡng hoặc mở guard sinh trắc.
+
 SEC-06 bổ sung API consent/rút lại theo phiên (migration `0010_privacy_receipts`)
 và retention hữu hạn khi `PRODUCT_MODE=ekyc`. Mode này không đăng ký route
 review/forensic, không tạo ca chờ nhân viên; `review` là chưa thể xác minh, không

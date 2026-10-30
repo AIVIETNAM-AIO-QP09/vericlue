@@ -42,6 +42,12 @@ chung với mắt/đầu. Sampling mới có version riêng, luôn raw/degraded/
 không áp calibrator MiniFASNet/GenD cũ. Ánh sáng hiện chỉ là phép đo, chưa chứng
 minh phát hiện tấn công. Bật chế độ này chưa thể tự đạt khi chưa hiệu chỉnh.
 
+Từ 30/10, cờ này cũng chọn Quality SCRFD và CamProbe rules thật, kể cả khi
+`USE_MOCK_MODELS=true` để giữ OTP demo. Thiếu dependency/model của Quality là
+lỗi, không fallback mock. CamProbe vẫn là luật trên tín hiệu nhận được, không
+chứng minh nguồn camera hoặc chống mọi cách chèn hình. Không mở chốt sinh trắc
+hoặc thay ngưỡng/quyết định của các mô-đun diagnostic.
+
 `IDENTITY_CONSISTENCY_REQUIRED=true` yêu cầu thêm ba cosine front–left,
 front–right, left–right cùng vượt ngưỡng riêng. Cần `IDENTITY_FACE_FROM_VIDEO=true`
 và `IDENTITY_CONSISTENCY_CALIBRATION` trỏ artifact có version của video matcher

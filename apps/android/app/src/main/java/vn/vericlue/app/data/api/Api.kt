@@ -237,6 +237,18 @@ class SessionApi(
         call(Request.Builder().url(url("v1", "sessions", sessionId, "account"))
             .header("Authorization", "Bearer $token").header("Cache-Control", "no-store").get().build())
 
+    suspend fun sessionPrivacy(sessionId: String, token: String): ApiResult<SessionPrivacyState> =
+        call(Request.Builder().url(url("v1", "sessions", sessionId, "privacy"))
+            .header("Authorization", "Bearer $token").header("Cache-Control", "no-store").get().build())
+
+    suspend fun grantSessionConsent(sessionId: String, token: String, consent: PrivacyConsentRequest): ApiResult<SessionPrivacyState> =
+        call(post(url("v1", "sessions", sessionId, "privacy", "consent"),
+            json.encodeToString(PrivacyConsentRequest.serializer(), consent).toRequestBody(JSON), token))
+
+    suspend fun withdrawSessionConsent(sessionId: String, token: String): ApiResult<SessionPrivacyState> =
+        call(post(url("v1", "sessions", sessionId, "privacy", "withdraw"),
+            json.encodeToString(PrivacyWithdrawalRequest.serializer(), PrivacyWithdrawalRequest(true)).toRequestBody(JSON), token))
+
     /** Forward to the integrator backend; do not decode and authorize based on payload alone. */
     suspend fun signedResult(sessionId: String, token: String): ApiResult<SignedResult> =
         call(Request.Builder().url(url("v1", "sessions", sessionId, "result"))

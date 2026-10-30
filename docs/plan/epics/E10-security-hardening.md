@@ -130,8 +130,8 @@ quyền xử lý trong phiên với dữ liệu tài khoản và phạm vi rút 
 coi category hiện có là đã bao gồm lưu mẫu dài hạn. Không mở guard sinh trắc.
 
 - [ ] Server chỉ ghi danh khi có lựa chọn lưu mẫu đúng phiên bản/phạm vi; không dùng cờ cấu hình thay biên nhận.
-- [ ] Client có model/method privacy, lựa chọn theo phiên và logic ghi trước thu dữ liệu, refresh bearer, policy đổi và từ chối; không auto-grant.
-- [ ] Rút lại dừng capture/upload mới, giữ trạng thái chưa xác nhận khi lỗi mạng và tôn trọng receipt/phạm vi xóa.
+- [x] Android có model/method privacy, lựa chọn xử lý theo phiên và logic ghi trước thu dữ liệu, refresh bearer, policy đổi và từ chối; không auto-grant. Quyền lưu mẫu theo D1 ở tiêu chí riêng bên trên còn thiếu; iOS chưa tích hợp.
+- [x] Android rút lại dừng capture/upload mới, giữ trạng thái chưa xác nhận khi lỗi mạng và tôn trọng receipt/phạm vi xóa; có thoát khi không xác nhận được, không khôi phục camera từ back stack cũ. Chưa nghiệm thu điện thoại.
 - [ ] Có test contract/server/client và checklist nối UI/máy thật; không lặng lẽ triển khai thay đổi điều hướng D2/D3 chưa thống nhất.
 
 Điểm nối cụ thể và ca cần nghiệm thu:

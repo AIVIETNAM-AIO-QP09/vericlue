@@ -4,6 +4,26 @@
 
 ## Trạng thái
 
+**APP-01 / SEC-09 (30/10):** màn đồng ý tạo phiên đúng purpose/khóa, đọc version
+privacy và ghi lựa chọn theo nhóm trước OTP/CCCD/camera/micro. Chỉ chấp nhận
+receipt đúng phiên/phạm vi/version; policy đổi không tự grant. Thông báo đóng
+gói hiện là `demo-v1`. Đăng nhập lại có binding đi từ đồng ý tới L0/mặt, không
+OTP; khôi phục có binding bỏ CCCD sau OTP và dùng mẫu tài khoản theo API hiện có.
+Guard sinh trắc account-bound vẫn giữ 503, chưa phải nghiệm thu đăng nhập thật.
+
+Chọn dừng ở phiên API có thêm thao tác rút đồng ý. Camera/micro dừng, các bước
+upload mới bị chặn; refresh token đang chạy được nhận đầy đủ trước withdrawal.
+Lỗi giữ ngữ cảnh để retry; có thể về màn đầu với thông báo chưa xác nhận xóa.
+Receipt thành công dọn dữ liệu local và bỏ back stack cũ. Không hứa xóa mẫu tài
+khoản/backup/chứng nhận. Màn thành công chỉ dẫn tới mở tài khoản khi receipt/alias
+đã lưu bền; thiếu receipt hoặc lỗi lưu chỉ xác nhận hoàn tất phiên.
+
+Đây là consent **xử lý theo phiên**; hợp đồng lưu mẫu tài khoản của SEC-09 vẫn
+chưa hoàn thiện và không được suy diễn từ `face_biometrics`. OTP demo giữ nguyên.
+Khi SESSION_FACE_MODELS bật, Quality SCRFD/CamProbe rules cũng chạy thật dù OTP vẫn demo. Môi trường/model nạp được không chứng minh chất lượng AI. Artifact hiệu chỉnh
+đúng protocol video và nghiệm thu máy thật còn thiếu; không mở guard hoặc dùng
+calibrator tạm của pipeline cũ để ép đạt.
+
 APP-10: quét thẻ yêu cầu ảnh phân tích tối đa 1920×1440, fallback theo khả năng
 CameraX/thiết bị; camera trước dùng cấu hình cũ. Bước lấy QR không chạy thêm
 face detector. ML Kit trả cả vùng nghi là QR và có thể đề nghị zoom; chỉ bước

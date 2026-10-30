@@ -99,6 +99,7 @@ class AccountIntegrationTest {
         assertTrue(keys.opened.isEmpty())
         keys.entries[oldAlias] = Signer()
         val entry = accounts.begin(Purpose.Reauth)
+        assertEquals(Routes.Terms, entry.route)
         assertEquals(old, entry.account)
         assertEquals(oldAlias, entry.keyAlias)
         assertEquals(listOf(oldAlias to false), keys.opened)
@@ -117,6 +118,7 @@ class AccountIntegrationTest {
             assertEquals(Next.To(Routes.Success), accounts.finish(entry, live, next))
             assertEquals(fresh, store.load()!!.receipt)
             assertEquals(newAlias, store.load()!!.keyAlias)
+            assertTrue(accounts.accountSaved)
             repeat(4) { server.takeRequest() }
             val request = server.takeRequest()
             assertEquals("/v1/sessions/ses_1/account", request.path)
@@ -135,6 +137,7 @@ class AccountIntegrationTest {
             server.enqueue(json("""{"error_code":"enrollment_not_available","message":"retry"}""", 409))
             assertEquals(Next.To(Routes.Success), accounts.finish(entry, live, next))
             assertNull(store.load())
+            assertFalse(accounts.accountSaved)
             assertEquals(1, warnings.size)
         }
     }

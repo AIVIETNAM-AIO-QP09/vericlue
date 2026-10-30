@@ -28,14 +28,18 @@ class AccountFlow(
     private val newAlias: () -> String = KeyAliases::fresh,
     private val warn: (String) -> Unit = {},
 ) {
+    var accountSaved = false
+        private set
+
     fun begin(requested: Purpose): AccountEntry {
+        accountSaved = false
         val saved = store.load()
         if (requested == Purpose.Reauth && signingEnabled && saved != null) {
             if (!keys.exists(saved.keyAlias)) {
                 return AccountEntry(requested, saved.receipt, saved.keyAlias, null, Routes.RecoveryRequired)
             }
             return AccountEntry(requested, saved.receipt, saved.keyAlias,
-                keys.open(saved.keyAlias, create = false), Routes.Phone)
+                keys.open(saved.keyAlias, create = false), Routes.Terms)
         }
         val fallback = requested != Purpose.Onboarding && (!signingEnabled || saved == null)
         val purpose = if (fallback) Purpose.Onboarding else requested
@@ -45,7 +49,7 @@ class AccountFlow(
         return AccountEntry(purpose,
             saved?.receipt?.takeIf { purpose == Purpose.Recovery }, alias,
             alias?.let { keys.open(it, create = true) },
-            if (purpose == Purpose.Onboarding) Routes.Terms else Routes.Phone,
+            Routes.Terms,
             if (fallback) "Vui lòng đăng ký để tiếp tục." else null,
             saved?.takeIf { purpose == Purpose.Recovery })
     }
@@ -68,6 +72,7 @@ class AccountFlow(
         withContext(Dispatchers.IO) {
             try {
                 store.save(receipt, alias)
+                accountSaved = true
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
