@@ -71,6 +71,11 @@ class TurnTracker(private val thresholdDeg: Float = 25f, private val holdMs: Lon
 /**
  * Assistive live hint during scheduled head turns. Purely advisory UI feedback;
  * never gates completion or overrides the server's detector decision.
+ *
+ * ML Kit Face.headEulerAngleY is positive when the face turns toward the right side of the
+ * processed image. CameraSession passes unmirrored front-camera frames to InputImage.fromMediaImage,
+ * so user-left (TurnDir.Left) turns toward the right of the unmirrored image (yaw > 0) and
+ * user-right (TurnDir.Right) turns toward the left of the unmirrored image (yaw < 0).
  */
 object HeadTurnGuide {
     const val TURN_MIN_DEG = 18f
@@ -88,17 +93,19 @@ object HeadTurnGuide {
             if (face.faces == 0) return "Đưa khuôn mặt vào khung"
             if (face.faces > 1) return "Chỉ để một khuôn mặt trong khung"
             val offFrame = abs(face.centerX - 0.5f) > MAX_TURN_OFFSET || abs(face.centerY - 0.45f) > MAX_TURN_OFFSET
-            val absYaw = abs(face.yaw)
             return if (dir == null) {
+                val absYaw = abs(face.yaw)
                 when {
                     offFrame -> "Đưa khuôn mặt vào giữa khung hình"
                     absYaw > CENTER_MAX_DEG -> "Quay về giữa, nhìn thẳng vào camera"
                     else -> "Giữ yên, nhìn thẳng vào camera"
                 }
             } else {
+                val signedYaw = if (dir == TurnDir.Left) face.yaw else -face.yaw
                 when {
-                    offFrame || absYaw > TURN_MAX_SAFE_DEG -> "Quay vừa phải, giữ mặt trong khung"
-                    absYaw < TURN_MIN_DEG -> "Quay chậm theo hướng mũi tên"
+                    signedYaw > TURN_MAX_SAFE_DEG -> "Quay vừa phải, giữ mặt trong khung"
+                    signedYaw < TURN_MIN_DEG -> "Quay chậm theo hướng mũi tên"
+                    offFrame -> "Quay vừa phải, giữ mặt trong khung"
                     returnToCenter -> "Quay chậm, sau đó nhìn thẳng"
                     else -> "Giữ hướng này đến khi đổi hướng dẫn"
                 }
@@ -107,7 +114,6 @@ object HeadTurnGuide {
         return when {
             dir == null -> "Giữ yên, nhìn thẳng vào camera"
             returnToCenter -> "Quay chậm, sau đó nhìn thẳng"
-            remainingSeconds != null -> "Giữ hướng này đến khi đổi hướng dẫn"
             else -> "Quay chậm theo hướng mũi tên"
         }
     }

@@ -27,10 +27,20 @@ class CaptureTest {
 
     @Test
     fun headTurnGuideHelpsHoldOrCorrectWithoutDecidingPass() {
+        // Missing FaceSignal: always neutral instruction, never confirms holding a pose.
         assertEquals(
-            "Giữ hướng này đến khi đổi hướng dẫn",
+            "Quay chậm theo hướng mũi tên",
             HeadTurnGuide.guidanceText(TurnDir.Left, null, remainingSeconds = 4),
         )
+        assertEquals(
+            "Quay chậm theo hướng mũi tên",
+            HeadTurnGuide.guidanceText(TurnDir.Right, null, remainingSeconds = 4),
+        )
+        assertEquals(
+            "Giữ yên, nhìn thẳng vào camera",
+            HeadTurnGuide.guidanceText(null, null, remainingSeconds = 4),
+        )
+        // Missing or multiple faces.
         assertEquals(
             "Đưa khuôn mặt vào khung",
             HeadTurnGuide.guidanceText(TurnDir.Left, face(faces = 0), remainingSeconds = 3),
@@ -39,13 +49,37 @@ class CaptureTest {
             "Chỉ để một khuôn mặt trong khung",
             HeadTurnGuide.guidanceText(TurnDir.Right, face(faces = 2), remainingSeconds = 3),
         )
+        // Not turned far enough yet.
         assertEquals(
             "Quay chậm theo hướng mũi tên",
             HeadTurnGuide.guidanceText(TurnDir.Left, face(yaw = 5f), remainingSeconds = 4),
         )
         assertEquals(
+            "Quay chậm theo hướng mũi tên",
+            HeadTurnGuide.guidanceText(TurnDir.Right, face(yaw = -5f), remainingSeconds = 4),
+        )
+        // Correct direction in target range (ML Kit on unmirrored front frame: Left > 0, Right < 0).
+        assertEquals(
             "Giữ hướng này đến khi đổi hướng dẫn",
             HeadTurnGuide.guidanceText(TurnDir.Left, face(yaw = 26f), remainingSeconds = 3),
+        )
+        assertEquals(
+            "Giữ hướng này đến khi đổi hướng dẫn",
+            HeadTurnGuide.guidanceText(TurnDir.Right, face(yaw = -26f), remainingSeconds = 3),
+        )
+        // Opposite direction must never confirm holding the pose.
+        assertEquals(
+            "Quay chậm theo hướng mũi tên",
+            HeadTurnGuide.guidanceText(TurnDir.Left, face(yaw = -26f), remainingSeconds = 3),
+        )
+        assertEquals(
+            "Quay chậm theo hướng mũi tên",
+            HeadTurnGuide.guidanceText(TurnDir.Right, face(yaw = 26f), remainingSeconds = 3),
+        )
+        // Turned too far or drifted near the frame edge in the target direction.
+        assertEquals(
+            "Quay vừa phải, giữ mặt trong khung",
+            HeadTurnGuide.guidanceText(TurnDir.Left, face(yaw = 46f), remainingSeconds = 2),
         )
         assertEquals(
             "Quay vừa phải, giữ mặt trong khung",
@@ -55,6 +89,7 @@ class CaptureTest {
             "Quay vừa phải, giữ mặt trong khung",
             HeadTurnGuide.guidanceText(TurnDir.Left, face(x = 0.78f, yaw = 28f), remainingSeconds = 2),
         )
+        // Center segment.
         assertEquals(
             "Đưa khuôn mặt vào giữa khung hình",
             HeadTurnGuide.guidanceText(null, face(x = 0.78f, yaw = 4f), remainingSeconds = 2),
