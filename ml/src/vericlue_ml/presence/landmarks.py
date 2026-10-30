@@ -92,7 +92,7 @@ def eye_position(points: np.ndarray, width: int, height: int) -> tuple[float, fl
             return None
         iris = xy[list(ring)].mean(axis=0)
         horizontal = float((iris - left) @ axis) / eye_width
-        center_y = (xy[lids[0]] + xy[lids[1]]) / 2
+        center_y = (xy[corners[0]] + xy[corners[1]]) / 2
         y = float((iris - center_y) @ vertical) / eye_width
         if not 0 <= horizontal <= 1 or abs(y) > 0.5:
             return None

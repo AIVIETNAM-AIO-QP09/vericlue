@@ -8,7 +8,7 @@ import pytest
 
 from vericlue_ml.common.detector import DetectorInput
 from vericlue_ml.common.result import Gate, Status
-from vericlue_ml.presence.gaze import GazeDetector, evaluate_gaze, parse_plan
+from vericlue_ml.presence.gaze import GAZE_VERSION, GazeDetector, evaluate_gaze, parse_plan
 from vericlue_ml.presence.landmarks import FaceObservation, LandmarkError, eye_position, pose_angles
 
 TARGET = [
@@ -189,6 +189,7 @@ def test_detector_reads_video_and_ignores_client_claimed_measurements():
     inp = inputs()
     inp.signals = {"gaze": {"gate": "fail", "correlation": -1}}
     result = GazeDetector(reader).predict(inp)
+    assert result.model_version == GAZE_VERSION == "gaze-rules@0.2+face-landmarker-f16-1"
     assert result.gate == Gate.PASS and result.prob_attack is None
     assert result.quality["provisional"] is True
     assert reader.calls == [(inp.video, {"start_ms": 5000.0, "end_ms": 12000.0})]
@@ -230,6 +231,11 @@ def test_iris_geometry_normalizes_face_translation_and_rejects_closed_eyes():
     assert eye_position(shifted, 640, 480) == pytest.approx((0.5, 0.0))
     points[list(range(469, 473)) + list(range(474, 478)), 0] += 0.02
     assert eye_position(points, 640, 480)[0] < 0.5
+    upward = mesh()
+    upward[list(range(469, 473)) + list(range(474, 478)), 1] -= 0.01
+    # Eyelids naturally follow vertical iris motion; vertical offset must stay anchored to eye corners.
+    upward[[159, 145, 386, 374], 1] -= 0.01
+    assert eye_position(upward, 640, 480)[1] == pytest.approx(-0.01 * 480 / 64)
     points[159] = points[145]
     assert eye_position(points, 640, 480) is None
 

@@ -19,7 +19,7 @@ from vericlue_ml.common.result import ErrorCode, Evidence, Gate, Module, ModuleR
 from vericlue_ml.presence.challenge import expected_dynamic
 from vericlue_ml.presence.landmarks import FaceObservation, FaceObservationReader, LandmarkError
 
-GAZE_VERSION = "gaze-rules@0.1+face-landmarker-f16-1"
+GAZE_VERSION = "gaze-rules@0.2+face-landmarker-f16-1"
 MIN_VALID_SAMPLES = 45
 MIN_COVERAGE = 0.80
 MAX_GAP_MS = 300
