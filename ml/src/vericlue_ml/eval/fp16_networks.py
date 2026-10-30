@@ -29,8 +29,11 @@ class Float32LayerNorm(nn.Module):
 class GendMixedHalf(nn.Module):
     """FP32 I/O; FP16 vision weights/activations; FP32 LayerNorm and output head."""
 
-    def __init__(self, classifier, *, preserve_embeddings: bool = False) -> None:
+    def __init__(
+        self, classifier, *, preserve_embeddings: bool = False, preserve_residuals: bool = False
+    ) -> None:
         super().__init__()
+        preserve_embeddings = preserve_embeddings or preserve_residuals
         self.vision = classifier._vision
         self.input_half = not preserve_embeddings
         embeddings = (
@@ -41,7 +44,10 @@ class GendMixedHalf(nn.Module):
         # Save normalization weights BEFORE rounding the vision backbone to half.
         norms = {
             name: Float32LayerNorm(
-                module, half_output=preserve_embeddings and name == "vision_model.pre_layrnorm"
+                module,
+                half_output=preserve_embeddings
+                and not preserve_residuals
+                and name == "vision_model.pre_layrnorm",
             )
             for name, module in self.vision.named_modules()
             if isinstance(module, nn.LayerNorm)
@@ -51,6 +57,14 @@ class GendMixedHalf(nn.Module):
             self.vision.set_submodule(name, norm)
         if embeddings is not None:
             self.vision.set_submodule("vision_model.embeddings", embeddings)
+        if preserve_residuals:
+            linear_layers = {
+                name: HalfLinearFloatOutput(module)
+                for name, module in self.vision.named_modules()
+                if isinstance(module, nn.Linear)
+            }
+            for name, layer in linear_layers.items():
+                self.vision.set_submodule(name, layer)
         self.register_buffer("head_weight", classifier._weight.detach().float())
         self.register_buffer("head_bias", classifier._bias.detach().float())
 
@@ -59,3 +73,15 @@ class GendMixedHalf(nn.Module):
         features = self.vision(pixel_values=pixels).pooler_output.float()
         logits = F.linear(F.normalize(features, p=2, dim=1), self.head_weight, self.head_bias)
         return logits, logits.softmax(dim=-1)
+
+
+class HalfLinearFloatOutput(nn.Module):
+    """Half GEMM, then FP32 residual/activation/attention arithmetic."""
+
+    def __init__(self, original: nn.Linear) -> None:
+        super().__init__()
+        self.register_buffer("weight", original.weight.detach())
+        self.register_buffer("bias", original.bias.detach() if original.bias is not None else None)
+
+    def forward(self, values: torch.Tensor) -> torch.Tensor:
+        return F.linear(values.to(torch.float16), self.weight, self.bias).float()

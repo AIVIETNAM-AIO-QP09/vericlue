@@ -6,6 +6,12 @@ head, logits, softmax và I/O dùng FP32. Đây là **mixed FP16**, không phả
 phép toán đều FP16. PyTorch chuyển trong RAM từ checkpoint gốc, không ghi đè
 trọng số; ONNX xuất thành bundle riêng. Không dùng INT8, KD hoặc hiệu chỉnh ngưỡng.
 
+Hai biến thể riêng: `--variant vision` giữ LayerNorm/head FP32, còn `--variant
+encoder` giữ thêm embedding và đầu vào pre-LayerNorm FP32 trước khi chuyển sang
+encoder FP16. Biến thể sau được thêm để chẩn đoán sai số của lần đầu; không đổi
+budget. Đây là khảo sát phát triển trên tensor tổng hợp, không chọn cấu hình bằng
+tập test người thật. Mọi lần thử, kể cả chưa đạt, phải ghi vào báo cáo.
+
 ## Điều kiện và tiêu chí đặt trước
 
 - Dùng môi trường xuất của [FACE-06](onnx-export.md), bản Torch CUDA và ONNX

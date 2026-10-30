@@ -42,6 +42,7 @@ PRECISION = "fp16_vision_fp32_layernorm_head_io"
 PRECISIONS = {
     "vision": PRECISION,
     "encoder": "fp16_encoder_fp32_embedding_layernorm_head_io",
+    "residual": "fp16_linear_fp32_residual_attention_embedding_norm_head_io",
 }
 
 
@@ -100,7 +101,11 @@ def export(args) -> None:
     started = time.perf_counter()
     with _Memory() as memory:
         classifier, revision, clip_revision = _load_classifier(args.models_dir.resolve(), "cuda")
-        network = GendMixedHalf(classifier, preserve_embeddings=args.variant == "encoder").eval()
+        network = GendMixedHalf(
+            classifier,
+            preserve_embeddings=args.variant == "encoder",
+            preserve_residuals=args.variant == "residual",
+        ).eval()
         actual = _collect(lambda value: _torch_run(network, value, "cuda"), images)
         check = parity(reference, actual)
         np.save(destination / "inputs.npy", images, allow_pickle=False)
@@ -231,7 +236,9 @@ def benchmark(args) -> None:
                 from vericlue_ml.eval.fp16_networks import GendMixedHalf
 
                 network = GendMixedHalf(
-                    classifier, preserve_embeddings=metadata["variant"] == "encoder"
+                    classifier,
+                    preserve_embeddings=metadata["variant"] == "encoder",
+                    preserve_residuals=metadata["variant"] == "residual",
                 ).eval()
             run = lambda value: _torch_run(network, value, "cuda")  # noqa: E731
             providers = ["pytorch:cuda"]

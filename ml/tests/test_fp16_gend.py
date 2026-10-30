@@ -118,3 +118,74 @@ def test_tiny_mixed_model_exports_fp32_io_and_fp16_initializers(tmp_path):
     )
     assert onnx.TensorProto.FLOAT16 in {value.data_type for value in graph.graph.initializer}
     assert onnx.TensorProto.FLOAT in {value.data_type for value in graph.graph.initializer}
+
+
+def test_preserved_embedding_is_not_rounded_and_enters_half_encoder():
+    torch = pytest.importorskip("torch")
+    from types import SimpleNamespace
+
+    from vericlue_ml.eval.fp16_networks import GendMixedHalf
+
+    class Vision(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.vision_model = torch.nn.Module()
+            self.vision_model.embeddings = torch.nn.Linear(3, 3)
+            self.vision_model.pre_layrnorm = torch.nn.LayerNorm(3)
+            self.vision_model.encoder = torch.nn.Linear(3, 3)
+
+        def forward(self, pixel_values):
+            core = self.vision_model
+            value = core.embeddings(pixel_values.mean((2, 3)))
+            return SimpleNamespace(pooler_output=core.encoder(core.pre_layrnorm(value)))
+
+    vision = Vision()
+    original = vision.vision_model.embeddings.weight.detach().clone()
+    model = GendMixedHalf(
+        SimpleNamespace(_vision=vision, _weight=torch.ones(2, 3), _bias=torch.zeros(2)),
+        preserve_embeddings=True,
+    ).eval()
+    core = model.vision.vision_model
+    assert torch.equal(core.embeddings.weight, original)
+    assert core.embeddings.weight.dtype == torch.float32
+    assert core.encoder.weight.dtype == torch.float16
+    with torch.inference_mode():
+        logits, probabilities = model(torch.randn(1, 3, 4, 4))
+    assert logits.dtype == probabilities.dtype == torch.float32
+    assert torch.isfinite(logits).all()
+
+
+@pytest.mark.parametrize("corruption", ["budget", "missing_hash", "changed_input", "changed_file"])
+def test_bundle_rejects_changed_budget_or_integrity(tmp_path, corruption):
+    import json
+
+    from vericlue_ml.eval.fp16_gend import PRECISIONS, load_bundle
+    from vericlue_ml.eval.onnx_metrics import sha256
+
+    np.save(tmp_path / "inputs.npy", np.zeros((1, 3, 224, 224), np.float32))
+    np.savez(tmp_path / "fp32-reference.npz", **output())
+    (tmp_path / "model.onnx").write_bytes(b"placeholder, no runtime load")
+    hashes = {
+        name: sha256(tmp_path / name) for name in ["inputs.npy", "fp32-reference.npz", "model.onnx"]
+    }
+    metadata = {
+        "format": 1,
+        "model": "gend",
+        "variant": "encoder",
+        "precision": PRECISIONS["encoder"],
+        "policy": POLICY.copy(),
+        "samples": 1,
+        "files": hashes,
+        "source_input_sha256": hashes["inputs.npy"],
+    }
+    if corruption == "budget":
+        metadata["policy"]["probability_atol"] = 1
+    elif corruption == "missing_hash":
+        del metadata["files"]["model.onnx"]
+    elif corruption == "changed_input":
+        metadata["source_input_sha256"] = "wrong"
+    else:
+        (tmp_path / "model.onnx").write_bytes(b"changed artifact")
+    (tmp_path / "fp16-bundle.json").write_text(json.dumps(metadata), encoding="utf-8")
+    with pytest.raises(ValueError):
+        load_bundle(tmp_path)
