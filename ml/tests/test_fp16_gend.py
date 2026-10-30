@@ -120,7 +120,8 @@ def test_tiny_mixed_model_exports_fp32_io_and_fp16_initializers(tmp_path):
     assert onnx.TensorProto.FLOAT in {value.data_type for value in graph.graph.initializer}
 
 
-def test_preserved_embedding_is_not_rounded_and_enters_half_encoder():
+@pytest.mark.parametrize("preserve_residuals", [False, True])
+def test_preserved_embedding_is_not_rounded_and_enters_half_encoder(preserve_residuals):
     torch = pytest.importorskip("torch")
     from types import SimpleNamespace
 
@@ -144,11 +145,13 @@ def test_preserved_embedding_is_not_rounded_and_enters_half_encoder():
     model = GendMixedHalf(
         SimpleNamespace(_vision=vision, _weight=torch.ones(2, 3), _bias=torch.zeros(2)),
         preserve_embeddings=True,
+        preserve_residuals=preserve_residuals,
     ).eval()
     core = model.vision.vision_model
     assert torch.equal(core.embeddings.weight, original)
     assert core.embeddings.weight.dtype == torch.float32
     assert core.encoder.weight.dtype == torch.float16
+    assert core.pre_layrnorm.half_output is not preserve_residuals
     with torch.inference_mode():
         logits, probabilities = model(torch.randn(1, 3, 4, 4))
     assert logits.dtype == probabilities.dtype == torch.float32

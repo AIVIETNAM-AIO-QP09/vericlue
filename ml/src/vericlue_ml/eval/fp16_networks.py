@@ -84,4 +84,8 @@ class HalfLinearFloatOutput(nn.Module):
         self.register_buffer("bias", original.bias.detach() if original.bias is not None else None)
 
     def forward(self, values: torch.Tensor) -> torch.Tensor:
-        return F.linear(values.to(torch.float16), self.weight, self.bias).float()
+        # A 2D linear exports as Gemm, preserving the fused bias rounding used by
+        # Torch addmm. A 3D linear can export as separate half MatMul + half Add.
+        flat = values.to(torch.float16).reshape(-1, self.weight.shape[1])
+        output = F.linear(flat, self.weight, self.bias)
+        return output.reshape(*values.shape[:-1], self.weight.shape[0]).float()

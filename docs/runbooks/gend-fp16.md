@@ -6,11 +6,16 @@ head, logits, softmax và I/O dùng FP32. Đây là **mixed FP16**, không phả
 phép toán đều FP16. PyTorch chuyển trong RAM từ checkpoint gốc, không ghi đè
 trọng số; ONNX xuất thành bundle riêng. Không dùng INT8, KD hoặc hiệu chỉnh ngưỡng.
 
-Hai biến thể riêng: `--variant vision` giữ LayerNorm/head FP32, còn `--variant
+Các biến thể riêng: `--variant vision` giữ LayerNorm/head FP32, còn `--variant
 encoder` giữ thêm embedding và đầu vào pre-LayerNorm FP32 trước khi chuyển sang
 encoder FP16. Biến thể sau được thêm để chẩn đoán sai số của lần đầu; không đổi
 budget. Đây là khảo sát phát triển trên tensor tổng hợp, không chọn cấu hình bằng
 tập test người thật. Mọi lần thử, kể cả chưa đạt, phải ghi vào báo cáo.
+
+`--variant residual` giữ thêm đường cộng residual, activation và attention FP32;
+các lớp tuyến tính encoder tính GEMM bằng FP16 rồi đưa kết quả về FP32. Trọng
+số tuyến tính vẫn FP16, embedding/LayerNorm/head giữ FP32. Đây là biến thể thứ
+ba sau khi hai bản đầu chưa đạt budget; không phải toàn bộ encoder tính FP16.
 
 ## Điều kiện và tiêu chí đặt trước
 
@@ -35,7 +40,7 @@ $env:PYTHONPATH = "$PWD/ml/src"
 $modelRoot = 'D:/VeriClue/models/selected-2026-10-24'
 $sourceBundle = 'D:/VeriClue/models/onnx/gend-fp32-b1'
 $halfBundle = 'D:/VeriClue/models/onnx/gend-mixed-fp16-b1'
-python -m vericlue_ml.eval.fp16_gend export --models-dir $modelRoot --fp32-bundle $sourceBundle --output $halfBundle
+python -m vericlue_ml.eval.fp16_gend export --variant residual --models-dir $modelRoot --fp32-bundle $sourceBundle --output $halfBundle
 ```
 
 Chỉ khi lệnh trên thành công, chạy mỗi dòng sau bằng tiến trình riêng, dừng nếu
