@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+from vericlue_ml.common.calibration import CalibFit, CalibrationStore, fit, identity
 from vericlue_ml.common.detector import DetectorInput
 from vericlue_ml.common.result import Gate, ModuleResult, Status
 from vericlue_ml.face import session_attack
@@ -60,3 +61,125 @@ def test_changed_video_discards_attack_measurement(monkeypatch):
     )
     assert result.status == Status.ERROR and result.score is None
     assert result.error_code == "E_INTEGRITY"
+
+
+def fixture_detector(monkeypatch, tmp_path, *, status="ok", score=0.2, error=None):
+    backend = SimpleNamespace(
+        name="face_pad",
+        frames_version="synthetic-3views",
+        predict_frames=lambda *_: ModuleResult(
+            module="face_pad",
+            model_version="synthetic-3views",
+            status=status,
+            score=score,
+            error_code=error,
+            prob_attack=0.01,
+            gate="pass",
+            latency_ms=0,
+        ),
+    )
+    monkeypatch.setattr(session_attack, "session_views", lambda *_: ({}, "a" * 64))
+    monkeypatch.setattr(session_attack, "video_sha256", lambda *_: "a" * 64)
+    store = CalibrationStore(tmp_path)
+    artifact = fit(
+        CalibFit(
+            scores=[0.1, 0.9] * 8,
+            labels=[0, 1] * 8,
+            subject_ids=[f"group-{i // 2}" for i in range(16)],
+            dataset="synthetic-unit-only",
+        ),
+        module="face_pad",
+        model_version="synthetic-3views+session-video-v1",
+        commit="synthetic",
+        n_splits=3,
+    )
+    return backend, store, artifact
+
+
+def test_valid_fitted_session_artifact_calibrates_raw_score_not_backend_probability(
+    monkeypatch, tmp_path
+):
+    backend, store, artifact = fixture_detector(monkeypatch, tmp_path)
+    store.save(artifact)
+    result = SessionAttackDetector(backend, SimpleNamespace(), calibrators=store).predict(
+        DetectorInput(video=Path("sample.mp4"))
+    )
+    assert result.status == Status.OK
+    assert result.score == 0.2
+    assert result.prob_attack == pytest.approx(artifact.predict([0.2])[0])
+    assert result.gate == Gate.UNCLEAR
+    assert result.quality["calibrated"] is True
+    assert result.quality["depth_verified"] is False
+
+
+@pytest.mark.parametrize(
+    "kind", ["missing", "identity", "provisional", "wrong-version", "wrong-module"]
+)
+def test_unusable_artifact_never_produces_a_probability(monkeypatch, tmp_path, kind):
+    backend, store, artifact = fixture_detector(monkeypatch, tmp_path)
+    if kind == "identity":
+        store.save(
+            identity(module="face_pad", model_version=artifact.model_version, commit="synthetic")
+        )
+    elif kind == "provisional":
+        store.save(artifact.model_copy(update={"provisional": True}))
+    elif kind.startswith("wrong"):
+        bad = artifact.model_copy(
+            update={"model_version": "legacy"}
+            if kind == "wrong-version"
+            else {"module": "face_deepfake"}
+        )
+        target = store.path(artifact.module, artifact.model_version)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(bad.model_dump_json(), encoding="utf-8")
+    result = SessionAttackDetector(backend, SimpleNamespace(), calibrators=store).predict(
+        DetectorInput(video=Path("sample.mp4"))
+    )
+    assert result.status == Status.DEGRADED and result.prob_attack is None
+    assert result.gate == Gate.UNCLEAR
+
+
+@pytest.mark.parametrize(
+    "status,score,error",
+    [
+        ("error", 0.2, "E_INTERNAL"),
+        ("degraded", 0.2, None),
+        ("not_applicable", None, "E_NO_FACE"),
+        ("ok", None, None),
+        ("ok", float("nan"), None),
+        ("ok", 1.2, None),
+        ("ok", 0.2, "E_INTERNAL"),
+    ],
+)
+def test_artifact_never_repairs_unusable_backend_measurement(
+    monkeypatch, tmp_path, status, score, error
+):
+    backend, store, artifact = fixture_detector(
+        monkeypatch, tmp_path, status=status, score=score, error=error
+    )
+    store.save(artifact)
+    result = SessionAttackDetector(backend, SimpleNamespace(), calibrators=store).predict(
+        DetectorInput(video=Path("sample.mp4"))
+    )
+    assert result.status != Status.OK and result.prob_attack is None
+
+
+def test_missing_artifact_is_not_activated_mid_process(monkeypatch, tmp_path):
+    backend, store, artifact = fixture_detector(monkeypatch, tmp_path)
+    detector = SessionAttackDetector(backend, SimpleNamespace(), calibrators=store)
+    assert detector.predict(DetectorInput(video=Path("sample.mp4"))).prob_attack is None
+    store.save(artifact)
+    assert detector.predict(DetectorInput(video=Path("sample.mp4"))).prob_attack is None
+
+
+@pytest.mark.parametrize("field,value", [("module", "face_deepfake"), ("model_version", "legacy")])
+def test_backend_identity_mismatch_is_an_integrity_error(monkeypatch, tmp_path, field, value):
+    backend, store, artifact = fixture_detector(monkeypatch, tmp_path)
+    store.save(artifact)
+    result = backend.predict_frames(None, {})
+    backend.predict_frames = lambda *_: result.model_copy(update={field: value})
+    measured = SessionAttackDetector(backend, SimpleNamespace(), calibrators=store).predict(
+        DetectorInput(video=Path("sample.mp4"))
+    )
+    assert measured.status == Status.ERROR and measured.error_code == "E_INTEGRITY"
+    assert measured.module == "face_pad" and measured.prob_attack is None
