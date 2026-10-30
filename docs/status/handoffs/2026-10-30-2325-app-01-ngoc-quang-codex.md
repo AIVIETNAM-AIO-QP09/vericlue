@@ -44,3 +44,9 @@
 
 ## Câu hỏi cho nhóm
 - Chưa có dữ liệu/artifact để cam kết full demo thật trong phiên này. Cần cung cấp nguồn có quyền, đúng protocol/chia theo người; không dùng clip chẩn đoán để fit/chọn ngưỡng.
+
+## Bổ sung paired trial 23:36:39 ngày 30/10
+- Đã lấy được trace numeric private sau media ACK và nối đúng challenge digest với server; cleanup ACK fix đã được kiểm thực tế. Compare CLI:166 pose pairs, max offset64,8ms, median signed yaw delta-0,081° trên toàn các cặp (không suy hệ số ở góc lớn),0stale,0green_outside_server_pose,0green_without_server_face;64dot draws, max normalized plan error0,02245.
+- Module thật: quality/CamProbe/gaze ok/pass, head degraded/unclear pose_out_of_range; PAD/GenD/match E_LOW_QUALITY. Head126/126 hợp lệ,0no_face; max abs yaw57,1°,pitch7,8°,roll14,2°.25mẫu yaw>50° tại head+1903..6300ms (15left,10right). Cả25cặp guidance tương ứng Warn, không thấy xanh sai trong các cặp này. Đây khác lượt23:25 vượt roll.
+- UX đã kiểm source: begin và Hold cùng TONE_PROP_BEEP65ms/35%, completed90ms; Warn chỉ haptic. Phản hồi khó phân biệt là vấn đề UX có thể sửa, chưa chứng minh người dùng nghe/hiểu cue nào tại từng mốc. Không kết luận mô hình đã đạt accuracy hay thay ngưỡng.
+- Người dùng định thử một lượt rồi nghỉ; chưa yêu cầu thêm lượt. Giữ toàn luồng chưa đạt vì head và artifact còn thiếu. Evidence local codex-paired-report.json/codex-paired-head-detail.json; không commit trace thô.
