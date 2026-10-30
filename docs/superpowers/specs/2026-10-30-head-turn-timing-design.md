@@ -1,6 +1,6 @@
 # Tăng thời gian quay đầu trên Android
 
-Ngày 30/10/2026. Thiết kế chờ review, task LIVE-01/FLOW-04/APP-01.
+Ngày 30/10/2026. Người dùng đã duyệt thiết kế 4 giây/hướng. Task LIVE-01/FLOW-04/APP-01.
 
 ## Mục tiêu và nguyên nhân đã kiểm tra
 
