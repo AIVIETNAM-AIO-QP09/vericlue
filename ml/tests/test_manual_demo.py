@@ -7,7 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from vericlue_ml.common.manual_demo import ManualDemoThresholds
-from vericlue_ml.common.result import ModuleResult
+from vericlue_ml.common.result import Evidence, ModuleResult
 
 
 @pytest.mark.parametrize("module", ["face_pad", "face_deepfake"])
@@ -23,6 +23,49 @@ def test_manual_attack_cutoff_requires_successful_raw_inference(module):
     assert not policy.accepts_attack(raw.model_copy(update={"score": None}))
     assert not policy.accepts_attack(raw.model_copy(update={"score": float("nan")}))
     assert not policy.accepts_attack(raw.model_copy(update={"score": 0.9}))
+
+
+def test_manual_deepfake_three_view_checks_frontal_score_and_all_views_valid():
+    policy = ManualDemoThresholds(gend_max=0.50)
+    res = ModuleResult(
+        module="face_deepfake",
+        model_version="gend-clip-l14+headturn-3views-v1",
+        status="ok",
+        score=0.75,
+        evidence=[
+            Evidence(
+                type="timeseries",
+                name="view_scores",
+                value={"front": 0.35, "left": 0.75, "right": 0.51},
+            )
+        ],
+        latency_ms=0,
+    )
+    assert policy.accepts_attack(res)
+    high_front = res.model_copy(
+        update={
+            "evidence": [
+                Evidence(
+                    type="timeseries",
+                    name="view_scores",
+                    value={"front": 0.55, "left": 0.40, "right": 0.40},
+                )
+            ]
+        }
+    )
+    assert not policy.accepts_attack(high_front)
+    missing_view = res.model_copy(
+        update={
+            "evidence": [
+                Evidence(
+                    type="timeseries",
+                    name="view_scores",
+                    value={"front": 0.35, "left": 0.40},
+                )
+            ]
+        }
+    )
+    assert not policy.accepts_attack(missing_view)
 
 
 def test_policy_binding_changes_with_cutoffs_and_rejects_invalid_values():

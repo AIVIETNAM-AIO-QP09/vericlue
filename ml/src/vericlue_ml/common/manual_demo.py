@@ -27,7 +27,7 @@ class ManualDemoThresholds(BaseModel):
 
     def accepts_attack(self, result: ModuleResult) -> bool:
         cutoff = {"face_pad": self.pad_max, "face_deepfake": self.gend_max}.get(result.module)
-        return bool(
+        if not (
             cutoff is not None
             and result.status == Status.OK
             and result.error_code is None
@@ -35,5 +35,24 @@ class ManualDemoThresholds(BaseModel):
             and not result.model_version.startswith("mock")
             and type(result.score) in (float, int)
             and math.isfinite(result.score)
-            and 0 <= result.score <= cutoff
-        )
+            and 0 <= result.score <= 1
+        ):
+            return False
+        score = result.score
+        if result.module == "face_deepfake":
+            views = next(
+                (
+                    e.value
+                    for e in result.evidence
+                    if e.name == "view_scores" and isinstance(e.value, dict)
+                ),
+                None,
+            )
+            if views is not None:
+                if set(views) != {"front", "left", "right"} or any(
+                    type(v) not in (float, int) or not math.isfinite(v) or not 0 <= v <= 1
+                    for v in views.values()
+                ):
+                    return False
+                score = views["front"]
+        return 0 <= score <= cutoff
