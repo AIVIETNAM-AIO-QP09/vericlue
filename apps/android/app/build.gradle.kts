@@ -33,6 +33,7 @@ android {
         targetSdk = 35
         versionCode = 2
         versionName = "0.3.0"
+        testInstrumentationRunner = "vn.vericlue.app.HeadSpeechProbe"
         manifestPlaceholders["appLabel"] = "@string/app_name"
 
         buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")

@@ -279,6 +279,13 @@ cứng. Xem `media-proof.md` và `account-authentication.md`.
 
 ---
 
+**Cập nhật 31/10 — tập và giọng hướng dẫn:** thêm phần tập local tùy chọn trước
+chuẩn bị challenge, không ghi hình/API; bỏ qua chỉ bỏ phần tập. Giọng Việt đọc
+câu cố định, ưu tiên offline, bíp dự phòng nhỏ và khác nhau giữa quay/giữ/nhìn
+thẳng; dừng âm cũ khi đổi trạng thái hoặc ra nền. Oval mảnh, mũi tên chỉ hiện
+khi còn cần quay. Không đổi ngưỡng/lịch/guard server; chờ nghiệm thu người thật.
+Xem [runbook](../../runbooks/head-turn-coaching.md).
+
 **Cập nhật 30/10 — hướng dẫn quay đầu:** thêm nhắc nghiêng/cúi/ngẩng từ ML Kit
 trước khi báo xanh; oval riêng bước quay đầu rộng hơn, giữ vừa màn chữ lớn.
 Âm báo nhỏ/ngắn, bỏ âm cảnh báo và chống rung lặp cùng trạng thái trong đoạn.

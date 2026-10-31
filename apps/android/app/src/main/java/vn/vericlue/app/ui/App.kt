@@ -159,6 +159,7 @@ private fun granted(context: Context, permission: String) =
 fun VeriClueApp() {
     val nav = rememberNavController()
     val flow = remember { FlowState() }
+    var headPracticeDone by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
@@ -224,6 +225,7 @@ fun VeriClueApp() {
 
     /** Every auth choice starts a fresh session, including when returning from OTP with Back. */
     fun enterAccount(requested: Purpose) = once {
+        headPracticeDone = false
         camera.unbind()
         camera.deleteVideo()
         recorder.stop()
@@ -333,6 +335,7 @@ fun VeriClueApp() {
 
     /** Leaves the flow: camera off, session data dropped. */
     fun leave() {
+        headPracticeDone = false
         camera.unbind()
         camera.deleteVideo()
         recorder.stop()
@@ -649,21 +652,26 @@ fun VeriClueApp() {
                 if (hasCamera && !camera.start(lifecycleOwner, back = false)) nav.go(Routes.ErrorDevice)
             }
             // Live: a fresh challenge for this attempt (new session, or refresh after stage A / retry / redo).
+            val needsPractice = flow.purpose != Purpose.Reauth && !headPracticeDone
             var prepared by remember { mutableStateOf(!flow.live) }
-            LaunchedEffect(flow.live) {
-                if (flow.live) {
+            LaunchedEffect(flow.live, needsPractice) {
+                if (flow.live && !needsPractice) {
                     live.prepareFace(flow.mockScenario, FlowRules.purposeCode(flow.purpose))?.let { nav.go(errorRoute(it)) } ?: run { prepared = true }
                 }
             }
             val gate = if (hasCamera) QualityGate.evaluate(face) else null
             // Good for a moment → take the frontal still (on the grey screen, before the flash: ADR-0016).
-            LaunchedEffect(gate == FramingState.Good && prepared) {
-                if (gate != FramingState.Good || !prepared) return@LaunchedEffect
+            LaunchedEffect(gate == FramingState.Good && prepared, needsPractice) {
+                if (needsPractice || gate != FramingState.Good || !prepared) return@LaunchedEffect
                 delay(QualityGate.GOOD_HOLD_MS)
                 live.frontalJpeg = withTimeoutOrNull(3000) { camera.captureJpeg() }
                 nav.go(Routes.HoldStill)
             }
-            FramingScreen(
+            if (needsPractice) vn.vericlue.app.ui.screens.HeadPracticeScreen(
+                face = if (hasCamera) face else null,
+                onExit = exit,
+                onContinue = { headPracticeDone = true },
+            ) else FramingScreen(
                 onExit = exit,
                 onCaptured = { nav.go(Routes.HoldStill) },
                 live = gate,

@@ -14,6 +14,23 @@ import vn.vericlue.app.ui.theme.VcTheme
 abstract class FaceChallengeSnapshots(device: DeviceConfig) {
     @get:Rule val paparazzi = Paparazzi(deviceConfig = device)
 
+    @Test fun practicePhases() {
+        for ((name, step, pose) in listOf(
+            Triple("turn", 1, vn.vericlue.app.capture.TurnPoseState.TurnMore),
+            Triple("hold", 1, vn.vericlue.app.capture.TurnPoseState.Hold),
+            Triple("ready", 5, vn.vericlue.app.capture.TurnPoseState.Hold),
+        )) {
+            val cue = when (name) {
+                "turn" -> vn.vericlue.app.capture.HeadCue.Left
+                "hold" -> vn.vericlue.app.capture.HeadCue.Hold
+                else -> vn.vericlue.app.capture.HeadCue.Ready
+            }
+            paparazzi.snapshot("practice_$name") { VcTheme(motionEnabled = false) {
+                vn.vericlue.app.ui.screens.HeadPracticeContent(step, cue, pose, {}, {}, {})
+            } }
+        }
+    }
+
     @Test fun qrCardStates() {
         val q = vn.vericlue.app.capture.IdQuality(500.0, 0.0, null, portraitPresent = true)
         paparazzi.snapshot("card_auto") { VcTheme(motionEnabled = false) {

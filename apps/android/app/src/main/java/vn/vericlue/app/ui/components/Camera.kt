@@ -75,7 +75,7 @@ fun OvalOverlay(ringColor: Color, ringWidth: Dp = 2.dp, progress: Float? = null,
             addRect(Rect(Offset.Zero, size))
             addOval(oval)
         }
-        drawPath(scrim, Color(0xD108111A))
+        drawPath(scrim, if (fitHeight) Color(0xA608111A) else Color(0xD108111A))
         drawOval(ringColor, oval.topLeft, oval.size, style = Stroke(ringWidth.toPx()))
         if (progress != null) {
             val pad = 9.dp.toPx()

@@ -4,6 +4,16 @@
 
 ## Trạng thái
 
+**APP-01 (31/10, tập quay đầu và lời nhắc):** thêm phần tập tùy chọn trước
+chuẩn bị thử thách; chỉ phân tích camera local, chưa ghi hình/gửi lượt lên API.
+Mũi tên dừng khi giữ đúng góc; oval mảnh và nền nhẹ hơn. Giọng Việt chỉ đọc các
+câu hướng dẫn cố định trong bước tập/quay đầu, ưu tiên giọng offline có sẵn,
+không tự tải gói giọng hay đổi cài đặt máy. Nếu chỉ có giọng cần mạng thì engine
+có thể gửi câu hướng dẫn cố định; không gửi ảnh/âm thanh hay thông tin người dùng.
+Tiếng báo nhỏ phân biệt quay/giữ/nhìn thẳng vẫn dự phòng khi TTS lỗi; dừng âm
+khi đổi hướng, thoát màn hoặc app về nền. Không đổi lịch ghi hình/ngưỡng server.
+Xem [hướng dẫn thử](../../docs/runbooks/head-turn-coaching.md).
+
 **APP-01 (30/10 tối, chẩn đoán góc mặt):** kết quả analyzer trễ hơn 300ms không
 được dùng đếm giữ hoặc giữ khung xanh; màn hướng dẫn tự kiểm tuổi kết quả mỗi
 100ms. Trace opt-in đã nối camera–timeline–hướng dẫn–chấm được vẽ, gắn digest
