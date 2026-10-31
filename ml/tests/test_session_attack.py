@@ -202,3 +202,60 @@ def test_backend_identity_mismatch_is_an_integrity_error(monkeypatch, tmp_path, 
     )
     assert measured.status == Status.ERROR and measured.error_code == "E_INTEGRITY"
     assert measured.module == "face_pad" and measured.prob_attack is None
+
+
+def test_reauth_uses_frontal_frame_and_requires_fitted_calibrator_in_standard_mode(
+    monkeypatch, tmp_path
+):
+    frame = np.full((112, 112, 3), 64, np.uint8)
+    backend = SimpleNamespace(
+        name="face_deepfake",
+        frames_version="gend+3views",
+        predict_frame=lambda inp, bgr: ModuleResult(
+            module="face_deepfake",
+            model_version="gend+single-frame-v1",
+            status="ok",
+            score=0.15,
+            latency_ms=1,
+        ),
+    )
+    reader = SimpleNamespace(
+        observe=lambda bgr, at_ms: SimpleNamespace(
+            face_count=1, yaw_deg=0.0, pitch_deg=0.0, roll_deg=0.0
+        )
+    )
+    monkeypatch.setattr(
+        session_attack,
+        "select_frontal_frame",
+        lambda video, target: SimpleNamespace(bgr=frame, at_ms=500),
+    )
+    monkeypatch.setattr(session_attack, "video_sha256", lambda *_: "c" * 64)
+    store = CalibrationStore(tmp_path)
+    inp = DetectorInput(
+        session_id="ses_reauth",
+        video=Path("reauth.mp4"),
+        metadata={"purpose": "reauth", "challenge_id": "ch_reauth"},
+    )
+    uncalibrated = SessionAttackDetector(backend, reader, calibrators=store).predict(inp)
+    assert uncalibrated.status == Status.DEGRADED
+    assert uncalibrated.prob_attack is None
+    assert uncalibrated.model_version == "gend+single-frame-v1"
+
+    artifact = fit(
+        CalibFit(
+            scores=[0.1, 0.9] * 8,
+            labels=[0, 1] * 8,
+            subject_ids=[f"group-{i // 2}" for i in range(16)],
+            dataset="synthetic-unit-only",
+        ),
+        module="face_deepfake",
+        model_version="gend+single-frame-v1",
+        commit="synthetic",
+        n_splits=3,
+    )
+    store.save(artifact)
+    calibrated = SessionAttackDetector(backend, reader, calibrators=store).predict(inp)
+    assert calibrated.status == Status.OK
+    assert calibrated.prob_attack == pytest.approx(artifact.predict([0.15])[0])
+    assert calibrated.quality["calibrated"] is True
+    assert "manual_demo" not in calibrated.quality

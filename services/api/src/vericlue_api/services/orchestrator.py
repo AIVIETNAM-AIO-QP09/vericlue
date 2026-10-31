@@ -152,12 +152,14 @@ class Orchestrator:
                 return SessionAttackDetector(
                     FsvfmPadDetector(),
                     self._face_reader,
+                    self.router.calibrators,
                     manual_demo=self.settings.manual_demo_policy,
                 )
             if module == Module.FACE_DEEPFAKE:
                 return SessionAttackDetector(
                     FaceDeepfakeDetector(),
                     self._face_reader,
+                    self.router.calibrators,
                     manual_demo=self.settings.manual_demo_policy,
                 )
             if module == Module.CHROMAPULSE:

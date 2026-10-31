@@ -58,7 +58,7 @@ class SessionAttackDetector:
         started = perf_counter()
         version = self.version
         try:
-            if inp.metadata.get("purpose") == "reauth" and self.manual_demo is not None:
+            if inp.metadata.get("purpose") == "reauth":
                 if inp.video is None:
                     raise LandmarkError(ErrorCode.E_DECODE, Status.DEGRADED)
                 checksum = video_sha256(inp.video)
@@ -74,7 +74,9 @@ class SessionAttackDetector:
                 result = self.backend.predict_frame(inp, frontal.bgr)
                 if video_sha256(inp.video) != checksum or result.module != self.name:
                     raise LandmarkError(ErrorCode.E_INTEGRITY)
-                version = result.model_version + self.manual_demo.version_suffix
+                version = result.model_version + (
+                    self.manual_demo.version_suffix if self.manual_demo is not None else ""
+                )
             else:
                 version = session_model_version(
                     self.backend.frames_version, head_protocol_version(inp)

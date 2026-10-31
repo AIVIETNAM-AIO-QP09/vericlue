@@ -46,6 +46,7 @@ from vericlue_api.services.media_proof import (
     require_consumed,
     verify_and_consume,
 )
+from vericlue_api.services.privacy_consent import require_categories
 from vericlue_api.services.provisional_decision import (
     MAX_VOICE_REREADS,
     Outcome,
@@ -56,13 +57,16 @@ from vericlue_api.services.session_store import Session, SessionStore
 from vericlue_api.services.upload_images import prepare_image
 from vericlue_api.services.upload_quota import reserve_media
 from vericlue_api.services.uploads import save_upload
+from vericlue_ml.common.calibration import CalibrationError, Calibrator
 from vericlue_ml.common.result import ErrorCode, Evidence, Gate, Module, Status
 from vericlue_ml.face.continuity import FACE_VOICE_VERSION
 from vericlue_ml.face.enrolled import REAUTH_MATCH_VERSION, RECOVERY_MATCH_VERSION
-from vericlue_ml.face.match import MATCH_VERSION
+from vericlue_ml.face.match import MATCH_VERSION, MatchThreshold
 from vericlue_ml.face.video_match import VIDEO_MATCH_VERSION
+from vericlue_ml.presence.head_protocol import session_model_version
 from vericlue_ml.router.flows import route_face, route_voice
 from vericlue_ml.router.policy import TrustRouter
+from vericlue_ml.voice.nes2net_timeline import VERSION as NES2NET_TIMELINE_VERSION
 
 RETRY_HINTS = frozenset(get_args(RetryHint))
 DEFAULT_HINT = "MORE_LIGHT"
@@ -134,6 +138,7 @@ class SessionFlow:
         privacy: SessionPrivacy | None = None,
         enroll: Callable[[Session], object] | None = None,
         accounts: AccountStore | None = None,
+        orchestrator: object | None = None,
     ) -> None:
         self.router = (
             router
@@ -148,6 +153,190 @@ class SessionFlow:
         self._enroll = enroll
         self.accounts = accounts or AccountStore(settings, sessions.db)
         self.account_auth = AccountAuth(self.accounts)
+        self.orchestrator = orchestrator
+
+    @staticmethod
+    def _flow_unavailable() -> ApiError:
+        return ApiError(503, "flow_unavailable", "Luồng xác minh này chưa sẵn sàng.")
+
+    def _require_fitted_calibrator(self, module: Module, version: str) -> None:
+        try:
+            artifact = self.router.calibrators.load(module, version)
+        except CalibrationError as exc:
+            raise self._flow_unavailable() from exc
+        if not isinstance(artifact, Calibrator) or artifact.provisional:
+            raise self._flow_unavailable()
+
+    def _require_match_threshold(
+        self, path_str: str | None, expected_versions: tuple[str, ...]
+    ) -> None:
+        if not path_str:
+            raise self._flow_unavailable()
+        try:
+            artifact = MatchThreshold.model_validate_json(
+                Path(path_str).read_text(encoding="utf-8")
+            )
+        except Exception as exc:
+            raise self._flow_unavailable() from exc
+        if artifact.model_version not in expected_versions:
+            raise self._flow_unavailable()
+
+    def _ensure_standard_flow_ready(
+        self,
+        purpose: str,
+        *,
+        account_bound: bool,
+        session: Session | None = None,
+    ) -> None:
+        """Fail closed unless every real model, calibration artifact, consent and account prerequisite is ready."""
+        s = self.settings
+        if (
+            s.use_mock_models is not False
+            or s.manual_face_demo
+            or s.manual_full_demo
+            or not s.require_privacy_consent
+            or not s.session_face_models
+            or not s.session_voice_models
+            or not s.identity_face_from_video
+            or self.orchestrator is None
+        ):
+            raise self._flow_unavailable()
+        if session is not None and session.created_model_mode != "real":
+            raise self._flow_unavailable()
+        enrolled_flow = account_bound or (purpose == "onboarding" and s.account_enrollment)
+        if enrolled_flow:
+            try:
+                self.accounts._master()
+            except ApiError as exc:
+                raise self._flow_unavailable() from exc
+            if (
+                not s.require_media_proof
+                or not s.identity_card_enabled
+                or not s.identity_consistency_required
+                or not s.session_face_checks
+                or not s.identity_voice_continuity
+                or len(s.id_hmac_key.get_secret_value().encode("utf-8")) < 32
+            ):
+                raise self._flow_unavailable()
+        if purpose in {"onboarding", "recovery"} and (
+            not s.session_face_checks
+            or not s.identity_card_enabled
+            or not s.identity_consistency_required
+            or not s.identity_voice_continuity
+        ):
+            raise self._flow_unavailable()
+
+        required_modules = [
+            *self.router.profile.finalize_modules,
+            *self.router.profile.voice_step_modules,
+            Module.FACE_MATCH,
+        ]
+        if purpose in {"onboarding", "recovery"}:
+            required_modules.extend(
+                (Module.GAZE_TRACKING, Module.HEAD_TURN, Module.FACE_CONTINUITY)
+            )
+            if enrolled_flow and Module.LIPSYNC not in required_modules:
+                required_modules.append(Module.LIPSYNC)
+
+        failed = set(getattr(self.orchestrator, "failed_modules", ()))
+        detectors: dict[Module, object] = {}
+        for module in dict.fromkeys(required_modules):
+            if str(module) in failed or module.value in failed:
+                raise self._flow_unavailable()
+            detector = self.orchestrator.loaded_detector(module)
+            if detector is None:
+                raise self._flow_unavailable()
+            version = str(getattr(detector, "version", "") or "")
+            if not version or "mock" in version.lower() or version == "unavailable":
+                raise self._flow_unavailable()
+            detectors[module] = detector
+
+        protocol = (
+            session.challenge.dynamic.version
+            if session is not None and session.challenge.dynamic is not None
+            else 2
+        )
+        for attack_mod in (Module.FACE_PAD, Module.FACE_DEEPFAKE):
+            det = detectors[attack_mod]
+            backend = getattr(det, "backend", None)
+            if backend is None or getattr(det, "manual_demo", None) is not None:
+                raise self._flow_unavailable()
+            if purpose == "reauth":
+                base_ver = str(getattr(backend, "version", "") or "")
+                expected_attack_ver = (
+                    base_ver if attack_mod == Module.FACE_PAD else f"{base_ver}+single-frame-v1"
+                )
+            else:
+                frames_ver = str(getattr(backend, "frames_version", "") or "")
+                expected_attack_ver = session_model_version(frames_ver, protocol)
+            self._require_fitted_calibrator(attack_mod, expected_attack_ver)
+
+        spoof_ver = str(getattr(detectors[Module.VOICE_SPOOF], "version", "") or "")
+        # VOICE-08/VOICE-13: NES2Net timeline remains diagnostic-only until parity & calib_fit exist.
+        if spoof_ver == NES2NET_TIMELINE_VERSION:
+            raise self._flow_unavailable()
+        self._require_fitted_calibrator(Module.VOICE_SPOOF, spoof_ver)
+
+        if (
+            Module.LIPSYNC in self.router.profile.voice_modules
+            or purpose == "recovery"
+            or (purpose == "onboarding" and s.account_enrollment)
+        ):
+            lipsync_ver = str(getattr(detectors[Module.LIPSYNC], "version", "") or "")
+            self._require_fitted_calibrator(Module.LIPSYNC, lipsync_ver)
+
+        if purpose == "onboarding":
+            self._require_match_threshold(
+                s.identity_face_calibration,
+                (VIDEO_MATCH_VERSION, VIDEO_MATCH_VERSION + "+head12s-v2"),
+            )
+            self._require_match_threshold(
+                s.identity_consistency_calibration,
+                (
+                    VIDEO_MATCH_VERSION + "+view-consistency-v1",
+                    VIDEO_MATCH_VERSION + "+head12s-v2+view-consistency-v1",
+                ),
+            )
+            self._require_match_threshold(s.identity_voice_calibration, (FACE_VOICE_VERSION,))
+        elif purpose == "reauth":
+            if not account_bound:
+                raise self._flow_unavailable()
+            self._require_match_threshold(s.identity_account_calibration, (REAUTH_MATCH_VERSION,))
+        elif purpose == "recovery":
+            if not account_bound:
+                raise self._flow_unavailable()
+            self._require_match_threshold(
+                s.identity_recovery_calibration, (RECOVERY_MATCH_VERSION,)
+            )
+            self._require_match_threshold(
+                s.identity_consistency_calibration,
+                (
+                    VIDEO_MATCH_VERSION + "+view-consistency-v1",
+                    VIDEO_MATCH_VERSION + "+head12s-v2+view-consistency-v1",
+                ),
+            )
+            self._require_match_threshold(s.identity_voice_calibration, (FACE_VOICE_VERSION,))
+        else:
+            raise self._flow_unavailable()
+
+        if session is not None:
+            endpoint = "voice" if session.voice_requested else "finalize"
+            try:
+                require_categories(self.sessions.db, s, session, endpoint)
+            except ApiError as exc:
+                raise self._flow_unavailable() from exc
+            if purpose == "recovery" and account_bound:
+                identity = self.account_auth.current(session)
+                if (
+                    not session.otp_verified
+                    or not session.phone_hmac
+                    or session.phone_hmac != self.accounts.phone_hmac(identity.receipt.account_id)
+                    or not session.media_public_key_spki
+                ):
+                    raise self._flow_unavailable()
+            elif purpose == "onboarding" and s.account_enrollment:
+                if not session.otp_verified or not session.phone_hmac:
+                    raise self._flow_unavailable()
 
     # --- tạo phiên -------------------------------------------------------
     def create(
@@ -190,7 +379,7 @@ class SessionFlow:
         # These flows need gaze/head/match/device verification before real deployment.
         # No environment switch can accidentally enable an incomplete acceptance path.
         if request is not None and self.settings.use_mock_models is not True and not account_bound:
-            raise ApiError(503, "flow_unavailable", "Luồng xác minh này chưa sẵn sàng.")
+            self._ensure_standard_flow_ready(request.purpose, account_bound=False)
         session = self.sessions.create(
             scenario=scenario,
             challenge=generate_challenge(self.settings),
@@ -347,11 +536,12 @@ class SessionFlow:
                 self.account_auth.current(session)
             if self.settings.manual_full_demo:
                 return
-            # L0 is usable independently. Do not accept mock account biometrics or
-            # enable the unvalidated real dynamic flow through this new entry point.
-            raise ApiError(503, "flow_unavailable", "Luồng xác minh này chưa sẵn sàng.")
+            self._ensure_standard_flow_ready(
+                session.purpose or "", account_bound=True, session=session
+            )
+            return
         if session.purpose is not None and self.settings.use_mock_models is not True:
-            raise ApiError(503, "flow_unavailable", "Luồng xác minh này chưa sẵn sàng.")
+            self._ensure_standard_flow_ready(session.purpose, account_bound=False, session=session)
 
     def _requires_proof(self, session: Session) -> bool:
         return (
@@ -1102,6 +1292,33 @@ class SessionFlow:
     def _lipsync_gate(self, session: Session, outcome):
         """Recovery and voiced account enrollment require verified lipsync (never advisory)."""
         lipsync = session.results.get(Module.LIPSYNC)
+        if (
+            lipsync is not None
+            and not self.settings.manual_full_demo
+            and self.settings.use_mock_models is False
+            and lipsync.module == Module.LIPSYNC
+            and lipsync.status == Status.OK
+            and lipsync.error_code is None
+            and "mock" not in lipsync.model_version.lower()
+        ):
+            if lipsync.prob_attack is None and lipsync.score is not None:
+                try:
+                    artifact = self.router.calibrators.load(Module.LIPSYNC, lipsync.model_version)
+                    if isinstance(artifact, Calibrator) and not artifact.provisional:
+                        prob = float(artifact.predict([lipsync.score])[0])
+                        lipsync = lipsync.model_copy(update={"prob_attack": prob})
+                except CalibrationError:
+                    pass
+            if lipsync.gate in {None, Gate.PASS} and lipsync.prob_attack is not None:
+                gate = (
+                    Gate.PASS
+                    if 0 <= lipsync.prob_attack <= self.router.config.voice.spoof_threshold
+                    else Gate.FAIL
+                )
+                lipsync = lipsync.model_copy(update={"gate": gate})
+            session.results[Module.LIPSYNC] = lipsync
+            if Module.LIPSYNC in outcome.results:
+                outcome = replace(outcome, results={**outcome.results, Module.LIPSYNC: lipsync})
         require_real_gate = (
             self.settings.manual_full_demo
             or self.settings.use_mock_models is False
@@ -1154,9 +1371,7 @@ class SessionFlow:
             if self.settings.identity_face_from_video
             else (MATCH_VERSION,)
         )
-        expected_versions = (
-            tuple(v + suffix for v in base_versions) if manual else (base_versions[0],)
-        )
+        expected_versions = tuple(v + suffix for v in base_versions) if manual else base_versions
         if match is not None and match.model_version in expected_versions:
             threshold = match.quality.get("threshold_cosine")
             if type(threshold) in (int, float) and -1 <= threshold <= 1:

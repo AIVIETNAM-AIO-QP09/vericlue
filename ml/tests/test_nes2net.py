@@ -287,3 +287,66 @@ def test_cli_output_does_not_overwrite_inputs_models_or_existing_files(tmp_path,
     with pytest.raises(SystemExit):
         main(["--audio", str(audio), "--models-dir", str(models), "--output", str(output)])
     assert audio.read_bytes() == b"source" and existing.read_text() == "keep"
+
+
+def _load_parity_script():
+    import importlib.util
+    from pathlib import Path
+
+    script = Path(__file__).resolve().parents[1] / "scripts" / "parity_nes2net.py"
+    spec = importlib.util.spec_from_file_location("parity_nes2net", script)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_parity_compare_logits_enforces_tolerance_sign_and_sample_count():
+    parity = _load_parity_script()
+    converted = [
+        {"window_index": i, "logits": [1.5 + 0.01 * i, -0.5], "margin_score": 2.0 + 0.01 * i}
+        for i in range(32)
+    ]
+    reference = [[1.5 + 0.01 * i + 2e-5, -0.5 - 1e-5] for i in range(32)]
+    passed = parity.compare_logits(converted, reference, synthetic=False)
+    assert passed["status"] == "PASS" and passed["sign_agreement"] == 1.0
+
+    # Synthetic or < 32 clips must remain UNVERIFIED even when numerically identical.
+    assert parity.compare_logits(converted, reference, synthetic=True)["status"] == "UNVERIFIED"
+    assert (
+        parity.compare_logits(converted[:8], reference[:8], synthetic=False)["status"]
+        == "UNVERIFIED"
+    )
+
+    # Exceeding logit tolerance or flipping margin sign must FAIL.
+    drifted = [[row[0] + 5e-4, row[1]] for row in reference]
+    assert parity.compare_logits(converted, drifted, synthetic=False)["status"] == "FAIL"
+    flipped = [{"window_index": 0, "logits": [1e-6, 0.0], "margin_score": 1e-6}] * 32
+    flipped_ref = [[-1e-6, 0.0]] * 32
+    assert parity.compare_logits(flipped, flipped_ref, synthetic=False)["status"] == "FAIL"
+
+
+def test_parity_cli_without_reference_stays_unverified_with_exit_code_two(monkeypatch, tmp_path):
+    parity = _load_parity_script()
+
+    class StubBackend:
+        def __init__(self, _root):
+            self.model_hashes = {"nes2net-x-xlsr/checkpoint.pth": "a" * 64}
+            self.load_report = {"missing_keys": [], "unexpected_keys": [], "ignored_keys": []}
+            self.config = {"model_subdir": "nes2net-x-xlsr", "checkpoint": "checkpoint.pth"}
+
+        def preload(self):
+            pass
+
+        def logits(self, window):
+            assert window.shape == (64000,) and window.dtype == np.float32
+            return np.array([float(window[0]), -float(window[0])], dtype=np.float32)
+
+    monkeypatch.setattr(parity.nes2net, "Nes2NetBackend", StubBackend)
+    out = tmp_path / "parity.json"
+    code = parity.main(["--models-dir", str(tmp_path), "--synthetic-smoke", "--output", str(out)])
+    report = json.loads(out.read_text(encoding="utf-8"))
+    assert code == 2
+    assert report["status"] == "UNVERIFIED"
+    assert report["reference_runtime"] is None
+    assert len(report["windows"]) == 4

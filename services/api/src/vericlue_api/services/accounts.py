@@ -263,7 +263,7 @@ class AccountStore:
                 VIDEO_MATCH_VERSION + "+head12s-v2" + suffix,
             )
             if s.manual_full_demo
-            else (VIDEO_MATCH_VERSION,)
+            else (VIDEO_MATCH_VERSION, VIDEO_MATCH_VERSION + "+head12s-v2")
         )
         if (
             match.model_version not in expected_match_versions
