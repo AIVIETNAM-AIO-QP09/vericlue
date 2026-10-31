@@ -188,6 +188,27 @@ class Settings(BaseSettings):
     identity_face_from_video: bool = False
     session_face_checks: bool = False
     session_face_models: bool = False
+    manual_face_demo: bool = False
+    manual_demo_pad_max: float = Field(default=0.50, gt=0, lt=1, allow_inf_nan=False)
+    manual_demo_gend_max: float = Field(default=0.50, gt=0, lt=1, allow_inf_nan=False)
+    manual_demo_match_min: float = Field(default=0.30, gt=0, lt=1, allow_inf_nan=False)
+    manual_demo_consistency_min: float = Field(default=0.30, gt=0, lt=1, allow_inf_nan=False)
+
+    @property
+    def manual_demo_policy(self):
+        from vericlue_ml.common.manual_demo import ManualDemoThresholds
+
+        return (
+            ManualDemoThresholds(
+                pad_max=self.manual_demo_pad_max,
+                gend_max=self.manual_demo_gend_max,
+                match_min=self.manual_demo_match_min,
+                consistency_min=self.manual_demo_consistency_min,
+            )
+            if self.manual_face_demo
+            else None
+        )
+
     identity_consistency_required: bool = False
     identity_consistency_calibration: str | None = None
     identity_voice_continuity: bool = False
@@ -199,6 +220,24 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def consistency_requires_video(self):
+        if self.manual_face_demo and (
+            self.security_profile != "synthetic"
+            or self.product_mode != "ekyc"
+            or self.router_profile != "mvp"
+            or self.use_mock_models is not True
+            or not self.session_face_checks
+            or not self.session_face_models
+            or not self.identity_card_enabled
+            or not self.identity_face_from_video
+            or not self.identity_consistency_required
+            or self.account_enrollment
+            or self.private_credentials
+            or self.result_signing_key_file
+            or self.identity_voice_continuity
+        ):
+            raise ValueError(
+                "Manual demo requires isolated synthetic onboarding with real face checks; no enrollment/credentials/signing"
+            )
         if self.identity_consistency_required and not self.identity_face_from_video:
             raise ValueError("IDENTITY_CONSISTENCY_REQUIRED requires IDENTITY_FACE_FROM_VIDEO")
         if self.identity_voice_continuity and (

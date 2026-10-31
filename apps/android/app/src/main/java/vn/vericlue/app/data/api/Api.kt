@@ -108,6 +108,8 @@ data class CreateSessionResponse(
     val purpose: String? = null,
     val nonce: String? = null,
     @SerialName("device_challenge") val deviceChallenge: DeviceChallenge? = null,
+    @SerialName("evaluation_mode") val evaluationMode: String = "standard",
+    @SerialName("demo_policy_id") val demoPolicyId: String? = null,
 )
 
 @Serializable
@@ -142,6 +144,9 @@ data class FinalizeResponse(
     @SerialName("attempts_left") val attemptsLeft: Int? = null,
     val challenge: Challenge? = null,
     @SerialName("voice_challenge_id") val voiceChallengeId: String? = null,
+    @SerialName("evaluation_mode") val evaluationMode: String = "standard",
+    @SerialName("demo_policy_id") val demoPolicyId: String? = null,
+    @SerialName("demo_complete") val demoComplete: Boolean = false,
 )
 
 @Serializable

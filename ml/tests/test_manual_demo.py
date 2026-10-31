@@ -1,0 +1,83 @@
+"""Manual cutoffs demonstrate raw inference; they do not supply calibrated probabilities."""
+
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+from pydantic import ValidationError
+
+from vericlue_ml.common.manual_demo import ManualDemoThresholds
+from vericlue_ml.common.result import ModuleResult
+
+
+@pytest.mark.parametrize("module", ["face_pad", "face_deepfake"])
+def test_manual_attack_cutoff_requires_successful_raw_inference(module):
+    policy = ManualDemoThresholds(pad_max=0.4, gend_max=0.6)
+    raw = ModuleResult(
+        module=module, model_version="real-backend", status="ok", score=0.35, latency_ms=0
+    )
+    assert policy.accepts_attack(raw)
+    assert not policy.accepts_attack(raw.model_copy(update={"status": "degraded"}))
+    assert not policy.accepts_attack(raw.model_copy(update={"status": "error"}))
+    assert not policy.accepts_attack(raw.model_copy(update={"error_code": "E_INTERNAL"}))
+    assert not policy.accepts_attack(raw.model_copy(update={"score": None}))
+    assert not policy.accepts_attack(raw.model_copy(update={"score": float("nan")}))
+    assert not policy.accepts_attack(raw.model_copy(update={"score": 0.9}))
+
+
+def test_policy_binding_changes_with_cutoffs_and_rejects_invalid_values():
+    policy = ManualDemoThresholds()
+    assert len(policy.policy_id) == 64
+    assert policy.policy_id != ManualDemoThresholds(match_min=0.4).policy_id
+    for value in [0, 1, float("nan"), float("inf")]:
+        with pytest.raises(ValidationError):
+            ManualDemoThresholds(pad_max=value)
+
+
+@pytest.mark.parametrize("score,expected", [(0.2, "pass"), (0.8, "fail")])
+def test_attack_adapter_uses_manual_gate_without_fabricating_probability(
+    monkeypatch, score, expected
+):
+    from test_session_attack import attack_input
+
+    from vericlue_ml.face import session_attack
+
+    backend = SimpleNamespace(
+        name="face_pad",
+        frames_version="real-pad-views",
+        predict_frames=lambda *_: ModuleResult(
+            module="face_pad",
+            model_version="real-pad-views",
+            status="ok",
+            score=score,
+            latency_ms=0,
+        ),
+    )
+    monkeypatch.setattr(session_attack, "session_views", lambda *_: ({}, "a" * 64))
+    monkeypatch.setattr(session_attack, "video_sha256", lambda *_: "a" * 64)
+    policy = ManualDemoThresholds()
+    result = session_attack.SessionAttackDetector(
+        backend, SimpleNamespace(), manual_demo=policy
+    ).predict(attack_input(video=Path("synthetic.mp4")))
+    assert result.status == "ok" and result.gate == expected
+    assert result.prob_attack is None
+    assert result.quality["calibrated"] is False
+    assert result.quality["demo_policy_id"] == policy.policy_id
+    assert result.model_version.endswith(policy.version_suffix)
+
+
+@pytest.mark.parametrize("same", [True, False])
+def test_manual_identity_uses_raw_cosines_without_fake_calibration(tmp_path, monkeypatch, same):
+    from test_face_match import setup_detector, vector
+
+    monkeypatch.delenv("FACE_MATCH_CALIBRATION", raising=False)
+    detector, inp = setup_detector(
+        tmp_path, vectors=[vector(), vector(0 if same else 1), vector(), vector()]
+    )
+    detector.manual_demo = ManualDemoThresholds()
+    result = detector.predict(inp)
+    assert result.status == "ok"
+    assert result.gate == ("pass" if same else "fail")
+    assert result.prob_attack is None
+    assert result.quality["calibrated"] is False
+    assert result.model_version.endswith(detector.manual_demo.version_suffix)

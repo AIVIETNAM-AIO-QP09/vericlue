@@ -116,6 +116,10 @@ class Challenge(BaseModel):
 
 
 class CreateSessionResponse(BaseModel):
+    evaluation_mode: Literal["standard", "manual_demo"] = Field(
+        default="standard", exclude_if=lambda v: v == "standard"
+    )
+    demo_policy_id: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     session_id: str
     token: str = Field(
         description="Token HMAC-SHA256 theo phiên, có hạn; gửi Authorization: Bearer. DB chỉ lưu hash token."
@@ -125,6 +129,12 @@ class CreateSessionResponse(BaseModel):
     purpose: SessionPurpose | None = None
     nonce: str | None = None
     device_challenge: DeviceChallenge | None = None
+
+    @model_validator(mode="after")
+    def evaluation_binding(self):
+        if (self.evaluation_mode == "manual_demo") != (self.demo_policy_id is not None):
+            raise ValueError("Evaluation mode requires matching policy binding")
+        return self
 
 
 class Signals(BaseModel):
@@ -143,12 +153,33 @@ class StepAck(BaseModel):
 
 
 class FinalizeResponse(BaseModel):
+    evaluation_mode: Literal["standard", "manual_demo"] = Field(
+        default="standard", exclude_if=lambda v: v == "standard"
+    )
+    demo_policy_id: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    demo_complete: bool = Field(default=False, exclude_if=lambda v: v is False)
     status: Literal["pass", "retry", "review", "voice_challenge", "deny", "recovery_required"]
     retry_hint: RetryHint | None = None
     voice_prompt: str | None = None
     attempts_left: int | None = None
     challenge: Challenge | None = Field(default=None, description="Chỉ có khi status = retry")
     voice_challenge_id: str | None = None
+
+    @model_validator(mode="after")
+    def demo_cannot_be_verified(self):
+        if self.evaluation_mode == "manual_demo" and (
+            not self.demo_policy_id or self.status not in {"review", "retry"}
+        ):
+            raise ValueError("Manual evaluation cannot return an authenticated status")
+        if self.evaluation_mode == "standard" and self.demo_policy_id is not None:
+            raise ValueError("Standard evaluation has no manual policy")
+        if self.demo_complete and (
+            self.status != "review"
+            or self.evaluation_mode != "manual_demo"
+            or not self.demo_policy_id
+        ):
+            raise ValueError("Demo completion is not an authenticated pass")
+        return self
 
 
 class VoiceResponse(BaseModel):

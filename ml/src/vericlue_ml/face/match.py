@@ -22,6 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from vericlue_ml.common.detector import DetectorInput
 from vericlue_ml.common.device import check_onnx_session, onnx_providers
+from vericlue_ml.common.manual_demo import ManualDemoThresholds
 from vericlue_ml.common.result import ErrorCode, Evidence, Gate, Module, ModuleResult, Status
 from vericlue_ml.face.pad import (
     FaceFinder,
@@ -193,8 +194,10 @@ class FaceMatchDetector:
         embedder: Embedder | None = None,
         calibration_path: Path | None = None,
         consistency_path: Path | None = None,
+        manual_demo: ManualDemoThresholds | None = None,
     ) -> None:
         self.finder = finder
+        self.manual_demo = manual_demo
         self.embedder = embedder if embedder is not None else LVFaceEmbedder()
         self.calibration_path = calibration_path
         self.consistency_path = consistency_path
@@ -221,13 +224,13 @@ class FaceMatchDetector:
                 if isinstance(self.embedder, LVFaceEmbedder):
                     self.embedder.preload(models_dir=models_dir, device=device)
                 artifact = self.calibration_path or os.environ.get("FACE_MATCH_CALIBRATION")
-                if artifact is not None:
+                if artifact is not None and self.manual_demo is None:
                     self._threshold = MatchThreshold.model_validate_json(
                         Path(artifact).read_text(encoding="utf-8")
                     )
                     if self._threshold.model_version not in self._supported_versions():
                         raise MatchError(ErrorCode.E_INTEGRITY)
-                if self.consistency_path is not None:
+                if self.consistency_path is not None and self.manual_demo is None:
                     self._consistency_threshold = MatchThreshold.model_validate_json(
                         self.consistency_path.read_text(encoding="utf-8")
                     )
@@ -349,11 +352,26 @@ class FaceMatchDetector:
                     == version + "+view-consistency-v1"
                     else None
                 )
-                available = threshold is not None
-                passed = available and frontal_cosine >= threshold.threshold
+                available = threshold is not None or self.manual_demo is not None
+                threshold_value = (
+                    self.manual_demo.match_min
+                    if self.manual_demo
+                    else threshold.threshold
+                    if threshold
+                    else None
+                )
+                consistency_value = (
+                    self.manual_demo.consistency_min
+                    if self.manual_demo
+                    else consistency.threshold
+                    if consistency
+                    else None
+                )
+                passed = available and frontal_cosine >= threshold_value
                 return ModuleResult(
                     module=Module.FACE_MATCH,
-                    model_version=version,
+                    model_version=version
+                    + (self.manual_demo.version_suffix if self.manual_demo else ""),
                     status=Status.OK if available else Status.DEGRADED,
                     gate=(Gate.PASS if passed else Gate.FAIL) if available else Gate.UNCLEAR,
                     score=1 - frontal_cosine,
@@ -361,17 +379,24 @@ class FaceMatchDetector:
                         "threshold_available": available,
                         "views": len(roles),
                         "comparisons": len(similarities),
-                        "threshold_cosine": threshold.threshold if available else None,
+                        "threshold_cosine": threshold_value,
                         "consistency_comparisons": len(view_similarities),
                         "consistency_verified": bool(
                             len(view_similarities) == 3
-                            and consistency is not None
-                            and min(view_similarities.values()) >= consistency.threshold
+                            and consistency_value is not None
+                            and min(view_similarities.values()) >= consistency_value
                         ),
-                        "consistency_threshold_available": consistency is not None,
-                        "consistency_threshold_cosine": consistency.threshold
-                        if consistency is not None
-                        else None,
+                        "consistency_threshold_available": consistency_value is not None,
+                        "consistency_threshold_cosine": consistency_value,
+                        **(
+                            {
+                                "manual_demo": True,
+                                "calibrated": False,
+                                "demo_policy_id": self.manual_demo.policy_id,
+                            }
+                            if self.manual_demo
+                            else {}
+                        ),
                     },
                     evidence=[
                         Evidence(

@@ -4,6 +4,12 @@
 
 ## Trạng thái
 
+**APP-01 (31/10, ngưỡng demo):** Android nhận marker manual_demo/policy từ API,
+chỉ mở route riêng khi demo_complete và mode/hash khớp. Tiêu đề theo yêu cầu
+người dùng là “Xác minh thành công”, luôn kèm “Demo · Ngưỡng chưa hiệu chỉnh”
+và không đi qua tạo/lưu tài khoản thật. Camera tắt khi vào kết quả. Mặc định
+server không bật manual; xem [runbook](../../docs/runbooks/manual-face-demo.md).
+
 **APP-01 (31/10, sửa kiểm góc):** bỏ phần tập tự hiện trước xác minh theo phản hồi
 người dùng; chuẩn bị challenge và kiểm chất lượng như luồng trước khi thêm tập.
 API cho làm lại riêng phần mặt một lần với hint hiện có khi chỉ vướng chất lượng

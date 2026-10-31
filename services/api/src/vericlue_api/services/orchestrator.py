@@ -120,6 +120,7 @@ class Orchestrator:
                     reader=self._face_reader,
                     calibration_path=Path(artifact) if artifact else None,
                     with_consistency=self.settings.identity_consistency_required,
+                    manual_demo=self.settings.manual_demo_policy,
                     consistency_path=Path(self.settings.identity_consistency_calibration)
                     if self.settings.identity_consistency_calibration
                     else None,
@@ -148,9 +149,9 @@ class Orchestrator:
                 # Missing real dependencies must remain unavailable, never mock pass.
                 return get_detector(module, mock=False)
             if module == Module.FACE_PAD:
-                return SessionAttackDetector(FsvfmPadDetector(), self._face_reader)
+                return SessionAttackDetector(FsvfmPadDetector(), self._face_reader, manual_demo=self.settings.manual_demo_policy)
             if module == Module.FACE_DEEPFAKE:
-                return SessionAttackDetector(FaceDeepfakeDetector(), self._face_reader)
+                return SessionAttackDetector(FaceDeepfakeDetector(), self._face_reader, manual_demo=self.settings.manual_demo_policy)
             if module == Module.CHROMAPULSE:
                 return ChromaPulseDetector(ColorObservationReader(self._face_reader))
         return get_detector(module, mock=self.settings.use_mock_models)

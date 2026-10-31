@@ -50,6 +50,7 @@ import androidx.compose.material.icons.outlined.Dns
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import vn.vericlue.app.ui.components.Banner
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -204,6 +205,16 @@ fun CheckingScreen(purpose: Purpose, onDone: () -> Unit, auto: Boolean = true) {
 }
 
 // ── Results ──────────────────────────────────────────────────────────────────
+
+@Composable
+fun ManualDemoCompleteScreen(onDone: () -> Unit) {
+    VcScreen(centered = true, actions = { PrimaryButton("Về màn hình chính", onDone) }) {
+        SuccessBadge()
+        TitleBlock("Xác minh thành công", "Các bước AI đã thỏa ngưỡng thử nghiệm của bản demo.", centered = true)
+        Banner("Demo · Ngưỡng chưa hiệu chỉnh", tone = Tone.Warn)
+        Text("Kết quả phục vụ trình diễn, chưa dùng để mở tài khoản hoặc xác minh danh tính thực tế.", style = VcType.body, color = Vc.colors.ink)
+    }
+}
 
 @Composable
 fun SuccessScreen(purpose: Purpose, onContinue: () -> Unit, auto: Boolean = false, checked: List<String>? = null, accountReady: Boolean? = null) {

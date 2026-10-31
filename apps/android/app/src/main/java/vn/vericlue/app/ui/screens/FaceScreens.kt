@@ -105,7 +105,7 @@ import androidx.compose.runtime.CompositionLocalProvider
  */
 
 @Composable
-fun FaceReadyScreen(onBack: () -> Unit, onReady: () -> Unit, onSkipFlash: () -> Unit) {
+fun FaceReadyScreen(onBack: () -> Unit, onReady: () -> Unit, onSkipFlash: () -> Unit, manualDemo: Boolean = false) {
     val c = Vc.colors
     VcScreen(
         onBack = onBack,
@@ -116,6 +116,7 @@ fun FaceReadyScreen(onBack: () -> Unit, onReady: () -> Unit, onSkipFlash: () -> 
         },
     ) {
         TitleBlock("Xác minh khuôn mặt", "Đặt điện thoại ngang tầm mắt, tại nơi đủ sáng.")
+        if (manualDemo) Banner("Chế độ trình diễn · Ngưỡng thử nghiệm, chưa hiệu chỉnh. Kết quả không dùng để xác minh danh tính.", tone = Tone.Warn)
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             NumberedRow(1, "1 · Giữ đầu thẳng".substringAfter(" · "), "Nhìn thẳng khi màn hình đổi màu, sau đó đưa mắt theo chấm sáng.")
             NumberedRow(2, "2 · Quay đầu theo hướng dẫn".substringAfter(" · "), "Quay nhẹ; dừng khi nghe lời nhắc giữ yên.", last = true)

@@ -1,5 +1,11 @@
 # services/api — Máy chủ API (FastAPI)
 
+**APP-01/FLOW-04 (31/10, manual demo):** opt-in MANUAL_FACE_DEMO dùng điểm thô
+AI thật và ngưỡng thủ công riêng, không giả artifact/probability. Chỉ onboarding
+synthetic+mvp+ekyc, không enrollment/credentials/signing. API vẫn review, thêm
+marker demo_complete để Android mở kết quả thử nghiệm có nhãn. Phiên gắn hash
+policy, không chuyển đổi ngầm giữa mode. [Runbook](../../docs/runbooks/manual-face-demo.md).
+
 **APP-01/FLOW-04 (31/10):** opt-in session face checks có retry chất lượng góc
 tối đa một lần bằng hint `HOLD_STILL` hiện có, challenge/nonce mới và dọn bằng
 chứng cũ. Chỉ nhận lý do `pose_out_of_range` với các kiểm tra độc lập phù hợp;

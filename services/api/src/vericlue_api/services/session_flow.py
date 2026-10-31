@@ -68,6 +68,60 @@ DEFAULT_HINT = "MORE_LIGHT"
 
 
 class SessionFlow:
+    def _manual_demo_complete(self, session: Session) -> bool:
+        policy = self.settings.manual_demo_policy
+        if (
+            policy is None
+            or session.purpose != "onboarding"
+            or session.account_id
+            or session.manual_demo_policy_id != policy.policy_id
+            or not session.id_confirmed
+            or session.id_edited
+            or session.id_source not in {"server_qr", "ocr"}
+            or not session.id_front
+        ):
+            return False
+        manual_modules = (Module.FACE_PAD, Module.FACE_DEEPFAKE, Module.FACE_MATCH)
+        for module in (
+            Module.QUALITY,
+            *self.router.profile.presence_modules,
+            Module.GAZE_TRACKING,
+            Module.HEAD_TURN,
+            *manual_modules,
+        ):
+            measured = session.results.get(module)
+            if (
+                measured is None
+                or measured.module != module
+                or measured.status != Status.OK
+                or measured.gate != Gate.PASS
+                or measured.error_code is not None
+                or measured.model_version.startswith("mock")
+            ):
+                return False
+            if module in manual_modules and (
+                measured.quality.get("manual_demo") is not True
+                or measured.quality.get("demo_policy_id") != policy.policy_id
+                or not measured.model_version.endswith(policy.version_suffix)
+            ):
+                return False
+        match = session.results[Module.FACE_MATCH]
+        return (
+            match.quality.get("consistency_verified") is True
+            and match.quality.get("views_from_video") is True
+        )
+
+    @staticmethod
+    def _evaluation_fields(session: Session) -> dict:
+        return (
+            {"evaluation_mode": "manual_demo", "demo_policy_id": session.manual_demo_policy_id}
+            if session.manual_demo_policy_id
+            else {}
+        )
+
+    def _finalize_response(self, session: Session, **kwargs) -> FinalizeResponse:
+        return FinalizeResponse(**self._evaluation_fields(session), **kwargs)
+
     def __init__(
         self,
         settings: Settings,
@@ -98,6 +152,13 @@ class SessionFlow:
     def create(
         self, scenario: str, request: CreateSessionRequest | None = None
     ) -> CreateSessionResponse:
+        policy = self.settings.manual_demo_policy
+        if policy is not None and (
+            request is None or request.purpose != "onboarding" or request.account_id
+        ):
+            raise ApiError(
+                503, "flow_unavailable", "Bản trình diễn này chỉ hỗ trợ đăng ký thử nghiệm."
+            )
         account_bound = bool(request and request.account_id)
         if request and (
             request.account_id
@@ -142,6 +203,9 @@ class SessionFlow:
             if self.settings.use_mock_models is False
             else "mixed"
         )
+        if policy is not None:
+            session.manual_demo_policy_id = policy.policy_id
+            session.created_model_mode = "manual_demo"
         session.result_issuer = self.settings.result_issuer
         session.result_audience = self.settings.result_audience
         device_challenge = None
@@ -162,6 +226,7 @@ class SessionFlow:
                     session, request.account_id, request.device_id
                 )
         return CreateSessionResponse(
+            **self._evaluation_fields(session),
             session_id=session.session_id,
             token=session.token,
             expires_at=session.token_expires_at,
@@ -178,6 +243,7 @@ class SessionFlow:
         gián đoạn. Dữ liệu khuôn mặt và giọng của lượt cũ bị bỏ; số lần chụp lại đã dùng vẫn giữ.
         """
         self.ensure_open(session)
+        self._ensure_evaluation_binding(session)
         if session.account_id:
             if session.purpose == "reauth":
                 self.account_auth.require_verified(session)
@@ -245,8 +311,17 @@ class SessionFlow:
         ):
             raise ApiError(409, "challenge_mismatch", "Lượt xác minh không còn phù hợp.")
 
+    def _ensure_evaluation_binding(self, session: Session) -> None:
+        policy = self.settings.manual_demo_policy
+        expected = policy.policy_id if policy else None
+        if session.manual_demo_policy_id != expected:
+            raise ApiError(
+                409, "session_expired", "Cấu hình trình diễn đã đổi. Vui lòng bắt đầu phiên mới."
+            )
+
     def ensure_flow_available(self, session: Session) -> None:
         """A saved mock session must not become usable after switching the server to real."""
+        self._ensure_evaluation_binding(session)
         if session.account_id:
             if session.purpose == "reauth":
                 self.account_auth.require_verified(session)
@@ -476,11 +551,26 @@ class SessionFlow:
         )
         session.results.update(results)
         s = self.settings
-        outcome = self.router.finalize(
-            results,
-            retries_used=session.retries_used,
-            max_retries=s.max_retries,
-            session_valid=session_valid and self._valid_time(session, color_challenge=True),
+        outcome = (
+            Outcome(
+                "review",
+                reason="manual demo only",
+                config_version="manual-face-demo-v1-" + s.manual_demo_policy.policy_id[:16],
+                thresholds={
+                    "evaluation_mode": "manual_demo",
+                    "demo_policy_id": s.manual_demo_policy.policy_id,
+                    "manual_thresholds": s.manual_demo_policy.model_dump(),
+                    "calibrated": False,
+                },
+                results=results,
+            )
+            if s.manual_face_demo
+            else self.router.finalize(
+                results,
+                retries_used=session.retries_used,
+                max_retries=s.max_retries,
+                session_valid=session_valid and self._valid_time(session, color_challenge=True),
+            )
         )
         outcome = route_face(outcome, session.purpose, device_verified=session.device_verified)
         # This bridge compares a newly scanned card. Reauth uses enrolled identity/device
@@ -533,6 +623,12 @@ class SessionFlow:
             elif not motion_ok and outcome.status in {"pass", "voice_challenge"}:
                 outcome = replace(outcome, status="review", reason="motion checks incomplete")
         session.results.update(outcome.results)
+        demo_complete = bool(
+            s.manual_face_demo
+            and session_valid
+            and self._valid_time(session, color_challenge=True)
+            and self._manual_demo_complete(session)
+        )
         status = outcome.status
         if status == "pass" and session.voice_owed:
             # Lượt mặt mới (sau POST /challenge) không xóa yêu cầu đọc câu của lượt trước.
@@ -566,7 +662,8 @@ class SessionFlow:
             session.voice_prompt = dynamic.voice_prompt if dynamic else None
             session.voice_challenge_id = dynamic.voice_challenge_id if dynamic else None
             session.voice_expires_at = None
-            return FinalizeResponse(
+            return self._finalize_response(
+                session,
                 status="retry",
                 retry_hint=hint,  # type: ignore[arg-type]
                 attempts_left=s.max_retries - session.retries_used,
@@ -576,7 +673,8 @@ class SessionFlow:
             session.voice_requested = True
             session.voice_owed = True
             session.voice_rereads_used = 0  # yêu cầu đọc câu mới
-            return FinalizeResponse(
+            return self._finalize_response(
+                session,
                 status="voice_challenge",
                 voice_prompt=self._start_voice(session),
                 attempts_left=MAX_VOICE_REREADS,
@@ -591,7 +689,7 @@ class SessionFlow:
             if self._enroll is None:
                 raise ApiError(503, "enrollment_unavailable", "Chưa thể hoàn tất ghi danh lúc này.")
             self._enroll(session)
-        return FinalizeResponse(status=status)  # type: ignore[arg-type]
+        return self._finalize_response(session, status=status, demo_complete=demo_complete)
 
     # --- voice -----------------------------------------------------------
     def voice(
@@ -754,7 +852,8 @@ class SessionFlow:
             outcome.status not in {"pass", "voice_challenge", "review"}
             or outcome.priority != "normal"
             or outcome.status == "review"
-            and outcome.reason != "face missing/error/degraded/probability"
+            and outcome.reason
+            not in {"face missing/error/degraded/probability", "manual demo only"}
             or head is None
             or head.module != Module.HEAD_TURN
             or head.status != Status.DEGRADED

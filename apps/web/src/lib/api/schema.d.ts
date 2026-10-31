@@ -885,7 +885,15 @@ export interface components {
         /** CreateSessionResponse */
         CreateSessionResponse: {
             challenge: components["schemas"]["Challenge"];
+            /** Demo Policy Id */
+            demo_policy_id?: string | null;
             device_challenge?: components["schemas"]["DeviceChallenge"] | null;
+            /**
+             * Evaluation Mode
+             * @default standard
+             * @enum {string}
+             */
+            evaluation_mode: "standard" | "manual_demo";
             /**
              * Expires At
              * Format: date-time
@@ -1052,6 +1060,19 @@ export interface components {
             attempts_left?: number | null;
             /** @description Chỉ có khi status = retry */
             challenge?: components["schemas"]["Challenge"] | null;
+            /**
+             * Demo Complete
+             * @default false
+             */
+            demo_complete: boolean;
+            /** Demo Policy Id */
+            demo_policy_id?: string | null;
+            /**
+             * Evaluation Mode
+             * @default standard
+             * @enum {string}
+             */
+            evaluation_mode: "standard" | "manual_demo";
             /** Retry Hint */
             retry_hint?: ("MORE_LIGHT" | "MOVE_CLOSER" | "MOVE_BACK" | "FACE_CENTER" | "HOLD_STILL" | "QUIET_PLACE" | "BRIGHTNESS_UP") | null;
             /**

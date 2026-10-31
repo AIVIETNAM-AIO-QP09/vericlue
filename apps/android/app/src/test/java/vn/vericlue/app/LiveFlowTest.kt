@@ -42,6 +42,32 @@ class LiveFlowTest {
         flow.frontalJpeg = byteArrayOf(1, 2, 3)
     }
 
+    @Test fun manualDemoCompletionIsSeparateFromVerifiedSuccess() = runTest {
+        val policy = "a".repeat(64)
+        server.enqueue(json(session.replace("\"session_id\":", "\"evaluation_mode\":\"manual_demo\",\"demo_policy_id\":\"$policy\",\"session_id\":")))
+        assertEquals(null, flow.ensureSession("genuine"))
+        flow.frontalJpeg = byteArrayOf(1, 2, 3)
+        server.enqueue(json(ack)); server.enqueue(json("""{"step":"signals","received":true}"""))
+        server.enqueue(json("""{"status":"review","evaluation_mode":"manual_demo","demo_policy_id":"$policy","demo_complete":true}"""))
+        assertEquals(Next.To("manual_demo_complete"), flow.submitFace(null, emptyList(), emptyMap()))
+    }
+
+    @Test fun unsolicitedDemoMarkerCannotFinishAStandardSession() = runTest {
+        startAndCapture()
+        server.enqueue(json(ack)); server.enqueue(json("""{"step":"signals","received":true}"""))
+        server.enqueue(json("""{"status":"review","evaluation_mode":"manual_demo","demo_policy_id":"${"a".repeat(64)}","demo_complete":true}"""))
+        assertEquals(Next.Fail(ApiError.BadResponse), flow.submitFace(null, emptyList(), emptyMap()))
+    }
+
+    @Test fun manualSessionCannotReceiveVerifiedPass() = runTest {
+        server.enqueue(json(session.replace("\"session_id\":", "\"evaluation_mode\":\"manual_demo\",\"demo_policy_id\":\"${"a".repeat(64)}\",\"session_id\":")))
+        assertEquals(null, flow.ensureSession("genuine"))
+        flow.frontalJpeg = byteArrayOf(1, 2, 3)
+        server.enqueue(json(ack)); server.enqueue(json("""{"step":"signals","received":true}"""))
+        server.enqueue(json("""{"status":"pass"}"""))
+        assertEquals(Next.Fail(ApiError.BadResponse), flow.submitFace(null, emptyList(), emptyMap()))
+    }
+
     @Test
     fun passGoesToSuccessAndSendsTokenAndScenario() = runTest {
         startAndCapture()

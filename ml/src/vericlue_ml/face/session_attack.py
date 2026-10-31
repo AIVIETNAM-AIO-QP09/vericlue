@@ -7,6 +7,7 @@ from time import perf_counter
 
 from vericlue_ml.common.calibration import CalibrationError, CalibrationStore, Calibrator
 from vericlue_ml.common.detector import DetectorInput
+from vericlue_ml.common.manual_demo import ManualDemoThresholds
 from vericlue_ml.common.result import ErrorCode, Evidence, Gate, ModuleResult, Status
 from vericlue_ml.face.pad import PadError
 from vericlue_ml.presence.head_protocol import head_protocol_version, session_model_version
@@ -19,9 +20,15 @@ class SessionAttackDetector:
     """Same verified video; only a fitted artifact for this exact protocol supplies probability."""
 
     def __init__(
-        self, backend, reader: FaceObservationReader, calibrators: CalibrationStore | None = None
+        self,
+        backend,
+        reader: FaceObservationReader,
+        calibrators: CalibrationStore | None = None,
+        *,
+        manual_demo: ManualDemoThresholds | None = None,
     ) -> None:
         self.backend, self.reader = backend, reader
+        self.manual_demo = manual_demo
         self.name = backend.name
         self.version = backend.frames_version + "+session-video-v1"
         self.calibrators = calibrators if calibrators is not None else CalibrationStore()
@@ -51,6 +58,8 @@ class SessionAttackDetector:
         version = self.version
         try:
             version = session_model_version(self.backend.frames_version, head_protocol_version(inp))
+            if self.manual_demo is not None:
+                version += self.manual_demo.version_suffix
             frames, checksum = session_views(inp, self.reader)
             result = self.backend.predict_frames(inp, frames)
             if video_sha256(inp.video) != checksum:
@@ -65,23 +74,32 @@ class SessionAttackDetector:
                 score = None
                 if status == Status.OK:
                     status = Status.DEGRADED
-            artifact = self._artifact(version) if status == Status.OK else None
+            artifact = (
+                self._artifact(version)
+                if status == Status.OK and self.manual_demo is None
+                else None
+            )
             calibrated = artifact is not None
             probability = float(artifact.predict([score])[0]) if calibrated else None
-            if status == Status.OK and not calibrated:
+            if status == Status.OK and not calibrated and self.manual_demo is None:
                 status = Status.DEGRADED
+            gate = Gate.UNCLEAR
+            if status == Status.OK and self.manual_demo is not None:
+                gate = Gate.PASS if self.manual_demo.accepts_attack(result) else Gate.FAIL
             result = result.model_copy(
                 deep=True,
                 update={
                     "model_version": version,
                     "status": status,
                     "score": score,
-                    "gate": Gate.UNCLEAR,
+                    "gate": gate,
                     "prob_attack": probability,
                     "latency_ms": (perf_counter() - started) * 1000,
                 },
             )
             result.quality.update(session_video=True, calibrated=calibrated, depth_verified=False)
+            if self.manual_demo is not None:
+                result.quality.update(manual_demo=True, demo_policy_id=self.manual_demo.policy_id)
             result.evidence.append(
                 Evidence(type="text", name="source_video_sha256", value=checksum)
             )

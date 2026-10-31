@@ -21,6 +21,11 @@
 
 ## Quy ước bắt buộc
 
+APP-01/FLOW-04 (31/10): manual demo là policy opt-in riêng cho các adapter phiên,
+không phải calibrator. Kết quả hợp lệ giữ điểm thô/prob_attack=null, marker và
+version policy riêng; mặc định đường hiệu chỉnh chuẩn không đổi. Lỗi/degraded
+không được nâng thành đạt. [Runbook](../docs/runbooks/manual-face-demo.md).
+
 FLOW-04 (31/10) head rules0.2 loại yaw quá góc thoáng qua khỏi bằng chứng giữ
 thay vì phủ quyết cả video; vẫn kiểm coverage/gap/biên, baseline/thứ tự và
 tilt. Quá góc kéo dài/giữ thiếu vẫn không đạt. Không đổi ngưỡng, không chứng

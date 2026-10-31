@@ -50,6 +50,7 @@ class LiveFlow(
     val privacy = SessionPrivacyFlow(api, sessionMutation) { session }
     var session: CreateSessionResponse? = null
         private set
+    val manualDemo: Boolean get() = session?.evaluationMode == "manual_demo"
     var challenge: Challenge? = null
         private set
     var accountReceipt: AccountReceipt? = null
@@ -143,6 +144,11 @@ class LiveFlow(
         val request = purpose?.let { CreateSessionRequest(it, nonce, spki, account?.accountId, account?.deviceId?.takeIf { purpose == "reauth" }) }
         return when (val r = api.createSession(mockScenario, request)) {
             is ApiResult.Ok -> {
+                if (r.value.evaluationMode !in setOf("standard", "manual_demo")) return ApiError.BadResponse
+                if (r.value.evaluationMode == "manual_demo" &&
+                    (r.value.demoPolicyId?.matches(Regex("[0-9a-f]{64}")) != true || account != null || purpose !in setOf(null, "onboarding")))
+                    return ApiError.BadResponse
+                if (r.value.evaluationMode == "standard" && r.value.demoPolicyId != null) return ApiError.BadResponse
                 if (mediaSigner != null && r.value.challenge.mediaNonce == null) return ApiError.BadResponse
                 if (purpose == "reauth") {
                     val signature = withContext(Dispatchers.IO) {
@@ -318,6 +324,12 @@ class LiveFlow(
             is ApiResult.Ok -> {
                 privacyError("face_biometrics")?.let { return Next.Fail(it) }
                 val f = r.value
+                if (s.evaluationMode == "manual_demo" || f.evaluationMode == "manual_demo" || f.demoComplete) {
+                    if (s.evaluationMode != "manual_demo" || f.evaluationMode != "manual_demo" ||
+                        s.demoPolicyId == null || s.demoPolicyId != f.demoPolicyId || f.status !in setOf("review", "retry"))
+                        return Next.Fail(ApiError.BadResponse)
+                    if (f.demoComplete) return if (f.status == "review") Next.To(Routes.ManualDemoComplete) else Next.Fail(ApiError.BadResponse)
+                } else if (f.evaluationMode != "standard" || f.demoPolicyId != null) return Next.Fail(ApiError.BadResponse)
                 if (f.status == "retry") {
                     // A retry comes with a fresh challenge for the next attempt (contract).
                     challenge = f.challenge ?: return Next.Fail(ApiError.BadResponse)

@@ -78,6 +78,7 @@ class Session:
     device_auth_nonce: str | None = field(default=None, repr=False)
     device_auth_expires_ms: int | None = None
     created_model_mode: str | None = None
+    manual_demo_policy_id: str | None = None
     result_issuer: str | None = None
     result_audience: str | None = None
     media_public_key_spki: str | None = field(default=None, repr=False)

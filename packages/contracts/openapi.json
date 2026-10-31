@@ -539,6 +539,18 @@
           "challenge": {
             "$ref": "#/components/schemas/Challenge"
           },
+          "demo_policy_id": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demo Policy Id"
+          },
           "device_challenge": {
             "anyOf": [
               {
@@ -548,6 +560,15 @@
                 "type": "null"
               }
             ]
+          },
+          "evaluation_mode": {
+            "default": "standard",
+            "enum": [
+              "standard",
+              "manual_demo"
+            ],
+            "title": "Evaluation Mode",
+            "type": "string"
           },
           "expires_at": {
             "description": "Hạn của token (~5 phút)",
@@ -978,6 +999,32 @@
               }
             ],
             "description": "Chỉ có khi status = retry"
+          },
+          "demo_complete": {
+            "default": false,
+            "title": "Demo Complete",
+            "type": "boolean"
+          },
+          "demo_policy_id": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demo Policy Id"
+          },
+          "evaluation_mode": {
+            "default": "standard",
+            "enum": [
+              "standard",
+              "manual_demo"
+            ],
+            "title": "Evaluation Mode",
+            "type": "string"
           },
           "retry_hint": {
             "anyOf": [

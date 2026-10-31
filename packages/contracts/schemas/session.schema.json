@@ -111,8 +111,47 @@
         },
         "device_challenge": {
           "$ref": "#/$defs/DeviceChallenge"
+        },
+        "evaluation_mode": {
+          "type": "string",
+          "enum": [
+            "standard",
+            "manual_demo"
+          ],
+          "default": "standard"
+        },
+        "demo_policy_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "evaluation_mode": {
+                "const": "manual_demo"
+              }
+            },
+            "required": [
+              "evaluation_mode"
+            ]
+          },
+          "then": {
+            "properties": {
+              "demo_policy_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "demo_policy_id"
+            ]
+          }
+        }
+      ]
     },
     "Signals": {
       "type": "object",
@@ -294,8 +333,87 @@
             "null"
           ],
           "description": "Mã lần đọc, phải gửi lại trong form /voice của phiên có purpose."
+        },
+        "evaluation_mode": {
+          "type": "string",
+          "enum": [
+            "standard",
+            "manual_demo"
+          ],
+          "default": "standard"
+        },
+        "demo_policy_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "demo_complete": {
+          "type": "boolean",
+          "default": false,
+          "description": "Hoàn tất trình diễn theo ngưỡng thủ công; không phải xác minh danh tính."
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "demo_complete": {
+                "const": true
+              }
+            },
+            "required": [
+              "demo_complete"
+            ]
+          },
+          "then": {
+            "properties": {
+              "status": {
+                "const": "review"
+              },
+              "evaluation_mode": {
+                "const": "manual_demo"
+              },
+              "demo_policy_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "evaluation_mode",
+              "demo_policy_id"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "evaluation_mode": {
+                "const": "manual_demo"
+              }
+            },
+            "required": [
+              "evaluation_mode"
+            ]
+          },
+          "then": {
+            "properties": {
+              "demo_policy_id": {
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "review",
+                  "retry"
+                ]
+              }
+            },
+            "required": [
+              "demo_policy_id"
+            ]
+          }
+        }
+      ]
     },
     "VoiceResponse": {
       "type": "object",

@@ -353,7 +353,7 @@ fun VeriClueApp() {
             is Next.To -> next.route
             is Next.Fail -> errorRoute(next.error)
         }
-        if (route == Routes.Success || route == Routes.Review) camera.unbind()
+        if (FlowRules.closesCameraOnResult(route)) camera.unbind()
         nav.navigate(route) { popUpTo(Routes.Uploading) { inclusive = true } }
     }
 
@@ -635,7 +635,7 @@ fun VeriClueApp() {
         composable(Routes.FaceReady) {
             // Skipping the flash must not skip the face part: stop here. Nothing reaches the server yet,
             // so the screen promises no review (question 14 in docs/can-chot.md).
-            FaceReadyScreen(onBack = { nav.popBackStack() }, onReady = ::startFace, onSkipFlash = {
+            FaceReadyScreen(onBack = { nav.popBackStack() }, onReady = ::startFace, manualDemo = flow.live && live.manualDemo, onSkipFlash = {
                 camera.unbind()
                 nav.go(Routes.FlashSkipped)
             })
@@ -770,6 +770,9 @@ fun VeriClueApp() {
                 checked = if (flow.live) FlowRules.checkedByServer(live.voiceChecked) else null,
                 accountReady = if (flow.live && flow.purpose != Purpose.Reauth) accountFlow.accountSaved else null,
             )
+        }
+        composable(Routes.ManualDemoComplete) {
+            vn.vericlue.app.ui.screens.ManualDemoCompleteScreen(onDone = { leave() })
         }
         composable(Routes.Review) { ReviewScreen(onBackToBank = { leave() }) }
         composable(Routes.RetryQuality) {

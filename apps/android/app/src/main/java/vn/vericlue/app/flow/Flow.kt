@@ -64,6 +64,7 @@ object Routes {
     const val Checking = "checking"
     const val Slow = "slow"
     const val Success = "success"
+    const val ManualDemoComplete = "manual_demo_complete"
     const val Review = "review"
     const val RetryQuality = "retry_quality"
     const val RetryChallenge = "retry_challenge"
@@ -87,6 +88,7 @@ object Routes {
 }
 
 object FlowRules {
+    fun closesCameraOnResult(route: String): Boolean = route in setOf(Routes.Success, Routes.Review, Routes.ManualDemoComplete)
     /** Prefer the back QR, falling back to the front on cards that print it there. */
     fun cardQr(frontQr: String?, backQr: String?): String? =
         backQr?.takeIf(String::isNotBlank) ?: frontQr?.takeIf(String::isNotBlank)

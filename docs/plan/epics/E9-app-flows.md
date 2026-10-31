@@ -86,6 +86,12 @@ theo mẫu đăng ký/SEC-02 hoặc nghiệm thu Android. Chi tiết vận hành
 
 ### FLOW-04 · Thử thách quay đầu ngẫu nhiên
 
+**31/10 — policy trình diễn thủ công:** opt-in riêng PAD/GenD/identity, model
+thật với ngưỡng thử nghiệm, namespace và hash policy riêng; không giả artifact
+hiệu chỉnh hoặc probability. API vẫn review, marker riêng cho app hiển thị kết
+quả có nhãn demo. Không mở account/proof/credential hoặc đổi thresholds.yaml.
+Không là nghiệm thu toàn task. Xem [runbook](../../runbooks/manual-face-demo.md).
+
 **31/10 — sửa góc thoáng qua:** head rules0.2 không phủ quyết video chỉ vì
 một mẫu yaw vượt50°. Mẫu đó không cung cấp bằng chứng giữ; vẫn kiểm coverage,
 gap/biên, baseline/thứ tự và chốt tilt. API chỉ cho retry chất lượng một lần
@@ -295,6 +301,12 @@ Xem [runbook](../../runbooks/head-turn-coaching.md).
 **Phản hồi sáng31/10:** bỏ phần tập khỏi điều hướng theo yêu cầu người dùng.
 Giọng TTS thêm trace opt-in và probe phát câu thật; người dùng đang bận điện
 thoại nên nghe trực tiếp/chạy lượt mới còn chờ, không ghi đã khắc phục âm thanh.
+
+**Tiếp tục 31/10 — ngưỡng demo:** người dùng duyệt ngưỡng thủ công để quay video,
+model thật và yêu cầu tiêu đề “Xác minh thành công”. App chỉ dùng tiêu đề đó ở
+route riêng có nhãn “Demo · Ngưỡng chưa hiệu chỉnh”, không lưu tài khoản thật;
+mode/hash phải khớp từ tạo phiên tới finalize, camera tắt khi vào kết quả.
+Điện thoại đổi sang Samsung A04; chờ lượt nghiệm thu thật trên máy mới.
 
 **Cập nhật 30/10 — hướng dẫn quay đầu:** thêm nhắc nghiêng/cúi/ngẩng từ ML Kit
 trước khi báo xanh; oval riêng bước quay đầu rộng hơn, giữ vừa màn chữ lớn.
