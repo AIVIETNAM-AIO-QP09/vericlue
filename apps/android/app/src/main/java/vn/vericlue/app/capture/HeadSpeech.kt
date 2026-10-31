@@ -18,6 +18,11 @@ class HeadSpeech(
     private val onReady: (Boolean) -> Unit = {},
     private val onFinished: (Boolean) -> Unit = {},
 ) : AutoCloseable {
+    // Opt-in diagnostic events contain fixed cue names/state only, never media or identity.
+    private fun trace(event: String) {
+        if (vn.vericlue.app.BuildConfig.PRESENCE_TRACE_ENABLED)
+            android.util.Log.i("VeriClueHeadSpeech", event)
+    }
     private val handler = Handler(Looper.getMainLooper())
     private var engine: TextToSpeech? = null
     private var tone: ToneGenerator? = null
@@ -42,13 +47,16 @@ class HeadSpeech(
     private var attempts = 0
     private val listener = object : UtteranceProgressListener() {
         override fun onStart(utteranceId: String?) { handler.post {
+            trace("start current=${utteranceId == generation.toString()} expired=${SystemClock.elapsedRealtime() >= expiresAt}")
             if (!closed && utteranceId == generation.toString() && SystemClock.elapsedRealtime() >= expiresAt) stop()
         } }
         override fun onDone(utteranceId: String?) { handler.post {
+            trace("done current=${utteranceId == generation.toString()}")
             if (!closed && active && utteranceId == generation.toString()) onFinished(true)
         } }
         @Deprecated("Platform callback")
         override fun onError(utteranceId: String?) { handler.post {
+            trace("error current=${utteranceId == generation.toString()}")
             if (!closed && active && utteranceId == generation.toString() && SystemClock.elapsedRealtime() < expiresAt) {
                 current?.let { fallback(it, generation) }
                 onFinished(false)
@@ -86,6 +94,7 @@ class HeadSpeech(
                     networkRequired = voice.isNetworkConnectionRequired
                     tts.setVoice(voice) == TextToSpeech.SUCCESS
                 }.getOrDefault(false)
+                trace("ready available=$available network=$networkRequired attempts=$attempts")
                 if (!available) { nextEngine(); return@post }
                 runCatching {
                     tts.setSpeechRate(1f)
@@ -137,6 +146,7 @@ class HeadSpeech(
         val accepted = available && runCatching {
             engine?.speak(cue.text, TextToSpeech.QUEUE_FLUSH, params, generation.toString()) == TextToSpeech.SUCCESS
         }.getOrDefault(false)
+        trace("say cue=${cue.name} accepted=$accepted active=$active")
         // Critical stop/correction cues remain immediate even if a speech engine is slow.
         if (!accepted || cue == HeadCue.Hold || cue == HeadCue.Center || cue.warning) fallback(cue, generation)
     }

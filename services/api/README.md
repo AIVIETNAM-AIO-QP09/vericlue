@@ -1,5 +1,11 @@
 # services/api — Máy chủ API (FastAPI)
 
+**APP-01/FLOW-04 (31/10):** opt-in session face checks có retry chất lượng góc
+tối đa một lần bằng hint `HOLD_STILL` hiện có, challenge/nonce mới và dọn bằng
+chứng cũ. Chỉ nhận lý do `pose_out_of_range` với các kiểm tra độc lập phù hợp;
+giữ nguyên lỗi hiệu chỉnh sau router, kết quả không đạt và luồng reauth. Retry
+không quyết định pass. Không đổi schema/ngưỡng/quyền lưu mẫu.
+
 **APP-08 (29/10):** Một app VeriClue, một server API cổng 8421. Bộ đọc QR/chân dung
 chạy trong tiến trình API và dùng chung SCRFD; không cần identity HTTP bridge.
 Hướng dẫn hiện tại: [demo một bản](../../docs/runbooks/vericlue-demo.md).

@@ -21,6 +21,11 @@
 
 ## Quy ước bắt buộc
 
+FLOW-04 (31/10) head rules0.2 loại yaw quá góc thoáng qua khỏi bằng chứng giữ
+thay vì phủ quyết cả video; vẫn kiểm coverage/gap/biên, baseline/thứ tự và
+tilt. Quá góc kéo dài/giữ thiếu vẫn không đạt. Không đổi ngưỡng, không chứng
+minh 3D hay accuracy; xem [thiết kế](../docs/architecture/head-and-match.md).
+
 FLOW-04 (30/10) có công cụ `eval.session_calibration collect|fit` đo đúng video/
 lịch bằng session_views, giữ mẫu lỗi và kiểm nhóm không giao split trước fit.
 SessionAttackDetector chỉ nhận fitted non-provisional calibrator đúng full

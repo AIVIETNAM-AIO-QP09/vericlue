@@ -1,15 +1,15 @@
 # Thử hướng dẫn quay đầu Android — APP-01
 
-Phần tập nằm sau xác nhận CCCD, trước chuẩn bị challenge và ghi hình; đăng nhập
-lại thụ động không thêm phần tập. Có thể tập lại hoặc bỏ phần tập; không có nút
-bỏ qua thử thách thật. Phần tập không phải kết quả xác minh.
+Từ bản sửa sáng31/10, app không tự mở phần tập nữa. Các composable tập còn
+trong mã/ảnh thử, không nằm trong điều hướng xác minh. Không có nút bỏ qua thử
+thách thật; đăng nhập lại thụ động giữ nguyên.
 
 1. Để điện thoại ngang mắt, giữ cả mặt trong camera; không cố áp mặt sát oval.
 2. Quay nhẹ theo mũi tên/lời nhắc. Khi nghe “Dừng, giữ yên” hoặc hai bíp ngắn,
    dừng quay. Mũi tên biến mất, khung xanh là hướng dẫn local.
 3. Khi nghe “Nhìn thẳng” hoặc một bíp dài, quay về giữa. Nếu nghe “Quay nhẹ lại”,
    giảm góc quay; nếu nhắc giữ đầu thẳng, giảm nghiêng/cúi/ngẩng.
-4. Sau phần tập mới bắt đầu lượt xác minh. Vẫn theo thứ tự/thời gian server;
+4. Lượt xác minh vẫn theo thứ tự/thời gian server;
    app không kéo dài lịch, ép đạt hay dùng điểm local thay quyết định API.
 
 Giọng đọc chỉ dùng câu cố định, không đọc thông tin cá nhân. Tìm giọng Việt
@@ -38,6 +38,26 @@ Native probe tùy chọn không mở camera hay phát âm nghe được:
 `adb -s <serial> shell am instrument -w vn.vericlue.app.test/vn.vericlue.app.HeadSpeechProbe`.
 Cần cài APK androidTest trước; callback im lặng không chứng minh người dùng nghe
 rõ hoặc thao tác quay đạt trên toàn luồng.
+
+Nếu người thử đang sẵn sàng, thêm `-e audible true` trước tên runner để phát
+một câu cố định ở âm lượng app. Không chạy nếu điện thoại đang bận. Probe có
+thể dừng app đang mở; không quay camera, không thu âm hoặc gửi lượt xác minh.
+Trace debug tag `VeriClueHeadSpeech` chỉ ghi cue cố định, accepted/ready,
+start/done/error và stale callback; không ghi lời người dùng, token hay định danh.
+
+## Chất lượng góc và làm lại
+
+Head rules0.2 giữ yaw20–50°, tilt15°, giữ300ms, coverage80%, gap300ms và
+biên cửa sổ200ms. Mẫu yaw quá50° không được tính giữ hướng; một khoảng thoáng
+qua không còn phủ quyết cả video. Quá góc kéo dài vẫn không đạt; mẫu bị loại
+vẫn ngắt đoạn giữ, không ghép các mẩu tư thế ngắn. Baseline và kiểm lại tư thế
+trên pixel khung được chọn vẫn giữ nguyên. Chưa có bằng chứng chống tấn công.
+
+Khi các kiểm tra chất lượng/mắt/presence đều đạt và chỉ vướng pose_out_of_range,
+API cho chụp lại phần mặt một lần bằng challenge/nonce mới, hint HOLD_STILL.
+Kết quả/error hiệu chỉnh sau router, gate fail, xác suất vượt chốt, lỗi model,
+lượt hết hạn hoặc reauth không được chuyển thành retry theo nhánh này. Retry
+không phải pass và không giải quyết thiếu artifact hiệu chỉnh.
 
 ## Giới hạn nghiệm thu
 

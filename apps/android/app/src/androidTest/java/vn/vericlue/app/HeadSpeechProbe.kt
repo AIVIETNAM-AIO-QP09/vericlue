@@ -13,7 +13,11 @@ import vn.vericlue.app.capture.HeadSpeech
 
 /** Opt-in native smoke runner: never opens camera, submits data or plays audible sound. */
 class HeadSpeechProbe : Instrumentation() {
-    override fun onCreate(arguments: Bundle?) { super.onCreate(arguments); start() }
+    private var audible = false
+    override fun onCreate(arguments: Bundle?) {
+        audible = arguments?.getString("audible") == "true"
+        super.onCreate(arguments); start()
+    }
     override fun onStart() {
         val ready = CountDownLatch(1)
         val done = CountDownLatch(1)
@@ -23,7 +27,7 @@ class HeadSpeechProbe : Instrumentation() {
         val output = Bundle()
         try {
             runOnMainSync {
-                speech = HeadSpeech(targetContext, volume = 0f,
+                speech = HeadSpeech(targetContext, volume = if (audible) .45f else 0f,
                     onReady = { available = it; ready.countDown() },
                     onFinished = { completed = it; done.countDown() })
             }

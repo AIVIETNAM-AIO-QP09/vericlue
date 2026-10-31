@@ -14,7 +14,7 @@ from vericlue_ml.presence.challenge import expected_dynamic
 from vericlue_ml.presence.head_protocol import head_protocol_version
 from vericlue_ml.presence.landmarks import FaceObservation, FaceObservationReader, LandmarkError
 
-HEAD_VERSION = "head-turn-rules@0.1+face-landmarker-f16-1"
+HEAD_VERSION = "head-turn-rules@0.2+face-landmarker-f16-1"
 # Provisional motion/quality constants, not calibrated attack thresholds.
 TURN_MIN_DEG = 20
 TURN_MAX_DEG = 50
@@ -108,10 +108,19 @@ def evaluate_head_turn(rows: list[FaceObservation], plan: HeadPlan) -> HeadEvalu
     ):
         return result(Status.DEGRADED, Gate.UNCLEAR, "incomplete_time_window")
     if any(
-        abs(row.pitch_deg) > MAX_PITCH_ROLL_DEG
-        or abs(row.roll_deg) > MAX_PITCH_ROLL_DEG
-        or abs(row.yaw_deg) > TURN_MAX_DEG
+        abs(row.pitch_deg) > MAX_PITCH_ROLL_DEG or abs(row.roll_deg) > MAX_PITCH_ROLL_DEG
         for row in valid
+    ):
+        return result(Status.DEGRADED, Gate.UNCLEAR, "pose_out_of_range")
+    # A transient yaw overshoot is unusable evidence, not an automatic whole-video veto.
+    # Keep the same coverage/gap/edge limits; prolonged overshoot still fails closed.
+    usable = [row for row in valid if abs(row.yaw_deg) <= TURN_MAX_DEG]
+    usable_times = np.asarray([row.at_ms for row in usable])
+    if (
+        len(usable) / expected < MIN_COVERAGE
+        or usable_times[0] > plan.start_ms - BASELINE_MS + EDGE_TOLERANCE_MS
+        or usable_times[-1] < plan.end_ms - EDGE_TOLERANCE_MS
+        or np.diff(usable_times).max() > MAX_GAP_MS
     ):
         return result(Status.DEGRADED, Gate.UNCLEAR, "pose_out_of_range")
     baseline = [row for row in valid if row.at_ms < plan.start_ms]
@@ -121,7 +130,8 @@ def evaluate_head_turn(rows: list[FaceObservation], plan: HeadPlan) -> HeadEvalu
         or any(direction(row) != "center" for row in baseline)
     ):
         return result(Status.DEGRADED, Gate.UNCLEAR, "neutral_baseline_missing")
-    # Only a sustained pose counts. Brief spikes and passage through center are not commands.
+    # Iterate all measured poses: out-of-range yaw maps to None and breaks a hold,
+    # so filtering cannot join brief valid fragments into a sustained command.
     runs: list[tuple[str, float]] = []
     current, first, last = None, 0.0, 0.0
     for row in [r for r in valid if r.at_ms >= plan.start_ms]:

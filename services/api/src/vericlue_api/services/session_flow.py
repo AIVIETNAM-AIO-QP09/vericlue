@@ -55,7 +55,7 @@ from vericlue_api.services.session_store import Session, SessionStore
 from vericlue_api.services.upload_images import prepare_image
 from vericlue_api.services.upload_quota import reserve_media
 from vericlue_api.services.uploads import save_upload
-from vericlue_ml.common.result import Gate, Module, Status
+from vericlue_ml.common.result import ErrorCode, Gate, Module, Status
 from vericlue_ml.face.continuity import FACE_VOICE_VERSION
 from vericlue_ml.face.enrolled import REAUTH_MATCH_VERSION, RECOVERY_MATCH_VERSION
 from vericlue_ml.face.match import MATCH_VERSION
@@ -521,7 +521,16 @@ class SessionFlow:
                 and measured.gate == Gate.PASS
                 for module in (Module.GAZE_TRACKING, Module.HEAD_TURN)
             )
-            if not motion_ok and outcome.status in {"pass", "voice_challenge"}:
+            if (
+                session_valid
+                and self._valid_time(session, color_challenge=True)
+                and session.retries_used < min(s.max_retries, 1)
+                and self._pose_capture_retryable(session, outcome)
+            ):
+                outcome = replace(
+                    outcome, status="retry", retry_hint="HOLD_STILL", reason="capture pose quality"
+                )
+            elif not motion_ok and outcome.status in {"pass", "voice_challenge"}:
                 outcome = replace(outcome, status="review", reason="motion checks incomplete")
         session.results.update(outcome.results)
         status = outcome.status
@@ -737,6 +746,60 @@ class SessionFlow:
             seconds=self.settings.challenge_ttl_seconds,
         )
         return session.voice_prompt
+
+    def _pose_capture_retryable(self, session: Session, outcome) -> bool:
+        """One fresh capture for measured pose quality; never clear errors or attack gates."""
+        head = session.results.get(Module.HEAD_TURN)
+        if (
+            outcome.status not in {"pass", "voice_challenge", "review"}
+            or outcome.priority != "normal"
+            or outcome.status == "review"
+            and outcome.reason != "face missing/error/degraded/probability"
+            or head is None
+            or head.module != Module.HEAD_TURN
+            or head.status != Status.DEGRADED
+            or head.gate != Gate.UNCLEAR
+            or head.error_code is not None
+            or [e.value for e in head.evidence if e.name == "head_reason"] != ["pose_out_of_range"]
+        ):
+            return False
+        for module in (Module.QUALITY, Module.GAZE_TRACKING, *self.router.profile.presence_modules):
+            measured = session.results.get(module)
+            if (
+                measured is None
+                or measured.module != module
+                or measured.status != Status.OK
+                or measured.gate != Gate.PASS
+                or measured.error_code is not None
+            ):
+                return False
+        for module in (Module.FACE_PAD, Module.FACE_DEEPFAKE, Module.FACE_MATCH):
+            # Preserve router calibration failures rather than using raw OK model output.
+            measured = outcome.results.get(module, session.results.get(module))
+            if measured is None:
+                if module == Module.FACE_MATCH and not (
+                    session.account_id or self.settings.identity_card_enabled
+                ):
+                    continue
+                return False
+            if measured.module != module or measured.gate == Gate.FAIL:
+                return False
+            if measured.status == Status.OK and measured.error_code is None:
+                if module in (Module.FACE_PAD, Module.FACE_DEEPFAKE) and (
+                    measured.prob_attack is None
+                    or measured.prob_attack >= self.router.config.face.a
+                ):
+                    return False
+                if module == Module.FACE_MATCH and measured.gate != Gate.PASS:
+                    return False
+                continue
+            if not (
+                measured.status == Status.DEGRADED
+                and measured.gate == Gate.UNCLEAR
+                and measured.error_code == ErrorCode.E_LOW_QUALITY
+            ):
+                return False
+        return True
 
     def _identity_gate(self, session: Session, outcome):
         """A face match is one required signal, never an override of PAD or voice failures."""

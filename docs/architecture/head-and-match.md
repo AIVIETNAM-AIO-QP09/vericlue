@@ -8,6 +8,12 @@ mới vẫn bị chặn ở real/mixed cho đến khi đủ các gate bắt bu�
 
 ## 1. Quay đầu: `head_turn`
 
+**31/10 — rules0.2:** yaw vượt50° thoáng qua bị loại khỏi bằng chứng giữ hướng,
+không còn tự động phủ quyết cả video. Giữ coverage80%, gap300ms, biên200ms,
+baseline, thứ tự và giữ300ms; mẫu bị loại vẫn ngắt đoạn giữ. Pitch/roll15° vẫn
+là chốt cứng. Quay quá góc kéo dài vẫn degraded. Không đổi thresholds.yaml;
+đây là quy tắc chất lượng thử nghiệm, không phải kết quả hiệu chỉnh an ninh.
+
 Dùng cùng mã reader MediaPipe với gaze; có thể truyền **cùng một instance
 reader** cho `GazeDetector` và `HeadTurnDetector` để chỉ nạp task một lần.
 Reader không giữ trạng thái theo phiên. Detector mặc định tạo reader riêng;

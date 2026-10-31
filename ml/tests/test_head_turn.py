@@ -115,6 +115,37 @@ def test_no_face_and_multiple_faces_do_not_pass():
     assert evaluate_head_turn(rows, plan).status == Status.NOT_APPLICABLE
 
 
+@pytest.mark.parametrize("duration", [6000, 12000])
+def test_brief_yaw_overshoot_does_not_veto_other_sustained_valid_poses(duration):
+    inp = inputs()
+    inp.metadata["expected_challenge"]["dynamic"].update(
+        version=1 if duration == 6000 else 2, head_duration_ms=duration
+    )
+    rows = motion()
+    if duration == 12000:
+        rows += [replace(rows[-1], at_ms=float(t)) for t in range(18100, 24001, 100)]
+    rows = [replace(r, yaw_deg=60.0) if r.at_ms == 13200 else r for r in rows]
+    result = evaluate_head_turn(rows, parse_head_plan(inp))
+    assert result.status == Status.OK and result.gate == Gate.PASS
+    assert result.view_times_ms["left"] != 13200
+
+
+def test_prolonged_yaw_overshoot_still_cannot_pass():
+    rows = [replace(r, yaw_deg=60.0) if 13000 <= r.at_ms <= 13400 else r for r in motion()]
+    result = evaluate_head_turn(rows, parse_head_plan(inputs()))
+    assert result.status == Status.DEGRADED and result.gate == Gate.UNCLEAR
+    assert result.reason == "pose_out_of_range"
+
+
+def test_out_of_range_samples_never_bridge_short_poses_into_a_valid_hold():
+    rows = [
+        replace(r, yaw_deg=60.0) if r.yaw_deg > 0 and int(r.at_ms / 100) % 2 else r
+        for r in motion()
+    ]
+    result = evaluate_head_turn(rows, parse_head_plan(inputs()))
+    assert result.gate != Gate.PASS
+
+
 @pytest.mark.parametrize(
     "key,value",
     [

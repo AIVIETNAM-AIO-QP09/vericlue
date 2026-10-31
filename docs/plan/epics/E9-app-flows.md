@@ -86,6 +86,12 @@ theo mẫu đăng ký/SEC-02 hoặc nghiệm thu Android. Chi tiết vận hành
 
 ### FLOW-04 · Thử thách quay đầu ngẫu nhiên
 
+**31/10 — sửa góc thoáng qua:** head rules0.2 không phủ quyết video chỉ vì
+một mẫu yaw vượt50°. Mẫu đó không cung cấp bằng chứng giữ; vẫn kiểm coverage,
+gap/biên, baseline/thứ tự và chốt tilt. API chỉ cho retry chất lượng một lần
+khi các chốt khác phù hợp; giữ error hiệu chỉnh và mọi quyết định không đạt.
+Test tổng hợp, chưa nghiệm thu toàn luồng; không đổi ngưỡng hay kết luận 3D.
+
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
 |---|---|---|---|---|
 | M1 (+M3) | 1 | S1 | P0 | CAP-06 |
@@ -285,6 +291,10 @@ câu cố định, ưu tiên offline, bíp dự phòng nhỏ và khác nhau gi�
 thẳng; dừng âm cũ khi đổi trạng thái hoặc ra nền. Oval mảnh, mũi tên chỉ hiện
 khi còn cần quay. Không đổi ngưỡng/lịch/guard server; chờ nghiệm thu người thật.
 Xem [runbook](../../runbooks/head-turn-coaching.md).
+
+**Phản hồi sáng31/10:** bỏ phần tập khỏi điều hướng theo yêu cầu người dùng.
+Giọng TTS thêm trace opt-in và probe phát câu thật; người dùng đang bận điện
+thoại nên nghe trực tiếp/chạy lượt mới còn chờ, không ghi đã khắc phục âm thanh.
 
 **Cập nhật 30/10 — hướng dẫn quay đầu:** thêm nhắc nghiêng/cúi/ngẩng từ ML Kit
 trước khi báo xanh; oval riêng bước quay đầu rộng hơn, giữ vừa màn chữ lớn.
