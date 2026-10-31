@@ -87,7 +87,7 @@ def generate_dynamic_challenge(settings: Settings, *, session_id: str, nonce: st
             previous = points[-1]
             while True:
                 x, y = rng.randint(20, 80) / 100, rng.randint(20, 80) / 100
-                if (x - previous.x) ** 2 + (y - previous.y) ** 2 >= 0.04:
+                if abs(x - previous.x) >= 0.18 and abs(y - previous.y) >= 0.15:
                     break
             points.append(GazePoint(x=x, y=y, at_ms=gaze_start + offset))
         # A near-vertical/horizontal path cannot independently test both gaze axes.

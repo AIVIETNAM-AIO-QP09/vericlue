@@ -115,8 +115,8 @@ enum class TurnPoseState {
  * user-right (TurnDir.Right) turns toward the left of the unmirrored image (yaw < 0).
  */
 object HeadTurnGuide {
-    const val TURN_MIN_DEG = 20f
-    const val TURN_MAX_SAFE_DEG = 38f
+    const val TURN_MIN_DEG = 16f
+    const val TURN_MAX_SAFE_DEG = 29f
     const val CENTER_MAX_DEG = 8f
     const val MAX_TURN_OFFSET = 0.24f
     const val HOLD_COMPLETE_MS = 850L
