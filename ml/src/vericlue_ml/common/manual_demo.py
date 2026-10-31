@@ -66,18 +66,12 @@ class ManualDemoThresholds(BaseModel):
         if (
             result is None
             or result.module != "voice_spoof"
+            or result.status != Status.OK
             or result.error_code is not None
             or result.gate == Gate.FAIL
             or result.model_version.startswith("mock")
+            or result.quality.get("diagnostic_only") is True
         ):
-            return False
-        if (
-            result.status == Status.OK
-            and type(result.prob_attack) in (float, int)
-            and math.isfinite(result.prob_attack)
-        ):
-            return 0 <= result.prob_attack <= 0.5
-        if result.status not in (Status.OK, Status.DEGRADED):
             return False
         windows = next(
             (
@@ -87,16 +81,34 @@ class ManualDemoThresholds(BaseModel):
             ),
             None,
         )
-        if not windows or result.quality.get("error_windows", 0) != 0:
-            return False
-        measured = [
-            row["result"]
-            for row in windows
-            if isinstance(row, dict)
-            and isinstance(row.get("result"), dict)
-            and row["result"].get("status") in ("ok", "degraded")
-        ]
-        return bool(measured) and all(
-            type(w.get("score")) in (float, int) and math.isfinite(w["score"]) and w["score"] <= 2.0
-            for w in measured
+        if windows is not None:
+            if (
+                not windows
+                or result.quality.get("error_windows", 0) != 0
+                or result.quality.get("low_quality_windows", 0) != 0
+                or result.quality.get("all_source_samples_measured") is not True
+                or result.quality.get("planned_windows") not in (None, len(windows))
+                or result.quality.get("measured_windows") not in (None, len(windows))
+            ):
+                return False
+            for row in windows:
+                if not isinstance(row, dict) or not isinstance(row.get("result"), dict):
+                    return False
+                w = row["result"]
+                w_quality = w.get("quality") if isinstance(w.get("quality"), dict) else {}
+                if (
+                    w.get("status") != "ok"
+                    or w.get("error_code") is not None
+                    or w.get("gate") == "fail"
+                    or w_quality.get("diagnostic_only") is True
+                    or type(w.get("score")) not in (float, int)
+                    or not math.isfinite(w["score"])
+                    or w["score"] > 2.0
+                ):
+                    return False
+            return True
+        return (
+            type(result.prob_attack) in (float, int)
+            and math.isfinite(result.prob_attack)
+            and 0 <= result.prob_attack <= 0.5
         )

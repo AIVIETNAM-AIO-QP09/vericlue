@@ -6,6 +6,7 @@ ROUT-02 dùng TrustRouter; ngưỡng/fusion còn provisional.
 
 from __future__ import annotations
 
+import math
 import secrets
 from collections.abc import Callable
 from dataclasses import replace
@@ -55,7 +56,7 @@ from vericlue_api.services.session_store import Session, SessionStore
 from vericlue_api.services.upload_images import prepare_image
 from vericlue_api.services.upload_quota import reserve_media
 from vericlue_api.services.uploads import save_upload
-from vericlue_ml.common.result import ErrorCode, Gate, Module, Status
+from vericlue_ml.common.result import ErrorCode, Evidence, Gate, Module, Status
 from vericlue_ml.face.continuity import FACE_VOICE_VERSION
 from vericlue_ml.face.enrolled import REAUTH_MATCH_VERSION, RECOVERY_MATCH_VERSION
 from vericlue_ml.face.match import MATCH_VERSION
@@ -115,7 +116,7 @@ class SessionFlow:
     def _evaluation_fields(session: Session) -> dict:
         return (
             {"evaluation_mode": "manual_demo", "demo_policy_id": session.manual_demo_policy_id}
-            if session.manual_demo_policy_id
+            if session.created_model_mode == "manual_demo" and session.manual_demo_policy_id
             else {}
         )
 
@@ -152,8 +153,8 @@ class SessionFlow:
     def create(
         self, scenario: str, request: CreateSessionRequest | None = None
     ) -> CreateSessionResponse:
-        policy = self.settings.manual_demo_policy if self.settings.manual_face_demo else None
-        if policy is not None and (
+        policy = self.settings.manual_demo_policy
+        if self.settings.manual_face_demo and (
             request is None or request.purpose != "onboarding" or request.account_id
         ):
             raise ApiError(
@@ -197,7 +198,11 @@ class SessionFlow:
             signer=self.settings.session_token_signer,
         )
         session.created_model_mode = (
-            "mock"
+            "manual_demo"
+            if self.settings.manual_face_demo
+            else "manual_full_demo"
+            if self.settings.manual_full_demo
+            else "mock"
             if self.settings.use_mock_models is True
             else "real"
             if self.settings.use_mock_models is False
@@ -205,9 +210,6 @@ class SessionFlow:
         )
         if policy is not None:
             session.manual_demo_policy_id = policy.policy_id
-            session.created_model_mode = "manual_demo"
-        elif self.settings.manual_full_demo:
-            session.created_model_mode = "manual_full_demo"
         session.result_issuer = self.settings.result_issuer
         session.result_audience = self.settings.result_audience
         device_challenge = None
@@ -314,13 +316,23 @@ class SessionFlow:
             raise ApiError(409, "challenge_mismatch", "Lượt xác minh không còn phù hợp.")
 
     def _ensure_evaluation_binding(self, session: Session) -> None:
-        policy = self.settings.manual_demo_policy if self.settings.manual_face_demo else None
-        expected = policy.policy_id if policy else None
+        policy = self.settings.manual_demo_policy
+        expected = policy.policy_id if policy is not None else None
+        expected_manual_mode = (
+            "manual_demo"
+            if self.settings.manual_face_demo
+            else "manual_full_demo"
+            if self.settings.manual_full_demo
+            else None
+        )
         if session.manual_demo_policy_id != expected:
             raise ApiError(
                 409, "session_expired", "Cấu hình trình diễn đã đổi. Vui lòng bắt đầu phiên mới."
             )
-        if self.settings.manual_full_demo and session.created_model_mode != "manual_full_demo":
+        if (
+            session.created_model_mode in {"manual_demo", "manual_full_demo"}
+            or expected_manual_mode is not None
+        ) and session.created_model_mode != expected_manual_mode:
             raise ApiError(
                 409, "session_expired", "Cấu hình trình diễn đã đổi. Vui lòng bắt đầu phiên mới."
             )
@@ -792,6 +804,10 @@ class SessionFlow:
             )
         )
         outcome = route_voice(outcome, session.purpose)
+        if session.purpose == "recovery" or (
+            session.purpose == "onboarding" and self.settings.account_enrollment
+        ):
+            outcome = self._lipsync_gate(session, outcome)
         if (
             session.account_id
             or self.settings.identity_card_enabled
@@ -933,13 +949,19 @@ class SessionFlow:
         base = {
             "config_version": "manual-full-demo-v1-" + (policy.policy_id[:16] if policy else "0"),
             "thresholds": {
+                "evaluation_mode": "manual_full_demo",
                 "demo_policy_id": policy.policy_id if policy else None,
                 "manual_thresholds": policy.model_dump() if policy else {},
                 "calibrated": False,
             },
             "results": results,
         }
-        if not session_valid:
+        if (
+            not session_valid
+            or policy is None
+            or session.manual_demo_policy_id != policy.policy_id
+            or session.created_model_mode != "manual_full_demo"
+        ):
             return Outcome("review", priority="high", reason="invalid session", **base)
         quality = results.get(Module.QUALITY)
         if quality is None or quality.status != Status.OK or quality.error_code is not None:
@@ -975,7 +997,10 @@ class SessionFlow:
                 or attack.status != Status.OK
                 or attack.error_code is not None
                 or attack.gate != Gate.PASS
+                or "mock" in attack.model_version.lower()
                 or attack.quality.get("manual_demo") is not True
+                or attack.quality.get("demo_policy_id") != policy.policy_id
+                or not attack.model_version.endswith(policy.version_suffix)
             ):
                 return Outcome("review", reason="face attack gate not passed", **base)
         return Outcome("pass", reason="manual full demo pass", **base)
@@ -984,19 +1009,51 @@ class SessionFlow:
         self, session: Session, results: dict[Module, object], *, session_valid: bool
     ) -> Outcome:
         policy = self.settings.manual_demo_policy
+        decision_results = dict(results)
+        lipsync_required = (
+            session.purpose == "recovery"
+            or (session.purpose == "onboarding" and self.settings.account_enrollment)
+            or Module.LIPSYNC in self.router.profile.required_voice_step_modules
+        )
+        if not lipsync_required:
+            for mod in self.router.profile.advisory_voice_modules:
+                res = decision_results.get(mod)
+                if res is not None and not any(
+                    ev.name == "decision_role" and ev.value == "advisory" for ev in res.evidence
+                ):
+                    role = Evidence(
+                        type="text",
+                        name="decision_role",
+                        value="advisory",
+                        label_vi="Khớp môi chỉ tham khảo ở chế độ MVP",
+                    )
+                    decision_results[mod] = res.model_copy(
+                        update={"evidence": [*res.evidence, role]}
+                    )
         base = {
             "config_version": "manual-full-demo-v1-" + (policy.policy_id[:16] if policy else "0"),
             "thresholds": {
+                "evaluation_mode": "manual_full_demo",
                 "demo_policy_id": policy.policy_id if policy else None,
                 "manual_thresholds": policy.model_dump() if policy else {},
                 "calibrated": False,
             },
-            "results": results,
+            "results": decision_results,
         }
-        if not session_valid:
+        if (
+            not session_valid
+            or policy is None
+            or session.manual_demo_policy_id != policy.policy_id
+            or session.created_model_mode != "manual_full_demo"
+        ):
             return Outcome("review", priority="high", reason="invalid session", **base)
-        challenge = results.get(Module.VOICE_CHALLENGE)
-        if challenge is None or challenge.status != Status.OK or challenge.error_code is not None:
+        challenge = decision_results.get(Module.VOICE_CHALLENGE)
+        if (
+            challenge is None
+            or challenge.status != Status.OK
+            or challenge.error_code is not None
+            or "mock" in challenge.model_version.lower()
+        ):
             return Outcome("review", reason="voice challenge missing/error/degraded", **base)
         if challenge.gate == Gate.FAIL:
             action = (
@@ -1005,17 +1062,91 @@ class SessionFlow:
             return Outcome(action, reason="phrase mismatch", **base)
         if challenge.gate != Gate.PASS:
             return Outcome("review", reason="phrase unclear", **base)
-        spoof = results.get(Module.VOICE_SPOOF)
-        if policy is None or not policy.accepts_voice_spoof(spoof):
+        flags = [
+            e.value
+            for r in decision_results.values()
+            for e in r.evidence
+            if e.name == "splice_flags"
+        ]
+        invalid_flag = False
+        positive_flag = False
+        for value in flags:
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or (isinstance(value, float) and not math.isfinite(value))
+            ):
+                invalid_flag = True
+            elif value > 0:
+                positive_flag = True
+        if positive_flag:
+            return Outcome("review", priority="high", reason="positive splice flag", **base)
+        if invalid_flag:
+            return Outcome("review", reason="invalid splice flag", **base)
+        spoof = decision_results.get(Module.VOICE_SPOOF)
+        if not policy.accepts_voice_spoof(spoof):
             return Outcome("review", reason="voice spoof not passed", **base)
+        if lipsync_required:
+            lipsync = decision_results.get(Module.LIPSYNC)
+            if (
+                lipsync is None
+                or lipsync.module != Module.LIPSYNC
+                or lipsync.status != Status.OK
+                or lipsync.error_code is not None
+                or lipsync.gate != Gate.PASS
+                or "mock" in lipsync.model_version.lower()
+            ):
+                return Outcome("review", reason="lipsync not passed", **base)
         return Outcome("pass", reason="manual full demo voice pass", **base)
+
+    def _lipsync_gate(self, session: Session, outcome):
+        """Recovery and voiced account enrollment require verified lipsync (never advisory)."""
+        lipsync = session.results.get(Module.LIPSYNC)
+        require_real_gate = (
+            self.settings.manual_full_demo
+            or self.settings.use_mock_models is False
+            or (lipsync is not None and lipsync.gate is not None)
+        )
+        allowed = (
+            lipsync is not None
+            and lipsync.module == Module.LIPSYNC
+            and lipsync.status == Status.OK
+            and lipsync.error_code is None
+            and (
+                (
+                    lipsync.gate == Gate.PASS
+                    and (
+                        not (
+                            self.settings.manual_full_demo or self.settings.use_mock_models is False
+                        )
+                        or "mock" not in lipsync.model_version.lower()
+                    )
+                )
+                if require_real_gate
+                else (
+                    lipsync.prob_attack is not None
+                    and 0 <= lipsync.prob_attack <= self.router.config.voice.spoof_threshold
+                )
+            )
+        )
+        if lipsync is not None and any(e.name == "decision_role" for e in lipsync.evidence):
+            cleaned = lipsync.model_copy(
+                update={"evidence": [e for e in lipsync.evidence if e.name != "decision_role"]}
+            )
+            session.results[Module.LIPSYNC] = cleaned
+            if Module.LIPSYNC in outcome.results:
+                outcome = replace(outcome, results={**outcome.results, Module.LIPSYNC: cleaned})
+        if not allowed and outcome.status == "pass":
+            return replace(outcome, status="review", reason="lipsync not passed")
+        return outcome
 
     def _identity_gate(self, session: Session, outcome):
         """A face match is one required signal, never an override of PAD or voice failures."""
         match = session.results.get(Module.FACE_MATCH)
         thresholds = dict(outcome.thresholds)
         policy = self.settings.manual_demo_policy
-        suffix = policy.version_suffix if self.settings.manual_full_demo and policy else ""
+        manual = self.settings.manual_face_demo or self.settings.manual_full_demo
+        suffix = policy.version_suffix if manual and policy is not None else ""
         base_versions = (
             (RECOVERY_MATCH_VERSION if session.purpose == "recovery" else REAUTH_MATCH_VERSION,)
             if session.account_id
@@ -1024,9 +1155,7 @@ class SessionFlow:
             else (MATCH_VERSION,)
         )
         expected_versions = (
-            (*base_versions, *(v + suffix for v in base_versions))
-            if self.settings.manual_full_demo
-            else (base_versions[0],)
+            tuple(v + suffix for v in base_versions) if manual else (base_versions[0],)
         )
         if match is not None and match.model_version in expected_versions:
             threshold = match.quality.get("threshold_cosine")
@@ -1046,6 +1175,16 @@ class SessionFlow:
             and match.status == Status.OK
             and match.error_code is None
             and match.gate == Gate.PASS
+            and (
+                (
+                    policy is not None
+                    and session.manual_demo_policy_id == policy.policy_id
+                    and match.quality.get("manual_demo") is True
+                    and match.quality.get("demo_policy_id") == policy.policy_id
+                )
+                if manual
+                else match.quality.get("manual_demo") is not True
+            )
             and (
                 not session.account_id
                 or (
@@ -1067,10 +1206,13 @@ class SessionFlow:
             )
         return replace(outcome, thresholds=thresholds)
 
-    @staticmethod
-    def _continuity_gate(session: Session, outcome):
+    def _continuity_gate(self, session: Session, outcome):
         result = session.results.get(Module.FACE_CONTINUITY)
         reference = session.results.get(Module.FACE_MATCH)
+        policy = self.settings.manual_demo_policy
+        manual = self.settings.manual_full_demo and policy is not None
+        suffix = policy.version_suffix if manual else ""
+        expected_version = FACE_VOICE_VERSION + suffix
         source = (
             [e.value for e in reference.evidence if e.name == "source_video_sha256"]
             if reference
@@ -1084,10 +1226,19 @@ class SessionFlow:
         allowed = (
             result is not None
             and result.module == Module.FACE_CONTINUITY
-            and result.model_version == FACE_VOICE_VERSION
+            and result.model_version == expected_version
             and result.status == Status.OK
             and result.error_code is None
             and result.gate == Gate.PASS
+            and (
+                (
+                    session.manual_demo_policy_id == policy.policy_id
+                    and result.quality.get("manual_demo") is True
+                    and result.quality.get("demo_policy_id") == policy.policy_id
+                )
+                if manual
+                else result.quality.get("manual_demo") is not True
+            )
             and len(source) == 1
             and all(
                 [e.value for e in result.evidence if e.name == name] == values

@@ -242,13 +242,24 @@ class Settings(BaseSettings):
                 "Manual demo requires isolated synthetic onboarding with real face checks; no enrollment/credentials/signing"
             )
         if self.manual_full_demo and (
-            not self.session_face_checks
+            self.security_profile != "synthetic"
+            or self.product_mode != "ekyc"
+            or self.router_profile != "mvp"
+            or self.use_mock_models is not True
+            or not self.session_face_checks
             or not self.session_face_models
+            or not self.session_voice_models
             or not self.identity_card_enabled
             or not self.identity_face_from_video
             or not self.identity_consistency_required
+            or not self.identity_voice_continuity
+            or not self.account_enrollment
+            or self.private_credentials
+            or self.result_signing_key_file
         ):
-            raise ValueError("MANUAL_FULL_DEMO requires real face checks and video identity")
+            raise ValueError(
+                "MANUAL_FULL_DEMO requires isolated synthetic profile with real face/voice checks and account enrollment; no credentials/signing"
+            )
         if self.identity_consistency_required and not self.identity_face_from_video:
             raise ValueError("IDENTITY_CONSISTENCY_REQUIRED requires IDENTITY_FACE_FROM_VIDEO")
         if self.identity_voice_continuity and (

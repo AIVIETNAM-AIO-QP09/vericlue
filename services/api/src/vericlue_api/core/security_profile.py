@@ -47,7 +47,10 @@ def security_profile_checks(settings: Settings) -> dict[str, bool]:
         "identity_hmac_key": _usable_secret(hmac_key),
         "session_signing_key": _usable_secret(token_key),
         "independent_secrets": distinct,
-        "real_model_mode": settings.use_mock_models is False,
+        "real_model_mode": settings.use_mock_models is False
+        and not settings.manual_face_demo
+        and not settings.manual_full_demo,
+        "no_manual_demo": not settings.manual_face_demo and not settings.manual_full_demo,
     }
 
 

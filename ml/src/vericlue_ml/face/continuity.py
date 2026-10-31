@@ -157,14 +157,33 @@ class FaceContinuityDetector:
             raise LandmarkError(ErrorCode.E_DECODE, Status.DEGRADED)
         approved = ModuleResult.model_validate(inp.metadata.get("face_reference_result"))
         manual_demo = getattr(self.matcher, "manual_demo", None)
-        suffix = manual_demo.version_suffix if manual_demo is not None else ""
+        using_manual = manual_demo is not None and self._threshold is None
+        suffix = manual_demo.version_suffix if using_manual else ""
         supported = getattr(self.matcher, "_supported_versions", lambda: (VIDEO_MATCH_VERSION,))()
-        expected_versions = (
-            (RECOVERY_MATCH_VERSION,)
-            if inp.metadata.get("purpose") == "recovery" and inp.metadata.get("account_id")
-            else (VIDEO_MATCH_VERSION, *supported, *(v + suffix for v in supported))
+        is_recovery = inp.metadata.get("purpose") == "recovery" and bool(
+            inp.metadata.get("account_id")
         )
-        if approved.module != Module.FACE_MATCH or approved.model_version not in expected_versions:
+        expected_versions = (
+            (RECOVERY_MATCH_VERSION + suffix,)
+            if is_recovery and using_manual
+            else (RECOVERY_MATCH_VERSION,)
+            if is_recovery
+            else tuple(dict.fromkeys(v + suffix for v in (VIDEO_MATCH_VERSION, *supported)))
+            if using_manual
+            else (VIDEO_MATCH_VERSION, *supported)
+        )
+        if (
+            approved.module != Module.FACE_MATCH
+            or approved.model_version not in expected_versions
+            or (
+                using_manual
+                and (
+                    approved.quality.get("manual_demo") is not True
+                    or approved.quality.get("demo_policy_id") != manual_demo.policy_id
+                )
+            )
+            or (not using_manual and approved.quality.get("manual_demo") is True)
+        ):
             raise LandmarkError(ErrorCode.E_INTEGRITY)
         reference_hash = video_sha256(inp.reference_video)
         voice_hash = video_sha256(inp.video)
@@ -235,7 +254,7 @@ class FaceContinuityDetector:
         cosine = min(similarities)
         return ModuleResult(
             module=Module.FACE_CONTINUITY,
-            model_version=self.version,
+            model_version=self.version + suffix,
             status=Status.OK if usable else Status.DEGRADED,
             gate=(Gate.PASS if cosine >= threshold_value else Gate.FAIL)
             if usable
@@ -254,7 +273,7 @@ class FaceContinuityDetector:
                         "calibrated": False,
                         "demo_policy_id": manual_demo.policy_id,
                     }
-                    if manual_demo is not None and self._threshold is None
+                    if using_manual
                     else {}
                 ),
             },

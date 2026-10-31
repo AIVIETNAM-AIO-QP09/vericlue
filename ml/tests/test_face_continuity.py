@@ -282,3 +282,39 @@ def test_bad_wav_never_uses_header_duration_alone(tmp_path, fault):
     with pytest.raises(LandmarkError) as error:
         wav_duration(path)
     assert error.value.code == "E_DECODE"
+
+
+def test_manual_demo_continuity_binds_policy_and_rejects_mismatched_reference(
+    monkeypatch, tmp_path
+):
+    from vericlue_ml.common.manual_demo import ManualDemoThresholds
+
+    policy = ManualDemoThresholds(consistency_min=0.45)
+    model, inp, _, _ = fixture(monkeypatch, tmp_path, threshold=None)
+    model.matcher.manual_demo = policy
+
+    # Reference without manual_demo suffix/policy_id must be rejected with E_INTEGRITY.
+    unmarked = model.predict(inp)
+    assert unmarked.status == "error" and unmarked.error_code == "E_INTEGRITY"
+
+    # Reference with matching suffix and policy_id succeeds and stamps version_suffix + policy_id.
+    inp.metadata["face_reference_result"]["model_version"] = (
+        VIDEO_MATCH_VERSION + policy.version_suffix
+    )
+    inp.metadata["face_reference_result"]["quality"] = {
+        "manual_demo": True,
+        "calibrated": False,
+        "demo_policy_id": policy.policy_id,
+    }
+    res = model.predict(inp)
+    assert res.status == "ok" and res.gate == "pass"
+    assert res.model_version == FACE_VOICE_VERSION + policy.version_suffix
+    assert res.quality["manual_demo"] is True
+    assert res.quality["calibrated"] is False
+    assert res.quality["demo_policy_id"] == policy.policy_id
+
+    # Changing policy_id on reference must fail closed.
+    other = ManualDemoThresholds(consistency_min=0.55)
+    inp.metadata["face_reference_result"]["quality"]["demo_policy_id"] = other.policy_id
+    mismatch = model.predict(inp)
+    assert mismatch.status == "error" and mismatch.error_code == "E_INTEGRITY"

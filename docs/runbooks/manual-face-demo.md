@@ -83,6 +83,36 @@ cài đè -r, không gỡ/xóa dữ liệu. Điện thoại mới Samsung A04 đ
 Wi-Fi có thể đổi sau này, không dùng lại mã pairing cũ. Sau reconnect dùng
 adb reverse tcp:8421 tcp:8421 trên đúng serial của máy mới.
 
+## Chế độ mở rộng `MANUAL_FULL_DEMO` (3 luồng tài khoản thử nghiệm)
+
+Khi cần kiểm thử luồng tài khoản thử nghiệm (`onboarding`, `reauth`, `recovery`) với ngưỡng thủ công, `MANUAL_FULL_DEMO=true` yêu cầu cấu hình cô lập trong môi trường `synthetic`:
+
+```dotenv
+MANUAL_FULL_DEMO=true
+MANUAL_FACE_DEMO=false
+SECURITY_PROFILE=synthetic
+PRODUCT_MODE=ekyc
+USE_MOCK_MODELS=true
+ROUTER_PROFILE=mvp
+SESSION_FACE_MODELS=true
+SESSION_FACE_CHECKS=true
+SESSION_VOICE_MODELS=true
+IDENTITY_CARD_ENABLED=true
+IDENTITY_FACE_FROM_VIDEO=true
+IDENTITY_CONSISTENCY_REQUIRED=true
+IDENTITY_VOICE_CONTINUITY=true
+ACCOUNT_ENROLLMENT=true
+PRIVATE_CREDENTIALS=false
+RESULT_SIGNING_KEY_FILE=
+```
+
+Các ràng buộc an toàn của `MANUAL_FULL_DEMO`:
+
+1. **Khóa chính sách theo phiên (`policy_id`):** Khi tạo phiên, `Session.created_model_mode="manual_full_demo"` và `Session.manual_demo_policy_id=policy.policy_id` được gắn chặt với phiên. Đổi bất kỳ ngưỡng nào (`MANUAL_DEMO_PAD_MAX`, `MANUAL_DEMO_GEND_MAX`, `MANUAL_DEMO_MATCH_MIN`, `MANUAL_DEMO_CONSISTENCY_MIN`) hoặc bật/tắt chế độ giữa phiên sẽ trả `409 session_expired`, buộc tạo phiên mới. Mọi `ModuleResult` của `face_pad`, `face_deepfake`, `face_match` (kể cả `reauth`/`recovery`) và `face_continuity` phải mang hậu tố `+manual-demo-<policy_id[:16]>` và `quality.demo_policy_id == policy.policy_id`. Bản ghi `DecisionRow.thresholds` và `AccountRow.encrypted_payload` lưu rõ `evaluation_mode="manual_full_demo"`, `demo_policy_id`, `manual_thresholds` và `calibrated=false`.
+2. **Không chấp nhận `voice_spoof` ở trạng thái `degraded`/`error`:** `accepts_voice_spoof` chỉ chấp nhận kết quả khi `status="ok"`, `error_code=None`, `diagnostic_only!=True`, không phải `mock`, và (nếu có `nes2net_windows`) toàn bộ cửa sổ âm thanh đều đã đo (`all_source_samples_measured=True`, `error_windows=0`, `low_quality_windows=0`, mọi cửa sổ `status="ok"` và `score <= 2.0`). Vì `NES2Net` hiện mới phát đầu ra chẩn đoán (`status="degraded", gate="unclear", diagnostic_only=True`) do còn chờ hoàn tất đối chiếu frontend Fairseq↔Transformers và hiệu chỉnh tiếng Việt, bước giọng nói với `NES2Net` thật sẽ giữ trạng thái `review` (chưa đạt) thay vì ép `pass`.
+3. **Chốt `lipsync` bắt buộc trong `recovery` và cấp tài khoản có bước giọng nói:** Ở các phiên MVP thông thường không gắn tài khoản, `lipsync` là tín hiệu tham khảo (`advisory`). Tuy nhiên, trong luồng `recovery` và khi cấp/khôi phục tài khoản có bước giọng nói (`AccountStore.create` / `AccountStore.recover` / `SessionFlow.voice`), `lipsync` bắt buộc phải đạt `status="ok"`, `gate="pass"`, `error_code=None` (và không có `splice_flags > 0`).
+4. **Bảo vệ tài khoản hiện hữu và cô lập tài khoản thử nghiệm:** Một lượt `onboarding` trùng CCCD (`id_number_hmac`) sẽ bị từ chối (`409 enrollment_not_available`) và **không bao giờ tự động hủy** tài khoản đang hoạt động. Tài khoản tạo trong `MANUAL_FULL_DEMO` được đóng dấu `evaluation_mode="manual_full_demo"` + `demo_policy_id` trong payload mã hóa và hoàn toàn cô lập khỏi `AccountStore` chế độ chuẩn (`standard`). Khi cần đặt lại tài khoản thử nghiệm, dùng hàm quản trị có phạm vi rõ ràng `AccountStore.destroy_manual_demo_account(...)` (chỉ hoạt động trong `synthetic` + `manual_full_demo`, không chạm vào tài khoản `standard`).
+
 ## Quay video và hoàn thiện tiếp
 
 Nói rõ trong video: “Model chạy thật, OTP mô phỏng, ngưỡng thử nghiệm chưa hiệu

@@ -108,9 +108,12 @@ def match_enrolled(
         )
         available = threshold_value is not None and (not recovery or consistency_value is not None)
         passed = available and cosine >= threshold_value and (not recovery or consistent)
+        effective_version = version + (
+            matcher.manual_demo.version_suffix if matcher.manual_demo is not None else ""
+        )
         return ModuleResult(
             module=Module.FACE_MATCH,
-            model_version=version,
+            model_version=effective_version,
             status=Status.OK if available else Status.DEGRADED,
             gate=(Gate.PASS if passed else Gate.FAIL) if available else Gate.UNCLEAR,
             score=1 - cosine,

@@ -203,18 +203,22 @@ class AccountStore:
         ):
             raise not_eligible()
         policy = s.manual_demo_policy
+        if s.manual_full_demo:
+            if (
+                policy is None
+                or session.created_model_mode != "manual_full_demo"
+                or session.manual_demo_policy_id != policy.policy_id
+            ):
+                raise not_eligible()
+        elif session.manual_demo_policy_id is not None or session.created_model_mode in {
+            "manual_demo",
+            "manual_full_demo",
+        }:
+            raise not_eligible()
         for module in _GATES | _PROBABILITIES:
             if module in _VOICE_MODULES and not voiced:
                 continue
-            if (
-                s.manual_full_demo
-                and s.router_profile == "mvp"
-                and module
-                in {
-                    Module.CHROMAPULSE,
-                    Module.LIPSYNC,
-                }
-            ):
+            if s.manual_full_demo and s.router_profile == "mvp" and module == Module.CHROMAPULSE:
                 continue
             result = session.results.get(module)
             if (
@@ -232,9 +236,13 @@ class AccountStore:
                     result.status != Status.OK
                     or result.gate != Gate.PASS
                     or result.quality.get("manual_demo") is not True
+                    or result.quality.get("demo_policy_id") != policy.policy_id
+                    or not result.model_version.endswith(policy.version_suffix)
                 ):
                     raise not_eligible()
                 continue
+            if not s.manual_full_demo and result.quality.get("manual_demo") is True:
+                raise not_eligible()
             if (
                 result.status != Status.OK
                 or module in _GATES
@@ -246,10 +254,11 @@ class AccountStore:
         match = session.results[Module.FACE_MATCH]
         suffix = policy.version_suffix if s.manual_full_demo and policy is not None else ""
         expected_match_versions = (
-            (RECOVERY_MATCH_VERSION,)
+            (RECOVERY_MATCH_VERSION + suffix,)
+            if recovery and s.manual_full_demo
+            else (RECOVERY_MATCH_VERSION,)
             if recovery
             else (
-                VIDEO_MATCH_VERSION,
                 VIDEO_MATCH_VERSION + suffix,
                 VIDEO_MATCH_VERSION + "+head12s-v2" + suffix,
             )
@@ -259,6 +268,14 @@ class AccountStore:
         if (
             match.model_version not in expected_match_versions
             or match.quality.get("consistency_verified") is not True
+            or (
+                s.manual_full_demo
+                and (
+                    match.quality.get("manual_demo") is not True
+                    or match.quality.get("demo_policy_id") != policy.policy_id
+                )
+            )
+            or (not s.manual_full_demo and match.quality.get("manual_demo") is True)
             or recovery
             and (
                 match.quality.get("enrolled_reference") is not True
@@ -287,13 +304,24 @@ class AccountStore:
             "challenge_id": session.challenge.challenge_id,
             "voice_challenge_id": session.voice_challenge_id,
         }
+        expected_continuity_versions = (
+            (FACE_VOICE_VERSION + suffix,) if s.manual_full_demo else (FACE_VOICE_VERSION,)
+        )
         if (
             continuity is None
             or continuity.module != Module.FACE_CONTINUITY
-            or continuity.model_version != FACE_VOICE_VERSION
+            or continuity.model_version not in expected_continuity_versions
             or continuity.status != Status.OK
             or continuity.error_code is not None
             or continuity.gate != Gate.PASS
+            or (
+                s.manual_full_demo
+                and (
+                    continuity.quality.get("manual_demo") is not True
+                    or continuity.quality.get("demo_policy_id") != policy.policy_id
+                )
+            )
+            or (not s.manual_full_demo and continuity.quality.get("manual_demo") is True)
             or any(
                 [e.value for e in continuity.evidence if e.name == name] != [value]
                 for name, value in expected.items()
@@ -361,12 +389,18 @@ class AccountStore:
         device_id = "dev_" + secrets.token_hex(16)
         dek = AESGCM.generate_key(bit_length=256)
         wrapped_key = self._seal(self._master(), dek, self._aad(row, "dek", device_id=device_id))
+        policy = self.settings.manual_demo_policy
         payload = {
             "template": identity.template.model_dump(mode="json"),
             "public_key_spki": session.media_public_key_spki,
             "key_fingerprint": hashlib.sha256(
                 base64.b64decode(session.media_public_key_spki, validate=True)
             ).hexdigest(),
+            "evaluation_mode": "manual_full_demo" if self.settings.manual_full_demo else "standard",
+            "demo_policy_id": policy.policy_id
+            if self.settings.manual_full_demo and policy is not None
+            else None,
+            "calibrated": not self.settings.manual_full_demo,
         }
         encrypted_payload = self._seal(
             dek,
@@ -434,21 +468,6 @@ class AccountStore:
             return identity.receipt
         self.expire()
         now = utcnow()
-        if self.settings.manual_full_demo and session.id_number_hmac:
-            previous_rows = self.db.scalars(
-                select(AccountRow)
-                .where(
-                    AccountRow.id_number_hmac == session.id_number_hmac,
-                    AccountRow.destroyed_at.is_(None),
-                )
-                .with_for_update()
-            )
-            for previous in previous_rows:
-                previous.wrapped_key = previous.encrypted_payload = None
-                previous.id_number_hmac = previous.phone_hmac = None
-                previous.destroyed_at = now
-                self._audit(previous, actor="system-enrollment", action="account_key_destroyed")
-            self.db.flush()
         row = AccountRow(
             account_id="acct_" + secrets.token_hex(16),
             source_session_id=session.session_id,
@@ -460,12 +479,18 @@ class AccountStore:
         )
         dek = AESGCM.generate_key(bit_length=256)
         row.wrapped_key = self._seal(master, dek, self._aad(row, "dek"))
+        policy = self.settings.manual_demo_policy
         payload = {
             "template": template.model_dump(mode="json"),
             "public_key_spki": session.media_public_key_spki,
             "key_fingerprint": hashlib.sha256(
                 base64.b64decode(session.media_public_key_spki, validate=True)
             ).hexdigest(),
+            "evaluation_mode": "manual_full_demo" if self.settings.manual_full_demo else "standard",
+            "demo_policy_id": policy.policy_id
+            if self.settings.manual_full_demo and policy is not None
+            else None,
+            "calibrated": not self.settings.manual_full_demo,
         }
         row.encrypted_payload = self._seal(
             dek,
@@ -501,11 +526,18 @@ class AccountStore:
             template = FaceTemplate.model_validate_json(json.dumps(payload["template"]))
             spki = payload["public_key_spki"]
             public_key(spki)
+            expected_mode = "manual_full_demo" if self.settings.manual_full_demo else "standard"
+            policy = self.settings.manual_demo_policy
+            expected_policy_id = (
+                policy.policy_id if self.settings.manual_full_demo and policy is not None else None
+            )
             if (
                 template.session_id != row.source_session_id
                 or template.model_version != VIDEO_MATCH_VERSION
                 or payload["key_fingerprint"]
                 != hashlib.sha256(base64.b64decode(spki, validate=True)).hexdigest()
+                or payload.get("evaluation_mode", "standard") != expected_mode
+                or payload.get("demo_policy_id") != expected_policy_id
             ):
                 raise ValueError("Account binding mismatch")
             identity = EnrolledIdentity(self._receipt(row), template, spki)
@@ -513,6 +545,47 @@ class AccountStore:
             raise unavailable() from exc
         self._audit(row, actor="system-identity", action="template_read")
         return identity
+
+    def destroy_manual_demo_account(
+        self,
+        *,
+        account_id: str | None = None,
+        id_number_hmac: str | None = None,
+    ) -> int:
+        """Explicit operator demo reset scoped to a target experimental account only."""
+        if (
+            not self.settings.manual_full_demo
+            or self.settings.security_profile != "synthetic"
+            or (not account_id and not id_number_hmac)
+        ):
+            raise unavailable()
+        master = self._master()
+        stmt = select(AccountRow).where(AccountRow.destroyed_at.is_(None)).with_for_update()
+        if account_id:
+            stmt = stmt.where(AccountRow.account_id == account_id)
+        if id_number_hmac:
+            stmt = stmt.where(AccountRow.id_number_hmac == id_number_hmac)
+        now = utcnow()
+        count = 0
+        for row in self.db.scalars(stmt):
+            if row.wrapped_key is None or row.encrypted_payload is None:
+                continue
+            try:
+                dek = self._open(master, row.wrapped_key, self._aad(row, "dek"))
+                payload = json.loads(
+                    self._open(dek, row.encrypted_payload, self._aad(row, "identity"))
+                )
+            except Exception:
+                continue
+            if payload.get("evaluation_mode") != "manual_full_demo":
+                continue
+            row.wrapped_key = row.encrypted_payload = None
+            row.id_number_hmac = row.phone_hmac = None
+            row.destroyed_at = now
+            self._audit(row, actor="operator-demo-reset", action="account_key_destroyed")
+            count += 1
+        self.db.flush()
+        return count
 
     def expire(self, *, now: datetime | None = None) -> int:
         """Destroy independent account DEKs and sensitive payloads; keep opaque tombstones."""

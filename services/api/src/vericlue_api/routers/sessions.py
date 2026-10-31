@@ -161,6 +161,7 @@ def device_proof(
     response: Response,
 ) -> DeviceProofResponse:
     response.headers["Cache-Control"] = "no-store"
+    state.flow._ensure_evaluation_binding(session)
     state.flow.account_auth.verify(session, body.signature)
     return DeviceProofResponse()
 
@@ -297,6 +298,7 @@ STAGE_A_ERRORS: dict[int | str, dict] = {
 def send_otp(session: SessionDep, state: StateDep, body: OtpRequest) -> OtpSent:
     """Gửi mã 6 số (hạn 2 phút, sai 5 lần thì khóa). Gọi lại = mã mới, mã cũ hết hiệu lực."""
     state.flow.ensure_open(session)
+    state.flow._ensure_evaluation_binding(session)
     if session.account_id:
         if session.purpose != "recovery":
             raise ApiError(409, "step_not_allowed", "Bước này chưa phù hợp.")
@@ -312,6 +314,7 @@ def send_otp(session: SessionDep, state: StateDep, body: OtpRequest) -> OtpSent:
 )
 def verify_otp(session: SessionDep, state: StateDep, body: OtpVerifyRequest) -> OtpVerifyResponse:
     state.flow.ensure_open(session)
+    state.flow._ensure_evaluation_binding(session)
     if session.account_id:
         if session.purpose != "recovery":
             raise ApiError(409, "step_not_allowed", "Bước này chưa phù hợp.")
@@ -339,6 +342,7 @@ async def upload_id_card(
     ] = None,
 ) -> IdCardResponse:
     state.flow.ensure_open(session)
+    state.flow._ensure_evaluation_binding(session)
     state.identity.ensure_card_upload_allowed(session)
     limit = state.settings.max_upload_mb
     front_bytes = await read_limited(front, limit)
@@ -365,6 +369,7 @@ def confirm_id_card(
 ) -> IdCardConfirmResponse:
     """Thông tin người dùng xác nhận; sửa khác QR thì ghi chú cho nhân viên duyệt."""
     state.flow.ensure_open(session)
+    state.flow._ensure_evaluation_binding(session)
     return state.identity.confirm_id_card(session, body)
 
 

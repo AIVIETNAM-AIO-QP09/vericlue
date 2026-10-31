@@ -124,3 +124,117 @@ def test_manual_identity_uses_raw_cosines_without_fake_calibration(tmp_path, mon
     assert result.prob_attack is None
     assert result.quality["calibrated"] is False
     assert result.model_version.endswith(detector.manual_demo.version_suffix)
+
+
+def test_manual_voice_spoof_rejects_degraded_error_unmeasured_and_diagnostic_results():
+    policy = ManualDemoThresholds()
+    ok_window = {
+        "start_sample": 0,
+        "end_sample": 64000,
+        "start_s": 0.0,
+        "end_s": 4.0,
+        "result": {
+            "module": "voice_spoof",
+            "model_version": "nes2net-x@first4s",
+            "status": "ok",
+            "gate": "pass",
+            "score": -2.5,
+            "quality": {"diagnostic_only": False},
+            "latency_ms": 10.0,
+        },
+    }
+    valid_timeline = ModuleResult(
+        module="voice_spoof",
+        model_version="nes2net-x@timeline",
+        status="ok",
+        gate="pass",
+        quality={
+            "diagnostic_only": False,
+            "planned_windows": 1,
+            "measured_windows": 1,
+            "low_quality_windows": 0,
+            "error_windows": 0,
+            "all_source_samples_measured": True,
+        },
+        evidence=[Evidence(type="segments", name="nes2net_windows", value=[ok_window])],
+        latency_ms=10.0,
+    )
+    assert policy.accepts_voice_spoof(valid_timeline)
+
+    # Degraded outer status (current uncalibrated NES2Net diagnostic output) must be rejected.
+    assert not policy.accepts_voice_spoof(
+        valid_timeline.model_copy(update={"status": "degraded", "gate": "unclear"})
+    )
+    assert not policy.accepts_voice_spoof(
+        valid_timeline.model_copy(update={"status": "error", "error_code": "E_INTERNAL"})
+    )
+    assert not policy.accepts_voice_spoof(
+        valid_timeline.model_copy(
+            update={"quality": {**valid_timeline.quality, "diagnostic_only": True}}
+        )
+    )
+    assert not policy.accepts_voice_spoof(
+        valid_timeline.model_copy(update={"model_version": "mock@0.1"})
+    )
+
+    # Unmeasured / not_applicable windows must never be ignored.
+    partial_window = {
+        **ok_window,
+        "start_sample": 64000,
+        "end_sample": 80000,
+        "result": {
+            **ok_window["result"],
+            "status": "not_applicable",
+            "error_code": "E_LOW_QUALITY",
+            "gate": "unclear",
+            "score": None,
+        },
+    }
+    assert not policy.accepts_voice_spoof(
+        valid_timeline.model_copy(
+            update={
+                "quality": {
+                    **valid_timeline.quality,
+                    "planned_windows": 2,
+                    "measured_windows": 1,
+                    "low_quality_windows": 1,
+                    "all_source_samples_measured": False,
+                },
+                "evidence": [
+                    Evidence(
+                        type="segments",
+                        name="nes2net_windows",
+                        value=[ok_window, partial_window],
+                    )
+                ],
+            }
+        )
+    )
+
+    # Degraded inner window or high spoof score must be rejected.
+    degraded_inner = {
+        **ok_window,
+        "result": {**ok_window["result"], "status": "degraded", "gate": "unclear"},
+    }
+    assert not policy.accepts_voice_spoof(
+        valid_timeline.model_copy(
+            update={
+                "evidence": [
+                    Evidence(type="segments", name="nes2net_windows", value=[degraded_inner])
+                ]
+            }
+        )
+    )
+    high_score_inner = {
+        **ok_window,
+        "result": {**ok_window["result"], "score": 3.5},
+    }
+    assert not policy.accepts_voice_spoof(
+        valid_timeline.model_copy(
+            update={
+                "evidence": [
+                    Evidence(type="segments", name="nes2net_windows", value=[high_score_inner])
+                ]
+            }
+        )
+    )
