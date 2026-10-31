@@ -156,12 +156,15 @@ class FaceContinuityDetector:
         if inp.reference_video is None or inp.video is None or inp.audio is None:
             raise LandmarkError(ErrorCode.E_DECODE, Status.DEGRADED)
         approved = ModuleResult.model_validate(inp.metadata.get("face_reference_result"))
-        expected_version = (
-            RECOVERY_MATCH_VERSION
+        manual_demo = getattr(self.matcher, "manual_demo", None)
+        suffix = manual_demo.version_suffix if manual_demo is not None else ""
+        supported = getattr(self.matcher, "_supported_versions", lambda: (VIDEO_MATCH_VERSION,))()
+        expected_versions = (
+            (RECOVERY_MATCH_VERSION,)
             if inp.metadata.get("purpose") == "recovery" and inp.metadata.get("account_id")
-            else VIDEO_MATCH_VERSION
+            else (VIDEO_MATCH_VERSION, *supported, *(v + suffix for v in supported))
         )
-        if approved.module != Module.FACE_MATCH or approved.model_version != expected_version:
+        if approved.module != Module.FACE_MATCH or approved.model_version not in expected_versions:
             raise LandmarkError(ErrorCode.E_INTEGRITY)
         reference_hash = video_sha256(inp.reference_video)
         voice_hash = video_sha256(inp.video)
@@ -220,14 +223,21 @@ class FaceContinuityDetector:
             and approved.gate == Gate.PASS
             and approved.error_code is None
         )
-        available = self._threshold is not None
+        threshold_value = (
+            self._threshold.threshold
+            if self._threshold is not None
+            else manual_demo.match_min
+            if manual_demo is not None
+            else None
+        )
+        available = threshold_value is not None
         usable = available and reference_ok
         cosine = min(similarities)
         return ModuleResult(
             module=Module.FACE_CONTINUITY,
             model_version=self.version,
             status=Status.OK if usable else Status.DEGRADED,
-            gate=(Gate.PASS if cosine >= self._threshold.threshold else Gate.FAIL)
+            gate=(Gate.PASS if cosine >= threshold_value else Gate.FAIL)
             if usable
             else Gate.UNCLEAR,
             score=1 - cosine,
@@ -235,9 +245,18 @@ class FaceContinuityDetector:
                 "samples": 3,
                 "audio_offset_ms": offset,
                 "threshold_available": available,
-                "threshold_cosine": self._threshold.threshold if available else None,
+                "threshold_cosine": threshold_value,
                 "reference_identity_verified": reference_ok,
                 "coverage": "three_samples_not_full_video",
+                **(
+                    {
+                        "manual_demo": True,
+                        "calibrated": False,
+                        "demo_policy_id": manual_demo.policy_id,
+                    }
+                    if manual_demo is not None and self._threshold is None
+                    else {}
+                ),
             },
             evidence=[
                 *[

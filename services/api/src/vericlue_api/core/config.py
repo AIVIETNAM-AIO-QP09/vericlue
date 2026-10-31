@@ -189,6 +189,7 @@ class Settings(BaseSettings):
     session_face_checks: bool = False
     session_face_models: bool = False
     manual_face_demo: bool = False
+    manual_full_demo: bool = False
     manual_demo_pad_max: float = Field(default=0.50, gt=0, lt=1, allow_inf_nan=False)
     manual_demo_gend_max: float = Field(default=0.50, gt=0, lt=1, allow_inf_nan=False)
     manual_demo_match_min: float = Field(default=0.30, gt=0, lt=1, allow_inf_nan=False)
@@ -205,7 +206,7 @@ class Settings(BaseSettings):
                 match_min=self.manual_demo_match_min,
                 consistency_min=self.manual_demo_consistency_min,
             )
-            if self.manual_face_demo
+            if self.manual_face_demo or self.manual_full_demo
             else None
         )
 
@@ -220,6 +221,8 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def consistency_requires_video(self):
+        if self.manual_face_demo and self.manual_full_demo:
+            raise ValueError("MANUAL_FACE_DEMO and MANUAL_FULL_DEMO are mutually exclusive")
         if self.manual_face_demo and (
             self.security_profile != "synthetic"
             or self.product_mode != "ekyc"
@@ -238,6 +241,14 @@ class Settings(BaseSettings):
             raise ValueError(
                 "Manual demo requires isolated synthetic onboarding with real face checks; no enrollment/credentials/signing"
             )
+        if self.manual_full_demo and (
+            not self.session_face_checks
+            or not self.session_face_models
+            or not self.identity_card_enabled
+            or not self.identity_face_from_video
+            or not self.identity_consistency_required
+        ):
+            raise ValueError("MANUAL_FULL_DEMO requires real face checks and video identity")
         if self.identity_consistency_required and not self.identity_face_from_video:
             raise ValueError("IDENTITY_CONSISTENCY_REQUIRED requires IDENTITY_FACE_FROM_VIDEO")
         if self.identity_voice_continuity and (

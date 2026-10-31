@@ -11,9 +11,10 @@ from vericlue_ml.common.manual_demo import ManualDemoThresholds
 from vericlue_ml.common.result import ErrorCode, Evidence, Gate, ModuleResult, Status
 from vericlue_ml.face.pad import PadError
 from vericlue_ml.presence.head_protocol import head_protocol_version, session_model_version
+from vericlue_ml.presence.head_turn import CENTER_MAX_DEG, MAX_PITCH_ROLL_DEG
 from vericlue_ml.presence.landmarks import FaceObservationReader, LandmarkError
 from vericlue_ml.presence.session_views import session_views
-from vericlue_ml.presence.views import video_sha256
+from vericlue_ml.presence.views import select_frontal_frame, video_sha256
 
 
 class SessionAttackDetector:
@@ -57,15 +58,38 @@ class SessionAttackDetector:
         started = perf_counter()
         version = self.version
         try:
-            version = session_model_version(self.backend.frames_version, head_protocol_version(inp))
-            if self.manual_demo is not None:
-                version += self.manual_demo.version_suffix
-            frames, checksum = session_views(inp, self.reader)
-            result = self.backend.predict_frames(inp, frames)
-            if video_sha256(inp.video) != checksum:
-                raise LandmarkError(ErrorCode.E_INTEGRITY)
-            if result.module != self.name or result.model_version != self.backend.frames_version:
-                raise LandmarkError(ErrorCode.E_INTEGRITY)
+            if inp.metadata.get("purpose") == "reauth" and self.manual_demo is not None:
+                if inp.video is None:
+                    raise LandmarkError(ErrorCode.E_DECODE, Status.DEGRADED)
+                checksum = video_sha256(inp.video)
+                frontal = select_frontal_frame(inp.video, 500)
+                row = self.reader.observe(frontal.bgr, at_ms=frontal.at_ms)
+                if (
+                    row.face_count != 1
+                    or any(not math.isfinite(v) for v in (row.yaw_deg, row.pitch_deg, row.roll_deg))
+                    or abs(row.yaw_deg) > CENTER_MAX_DEG
+                    or max(abs(row.pitch_deg), abs(row.roll_deg)) > MAX_PITCH_ROLL_DEG
+                ):
+                    raise LandmarkError(ErrorCode.E_LOW_QUALITY, Status.DEGRADED)
+                result = self.backend.predict_frame(inp, frontal.bgr)
+                if video_sha256(inp.video) != checksum or result.module != self.name:
+                    raise LandmarkError(ErrorCode.E_INTEGRITY)
+                version = result.model_version + self.manual_demo.version_suffix
+            else:
+                version = session_model_version(
+                    self.backend.frames_version, head_protocol_version(inp)
+                )
+                if self.manual_demo is not None:
+                    version += self.manual_demo.version_suffix
+                frames, checksum = session_views(inp, self.reader)
+                result = self.backend.predict_frames(inp, frames)
+                if video_sha256(inp.video) != checksum:
+                    raise LandmarkError(ErrorCode.E_INTEGRITY)
+                if (
+                    result.module != self.name
+                    or result.model_version != self.backend.frames_version
+                ):
+                    raise LandmarkError(ErrorCode.E_INTEGRITY)
             status = result.status
             if status == Status.OK and result.error_code is not None:
                 status = Status.ERROR

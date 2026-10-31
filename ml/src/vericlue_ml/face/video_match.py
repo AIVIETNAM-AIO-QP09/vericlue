@@ -57,16 +57,26 @@ class VideoFaceMatchDetector(FaceMatchDetector):
         This artifact alone does not authorize account enrollment.
         """
         with self._lock:
+            suffix = self.manual_demo.version_suffix if self.manual_demo else ""
+            allowed_versions = (
+                *self._supported_versions(),
+                *(v + suffix for v in self._supported_versions()),
+            )
             if (
                 approved.module != Module.FACE_MATCH
-                or approved.model_version != self.version
+                or approved.model_version not in allowed_versions
                 or approved.status != Status.OK
                 or approved.error_code is not None
                 or approved.gate != Gate.PASS
             ):
                 raise MatchError(ErrorCode.E_INTEGRITY)
             fresh = self.predict(inp)
-            if fresh.status != Status.OK or fresh.gate != Gate.PASS or fresh.error_code is not None:
+            if (
+                fresh.status != Status.OK
+                or fresh.gate != Gate.PASS
+                or fresh.error_code is not None
+                or fresh.model_version != approved.model_version
+            ):
                 raise MatchError(ErrorCode.E_INTEGRITY)
 
             def provenance(result):

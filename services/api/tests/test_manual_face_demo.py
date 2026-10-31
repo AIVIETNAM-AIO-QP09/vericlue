@@ -217,3 +217,87 @@ def test_http_demo_never_returns_verified_pass_or_enrolls(client, tmp_path):
         },
     )
     assert denied.status_code == 409
+
+
+def test_manual_full_demo_supports_enrollment_and_voice_spoof_policy():
+    from vericlue_ml.common.result import Evidence
+
+    full = Settings(
+        _env_file=None,
+        manual_full_demo=True,
+        security_profile="synthetic",
+        product_mode="ekyc",
+        use_mock_models=True,
+        session_face_checks=True,
+        session_face_models=True,
+        session_voice_models=True,
+        identity_card_enabled=True,
+        identity_face_from_video=True,
+        identity_consistency_required=True,
+        identity_voice_continuity=True,
+        account_enrollment=True,
+        router_profile="mvp",
+    )
+    policy = full.manual_demo_policy
+    assert policy is not None
+    with pytest.raises(ValidationError):
+        config(manual_full_demo=True)
+
+    bonafide_timeline = ModuleResult(
+        module="voice_spoof",
+        model_version="nes2net-x@timeline",
+        status="degraded",
+        gate="unclear",
+        quality={"error_windows": 0, "measured_windows": 1},
+        evidence=[
+            Evidence(
+                type="segments",
+                name="nes2net_windows",
+                value=[
+                    {
+                        "start_sample": 0,
+                        "end_sample": 64000,
+                        "start_s": 0.0,
+                        "end_s": 4.0,
+                        "result": {
+                            "module": "voice_spoof",
+                            "model_version": "nes2net-x@first4s",
+                            "status": "degraded",
+                            "gate": "unclear",
+                            "score": -2.5,
+                            "latency_ms": 10.0,
+                        },
+                    }
+                ],
+            )
+        ],
+        latency_ms=10.0,
+    )
+    assert policy.accepts_voice_spoof(bonafide_timeline)
+    spoof_timeline = bonafide_timeline.model_copy(
+        update={
+            "evidence": [
+                Evidence(
+                    type="segments",
+                    name="nes2net_windows",
+                    value=[
+                        {
+                            "start_sample": 0,
+                            "end_sample": 64000,
+                            "start_s": 0.0,
+                            "end_s": 4.0,
+                            "result": {
+                                "module": "voice_spoof",
+                                "model_version": "nes2net-x@first4s",
+                                "status": "degraded",
+                                "gate": "unclear",
+                                "score": 4.5,
+                                "latency_ms": 10.0,
+                            },
+                        }
+                    ],
+                )
+            ]
+        }
+    )
+    assert not policy.accepts_voice_spoof(spoof_timeline)

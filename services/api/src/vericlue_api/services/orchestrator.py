@@ -149,9 +149,17 @@ class Orchestrator:
                 # Missing real dependencies must remain unavailable, never mock pass.
                 return get_detector(module, mock=False)
             if module == Module.FACE_PAD:
-                return SessionAttackDetector(FsvfmPadDetector(), self._face_reader, manual_demo=self.settings.manual_demo_policy)
+                return SessionAttackDetector(
+                    FsvfmPadDetector(),
+                    self._face_reader,
+                    manual_demo=self.settings.manual_demo_policy,
+                )
             if module == Module.FACE_DEEPFAKE:
-                return SessionAttackDetector(FaceDeepfakeDetector(), self._face_reader, manual_demo=self.settings.manual_demo_policy)
+                return SessionAttackDetector(
+                    FaceDeepfakeDetector(),
+                    self._face_reader,
+                    manual_demo=self.settings.manual_demo_policy,
+                )
             if module == Module.CHROMAPULSE:
                 return ChromaPulseDetector(ColorObservationReader(self._face_reader))
         return get_detector(module, mock=self.settings.use_mock_models)
@@ -310,7 +318,10 @@ class Orchestrator:
             ), finished
         try:
             if reference_template is not None:
-                if self.settings.use_mock_models is not False:
+                if (
+                    self.settings.use_mock_models is not False
+                    and not self.settings.manual_full_demo
+                ):
                     raise ValueError("Enrolled matching requires real model mode")
                 detector = self._detectors[module]
                 if module != Module.FACE_MATCH or not isinstance(detector, VideoFaceMatchDetector):
@@ -428,7 +439,9 @@ class Orchestrator:
         media_lease=None,
     ) -> FaceTemplate:
         """Private bounded worker operation on the already loaded LVFace instance."""
-        if self.settings.use_mock_models is not False or not self.settings.identity_face_from_video:
+        if (
+            self.settings.use_mock_models is not False and not self.settings.manual_full_demo
+        ) or not self.settings.identity_face_from_video:
             raise ApiError(503, "enrollment_unavailable", "Chưa thể hoàn tất ghi danh lúc này.")
         started = perf_counter()
         deadline = min(

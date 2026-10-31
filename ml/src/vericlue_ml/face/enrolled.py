@@ -79,21 +79,35 @@ def match_enrolled(
             for a, b in combinations(sorted(vectors), 2)
         ]
         artifact = None
-        if calibration_path is not None:
+        if calibration_path is not None and matcher.manual_demo is None:
             artifact = MatchThreshold.model_validate_json(
                 calibration_path.read_text(encoding="utf-8")
             )
             if artifact.model_version != version:
                 raise LandmarkError(ErrorCode.E_INTEGRITY)
         consistency = matcher._consistency_threshold
+        threshold_value = (
+            matcher.manual_demo.match_min
+            if matcher.manual_demo is not None
+            else artifact.threshold
+            if artifact is not None
+            else None
+        )
+        consistency_value = (
+            matcher.manual_demo.consistency_min
+            if matcher.manual_demo is not None
+            else consistency.threshold
+            if consistency is not None
+            else None
+        )
         consistent = bool(
             recovery
             and len(view_cosines) == 3
-            and consistency is not None
-            and min(view_cosines) >= consistency.threshold
+            and consistency_value is not None
+            and min(view_cosines) >= consistency_value
         )
-        available = artifact is not None and (not recovery or consistency is not None)
-        passed = available and cosine >= artifact.threshold and (not recovery or consistent)
+        available = threshold_value is not None and (not recovery or consistency_value is not None)
+        passed = available and cosine >= threshold_value and (not recovery or consistent)
         return ModuleResult(
             module=Module.FACE_MATCH,
             model_version=version,
@@ -102,11 +116,20 @@ def match_enrolled(
             score=1 - cosine,
             quality={
                 "threshold_available": available,
-                "threshold_cosine": artifact.threshold if artifact else None,
+                "threshold_cosine": threshold_value,
                 "consistency_verified": consistent,
                 "depth_verified": False,
                 "enrolled_reference": True,
                 "frontal_pose_checked": True,
+                **(
+                    {
+                        "manual_demo": True,
+                        "calibrated": False,
+                        "demo_policy_id": matcher.manual_demo.policy_id,
+                    }
+                    if matcher.manual_demo is not None
+                    else {}
+                ),
             },
             evidence=[
                 Evidence(type="text", name="source_video_sha256", value=checksum),

@@ -155,7 +155,7 @@ class AccountStore:
         s = self.settings
         # Explicitly exclude mock/mixed biometric decisions and development HMAC keys.
         if (
-            s.use_mock_models is not False
+            (s.use_mock_models is not False and not s.manual_full_demo)
             or not s.identity_face_from_video
             or not s.identity_consistency_required
             or not s.session_face_checks
@@ -202,15 +202,41 @@ class AccountStore:
             or aware(session.token_expires_at) <= utcnow()
         ):
             raise not_eligible()
+        policy = s.manual_demo_policy
         for module in _GATES | _PROBABILITIES:
             if module in _VOICE_MODULES and not voiced:
+                continue
+            if (
+                s.manual_full_demo
+                and s.router_profile == "mvp"
+                and module
+                in {
+                    Module.CHROMAPULSE,
+                    Module.LIPSYNC,
+                }
+            ):
                 continue
             result = session.results.get(module)
             if (
                 result is None
-                or result.status != Status.OK
-                or result.error_code is not None
                 or "mock" in result.model_version.lower()
+                or result.error_code is not None
+            ):
+                raise not_eligible()
+            if s.manual_full_demo and module == Module.VOICE_SPOOF and policy is not None:
+                if not policy.accepts_voice_spoof(result):
+                    raise not_eligible()
+                continue
+            if s.manual_full_demo and module in {Module.FACE_PAD, Module.FACE_DEEPFAKE}:
+                if (
+                    result.status != Status.OK
+                    or result.gate != Gate.PASS
+                    or result.quality.get("manual_demo") is not True
+                ):
+                    raise not_eligible()
+                continue
+            if (
+                result.status != Status.OK
                 or module in _GATES
                 and result.gate != Gate.PASS
                 or module in _PROBABILITIES
@@ -218,8 +244,20 @@ class AccountStore:
             ):
                 raise not_eligible()
         match = session.results[Module.FACE_MATCH]
+        suffix = policy.version_suffix if s.manual_full_demo and policy is not None else ""
+        expected_match_versions = (
+            (RECOVERY_MATCH_VERSION,)
+            if recovery
+            else (
+                VIDEO_MATCH_VERSION,
+                VIDEO_MATCH_VERSION + suffix,
+                VIDEO_MATCH_VERSION + "+head12s-v2" + suffix,
+            )
+            if s.manual_full_demo
+            else (VIDEO_MATCH_VERSION,)
+        )
         if (
-            match.model_version != (RECOVERY_MATCH_VERSION if recovery else VIDEO_MATCH_VERSION)
+            match.model_version not in expected_match_versions
             or match.quality.get("consistency_verified") is not True
             or recovery
             and (
@@ -396,6 +434,21 @@ class AccountStore:
             return identity.receipt
         self.expire()
         now = utcnow()
+        if self.settings.manual_full_demo and session.id_number_hmac:
+            previous_rows = self.db.scalars(
+                select(AccountRow)
+                .where(
+                    AccountRow.id_number_hmac == session.id_number_hmac,
+                    AccountRow.destroyed_at.is_(None),
+                )
+                .with_for_update()
+            )
+            for previous in previous_rows:
+                previous.wrapped_key = previous.encrypted_payload = None
+                previous.id_number_hmac = previous.phone_hmac = None
+                previous.destroyed_at = now
+                self._audit(previous, actor="system-enrollment", action="account_key_destroyed")
+            self.db.flush()
         row = AccountRow(
             account_id="acct_" + secrets.token_hex(16),
             source_session_id=session.session_id,

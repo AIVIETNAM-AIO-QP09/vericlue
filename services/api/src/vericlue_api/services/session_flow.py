@@ -152,7 +152,7 @@ class SessionFlow:
     def create(
         self, scenario: str, request: CreateSessionRequest | None = None
     ) -> CreateSessionResponse:
-        policy = self.settings.manual_demo_policy
+        policy = self.settings.manual_demo_policy if self.settings.manual_face_demo else None
         if policy is not None and (
             request is None or request.purpose != "onboarding" or request.account_id
         ):
@@ -206,6 +206,8 @@ class SessionFlow:
         if policy is not None:
             session.manual_demo_policy_id = policy.policy_id
             session.created_model_mode = "manual_demo"
+        elif self.settings.manual_full_demo:
+            session.created_model_mode = "manual_full_demo"
         session.result_issuer = self.settings.result_issuer
         session.result_audience = self.settings.result_audience
         device_challenge = None
@@ -312,9 +314,13 @@ class SessionFlow:
             raise ApiError(409, "challenge_mismatch", "Lượt xác minh không còn phù hợp.")
 
     def _ensure_evaluation_binding(self, session: Session) -> None:
-        policy = self.settings.manual_demo_policy
+        policy = self.settings.manual_demo_policy if self.settings.manual_face_demo else None
         expected = policy.policy_id if policy else None
         if session.manual_demo_policy_id != expected:
+            raise ApiError(
+                409, "session_expired", "Cấu hình trình diễn đã đổi. Vui lòng bắt đầu phiên mới."
+            )
+        if self.settings.manual_full_demo and session.created_model_mode != "manual_full_demo":
             raise ApiError(
                 409, "session_expired", "Cấu hình trình diễn đã đổi. Vui lòng bắt đầu phiên mới."
             )
@@ -327,6 +333,8 @@ class SessionFlow:
                 self.account_auth.require_verified(session)
             else:
                 self.account_auth.current(session)
+            if self.settings.manual_full_demo:
+                return
             # L0 is usable independently. Do not accept mock account biometrics or
             # enable the unvalidated real dynamic flow through this new entry point.
             raise ApiError(503, "flow_unavailable", "Luồng xác minh này chưa sẵn sàng.")
@@ -565,6 +573,12 @@ class SessionFlow:
                 results=results,
             )
             if s.manual_face_demo
+            else self._manual_full_demo_finalize(
+                session,
+                results,
+                session_valid=session_valid and self._valid_time(session, color_challenge=True),
+            )
+            if s.manual_full_demo
             else self.router.finalize(
                 results,
                 retries_used=session.retries_used,
@@ -764,10 +778,18 @@ class SessionFlow:
             else {}
         )
         session.results.update(results)
-        outcome = self.router.voice(
-            results,
-            rereads_used=session.voice_rereads_used,
-            session_valid=session_valid and self._valid_time(session, voice_challenge=True),
+        outcome = (
+            self._manual_full_demo_voice(
+                session,
+                results,
+                session_valid=session_valid and self._valid_time(session, voice_challenge=True),
+            )
+            if self.settings.manual_full_demo
+            else self.router.voice(
+                results,
+                rereads_used=session.voice_rereads_used,
+                session_valid=session_valid and self._valid_time(session, voice_challenge=True),
+            )
         )
         outcome = route_voice(outcome, session.purpose)
         if (
@@ -853,7 +875,11 @@ class SessionFlow:
             or outcome.priority != "normal"
             or outcome.status == "review"
             and outcome.reason
-            not in {"face missing/error/degraded/probability", "manual demo only"}
+            not in {
+                "face missing/error/degraded/probability",
+                "manual demo only",
+                "face attack gate not passed",
+            }
             or head is None
             or head.module != Module.HEAD_TURN
             or head.status != Status.DEGRADED
@@ -900,18 +926,109 @@ class SessionFlow:
                 return False
         return True
 
+    def _manual_full_demo_finalize(
+        self, session: Session, results: dict[Module, object], *, session_valid: bool
+    ) -> Outcome:
+        policy = self.settings.manual_demo_policy
+        base = {
+            "config_version": "manual-full-demo-v1-" + (policy.policy_id[:16] if policy else "0"),
+            "thresholds": {
+                "demo_policy_id": policy.policy_id if policy else None,
+                "manual_thresholds": policy.model_dump() if policy else {},
+                "calibrated": False,
+            },
+            "results": results,
+        }
+        if not session_valid:
+            return Outcome("review", priority="high", reason="invalid session", **base)
+        quality = results.get(Module.QUALITY)
+        if quality is None or quality.status != Status.OK or quality.error_code is not None:
+            return Outcome("review", reason="quality missing/error/degraded", **base)
+        if quality.gate != Gate.PASS:
+            hint = next(
+                (
+                    e.value
+                    for e in quality.evidence
+                    if e.name == "retry_hint" and isinstance(e.value, str)
+                ),
+                "MORE_LIGHT",
+            )
+            if session.retries_used >= self.settings.max_retries:
+                return Outcome("review", reason="quality not passed; retry limit", **base)
+            return Outcome("retry", retry_hint=hint, reason="quality not passed", **base)
+        for mod in self.router.profile.presence_modules:
+            pres = results.get(mod)
+            if pres is None or pres.status != Status.OK or pres.error_code is not None:
+                return Outcome("review", reason="presence missing/error/degraded", **base)
+            if pres.gate == Gate.FAIL:
+                return Outcome("review", priority="high", reason="presence failed", **base)
+            if pres.gate == Gate.UNCLEAR:
+                if session.retries_used >= self.settings.max_retries:
+                    return Outcome("review", reason="presence unclear; retry limit", **base)
+                return Outcome(
+                    "retry", retry_hint="BRIGHTNESS_UP", reason="presence unclear", **base
+                )
+        for mod in (Module.FACE_PAD, Module.FACE_DEEPFAKE):
+            attack = results.get(mod)
+            if (
+                attack is None
+                or attack.status != Status.OK
+                or attack.error_code is not None
+                or attack.gate != Gate.PASS
+                or attack.quality.get("manual_demo") is not True
+            ):
+                return Outcome("review", reason="face attack gate not passed", **base)
+        return Outcome("pass", reason="manual full demo pass", **base)
+
+    def _manual_full_demo_voice(
+        self, session: Session, results: dict[Module, object], *, session_valid: bool
+    ) -> Outcome:
+        policy = self.settings.manual_demo_policy
+        base = {
+            "config_version": "manual-full-demo-v1-" + (policy.policy_id[:16] if policy else "0"),
+            "thresholds": {
+                "demo_policy_id": policy.policy_id if policy else None,
+                "manual_thresholds": policy.model_dump() if policy else {},
+                "calibrated": False,
+            },
+            "results": results,
+        }
+        if not session_valid:
+            return Outcome("review", priority="high", reason="invalid session", **base)
+        challenge = results.get(Module.VOICE_CHALLENGE)
+        if challenge is None or challenge.status != Status.OK or challenge.error_code is not None:
+            return Outcome("review", reason="voice challenge missing/error/degraded", **base)
+        if challenge.gate == Gate.FAIL:
+            action = (
+                "voice_challenge" if session.voice_rereads_used < MAX_VOICE_REREADS else "review"
+            )
+            return Outcome(action, reason="phrase mismatch", **base)
+        if challenge.gate != Gate.PASS:
+            return Outcome("review", reason="phrase unclear", **base)
+        spoof = results.get(Module.VOICE_SPOOF)
+        if policy is None or not policy.accepts_voice_spoof(spoof):
+            return Outcome("review", reason="voice spoof not passed", **base)
+        return Outcome("pass", reason="manual full demo voice pass", **base)
+
     def _identity_gate(self, session: Session, outcome):
         """A face match is one required signal, never an override of PAD or voice failures."""
         match = session.results.get(Module.FACE_MATCH)
         thresholds = dict(outcome.thresholds)
-        expected_version = (
-            (RECOVERY_MATCH_VERSION if session.purpose == "recovery" else REAUTH_MATCH_VERSION)
+        policy = self.settings.manual_demo_policy
+        suffix = policy.version_suffix if self.settings.manual_full_demo and policy else ""
+        base_versions = (
+            (RECOVERY_MATCH_VERSION if session.purpose == "recovery" else REAUTH_MATCH_VERSION,)
             if session.account_id
-            else VIDEO_MATCH_VERSION
+            else (VIDEO_MATCH_VERSION, VIDEO_MATCH_VERSION + "+head12s-v2")
             if self.settings.identity_face_from_video
-            else MATCH_VERSION
+            else (MATCH_VERSION,)
         )
-        if match is not None and match.model_version == expected_version:
+        expected_versions = (
+            (*base_versions, *(v + suffix for v in base_versions))
+            if self.settings.manual_full_demo
+            else (base_versions[0],)
+        )
+        if match is not None and match.model_version in expected_versions:
             threshold = match.quality.get("threshold_cosine")
             if type(threshold) in (int, float) and -1 <= threshold <= 1:
                 thresholds["identity_face_cosine"] = threshold
@@ -925,7 +1042,7 @@ class SessionFlow:
                 )
             )
             and match is not None
-            and match.model_version == expected_version
+            and match.model_version in expected_versions
             and match.status == Status.OK
             and match.error_code is None
             and match.gate == Gate.PASS
