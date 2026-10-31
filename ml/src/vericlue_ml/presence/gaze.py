@@ -138,23 +138,31 @@ def evaluate_gaze(observations: list[FaceObservation], plan: GazePlan) -> GazeEv
         )
     else:
         smoothed = actual
-    common = ts >= plan.times[0] + MAX_LAG_MS
-    actual = smoothed[common]
+    support_windows = [
+        (ts >= plan.times[0] + start_trim) & (ts <= plan.times[-1] - end_trim)
+        for start_trim, end_trim in ((MAX_LAG_MS, 0), (1000, 0), (1000, 500), (1500, 500))
+    ]
+    support_windows = [
+        mask for mask in support_windows if int(np.count_nonzero(mask)) >= MIN_VALID_SAMPLES
+    ] or [ts >= plan.times[0] + MAX_LAG_MS]
     target = np.asarray(plan.points)
     best = (-1.0, -1.0, 0)
-    for lag in range(0, MAX_LAG_MS + 1, LAG_STEP_MS):
-        expected = np.column_stack(
-            [np.interp(ts[common] - lag, plan.times, target[:, axis]) for axis in (0, 1)]
-        )
-        correlations = []
-        for axis in (0, 1):
-            x, y = actual[:, axis], expected[:, axis]
-            if np.std(x) < 1e-9 or np.std(y) < 1e-9:
-                correlations.append(-1.0)
-            else:
-                correlations.append(float(np.corrcoef(x, y)[0, 1]))
-        if min(correlations) > min(best[:2]):
-            best = (*correlations, lag)
+    for mask in support_windows:
+        actual_window = smoothed[mask]
+        ts_window = ts[mask]
+        for lag in range(0, MAX_LAG_MS + 1, LAG_STEP_MS):
+            expected = np.column_stack(
+                [np.interp(ts_window - lag, plan.times, target[:, axis]) for axis in (0, 1)]
+            )
+            correlations = []
+            for axis in (0, 1):
+                x, y = actual_window[:, axis], expected[:, axis]
+                if np.std(x) < 1e-9 or np.std(y) < 1e-9:
+                    correlations.append(-1.0)
+                else:
+                    correlations.append(float(np.corrcoef(x, y)[0, 1]))
+            if min(correlations) > min(best[:2]):
+                best = (*correlations, lag)
     metrics.update({"correlation_x": best[0], "correlation_y": best[1], "lag_ms": float(best[2])})
     matched = min(best[:2]) >= MIN_CORRELATION
     return GazeEvaluation(

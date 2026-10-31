@@ -86,16 +86,23 @@ def generate_dynamic_challenge(settings: Settings, *, session_id: str, nonce: st
         for offset in range(GAZE_INTERVAL_MS, GAZE_DURATION_MS + 1, GAZE_INTERVAL_MS):
             previous = points[-1]
             while True:
-                x, y = rng.randint(20, 80) / 100, rng.randint(20, 80) / 100
-                if abs(x - previous.x) >= 0.18 and abs(y - previous.y) >= 0.15:
+                x, y = rng.randint(20, 80) / 100, rng.randint(26, 74) / 100
+                step_sq = (x - previous.x) ** 2 + (y - previous.y) ** 2
+                if 0.04 <= step_sq <= 0.18:
                     break
             points.append(GazePoint(x=x, y=y, at_ms=gaze_start + offset))
-        # A near-vertical/horizontal path cannot independently test both gaze axes.
-        if all(
+        # A near-vertical/horizontal or diagonally locked path cannot cleanly test both gaze axes.
+        spans_ok = all(
             max(getattr(p, axis) for p in points) - min(getattr(p, axis) for p in points)
             >= MIN_GAZE_AXIS_SPAN
             for axis in ("x", "y")
-        ):
+        )
+        two_step_ok = all(
+            abs(points[i + 2].x - points[i + 1].x) + abs(points[i + 1].x - points[i].x) >= 0.18
+            and abs(points[i + 2].y - points[i + 1].y) + abs(points[i + 1].y - points[i].y) >= 0.16
+            for i in range(len(points) - 2)
+        )
+        if spans_ok and two_step_ok:
             break
     turns = ["left", "right"] if secrets.randbelow(2) == 0 else ["right", "left"]
     head_start = gaze_start + GAZE_DURATION_MS
