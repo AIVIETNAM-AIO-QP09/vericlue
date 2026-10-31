@@ -51,6 +51,7 @@ def security_profile_checks(settings: Settings) -> dict[str, bool]:
         and not settings.manual_face_demo
         and not settings.manual_full_demo,
         "no_manual_demo": not settings.manual_face_demo and not settings.manual_full_demo,
+        "no_simulated_otp": not settings.simulated_otp,
     }
 
 
@@ -67,8 +68,8 @@ def validate_security_profile(settings: Settings) -> None:
 
 
 def ensure_otp_available(settings: Settings) -> None:
-    """The implemented SMS channel is simulated and can only run in synthetic mocks."""
-    if settings.security_profile != "synthetic" or settings.use_mock_models is not True:
+    """The implemented SMS channel is simulated and requires explicit synthetic opt-in."""
+    if settings.security_profile != "synthetic" or not settings.simulated_otp:
         raise ApiError(
             503,
             "otp_unavailable",

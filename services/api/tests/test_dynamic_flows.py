@@ -468,6 +468,8 @@ def _setup_ready_real_env(client, tmp_path):
 
     root.settings = root.settings.model_copy(
         update={
+            "security_profile": "synthetic",
+            "simulated_otp": True,
             "use_mock_models": False,
             "manual_face_demo": False,
             "manual_full_demo": False,
@@ -661,12 +663,34 @@ def _setup_ready_real_env(client, tmp_path):
             msg, _, _ = manifest(sess, stage, files, audio_offset_ms=offset_ms)
             return sign_bytes(k, msg)
 
+    def verify_otp(sid: str, auth_headers: dict[str, str], phone: str = "0901234567") -> None:
+        import re
+
+        sent = client.post(
+            f"/v1/sessions/{sid}/otp",
+            headers=auth_headers,
+            json={"phone": phone},
+        )
+        assert sent.status_code == 200, sent.text
+        sms = sent.json().get("simulated_sms")
+        assert isinstance(sms, str) and sms.startswith("VeriClue: Mã xác minh của bạn là ")
+        match = re.search(r"\b(\d{6})\b", sms)
+        assert match is not None
+        verified = client.post(
+            f"/v1/sessions/{sid}/otp/verify",
+            headers=auth_headers,
+            json={"code": match.group(1)},
+        )
+        assert verified.status_code == 200, verified.text
+        assert verified.json()["status"] == "pass"
+
     return SimpleNamespace(
         root=root,
         store=store,
         make_key=make_key,
         sign_bytes=sign_bytes,
         sign_stage=sign_stage,
+        verify_otp=verify_otp,
         pad_frames=pad_frames,
         spoof_ver=spoof_ver,
         lipsync_ver=lipsync_ver,
@@ -721,6 +745,7 @@ def test_standard_real_flows_succeed_when_all_prerequisites_are_ready(
     assert consent_resp.status_code == 200, consent_resp.text
 
     env.root.orchestrator.settings = env.root.settings
+    env.verify_otp(sid, auth, "0901234567")
     hmac_key = env.root.settings.id_hmac_key.get_secret_value()
     img_bytes = IMAGE["image"][1]
     vid_bytes = b"\x00\x00\x00\x18ftypmp42synthetic-video"
@@ -728,8 +753,8 @@ def test_standard_real_flows_succeed_when_all_prerequisites_are_ready(
         from vericlue_api.services.uploads import save_upload
 
         sess = state.sessions.get(sid)
-        sess.otp_verified = True
-        sess.phone_hmac = _digest(hmac_key, "0901234567")
+        assert sess.otp_verified is True
+        assert sess.phone_hmac == _digest(hmac_key, "0901234567")
         sess.id_confirmed = True
         sess.id_source = "server_qr"
         sess.id_number_hmac = sess.id_confirmed_number_hmac = _digest(hmac_key, "012345678901")
@@ -891,10 +916,7 @@ def test_standard_real_flows_succeed_when_all_prerequisites_are_ready(
         ).status_code
         == 200
     )
-    with env.root.transaction() as state:
-        ksess = state.sessions.get(ksid)
-        ksess.otp_verified = True
-        ksess.phone_hmac = _digest(hmac_key, "0901234567")
+    env.verify_otp(ksid, kauth, "0901234567")
 
     sig_rec_face = env.sign_stage(
         ksid,
@@ -1081,6 +1103,7 @@ def test_standard_real_account_flows_fail_closed_when_prerequisites_missing(
             "consent": True,
         },
     )
+    env.verify_otp(sid, auth, "0901234567")
     hmac_key = env.root.settings.id_hmac_key.get_secret_value()
     img_bytes = IMAGE["image"][1]
     vid_bytes = b"\x00\x00\x00\x18ftypmp42synthetic-video"
@@ -1088,8 +1111,6 @@ def test_standard_real_account_flows_fail_closed_when_prerequisites_missing(
         from vericlue_api.services.uploads import save_upload
 
         sess = state.sessions.get(sid)
-        sess.otp_verified = True
-        sess.phone_hmac = _digest(hmac_key, "0901234567")
         sess.id_confirmed = True
         sess.id_source = "server_qr"
         sess.id_number_hmac = sess.id_confirmed_number_hmac = _digest(hmac_key, "012345678901")
@@ -1205,10 +1226,7 @@ def test_standard_real_account_flows_fail_closed_when_prerequisites_missing(
             },
         )
         if fault == "recovery_missing_recovery_calibration":
-            with env.root.transaction() as state:
-                ksess = state.sessions.get(ksid)
-                ksess.otp_verified = True
-                ksess.phone_hmac = _digest(hmac_key, "0901234567")
+            env.verify_otp(ksid, kauth, "0901234567")
             env.root.settings.identity_recovery_calibration = None
         res = client.post(
             url(rec_created, "signals"),
@@ -1221,3 +1239,134 @@ def test_standard_real_account_flows_fail_closed_when_prerequisites_missing(
         )
         assert res.status_code == 503
         assert res.json()["error_code"] == "flow_unavailable"
+
+
+def test_standard_real_simulated_otp_endpoints_and_error_cases(client, tmp_path):
+    import re
+    from datetime import UTC, datetime, timedelta
+
+    from vericlue_api.core.errors import ApiError
+    from vericlue_api.core.security_profile import (
+        security_profile_checks,
+        validate_security_profile,
+    )
+    from vericlue_api.routers import privacy
+
+    if not any(
+        getattr(r, "path", "") == "/v1/sessions/{session_id}/privacy" for r in client.app.routes
+    ):
+        client.app.include_router(privacy.router)
+    env = _setup_ready_real_env(client, tmp_path)
+
+    def create_consented_onboarding() -> tuple[str, dict[str, str]]:
+        _, spki = env.make_key()
+        created = client.post(
+            "/v1/sessions",
+            json={"purpose": "onboarding", "nonce": NONCE, "device_public_key_spki": spki},
+        ).json()
+        sid = created["session_id"]
+        auth = {"Authorization": "Bearer " + created["token"]}
+        res = client.post(
+            f"/v1/sessions/{sid}/privacy/consent",
+            headers=auth,
+            json={
+                "policy_version": "demo-v1",
+                "categories": ["contact", "id_document", "face_biometrics", "voice_biometrics"],
+                "consent": True,
+            },
+        )
+        assert res.status_code == 200
+        return sid, auth
+
+    # 1. Default off: disabling simulated_otp in real mode rejects /otp with 503 otp_unavailable
+    sid_off, auth_off = create_consented_onboarding()
+    env.root.settings = env.root.settings.model_copy(update={"simulated_otp": False})
+    off_resp = client.post(
+        f"/v1/sessions/{sid_off}/otp", headers=auth_off, json={"phone": "0901234567"}
+    )
+    assert off_resp.status_code == 503 and off_resp.json()["error_code"] == "otp_unavailable"
+    assert "simulated_sms" not in off_resp.text
+
+    # 2. Protected profile strictly rejects simulated_otp in both profile validation and /otp
+    protected_with_sim = env.root.settings.model_copy(
+        update={
+            "security_profile": "protected",
+            "product_mode": "ekyc",
+            "simulated_otp": True,
+        }
+    )
+    assert security_profile_checks(protected_with_sim)["no_simulated_otp"] is False
+    with pytest.raises(ApiError) as caught:
+        validate_security_profile(protected_with_sim)
+    assert caught.value.status_code == 503
+    assert caught.value.error_code == "security_profile_unavailable"
+
+    env.root.settings = protected_with_sim
+    prot_resp = client.post(
+        f"/v1/sessions/{sid_off}/otp", headers=auth_off, json={"phone": "0901234567"}
+    )
+    assert prot_resp.status_code == 503 and prot_resp.json()["error_code"] == "otp_unavailable"
+    assert "simulated_sms" not in prot_resp.text
+
+    # Re-enable synthetic + simulated_otp for endpoint behavior checks
+    env.root.settings = env.root.settings.model_copy(
+        update={"security_profile": "synthetic", "simulated_otp": True}
+    )
+
+    # 3. Wrong code counts down attempts_left and locks after 5 failed attempts
+    sid_lock, auth_lock = create_consented_onboarding()
+    sent = client.post(
+        f"/v1/sessions/{sid_lock}/otp", headers=auth_lock, json={"phone": "0901234567"}
+    )
+    assert sent.status_code == 200
+    sms = sent.json()["simulated_sms"]
+    assert sms.startswith("VeriClue: Mã xác minh của bạn là ")
+    code = re.search(r"\b(\d{6})\b", sms).group(1)
+    wrong_code = f"{(int(code) + 1) % 10**6:06d}"
+
+    for expected_left in (4, 3, 2, 1, 0):
+        retry = client.post(
+            f"/v1/sessions/{sid_lock}/otp/verify",
+            headers=auth_lock,
+            json={"code": wrong_code},
+        )
+        assert retry.status_code == 200
+        assert retry.json() == {"status": "retry", "attempts_left": expected_left}
+
+    locked_verify = client.post(
+        f"/v1/sessions/{sid_lock}/otp/verify", headers=auth_lock, json={"code": code}
+    )
+    assert locked_verify.status_code == 409
+    assert locked_verify.json()["error_code"] == "otp_locked"
+
+    locked_send = client.post(
+        f"/v1/sessions/{sid_lock}/otp", headers=auth_lock, json={"phone": "0901234567"}
+    )
+    assert locked_send.status_code == 409
+    assert locked_send.json()["error_code"] == "otp_locked"
+
+    # 4. Expired OTP returns 409 otp_expired
+    sid_exp, auth_exp = create_consented_onboarding()
+    sent_exp = client.post(
+        f"/v1/sessions/{sid_exp}/otp", headers=auth_exp, json={"phone": "0901234567"}
+    )
+    assert sent_exp.status_code == 200
+    code_exp = re.search(r"\b(\d{6})\b", sent_exp.json()["simulated_sms"]).group(1)
+    with env.root.transaction() as state:
+        state.sessions.get(sid_exp).otp_expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    expired = client.post(
+        f"/v1/sessions/{sid_exp}/otp/verify", headers=auth_exp, json={"code": code_exp}
+    )
+    assert expired.status_code == 409 and expired.json()["error_code"] == "otp_expired"
+
+    # 5. Send limit (otp_max_sends=3) returns 409 otp_too_many on 4th send
+    sid_many, auth_many = create_consented_onboarding()
+    for _ in range(3):
+        res_send = client.post(
+            f"/v1/sessions/{sid_many}/otp", headers=auth_many, json={"phone": "0901234567"}
+        )
+        assert res_send.status_code == 200
+    too_many = client.post(
+        f"/v1/sessions/{sid_many}/otp", headers=auth_many, json={"phone": "0901234567"}
+    )
+    assert too_many.status_code == 409 and too_many.json()["error_code"] == "otp_too_many"

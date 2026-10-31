@@ -174,6 +174,8 @@ class Settings(BaseSettings):
     # Giới hạn tổng của một phiên khi gia hạn token (ADR-0017 §2).
     session_max_seconds: int = Field(default=900, gt=0)
     # OTP mô phỏng (FLOW-02): mã 6 số, hạn 2 phút, sai 5 lần thì khóa.
+    # Mặc định tắt; chỉ được bật khi SECURITY_PROFILE=synthetic.
+    simulated_otp: bool = False
     otp_ttl_seconds: int = 120
     otp_max_attempts: int = 5
     otp_max_sends: int = 3  # số lần gửi mã mỗi phiên

@@ -52,11 +52,14 @@ guard nguồn sinh trắc vẫn giữ.
 
 ## OTP
 
-Kênh hiện tại là `SimulatedSms`, chỉ được gửi/kiểm trong profile synthetic với
-`USE_MOCK_MODELS=true`. Real/mixed hoặc protected phải trả `503 otp_unavailable`
-trước ghi trạng thái. Không trả simulated_sms, không công nhận mã đã tạo ở mock
-sau khi đổi mode. Chưa có nhà cung cấp SMS thật; profile không tự biến mô phỏng
-thành xác nhận quyền giữ số điện thoại.
+Kênh hiện tại là `SimulatedSms`, mặc định tắt (`SIMULATED_OTP=false`) và chỉ được
+gửi/kiểm khi `SECURITY_PROFILE=synthetic` kèm `SIMULATED_OTP=true` (tách biệt với
+`USE_MOCK_MODELS`). Khi `SIMULATED_OTP=false` hoặc ở profile `protected`, API trả
+`503 otp_unavailable` trước khi ghi trạng thái; bật `SIMULATED_OTP=true` trong
+`protected` bị từ chối ngay ở kiểm tra cấu hình (`security_profile_unavailable`).
+Không trả `simulated_sms` khi tắt, không công nhận mã đã tạo sau khi tắt
+`SIMULATED_OTP` hoặc chuyển sang `protected`. Chưa có nhà cung cấp SMS thật; cấu
+hình này không biến OTP mô phỏng thành xác nhận quyền giữ số điện thoại thật.
 
 App cần build cờ ký media tương ứng, lưu đúng alias Keystore và nghiệm thu trên
 thiết bị. `protected_configuration_ok` chỉ là kiểm cấu hình nền, không chứng minh

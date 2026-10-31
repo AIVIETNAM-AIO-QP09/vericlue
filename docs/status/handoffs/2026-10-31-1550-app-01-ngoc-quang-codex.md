@@ -11,7 +11,7 @@
     1. `frontend_parity_verified=False`: cổng chuyển Fairseq `wav2vec2` sang HuggingFace Transformers (`xls_r_300m` + `Nested_Res2Net_TDNN`) mới khớp kiểm tra cấu trúc/shape (422 tensor frontend + 560 tensor head), chưa có bằng chứng đối chiếu số học (`max_abs_diff <= 1e-4`, 100% cùng dấu trên >= 32 mẫu thật) với Fairseq gốc.
     2. `calibrated=False`: chưa có dữ liệu `calib_fit` tiếng Việt có phép để fit `Calibrator` (Platt/Isotonic) cho phiên bản `nes2net-x@c9fe1177f44040f002cb40def928332d2e261f1e+hf4576-cpu-fp32-timeline4s-tail-v1`.
     3. `aggregation="none"`: `Nes2NetTimelineDetector` (`voice/nes2net_timeline.py`) chỉ xuất logit theo từng cửa sổ 4 giây trong `evidence`, chưa gộp thành điểm toàn câu `score` trên `[0, 1]`.
-  - Xây dựng công cụ đối chiếu parity `ml/scripts/parity_nes2net.py` và hướng dẫn `ml/scripts/README-parity-nes2net.md` hỗ trợ 3 chế độ (`--export-reference`, `--compare-reference`, `--synthetic-smoke`), kiểm tra nghiêm ngặt `max_abs_diff <= 1e-4`, 100% cùng dấu logit và tối thiểu 32 mẫu thật (thiếu điều kiện trả `status="UNVERIFIED"` với mã thoát `2`, lệch số học trả `status="FAIL"` với mã thoát `1`).
+  - Xây dựng công cụ đối chiếu parity `ml/scripts/parity_nes2net.py` và hướng dẫn `ml/scripts/README-parity-nes2net.md` với các tùy chọn `--models-dir`, `--audio-list`, `--synthetic-smoke`, `--reference-python`, `--upstream-dir`, `--xlsr-checkpoint`, `--output`, kiểm tra nghiêm ngặt `max_abs_diff <= 1e-4`, 100% cùng dấu logit và tối thiểu 32 mẫu thật (thiếu điều kiện trả `status="UNVERIFIED"` với mã thoát `2`, lệch số học trả `status="FAIL"` với mã thoát `1`).
   - Bổ sung unit test parity trong `ml/tests/test_nes2net.py` và chạy smoke test mô hình thật trên CPU (`D:\vericlue\tmp\nes2net-cpu\Scripts\python.exe`) với trọng số `D:\vericlue\models\selected-2026-10-24\nes2net-x\checkpoint.pth`.
 - **Mục 3 (SyncNet — `VOICE-05` / `VOICE-12` / `VOICE-14`):**
   - Kiểm chứng tiền xử lý (`25 fps`, 16 khung miệng 256×256 chuẩn hóa `[-1, 1]`, phổ mel Slaney 80 băng chuẩn hóa `[-4, 4]`, 52 cột/cửa sổ), đơn vị độ lệch AV (`offset_ms = best * 1000 / 25`, quét `±15` khung = `±600 ms`), chiều điểm số (`score = clip(max(1 - confidence_at_0, abs(offset_ms) / 500.0), 0, 1)`, tăng = giống tấn công), và đồng bộ timestamp Android (`audioOffsetMs = t_wav_start - t_video_first_frame` trong `App.kt` & `CameraSession.kt`, truyền tới `syncnet.py` qua `position / 25 + audio_offset_s`).
@@ -30,10 +30,10 @@
 
 ## Đang dở
 - Chưa có dữ liệu sinh trắc thật có phép (`calib_fit` và `calib_ltt`) để sinh các file hiệu chỉnh thật (`Calibrator` và `MatchThreshold`) cho đường chạy chuẩn `USE_MOCK_MODELS=false`.
-- Chưa có môi trường Fairseq trên Linux/WSL để xuất file tham chiếu `--export-reference` trên >= 32 mẫu thật cho `parity_nes2net.py`.
+- Chưa có môi trường Fairseq Python 3.10 + checkout `Nes2Net_ASVspoof_ITW` + `xlsr2_300m.pt` để chạy đối chiếu trực tiếp qua `--reference-python`, `--upstream-dir`, `--xlsr-checkpoint`, `--audio-list` trên >= 32 mẫu thật cho `parity_nes2net.py`.
 
 ## Bước tiếp theo
-1. Chuẩn bị môi trường Fairseq (Linux/WSL, Python 3.10 + `fairseq`) để chạy `parity_nes2net.py --export-reference` trên >= 32 mẫu âm thanh thật, sau đó chạy `--compare-reference` trên Windows (`D:\vericlue\tmp\nes2net-cpu\Scripts\python.exe`) để xác nhận `status="PASS"`.
+1. Chuẩn bị môi trường Fairseq (Python 3.10 + `fairseq==0.12.2` + `Nes2Net_ASVspoof_ITW@c9fe1177f44040f002cb40def928332d2e261f1e` + `xlsr2_300m.pt`) và chạy `parity_nes2net.py --models-dir ... --audio-list ... --reference-python ... --upstream-dir ... --xlsr-checkpoint ... --output ...` trên >= 32 mẫu âm thanh thật để xác nhận `status="PASS"`.
 2. Thu thập dữ liệu có đồng thuận (`calib_fit` và `calib_ltt`, tách người theo `subject_id`, tuyệt đối không dùng tập `test`) và chạy các script đo/fit để sinh đủ bộ artifact hiệu chỉnh (`Calibrator` cho `face_pad`, `face_deepfake`, `voice_spoof`, `lipsync` và `MatchThreshold` cho 5 giao thức LVFace).
 3. Sau khi nhóm duyệt đề xuất hợp đồng `evaluation_mode: "manual_full_demo"`, cập nhật `packages/contracts/schemas/session.json`, API schemas, `SessionFlow._evaluation_fields` và Android/Web trong cùng một PR.
 

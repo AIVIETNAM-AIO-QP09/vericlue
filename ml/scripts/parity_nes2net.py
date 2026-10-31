@@ -7,11 +7,11 @@ Compares the converted VeriClue `Nes2NetBackend` (HuggingFace `Wav2Vec2Model` +
 `model_scripts/wav2vec2_Nes2Net_X.py`) on identical 64,000-sample (4.0 s @ 16 kHz)
 float32 windows prepared by `vericlue_ml.voice.nes2net.prepare_samples`.
 
-If no Fairseq reference runtime (`--reference-python` or `--reference-docker-image`)
-is supplied, the script runs the converted side, verifies preprocessing and
-checkpoint mapping provenance, writes a JSON report with `status="UNVERIFIED"`,
-and exits with code 2. It never fabricates reference logits or marks parity as
-verified without executing the real Fairseq frontend.
+If no Fairseq reference runtime (`--reference-python`) is supplied, the script
+runs the converted side, verifies preprocessing and checkpoint mapping
+provenance, writes a JSON report with `status="UNVERIFIED"`, and exits with
+code 2. It never fabricates reference logits or marks parity as verified
+without executing the real Fairseq frontend.
 """
 
 from __future__ import annotations
@@ -43,42 +43,48 @@ import json
 import sys
 from pathlib import Path
 
-import fairseq
-import numpy as np
-import torch
-
 upstream_dir = Path(sys.argv[1]).resolve()
 xlsr_path = Path(sys.argv[2]).resolve()
 checkpoint_path = Path(sys.argv[3]).resolve()
 windows_path = Path(sys.argv[4]).resolve()
 output_path = Path(sys.argv[5]).resolve()
 
+sys.path.insert(0, str(upstream_dir))
+import fairseq
 import fairseq.checkpoint_utils as cu
+import numpy as np
+import torch
+
 orig_load = cu.load_model_ensemble_and_task
 
 def patched_load(filenames, arg_overrides=None, **kwargs):
     return orig_load([str(xlsr_path)], arg_overrides=arg_overrides, **kwargs)
 
 cu.load_model_ensemble_and_task = patched_load
-sys.path.insert(0, str(upstream_dir))
-from model_scripts.wav2vec2_Nes2Net_X import Model as UpstreamModel
+from model_scripts.wav2vec2_Nes2Net_X import wav2vec2_Nes2Net_no_Res_w_allT as UpstreamModel
 
 class Args:
+    n_output_logits = 2
     Nes_ratio = [8, 8]
     dilation = 2
     pool_func = "mean"
     SE_ratio = [1]
 
+torch.set_num_threads(1)
+torch.manual_seed(0)
 device = "cpu"
-model = UpstreamModel(Args(), device)
-state = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+model = UpstreamModel(Args(), device).to(device="cpu", dtype=torch.float32)
+try:
+    state = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+except TypeError:
+    state = torch.load(checkpoint_path, map_location="cpu")
 if isinstance(state, dict) and "state_dict" in state and isinstance(state["state_dict"], dict):
     state = state["state_dict"]
 cleaned = {(k[7:] if k.startswith("module.") else k): v for k, v in state.items()}
 missing, unexpected = model.load_state_dict(cleaned, strict=False)
 if missing or unexpected:
     raise RuntimeError(f"Upstream state_dict mismatch: missing={missing}, unexpected={unexpected}")
-model.eval()
+model = model.to(device="cpu", dtype=torch.float32).eval()
 
 payload = np.load(windows_path, allow_pickle=False)
 windows = payload["windows"]
@@ -87,6 +93,8 @@ with torch.inference_mode():
     for idx in range(windows.shape[0]):
         wav = torch.from_numpy(np.ascontiguousarray(windows[idx], dtype=np.float32)).unsqueeze(0)
         out = model(wav)
+        if model.training or model.ssl_model.model.training:
+            raise RuntimeError("Upstream model entered train() mode during reference evaluation")
         row = np.asarray(out.squeeze(0).detach().cpu().numpy(), dtype=np.float64).reshape(-1)
         if row.shape != (2,) or not np.isfinite(row).all():
             raise RuntimeError(f"Invalid upstream logits at window {idx}: {row}")
@@ -322,6 +330,16 @@ def _run_reference_python(
         worker_path = tmp_dir / "worker.py"
         np.savez(windows_path, windows=windows)
         worker_path.write_text(REFERENCE_WORKER_CODE, encoding="utf-8")
+        child_env = os.environ.copy()
+        for name in ("PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV"):
+            child_env.pop(name, None)
+        child_env.update(
+            HF_HUB_OFFLINE="1",
+            TRANSFORMERS_OFFLINE="1",
+            CUDA_VISIBLE_DEVICES="",
+            PYTHONDONTWRITEBYTECODE="1",
+            OMP_NUM_THREADS="1",
+        )
         subprocess.run(
             [
                 str(reference_python),
@@ -332,6 +350,7 @@ def _run_reference_python(
                 str(windows_path),
                 str(output_path),
             ],
+            env=child_env,
             check=True,
             timeout=600,
         )
