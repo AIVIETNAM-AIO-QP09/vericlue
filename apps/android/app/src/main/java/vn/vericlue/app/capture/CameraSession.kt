@@ -152,6 +152,16 @@ class CameraSession(
 
     private var videoEnabled = false
     private var usedFallbackCamera = false
+    @Volatile private var realtimeTimestampSource = false
+
+    @androidx.annotation.OptIn(ExperimentalCamera2Interop::class)
+    private fun queryTimestampSource(): String = runCatching {
+        val info = controller.cameraInfo ?: return@runCatching "unknown"
+        when (Camera2CameraInfo.from(info).getCameraCharacteristic(CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE)) {
+            CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE_REALTIME -> "realtime"
+            else -> "unknown"
+        }
+    }.getOrDefault("unknown")
 
     /**
      * Opens the front camera (face part) or the rear camera (ID card, APP-04). Main thread only.
@@ -189,6 +199,7 @@ class CameraSession(
                 runCatching { controller.setZoomRatio(1f) }
                 lastQrZoomMs = 0L
                 lastCardDiagnosticMs = 0L
+                analyzedFrames = 0
                 return true
             }
         }
@@ -445,9 +456,12 @@ class CameraSession(
             proxy.close()
             return
         }
-        if (analyzedFrames == 0) analysisStartMs = CaptureClock.nowMs()
+        if (analyzedFrames == 0) {
+            analysisStartMs = CaptureClock.nowMs()
+            realtimeTimestampSource = queryTimestampSource() == "realtime"
+        }
         analyzedFrames++
-        val ts = proxy.imageInfo.timestamp
+        val ts = CaptureClock.sensorTimestampToElapsedNanos(proxy.imageInfo.timestamp, realtimeTimestampSource)
         if (recordingFrames) {
             if (firstFrameNs == 0L) firstFrameNs = ts
             synchronized(frames) {

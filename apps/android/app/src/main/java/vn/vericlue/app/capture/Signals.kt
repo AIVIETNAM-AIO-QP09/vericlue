@@ -16,6 +16,30 @@ object CaptureClock {
     /** Choreographer/withFrameNanos times use System.nanoTime(); shift them onto elapsedRealtime. */
     fun frameNanosToMs(frameNanos: Long): Double =
         (frameNanos + (SystemClock.elapsedRealtimeNanos() - System.nanoTime())) / 1e6
+
+    private const val MAX_CLOCK_SKEW_NS = 5_000_000_000L
+
+    /**
+     * Normalises a camera sensor timestamp (ns) onto `elapsedRealtimeNanos`.
+     * Devices with `SENSOR_INFO_TIMESTAMP_SOURCE_UNKNOWN` (e.g. Samsung Galaxy A04) stamp frames
+     * with `System.nanoTime()` (`CLOCK_MONOTONIC`), which lags `elapsedRealtimeNanos` by total deep-sleep time.
+     */
+    fun sensorTimestampToElapsedNanos(
+        sensorTimestampNs: Long,
+        realtimeSource: Boolean = false,
+        elapsedRealtimeNs: Long = SystemClock.elapsedRealtimeNanos(),
+        nanoTimeNs: Long = System.nanoTime(),
+    ): Long {
+        if (sensorTimestampNs <= 0L) return sensorTimestampNs
+        val elapsedGap = abs(elapsedRealtimeNs - sensorTimestampNs)
+        val nanoGap = abs(nanoTimeNs - sensorTimestampNs)
+        if (realtimeSource && elapsedGap <= MAX_CLOCK_SKEW_NS) return sensorTimestampNs
+        if (nanoGap < elapsedGap && nanoGap <= MAX_CLOCK_SKEW_NS) {
+            return (sensorTimestampNs + (elapsedRealtimeNs - nanoTimeNs)).coerceAtMost(elapsedRealtimeNs)
+        }
+        if (elapsedGap <= MAX_CLOCK_SKEW_NS) return sensorTimestampNs.coerceAtMost(elapsedRealtimeNs)
+        return elapsedRealtimeNs
+    }
 }
 
 /** What the face analyzer reports for one camera frame. Coordinates are 0..1 of the upright image. */

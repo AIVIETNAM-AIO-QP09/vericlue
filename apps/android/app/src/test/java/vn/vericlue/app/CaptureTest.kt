@@ -291,5 +291,18 @@ class CaptureTest {
         assertEquals(Routes.VoiceAgain, FlowRules.routeForStatus("voice_challenge", null, true))
         assertNull(FlowRules.routeForStatus("error", null, false))
         assertNull(FlowRules.routeForStatus("degraded", null, false))
+        val elapsedNs = 1_043_137_988_000_000L
+        val nanoNs = 86_150_520_000_000L
+        val monotonicSensorNs = 86_150_478_000_000L
+        val normalizedNs = vn.vericlue.app.capture.CaptureClock.sensorTimestampToElapsedNanos(
+            sensorTimestampNs = monotonicSensorNs,
+            realtimeSource = false,
+            elapsedRealtimeNs = elapsedNs,
+            nanoTimeNs = nanoNs,
+        )
+        assertEquals(elapsedNs - 42_000_000L, normalizedNs)
+        val face = FaceSignal(1, 0.4f, 0.5f, 0.45f, 26f, 120f, normalizedNs)
+        assertEquals(face, HeadTurnGuide.freshFace(face, nowMs = elapsedNs / 1_000_000L, segmentStartMs = elapsedNs / 1_000_000L - 500L))
+        assertEquals(elapsedNs - 35_000_000L, vn.vericlue.app.capture.CaptureClock.sensorTimestampToElapsedNanos(elapsedNs - 35_000_000L, true, elapsedNs, nanoNs))
     }
 }
