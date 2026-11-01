@@ -25,6 +25,10 @@
 - Rà primary publisher VoiceSpoof-VN/RADAR/VietPrism, ghi rõ ứng viên/quyền/
   metadata còn thiếu. Không tải audio mới hoặc đưa evalVI vào fit; không đổi
   data-plan,thresholds/contracts/ADR/STATUS.
+- Đã collect toàn câu native3mẫu DNU/3người calib_fit chọn cố định trước đo,
+  code6b75896. Cả3có rawscore đủ cửa sổ,giữdegraded/unclear/không xác suất;
+  không fit,không chấm calib_ltt/test. Checkpoint/model/runtime/report SHA ở
+  research; output ở dnu-train-smoke/ ngoài Git. Không accuracy/deploy.
 
 ## Đang dở
 - ADB không thấy điện thoại; đã hỏi availability bất đồng bộ. Chưa cài APK mới

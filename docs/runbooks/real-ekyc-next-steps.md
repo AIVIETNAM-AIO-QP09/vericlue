@@ -33,6 +33,10 @@ parity số học hoặc màn thành công là số liệu chống giả mạo.
 - Report/log/backup/build-info ở `D:/vericlue/tmp/publish-review-2026-11-01/`.
   DNU520WAV/26người đã kiểm nhưng chỉ lớp thật; thiếu tấn công/quyền/nhóm nguồn,
   calibration_ready=false. VIVOS32parity ngoài fit, chưa có LTT/test cuối.
+- Sau smoke runtime, đã chạy collect toàn câu native trên3mẫu DNU/3người chọn
+  cố định từ calib_fit. Có raw score cả3,giữdegraded/unclear/không xác suất;
+  không chấm calib_ltt/test hoặc fit. Nguồn6b75896,model/runtime và report SHA
+  trong [research](../research/2026-11-01-voice-calibration-prep.md).
 
 ## Lịch sử triển khai 01/11, trước review
 

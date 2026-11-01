@@ -256,6 +256,11 @@ tấn công/chưa sẵn sàng fit. Đã chạy Colab CPU, nhận và kiểm đ�
 SHA và báo cáo: `docs/research/2026-11-01-voice-calibration-prep.md`.
 Hướng dẫn `ml/notebooks/README-voice-data.md`.
 
+**Smoke DNU toàn câu (01/11):**3mẫu/3người chọn cố định từ calib_fit trước đo,
+native checkpoint/binding runtime thật trả raw score cả3; giữdegraded/unclear,
+khôngprobability. Không chấm calib_ltt/test,không fit/accuracy/deploy; nguồn
+code/model/report SHA ở ghi chú research trên. Đây chưa phải hiệu chỉnh hai lớp.
+
 **Chưa nghiệm thu:** EER tiếng Việt,
 calibration, chất lượng phép gộp toàn câu, ghép GUI/API hoặc quyết định eKYC.
 

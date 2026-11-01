@@ -110,3 +110,22 @@ ngưỡng. Không coi việc có link công khai là đủ metadata/người/ngu
 
 Kết luận vận hành không đổi: lớp thật DNU đã kiểm, lớp TTS/VC còn thiếu bằng
 chứng sử dụng/metadata đủ chuẩn. Chưa có calibrator hoặc nghiệm thu sinh trắc.
+
+## Smoke toàn câu bằng DNU thật · 01/11
+
+- Code nguồn sạch `6b7589692e4158335a07dc8307ea5d4704847803`. Chọn theo sample_id
+  tăng dần, lấy mẫu calib_fit đầu tiên của3người khác nhau, trước inference;
+  không đọc/chấm calib_ltt/test. Manifest gốc giữ SHA đã ghi phía trên.
+- Native collect dùng checkpoint SHA `3158d10c6fc3c58e452a33981b409f5a65ecf91d548931b4ffbd675462799685`,
+  version `nes2net-x@c9fe1177f44040f002cb40def928332d2e261f1e+hf4576-cpu-fp32-timeline4s-tail-maxmargin-v1`.
+  Runtime Windows,Python3.12.15,Torch2.14.1+cpu,Transformers4.57.6,4CPUthreads;
+  report parity canonical SHA `669bf62e4db134a46e8a0dd8f3d5b6a72bba90a984c3a7901fa8e866e8f21a48`.
+- Cả3mẫu có raw score toàn câu khi đủ các cửa sổ, vẫn degraded/unclear,
+  prob_attack absent/null. Chỉ3giọng thật, không thử fit/chọn ngưỡng/chạy test,
+  không accuracy hoặc deploy, calibration_ready=false.
+- Manifest subset/measurement/audit/summary ngoài Git tại
+  `D:/vericlue/tmp/publish-review-2026-11-01/dnu-train-smoke/`.
+  Measurement SHA `375ee672601f2a3291d126e0942eb1342df8c6436b24a16552091afcd3c8ce9d`.
+  Native collect đã hoàn tất; helper ngoài Git từng import nhầm và xử lý thiếu
+  keyprob_attack vốn bị bỏ khi null. Đã sửa summary đọc report có schema/provenance,
+  giữ nguyên phép đo, không suy thời gian chạy từ lượt dựng summary.
