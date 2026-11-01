@@ -150,6 +150,9 @@ def test_collect_cannot_overwrite_input_or_model_storage(monkeypatch, tmp_path, 
 
 
 def test_fit_uses_only_calib_fit_and_keeps_counts(monkeypatch, tmp_path):
+    # Diagnostic reports are blocked here; an explicitly requested fitted
+    # calibrator must still be writable to its intended calibration store.
+    monkeypatch.setenv("CALIBRATORS_DIR", str(tmp_path / "calibrators"))
     path, payload = write_manifest(tmp_path)
     for i in (6, 7):
         payload["samples"][i]["split"] = "test"

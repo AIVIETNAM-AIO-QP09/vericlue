@@ -178,5 +178,22 @@ gate. Chưa có nguồn nào đủ điều kiện để thêm ngay vào bộ hi�
 Chi tiết quan sát/suy luận và URL ngoài Git:
 `D:/vericlue/tmp/voice-calibration-2026-11-01/attack-source-audit.json`.
 Không dùng nguồn thay thế khi chưa đủ bằng chứng; VIVOS parity và các tập test
-vẫn ngoài fit. LTT theo ROUT-03 còn cần triển khai riêng và xử lý đúng quan hệ
-giữa các quan sát, không suy từ việc có đủ số clip.
+vẫn ngoài fit. **Cập nhật cuối 01/11:** core LTT và consumer giọng offline đã
+triển khai trong PR123/124, có kiểm nhóm độc lập và artifact khóa; chưa chạy
+LTT thật hoặc mở chốt runtime. Không suy bảo đảm từ việc có đủ số clip.
+
+## Đầu vào cần người trong nhóm cung cấp/xác nhận
+
+- Người giữ dữ liệu gửi link/bundle đang có, điều kiện sử dụng, nhãn và mã mọi
+  người/nguồn liên quan; nguồn gated cần người có tài khoản/quyền tự mở truy cập.
+- Nếu đã chạy PAD/GenD/giọng, người phụ trách gửi đường dẫn artifact/config,
+  commit/version, split và báo cáo; chưa có thì ghi rõ, không tạo số liệu thay.
+- Nhóm xác nhận phạm vi demo/loại tấn công và các dữ kiện nguồn chưa có bằng
+  chứng. AI chuẩn bị script/protocol, kiểm hash/nhãn/rò rỉ và chia tập, rồi
+  fit–LTT–test khi dữ liệu đủ điều kiện; không yêu cầu nhóm tự viết công cụ.
+- Khi có Android, người tham gia thực hiện giấy tờ/quay mặt/đọc câu và nghiệm
+  thu ba luồng; AI cài APK, lấy log và sửa lỗi. OTP tiếp tục mô phỏng.
+
+DNU đang có là lớp thật; dữ liệu tấn công/crosswalk chưa được chuẩn bị, không
+phải đã bị xóa. VIVOS32 giữ riêng cho parity. Không cần chuyển việc lập trình,
+fit hoặc build APK sang người dùng chỉ vì đang thiếu đầu vào thực tế.

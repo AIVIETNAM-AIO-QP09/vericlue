@@ -20,6 +20,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator, m
 from vericlue_ml.common.calibration import CalibFit, CalibrationStore, fit
 from vericlue_ml.common.detector import DetectorInput
 from vericlue_ml.common.result import ErrorCode, Module
+from vericlue_ml.eval.diagnostic_output import check_diagnostic_output
 from vericlue_ml.eval.report import git_revision
 from vericlue_ml.face.fsvfm import FsvfmPadDetector
 from vericlue_ml.face.gend import FaceDeepfakeDetector
@@ -187,6 +188,7 @@ def collect(
     module = Module(module)
     if module not in {Module.FACE_PAD, Module.FACE_DEEPFAKE}:
         raise ValueError("Only session face PAD/GenD are supported")
+    check_diagnostic_output(output, protected=[manifest], models_dir=models_dir)
     before = _sha(manifest)
     samples = load_manifest(manifest, data_root)
     challenges = {
@@ -203,7 +205,7 @@ def collect(
         | {_source(data_root, s.video) for s in samples}
         | {_source(data_root, s.server_response) for s in samples}
     )
-    _output(output, protected, models_dir)
+    check_diagnostic_output(output, protected=protected, models_dir=models_dir)
     commit = git_revision()
     if len(commit) != 40 or commit.endswith("-dirty"):
         raise ValueError("Commit implementation before collecting real measurements")
@@ -285,8 +287,11 @@ def collect(
         model_manifest_sha256=model_manifest_hash,
         rows=rows,
     )
-    output.parent.mkdir(parents=True, exist_ok=True)
-    with output.open("x", encoding="utf-8") as stream:
+    target = check_diagnostic_output(
+        output, protected=protected | {model_manifest}, models_dir=models_dir
+    )
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with target.open("x", encoding="utf-8") as stream:
         stream.write(report.model_dump_json(indent=2) + "\n")
     return report.model_dump(mode="json")
 

@@ -14,6 +14,12 @@ from vericlue_ml.voice.nes2net_timeline import Nes2NetTimelineDetector
 
 
 def timeline(monkeypatch, *, failed=False):
+    from vericlue_ml.eval import nes2net_utterance
+
+    # This backend is synthetic; collecting its fixture must not import Torch
+    # or describe the host as a measured NES2Net numerical runtime.
+    monkeypatch.setattr(nes2net_utterance, "runtime_identity", lambda: {"synthetic_test": True})
+
     def vad(x):
         if not np.any(x):
             raise SpeechNotFound("synthetic silence")
