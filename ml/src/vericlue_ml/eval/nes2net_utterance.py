@@ -12,13 +12,15 @@ import hashlib
 import json
 import re
 from collections import Counter
+from collections.abc import Sequence
 from pathlib import Path, PureWindowsPath
 from typing import Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, model_validator
+from sklearn.model_selection import GroupKFold
 
-from vericlue_ml.common.calibration import CalibFit, fit
+from vericlue_ml.common.calibration import MIN_ISOTONIC_CLASS, CalibFit, fit
 from vericlue_ml.common.result import ModuleResult
 from vericlue_ml.eval.report import git_revision
 from vericlue_ml.voice.nes2net import Nes2NetDetector
@@ -214,11 +216,23 @@ def load_manifest(path: Path, data_root: Path) -> tuple[Manifest, list[dict]]:
     return manifest, checks
 
 
-def audit(manifest: Manifest, checks: list[dict]) -> dict:
-    """Report insufficiency without fabricating readiness or moving any test subjects."""
+def _audit_samples(
+    samples: list[Sample], groups: dict[str, str], expected_attack_types: Sequence[str]
+) -> dict:
+    if isinstance(expected_attack_types, str) or any(
+        not isinstance(kind, str) or not kind.strip() or kind == "bonafide"
+        for kind in expected_attack_types
+    ):
+        raise ValueError("Expected attack types must be explicit non-empty attack names")
+    expected_types = list(dict.fromkeys(expected_attack_types))
     counts = {split: {"bonafide": 0, "attack": 0} for split in SPLITS}
-    for sample in manifest.samples:
+    attacks: dict[str, Counter] = {split: Counter() for split in SPLITS}
+    split_groups: dict[str, set[str]] = {split: set() for split in SPLITS}
+    for sample in samples:
         counts[sample.split]["attack" if sample.label else "bonafide"] += 1
+        split_groups[sample.split].add(groups[sample.sample_id])
+        if sample.label:
+            attacks[sample.split][sample.attack_type] += 1
     warnings = [
         f"{split}: missing {label}"
         for split in SPLITS
@@ -226,15 +240,64 @@ def audit(manifest: Manifest, checks: list[dict]) -> dict:
         if n == 0
     ]
     for label, n in counts["calib_fit"].items():
-        if n < 100:
-            warnings.append(f"calib_fit: {label} has {n}/100 samples for isotonic eligibility")
+        if n < MIN_ISOTONIC_CLASS:
+            warnings.append(
+                f"calib_fit: {label} has {n}/{MIN_ISOTONIC_CLASS} samples for isotonic eligibility"
+            )
+    missing_types = {
+        split: [kind for kind in expected_types if not attacks[split][kind]] for split in SPLITS
+    }
+    warnings.extend(
+        f"{split}: missing expected attack type {kind}"
+        for split, missing in missing_types.items()
+        for kind in missing
+    )
+    fit_samples = [sample for sample in samples if sample.split == "calib_fit"]
+    group_count = len(split_groups["calib_fit"])
+    folds = min(5, group_count)
+    both_classes = {sample.label for sample in fit_samples} == {0, 1}
+    train_both = False
+    reasons = [f"missing_{label}_class" for label, n in counts["calib_fit"].items() if not n]
+    if folds < 2:
+        reasons.append("fewer_than_two_connected_groups")
+    elif both_classes:
+        splits = GroupKFold(n_splits=folds).split(
+            [0] * len(fit_samples), groups=[groups[s.sample_id] for s in fit_samples]
+        )
+        train_both = all({fit_samples[i].label for i in train} == {0, 1} for train, _ in splits)
+        if not train_both:
+            reasons.append("training_fold_missing_class")
     return {
-        "sample_count": len(manifest.samples),
-        "group_count": len({c["group_id"] for c in checks}),
+        "sample_count": len(samples),
+        "group_count": len({groups[s.sample_id] for s in samples}),
         "split_counts": counts,
+        "split_group_counts": {split: len(values) for split, values in split_groups.items()},
+        "split_attack_type_counts": {split: dict(values) for split, values in attacks.items()},
+        "expected_attack_types": expected_types,
+        "missing_attack_types": missing_types,
+        "cv": {
+            "n_splits": folds,
+            "groups": group_count,
+            "both_classes": both_classes,
+            "train_folds_have_both_classes": train_both,
+            "feasible": both_classes and folds >= 2 and train_both,
+            "reasons": reasons,
+        },
+        "isotonic_sample_eligible": min(counts["calib_fit"].values()) >= MIN_ISOTONIC_CLASS,
+        "structural_only": True,
+        "calibration_ready": False,
         "calibration_fitted": False,
         "warnings": warnings,
     }
+
+
+def audit(
+    manifest: Manifest, checks: list[dict], *, expected_attack_types: Sequence[str] = ()
+) -> dict:
+    """Describe declared class/group coverage, without fitting or certifying readiness."""
+    return _audit_samples(
+        manifest.samples, _partition(manifest.samples, checks), expected_attack_types
+    )
 
 
 def _write(
@@ -321,16 +384,14 @@ def collect(
     return payload
 
 
-def fit_report(report: Path, output: Path) -> dict:
-    """Fit the existing Calibrator on complete calib_fit rows only; never install it."""
+def _validated_measurement(
+    report: Path,
+) -> tuple[MeasurementReport, str, list[tuple[Sample, dict, ModuleResult]]]:
     body, checksum = _snapshot(report)
     header = MeasurementReport.model_validate(body)
     config = yaml.safe_load(
         (Path(__file__).resolve().parents[4] / "ml/configs/nes2net.yaml").read_text("utf-8")
     )
-    fit_commit = git_revision()
-    if re.fullmatch(r"[0-9a-f]{40}", fit_commit) is None:
-        raise ValueError("Commit fitting implementation before fitting real data")
     if (
         header.sample_count != len(header.rows)
         or header.dataset != header.manifest.dataset
@@ -350,7 +411,7 @@ def fit_report(report: Path, output: Path) -> dict:
     ):
         raise ValueError("Invalid PCM provenance")
     groups = _partition(samples, rows)
-    usable, excluded = [], Counter()
+    measured = []
     for sample, row in zip(samples, rows, strict=True):
         timeline = ModuleResult.model_validate(row["timeline"])
         expected = aggregate_timeline(timeline, row["input_samples"])
@@ -363,17 +424,81 @@ def fit_report(report: Path, output: Path) -> dict:
             and actual.quality.get("parity_report_sha256") != body["parity_report_sha256"]
         ):
             raise ValueError("Mixed or missing parity binding")
+        measured.append((sample, row, actual))
+    return header, checksum, measured
+
+
+def readiness_report(
+    report: Path, output: Path, *, expected_attack_types: Sequence[str] = ()
+) -> dict:
+    """Audit validated measurements and exclusions; never fit or upgrade module results."""
+    header, checksum, measured = _validated_measurement(report)
+    audit_commit = git_revision()
+    if re.fullmatch(r"[0-9a-f]{40}", audit_commit) is None:
+        raise ValueError("Commit audit implementation before auditing real measurements")
+    groups = {sample.sample_id: row["group_id"] for sample, row, _ in measured}
+    usable = []
+    excluded = {
+        split: {
+            "count": 0,
+            "by_status": {},
+            "by_class": {"bonafide": 0, "attack": 0},
+            "by_attack_type": {},
+        }
+        for split in SPLITS
+    }
+    for sample, _, result in measured:
+        if result.score is not None:
+            usable.append(sample)
+            continue
+        entry = excluded[sample.split]
+        entry["count"] += 1
+        entry["by_class"]["attack" if sample.label else "bonafide"] += 1
+        for key, value in (
+            ("by_status", str(result.status)),
+            ("by_attack_type", sample.attack_type),
+        ):
+            entry[key][value] = entry[key].get(value, 0) + 1
+    payload = {
+        "schema_version": 1,
+        "measurement_report_sha256": checksum,
+        "measurement_commit": header.source_commit,
+        "audit_commit": audit_commit,
+        "dataset": header.dataset,
+        "model_version": VERSION,
+        "declared": _audit_samples(header.manifest.samples, groups, expected_attack_types),
+        # Keep full-manifest components even if a removed row linked multiple people.
+        "usable": _audit_samples(usable, groups, expected_attack_types),
+        "excluded": excluded,
+        "calibration_fitted": False,
+        "calibration_ready": False,
+        "deployed": False,
+    }
+    if _sha(report) != checksum:
+        raise ValueError("Measurement report changed during readiness audit")
+    _write(output, payload, protected=[report])
+    return payload
+
+
+def fit_report(report: Path, output: Path) -> dict:
+    """Fit the existing Calibrator on complete calib_fit rows only; never install it."""
+    header, checksum, measured = _validated_measurement(report)
+    fit_commit = git_revision()
+    if re.fullmatch(r"[0-9a-f]{40}", fit_commit) is None:
+        raise ValueError("Commit fitting implementation before fitting real data")
+    usable, excluded = [], Counter()
+    for sample, row, result in measured:
         if sample.split == "calib_fit":
-            if actual.score is None:
-                excluded[str(actual.status)] += 1
+            if result.score is None:
+                excluded[str(result.status)] += 1
             else:
-                usable.append((sample, row, actual))
+                usable.append((sample, row, result))
     artifact = fit(
         CalibFit(
             scores=[r.score for _, _, r in usable],
             labels=[s.label for s, _, _ in usable],
             subject_ids=[r["group_id"] for _, r, _ in usable],
-            dataset=body["dataset"],
+            dataset=header.dataset,
         ),
         module="voice_spoof",
         model_version=VERSION,
@@ -407,6 +532,10 @@ def main(argv: list[str] | None = None) -> int:
     fitting = sub.add_parser("fit")
     fitting.add_argument("--report", required=True, type=Path)
     fitting.add_argument("--output", required=True, type=Path)
+    readiness = sub.add_parser("readiness")
+    readiness.add_argument("--report", required=True, type=Path)
+    readiness.add_argument("--output", required=True, type=Path)
+    readiness.add_argument("--expected-attack-type", action="append", default=[])
     args = parser.parse_args(argv)
     if args.command == "prepare":
         manifest, checks = load_manifest(args.manifest, args.data_root)
@@ -417,6 +546,8 @@ def main(argv: list[str] | None = None) -> int:
         )
     elif args.command == "collect":
         collect(args.manifest, args.data_root, args.models_dir, args.output)
+    elif args.command == "readiness":
+        readiness_report(args.report, args.output, expected_attack_types=args.expected_attack_type)
     else:
         fit_report(args.report, args.output)
     return 0

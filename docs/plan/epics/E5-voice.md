@@ -264,6 +264,12 @@ code/model/report SHA ở ghi chú research trên. Đây chưa phải hiệu ch�
 **Chưa nghiệm thu:** EER tiếng Việt,
 calibration, chất lượng phép gộp toàn câu, ghép GUI/API hoặc quyết định eKYC.
 
+**Báo cáo cấu trúc (01/11):** `prepare` bổ sung số nhóm/loại tấn công theo tập;
+`readiness` kiểm report đã đo, thống kê mẫu bị loại và CV trên mẫu còn điểm.
+Giữ nhóm liên kết từ manifest đầy đủ, không tách lại nhóm khi mẫu nối bị lỗi.
+Loại tấn công cần có do người dùng khai báo, không suy từ test. Đây chỉ kiểm
+cấu trúc, luôn chưa sẵn sàng hiệu chỉnh/triển khai; không fit hoặc chọn LTT.
+
 ---
 
 ### VOICE-10 · Ghép NES2Net vào công cụ thử microphone
