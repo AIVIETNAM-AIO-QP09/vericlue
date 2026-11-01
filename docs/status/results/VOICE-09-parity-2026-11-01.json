@@ -93,5 +93,15 @@
     "Only these inputs and runtimes were measured; not population performance",
     "Both classes, subject-disjoint calibration/evaluation, aggregation policy and decision artifacts remain required",
     "Detector acceptance/status and thresholds were not changed"
-  ]
+  ],
+  "implementation_binding": {
+    "fingerprint_version": "numerical-ast-v1",
+    "config_sha256": "681770d5efcae41a7cd4aa0dd3faebc90a9156230653cf8045406fe707337625",
+    "code_sha256": {
+      "nes2net.py": "cbd29162cb6754b05debdc53b87694ef10c84a2ff4ca9682e49695e5029f6cb7",
+      "_nes2net_arch.py": "54d6eeb19a1d9833061b24e5b9e7fa4c328cf0aa088f29865e545405643e8757",
+      "antispoof.py": "adb05c9f077abfb46f619c4f441049479aed672f72ceccb5df9343908f5a2917"
+    },
+    "recipe": "first_64000_samples_repeat_if_short_no_normalization_no_trim"
+  }
 }

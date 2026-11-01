@@ -86,7 +86,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.whole_utterance
             else "first_64000_samples_repeat_if_short_no_normalization_no_trim"
         ),
-        "frontend_parity_verified": False,
+        "frontend_parity_verified": result.quality.get("frontend_parity_verified", False),
         "calibrated": False,
         "runtime": runtime_versions(),
         "result": result.to_contract(),

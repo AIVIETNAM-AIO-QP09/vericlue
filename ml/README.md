@@ -62,8 +62,9 @@ có timeout/hủy/đóng, chưa đưa điểm vào quyết định eKYC. Xem
 [`qwen-asr-diagnostic.md`](../docs/architecture/qwen-asr-diagnostic.md).
 
 VOICE-09 thêm NES2Net-X CPU diagnostic opt-in cho `voice_spoof`, checkpoint đầy
-đủ XLS-R/head. Chỉ chấm 4 giây đầu, luôn degraded/unclear, chưa parity frontend
-hoặc calibration tiếng Việt; không thay backend API. Xem
+đủ XLS-R/head. Chỉ chấm 4 giây đầu, luôn degraded/unclear. Parity số học có báo cáo
+và binding opt-in theo checkpoint/runtime/config/mã số học (01/11); chưa calibration
+tiếng Việt, không thay backend API. Xem
 [`nes2net-diagnostic.md`](../docs/architecture/nes2net-diagnostic.md).
 
 VOICE-07 thêm backend Qwen3-ASR-0.6B để kiểm nội dung câu đọc qua factory/CLI

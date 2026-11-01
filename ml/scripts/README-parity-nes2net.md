@@ -55,9 +55,12 @@ Hiện trạng trên máy dev (cập nhật 01/11/2026):
   1. WSL2 `Ubuntu-24.04` với `uv` (`/home/ngocquang/.local/bin/uv`) và venv Python 3.10.22 tại `/home/ngocquang/nes2net-fairseq-ref` đã cài `torch==2.2.2+cpu`, `torchaudio==2.2.2+cpu`, `numpy==1.26.4`, `soundfile==0.14.0`, `fairseq==0.12.2` (từ tag gốc `v0.12.2` commit `4a388e64cd646ed7d7ad8de8fae55df2b8eea91d`).
   2. Checkout sạch của `Liu-Tianchi/Nes2Net_ASVspoof_ITW` tại `/home/ngocquang/Nes2Net_ASVspoof_ITW` (commit `c9fe1177f44040f002cb40def928332d2e261f1e`, `model_scripts/wav2vec2_Nes2Net_X.py` SHA-256 `8a81756688e026243b40c0a8733e2d122401322c74cb32add8046f9bb60bc75f`).
   3. Checkpoint `D:\vericlue\models\selected-2026-10-24\nes2net-x-xlsr\checkpoint.pth` (SHA-256 `3158d10c6fc3c58e452a33981b409f5a65ecf91d548931b4ffbd675462799685`) và runtime chuyển đổi `D:\vericlue\tmp\nes2net-cpu`.
-- Còn thiếu để chạy nhánh `--reference-python` đạt `PASS`:
-  1. File Fairseq `xlsr2_300m.pt` (~3,8 GB) cho `SSLModel.__init__` của upstream (tải từ `https://dl.fbaipublicfiles.com/fairseq/wav2vec/xlsr2_300m.pt`).
-  2. Danh sách `>= 32` file WAV 16 kHz mono tiếng nói thật độc lập có phép (`calib_fit`).
+- Đã có `xlsr2_300m.pt` và 32 WAV VIVOS publisher pin revision, chín speaker.
+  Lượt cùng4threads đạt parity trên WSL và Windows; báo cáo tổng hợp ở
+  `docs/status/results/VOICE-09-parity-2026-11-01.json`. Đây là dữ liệu parity,
+  **không phải calib_fit**; VIVOS vẫn test-only cho việc chọn model/ngưỡng.
+- Binding marker opt-in, các biến môi trường và điều kiện runtime/source/config:
+  [hướng dẫn detector](../../docs/architecture/nes2net-diagnostic.md).
 
 > Lưu ý trên WSL2 có `systemd`: không đặt venv hoặc repo ở `/tmp` vì WSL2 tự xóa `/tmp` khi máy ảo tắt sau vài giây nghỉ giữa các lệnh `wsl`. Đặt cố định trong `$HOME` (`/home/ngocquang/...`).
 

@@ -237,7 +237,12 @@ vụ VOICE-01/03 hoặc kết quả benchmark AntiDeepfake.
 - [x] CLI xuất provenance, logit/margin và giới hạn; chặn thay input/ghi đè model.
 - [x] Unit không cần model/Torch, native synthetic smoke, tài liệu/bàn giao/lint/plan_check.
 
-**Chưa nghiệm thu:** parity frontend Fairseq ↔ Transformers, EER tiếng Việt,
+**Bổ sung 01/11:** đã đo parity Fairseq ↔ Transformers trên 32 PCM/9 speaker
+VIVOS, đúng các runtime trong báo cáo VOICE-09. Binding opt-in kiểm checkpoint,
+runtime, graph config và fingerprint mã số học; không mở chốt đạt. Các mẫu chỉ
+dùng parity, không hiệu chỉnh. Review và smoke thật được ghi trong bàn giao.
+
+**Chưa nghiệm thu:** EER tiếng Việt,
 calibration, xử lý toàn câu dài hơn 4 giây, ghép GUI/API hoặc quyết định eKYC.
 
 ---

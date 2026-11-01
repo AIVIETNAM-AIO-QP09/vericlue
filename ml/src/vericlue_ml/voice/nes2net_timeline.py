@@ -57,9 +57,20 @@ def measured_samples(rows: list[dict]) -> int:
 def summary(rows: list[dict], count: int) -> dict:
     """Time coverage describes model execution, never attack detection accuracy."""
     measured = measured_samples(rows)
+    bindings = {row["result"].get("quality", {}).get("parity_report_sha256") for row in rows}
+    parity = (
+        len(bindings) == 1
+        and None not in bindings
+        and all(
+            row["result"]["status"] == "degraded"
+            and row["result"].get("quality", {}).get("frontend_parity_verified") is True
+            for row in rows
+        )
+    )
     return {
         "diagnostic_only": True,
-        "frontend_parity_verified": False,
+        "frontend_parity_verified": parity,
+        **({"parity_report_sha256": next(iter(bindings))} if parity else {}),
         "calibrated": False,
         "recipe": RECIPE,
         "input_samples": count,
@@ -126,6 +137,9 @@ def validate_timeline(result: ModuleResult, count: int) -> None:
         ):
             raise ValueError("Invalid source interval")
         nested = ModuleResult.model_validate(row["result"])
+        from vericlue_ml.voice.nes2net_parity import validate_parity_claim
+
+        validate_parity_claim(nested)
         if (
             nested.module != "voice_spoof"
             or nested.model_version != WINDOW_VERSION
