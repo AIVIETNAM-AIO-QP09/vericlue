@@ -20,6 +20,7 @@ from vericlue_ml.face.match import MatchThreshold
 from vericlue_ml.face.template import FaceTemplate
 from vericlue_ml.face.video_match import VIDEO_MATCH_VERSION, VideoFaceMatchDetector
 from vericlue_ml.presence.challenge import expected_dynamic
+from vericlue_ml.presence.head_protocol import head_protocol_version
 from vericlue_ml.presence.head_turn import CENTER_MAX_DEG, MAX_PITCH_ROLL_DEG
 from vericlue_ml.presence.landmarks import LandmarkError
 from vericlue_ml.presence.session_views import session_views
@@ -27,6 +28,13 @@ from vericlue_ml.presence.views import select_frontal_frame, video_sha256
 
 REAUTH_MATCH_VERSION = VIDEO_MATCH_VERSION + "+enrolled-reauth-v1"
 RECOVERY_MATCH_VERSION = VIDEO_MATCH_VERSION + "+enrolled-recovery-v1"
+
+
+def recovery_match_version(protocol: int) -> str:
+    """Bind enrolled recovery to the exact server capture protocol."""
+    if type(protocol) is not int or protocol not in (1, 2):
+        raise ValueError("Unknown recovery head protocol")
+    return RECOVERY_MATCH_VERSION + ("+head12s-v2" if protocol == 2 else "")
 
 
 def match_enrolled(
@@ -42,6 +50,9 @@ def match_enrolled(
     try:
         if inp.metadata.get("purpose") not in {"reauth", "recovery"}:
             raise LandmarkError(ErrorCode.E_CHALLENGE_MISMATCH)
+        protocol = head_protocol_version(inp) if recovery else None
+        if recovery:
+            version = recovery_match_version(protocol)
         template = FaceTemplate.model_validate_json(template.model_dump_json())
         if template.model_version != VIDEO_MATCH_VERSION or inp.video is None:
             raise LandmarkError(ErrorCode.E_INTEGRITY)
@@ -86,6 +97,14 @@ def match_enrolled(
             if artifact.model_version != version:
                 raise LandmarkError(ErrorCode.E_INTEGRITY)
         consistency = matcher._consistency_threshold
+        if recovery and matcher.manual_demo is None and consistency is not None:
+            expected_consistency = (
+                VIDEO_MATCH_VERSION
+                + ("+head12s-v2" if protocol == 2 else "")
+                + "+view-consistency-v1"
+            )
+            if consistency.model_version != expected_consistency:
+                raise LandmarkError(ErrorCode.E_INTEGRITY)
         threshold_value = (
             matcher.manual_demo.match_min
             if matcher.manual_demo is not None

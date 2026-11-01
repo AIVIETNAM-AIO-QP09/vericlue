@@ -484,7 +484,7 @@ def test_manual_full_demo_requires_lipsync_in_recovery_and_protects_existing_acc
     from vericlue_api.services.accounts import AccountStore
     from vericlue_ml.common.result import Evidence
     from vericlue_ml.face.continuity import FACE_VOICE_VERSION
-    from vericlue_ml.face.enrolled import RECOVERY_MATCH_VERSION
+    from vericlue_ml.face.enrolled import recovery_match_version
     from vericlue_ml.face.video_match import VIDEO_MATCH_VERSION
 
     monkeypatch.setenv("SESSION_PRIVACY", "true")
@@ -619,7 +619,8 @@ def test_manual_full_demo_requires_lipsync_in_recovery_and_protects_existing_acc
                 Module.FACE_MATCH
             ].model_copy(
                 update={
-                    "model_version": RECOVERY_MATCH_VERSION + suffix,
+                    "model_version": recovery_match_version(rec_session.challenge.dynamic.version)
+                    + suffix,
                     "prob_attack": None,
                     "quality": {
                         "consistency_verified": True,
