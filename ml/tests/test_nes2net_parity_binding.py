@@ -36,6 +36,16 @@ def runtime(report):
     }
 
 
+def test_reviewed_parity_report_keeps_its_measured_byte_identity():
+    from vericlue_ml.voice.nes2net_parity import verify_parity
+
+    # Existing native measurements bind these exact bytes, including line endings.
+    digest = "669bf62e4db134a46e8a0dd8f3d5b6a72bba90a984c3a7901fa8e866e8f21a48"
+    assert hashlib.sha256(SUMMARY.read_bytes()).hexdigest() == digest
+    report = json.loads(SUMMARY.read_text(encoding="utf-8"))
+    assert verify_parity(SUMMARY, digest, report["checkpoint_sha256"], runtime(report)) == digest
+
+
 def test_only_exact_runtime_and_checkpoint_can_use_pinned_report(binding):
     from vericlue_ml.voice.nes2net_parity import verify_parity
 

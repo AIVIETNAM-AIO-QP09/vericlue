@@ -1,0 +1,228 @@
+{
+  "schema_version": 1,
+  "purpose": "bonafide_calib_fit_pipeline_measurement_only",
+  "dataset": "DNU-ViSpeech-bonafide-only-v1",
+  "source_dataset": "TrangLe2108/DNU-ViSpeech",
+  "source_revision": "33b2a469901cb71b243403254d3cfef25170526c",
+  "measurement_commit": "38ebb367695c161e8a3ffb5ac02ecb85b5fcb94e",
+  "audit_commit": "fbd43df1ae7db8ba4ebbded1e6cada59b5d3ca6b",
+  "model_version": "nes2net-x@c9fe1177f44040f002cb40def928332d2e261f1e+hf4576-cpu-fp32-timeline4s-tail-maxmargin-v1",
+  "checkpoint_sha256": "3158d10c6fc3c58e452a33981b409f5a65ecf91d548931b4ffbd675462799685",
+  "parity_report_sha256": "669bf62e4db134a46e8a0dd8f3d5b6a72bba90a984c3a7901fa8e866e8f21a48",
+  "runtime": {
+    "system": "Windows",
+    "python": "3.12.15",
+    "torch": "2.14.1+cpu",
+    "transformers": "4.57.6",
+    "numpy": "2.5.4",
+    "cpu_threads": 4
+  },
+  "source_manifest_sha256": "c4fc4b3498c210410a79bd00cc0ba11109cd88784260be18ccc9f43f0584a16b",
+  "subset_manifest_sha256": "8d11c9b7f34dadc324bbe0109f2bba500db96f3ac9437f2bc7ed789a1730eddc",
+  "measurement_report_sha256": "30c94ca655d172f1b950181579293a4af5e9303ec7242aec29663daeb4918504",
+  "readiness_report_sha256": "cb5d29d8d148dbaba434fe5c547d9d8d0cef275cbcf469146022341bf525738a",
+  "samples": 360,
+  "subjects": 18,
+  "windows": 995,
+  "raw_scores_available": 356,
+  "null_score_count": 4,
+  "status_counts": {
+    "degraded": 360
+  },
+  "error_code_counts": {},
+  "calib_ltt_samples_measured": 0,
+  "test_samples_measured": 0,
+  "declared": {
+    "sample_count": 360,
+    "group_count": 18,
+    "split_counts": {
+      "calib_fit": {
+        "bonafide": 360,
+        "attack": 0
+      },
+      "calib_ltt": {
+        "bonafide": 0,
+        "attack": 0
+      },
+      "test": {
+        "bonafide": 0,
+        "attack": 0
+      }
+    },
+    "split_group_counts": {
+      "calib_fit": 18,
+      "calib_ltt": 0,
+      "test": 0
+    },
+    "split_attack_type_counts": {
+      "calib_fit": {},
+      "calib_ltt": {},
+      "test": {}
+    },
+    "expected_attack_types": [
+      "tts",
+      "vc"
+    ],
+    "missing_attack_types": {
+      "calib_fit": [
+        "tts",
+        "vc"
+      ],
+      "calib_ltt": [
+        "tts",
+        "vc"
+      ],
+      "test": [
+        "tts",
+        "vc"
+      ]
+    },
+    "cv": {
+      "n_splits": 5,
+      "groups": 18,
+      "both_classes": false,
+      "train_folds_have_both_classes": false,
+      "feasible": false,
+      "reasons": [
+        "missing_attack_class"
+      ]
+    },
+    "isotonic_sample_eligible": false,
+    "structural_only": true,
+    "calibration_ready": false,
+    "calibration_fitted": false,
+    "warnings": [
+      "calib_fit: missing attack",
+      "calib_ltt: missing bonafide",
+      "calib_ltt: missing attack",
+      "test: missing bonafide",
+      "test: missing attack",
+      "calib_fit: attack has 0/100 samples for isotonic eligibility",
+      "calib_fit: missing expected attack type tts",
+      "calib_fit: missing expected attack type vc",
+      "calib_ltt: missing expected attack type tts",
+      "calib_ltt: missing expected attack type vc",
+      "test: missing expected attack type tts",
+      "test: missing expected attack type vc"
+    ]
+  },
+  "usable": {
+    "sample_count": 356,
+    "group_count": 18,
+    "split_counts": {
+      "calib_fit": {
+        "bonafide": 356,
+        "attack": 0
+      },
+      "calib_ltt": {
+        "bonafide": 0,
+        "attack": 0
+      },
+      "test": {
+        "bonafide": 0,
+        "attack": 0
+      }
+    },
+    "split_group_counts": {
+      "calib_fit": 18,
+      "calib_ltt": 0,
+      "test": 0
+    },
+    "split_attack_type_counts": {
+      "calib_fit": {},
+      "calib_ltt": {},
+      "test": {}
+    },
+    "expected_attack_types": [
+      "tts",
+      "vc"
+    ],
+    "missing_attack_types": {
+      "calib_fit": [
+        "tts",
+        "vc"
+      ],
+      "calib_ltt": [
+        "tts",
+        "vc"
+      ],
+      "test": [
+        "tts",
+        "vc"
+      ]
+    },
+    "cv": {
+      "n_splits": 5,
+      "groups": 18,
+      "both_classes": false,
+      "train_folds_have_both_classes": false,
+      "feasible": false,
+      "reasons": [
+        "missing_attack_class"
+      ]
+    },
+    "isotonic_sample_eligible": false,
+    "structural_only": true,
+    "calibration_ready": false,
+    "calibration_fitted": false,
+    "warnings": [
+      "calib_fit: missing attack",
+      "calib_ltt: missing bonafide",
+      "calib_ltt: missing attack",
+      "test: missing bonafide",
+      "test: missing attack",
+      "calib_fit: attack has 0/100 samples for isotonic eligibility",
+      "calib_fit: missing expected attack type tts",
+      "calib_fit: missing expected attack type vc",
+      "calib_ltt: missing expected attack type tts",
+      "calib_ltt: missing expected attack type vc",
+      "test: missing expected attack type tts",
+      "test: missing expected attack type vc"
+    ]
+  },
+  "excluded": {
+    "calib_fit": {
+      "count": 4,
+      "by_status": {
+        "degraded": 4
+      },
+      "by_class": {
+        "bonafide": 4,
+        "attack": 0
+      },
+      "by_attack_type": {
+        "bonafide": 4
+      }
+    },
+    "calib_ltt": {
+      "count": 0,
+      "by_status": {},
+      "by_class": {
+        "bonafide": 0,
+        "attack": 0
+      },
+      "by_attack_type": {}
+    },
+    "test": {
+      "count": 0,
+      "by_status": {},
+      "by_class": {
+        "bonafide": 0,
+        "attack": 0
+      },
+      "by_attack_type": {}
+    }
+  },
+  "source_frozen_before_and_after": true,
+  "selected_audio_hashes_checked_after_run": true,
+  "calibration_fitted": false,
+  "calibration_ready": false,
+  "accuracy_measured": false,
+  "deployed": false,
+  "window_count_scope": "planned_including_quality_rejections",
+  "scored_windows": 991,
+  "unscored_windows": 4,
+  "unscored_window_error_codes": {
+    "E_LOW_QUALITY": 4
+  }
+}

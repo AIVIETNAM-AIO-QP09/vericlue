@@ -134,3 +134,49 @@ chứng sử dụng/metadata đủ chuẩn. Chưa có calibrator hoặc nghiệm
   Native collect đã hoàn tất; helper ngoài Git từng import nhầm và xử lý thiếu
   keyprob_attack vốn bị bỏ khi null. Đã sửa summary đọc report có schema/provenance,
   giữ nguyên phép đo, không suy thời gian chạy từ lượt dựng summary.
+
+## Đo toàn bộ calib_fit DNU và kiểm cấu trúc · 01/11
+
+Nguồn đo sạch `38ebb367695c161e8a3ffb5ac02ecb85b5fcb94e`, giữ cố định trước/sau
+collect. Chọn toàn bộ 360 record calib_fit của 18 người, nguyên thứ tự manifest
+đã khóa; không chọn theo điểm. Ba mẫu smoke trước thuộc bộ 360 này, không tính
+thành mẫu độc lập bổ sung. Không đọc audio calib_ltt/test để suy luận.
+
+- Có 995 cửa sổ theo lịch: 991 cửa sổ có điểm, 4 cửa sổ bị chất lượng
+  `not_applicable/E_LOW_QUALITY`. Giữ đủ record và cửa sổ, không bỏ đoạn lỗi.
+- 356 bản thu có raw score toàn câu, 4 bản thu giữ score null vì có cửa sổ
+  chưa được chấm. Tất cả 360 aggregate vẫn degraded/unclear, không xác suất.
+- CLI readiness ở code `fbd43df1ae7db8ba4ebbded1e6cada59b5d3ca6b` kiểm report
+  bằng validator dùng chung với fit. Sau loại mẫu thiếu điểm vẫn có 18 nhóm;
+  không có lớp tấn công nên CV không khả thi. `tts`/`vc` là loại cần có được
+  khai báo, không phải dữ liệu đã tạo. Calibrator/LTT/accuracy/deploy đều chưa có.
+- Model/checkpoint/runtime, hash manifest/report và thống kê tổng hợp:
+  [VOICE-09-DNU-calib-fit-2026-11-01.json](../status/results/VOICE-09-DNU-calib-fit-2026-11-01.json).
+  Runtime Windows Torch2.14.1+cpu, Transformers4.57.6, 4 threads; phép gộp vẫn
+  `timeline4s-tail-maxmargin-v1`. Không diễn giải thời gian job thành benchmark.
+- Report từng mẫu/audio ở ngoài Git tại
+  `D:/vericlue/tmp/voice-calibration-2026-11-01/dnu-calib-fit-reviewed/`.
+  Hash toàn bộ 360 tệp audio kiểm lại sau lượt đo khớp manifest. Bản xuất công
+  khai chỉ có metadata/thống kê tổng hợp, không chứa ID/path/điểm từng mẫu.
+
+Review phát hiện xuống dòng của report parity khác nhau giữa checkout dù JSON
+giống nhau. Đã giữ nguyên byte artifact gốc theo SHA mà phép đo thực dùng,
+không thay các giá trị JSON hoặc thuật toán xác minh; có test hash/verify_parity.
+
+## Rà thêm bốn publisher · 01/11
+
+Chỉ đọc giấy phép/card/metadata công khai, không nhận audio hoặc chấp thuận
+gate. Chưa có nguồn nào đủ điều kiện để thêm ngay vào bộ hiệu chỉnh:
+
+| Nguồn ghim phiên bản | Kết quả rà và phần còn thiếu |
+|---|---|
+| [SEA-Spoof](https://huggingface.co/datasets/Jack-ppkdczgx/SEA-Spoof/tree/132f5dca9b6efe39cf1d3b54a858f167f5a421fc) | Gate manual, có hạn chế biometric deployment; chưa xác minh quyền đúng phạm vi và crosswalk người/nguồn. |
+| [SpeechFake](https://github.com/YMLLG/SPEECHFAKE/tree/873df4c73eec394709e72b113b6fd66e29debf8d), [publisher ModelScope](https://www.modelscope.cn/datasets/inclusionAI/SPEECHFAKE) revision e315a544246df765336bab9595ed552520444c4a | Metadata VI có speaker thiếu, thiếu donor/source-parent. [Paper](https://aclanthology.org/2025.acl-long.493.pdf) đặt MD train/dev ở EN/ZH; không chuyển VI test vào fit. LICENSE có ngoại lệ thành phần, cần kiểm đúng payload. |
+| [ViSpoofDB](https://github.com/studie-e/Vietnamese-Audio-Deepfake-Detection/tree/ebe6870a5a12e3bc6838c50fa3eabf79898b01d0) | Chưa thấy license corpus rõ ràng; metadata hiện có thiếu crosswalk người/nguồn cho lớp giả. |
+| [VSASV](https://huggingface.co/datasets/hustep-lab/VSASV-Dataset/tree/92de668616780ed4f3d7f58a82262f82b56b4557) | Gated, release chưa đầy đủ; chưa kiểm được metadata TTS/VC và nguồn tham chiếu. |
+
+Chi tiết quan sát/suy luận và URL ngoài Git:
+`D:/vericlue/tmp/voice-calibration-2026-11-01/attack-source-audit.json`.
+Không dùng nguồn thay thế khi chưa đủ bằng chứng; VIVOS parity và các tập test
+vẫn ngoài fit. LTT theo ROUT-03 còn cần triển khai riêng và xử lý đúng quan hệ
+giữa các quan sát, không suy từ việc có đủ số clip.
