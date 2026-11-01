@@ -26,6 +26,11 @@ khai báo trước, kiểm quan sát độc lập theo người/nguồn. Kết q
 provisional và không đủ điều kiện runtime; không cài ngưỡng vào API.
 [Phương pháp và giới hạn](../docs/runbooks/offline-ltt.md).
 
+ROUT-03 bổ sung `eval.face_candidate`: ghép PAD/GenD đúng report/calibrator
+đã khóa trên calib_fit, giữ lỗi và chỉ tính max khi cả hai module đủ điểm.
+Chưa chọn ngưỡng mặt; runtime/source crosswalk/gate chưa được kiểm chứng.
+[Runbook](../docs/runbooks/face-candidate-scoring.md).
+
 VOICE-09/APP-01 (01/11): công cụ offline `eval.nes2net_utterance` gộp max margin
 toàn câu có version riêng; chỉ có score khi mọi cửa sổ đo được. Prepare/collect/
 fit kiểm provenance/split theo người và nguồn, không cài artifact hoặc đổi API.

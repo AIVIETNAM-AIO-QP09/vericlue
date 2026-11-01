@@ -190,7 +190,7 @@ class _Inputs:
         ]
         forbidden += [
             Path(os.environ[key]).resolve()
-            for key in ("MODELS_DIR", "DATA_DIR")
+            for key in ("MODELS_DIR", "DATA_DIR", "CALIBRATORS_DIR")
             if os.environ.get(key)
         ]
         if any(target.is_relative_to(path.resolve()) for path in forbidden):

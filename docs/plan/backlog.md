@@ -94,7 +94,7 @@
 |---|---|---|---|---|---|---|---|---|
 | ROUT-01 | Hiệu chỉnh xác suất + identity MVP | M5 | Codex | 1 | S1 | P0 | PLAT-03 | review |
 | ROUT-02 ★ | Bộ chính sách quyết định | M5 | Codex | 1,5 | S1 | P0 | ROUT-01, PLAT-08 | done |
-| ROUT-03 ★ | LTT offline có chốt; ngưỡng thật chờ dữ liệu/artifact độc lập | M5 | Ngoc Quang+Codex | 1,5 | S2 | P0 | ROUT-02, FACE-04, VOICE-03 | doing |
+| ROUT-03 ★ | LTT giọng và ghép điểm mặt offline có chốt; chờ dữ liệu/artifact/ngưỡng thật | M5 | Ngoc Quang+Codex | 1,5 | S2 | P0 | ROUT-02, FACE-04, VOICE-03 | doing |
 | ROUT-04 | Cổng ngoài phạm vi | M5 | | 1 | S2 | P1 | FACE-02 | todo |
 | ROUT-05 ★ | Đánh giá R4 | M5 | | 1 | S3 | P0 | ROUT-03 | todo |
 
