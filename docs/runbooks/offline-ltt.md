@@ -31,6 +31,10 @@ buộc rồi chạy Holm **một lần trên toàn lưới**. Một stratum khô
 không đạt. Không chạy mỗi stratum tại toàn bộ delta rồi tuyên bố bảo đảm chung.
 Nếu kiểm thêm BPCER thì rủi ro này cũng thuộc max-p của candidate.
 
+Stratum thật phải ghi đúng hệ TTS/VC hoặc loại tấn công cần kiểm soát; không
+gom các hệ khó vào một nhãn TTS chung chỉ để tỷ lệ trung bình đẹp hơn. Các nhãn
+`tts`/`vc` trong unit test chỉ là fixture, không phải bộ loại đã nghiệm thu.
+
 Phân bổ delta mặt và giọng trước, tổng không vượt delta toàn bộ. Công thức 59
 quan sát không lỗi tại alpha=5%, delta=5% chỉ là ví dụ một kiểm định đơn; không
 được thay số clip vào đó để chứng nhận cả lưới hoặc nhiều clip cùng người.
@@ -52,6 +56,48 @@ DNU đã đo chỉ có giọng thật; chưa fit calibrator và không thể ki�
 VIVOS32 là bộ parity, không được dùng hiệu chỉnh. Thiếu nguồn tấn công có quyền
 sử dụng/crosswalk người–nguồn và các artifact nhận diện vẫn là chốt triển khai.
 Không có kết quả R4 hay bảo đảm toàn luồng được nghiệm thu từ công cụ này.
+
+## Đường artifact NES2Net toàn câu
+
+`python -m vericlue_ml.eval.nes2net_candidate` có ba lệnh offline. Dùng Python
+đã cài workspace theo `uv.lock`; không cần nạp trọng số/Torch để chấm lại các
+report đo đã có. Runtime ghi trong report là runtime lúc đo, không phải runtime
+của lệnh này. Giữ report, protocol và artifact chứa hàng/ID ở thư mục riêng
+ngoài Git; chỉ công bố số tổng hợp đã review.
+
+```powershell
+# PYTHONPATH trỏ tuyệt đối đến ml/src của checkout hiện tại.
+python -m vericlue_ml.eval.nes2net_candidate score --report <measurements.json> --fit-report <fit.json> --fit-measurement <fit-measurements.json> --split calib_fit --output <scores-moi.json>
+python -m vericlue_ml.eval.nes2net_candidate select --report <ltt-measurements.json> --fit-report <fit.json> --fit-measurement <fit-measurements.json> --protocol <protocol.json> --output <ltt-moi.json>
+python -m vericlue_ml.eval.nes2net_candidate evaluate --report <test-measurements.json> --fit-report <fit.json> --fit-measurement <fit-measurements.json> --ltt-report <ltt.json> --ltt-measurement <ltt-measurements.json> --output <test-moi.json>
+```
+
+`scripts/fit_thresholds.py` là entry point chọn candidate giọng với cùng input
+như lệnh `select`; tên script không có nghĩa ghi vào thresholds.yaml. Core mặt
+có trong Python API, nhưng chưa có consumer báo cáo mặt đã hiệu chỉnh/fusion
+tương đương. Không coi phần mặt đã chứng nhận từ một file điểm rời.
+
+Protocol JSON khớp `LTTProtocol`: `mode`, `grid` (giọng: `[[t], ...]`),
+`expected_attack_types`, `alpha`, `delta`, `total_delta`,
+`family_delta_allocations` (cả `face` và `voice`), `sampling_protocol`,
+`target_population`, `independence_attestation`,
+`one_observation_per_group_per_stratum=true`, `grid_predeclared=true`,
+`independent_of_training_and_calibration=true`,
+`objective="immediate_review_rate"`, `tie_break="grid_order"`,
+`fixture_kind="research"` hoặc `"synthetic"`; `bpcer_alpha` tùy chọn. Không có
+lưới mặc định hay danh sách hệ tấn công mặc định để dùng nhầm cho dữ liệu thật.
+
+Consumer kiểm envelope calibrator fitted, số lớp/mẫu loại, commit/dataset và hash
+report nguồn; model/checkpoint/code/protocol/parity/runtime phải khớp. Kiểm
+người/nguồn/file/PCM trên hợp của mọi hàng, kể cả hàng lỗi. Cùng report đầy đủ
+có thể cung cấp các split khác nhau; báo cáo khác trùng dữ liệu bị từ chối.
+Artifact và input phải còn nguyên lúc ghi output mới. Scoring test trực tiếp
+bị chặn; evaluate kiểm lại toàn bộ kết quả LTT với protocol/report liên kết
+trước khi tính xác suất test. Không fit lại hoặc tìm ngưỡng trên test.
+
+`candidate_probability` nằm riêng; `module_result` gốc vẫn degraded/unclear,
+prob_attack=null. Hash/provenance giúp phát hiện nhầm lẫn/thay đổi đầu vào;
+artifact cục bộ không phải chứng thực có chữ ký về nguồn hoặc quyền dữ liệu.
 
 ## Nguồn phương pháp
 

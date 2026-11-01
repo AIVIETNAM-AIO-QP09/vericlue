@@ -46,6 +46,6 @@ Chạy test liên quan, lint, plan_check, kiểm dữ liệu/bí mật trong dif
 - Ruling: mục tiêu mặt là tỷ lệ review ngay bước mặt, đếm voice_challenge riêng; chưa có dữ liệu ghép mặt–giọng để chứng minh tỷ lệ review cuối luồng.
 - Ruling: không chứng nhận độc lập chỉ từ mã người duy nhất; protocol thu thập và phạm vi áp dụng vẫn cần nhóm xác nhận trước phép đo thật.
 - Task 1: complete — 48 test đạt, reviewer độc lập chấp thuận spec/chất lượng; không chứng nhận dữ liệu thật.
-- Task 2: active — consumer/CLI/đánh giá khóa.
-- Task 3: complete về code/review; PostgreSQL thực thi chờ CI PR122. Nhóm 333 test API khác đạt local.
-- Task 4: pending — tích hợp và bàn giao sau Task2.
+- Task 2: complete về code/review — 54 test mới đạt; consumer/CLI/đánh giá khóa không mở chốt runtime.
+- Task 3: complete — CI PR122 8/8 đạt, job Python 4749 passed/78 skipped với PostgreSQL16. Nhóm 333 test API khác đạt local.
+- Task 4: active — toàn bộ test và smoke subprocess, review cuối rồi bàn giao/Draft PR.
