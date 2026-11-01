@@ -76,5 +76,7 @@ quote-style = "double"
 # ── Pytest ────────────────────────────────────────────────────
 [tool.pytest.ini_options]
 testpaths = ["scripts/tests", "services/api/tests", "ml/tests"]
+# Console pytest and python -m pytest must both resolve repository script helpers.
+pythonpath = ["."]
 addopts = "-q"
 markers = ["slow: requires local model weights and audio; skips when unavailable"]
