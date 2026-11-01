@@ -29,6 +29,16 @@
   code6b75896. Cả3có rawscore đủ cửa sổ,giữdegraded/unclear/không xác suất;
   không fit,không chấm calib_ltt/test. Checkpoint/model/runtime/report SHA ở
   research; output ở dnu-train-smoke/ ngoài Git. Không accuracy/deploy.
+- CI sau lần docs-only ở PR120headf9a93c7 lỗi một assertion thời gian trong
+  test_orchestrator (các job khác đạt). Test lấy trước HTTP làm gốc nhưng budget
+  thật bắt đầu trongget_state; request admission trễ làm upper bound300ms sai.
+  Đã tái hiện bằng middleware admission350ms:2fail/2pass đúng assertion cũ.
+  Sửa test đo origin thật,giữ deadline250ms,chung deadline runner,lock/serialize
+  và40ms tiêu hao trước inference. Không đổi production hoặc nới thời gian.
+  Toàn test_orchestrator30passed; Ruff/format sạch,review độc lập không must-fix.
+- Rà metadata archive VoiceSpoof-VN chỉ nhận ZIP directory/protocol, không audio.
+  ID người nói xuất hiện nhiều tập; attack codes trong protocol chưa khớp bảng
+  giải thích README, chưa có donor/target/source crosswalk. Không đưa vào fit.
 
 ## Đang dở
 - ADB không thấy điện thoại; đã hỏi availability bất đồng bộ. Chưa cài APK mới
@@ -75,3 +85,6 @@
   Không chạy lại toàn suite cho lượt chỉ sửa tài liệu này.
 - `plan_check.py`:0lỗi/10cảnh báo đã có; gitdiffcheck sạch. Không đánh APP01
   hoặc VOICE09 done khi còn điều kiện thiếu. Các bản report/APK/DB không stage.
+- Assertion thời gian:log budget-origin-red-valid.log tái hiện2failure đúng
+  bound trước HTTP; budget-origin-green.log30passed17,60s. Lần RED đầu thiếu
+  importasyncio là lỗi helper,test đã sửa và RED lại đúng nguyên nhân trước GREEN.
