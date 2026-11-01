@@ -40,8 +40,8 @@
 
 ## Task 3: Verification and delivery
 
-- [ ] Review độc lập, test liên quan/full suite phù hợp, lint/format/lock/plan_check.
-- [ ] Sửa ghi chú dữ liệu/LTT lỗi thời, taskcard/backlog/handoff đúng trạng thái còn thiếu.
+- [x] Review độc lập SPEC/QUALITY pass;354test liên quan/4907full suite đạt,100skip; lint/format/lock/plan_check sạch.
+- [x] Sửa ghi chú dữ liệu/LTT lỗi thời, taskcard/backlog/handoff đúng trạng thái còn thiếu.
 - [ ] Draft PR riêng sau PR124, đợi CI riêng. Không merge hoặc tuyên bố AI toàn luồng đạt.
 
 ## Evidence / rulings
@@ -50,3 +50,4 @@
 - RED native fixtures sau cài SoundFile:7 fail/54 pass vì test dùng fake backend nhưng collect gọi runtime_identity thật cần Torch. Đây là lỗi isolation của test, không lý do thêm runtime fallback vào production.
 - Audit độc lập tái hiện6 lần diagnostic output trong3 kho env qua readiness_report/session.collect; output calibrator của session.fit_report là chủ ý, không coi đó là lỗi.
 - Ruling: chỉ sửa các bug/coverage đã xác định; không thiết kế schema dữ liệu mặt hoặc tự tuyên bố quyền/nguồn/độc lập.
+- Smoke source501c9e5:15CLI sai kho bị chặn trước input/model; đọc lại report DNU360hàng/356usable/4excluded, không đổi report và không inference/fit. Không dùng các con số này làm accuracy.

@@ -9,10 +9,11 @@
 - Dev thêm SoundFile/JiWER/RapidFuzz cùng bounds voice extra; lock không đổi phiên bản package hiện có. Bật18 fixture WAV +1 oracle thư viện từng skip, không cài Torch/model.
 - Sau cài SoundFile,7 test cũ lỗi vì fake backend gọi runtime_identity thật cần Torch. Fixture đã cô lập runtime synthetic, production runtime giữ nguyên; nhóm audio/matching144 đạt.
 - Sửa ghi chú research LTT lỗi thời và ghi rõ đầu vào cần nhóm cung cấp; dữ liệu TTS/VC chưa có, không bị xóa.
+- Smoke subprocess tại source sạch501c9e59fbcef3bad10c69be9726094de29a3027:15 lệnh diagnostic vào3 kho env bị chặn trước đọc input/nạp model; readiness trên report DNU thật vẫn chạy ngoài kho, giữ360 hàng/356 có score/4 bị loại và mọi cờ chưa sẵn sàng. Không inference mới, không đổi byte report thật. Bằng chứng tổng hợp: `docs/status/results/VOICE-09-diagnostic-storage-smoke-2026-11-01.json`.
 
 ## Đang dở
 <!-- file:dòng, việc gì còn dang dở -->
-- Full suite/review/CI nhánh riêng đang thực hiện. Không dùng CI parent thay thế.
+- Full suite/review/smoke hoàn tất; CI nhánh riêng sẽ ghi trên Draft PR sau push. Không dùng CI parent thay thế.
 - Thiếu dữ liệu đủ quyền/crosswalk/protocol và fitted artifacts thật; metadata mặt còn thiếu strata/runtime/gate. Chưa có điện thoại, OTP mô phỏng; không đóng toàn luồng AI.
 
 ## Bước tiếp theo
@@ -24,6 +25,7 @@
 ## Quyết định, lưu ý, bẫy
 - Không thay thresholds/contracts/ADR/proposal/STATUS, mã số học/parity NES2Net, API/Android hoặc liveDB/media. Không reset/xóa WIP, model/media/tài khoản hay khởi động API cleanup.
 - Report research không được ghi vào kho runtime; fitted calibrator output có chủ ý là loại khác, không áp guard diagnostic vào đó. Không đổi failclosed status error/degraded.
+- Phạm vi nghiệm thu: demo luồng app có thể dùng manual_full_demo với nhãn chưa hiệu chỉnh hiện có; dữ liệu thật–giả cần cho kiểm chứng AI, không cản mọi thử nghiệm luồng app. Đợt này không thay threshold/policy demo hoặc chuẩn.
 
 ## Câu hỏi cho nhóm
 <!-- Việc cần cả nhóm hoặc trưởng nhóm quyết. Trưởng nhóm gom vào STATUS.md -->
@@ -33,4 +35,6 @@
 <!-- lệnh + kết quả thật -->
 - RED17 ca guard thực tế (sau sửa lỗi tên class trong fixture), rồi56 test producer/guard đạt; thêm6 ca normalize repo storage.
 - Nhóm WAV/align/matching:144 đạt, không skip. Nhóm guard/utterance/NES/align/matching/session/readiness/candidates/LTT: **354 passed**,38.26s, không skip.
-- Ruff sạch871file; uv lock --check sạch; diff --check sạch. Full suite/review/smoke/CI sẽ ghi bổ sung sau xác nhận.
+- Full Python: **4907 passed,100 skipped**,326.77s,2 cảnh báo thư viện hiện có.19 fixture/oracle trước đây skip nay thực thi; skip còn lại giữ điều kiện model/device/DB/browser.
+- Reviewer độc lập: SPEC PASS/QUALITY PASS, không Critical/Important; tự chạy62 test producer/guard đạt,0 skip. Đây là chốt local CLI, không tuyên bố bảo vệ atomic trước filesystem đối kháng.
+- Ruff sạch872file; uv lock --check sạch; plan_check0lỗi/10cảnh báo hiện có; diff --check sạch. CLI smokeexit0; CI riêng chờ sau publish, kết quả được cập nhật ở PR để không tạo vòng commit trạng thái CI.
