@@ -17,12 +17,27 @@
 - Lượt thực tế HF torch2.8 / Fairseq torch2.2.2 trên32 WAV cho **FAIL**: max_abs_logit_diff `9.441375732421875e-05`, max_abs_margin_diff `0.00017642974853515625`, cùng dấu32/32. Margin vượt1e-4; không tăng tolerance hoặc tự gắn frontend_parity_verified.
 - Hai bên cùng Torch2.2.2 nhưng reference1/converted4 threads vẫn **FAIL**,
   max margin diff `0.00017595291137695312`, cùng dấu32/32. Như vậy riêng đổi
-  Torch không giải thích sai lệch. Đang kiểm lại với **cùng4 threads** trước
-  kết luận cuối; không thay tolerance hoặc đổi acceptance.
+  Torch không giải thích sai lệch. Sau khi đồng bộ **cùng4 threads**, lượt cuối
+  trên source commit `52cebaf8890479d89638b0423a802af85c8cc0c6` đã **PASS**:
+  max logit diff `1.3470649719238281e-05`, max margin diff `2.47955322265625e-05`,
+  cùng dấu32/32. Không thay tolerance hoặc đổi acceptance. Kết luận giới hạn ở
+  32 WAV/9 speaker và các runtime ghi trong báo cáo; không phải accuracy.
 - Git WSL không đọc được `.git` trỏ `D:/...` của worktree Windows, báo cáo lượt
   trước ghi `commit:unknown`. Công cụ thêm `--source-commit` để truyền SHA thật
   đã kiểm trên Windows, cộng hash script/runtime để lần cuối có provenance đủ.
-- Chưa có bộ gộp điểm/hiệu chỉnh trên dữ liệu thật/giả đúng protocol và split theo người. Không đưa VIVOS test-only vào fit/chọn ngưỡng.
+- Báo cáo cuối `D:/vericlue/tmp/finish-2026-11-01/nes2net-parity-matched-runtime.json`
+  có scriptSHA `a449c9a3e523328c2a4fb671a5059937bfe52bbc512ab034d9e32fe3aaff6e32`,
+  Torch2.2.2 cả hai bên, Transformers4.57.6, NumPy1.26.4, Fairseq0.12.2.
+  Các báo cáo FAIL vẫn giữ nguyên.
+- Kiểm riêng runtime Windows **cũng PASS** trên cùng32 PCM (kiểm hash toàn mảng
+  và từng cửa sổ/thứ tự trước suy luận), so với logits Fairseq4threads đã lưu:
+  max logit diff `4.839897155761719e-05`, max margin diff `7.271766662597656e-05`,
+  cùng dấu32/32. Runtime Windows Python3.12.15/Torch2.14.1CPU/HF4.57.6/NumPy2.5.4,
+  4threads; báo cáo `nes2net-parity-windows.json`, commit source52cebaf.
+- Chưa tích hợp bằng chứng parity thành artifact được detector kiểm tra, chưa có
+  bộ gộp điểm/hiệu chỉnh trên dữ liệu thật/giả đúng protocol và split theo người.
+  Không đưa VIVOS test-only vào fit/chọn ngưỡng. Detector vẫn diagnostic/degraded;
+  không coi parity PASS là chứng minh chống giả giọng hoặc quyền cấp tài khoản.
 
 ## Bước tiếp theo
 <!-- Viết đủ rõ để người khác hoặc AI khác làm ngay, không cần hỏi lại -->
@@ -32,6 +47,9 @@
 
 ## Quyết định, lưu ý, bẫy
 - Log và báo cáo local: `D:/vericlue/tmp/finish-2026-11-01/`. Danh sách WAV và provenance giữ ở `D:/vericlue/data/diagnostics/nes2net-parity-vivos/` (không commit dữ liệu).
+- Bản tóm tắt số đo không chứa audio/định danh từng người được ghi tại
+  `docs/status/results/VOICE-09-parity-2026-11-01.json`, kèm commit/model/runtime,
+  số mẫu/người, hash báo cáo local và giới hạn kết luận.
 - Lượt parity đầu thực thi trên working tree nền c7613cc (trước commit tích hợp), dùng đúng sửa worker/reader được ghi trong thay đổi này. Báo cáo lượt tiếp theo có `script_sha256` để nối đúng source; kết quả không phải accuracy hay APCER/BPCER.
 - Không sửa `thresholds.yaml`, không tạo artifact xác suất/ngưỡng giả, không thay .env hoặc server, không push/PR/tắt máy.
 

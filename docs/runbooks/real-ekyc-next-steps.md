@@ -19,6 +19,14 @@ parity số học hoặc màn thành công là số liệu chống giả mạo.
 
 Lệnh parity và cách dựng môi trường: [README parity](../../ml/scripts/README-parity-nes2net.md).
 Đọc báo cáo thực tế; không suy kết quả PASS từ việc có đủ file trên ổ đĩa.
+Lượt source `52cebaf` trên32 WAV/9 speaker với Torch2.2.2/cùng4 threads đã PASS
+(max margin diff `2.47955322265625e-05`,32/32 cùng dấu). Hai lượt trước khác
+số threads không đạt vẫn được giữ để truy vết. Không suy kết quả này thành
+chất lượng chống giả giọng hoặc giấy phép mở chốt khi thiếu hiệu chỉnh.
+Runtime Windows Torch2.14.1CPU/HF4.57.6 cũng đã đo trên cùng32 PCM/hash và logits
+Fairseq4threads: PASS, max margin diff `7.271766662597656e-05`,32/32 cùng dấu;
+xem `nes2net-parity-windows.json`. Vẫn cần tích hợp artifact bằng chứng runtime,
+gộp điểm và hiệu chỉnh trước khi đổi trạng thái diagnostic của detector.
 
 ## Phần dữ liệu vẫn cần
 
