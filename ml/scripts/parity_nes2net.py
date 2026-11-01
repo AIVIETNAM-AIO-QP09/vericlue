@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.metadata
 import json
 import os
 import subprocess
@@ -52,12 +53,18 @@ output_path = Path(sys.argv[5]).resolve()
 sys.path.insert(0, str(upstream_dir))
 import fairseq
 import fairseq.checkpoint_utils as cu
+from fairseq.tasks.audio_pretraining import AudioPretrainingConfig, AudioPretrainingTask
 import numpy as np
 import torch
 
 orig_load = cu.load_model_ensemble_and_task
 
 def patched_load(filenames, arg_overrides=None, **kwargs):
+    # The public XLS-R checkpoint contains obsolete dataset/training task fields
+    # (multiple_train_files/eval_wer/...). Fairseq 0.12.2 cannot merge them.
+    # This task only constructs the checkpoint's unchanged model graph; no dataset
+    # or task inference/preprocessing is used. Both sides receive identical PCM.
+    kwargs.setdefault("task", AudioPretrainingTask(AudioPretrainingConfig()))
     return orig_load([str(xlsr_path)], arg_overrides=arg_overrides, **kwargs)
 
 cu.load_model_ensemble_and_task = patched_load
@@ -70,7 +77,7 @@ class Args:
     pool_func = "mean"
     SE_ratio = [1]
 
-torch.set_num_threads(1)
+torch.set_num_threads(int(sys.argv[6]))
 torch.manual_seed(0)
 device = "cpu"
 model = UpstreamModel(Args(), device).to(device="cpu", dtype=torch.float32)
@@ -116,6 +123,13 @@ def _sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _package_version(name: str) -> str | None:
+    try:
+        return importlib.metadata.version(name)
+    except importlib.metadata.PackageNotFoundError:
+        return None
 
 
 def _sha256_array(values: np.ndarray) -> str:
@@ -210,7 +224,7 @@ def prepare_window_records(
     else:
         assert audio_files is not None
         for audio_path in audio_files:
-            raw = nes2net._read_pcm(audio_path)
+            raw = nes2net.Nes2NetDetector._read_file(audio_path)
             window = nes2net.prepare_samples(raw, nes2net.SAMPLE_RATE)
             records.append(
                 {
@@ -256,6 +270,7 @@ def compare_logits(
     reference_logits: list[list[float]],
     *,
     synthetic: bool = False,
+    records: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Compare converted vs Fairseq reference logits and margins on identical windows."""
     if len(converted) != len(reference_logits) or not converted:
@@ -288,11 +303,17 @@ def compare_logits(
         and max_margin_diff <= MARGIN_DIFF_TOLERANCE
         and sign_agreement == 1.0
     )
-    enough_clips = (not synthetic) and len(converted) >= MIN_PARITY_CLIPS
+    diversity = check_sample_diversity(records) if records is not None else None
+    independent_count = (
+        diversity["independent_sample_count"] if diversity is not None else len(converted)
+    )
+    no_duplicates = diversity["all_unique"] if diversity is not None else True
+    enough_clips = (not synthetic) and independent_count >= MIN_PARITY_CLIPS and no_duplicates
     status = "PASS" if (numerical_ok and enough_clips) else "UNVERIFIED" if numerical_ok else "FAIL"
-    return {
+    out = {
         "status": status,
         "window_count": len(converted),
+        "independent_sample_count": independent_count,
         "synthetic": synthetic,
         "min_required_clips": MIN_PARITY_CLIPS,
         "max_abs_logit_diff": max_logit_diff,
@@ -306,6 +327,37 @@ def compare_logits(
             "sign_agreement": 1.0,
         },
     }
+    if diversity is not None:
+        out["diversity"] = diversity
+    return out
+
+
+def check_sample_diversity(records: list[dict[str, Any]]) -> dict[str, Any]:
+    """Verify independence/diversity of prepared windows so duplicates cannot inflate sample count."""
+    unique_window_hashes = {
+        str(rec["window_sha256"]) for rec in records if rec.get("window_sha256")
+    }
+    unique_source_hashes = {
+        str(rec["source_sha256"]) for rec in records if rec.get("source_sha256")
+    }
+    unique_audio_hashes = {str(rec["audio_sha256"]) for rec in records if rec.get("audio_sha256")}
+    total = len(records)
+    unique_windows = len(unique_window_hashes)
+    unique_sources = len(unique_source_hashes)
+    unique_audios = len(unique_audio_hashes) if unique_audio_hashes else unique_sources
+    duplicate_window_count = max(0, total - unique_windows)
+    duplicate_source_count = max(0, total - unique_sources)
+    independent_count = min(unique_windows, unique_sources, unique_audios)
+    return {
+        "total_records": total,
+        "unique_window_count": unique_windows,
+        "unique_source_count": unique_sources,
+        "unique_audio_file_count": unique_audios,
+        "duplicate_window_count": duplicate_window_count,
+        "duplicate_source_count": duplicate_source_count,
+        "independent_sample_count": independent_count,
+        "all_unique": bool(total > 0 and independent_count == total),
+    }
 
 
 def _run_reference_python(
@@ -314,6 +366,7 @@ def _run_reference_python(
     xlsr_checkpoint: Path,
     nes2net_checkpoint: Path,
     windows: np.ndarray,
+    cpu_threads: int = 4,
 ) -> dict[str, Any]:
     upstream_script = (upstream_dir / UPSTREAM_MODEL_REL).resolve()
     if not upstream_script.is_file():
@@ -349,6 +402,7 @@ def _run_reference_python(
                 str(nes2net_checkpoint.resolve()),
                 str(windows_path),
                 str(output_path),
+                str(cpu_threads),
             ],
             env=child_env,
             check=True,
@@ -400,7 +454,17 @@ def main(argv: list[str] | None = None) -> int:
         required=True,
         help="New JSON file path to write the parity report",
     )
+    parser.add_argument(
+        "--source-commit",
+        help="Verified 40-hex source commit when Windows git worktree metadata is unreadable in WSL",
+    )
     args = parser.parse_args(argv)
+
+    if args.source_commit is not None and (
+        len(args.source_commit) != 40
+        or any(c not in "0123456789abcdef" for c in args.source_commit)
+    ):
+        parser.error("--source-commit must be a lowercase 40-hex Git commit")
 
     if args.output.exists():
         parser.error(f"Output file already exists: {args.output}")
@@ -418,17 +482,25 @@ def main(argv: list[str] | None = None) -> int:
     backend.preload()
     converted = run_converted_windows(backend, windows)
 
+    diversity = check_sample_diversity(records)
     report: dict[str, Any] = {
         "task": "VOICE-08/VOICE-09",
         "model_version": nes2net.VERSION,
         "upstream_revision": UPSTREAM_COMMIT,
-        "commit": _git_commit(),
+        "commit": args.source_commit or _git_commit(),
+        "script_sha256": _sha256_file(Path(__file__)),
         "date": datetime.now(UTC).isoformat(),
         "windows_sha256": windows_sha256,
         "window_count": len(records),
+        "independent_sample_count": diversity["independent_sample_count"],
+        "diversity": diversity,
         "synthetic_smoke": bool(args.synthetic_smoke),
         "converted_runtime": {
             "python_version": sys.version.split()[0],
+            "torch_version": _package_version("torch"),
+            "transformers_version": _package_version("transformers"),
+            "numpy_version": np.__version__,
+            "cpu_threads": backend.config.get("cpu_threads", 4),
             "verified_model_hashes": dict(backend.model_hashes),
             "load_report": dict(backend.load_report),
         },
@@ -449,17 +521,21 @@ def main(argv: list[str] | None = None) -> int:
             args.xlsr_checkpoint,
             checkpoint_path,
             windows,
+            cpu_threads=backend.config.get("cpu_threads", 4),
         )
         comparison = compare_logits(
             converted,
             ref_out["window_logits"],
             synthetic=bool(args.synthetic_smoke),
+            records=records,
         )
         report["reference_runtime"] = {
             "python_version": ref_out["python_version"],
             "torch_version": ref_out["torch_version"],
             "fairseq_version": ref_out["fairseq_version"],
+            "cpu_threads": backend.config.get("cpu_threads", 4),
         }
+        report["reference_window_logits"] = ref_out["window_logits"]
         report["comparison"] = comparison
         report["status"] = comparison["status"]
     else:

@@ -301,6 +301,26 @@ def _load_parity_script():
     return module
 
 
+def test_parity_reads_native_wav_and_keeps_exact_scored_samples(tmp_path, speech):
+    import wave
+
+    pytest.importorskip("soundfile")
+    parity = _load_parity_script()
+    t = np.arange(64000, dtype=np.float32) / 16000
+    pcm = (np.sin(2 * np.pi * 220 * t) * 10000).astype("<i2")
+    audio = tmp_path / "native.wav"
+    with wave.open(str(audio), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(16000)
+        handle.writeframes(pcm.tobytes())
+    records, windows = parity.prepare_window_records(audio_files=[audio])
+    assert windows.shape == (1, 64000)
+    np.testing.assert_array_equal(windows[0], pcm.astype(np.float32) / 32768)
+    assert records[0]["synthetic"] is False
+    assert records[0]["source_sha256"] == records[0]["window_sha256"]
+
+
 def test_parity_compare_logits_enforces_tolerance_sign_and_sample_count():
     parity = _load_parity_script()
     converted = [
@@ -317,6 +337,30 @@ def test_parity_compare_logits_enforces_tolerance_sign_and_sample_count():
         parity.compare_logits(converted[:8], reference[:8], synthetic=False)["status"]
         == "UNVERIFIED"
     )
+
+    # Duplicate clips/windows must not count as 32 independent samples for PASS.
+    unique_records = [
+        {
+            "clip_id": f"clip_{i}.wav",
+            "audio_sha256": f"{i:064x}",
+            "source_sha256": f"{i + 100:064x}",
+            "window_sha256": f"{i + 200:064x}",
+        }
+        for i in range(32)
+    ]
+    assert (
+        parity.compare_logits(converted, reference, synthetic=False, records=unique_records)[
+            "status"
+        ]
+        == "PASS"
+    )
+    duplicated_records = [dict(unique_records[i % 16]) for i in range(32)]
+    dup_cmp = parity.compare_logits(
+        converted, reference, synthetic=False, records=duplicated_records
+    )
+    assert dup_cmp["status"] == "UNVERIFIED"
+    assert dup_cmp["independent_sample_count"] == 16
+    assert dup_cmp["diversity"]["all_unique"] is False
 
     # Exceeding logit tolerance or flipping margin sign must FAIL.
     drifted = [[row[0] + 5e-4, row[1]] for row in reference]
@@ -488,6 +532,19 @@ class Module:
         '__version__ = "0.12.2"\nfrom . import checkpoint_utils\n',
         encoding="utf-8",
     )
+    task_pkg = fairseq_pkg / "tasks"
+    task_pkg.mkdir()
+    (task_pkg / "__init__.py").write_text("", encoding="utf-8")
+    (task_pkg / "audio_pretraining.py").write_text(
+        """class AudioPretrainingConfig:
+    pass
+
+class AudioPretrainingTask:
+    def __init__(self, cfg):
+        self.cfg = cfg
+""",
+        encoding="utf-8",
+    )
     (fairseq_pkg / "checkpoint_utils.py").write_text(
         """import numpy as np
 import torch
@@ -507,6 +564,10 @@ class _DummyW2V(nn.Module):
 
 def load_model_ensemble_and_task(filenames, arg_overrides=None, **kwargs):
     assert filenames and ("/" in filenames[0] or "\\\\" in filenames[0])
+    # XLS-R's legacy dataset config cannot be merged by Fairseq 0.12.2.
+    # The worker must pass an inference-only task while preserving model config/weights.
+    assert kwargs.get("task") is not None
+    assert torch.threads == 4
     return [_DummyW2V()], None, None
 """,
         encoding="utf-8",

@@ -147,7 +147,8 @@ class Nes2NetBackend:
         config = Wav2Vec2Config(**self.config["backbone"])
         config._attn_implementation = "eager"
         model = Network(config)
-        state = torch.load(path, map_location="cpu", weights_only=True, mmap=True)
+        # Torch 2.2's mmap loader requires str rather than a Path object.
+        state = torch.load(str(path), map_location="cpu", weights_only=True, mmap=True)
         if (
             not isinstance(state, dict)
             or not state
