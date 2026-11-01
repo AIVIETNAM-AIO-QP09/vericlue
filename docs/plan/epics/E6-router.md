@@ -107,6 +107,17 @@ không migration mới và không sửa hai file review của REV-01.
 - [ ] Nếu không đạt α = 5% do thiếu mẫu thì ghi rõ α thực tế đạt được (xem Phụ lục C).
 - [ ] Bất đẳng thức hợp: báo cáo tỷ lệ lọt cả quy trình ≤ α_mặt + α_giọng.
 
+**Tiến độ 01/11 — phần offline, chưa chứng nhận ngưỡng:**
+- [x] Core `router/ltt.py`: MAPIE 1.4.1 HB nhị phân, max-p qua strata rồi Holm một lần trên toàn lưới; biên mặt/giọng và review/challenge tách riêng.
+- [x] Kiểm protocol/lưới/delta và nhóm phụ thuộc; từ chối thiếu strata hoặc nhiều quan sát trong cùng nhóm/stratum. 48 test synthetic đạt, có oracle thống kê và review độc lập.
+- [ ] Consumer artifact + đánh giá test sau khóa LTT, CLI và smoke offline.
+- [ ] Dữ liệu/artifact thật đủ quyền, độc lập và đúng model/runtime; chưa có kết quả R4, chưa sửa thresholds.yaml hoặc mở chốt runtime.
+
+Xem [giới hạn LTT offline](../../runbooks/offline-ltt.md). Mốc 59/60 mẫu chỉ
+áp dụng kiểm định đơn dưới giả định độc lập; không tự đủ cho toàn lưới.
+Union bound toàn quy trình còn cần quần thể/sự kiện mặt–giọng tương thích và
+phân bổ delta chung; chưa được kiểm chứng bằng bộ dữ liệu hiện có.
+
 ---
 
 ### ROUT-04 · Cổng ngoài phạm vi

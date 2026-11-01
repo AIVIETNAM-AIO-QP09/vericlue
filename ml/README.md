@@ -21,6 +21,11 @@
 
 ## Quy ước bắt buộc
 
+ROUT-03 (01/11): core LTT offline dùng MAPIE 1.4.1 HB/max-p/Holm trên lưới
+khai báo trước, kiểm quan sát độc lập theo người/nguồn. Kết quả ứng viên luôn
+provisional và không đủ điều kiện runtime; không cài ngưỡng vào API.
+[Phương pháp và giới hạn](../docs/runbooks/offline-ltt.md).
+
 VOICE-09/APP-01 (01/11): công cụ offline `eval.nes2net_utterance` gộp max margin
 toàn câu có version riêng; chỉ có score khi mọi cửa sổ đo được. Prepare/collect/
 fit kiểm provenance/split theo người và nguồn, không cài artifact hoặc đổi API.
