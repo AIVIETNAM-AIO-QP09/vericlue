@@ -19,11 +19,12 @@ import numpy as np
 
 from vericlue_ml.common.detector import DetectorInput
 from vericlue_ml.common.result import ErrorCode, Evidence, Gate, Module, ModuleResult, Status
-from vericlue_ml.face.enrolled import RECOVERY_MATCH_VERSION
+from vericlue_ml.face.enrolled import recovery_match_version
 from vericlue_ml.face.match import FaceMatchDetector, MatchThreshold
 from vericlue_ml.face.pad import PadError
 from vericlue_ml.face.video_match import VIDEO_MATCH_VERSION
 from vericlue_ml.presence.challenge import expected_dynamic
+from vericlue_ml.presence.head_protocol import head_protocol_version
 from vericlue_ml.presence.head_turn import CENTER_MAX_DEG, MAX_PITCH_ROLL_DEG
 from vericlue_ml.presence.landmarks import FaceObservationReader, LandmarkError
 from vericlue_ml.presence.views import (
@@ -163,10 +164,13 @@ class FaceContinuityDetector:
         is_recovery = inp.metadata.get("purpose") == "recovery" and bool(
             inp.metadata.get("account_id")
         )
+        recovery_version = (
+            recovery_match_version(head_protocol_version(inp)) if is_recovery else None
+        )
         expected_versions = (
-            (RECOVERY_MATCH_VERSION + suffix,)
+            (recovery_version + suffix,)
             if is_recovery and using_manual
-            else (RECOVERY_MATCH_VERSION,)
+            else (recovery_version,)
             if is_recovery
             else tuple(dict.fromkeys(v + suffix for v in (VIDEO_MATCH_VERSION, *supported)))
             if using_manual

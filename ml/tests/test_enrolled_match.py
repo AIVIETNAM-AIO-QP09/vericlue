@@ -82,6 +82,8 @@ def setup(monkeypatch, tmp_path, *, recovery=False):
                     "version": 1,
                     "session_id": "ses_current",
                     "frontal_capture_at_ms": 250,
+                    "head_start_at_ms": 1000,
+                    "head_duration_ms": 6000,
                 },
             },
         },
@@ -124,6 +126,39 @@ def test_missing_calibrator_cannot_pass_even_with_identical_vectors(
     matcher, inp, template, _, _, _ = setup(monkeypatch, tmp_path, recovery=recovery)
     result = match_enrolled(matcher, inp, template, None)
     assert result.status == "degraded" and result.gate == "unclear"
+
+
+@pytest.mark.parametrize("protocol", [1, 2])
+@pytest.mark.parametrize("match_protocol", [1, 2])
+@pytest.mark.parametrize("consistency_protocol", [1, 2])
+def test_recovery_requires_exact_capture_protocol_for_both_thresholds(
+    monkeypatch, tmp_path, protocol, match_protocol, consistency_protocol
+):
+    matcher, inp, template, artifact, _, _ = setup(monkeypatch, tmp_path, recovery=True)
+    inp.metadata["expected_challenge"]["dynamic"].update(
+        version=protocol, head_duration_ms=6000 * protocol
+    )
+    match_version = RECOVERY_MATCH_VERSION + ("+head12s-v2" if match_protocol == 2 else "")
+    consistency_version = (
+        VIDEO_MATCH_VERSION
+        + ("+head12s-v2" if consistency_protocol == 2 else "")
+        + "+view-consistency-v1"
+    )
+    artifact.write_text(json.dumps(threshold(match_version)))
+    matcher._consistency_threshold = MatchThreshold(**threshold(consistency_version))
+    result = match_enrolled(matcher, inp, template, artifact)
+    if protocol == match_protocol == consistency_protocol:
+        assert result.status == "ok" and result.gate == "pass"
+        assert result.model_version == match_version
+    else:
+        assert result.status != "ok" and result.gate == "unclear"
+
+
+def test_recovery_rejects_head_protocol_duration_mismatch(monkeypatch, tmp_path):
+    matcher, inp, template, artifact, _, _ = setup(monkeypatch, tmp_path, recovery=True)
+    inp.metadata["expected_challenge"]["dynamic"]["head_duration_ms"] = 12000
+    result = match_enrolled(matcher, inp, template, artifact)
+    assert result.status != "ok" and result.gate == "unclear"
 
 
 @pytest.mark.parametrize(

@@ -8,6 +8,12 @@ thiếu biên nhận đúng scope/version thì server không trích mẫu hoặc
 trong synthetic; chưa phải đường đã hiệu chỉnh. Reauth có thể nạp/chạy matcher
 video độc lập bộ quét CCCD. [Chi tiết](../../docs/architecture/mobile-privacy-integration.md).
 
+**Review trước PR (01/11):** đường chuẩn từ chối policy ngưỡng còn provisional.
+Luồng tài khoản chuẩn yêu cầu profile có ChromaPulse như bước ghi danh/ký kết
+quả, nên MVP thiếu mô-đun này bị chặn sớm. Recovery ràng buộc cả ngưỡng đối chiếu,
+nhất quán ba góc và kết quả tham chiếu với đúng head protocol; v2 dùng version
+recovery có hậu tố `+head12s-v2`. Không đổi thresholds.yaml hoặc mở chốt demo.
+
 **APP-01/FLOW-04 (31/10, manual demo):** opt-in MANUAL_FACE_DEMO dùng điểm thô
 AI thật và ngưỡng thủ công riêng, không giả artifact/probability. Chỉ onboarding
 synthetic+mvp+ekyc, không enrollment/credentials/signing. API vẫn review, thêm
