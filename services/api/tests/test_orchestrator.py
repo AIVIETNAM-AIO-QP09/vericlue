@@ -1,5 +1,6 @@
 """PLAT-08 bounded parallel detector execution with CPU-only fakes."""
 
+import asyncio
 import threading
 import time
 from collections import Counter
@@ -11,6 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
+from vericlue_api.core import state as application_state
 from vericlue_api.core.config import Settings, get_settings
 from vericlue_api.db.models import ModuleResultRow
 from vericlue_api.main import create_app
@@ -690,11 +692,31 @@ def test_three_concurrent_finalize_requests_all_pass_and_store_five_results(monk
 
 
 @pytest.mark.parametrize("step", ["finalize", "voice"])
-def test_sqlite_guarded_routes_pass_lock_timeout_and_consume_absolute_budget(monkeypatch, step):
+@pytest.mark.parametrize("admission_delay", [0, 0.35])
+def test_sqlite_guarded_routes_pass_lock_timeout_and_consume_absolute_budget(
+    monkeypatch, step, admission_delay
+):
     monkeypatch.setenv("INFERENCE_BUDGET_SECONDS", "0.25")
     get_settings.cache_clear()
     try:
-        with TestClient(create_app()) as client:
+        budget_origins = []
+        real_clock = application_state.perf_counter
+
+        def budget_clock():
+            now = real_clock()
+            budget_origins.append(now)
+            return now
+
+        monkeypatch.setattr(application_state, "perf_counter", budget_clock)
+        app = create_app()
+
+        @app.middleware("http")
+        async def delayed_admission(request, call_next):
+            if admission_delay and request.url.path.endswith(("/finalize", "/voice")):
+                await asyncio.sleep(admission_delay)
+            return await call_next(request)
+
+        with TestClient(app) as client:
             body = client.post("/v1/sessions").json()
             sid = body["session_id"]
             root = client.app.state.vericlue
@@ -740,7 +762,9 @@ def test_sqlite_guarded_routes_pass_lock_timeout_and_consume_absolute_budget(mon
             assert response.status_code == 200 and response.json() == {"status": "pass"}
             timeout, deadline = transaction_arguments[-1]
             assert timeout == root.settings.db_lock_timeout_seconds
-            assert before < deadline <= before + 0.3
+            # The inference budget starts in get_state, after HTTP admission/parsing.
+            assert before <= budget_origins[-1]
+            assert deadline == budget_origins[-1] + 0.25
             assert runner_arguments and runner_arguments[0][0] == deadline
             assert 0 < deadline - runner_arguments[0][1] < 0.23
             # Non-inference endpoints do not consume the inference deadline.
