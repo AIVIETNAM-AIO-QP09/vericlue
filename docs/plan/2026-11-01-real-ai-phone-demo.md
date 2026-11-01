@@ -66,4 +66,11 @@ Read common/manual_demo.py, runtime/voice_{wire,worker,client}.py, SessionVoiceD
 - Ruling: thực hiện trong thiết kế manual_full_demo đã có và được người dùng chấp thuận; không xin lại lựa chọn hướng. Hoàn thiện đường model raw có version riêng, không nới chốt standard hoặc promote kết quả diagnostic.
 - Ruling: defaults0.50 là mốc demo công khai, không suy từ dữ liệu; model thật có thể từ chối lượt thử. Không hứa mọi lượt sẽ pass.
 - Ruling: một profile/DB/media mới tránh cleanup và đụng tài khoản/khóa gốc. Gói mới không thay file cũ; cài đè chỉ khi điện thoại có mặt.
-- Task1/2: pending implementers. Task3: root active inventory/profile; chưa start model/server nào.
+- Task1/2: code hoàn tất và đã review độc lập tại source7904d70. Python4998
+  passed/100 skipped; Android223 test và lint/assemble/Paparazzi qua.
+- Task3: source/APK đóng gói ngoài Git; native Anti/Qwen/CTC một mẫu chọn trước,
+  SyncNet tensor forward và API/DB0011/chốt consent/dừng-mở server đã qua.
+  Bằng chứng ở `docs/status/results/APP-01-phone-demo-preflight-2026-11-01.json`.
+  Không nghiệm thu video mặt–giọng hoặc ba luồng trên điện thoại. Review cuối
+  đã phát hiện/sửa stop không phụ thuộc HTTP và cài trên máy chưa có app;
+  launcher/private checklist được kiểm lại trước bàn giao.

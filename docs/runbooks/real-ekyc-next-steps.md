@@ -3,7 +3,39 @@
 Phạm vi Android, API và mô hình; OTP vẫn mô phỏng. Không coi test phần mềm,
 parity số học hoặc màn thành công là số liệu chống giả mạo.
 
-## Trạng thái mới nhất · 18:44 ngày 01/11
+## Chuẩn bị thử sáng 02/11 · source 7904d70
+
+Phần triển khai trước khi có điện thoại đã hoàn tất ở source
+`7904d7092baaa338f06351688286c1f4dc440ea0`; chưa nghiệm thu ba luồng trên thiết bị.
+Gói mới cô lập tại `D:/vericlue/tmp/phone-demo-2026-11-02/`, không dùng DB/media
+cũ cho lifespan cleanup. Helper của gói: `START-DEMO.cmd`, `STATUS-DEMO.cmd`,
+`STOP-DEMO.cmd`, `CONNECT-PHONE.cmd`. Xem checklist/build-info đi kèm và
+[policy manual v2](manual-face-demo.md).
+
+- `MANUAL_FULL_DEMO` nối raw AntiDeepfake + SyncNet, ngưỡng minh họa 0.50/0.50,
+  hash/version riêng, null probability, không nâng NES2Net diagnostic thành đạt.
+  Cả spoof/lipsync phải đúng policy và có evidence hợp lệ; lỗi vẫn từ chối.
+- Native AntiDeepfake/Qwen/CTC đã suy luận một mẫu `calib_fit` chọn trước,
+  không fit/chọn ngưỡng; CTC giữ diagnostic. SyncNet forward tensor hữu hạn,
+  chưa video nói thực. API/DB0011, chốt thiếu consent/receipt và dừng/mở server
+  đã qua. [Bằng chứng smoke](../status/results/APP-01-phone-demo-preflight-2026-11-01.json).
+  Full Python: 4998 passed, 100 skipped; các test PostgreSQL/native opt-in có
+  phần bỏ qua cục bộ, không gọi toàn bộ integration đã chạy.
+- APK 0.3.0 dùng localhost:8421, `signedMedia=true`, `liveByDefault=true`,
+  `presenceTrace=false`. Cùng signer debug laptop
+  `822e5e44be42ce365f186a6c73af5bf36eb262c3cc65011b4269363adc695c75`,
+  APK v2=true/v3=false; không phải khóa phát hành repo. Cài đè `-r` sau khi
+  kiểm signer máy, không uninstall/clear. Chưa có điện thoại cho lượt này.
+- Android giữ mode/hash qua lưu/khôi phục tài khoản và nhãn demo ở mọi màn
+  hoàn tất; không fallback sang scripted success khi API lỗi. Receipt/khóa cũ
+  giữ lại khi mismatch hoặc thao tác lỗi; không tự xóa legacy account.
+- OTP ngẫu nhiên hiển thị qua `simulated_sms`, không dùng mã cố định `123456`.
+  Consent xử lý phiên và lưu mẫu vẫn cần hai lựa chọn chủ động.
+- Cả ba luồng đăng ký/reauth/recovery, CCCD, sinh trắc, Keystore và phục hồi
+  tiến trình trên máy thật của gói mới: **not_run**. Chưa có accuracy AI hoặc
+  bằng chứng đủ điều kiện mở chế độ chuẩn; APP-01/FLOW-04/SEC-09 giữ `doing`.
+
+## Lịch sử · 18:44 ngày 01/11
 
 - Ba Draft PR nối tiếp đã xuất bản: [118 Android/API/SEC09](https://github.com/AIVIETNAM-AIO-QP09/vericlue/pull/118),
   [119 parity/toàn câu](https://github.com/AIVIETNAM-AIO-QP09/vericlue/pull/119),
@@ -134,7 +166,8 @@ phù hợp trước khi gọi hệ thống đã hiệu chỉnh. Không đổi fi
 4. Recovery: dùng binding tài khoản, OTP, mặt và giọng đúng chốt; không đổi khóa
    trước khi đủ điều kiện. Thử sai người, sai câu, không khớp môi và hết hạn.
 5. Thử trùng CCCD, rút đồng ý, mất mạng, tắt/mở app và khôi phục tiến trình.
-   Giữ tài khoản cũ khi lượt mới lỗi; không hiện thành công nếu receipt chưa lưu.
+   Giữ tài khoản cũ khi lượt mới lỗi. Phiên đạt nhưng receipt thiếu/lưu lỗi
+   phải báo tài khoản chưa lưu, không mở tài khoản hoặc nhận account-ready.
 
 Chỉ ghi luồng nào đã thực sự nghiệm thu; không dùng detector giả hoặc hạ chốt
 để quay đủ màn. Bản ngưỡng thủ công luôn mang nhãn thử nghiệm và không thay

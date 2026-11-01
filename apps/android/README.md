@@ -4,6 +4,37 @@
 
 ## Trạng thái
 
+**Chuẩn bị thử sáng 02/11 — source 7904d70:** triển khai trước khi có điện thoại
+đã hoàn tất; ba luồng AI thật trên máy vẫn chưa nghiệm thu. Gói cô lập tại
+`D:/vericlue/tmp/phone-demo-2026-11-02/`, source đầy đủ
+`7904d7092baaa338f06351688286c1f4dc440ea0`. APK 0.3.0 dùng localhost:8421,
+`-Pvericlue.signedMedia=true -Pvericlue.liveByDefault=true -Pvericlue.presenceTrace=false`.
+Cờ `LIVE_API_DEFAULT` mở API thật từ đầu; debug mặc định vẫn cho gallery khi
+không truyền option, release luôn bật API. API lỗi không tự rơi sang kết quả
+đạt dựng sẵn; gallery offline được ghi rõ là xem trước.
+
+Tài khoản lưu thêm `evaluationMode`/`demoPolicyId` từ phiên đã đối chiếu;
+reauth/recovery kiểm metadata với phiên mới, giữ receipt/alias/khóa cũ khi lỗi
+hoặc không khớp. Bản lưu cũ chưa biết mode không được đoán thành standard/manual
+và không tự bị xóa. Nhãn “Demo · Ngưỡng chưa hiệu chỉnh” còn ở Success,
+BankOpened và tài khoản demo được khôi phục từ lưu trữ.
+
+APK gói mới dùng cùng signer debug laptop SHA-256
+`822e5e44be42ce365f186a6c73af5bf36eb262c3cc65011b4269363adc695c75`;
+v2=true/v3=false, không phải khóa phát hành repo. Kiểm signer máy trước
+`adb install -r`, không uninstall/clear. Nối API qua `adb reverse tcp:8421 tcp:8421`
+hoặc helper `CONNECT-PHONE.cmd` của gói. OTP là mã ngẫu nhiên hiển thị từ
+`simulated_sms`, không mặc định `123456`.
+
+Server manual full demo dùng raw AntiDeepfake + SyncNet, policy v2 và ngưỡng
+minh họa chưa hiệu chỉnh. Native AntiDeepfake/Qwen/CTC đã suy luận một mẫu
+`calib_fit` chọn trước; SyncNet forward tensor hữu hạn, chưa nghiệm thu video
+nói thật. Smoke API/DB0011 và chốt thiếu consent đã qua. CCCD/mặt/giọng/Keystore và đăng ký/reauth/recovery trên
+điện thoại cho gói này đều `not_run`. Những đoạn ngày 30–31/10 dưới đây ghi
+lịch sử face-only/guard chuẩn, không phải phạm vi full demo mới. Xem
+[runbook manual](../../docs/runbooks/manual-face-demo.md) và
+[checklist nghiệm thu](../../docs/runbooks/real-ekyc-next-steps.md).
+
 **Review timestamp trước PR (01/11):** không suy thời gian chụp từ lúc giao frame.
 Camera chỉ chuyển đổi hai miền đồng hồ đã nhận diện và giữ tuổi khung; timestamp
 không hợp lệ/bất định bị bỏ trước phân tích hoặc ghi frame_times. Hướng dẫn quay
