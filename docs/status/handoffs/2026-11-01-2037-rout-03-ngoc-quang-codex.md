@@ -13,7 +13,7 @@
 
 ## Đang dở
 <!-- file:dòng, việc gì còn dang dở -->
-- Full suite và smoke subprocess đang chạy/chuẩn bị ở commit code; chưa có phép fit hoặc LTT thật.
+- Chưa có phép fit hoặc LTT thật đủ hai lớp; smoke CLI synthetic hoàn tất, không chạy trọng số mới.
 - Chưa có lớp TTS/VC đủ quyền/crosswalk nguồn–người. DNU chỉ bona fide; VIVOS32 chỉ parity, tuyệt đối không hiệu chỉnh. Không có artifact nhận diện/hiệu chỉnh đầy đủ để mở chốt sinh trắc.
 - Chưa có điện thoại; demo AI thật toàn luồng chưa nghiệm thu, OTP vẫn mô phỏng.
 
@@ -40,4 +40,8 @@
 - Candidate: 54 test mới đạt (có RED→GREEN); nhóm candidate/utterance/readiness đạt 67, 16 skip do thiếu SoundFile ở env test local. Root nhóm LTT/candidate/readiness/utterance/parity binding đạt **140 passed, 16 skipped**.
 - API local: 333 passed, 42.04s; test PostgreSQL local skip do không DB. CI PR122 trên PostgreSQL16: 4749 passed, 78 skipped, 173.67s; 8/8 job đạt.
 - plan_check tại core commit: 0 lỗi, 10 cảnh báo tải/đường găng hiện có.
-- Ruff toàn repo sạch, 863 file đúng format; `uv lock --check` sạch. CLI module/wrapper --help exit0. Full suite/subprocess smoke chưa được tính vào kết quả trên.
+- Full Python tại code 87a740f: **4810 passed, 119 skipped**, 377.62s, hai cảnh báo thư viện hiện có. Skip gồm tùy chọn audio/model/PostgreSQL chưa cài/cấu hình; CI PostgreSQL đã kiểm riêng ở PR122.
+- Ruff toàn repo sạch, 863 file đúng format; `uv lock --check` sạch. CLI module/wrapper --help exit0.
+- Smoke subprocess tại source sạch **87a740fcc09c8a42ec71fca421768c6356f8bb16**: fit/score/select/evaluate fixture synthetic thành công; artifact LTT bị sửa bị từ chối, report DNU thật chỉ bona fide bị từ chối fit, không output và không thay byte. Tổng 6 lệnh: 4 exit0, 2 từ chối dự kiến. Không chạy trọng số mới, không số accuracy thật. Helper ngoài Git lần đầu vướng assertion do encoding stderr Windows; đã giữ thư mục đầu và chạy lại thư mục mới với UTF-8, exit0.
+- Bằng chứng tổng hợp không có ID/hàng/path riêng: `docs/status/results/ROUT-03-offline-smoke-2026-11-01.json`; số R4 chưa có: `docs/status/results/R4-thresholds.md`.
+- Review cuối toàn diff từ 4e02f38 đến 87a740f: chấp thuận cho Draft offline, không Critical/Important; bảo toàn config/contract/parity, không data/model/media/bí mật trong diff.

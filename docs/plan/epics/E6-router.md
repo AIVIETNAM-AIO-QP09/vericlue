@@ -110,7 +110,7 @@ không migration mới và không sửa hai file review của REV-01.
 **Tiến độ 01/11 — phần offline, chưa chứng nhận ngưỡng:**
 - [x] Core `router/ltt.py`: MAPIE 1.4.1 HB nhị phân, max-p qua strata rồi Holm một lần trên toàn lưới; biên mặt/giọng và review/challenge tách riêng.
 - [x] Kiểm protocol/lưới/delta và nhóm phụ thuộc; từ chối thiếu strata hoặc nhiều quan sát trong cùng nhóm/stratum. 48 test synthetic đạt, có oracle thống kê và review độc lập.
-- [x] Consumer artifact + đánh giá test sau khóa LTT và CLI giọng; 54 test mới đạt, review độc lập chấp thuận. Smoke subprocess và full suite ghi ở bàn giao sau chạy.
+- [x] Consumer artifact + đánh giá test sau khóa LTT và CLI giọng; 54 test mới đạt, review độc lập chấp thuận. Full Python 4810 đạt/119 skip; smoke subprocess 4 thành công + 2 từ chối đúng dự kiến, chỉ fixture và kiểm chốt DNU; chưa inference mới.
 - [ ] Dữ liệu/artifact thật đủ quyền, độc lập và đúng model/runtime; chưa có kết quả R4, chưa sửa thresholds.yaml hoặc mở chốt runtime.
 
 Xem [giới hạn LTT offline](../../runbooks/offline-ltt.md). Mốc 59/60 mẫu chỉ
