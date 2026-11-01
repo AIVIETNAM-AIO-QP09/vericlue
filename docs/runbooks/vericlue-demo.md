@@ -11,6 +11,8 @@ API thật mặc định, không scripted success khi server lỗi. Cùng signer
 laptop SHA-256 `822e5e44be42ce365f186a6c73af5bf36eb262c3cc65011b4269363adc695c75`,
 APK v2=true/v3=false. Khóa này khác quy trình khóa phát hành lịch sử bên dưới.
 Kiểm signer bản đã cài trước `adb install -r`, không uninstall/clear.
+Workflow APK GitHub mới cũng bật/kiểm API mặc định và ghi metadata tương ứng;
+artifact vẫn cần ký trên laptop. Gói local7904d70 giữ nguyên provenance riêng.
 
 `MANUAL_FULL_DEMO` dùng raw AntiDeepfake/SyncNet và policy manual v2, không giả
 calibrator hoặc nâng trạng thái NES diagnostic. OTP ngẫu nhiên hiển thị qua

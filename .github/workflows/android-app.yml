@@ -46,7 +46,7 @@ jobs:
         run: |
           ./gradlew --no-daemon testDebugUnitTest assembleDebug \
             "-Pvericlue.apiBaseUrl=$VERICLUE_API_BASE_URL" \
-            -Pvericlue.signedMedia=true -Pvericlue.deferSigning=true
+            -Pvericlue.signedMedia=true -Pvericlue.liveByDefault=true -Pvericlue.deferSigning=true
       - name: Check package and prepare local signing input
         run: |
           python - <<'PY'
@@ -62,7 +62,12 @@ jobs:
           assert "application-label:'VeriClue'" in badging
           url = os.environ['VERICLUE_API_BASE_URL']
           generated = list(Path('app/build/generated').rglob('BuildConfig.java'))
-          assert any(url in p.read_text() and re.search(r'SIGNED_MEDIA\s*=\s*true', p.read_text()) for p in generated)
+          assert any(
+              url in (text := p.read_text())
+              and re.search(r'SIGNED_MEDIA\s*=\s*true', text)
+              and re.search(r'LIVE_API_DEFAULT\s*=\s*true', text)
+              for p in generated
+          )
           # Keep credentials on the laptop. CI exports only the unsigned build and public SDK tool.
           out = Path('vericlue-build')
           out.mkdir()
@@ -72,7 +77,7 @@ jobs:
           (out / 'build-info.json').write_text(json.dumps({
               'source_sha': os.environ['GITHUB_SHA'], 'source_head_sha': os.environ['SOURCE_HEAD_SHA'],
               'run_id': os.environ['GITHUB_RUN_ID'], 'application_id': 'vn.vericlue.app',
-              'api_base_url': url, 'label': 'VeriClue', 'signed_media': True,
+              'api_base_url': url, 'label': 'VeriClue', 'signed_media': True, 'live_by_default': True,
               'signing': 'required_on_laptop', 'hardware_acceptance': 'not_verified',
           }, indent=2) + '\n')
           names = ['VeriClue-unsigned.apk', 'apksigner.jar', 'ANDROID-BUILD-TOOLS-NOTICE.txt', 'build-info.json']

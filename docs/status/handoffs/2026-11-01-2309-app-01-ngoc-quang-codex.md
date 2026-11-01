@@ -40,8 +40,8 @@ APP-01/FLOW-04/SEC-09 chưa nghiệm thu trên thiết bị. Không merge main.
   có quyền sử dụng. DNU có giọng thật chưa đủ fit hai lớp; VIVOS32 parity giữ ngoài fit.
   Ngưỡng `.50/.50/.30/.30/.50/.50` chỉ minh họa. Không có số accuracy hoặc chốt chuẩn.
 - OTP vẫn mô phỏng; SMS thật/HTTPS phát hành/NFC/CSDL nhà nước chưa được nghiệm thu.
-- Draft PR mới/CI được thực hiện sau checkpoint này; kết quả cuối lưu trong PR và
-  checkpoint private của gói. Không suy CI xanh từ kết quả local; không merge.
+- Draft PR126 đã mở; CI đang kiểm sau follow-up workflow. Kết quả cuối lưu trong
+  PR và checkpoint private của gói. Không suy CI xanh từ kết quả local; không merge.
 
 ## Bước tiếp theo
 1. Sáng02/11 mở `START-DEMO.cmd`, đợi READY; cắm USB/bật và cho phép debugging,
@@ -64,6 +64,10 @@ APP-01/FLOW-04/SEC-09 chưa nghiệm thu trên thiết bị. Không merge main.
 - Policy mặc định `2f7e8becee1dff4d23831acd791adc449af3e12c2e0f314501930b1109b25ca8`.
   Đổi policy/mode làm phiên/tài khoản cũ không tương thích; không nâng cấp ngầm.
   SMS mô phỏng hiển thị mã ngẫu nhiên lượt gửi, không dùng mã cố định123456.
+- Draft [PR126](https://github.com/AIVIETNAM-AIO-QP09/vericlue/pull/126) đã mở.
+  Review đóng gói còn phát hiện workflow APK GitHub chưa truyền liveByDefault;
+  đã thêm cờ, kiểm BuildConfig thực và ghi metadata trước xuất artifact. Đây là
+  thay đổi workflow/test, không thay code/source/checksum APK local7904d70.
 - Profile mới có startup timeout300s; `scripts/server.py` thêm timeout có kiểm
   finite30..600/default120 trước spawn. Worker manual preload thật trước ready.
 - Không sửa contracts, thresholds.yaml, ADR, proposal hoặc STATUS. Không commit
@@ -94,3 +98,6 @@ APP-01/FLOW-04/SEC-09 chưa nghiệm thu trên thiết bị. Không merge main.
   cài mới khi chưa có package, ownership/HMAC và stop không phụ thuộc HTTP.
 - API freshDB/migration0011, thiếu consent409, receipt chặn và stop/restart đã qua.
   Chưa có camera/CCCD/giọng/ba luồng trên điện thoại thật.
+- Workflow artifact: hai test thực thi bước kiểm artifact bằng file tổng hợp,
+  **2 RED** (gallery không bị chặn, thiếu metadata) → **2 GREEN** sau sửa; không
+  ký hoặc thay APK sáng mai. Test signer hiện có kiểm tương thích riêng.

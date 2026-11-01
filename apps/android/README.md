@@ -12,6 +12,8 @@
 Cờ `LIVE_API_DEFAULT` mở API thật từ đầu; debug mặc định vẫn cho gallery khi
 không truyền option, release luôn bật API. API lỗi không tự rơi sang kết quả
 đạt dựng sẵn; gallery offline được ghi rõ là xem trước.
+Workflow xuất APK GitHub cũng truyền `liveByDefault=true`, kiểm cờ trong
+BuildConfig trước xuất và ghi `live_by_default=true` vào metadata unsigned.
 
 Tài khoản lưu thêm `evaluationMode`/`demoPolicyId` từ phiên đã đối chiếu;
 reauth/recovery kiểm metadata với phiên mới, giữ receipt/alias/khóa cũ khi lỗi
