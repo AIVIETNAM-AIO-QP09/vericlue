@@ -108,7 +108,10 @@ class FaceContinuityDetector:
             try:
                 self.matcher.preload(models_dir=models_dir, device=device)
                 self.reader.preload(models_dir=Path(models_dir) if models_dir is not None else None)
-                if self.calibration_path is not None:
+                if (
+                    self.calibration_path is not None
+                    and getattr(self.matcher, "manual_demo", None) is None
+                ):
                     artifact = MatchThreshold.model_validate_json(
                         self.calibration_path.read_text(encoding="utf-8")
                     )
@@ -158,7 +161,7 @@ class FaceContinuityDetector:
             raise LandmarkError(ErrorCode.E_DECODE, Status.DEGRADED)
         approved = ModuleResult.model_validate(inp.metadata.get("face_reference_result"))
         manual_demo = getattr(self.matcher, "manual_demo", None)
-        using_manual = manual_demo is not None and self._threshold is None
+        using_manual = manual_demo is not None
         suffix = manual_demo.version_suffix if using_manual else ""
         supported = getattr(self.matcher, "_supported_versions", lambda: (VIDEO_MATCH_VERSION,))()
         is_recovery = inp.metadata.get("purpose") == "recovery" and bool(
@@ -247,10 +250,10 @@ class FaceContinuityDetector:
             and approved.error_code is None
         )
         threshold_value = (
-            self._threshold.threshold
-            if self._threshold is not None
-            else manual_demo.match_min
+            manual_demo.match_min
             if manual_demo is not None
+            else self._threshold.threshold
+            if self._threshold is not None
             else None
         )
         available = threshold_value is not None

@@ -1153,7 +1153,7 @@ class SessionFlow:
     ) -> Outcome:
         policy = self.settings.manual_demo_policy
         base = {
-            "config_version": "manual-full-demo-v1-" + (policy.policy_id[:16] if policy else "0"),
+            "config_version": "manual-full-demo-v2-" + (policy.policy_id[:16] if policy else "0"),
             "thresholds": {
                 "evaluation_mode": "manual_full_demo",
                 "demo_policy_id": policy.policy_id if policy else None,
@@ -1237,7 +1237,7 @@ class SessionFlow:
                         update={"evidence": [*res.evidence, role]}
                     )
         base = {
-            "config_version": "manual-full-demo-v1-" + (policy.policy_id[:16] if policy else "0"),
+            "config_version": "manual-full-demo-v2-" + (policy.policy_id[:16] if policy else "0"),
             "thresholds": {
                 "evaluation_mode": "manual_full_demo",
                 "demo_policy_id": policy.policy_id if policy else None,
@@ -1294,14 +1294,7 @@ class SessionFlow:
             return Outcome("review", reason="voice spoof not passed", **base)
         if lipsync_required:
             lipsync = decision_results.get(Module.LIPSYNC)
-            if (
-                lipsync is None
-                or lipsync.module != Module.LIPSYNC
-                or lipsync.status != Status.OK
-                or lipsync.error_code is not None
-                or lipsync.gate != Gate.PASS
-                or "mock" in lipsync.model_version.lower()
-            ):
+            if not policy.accepts_lipsync(lipsync):
                 return Outcome("review", reason="lipsync not passed", **base)
         return Outcome("pass", reason="manual full demo voice pass", **base)
 
@@ -1362,6 +1355,14 @@ class SessionFlow:
                 )
             )
         )
+        if self.settings.manual_full_demo:
+            policy = self.settings.manual_demo_policy
+            allowed = (
+                policy is not None
+                and session.created_model_mode == "manual_full_demo"
+                and session.manual_demo_policy_id == policy.policy_id
+                and policy.accepts_lipsync(lipsync)
+            )
         if lipsync is not None and any(e.name == "decision_role" for e in lipsync.evidence):
             cleaned = lipsync.model_copy(
                 update={"evidence": [e for e in lipsync.evidence if e.name != "decision_role"]}

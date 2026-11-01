@@ -18,6 +18,7 @@ import vn.vericlue.app.BuildConfig
 import vn.vericlue.app.capture.CamProbe
 import vn.vericlue.app.capture.RegionFrame
 import vn.vericlue.app.data.api.ApiError
+import vn.vericlue.app.data.StoredAccount
 import vn.vericlue.app.data.api.ApiResult
 import vn.vericlue.app.data.api.AccountReceipt
 import vn.vericlue.app.data.api.Challenge
@@ -61,6 +62,16 @@ class LiveFlow(
 
     /** Saved account this session is for (reauth/recovery); sent when the session is created. */
     var boundAccount: AccountReceipt? = null
+        private set
+    var accountBinding: StoredAccount? = null
+        private set
+
+    /** Keep the local policy binding; it is never sent as citizen-selected server policy. */
+    fun bindAccount(binding: StoredAccount?) {
+        check(session == null)
+        accountBinding = binding
+        boundAccount = binding?.receipt
+    }
     var frontalJpeg: ByteArray? = null
     val colorEvents = mutableListOf<ColorEvent>()
     var voicePrompt: String? = null
@@ -98,6 +109,7 @@ class LiveFlow(
         sessionPurpose = null
         sessionAccount = null
         boundAccount = null
+        accountBinding = null
         frontalJpeg = null
         colorEvents.clear()
         otpSms = null
@@ -137,6 +149,8 @@ class LiveFlow(
         if (purpose == "reauth" && (account == null || mediaSigner == null)) return ApiError.BadResponse
         if (account != null && purpose !in setOf("reauth", "recovery")) return ApiError.BadResponse
         if (account != null && mediaSigner == null) return ApiError.BadResponse
+        if (account != null && (accountBinding?.receipt != account || accountBinding?.hasKnownEvaluationBinding != true))
+            return ApiError.BadResponse
         val spki = if (purpose == "reauth") null else mediaSigner?.let { signer -> withContext(Dispatchers.IO) {
             runCatching { signer.publicKeySpki }.getOrNull()
         } }
@@ -153,6 +167,8 @@ class LiveFlow(
                     (r.value.demoPolicyId?.matches(Regex("[0-9a-f]{64}")) != true || purpose !in setOf("onboarding", "reauth", "recovery")))
                     return ApiError.BadResponse
                 if (r.value.evaluationMode == "standard" && r.value.demoPolicyId != null) return ApiError.BadResponse
+                if (account != null && (accountBinding?.evaluationMode != r.value.evaluationMode ||
+                        accountBinding?.demoPolicyId != r.value.demoPolicyId)) return ApiError.BadResponse
                 if (mediaSigner != null && r.value.challenge.mediaNonce == null) return ApiError.BadResponse
                 if (purpose == "reauth") {
                     val signature = withContext(Dispatchers.IO) {

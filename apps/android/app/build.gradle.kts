@@ -12,6 +12,7 @@ val apiBaseUrl = (project.findProperty("vericlue.apiBaseUrl") as String?) ?: "ht
 val signedMedia = (project.findProperty("vericlue.signedMedia") as String?)?.toBooleanStrict() ?: true
 val deferSigning = (project.findProperty("vericlue.deferSigning") as String?)?.toBooleanStrict() ?: false
 val presenceTrace = (project.findProperty("vericlue.presenceTrace") as String?)?.toBooleanStrict() ?: false
+val liveByDefault = (project.findProperty("vericlue.liveByDefault") as String?)?.toBooleanStrict() ?: false
 // A release build only talks HTTPS: stop it when the address is not https:// (debug may use http).
 val checkReleaseApiUrl by tasks.registering {
     val url = apiBaseUrl
@@ -43,10 +44,12 @@ android {
 
     buildTypes {
         debug {
+            buildConfigField("boolean", "LIVE_API_DEFAULT", liveByDefault.toString())
             buildConfigField("boolean", "PRESENCE_TRACE_ENABLED", presenceTrace.toString())
             if (deferSigning) signingConfig = null
         }
         release {
+            buildConfigField("boolean", "LIVE_API_DEFAULT", "true")
             // R8 removes unused code (most of material-icons-extended) and resources.
             isMinifyEnabled = true
             isShrinkResources = true

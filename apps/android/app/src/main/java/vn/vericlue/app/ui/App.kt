@@ -126,10 +126,9 @@ class FlowState {
         private set
 
     /**
-     * Real API or offline demo. Release builds always use the API; debug builds start in demo
-     * mode and switch in "Xem tất cả màn".
+     * Release always uses API. Debug may opt in at build time; gallery remains an explicit preview.
      */
-    var live by mutableStateOf(!BuildConfig.DEBUG)
+    var live by mutableStateOf(BuildConfig.LIVE_API_DEFAULT)
 
     /** Mock scenario sent as X-Mock-Scenario when the API runs with USE_MOCK_MODELS=true. */
     var mockScenario by mutableStateOf("genuine")
@@ -173,6 +172,7 @@ fun VeriClueApp() {
             warn = { Log.w("VeriClue", it) })
     }
     var accountEntry by remember { mutableStateOf<AccountEntry?>(null) }
+    var restoredAccount by remember { mutableStateOf<vn.vericlue.app.data.StoredAccount?>(null) }
     val recorder = remember { WavRecorder() }
     var hasCamera by remember { mutableStateOf(granted(context, Manifest.permission.CAMERA)) }
     var hasMic by remember { mutableStateOf(granted(context, Manifest.permission.RECORD_AUDIO)) }
@@ -244,7 +244,7 @@ fun VeriClueApp() {
             return@once
         }
         flow.purpose = entry?.purpose ?: requested
-        live = LiveFlow(api, mediaSigner = entry?.signer, enforcePrivacy = true).apply { boundAccount = entry?.account }
+        live = LiveFlow(api, mediaSigner = entry?.signer, enforcePrivacy = true).apply { bindAccount(entry?.previous) }
         accountEntry = entry
         entry?.hint?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
         nav.go(entry?.route ?: if (requested == Purpose.Onboarding) Routes.Terms else Routes.Phone)
@@ -407,6 +407,11 @@ fun VeriClueApp() {
     // ADR-0017 §2: going to the background while the camera or mic runs interrupts the attempt.
     val backStack by nav.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
+    LaunchedEffect(currentRoute) {
+        if (currentRoute in setOf(Routes.BankStart, Routes.Auth)) {
+            restoredAccount = withContext(Dispatchers.IO) { accounts.load() }
+        }
+    }
     DisposableEffect(lifecycleOwner, currentRoute) {
         val observer = LifecycleEventObserver { _, event ->
             // Act on ON_STOP itself: the activity may be recreated before it starts again.
@@ -452,9 +457,13 @@ fun VeriClueApp() {
         },
     ) {
         composable(Routes.BankStart) {
-            BankStartScreen(onOpenAccount = { nav.go(Routes.Splash) }, onGallery = { nav.go(Routes.Gallery) })
+            BankStartScreen(onOpenAccount = { nav.go(Routes.Splash) }, onGallery = { nav.go(Routes.Gallery) },
+                manualFullDemo = restoredAccount?.manualFullDemo == true, preview = !flow.live)
         }
-        composable(Routes.BankOpened) { BankOpenedScreen(onDone = { leave() }) }
+        composable(Routes.BankOpened) {
+            BankOpenedScreen(onDone = { leave() }, manualFullDemo = flow.live && live.manualFullDemo,
+                preview = !flow.live || live.session == null)
+        }
         composable(Routes.Gallery) { GalleryScreen(nav, flow) }
 
         // Start
@@ -468,6 +477,8 @@ fun VeriClueApp() {
                 onRegister = { enterAccount(Purpose.Onboarding) },
                 onLogin = { enterAccount(Purpose.Reauth) },
                 onRecover = { enterAccount(Purpose.Recovery) },
+                manualFullDemo = restoredAccount?.manualFullDemo == true,
+                preview = !flow.live,
             )
         }
         // Terms and consent on one screen; no intro or permission screen (short flow, 24/10).
@@ -770,6 +781,7 @@ fun VeriClueApp() {
                 checked = if (flow.live) FlowRules.checkedByServer(live.voiceChecked) else null,
                 accountReady = if (flow.live && flow.purpose != Purpose.Reauth) accountFlow.accountSaved else null,
                 manualFullDemo = flow.live && live.manualFullDemo,
+                preview = !flow.live || live.session == null,
             )
         }
         composable(Routes.ManualDemoComplete) {
@@ -932,7 +944,7 @@ private fun GalleryScreen(nav: NavHostController, flow: FlowState) {
         }
         Text("Nguồn kết quả", style = VcType.label, color = c.muted)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = !flow.live, onClick = { flow.live = false }, label = { Text("Giả lập trên máy") })
+            FilterChip(selected = !flow.live, onClick = { flow.live = false }, label = { Text("Xem trước · Không chạy AI") })
             FilterChip(selected = flow.live, onClick = { flow.live = true }, label = { Text("API thật") })
         }
         if (flow.live) {

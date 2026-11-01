@@ -81,6 +81,7 @@ import vn.vericlue.app.BuildConfig
 import vn.vericlue.app.R
 import vn.vericlue.app.flow.Agreement
 import vn.vericlue.app.ui.components.ChecklistCard
+import vn.vericlue.app.ui.components.Banner
 import vn.vericlue.app.ui.components.LinkButton
 import vn.vericlue.app.ui.components.PrimaryButton
 import vn.vericlue.app.ui.components.IdentityIllustration
@@ -110,24 +111,28 @@ private fun BankHeader() {
 
 /** Mock of the bank app that opens VeriClue. Not part of VeriClue itself. */
 @Composable
-fun BankStartScreen(onOpenAccount: () -> Unit, onGallery: () -> Unit) {
+fun BankStartScreen(onOpenAccount: () -> Unit, onGallery: () -> Unit, manualFullDemo: Boolean = false, preview: Boolean = false) {
     VcScreen(showLogo = false, actions = {
         PrimaryButton("Mở tài khoản", onOpenAccount)
         if (BuildConfig.DEBUG) LinkButton("Xem tất cả màn (bản demo giao diện)", onGallery)
     }) {
         BankHeader()
+        if (manualFullDemo) Banner("Demo · Ngưỡng chưa hiệu chỉnh", tone = Tone.Warn)
+        if (preview) Banner("Xem trước giao diện · Không chạy AI", tone = Tone.Warn)
         IdentityIllustration(Modifier.height(230.dp))
         TitleBlock("Mở tài khoản trực tuyến", "Xác minh bằng thẻ căn cước và khuôn mặt.")
     }
 }
 
 @Composable
-fun BankOpenedScreen(onDone: () -> Unit) {
+fun BankOpenedScreen(onDone: () -> Unit, manualFullDemo: Boolean = false, preview: Boolean = false) {
     VcScreen(actions = { SampleAccount(); PrimaryButton("Vào ứng dụng", onDone) }) {
         BankHeader()
         Spacer(Modifier.height(56.dp))
         SuccessBadge()
-        TitleBlock("Đã hoàn tất xác minh")
+        TitleBlock(if (preview) "Xem trước màn hoàn tất" else "Đã hoàn tất xác minh")
+        if (manualFullDemo) Banner("Demo · Ngưỡng chưa hiệu chỉnh", tone = Tone.Warn)
+        if (preview) Banner("Xem trước giao diện · Không chạy AI", tone = Tone.Warn)
     }
 }
 
@@ -185,7 +190,7 @@ fun SplashScreen(onDone: () -> Unit) {
 // ── Sign in / sign up ─────────────────────────────────────────────────────────
 
 @Composable
-fun AuthScreen(onRegister: () -> Unit, onLogin: () -> Unit, onRecover: () -> Unit) {
+fun AuthScreen(onRegister: () -> Unit, onLogin: () -> Unit, onRecover: () -> Unit, manualFullDemo: Boolean = false, preview: Boolean = false) {
     val c = Vc.colors
     val phase = if (Vc.motion.enabled) {
         val float = rememberInfiniteTransition(label = "float")
@@ -201,6 +206,8 @@ fun AuthScreen(onRegister: () -> Unit, onLogin: () -> Unit, onRecover: () -> Uni
         LinkButton("Khôi phục tài khoản", onRecover)
     }) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (manualFullDemo) Banner("Demo · Ngưỡng chưa hiệu chỉnh", tone = Tone.Warn)
+            if (preview) Banner("Xem trước giao diện · Không chạy AI", tone = Tone.Warn)
             IdentityIllustration(Modifier.height(200.dp), phase)
             TitleBlock(
                 "Xác minh danh tính",

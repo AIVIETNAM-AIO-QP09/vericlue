@@ -65,7 +65,7 @@ class AccountIntegrationTest {
 
     @Test fun receiptAndMatchingAliasSurviveRecreationAndExpireAtTheBoundary() {
         val memory = Memory()
-        AccountStore(memory) { now }.save(old, oldAlias)
+        AccountStore(memory) { now }.save(old, oldAlias, "standard")
         val restored = AccountStore(memory) { now }.load()!!
         assertEquals(old, restored.receipt)
         assertEquals(oldAlias, restored.keyAlias)
@@ -85,14 +85,14 @@ class AccountIntegrationTest {
         fun start(enabled: Boolean) = AccountFlow(store, keys, enabled, newAlias = { newAlias }).begin(Purpose.Reauth)
         assertEquals(Purpose.Onboarding, start(true).purpose)
         assertFalse(start(true).hint.isNullOrBlank())
-        store.save(old, oldAlias)
+        store.save(old, oldAlias, "standard")
         keys.entries[oldAlias] = Signer()
         assertEquals(Purpose.Onboarding, start(false).purpose)
         assertNull(start(false).signer)
     }
 
     @Test fun reauthOpensOnlyTheStoredKeyAndNeverReplacesAMissingKey() {
-        val store = AccountStore(Memory()) { now }.apply { save(old, oldAlias) }
+        val store = AccountStore(Memory()) { now }.apply { save(old, oldAlias, "standard") }
         val keys = Keys()
         val accounts = AccountFlow(store, keys, true)
         assertEquals(Routes.RecoveryRequired, accounts.begin(Purpose.Reauth).route)
@@ -152,7 +152,7 @@ class AccountIntegrationTest {
 
     private suspend fun recovery(writeFails: Boolean) = withServer { server ->
         val memory = Memory()
-        val store = AccountStore(memory) { now }.apply { save(old, oldAlias) }
+        val store = AccountStore(memory) { now }.apply { save(old, oldAlias, "standard") }
         val keys = Keys().apply { entries[oldAlias] = Signer() }
         val accounts = AccountFlow(store, keys, true, newAlias = { newAlias })
         val entry = accounts.begin(Purpose.Recovery)
@@ -186,7 +186,7 @@ class AccountIntegrationTest {
 
     private suspend fun start(server: MockWebServer, entry: AccountEntry): LiveFlow {
         val live = LiveFlow(SessionApi(server.url("/").toString()), entry.signer)
-        live.boundAccount = entry.account
+        live.bindAccount(entry.previous)
         server.enqueue(json("""{"session_id":"ses_1","token":"tok_1","expires_at":"2030-01-01T00:00:00Z","purpose":"${FlowRules.purposeCode(entry.purpose)}","nonce":"synthetic_nonce_1234","challenge":{"challenge_id":"ch_1","color_sequence":[],"media_nonce":"${"0".repeat(64)}"}}"""))
         assertNull(live.ensureSession(null, FlowRules.purposeCode(entry.purpose)))
         return live

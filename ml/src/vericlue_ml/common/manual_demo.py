@@ -15,10 +15,14 @@ class ManualDemoThresholds(BaseModel):
     match_min: float = Field(default=0.30, gt=0, lt=1, allow_inf_nan=False)
     consistency_min: float = Field(default=0.30, gt=0, lt=1, allow_inf_nan=False)
 
+    # Illustrative demo cutoffs, never fitted to evaluation samples.
+    spoof_max: float = Field(default=0.50, gt=0, lt=1, allow_inf_nan=False)
+    lipsync_max: float = Field(default=0.50, gt=0, lt=1, allow_inf_nan=False)
+
     @property
     def policy_id(self) -> str:
         return hashlib.sha256(
-            ("manual-face-demo-v1:" + self.model_dump_json()).encode()
+            ("manual-full-demo-v2:" + self.model_dump_json()).encode()
         ).hexdigest()
 
     @property
@@ -62,53 +66,121 @@ class ManualDemoThresholds(BaseModel):
                 score = views["front"]
         return 0 <= score <= cutoff
 
-    def accepts_voice_spoof(self, result: ModuleResult | None) -> bool:
+    def _voice_valid(self, result: ModuleResult, *, bound: bool) -> bool:
+        from vericlue_ml.voice.antispoof import AntiDeepfakeDetector
+        from vericlue_ml.voice.syncnet import SyncNetDetector
+
+        versions = {
+            "voice_spoof": AntiDeepfakeDetector().version,
+            "lipsync": SyncNetDetector().version,
+        }
+        expected = versions.get(result.module)
         if (
-            result is None
-            or result.module != "voice_spoof"
+            expected is None
+            or result.model_version != expected + (self.version_suffix if bound else "")
             or result.status != Status.OK
             or result.error_code is not None
             or result.gate == Gate.FAIL
-            or result.model_version.startswith("mock")
+            or result.prob_attack is not None
             or result.quality.get("diagnostic_only") is True
+            or not _number(result.score, 0, 1)
         ):
             return False
-        windows = next(
-            (
-                e.value
-                for e in result.evidence
-                if e.name == "nes2net_windows" and isinstance(e.value, list)
-            ),
-            None,
+        if bound and (
+            result.gate != Gate.PASS
+            or result.quality.get("manual_demo") is not True
+            or result.quality.get("calibrated") is not False
+            or result.quality.get("demo_policy_id") != self.policy_id
+        ):
+            return False
+
+        def evidence(name):
+            rows = [e.value for e in result.evidence if e.name == name]
+            return rows[0] if len(rows) == 1 else None
+
+        if result.module == "lipsync":
+            flags = evidence("splice_flags")
+            return (
+                type(flags) is int
+                and flags == 0
+                and _number(evidence("av_offset_ms"), -600, 600)
+                and _number(evidence("sync_confidence"), 0, 1)
+                and _number(evidence("best_offset_confidence"), 0, 1)
+                and (not bound or result.quality.get("hardware_clock_verified") is False)
+            )
+        windows = evidence("window_scores")
+        quality = result.quality
+        duration, speech, trim = (
+            quality.get(k) for k in ("duration_s", "speech_duration_s", "trim_start_s")
         )
-        if windows is not None:
+        if (
+            not isinstance(windows, list)
+            or not windows
+            or not _number(quality.get("n_windows"), 1)
+            or quality["n_windows"] != len(windows)
+            or not _number(duration, 1, 120)
+            or not _number(speech, 1, duration)
+            or not _number(trim, 0, duration - speech + 1e-6)
+        ):
+            return False
+        previous_end = trim
+        for row in windows:
+            if not isinstance(row, dict):
+                return False
+            start, end, logits = row.get("start_s"), row.get("end_s"), row.get("logits")
             if (
-                not windows
-                or result.quality.get("error_windows", 0) != 0
-                or result.quality.get("low_quality_windows", 0) != 0
-                or result.quality.get("all_source_samples_measured") is not True
-                or result.quality.get("planned_windows") not in (None, len(windows))
-                or result.quality.get("measured_windows") not in (None, len(windows))
+                not _number(start, trim, previous_end + 1e-6)
+                or not _number(end, start, trim + speech + 1e-6)
+                or end <= start
+                or not _number(row.get("score"), 0, 1)
+                or not isinstance(logits, list)
+                or len(logits) != 2
+                or not all(_number(v) for v in logits)
             ):
                 return False
-            for row in windows:
-                if not isinstance(row, dict) or not isinstance(row.get("result"), dict):
-                    return False
-                w = row["result"]
-                w_quality = w.get("quality") if isinstance(w.get("quality"), dict) else {}
-                if (
-                    w.get("status") != "ok"
-                    or w.get("error_code") is not None
-                    or w.get("gate") == "fail"
-                    or w_quality.get("diagnostic_only") is True
-                    or type(w.get("score")) not in (float, int)
-                    or not math.isfinite(w["score"])
-                    or w["score"] > 2.0
-                ):
-                    return False
-            return True
-        return (
-            type(result.prob_attack) in (float, int)
-            and math.isfinite(result.prob_attack)
-            and 0 <= result.prob_attack <= 0.5
+            previous_end = end
+        return abs(previous_end - (trim + speech)) <= 1e-6
+
+    def apply_voice(self, result: ModuleResult) -> ModuleResult:
+        """Label valid raw inference only; preserve all failure states and evidence."""
+        valid = self._voice_valid(result, bound=False)
+        cutoff = self.spoof_max if result.module == "voice_spoof" else self.lipsync_max
+        quality = {
+            **result.quality,
+            "manual_demo": True,
+            "calibrated": False,
+            "demo_policy_id": self.policy_id,
+        }
+        if result.module == "lipsync":
+            quality["hardware_clock_verified"] = False
+        return result.model_copy(
+            update={
+                "model_version": result.model_version + self.version_suffix,
+                "prob_attack": None,
+                "quality": quality,
+                "status": result.status if valid or result.status != Status.OK else Status.DEGRADED,
+                "gate": (Gate.PASS if result.score <= cutoff else Gate.FAIL)
+                if valid
+                else Gate.UNCLEAR,
+            }
         )
+
+    def accepts_voice_spoof(self, result: ModuleResult | None) -> bool:
+        return (
+            result is not None
+            and result.module == "voice_spoof"
+            and self._voice_valid(result, bound=True)
+            and result.score <= self.spoof_max
+        )
+
+    def accepts_lipsync(self, result: ModuleResult | None) -> bool:
+        return (
+            result is not None
+            and result.module == "lipsync"
+            and self._voice_valid(result, bound=True)
+            and result.score <= self.lipsync_max
+        )
+
+
+def _number(value, minimum=-math.inf, maximum=math.inf) -> bool:
+    return type(value) in (int, float) and math.isfinite(value) and minimum <= value <= maximum

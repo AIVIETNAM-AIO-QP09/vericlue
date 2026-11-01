@@ -16,6 +16,7 @@ import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.*
 import org.junit.Test
 import vn.vericlue.app.data.api.*
+import vn.vericlue.app.data.StoredAccount
 import vn.vericlue.app.flow.LiveFlow
 import vn.vericlue.app.security.DeviceProof
 import vn.vericlue.app.security.MediaSigner
@@ -80,6 +81,7 @@ class DeviceProofTest {
                 }
             }
             val flow = LiveFlow(SessionApi(server.url("/").toString()), signer)
+            flow.bindAccount(StoredAccount(account, "vericlue.media.test", "standard"))
             assertNull(flow.ensureSession(null, "reauth", account))
             assertEquals("ses_test", flow.session!!.sessionId)
         } finally { server.shutdown() }
@@ -103,6 +105,7 @@ class DeviceProofTest {
                 }
             }
             val flow = LiveFlow(SessionApi(server.url("/").toString()), signer)
+            flow.bindAccount(StoredAccount(account, "vericlue.media.test", "standard"))
             assertEquals(ApiError.RecoveryRequired, flow.ensureSession(null, "reauth", account))
             assertNull(flow.session)
         } finally { server.shutdown() }

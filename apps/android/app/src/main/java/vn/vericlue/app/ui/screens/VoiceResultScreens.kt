@@ -224,13 +224,15 @@ fun SuccessScreen(
     checked: List<String>? = null,
     accountReady: Boolean? = null,
     manualFullDemo: Boolean = false,
+    preview: Boolean = false,
 ) {
     CompletionHaptic(true)
     LaunchedEffect(auto) { if (auto) { delay(2600); onContinue() } }
     VcScreen(centered = true, actions = { PrimaryButton("Hoàn tất", onContinue) }) {
         SuccessBadge()
-        TitleBlock("Xác minh thành công", centered = true)
+        TitleBlock(if (preview) "Xem trước màn thành công" else "Xác minh thành công", centered = true)
         if (manualFullDemo) Banner("Demo · Ngưỡng chưa hiệu chỉnh", tone = Tone.Warn)
+        if (preview) Banner("Xem trước giao diện · Không chạy AI", tone = Tone.Warn)
         if (accountReady == false) Text("Phiên xác minh đã hoàn tất. Tài khoản chưa được lưu trên thiết bị; bạn chưa thể dùng đăng nhập lại.", style = VcType.body, color = Vc.colors.ink)
         if (!checked.isNullOrEmpty()) ChecklistCard(null, checked.map { Triple(null, it, RowState.Done) })
     }

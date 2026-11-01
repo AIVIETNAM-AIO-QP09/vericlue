@@ -239,6 +239,152 @@ def full_config(**changes):
     return Settings(_env_file=None, **values)
 
 
+def manual_voice_result(policy, module):
+    """Synthetic successful raw backend result fed through the real demo adapter."""
+    from vericlue_ml.common.result import Evidence
+    from vericlue_ml.voice.antispoof import AntiDeepfakeDetector
+    from vericlue_ml.voice.syncnet import SyncNetDetector
+
+    spoof = module == Module.VOICE_SPOOF
+    raw = ModuleResult(
+        module=module,
+        model_version=AntiDeepfakeDetector().version if spoof else SyncNetDetector().version,
+        status="ok",
+        score=0.2,
+        latency_ms=0,
+        quality={"duration_s": 4.0, "speech_duration_s": 4.0, "trim_start_s": 0.0, "n_windows": 1}
+        if spoof
+        else {},
+        evidence=[
+            Evidence(
+                type="timeseries",
+                name="window_scores",
+                value=[{"start_s": 0.0, "end_s": 4.0, "score": 0.2, "logits": [0.0, 1.0]}],
+            )
+        ]
+        if spoof
+        else [
+            Evidence(type="scalar", name=name, value=value)
+            for name, value in (
+                ("splice_flags", 0),
+                ("av_offset_ms", 0.0),
+                ("sync_confidence", 0.8),
+                ("best_offset_confidence", 0.8),
+            )
+        ],
+    )
+    return policy.apply_voice(raw)
+
+
+def test_manual_voice_settings_change_policy_and_orchestrator_scope(tmp_path):
+    from vericlue_api.services.orchestrator import Orchestrator
+
+    settings = full_config(
+        manual_demo_spoof_max=0.4,
+        manual_demo_lipsync_max=0.3,
+        voice_runtime_python="local-python.exe",
+        voice_spoof_python="spoof.exe",
+    )
+    policy = settings.manual_demo_policy
+    assert policy.spoof_max == 0.4 and policy.lipsync_max == 0.3
+    assert policy.policy_id != full_config().manual_demo_policy.policy_id
+    app = Orchestrator(settings)
+    try:
+        spoof = app._default_detector(Module.VOICE_SPOOF)
+        lipsync = app._default_detector(Module.LIPSYNC)
+        assert spoof.client.manual_demo == lipsync.client.manual_demo == policy
+        assert spoof.client.warmup_kinds == ("spoof",)
+        assert set(lipsync.client.warmup_kinds) == {"content", "timing", "lipsync"}
+    finally:
+        app.close()
+
+
+@pytest.mark.parametrize("fault", ["generic", "policy", "version", "probability"])
+def test_manual_lipsync_flow_gate_rejects_unbound_result(fault):
+    from types import SimpleNamespace
+
+    from vericlue_api.services.session_flow import Outcome, SessionFlow
+    from vericlue_ml.common.result import Evidence
+    from vericlue_ml.router.policy import TrustRouter
+    from vericlue_ml.voice.syncnet import SyncNetDetector
+
+    flow = object.__new__(SessionFlow)
+    flow.settings = full_config()
+    flow.router = TrustRouter(profile="mvp")
+    policy = flow.settings.manual_demo_policy
+    raw = ModuleResult(
+        module="lipsync",
+        model_version=SyncNetDetector().version,
+        status="ok",
+        score=0.1,
+        latency_ms=0,
+        evidence=[
+            Evidence(type="scalar", name=n, value=v)
+            for n, v in (
+                ("splice_flags", 0),
+                ("av_offset_ms", 0.0),
+                ("sync_confidence", 0.9),
+                ("best_offset_confidence", 0.9),
+            )
+        ],
+    )
+    result = policy.apply_voice(raw)
+    if fault == "generic":
+        result = result.model_copy(update={"model_version": "real-test-backend", "quality": {}})
+    elif fault == "policy":
+        result.quality["demo_policy_id"] = "a" * 64
+    elif fault == "version":
+        result.model_version = "other" + policy.version_suffix
+    else:
+        result.prob_attack = 0.1
+    session = SimpleNamespace(
+        results={Module.LIPSYNC: result},
+        manual_demo_policy_id=policy.policy_id,
+        created_model_mode="manual_full_demo",
+    )
+    out = Outcome("pass", results=session.results, thresholds={})
+    assert flow._lipsync_gate(session, out).status == "review"
+
+
+@pytest.mark.parametrize("purpose", ["onboarding", "recovery"])
+@pytest.mark.parametrize(
+    "fault", [None, "missing_lipsync", "missing_spoof", "policy", "failed_spoof", "splice"]
+)
+def test_full_manual_voice_requires_both_bound_raw_gates(purpose, fault):
+    from types import SimpleNamespace
+
+    from vericlue_api.services.session_flow import SessionFlow
+    from vericlue_ml.router.policy import TrustRouter
+
+    flow = object.__new__(SessionFlow)
+    flow.settings = full_config()
+    flow.router = TrustRouter(profile="mvp")
+    policy = flow.settings.manual_demo_policy
+    session = SimpleNamespace(
+        purpose=purpose,
+        manual_demo_policy_id=policy.policy_id,
+        created_model_mode="manual_full_demo",
+        voice_rereads_used=0,
+    )
+    results = {m: manual_voice_result(policy, m) for m in (Module.LIPSYNC, Module.VOICE_SPOOF)}
+    results[Module.VOICE_CHALLENGE] = ModuleResult(
+        module="voice_challenge", model_version="real-asr", status="ok", gate="pass", latency_ms=0
+    )
+    if fault == "missing_lipsync":
+        del results[Module.LIPSYNC]
+    elif fault == "missing_spoof":
+        del results[Module.VOICE_SPOOF]
+    elif fault == "policy":
+        session.manual_demo_policy_id = "a" * 64
+    elif fault == "failed_spoof":
+        results[Module.VOICE_SPOOF].status = "degraded"
+    elif fault == "splice":
+        results[Module.LIPSYNC].evidence[0].value = 1
+    outcome = flow._manual_full_demo_voice(session, results, session_valid=True)
+    assert outcome.status == ("pass" if fault is None else "review")
+    assert outcome.config_version.startswith("manual-full-demo-v2-")
+
+
 @pytest.mark.parametrize(
     "changes",
     [
@@ -350,7 +496,7 @@ def test_manual_full_demo_supports_enrollment_and_voice_spoof_policy():
         ],
         latency_ms=10.0,
     )
-    assert policy.accepts_voice_spoof(ok_timeline)
+    assert not policy.accepts_voice_spoof(ok_timeline)
 
 
 def test_manual_full_demo_binds_policy_and_rejects_mid_session_changes(client, tmp_path):
@@ -550,7 +696,7 @@ def test_manual_full_demo_requires_lipsync_in_recovery_and_protects_existing_acc
             assert caught.value.error_code == "enrollment_not_available"
 
             # 2. Degraded voice_spoof must be rejected for voiced account enrollment.
-            session.results[Module.LIPSYNC] = verdict(Module.LIPSYNC)
+            session.results[Module.LIPSYNC] = manual_voice_result(policy, Module.LIPSYNC)
             session.results[Module.VOICE_SPOOF] = verdict(
                 Module.VOICE_SPOOF, status="degraded", gate="unclear", prob_attack=None
             )
@@ -558,8 +704,26 @@ def test_manual_full_demo_requires_lipsync_in_recovery_and_protects_existing_acc
                 store.create(session, template, continuity=continuity)
             assert caught.value.error_code == "enrollment_not_available"
 
-            # 3. Valid OK+PASS lipsync and OK voice_spoof succeeds.
-            session.results[Module.VOICE_SPOOF] = verdict(Module.VOICE_SPOOF)
+            # Missing/mismatched demo bindings must never issue a receipt.
+            for module in (Module.VOICE_SPOOF, Module.LIPSYNC):
+                session.results[Module.VOICE_SPOOF] = manual_voice_result(
+                    policy, Module.VOICE_SPOOF
+                )
+                session.results[Module.LIPSYNC] = manual_voice_result(policy, Module.LIPSYNC)
+                valid = session.results[module]
+                for changed in (
+                    valid.model_copy(update={"quality": {}}),
+                    valid.model_copy(update={"model_version": "other" + suffix}),
+                    valid.model_copy(update={"prob_attack": 0.1}),
+                    valid.model_copy(update={"evidence": []}),
+                ):
+                    session.results[module] = changed
+                    with pytest.raises(ApiError):
+                        store.create(session, template, continuity=continuity)
+                session.results[module] = valid
+
+            # 3. Valid raw manual gates succeed.
+            session.results[Module.VOICE_SPOOF] = manual_voice_result(policy, Module.VOICE_SPOOF)
             receipt = store.create(session, template, continuity=continuity)
             first_row = state.db.get(AccountRow, receipt.account_id)
             assert first_row is not None and first_row.destroyed_at is None
@@ -649,12 +813,15 @@ def test_manual_full_demo_requires_lipsync_in_recovery_and_protects_existing_acc
                 }
             )
             rec_session.results[Module.FACE_CONTINUITY] = rec_continuity
+            rec_session.results[Module.VOICE_SPOOF] = manual_voice_result(
+                policy, Module.VOICE_SPOOF
+            )
             rec_session.results[Module.LIPSYNC] = degraded_lipsync
             with pytest.raises(ApiError) as rec_err:
                 store.recover(rec_session)
             assert rec_err.value.error_code == "enrollment_not_available"
 
-            rec_session.results[Module.LIPSYNC] = verdict(Module.LIPSYNC)
+            rec_session.results[Module.LIPSYNC] = manual_voice_result(policy, Module.LIPSYNC)
             recovered = store.recover(rec_session)
             assert recovered.account_id == receipt.account_id
             assert recovered.device_id != receipt.device_id
@@ -676,7 +843,7 @@ def test_manual_full_demo_requires_lipsync_in_recovery_and_protects_existing_acc
             voice_session.results[Module.FACE_MATCH] = rec_session.results[Module.FACE_MATCH]
             state.flow._run = lambda modules, **kwargs: {
                 Module.VOICE_CHALLENGE: verdict(Module.VOICE_CHALLENGE),
-                Module.VOICE_SPOOF: verdict(Module.VOICE_SPOOF),
+                Module.VOICE_SPOOF: manual_voice_result(policy, Module.VOICE_SPOOF),
                 Module.LIPSYNC: degraded_lipsync,
                 Module.FACE_CONTINUITY: rec_continuity.model_copy(
                     update={

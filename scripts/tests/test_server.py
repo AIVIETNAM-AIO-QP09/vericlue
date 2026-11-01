@@ -25,6 +25,49 @@ def test_active_port_cannot_launch_another_server(tmp_path, monkeypatch):
         server.start(tmp_path)
 
 
+def test_start_can_wait_for_configured_real_model_warmup(tmp_path, monkeypatch):
+    import io
+    from types import SimpleNamespace
+
+    clock = [0.0]
+    stopped = []
+    child = SimpleNamespace(poll=lambda: None, pid=54321, wait=lambda **_: None)
+    monkeypatch.setenv("VERICLUE_STARTUP_TIMEOUT_SECONDS", "180")
+    monkeypatch.setattr(server, "port_active", lambda: False)
+    monkeypatch.setattr(server, "load_profile", lambda _: None)
+    monkeypatch.setattr(server, "require_memory", lambda: None)
+    monkeypatch.setattr(server.subprocess, "Popen", lambda *a, **k: child)
+    monkeypatch.setattr(server.subprocess, "run", lambda *a, **k: stopped.append(True))
+    monkeypatch.setattr(server.os, "killpg", lambda *a: stopped.append(True), raising=False)
+    monkeypatch.setattr(server.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(server.time, "sleep", lambda _: clock.__setitem__(0, clock[0] + 30))
+
+    def health(*args, **kwargs):
+        if clock[0] < 150:
+            raise OSError("Model warmup still running")
+        return io.StringIO('{"status":"ok"}')
+
+    monkeypatch.setattr(server.urllib.request, "urlopen", health)
+    server.start(tmp_path)
+    assert clock[0] == 150
+    assert not stopped
+
+
+@pytest.mark.parametrize("timeout", ["invalid", "nan", "inf", "-1", "0", "29", "601"])
+def test_bad_startup_timeout_never_spawns_a_process(tmp_path, monkeypatch, timeout):
+    monkeypatch.setenv("VERICLUE_STARTUP_TIMEOUT_SECONDS", timeout)
+    monkeypatch.setattr(server, "port_active", lambda: False)
+    monkeypatch.setattr(server, "load_profile", lambda _: None)
+    monkeypatch.setattr(server, "require_memory", lambda: None)
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Invalid startup configuration must be rejected before spawn")
+
+    monkeypatch.setattr(server.subprocess, "Popen", forbidden)
+    with pytest.raises(SystemExit, match="STARTUP_TIMEOUT"):
+        server.start(tmp_path)
+
+
 def test_stop_refuses_a_reused_pid(tmp_path, monkeypatch):
     (tmp_path / "server.pid").write_text("12345", encoding="ascii")
     calls = []
