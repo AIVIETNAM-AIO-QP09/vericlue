@@ -34,7 +34,7 @@ from vericlue_api.services.session_privacy import SessionPrivacy
 from vericlue_api.services.session_store import Session
 from vericlue_ml.common.result import Gate, Module, ModuleResult, Status
 from vericlue_ml.face.continuity import FACE_VOICE_VERSION
-from vericlue_ml.face.enrolled import RECOVERY_MATCH_VERSION
+from vericlue_ml.face.enrolled import recovery_match_version
 from vericlue_ml.face.template import FaceTemplate
 from vericlue_ml.face.video_match import VIDEO_MATCH_VERSION
 
@@ -257,10 +257,15 @@ class AccountStore:
                 raise not_eligible()
         match = session.results[Module.FACE_MATCH]
         suffix = policy.version_suffix if s.manual_full_demo and policy is not None else ""
+        recovery_version = None
+        if recovery:
+            if session.challenge.dynamic is None:
+                raise not_eligible()
+            recovery_version = recovery_match_version(session.challenge.dynamic.version)
         expected_match_versions = (
-            (RECOVERY_MATCH_VERSION + suffix,)
+            (recovery_version + suffix,)
             if recovery and s.manual_full_demo
-            else (RECOVERY_MATCH_VERSION,)
+            else (recovery_version,)
             if recovery
             else (
                 VIDEO_MATCH_VERSION + suffix,

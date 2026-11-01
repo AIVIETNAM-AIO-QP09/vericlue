@@ -60,7 +60,7 @@ from vericlue_api.services.uploads import save_upload
 from vericlue_ml.common.calibration import CalibrationError, Calibrator
 from vericlue_ml.common.result import ErrorCode, Evidence, Gate, Module, Status
 from vericlue_ml.face.continuity import FACE_VOICE_VERSION
-from vericlue_ml.face.enrolled import REAUTH_MATCH_VERSION, RECOVERY_MATCH_VERSION
+from vericlue_ml.face.enrolled import REAUTH_MATCH_VERSION, recovery_match_version
 from vericlue_ml.face.match import MATCH_VERSION, MatchThreshold
 from vericlue_ml.face.video_match import VIDEO_MATCH_VERSION
 from vericlue_ml.presence.head_protocol import session_model_version
@@ -212,12 +212,16 @@ class SessionFlow:
             or (needs_voice and not s.session_voice_models)
             or not s.identity_face_from_video
             or self.orchestrator is None
+            or self.router.config.provisional is not False
         ):
             raise self._flow_unavailable()
         if session is not None and session.created_model_mode != "real":
             raise self._flow_unavailable()
         enrolled_flow = account_bound or (purpose == "onboarding" and s.account_enrollment)
         if enrolled_flow:
+            # Account enrollment and signed reauth require this server-side presence proof.
+            if Module.CHROMAPULSE not in self.router.profile.presence_modules:
+                raise self._flow_unavailable()
             try:
                 self.accounts._master()
             except ApiError as exc:
@@ -297,16 +301,14 @@ class SessionFlow:
                 self._require_fitted_calibrator(Module.LIPSYNC, lipsync_ver)
 
         if purpose == "onboarding":
+            video_version = VIDEO_MATCH_VERSION + ("+head12s-v2" if protocol == 2 else "")
             self._require_match_threshold(
                 s.identity_face_calibration,
-                (VIDEO_MATCH_VERSION, VIDEO_MATCH_VERSION + "+head12s-v2"),
+                (video_version,),
             )
             self._require_match_threshold(
                 s.identity_consistency_calibration,
-                (
-                    VIDEO_MATCH_VERSION + "+view-consistency-v1",
-                    VIDEO_MATCH_VERSION + "+head12s-v2+view-consistency-v1",
-                ),
+                (video_version + "+view-consistency-v1",),
             )
             self._require_match_threshold(s.identity_voice_calibration, (FACE_VOICE_VERSION,))
         elif purpose == "reauth":
@@ -317,13 +319,14 @@ class SessionFlow:
             if not account_bound:
                 raise self._flow_unavailable()
             self._require_match_threshold(
-                s.identity_recovery_calibration, (RECOVERY_MATCH_VERSION,)
+                s.identity_recovery_calibration, (recovery_match_version(protocol),)
             )
             self._require_match_threshold(
                 s.identity_consistency_calibration,
                 (
-                    VIDEO_MATCH_VERSION + "+view-consistency-v1",
-                    VIDEO_MATCH_VERSION + "+head12s-v2+view-consistency-v1",
+                    VIDEO_MATCH_VERSION
+                    + ("+head12s-v2" if protocol == 2 else "")
+                    + "+view-consistency-v1",
                 ),
             )
             self._require_match_threshold(s.identity_voice_calibration, (FACE_VOICE_VERSION,))
@@ -1377,13 +1380,15 @@ class SessionFlow:
         policy = self.settings.manual_demo_policy
         manual = self.settings.manual_face_demo or self.settings.manual_full_demo
         suffix = policy.version_suffix if manual and policy is not None else ""
-        base_versions = (
-            (RECOVERY_MATCH_VERSION if session.purpose == "recovery" else REAUTH_MATCH_VERSION,)
-            if session.account_id
-            else (VIDEO_MATCH_VERSION, VIDEO_MATCH_VERSION + "+head12s-v2")
-            if self.settings.identity_face_from_video
-            else (MATCH_VERSION,)
-        )
+        if session.account_id and session.purpose == "recovery":
+            dynamic = session.challenge.dynamic
+            base_versions = (recovery_match_version(dynamic.version),) if dynamic else ()
+        elif session.account_id:
+            base_versions = (REAUTH_MATCH_VERSION,)
+        elif self.settings.identity_face_from_video:
+            base_versions = (VIDEO_MATCH_VERSION, VIDEO_MATCH_VERSION + "+head12s-v2")
+        else:
+            base_versions = (MATCH_VERSION,)
         expected_versions = tuple(v + suffix for v in base_versions) if manual else base_versions
         if match is not None and match.model_version in expected_versions:
             threshold = match.quality.get("threshold_cosine")

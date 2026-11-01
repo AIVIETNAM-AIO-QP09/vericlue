@@ -30,15 +30,16 @@ object CaptureClock {
         elapsedRealtimeNs: Long = SystemClock.elapsedRealtimeNanos(),
         nanoTimeNs: Long = System.nanoTime(),
     ): Long {
-        if (sensorTimestampNs <= 0L) return sensorTimestampNs
-        val elapsedGap = abs(elapsedRealtimeNs - sensorTimestampNs)
-        val nanoGap = abs(nanoTimeNs - sensorTimestampNs)
-        if (realtimeSource && elapsedGap <= MAX_CLOCK_SKEW_NS) return sensorTimestampNs
-        if (nanoGap < elapsedGap && nanoGap <= MAX_CLOCK_SKEW_NS) {
-            return (sensorTimestampNs + (elapsedRealtimeNs - nanoTimeNs)).coerceAtMost(elapsedRealtimeNs)
+        if (sensorTimestampNs <= 0L) return 0L
+        val elapsedAge = elapsedRealtimeNs - sensorTimestampNs
+        val nanoAge = nanoTimeNs - sensorTimestampNs
+        if (realtimeSource) return if (elapsedAge in 0L..MAX_CLOCK_SKEW_NS) sensorTimestampNs else 0L
+        if (nanoAge in 0L..MAX_CLOCK_SKEW_NS &&
+            (elapsedAge !in 0L..MAX_CLOCK_SKEW_NS || nanoAge < elapsedAge)) {
+            return elapsedRealtimeNs - nanoAge
         }
-        if (elapsedGap <= MAX_CLOCK_SKEW_NS) return sensorTimestampNs.coerceAtMost(elapsedRealtimeNs)
-        return elapsedRealtimeNs
+        if (elapsedAge in 0L..MAX_CLOCK_SKEW_NS) return sensorTimestampNs
+        return 0L
     }
 }
 
@@ -130,10 +131,10 @@ object HeadTurnGuide {
     private fun tilted(face: FaceSignal): Boolean =
         abs(face.pitch) > MAX_TILT_DEG || abs(face.roll) > MAX_TILT_DEG
 
-    /** Snapshot fixtures have no sensor timestamp; real analyzer results always have one. */
+    /** Only recent, positively identified capture times may drive pose coaching. */
     fun freshFace(face: FaceSignal?, nowMs: Long, segmentStartMs: Long): FaceSignal? =
         face?.takeIf {
-            it.timestampNs <= 0L || (it.timestampNs / 1_000_000L >= segmentStartMs &&
+            it.timestampNs > 0L && (it.timestampNs / 1_000_000L >= segmentStartMs &&
                 nowMs - it.timestampNs / 1_000_000L in 0L..MAX_FRAME_AGE_MS)
         }
 
@@ -221,11 +222,12 @@ class SegmentHoldTracker(
     /** Returns true on the transition frame where the hold completes. */
     fun update(dir: TurnDir?, face: FaceSignal?, nowMs: Long): Boolean {
         if (dir == null || completed) return false
-        val frameMs = if (face != null && face.timestampNs > 0L) {
-            face.timestampNs / 1_000_000L
-        } else {
-            nowMs
+        if (face == null || face.timestampNs <= 0L) {
+            holdStartMs = null
+            lastFrameMs = null
+            return false
         }
+        val frameMs = face.timestampNs / 1_000_000L
         if (nowMs < segmentStartMs || frameMs < segmentStartMs ||
             nowMs - frameMs !in 0L..HeadTurnGuide.MAX_FRAME_AGE_MS) {
             holdStartMs = null

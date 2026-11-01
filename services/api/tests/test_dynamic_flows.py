@@ -412,6 +412,9 @@ def _setup_ready_real_env(client, tmp_path):
     calib_dir = tmp_path / "calibrators"
     store = CalibrationStore(calib_dir)
     root.orchestrator.router.calibrators = store
+    root.orchestrator.router.config = root.orchestrator.router.config.model_copy(
+        update={"provisional": False}
+    )
 
     def save_fitted(mod: Module, ver: str) -> None:
         artifact = fit(
@@ -464,7 +467,7 @@ def _setup_ready_real_env(client, tmp_path):
     )
     voice_cal = write_match_threshold("voice.json", FACE_VOICE_VERSION)
     acct_cal = write_match_threshold("acct.json", REAUTH_MATCH_VERSION)
-    rec_cal = write_match_threshold("rec.json", RECOVERY_MATCH_VERSION)
+    rec_cal = write_match_threshold("rec.json", RECOVERY_MATCH_VERSION + "+head12s-v2")
 
     root.settings = root.settings.model_copy(
         update={
@@ -553,7 +556,7 @@ def _setup_ready_real_env(client, tmp_path):
             purpose = inp.metadata.get("purpose")
             acct = inp.metadata.get("account_id")
             ver = (
-                RECOVERY_MATCH_VERSION
+                RECOVERY_MATCH_VERSION + "+head12s-v2"
                 if purpose == "recovery" and acct
                 else REAUTH_MATCH_VERSION
                 if purpose == "reauth" and acct
@@ -695,6 +698,34 @@ def _setup_ready_real_env(client, tmp_path):
         spoof_ver=spoof_ver,
         lipsync_ver=lipsync_ver,
     )
+
+
+def test_standard_real_flow_rejects_provisional_router_policy(client, tmp_path):
+    env = _setup_ready_real_env(client, tmp_path)
+    router = env.root.orchestrator.router
+    router.config = router.config.model_copy(update={"provisional": True})
+    _, device_spki = env.make_key()
+    response = client.post(
+        "/v1/sessions",
+        json={"purpose": "onboarding", "nonce": NONCE, "device_public_key_spki": device_spki},
+    )
+    assert response.status_code == 503
+    assert response.json()["error_code"] == "flow_unavailable"
+
+
+def test_standard_account_flow_rejects_profile_without_required_presence(client, tmp_path):
+    from vericlue_ml.router.profiles import get_profile
+
+    env = _setup_ready_real_env(client, tmp_path)
+    env.root.orchestrator.router.profile = get_profile("mvp")
+    env.root.settings = env.root.settings.model_copy(update={"router_profile": "mvp"})
+    _, device_spki = env.make_key()
+    response = client.post(
+        "/v1/sessions",
+        json={"purpose": "onboarding", "nonce": NONCE, "device_public_key_spki": device_spki},
+    )
+    assert response.status_code == 503
+    assert response.json()["error_code"] == "flow_unavailable"
 
 
 def test_standard_real_flows_succeed_when_all_prerequisites_are_ready(

@@ -91,4 +91,3 @@ class PresenceDebugTraceTest {
         assertTrue(!trace.toJson().contains("attempt_sha256"))
     }
 }
-

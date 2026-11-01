@@ -462,6 +462,11 @@ class CameraSession(
         }
         analyzedFrames++
         val ts = CaptureClock.sensorTimestampToElapsedNanos(proxy.imageInfo.timestamp, realtimeTimestampSource)
+        if (ts <= 0L) {
+            _face.value = null
+            proxy.close()
+            return
+        }
         if (recordingFrames) {
             if (firstFrameNs == 0L) firstFrameNs = ts
             synchronized(frames) {

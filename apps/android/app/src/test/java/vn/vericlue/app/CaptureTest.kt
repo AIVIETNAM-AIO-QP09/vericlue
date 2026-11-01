@@ -24,6 +24,30 @@ import vn.vericlue.app.flow.Routes
 import vn.vericlue.app.flow.TurnDir
 
 class CaptureTest {
+    @Test
+    fun invalidSensorStampsNeverBecomeFreshFrames() {
+        val clock = vn.vericlue.app.capture.CaptureClock
+        for (stamp in listOf(0L, -1L, 1_000_000_000L, 90_100_000_000L)) {
+            val normalized = clock.sensorTimestampToElapsedNanos(stamp, false, 100_000_000_000L, 90_000_000_000L)
+            assertTrue("Invalid or unknown timestamp must not be presented as current", normalized <= 0L)
+        }
+        assertEquals(0L, clock.sensorTimestampToElapsedNanos(89_958_000_000L, true, 100_000_000_000L, 90_000_000_000L))
+        val first = clock.sensorTimestampToElapsedNanos(89_958_000_000L, false, 100_000_000_000L, 90_000_000_000L)
+        val repeated = clock.sensorTimestampToElapsedNanos(89_958_000_000L, false, 100_100_000_000L, 90_100_000_000L)
+        assertEquals(first, repeated)
+    }
+
+    @Test
+    fun missingCaptureStampCannotShowFreshFaceOrCompleteHold() {
+        for (stamp in listOf(0L, -1L)) {
+            val missing = face(yaw = 26f).copy(timestampNs = stamp)
+            assertNull(HeadTurnGuide.freshFace(missing, 1000L, 900L))
+            val tracker = SegmentHoldTracker(segmentStartMs = 1000L)
+            for (now in 1000L..2000L step 100L) tracker.update(TurnDir.Left, missing, now)
+            assertFalse(tracker.completed)
+        }
+    }
+
     private fun face(width: Float = 0.45f, x: Float = 0.5f, y: Float = 0.45f, luma: Float = 120f, faces: Int = 1, yaw: Float = 0f) =
         FaceSignal(faces, width, x, y, yaw, luma, 0L)
 
@@ -48,18 +72,18 @@ class CaptureTest {
     @Test
     fun analyzerGapsOrReversedTimeCannotCompleteAHold() {
         val good = face(yaw = 26f)
-        for (badTime in listOf(1000L, -100L, 0L)) {
+        for (badTime in listOf(2000L, 900L, 1000L)) {
             val tracker = SegmentHoldTracker()
-            assertFalse(tracker.update(TurnDir.Left, good, 0))
-            assertFalse(tracker.update(TurnDir.Left, good, badTime))
+            assertFalse(tracker.update(TurnDir.Left, good.copy(timestampNs = 1000_000_000L), 1000))
+            assertFalse(tracker.update(TurnDir.Left, good.copy(timestampNs = badTime * 1_000_000L), badTime))
             assertFalse(tracker.completed)
         }
         val tracker = SegmentHoldTracker()
-        assertFalse(tracker.update(TurnDir.Left, good, 0))
-        assertFalse(tracker.update(TurnDir.Left, good, 200))
-        assertFalse(tracker.update(TurnDir.Left, good.copy(roll = 18f), 300))
-        for (time in 400L..1200L step 100L) assertFalse(tracker.update(TurnDir.Left, good, time))
-        assertTrue(tracker.update(TurnDir.Left, good, 1300))
+        assertFalse(tracker.update(TurnDir.Left, good.copy(timestampNs = 1000_000_000L), 1000))
+        assertFalse(tracker.update(TurnDir.Left, good.copy(timestampNs = 1200_000_000L), 1200))
+        assertFalse(tracker.update(TurnDir.Left, good.copy(roll = 18f, timestampNs = 1300_000_000L), 1300))
+        for (time in 1400L..2200L step 100L) assertFalse(tracker.update(TurnDir.Left, good.copy(timestampNs = time * 1_000_000L), time))
+        assertTrue(tracker.update(TurnDir.Left, good.copy(timestampNs = 2300_000_000L), 2300))
     }
 
     @Test
@@ -202,14 +226,14 @@ class CaptureTest {
         assertEquals(TurnPoseState.Hold, HeadTurnGuide.evaluatePose(TurnDir.Right, face(yaw = -26f)))
         assertEquals(TurnPoseState.Warn, HeadTurnGuide.evaluatePose(TurnDir.Right, face(yaw = -42f)))
 
-        assertFalse(tracker.update(TurnDir.Right, face(yaw = -12f), 0L))
-        assertFalse(tracker.update(TurnDir.Right, face(yaw = -26f), 100L))
-        assertFalse(tracker.update(TurnDir.Right, face(yaw = -28f), 300L))
-        assertFalse(tracker.update(TurnDir.Right, face(yaw = -28f), 500L))
-        assertFalse(tracker.update(TurnDir.Right, face(yaw = -28f), 700L))
-        assertTrue(tracker.update(TurnDir.Right, face(yaw = -27f), 950L))
+        assertFalse(tracker.update(TurnDir.Right, face(yaw = -12f).copy(timestampNs = 1000_000_000L), 1000L))
+        assertFalse(tracker.update(TurnDir.Right, face(yaw = -26f).copy(timestampNs = 1100_000_000L), 1100L))
+        assertFalse(tracker.update(TurnDir.Right, face(yaw = -28f).copy(timestampNs = 1300_000_000L), 1300L))
+        assertFalse(tracker.update(TurnDir.Right, face(yaw = -28f).copy(timestampNs = 1500_000_000L), 1500L))
+        assertFalse(tracker.update(TurnDir.Right, face(yaw = -28f).copy(timestampNs = 1700_000_000L), 1700L))
+        assertTrue(tracker.update(TurnDir.Right, face(yaw = -27f).copy(timestampNs = 1950_000_000L), 1950L))
         assertTrue(tracker.completed)
-        assertFalse(tracker.update(TurnDir.Right, face(yaw = -27f), 1100L))
+        assertFalse(tracker.update(TurnDir.Right, face(yaw = -27f).copy(timestampNs = 2100_000_000L), 2100L))
         assertEquals(
             TurnPoseState.Completed,
             HeadTurnGuide.evaluatePose(TurnDir.Right, face(yaw = -2f), segmentCompleted = tracker.completed),
