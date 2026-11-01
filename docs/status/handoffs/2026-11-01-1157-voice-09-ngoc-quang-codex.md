@@ -40,3 +40,33 @@ không chờ nghiệm thu điện thoại để dừng các việc dữ liệu �
 - Không push/PR,không tắt máy/xóa account/model/media,không sửa STATUS/thresholds/
   contracts/ADR. Không nâng error/degraded thành đạt.
 - Đây là checkpoint kỹ thuật trước chạy thật, kết quả cloud bổ sung sau.
+
+## Cập nhật sau tạo notebook
+
+- Source commit `140beb55d27e7c4ae2f4bf8883117c7c2a1553e6`; notebook sinh sạch,
+  SOURCE_DIRTY=false, build --check đạt. Notebook local chưa có output dữ liệu.
+- Đã tạo notebook Colab mới trong tài khoản đang đăng nhập. File upload qua
+  extension không có quyền file URLs; không đổi quyền, chuyển sang nhập cell.
+  Colab bật hộp Điều khoản dịch vụ trước khi vào editor. Đã giữ tab handoff và
+  hỏi cho phép bấm Đồng ý; **chưa bấm/chưa chạy job**. Ảnh chứng cứ ngoài Git:
+  D:/vericlue/tmp/finish-2026-11-01/cloud-data/colab-terms-required.png.
+- Smoke thật downloader với một WAV DNU publisher trong RAM: SHA/native PCM
+  hợp lệ; không lưu WAV và không inference/fit. Report public-fetch-ram-smoke.json
+  trong thư mục cloud-data ở trên. Không coi smoke là bundle chuẩn bị xong.
+- MLAAD publisher revision30c3dec763fa4803f11c2df1557d3b0828395366; public tree
+  phần vi đã lấy, payload gated chưa truy cập. Cần access/reference metadata;
+  không bịa subject IDs hoặc biến hệ TTS thành người. Inventory ngoài Git:
+  D:/vericlue/data/diagnostics/nes2net-calibration-prep-2026-11-01/MLAAD-vi-public-tree.json.
+- Full Python đang chạy, chưa có kết luận ở bản cập nhật này. Không đổi server,
+  không tạo calibrator, không mở chốt và không push/PR.
+
+## Xác minh cuối checkpoint chờ điều khoản
+
+- Full Python: **4704 passed,99 skipped,2 warnings in601.27s**; log/XML
+  cloud-data-python.* tại D:/vericlue/tmp/finish-2026-11-01/. Hai warning vẫn
+  Starlette/httpx deprecation và Pydantic serializer ca sai module đã có trước.
+- WSL stdlib prep+notebook: **17 passed**; Windows **15 passed,2 skipped** do
+  không có quyền tạo directory symlink. Hai ca đó đã xác minh thật trên Linux.
+- Ruff toàn repo, notebook --check và diff check đạt; plan_check0lỗi/10cảnh báo.
+- Chỉ còn chốt dịch vụ Colab đang hỏi trong chat để chạy bundle thật. Không coi
+  im lặng là đồng ý; không thay bằng tải cả tập ở laptop hoặc sinh artifact giả.

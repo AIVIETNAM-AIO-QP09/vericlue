@@ -37,3 +37,24 @@ cho mọi ứng dụng định danh hoặc nhân bản giọng.
 
 Chưa có accuracy/ngưỡng LTT hay nghiệm thu Android từ bước rà nguồn. Nhận/tải
 audio hợp lệ, chuẩn bị tấn công và chạy hiệu chỉnh/đánh giá vẫn còn phải làm.
+
+## Tiếp tục tự động hóa sau yêu cầu người dùng
+
+Đã có `scripts/prepare_nes2net_data.py` và notebook sinh từ source đã kiểm:
+`ml/notebooks/prepare_nes2net_data.ipynb`. Source đã qua test trên Linux, gồm
+symlink thoát thư mục, resume, lỗi bytes/WAV, trùng PCM và archive allowlist.
+Đã smoke đúng downloader với một WAV publisher trong RAM, hash/header hợp lệ;
+không lưu audio, không suy luận hoặc hiệu chỉnh từ smoke này.
+
+Colab có phiên đăng nhập, nhưng khi tạo notebook hiện yêu cầu chấp thuận Điều
+khoản dịch vụ. Đã hỏi người dùng trước khi bấm Đồng ý theo chính sách công cụ;
+job thật chưa chạy. Đây là phụ thuộc quyền dịch vụ, độc lập việc người dùng
+chưa thể thử điện thoại. Không coi notebook sinh được là dữ liệu đã tải xong.
+
+Nguồn lớp giả đã đối chiếu thêm:
+[MLAAD publisher](https://huggingface.co/datasets/mueller91/MLAAD), revision
+`30c3dec763fa4803f11c2df1557d3b0828395366`, CC-BY-NC4.0, gated auto. Public
+file-tree tiếng Việt hiện có LEMAS-TTS, OmniVoice, VieNeu-TTS, VoxCPM2, vixTTS.
+Chưa truy cập payload audio/meta.csv bị gate; cần quyền đã cấp trước khi kiểm
+reference_speaker/original_file và chia nhóm. Không giả định mỗi hệ là một người,
+không dùng mirror để lách quyền truy cập và không tự chấp thuận điều khoản.

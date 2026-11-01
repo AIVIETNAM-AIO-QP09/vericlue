@@ -9,6 +9,8 @@ uv run python scripts/build_voice_data_notebook.py --check
 
 Mở `prepare_nes2net_data.ipynb` trên Colab bằng tài khoản hiện có, giữ private và
 dùng CPU mặc định. Không mount Drive, không token, không GPU hoặc tạo clone.
+Nếu dịch vụ yêu cầu chấp thuận điều khoản mới, chủ tài khoản cần chấp thuận hoặc
+ủy quyền đúng bước đó; không tự bỏ qua hộp điều khoản. Job chưa chạy khi bị chặn.
 Cell đầu nhúng script/commit/SHA, từ chối source chưa commit; tải DNU publisher
 revision cố định, kiểm file/SHA/PCM và xuất gói. Cell cuối tải bundle đã kiểm.
 
