@@ -248,6 +248,11 @@ Giữ lỗi/thiếu, kiểm người/nguồn cho split và CV, chỉ fit calib_f
 liệu/artifact thật và chưa dùng phép gộp mới trong API. Xem runbook
 `docs/runbooks/nes2net-utterance-calibration.md`.
 
+**Chuẩn bị cloud (01/11):** có downloader DNU revision cố định và notebook sinh
+từ script đã test cho Colab CPU; giữ người/split publisher, kiểm SHA/WAV/PCM,
+resume không ghi đè và xuất bundle allowlist. Đây chỉ lớp thật, luôn báo thiếu
+tấn công/chưa sẵn sàng fit. Hướng dẫn `ml/notebooks/README-voice-data.md`.
+
 **Chưa nghiệm thu:** EER tiếng Việt,
 calibration, chất lượng phép gộp toàn câu, ghép GUI/API hoặc quyết định eKYC.
 
