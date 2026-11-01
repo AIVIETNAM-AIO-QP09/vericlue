@@ -99,6 +99,11 @@ ngưỡng. Không coi việc có link công khai là đủ metadata/người/ngu
   hoặc crosswalk donor/target/source để kiểm. Đây là ứng viên cần kiểm archive,
   quyền đúng tác vụ và nguồn gốc từng nhóm trước khi quyết định dùng; không
   tự thêm vào data-plan hoặc gọi đủ dữ liệu hiệu chỉnh.
+  Đọc có giới hạn ZIP directory và protocol từ Drive sau đó cho thấy tên
+  ASVspoof2019, ID người nói xuất hiện ở nhiều tập và mã A12/A15/A19 chưa được
+  bảng A01–A10 trong README giải thích. Chưa xác minh donor/target/source,
+  quyền corpus gốc hoặc audio tiếng Việt. Chỉ nhận metadata, không tải audio;
+  không dùng split có sẵn để fit. Bằng chứng ngoài Git tại voicespoof-source-review/.
 - [RADAR2026 publisher](https://zenodo.org/records/22110815): release ghi CC-BY4.0,
   tiếng Việt nằm trong **evaluation**, development chỉ tiếng Anh. Giữ phần VI
   làm ứng viên test độc lập, không chuyển sang calib_fit để lấp lớp tấn công.
