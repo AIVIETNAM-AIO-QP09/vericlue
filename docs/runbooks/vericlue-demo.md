@@ -3,8 +3,11 @@
 **Cập nhật vận hành 01/11:** source đang ở worktree
 `C:/Users/Admin/.codex/worktrees/android-merged-review/vericlue`, launcher hiện
 tại `D:/vericlue/tmp/full-demo-setup/VeriClue.cmd`. Đã nâng migration0011 và bật
-OTP mô phỏng trong synthetic; server8421 chạy. APK SEC09 đã cài đè trên Samsung
-A04, ADB reverse8421; ba luồng AI thật chưa nghiệm thu. Các đường dẫn/lượt ký
+OTP mô phỏng trong synthetic. Kiểm lại18:44: server8421 dừng,ADB chưa thấy máy;
+runtime mới đã smoke trên bản sao DB/media riêng,không dọn dữ liệu gốc. APK
+debug mới cùng khóa laptop đã sẵn sàng trong `tmp/publish-review-2026-11-01/ready-apk`
+ở ổ D:/vericlue, chưa cài; bản SEC09 trước đây đã cài trên SamsungA04. Ba luồng
+AI thật chưa nghiệm thu. Các đường dẫn/lượt ký
 29/10 bên dưới là lịch sử. [Trạng thái mới](real-ekyc-next-steps.md).
 
 Theo yêu cầu ngày 29/10, demo dùng một app **VeriClue** (`vn.vericlue.app`) và
