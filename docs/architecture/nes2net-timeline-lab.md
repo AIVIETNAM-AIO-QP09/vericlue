@@ -2,8 +2,10 @@
 
 Lab micro và A/V hiện kiểm lần lượt các đoạn phủ hết bản thu, thay cho chỉ
 chấm 4 giây đầu. Tái sử dụng checkpoint/backend/runtime CPU của VOICE-09,
-không tải mô hình mới. Đây là protocol do nhóm xây; chưa có số đo accuracy,
-parity frontend Fairseq ↔ Transformers hoặc calibration tiếng Việt.
+không tải mô hình mới. Đây là protocol do nhóm xây; chưa có accuracy/calibration.
+Parity số học cho graph bên trong cửa sổ có [binding riêng](nes2net-diagnostic.md),
+không chứng nhận cả câu thật. Công cụ offline gộp max margin có version khác:
+[runbook](../runbooks/nes2net-utterance-calibration.md); timeline/API mặc định vẫn không gộp.
 
 ## Chạy và đọc kết quả
 

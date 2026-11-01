@@ -21,6 +21,11 @@
 
 ## Quy ước bắt buộc
 
+VOICE-09/APP-01 (01/11): công cụ offline `eval.nes2net_utterance` gộp max margin
+toàn câu có version riêng; chỉ có score khi mọi cửa sổ đo được. Prepare/collect/
+fit kiểm provenance/split theo người và nguồn, không cài artifact hoặc đổi API.
+[Runbook](../docs/runbooks/nes2net-utterance-calibration.md).
+
 APP-01/FLOW-04 (31/10): manual demo là policy opt-in riêng cho các adapter phiên,
 không phải calibrator. Kết quả hợp lệ giữ điểm thô/prob_attack=null, marker và
 version policy riêng; mặc định đường hiệu chỉnh chuẩn không đổi. Lỗi/degraded

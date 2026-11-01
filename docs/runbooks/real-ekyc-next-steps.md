@@ -25,10 +25,16 @@ số threads không đạt vẫn được giữ để truy vết. Không suy k�
 chất lượng chống giả giọng hoặc giấy phép mở chốt khi thiếu hiệu chỉnh.
 Runtime Windows Torch2.14.1CPU/HF4.57.6 cũng đã đo trên cùng32 PCM/hash và logits
 Fairseq4threads: PASS, max margin diff `7.271766662597656e-05`,32/32 cùng dấu;
-xem `nes2net-parity-windows.json`. Vẫn cần tích hợp artifact bằng chứng runtime,
-gộp điểm và hiệu chỉnh trước khi đổi trạng thái diagnostic của detector.
+xem `nes2net-parity-windows.json`. Đã nối bằng chứng có binding runtime/config/
+source (01/11) và công cụ gộp offline riêng; vẫn cần dữ liệu/hiệu chỉnh trước
+khi thay đổi đường quyết định. Marker parity không nâng trạng thái diagnostic.
 
 ## Phần dữ liệu vẫn cần
+
+Đã có công cụ offline đo/gộp max margin toàn câu có version riêng và kiểm
+manifest/split/CV theo người/nguồn: [runbook](nes2net-utterance-calibration.md).
+Người giao việc xác nhận dữ liệu chưa được chuẩn bị; chưa có artifact fit thật.
+Nguồn publisher/revision và phần cần nhận/tải: [ghi chú](../research/2026-11-01-voice-calibration-prep.md).
 
 | Mô-đun/giao thức | Dữ liệu và bằng chứng cần giữ |
 |---|---|

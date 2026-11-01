@@ -242,8 +242,14 @@ VIVOS, đúng các runtime trong báo cáo VOICE-09. Binding opt-in kiểm check
 runtime, graph config và fingerprint mã số học; không mở chốt đạt. Các mẫu chỉ
 dùng parity, không hiệu chỉnh. Review và smoke thật được ghi trong bàn giao.
 
+**Toàn câu (01/11):** thêm công cụ offline prepare/collect/fit và max raw margin
+có version `timeline4s-tail-maxmargin-v1`; chỉ đủ điểm khi mọi cửa sổ đã đo.
+Giữ lỗi/thiếu, kiểm người/nguồn cho split và CV, chỉ fit calib_fit. Chưa có dữ
+liệu/artifact thật và chưa dùng phép gộp mới trong API. Xem runbook
+`docs/runbooks/nes2net-utterance-calibration.md`.
+
 **Chưa nghiệm thu:** EER tiếng Việt,
-calibration, xử lý toàn câu dài hơn 4 giây, ghép GUI/API hoặc quyết định eKYC.
+calibration, chất lượng phép gộp toàn câu, ghép GUI/API hoặc quyết định eKYC.
 
 ---
 
