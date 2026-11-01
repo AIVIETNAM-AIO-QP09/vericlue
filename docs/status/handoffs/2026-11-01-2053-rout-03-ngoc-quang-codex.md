@@ -10,6 +10,7 @@
 - Snapshot bounded/recheck input, output mới ngoài input/config/model/data và commit thực thi sạch. Luôn diagnostic_only, undeployed, runtime_eligible=false/ltt_ready=false; runtime/crosswalk/gate/external attestation chưa kiểm chứng.
 - PR122 và PR123 đã xanh CI 8/8. PR123 f085806: Python PostgreSQL16 **4851 passed,78 skipped**,240.11s. Không thay ngưỡng hoặc chạy trọng số mới.
 - Review phát hiện output còn ghi được vào CALIBRATORS_DIR tùy chỉnh ngoài repo. Đã tái hiện RED rồi chặn cho cả face_candidate và nes2net_candidate, thêm regression thực qua score_report; review lại chấp thuận spec/chất lượng, không còn Critical/Important.
+- Smoke subprocess từ source sạch **a47151e31311aee646855627853eb8979eb9dfa7** hoàn tất: 1 lệnh chấm synthetic thành công, 3 lệnh sai calibrator/ghi đè input/ghi vào CALIBRATORS_DIR bị từ chối đúng, không đổi input hoặc tạo output lỗi. 10 hàng calib_fit giữ nguyên, 8 đủ max và 2 thiếu max do module lỗi. Không nạp trọng số hay giải mã video.
 
 ## Đang dở
 <!-- file:dòng, việc gì còn dang dở -->
@@ -35,4 +36,5 @@
 - TDD consumer: RED→GREEN; **54 test mới đạt** sau bổ sung guard CALIBRATORS_DIR. Lỗi --help Windows cp1252 được tái hiện bằng subprocess rồi sửa description ASCII, regression đạt.
 - Root nhóm face_candidate/session_calibration/calibration/router_fusion/router_policy/router_flows/router_profiles: **494 passed,1 skipped**,19.10s. Ca skip là tùy chọn có điều kiện, không tính là đã kiểm.
 - Root nhóm chung face/voice candidates, calibration, router, LTT, readiness, utterance/parity sau sửa guard: **637 passed,17 skipped**,35.17s. Các skip là tùy chọn; reviewer độc lập chạy riêng 13 output-guard test đạt.
-- Ruff toàn repo sạch, 868 file đúng format; plan_check0lỗi/10cảnh báo hiện có; diff --check sạch. Smoke subprocess/review cuối/CI nhánh mặt: đang thực hiện, chưa tính vào số trên.
+- Ruff toàn repo sạch, 868 file đúng format; plan_check0lỗi/10cảnh báo hiện có; diff --check sạch.
+- Review cuối toàn diff f085806..a47151e chấp thuận Draft, không Critical/Important. Bằng chứng CLI chỉ số tổng hợp: `docs/status/results/ROUT-03-face-candidate-smoke-2026-11-01.json`; source/runtime/gate vẫn không được chứng nhận. CI nhánh mặt sẽ ghi trên Draft PR sau push; không lấy CI parent thay thế.

@@ -80,7 +80,9 @@ hiện tại của ROUT-02. File mới eval/face_candidate.py và test_face_cand
 - Task 3: complete — CI PR122 8/8 đạt, job Python 4749 passed/78 skipped với PostgreSQL16. Nhóm 333 test API khác đạt local.
 - Task 4: complete về review/kiểm thử/bàn giao — full Python 4810 đạt/119 skip; smoke subprocess 4 thành công + 2 từ chối dự kiến. Draft riêng xếp sau PR122; không merge, không chứng nhận ngưỡng thật.
 - Task 5: code/review complete — 54 test mới, nhóm chung 637 đạt/17 skip;
-  đã sửa guard CALIBRATORS_DIR cho cả mặt/giọng sau review. Smoke và CI cuối
-  đang thực hiện. Audit xác nhận định dạng producer cho phép consumer score
+  đã sửa guard CALIBRATORS_DIR cho cả mặt/giọng sau review. Smoke source sạch
+  a47151e: 1 thành công, 3 từ chối đúng, 2 hàng thiếu max được giữ; review cuối
+  chấp thuận Draft. CI riêng chờ sau publish, không lấy CI parent thay thế.
+  Audit xác nhận định dạng producer cho phép consumer score
   nhỏ mà không cần bịa strata hoặc gate; các producer metadata để LTT mặt cần
   đặc tả/thu thập riêng. Nhánh codex/ROUT-03-face-candidate-score dựa PR123.

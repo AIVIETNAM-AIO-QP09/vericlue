@@ -19,8 +19,10 @@ khi chưa có quan sát tấn công hợp lệ. Bộ VIVOS32 parity không vào 
 Còn cần dữ liệu có quyền sử dụng/crosswalk người–nguồn, protocol quan sát độc
 lập và quần thể áp dụng đã review, calibrator thật đúng version, rồi LTT và test.
 
-Mặt có core (B,A), nhưng report đo hiện thiếu stratum/crosswalk/gate để làm
-consumer chọn ngưỡng mặt trung thực. Không nối các CSV khác tập bằng số dòng.
+Mặt có core (B,A) và consumer ghép max PAD/GenD trên calib_fit. [Smoke mặt](ROUT-03-face-candidate-smoke-2026-11-01.json)
+chỉ dùng fixture synthetic, giữ 2 hàng thiếu max, không chạy trọng số. Report đo
+hiện thiếu stratum/crosswalk/runtime/gate để chọn ngưỡng mặt trung thực. Không
+nối các CSV khác tập bằng số dòng.
 Bảo đảm cuối luồng mặt–giọng vẫn cần sự kiện/quần thể tương thích và phân bổ
 delta chung; chưa được nghiệm thu trên Android.
 
