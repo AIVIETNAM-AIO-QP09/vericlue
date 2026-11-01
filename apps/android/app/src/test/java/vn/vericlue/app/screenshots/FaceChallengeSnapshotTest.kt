@@ -2,6 +2,7 @@ package vn.vericlue.app.screenshots
 
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
+import androidx.compose.ui.platform.ComposeView
 import com.android.resources.Density
 import org.junit.Rule
 import org.junit.Test
@@ -48,11 +49,16 @@ abstract class FaceChallengeSnapshots(device: DeviceConfig) {
         val timeline = FaceTimeline.demo(listOf(TurnDir.Left, TurnDir.Right))
         val front = vn.vericlue.app.capture.FaceSignal(1, 0.45f, 0.5f, 0.45f, 26f, 120f, 0)
         for ((name, face) in listOf("hold" to front, "tilt" to front.copy(roll = 16f), "too_far" to front.copy(yaw = 55f))) {
-            paparazzi.snapshot("assist_$name") {
+            // Use the renderer's capture time; a fixed future stamp races the first guide tick.
+            val view = ComposeView(paparazzi.context)
+            view.setContent {
+                // Layoutlib starts at zero; 1ns is positive and rounds to the same capture millisecond.
+                val captured = face.copy(timestampNs = android.os.SystemClock.elapsedRealtimeNanos().coerceAtLeast(1L))
                 VcTheme(motionEnabled = false) {
-                    FaceChallengeContent(timeline, FaceTimeline.Phase.Head(0, TurnDir.Left), 3, face) {}
+                    FaceChallengeContent(timeline, FaceTimeline.Phase.Head(0, TurnDir.Left), 3, captured) {}
                 }
             }
+            paparazzi.snapshot(view, "assist_$name", offsetMillis = 100L)
         }
     }
 

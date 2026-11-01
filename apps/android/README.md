@@ -4,6 +4,12 @@
 
 ## Trạng thái
 
+**Review timestamp trước PR (01/11):** không suy thời gian chụp từ lúc giao frame.
+Camera chỉ chuyển đổi hai miền đồng hồ đã nhận diện và giữ tuổi khung; timestamp
+không hợp lệ/bất định bị bỏ trước phân tích hoặc ghi frame_times. Hướng dẫn quay
+đầu không đếm giữ hướng từ timestamp thiếu, tương lai hoặc khung quá cũ. Có test
+đồng hồ REALTIME/UNKNOWN và khung lặp; vẫn cần nghiệm thu thực trên thiết bị.
+
 **APP-01 / SEC-09 (01/11):** đồng ý lưu mẫu tài khoản mã hóa được ghi riêng với
 biên nhận, thời hạn 24 giờ; checkbox mặc định bỏ chọn. API kiểm trước trích mẫu và
 ghi danh. Android đối chiếu mode/policy cả finalize và voice, hiển thị nhãn

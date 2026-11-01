@@ -152,6 +152,25 @@ def test_every_sample_must_meet_own_threshold(monkeypatch, tmp_path, similaritie
     assert result.score == pytest.approx(1 - min(similarities))
 
 
+@pytest.mark.parametrize("approved_protocol", [1, 2])
+def test_recovery_continuity_requires_same_head_protocol(monkeypatch, tmp_path, approved_protocol):
+    from vericlue_ml.face.enrolled import recovery_match_version
+
+    model, inp, _, _ = fixture(monkeypatch, tmp_path, threshold=0.5)
+    inp.metadata.update(purpose="recovery", account_id="acct_" + "a" * 32)
+    inp.metadata["expected_challenge"]["dynamic"].update(
+        version=2, head_start_at_ms=1000, head_duration_ms=12000
+    )
+    inp.metadata["face_reference_result"]["model_version"] = recovery_match_version(
+        approved_protocol
+    )
+    result = model.predict(inp)
+    if approved_protocol == 2:
+        assert result.status == "ok" and result.gate == "pass"
+    else:
+        assert result.status == "error" and result.gate == "unclear"
+
+
 @pytest.mark.parametrize(
     "fault",
     [
