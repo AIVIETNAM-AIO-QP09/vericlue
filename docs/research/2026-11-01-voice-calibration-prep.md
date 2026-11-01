@@ -14,6 +14,10 @@ thiếu artifact; không dùng VIVOS parity, unit hoặc lượt thử điện t
 Chỉ tải card/license/biên bản/metadata để rà nguồn; chưa tải audio, tạo clone
 hay fit. Metadata gốc/pin SHA tại
 `D:/vericlue/data/diagnostics/nes2net-calibration-prep-2026-11-01/` ngoài Git.
+Đã dựng `DNU-bonafide-proposed-manifest.json` từ metadata publisher, chọn bằng
+hash seed42 trước inference và giữ người train/validation/test tương ứng
+calib_fit/calib_ltt/test-only. Đây mới là manifest ứng viên lớp thật: chưa có
+audio, chưa kiểm trùng PCM, thiếu lớp tấn công và quyền clone/VC chưa chốt.
 Không chép code của bộ dữ liệu. Giấy phép dữ liệu không tự xác nhận tác giả
 cho mọi ứng dụng định danh hoặc nhân bản giọng.
 

@@ -1,5 +1,12 @@
 # Chạy demo VeriClue: một app, một server
 
+**Cập nhật vận hành 01/11:** source đang ở worktree
+`C:/Users/Admin/.codex/worktrees/android-merged-review/vericlue`, launcher hiện
+tại `D:/vericlue/tmp/full-demo-setup/VeriClue.cmd`. Đã nâng migration0011 và bật
+OTP mô phỏng trong synthetic; server8421 chạy. APK SEC09 đã cài đè trên Samsung
+A04, ADB reverse8421; ba luồng AI thật chưa nghiệm thu. Các đường dẫn/lượt ký
+29/10 bên dưới là lịch sử. [Trạng thái mới](real-ekyc-next-steps.md).
+
 Theo yêu cầu ngày 29/10, demo dùng một app **VeriClue** (`vn.vericlue.app`) và
 một tiến trình API tại cổng **8421**. QR/chân dung chạy trực tiếp trong API,
 dùng chung session SCRFD theo thư mục model và thiết bị. Không mở 8010/8011,

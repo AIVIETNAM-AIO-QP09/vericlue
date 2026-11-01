@@ -3,6 +3,25 @@
 Phạm vi Android, API và mô hình; OTP vẫn mô phỏng. Không coi test phần mềm,
 parity số học hoặc màn thành công là số liệu chống giả mạo.
 
+## Trạng thái triển khai 01/11, sau lượt tiếp quản
+
+- DB đã backup/kiểm integrity rồi nâng lên `0011_account_template_consent`.
+  API hiện chạy bằng launcher `D:/vericlue/tmp/full-demo-setup/VeriClue.cmd`,
+  runtime `D:/vericlue/tmp/full-demo-setup/server`; health ok, failed_modules rỗng.
+  Profile hiện có synthetic/manual_full_demo, mock_models=true; không suy thành
+  toàn mô hình đã hiệu chỉnh. Bật lại SIMULATED_OTP=true, không SMS thật.
+- Bằng chứng parity đã pin theo report/config/runtime/mã số học. CLI và IPC
+  trọng số thật giữ degraded/unclear/null probability. Phép gộp mới chỉ offline.
+- Đã cài đè APK SEC09 đã kiểm signer/hash lên Samsung A04, giữ dữ liệu app;
+  `apps/android` không đổi từ source a542a47 của APK. Đã mở app, ADB reverse8421.
+  Chưa nghiệm thu thực tế đăng ký/reauth/recovery; chờ người dùng thao tác.
+- Kết quả hồi quy Python:4689 đạt/97 bỏ qua,hai cảnh báo hiện có (Starlette/httpx
+  và serializer Pydantic);
+  audio runtime149 đạt/1 bỏ qua. Những kết quả này không thay nghiệm thu sinh trắc.
+
+Log/JSON/backup ở `D:/vericlue/tmp/finish-2026-11-01/`; bàn giao mới nhất
+`docs/status/handoffs/2026-11-01-1115-voice-09-ngoc-quang-codex.md`.
+
 ## Đã có trên máy
 
 - Code consent lưu mẫu tách biệt, biên nhận/migration0011 và nhãn `manual_full_demo`.
