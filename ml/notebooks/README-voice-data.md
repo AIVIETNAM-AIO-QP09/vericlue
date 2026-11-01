@@ -33,3 +33,7 @@ Nhận bundle về laptop theo quy trình ADR0015 rồi chạy
 **Đây chỉ là lớp thật, calibration_ready luôn false.** Vẫn cần lớp tấn công có
 quyền dùng, mã người/reference/nguồn, chia nhóm và giữ test trước khi collect/fit.
 Không tạo calibrator hoặc mở chốt từ bundle này. Không dùng VIVOS parity.
+
+Lần chạy thật 01/11 đã nhận/kiểm độc lập 520 WAV/26người, giữ split360/80/80
+mẫu theo18/4/4người. Hash, vị trí bundle và kết quả thiếu lớp tấn công ghi tại
+`docs/research/2026-11-01-voice-calibration-prep.md`; chưa chạy inference/fit.

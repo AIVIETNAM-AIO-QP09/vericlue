@@ -11,13 +11,14 @@ thiếu artifact; không dùng VIVOS parity, unit hoặc lượt thử điện t
 | [DNU-ViSpeech](https://huggingface.co/datasets/TrangLe2108/DNU-ViSpeech/tree/33b2a469901cb71b243403254d3cfef25170526c) | CC-BY-NC4.0, speaker_id/checksum/split; có public-release approval của publisher, card ghi giới hạn consent/phạm vi | Bảo toàn người test gốc; chia calib_fit/calib_ltt theo người từ phần phát triển. Xác nhận riêng phạm vi nếu sinh clone/VC |
 | [Speech-MASSIVE vi](https://huggingface.co/datasets/FBK-MT/Speech-MASSIVE/tree/ff792febc16187a21e5bca38fb02a55daf91dc05/vi-VN) | CC-BY-NC-SA4.0, speaker_id, mono16k; train_115/validation trên repo publisher | Kiểm người/nguồn xuyên phần và quyền biến đổi; test ở repo riêng có bước chấp thuận |
 
-Chỉ tải card/license/biên bản/metadata để rà nguồn; chưa tải audio, tạo clone
+Ở bước rà nguồn ban đầu chỉ tải card/license/biên bản/metadata; chưa tạo clone
 hay fit. Metadata gốc/pin SHA tại
 `D:/vericlue/data/diagnostics/nes2net-calibration-prep-2026-11-01/` ngoài Git.
 Đã dựng `DNU-bonafide-proposed-manifest.json` từ metadata publisher, chọn bằng
 hash seed42 trước inference và giữ người train/validation/test tương ứng
-calib_fit/calib_ltt/test-only. Đây mới là manifest ứng viên lớp thật: chưa có
-audio, chưa kiểm trùng PCM, thiếu lớp tấn công và quyền clone/VC chưa chốt.
+calib_fit/calib_ltt/test-only. Manifest ban đầu chỉ là ứng viên; kết quả tải
+audio/kiểm PCM trên cloud và laptop được bổ sung bên dưới. Vẫn thiếu lớp tấn
+công và quyền clone/VC chưa chốt.
 Không chép code của bộ dữ liệu. Giấy phép dữ liệu không tự xác nhận tác giả
 cho mọi ứng dụng định danh hoặc nhân bản giọng.
 
@@ -35,8 +36,8 @@ cho mọi ứng dụng định danh hoặc nhân bản giọng.
    chạy prepare kiểm trùng byte/PCM/người/nguồn và báo thiếu quota; không chuyển
    người test hoặc chọn mẫu bằng điểm NES2Net.
 
-Chưa có accuracy/ngưỡng LTT hay nghiệm thu Android từ bước rà nguồn. Nhận/tải
-audio hợp lệ, chuẩn bị tấn công và chạy hiệu chỉnh/đánh giá vẫn còn phải làm.
+Chưa có accuracy/ngưỡng LTT hay nghiệm thu Android từ bước rà nguồn. Chuẩn bị
+tấn công và chạy hiệu chỉnh/đánh giá vẫn còn phải làm.
 
 ## Tiếp tục tự động hóa sau yêu cầu người dùng
 
@@ -46,10 +47,9 @@ symlink thoát thư mục, resume, lỗi bytes/WAV, trùng PCM và archive allow
 Đã smoke đúng downloader với một WAV publisher trong RAM, hash/header hợp lệ;
 không lưu audio, không suy luận hoặc hiệu chỉnh từ smoke này.
 
-Colab có phiên đăng nhập, nhưng khi tạo notebook hiện yêu cầu chấp thuận Điều
-khoản dịch vụ. Đã hỏi người dùng trước khi bấm Đồng ý theo chính sách công cụ;
-job thật chưa chạy. Đây là phụ thuộc quyền dịch vụ, độc lập việc người dùng
-chưa thể thử điện thoại. Không coi notebook sinh được là dữ liệu đã tải xong.
+Colab yêu cầu chấp thuận Điều khoản dịch vụ khi tạo notebook. Người dùng đã
+ủy quyền rõ bước Đồng ý; job CPU thật đã chạy và nhận bundle như ghi dưới đây.
+Việc này độc lập việc người dùng chưa thể thử điện thoại.
 
 Nguồn lớp giả đã đối chiếu thêm:
 [MLAAD publisher](https://huggingface.co/datasets/mueller91/MLAAD), revision
@@ -58,3 +58,31 @@ file-tree tiếng Việt hiện có LEMAS-TTS, OmniVoice, VieNeu-TTS, VoxCPM2, v
 Chưa truy cập payload audio/meta.csv bị gate; cần quyền đã cấp trước khi kiểm
 reference_speaker/original_file và chia nhóm. Không giả định mỗi hệ là một người,
 không dùng mirror để lách quyền truy cập và không tự chấp thuận điều khoản.
+
+## Kết quả chuẩn bị DNU thật trên Colab CPU (12:27, 01/11)
+
+- Source commit `140beb55d27e7c4ae2f4bf8883117c7c2a1553e6`, script SHA-256
+  `52c7a43c04f67893fb109f693a77e27805d07db2e1fbee1465dde7525a1baac5`.
+  Cell thực thi đã đối chiếu nguyên văn với notebook sinh sạch trong repo.
+- Lần đầu 517 WAV hợp lệ, 3 HTTPError. Giữ bằng chứng và chạy lại cùng cell:
+  dùng lại 517, tải nốt 3, errors rỗng; không đổi mẫu/người/seed/split.
+- 520 WAV native mono16k PCM16, 20 mẫu/người: calib_fit360/18người,
+  calib_ltt80/4người, test80/4người. Không inference/fit/chọn ngưỡng.
+- ZIP 114802930 byte, 527 tệp allowlist; SHA-256
+  `972aaae1fa8a1da1b1bdf2efed56aa4668e6dce9eb2c8d56ceb9b50463677d74`.
+  Manifest SHA-256
+  `c4fc4b3498c210410a79bd00cc0ba11109cd88784260be18ccc9f43f0584a16b`.
+- Đã nhận về `D:/vericlue/data/prepared/vericlue-dnu-bonafide-30ff4361.zip`,
+  giải nén vào `D:/vericlue/data/prepared/nes2net-dnu-bonafide-2026-11-01-30ff4361/`.
+  Kiểm containment/không symlink, allowlist, SHA ZIP và toàn bộ tệp trước giải nén.
+- Kiểm độc lập bằng `vericlue_ml.eval.nes2net_utterance prepare` tại commit
+  `bdea478c5ebe95aa912b03f4a3f3c2cfe48064d9`, Python3.12.15: 520 mẫu/26nhóm;
+  hash/native decoder/trùng byte và PCM float32/người/nguồn qua kiểm tra.
+  Báo thiếu attack cả ba phần và attack calib_fit0/100; calibration_fitted=false.
+- Báo cáo, receipt/provenance, notebook lỗi lần đầu và ảnh Colab lưu ngoài Git tại
+  `D:/vericlue/tmp/finish-2026-11-01/cloud-data/`; không commit audio hoặc ZIP.
+
+Đây là **bundle lớp thật đã kiểm**, không phải bộ hiệu chỉnh đủ hai lớp. VIVOS
+parity vẫn ngoài hiệu chỉnh. Chưa có calibrator/LTT hoặc bằng chứng nghiệm thu.
+Chrome hiện chưa đăng nhập Hugging Face; đã mở đúng trang đăng nhập để chủ tài
+khoản tiếp tục, chưa chấp thuận điều kiện MLAAD/chia sẻ thông tin tài khoản.
