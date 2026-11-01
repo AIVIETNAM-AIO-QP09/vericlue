@@ -86,3 +86,46 @@ không dùng mirror để lách quyền truy cập và không tự chấp thuậ
 parity vẫn ngoài hiệu chỉnh. Chưa có calibrator/LTT hoặc bằng chứng nghiệm thu.
 Chrome hiện chưa đăng nhập Hugging Face; đã mở đúng trang đăng nhập để chủ tài
 khoản tiếp tục, chưa chấp thuận điều kiện MLAAD/chia sẻ thông tin tài khoản.
+
+## Rà nguồn tấn công công khai bổ sung · 18:44 ngày 01/11
+
+Chỉ rà tài liệu publisher, chưa tải payload hoặc dùng nguồn mới để fit/chọn
+ngưỡng. Không coi việc có link công khai là đủ metadata/người/nguồn cho split.
+
+- [VoiceSpoof-VN](https://github.com/coronatusvi/ASVspoof2025_VN),
+  README tại commit `5b899f33c98e2c0a08d69fe4a0bc34029ae2f0f1`: tác giả mô tả
+  corpus thật/tấn công có người nói và cho nghiên cứu học thuật,phi thương mại;
+  dẫn Google Drive `LA.zip`. Git tree chỉ có README/ảnh sơ đồ, chưa có protocol
+  hoặc crosswalk donor/target/source để kiểm. Đây là ứng viên cần kiểm archive,
+  quyền đúng tác vụ và nguồn gốc từng nhóm trước khi quyết định dùng; không
+  tự thêm vào data-plan hoặc gọi đủ dữ liệu hiệu chỉnh.
+- [RADAR2026 publisher](https://zenodo.org/records/22110815): release ghi CC-BY4.0,
+  tiếng Việt nằm trong **evaluation**, development chỉ tiếng Anh. Giữ phần VI
+  làm ứng viên test độc lập, không chuyển sang calib_fit để lấp lớp tấn công.
+  Các protocol công bố chưa cho thấy crosswalk người/nguồn; chưa tải archive.
+- [VietPrism preprint v1](https://arxiv.org/html/2609.30005v1): mô tả ghép
+  thật/giả theo người, nhưng lượt rà này chưa xác minh được publisher download,
+  giấy phép corpus và metadata có thể nhận. Giữ nhận định chưa sẵn sàng trong
+  data-plan; không lấy quyền của bài báo thay quyền dữ liệu.
+
+Kết luận vận hành không đổi: lớp thật DNU đã kiểm, lớp TTS/VC còn thiếu bằng
+chứng sử dụng/metadata đủ chuẩn. Chưa có calibrator hoặc nghiệm thu sinh trắc.
+
+## Smoke toàn câu bằng DNU thật · 01/11
+
+- Code nguồn sạch `6b7589692e4158335a07dc8307ea5d4704847803`. Chọn theo sample_id
+  tăng dần, lấy mẫu calib_fit đầu tiên của3người khác nhau, trước inference;
+  không đọc/chấm calib_ltt/test. Manifest gốc giữ SHA đã ghi phía trên.
+- Native collect dùng checkpoint SHA `3158d10c6fc3c58e452a33981b409f5a65ecf91d548931b4ffbd675462799685`,
+  version `nes2net-x@c9fe1177f44040f002cb40def928332d2e261f1e+hf4576-cpu-fp32-timeline4s-tail-maxmargin-v1`.
+  Runtime Windows,Python3.12.15,Torch2.14.1+cpu,Transformers4.57.6,4CPUthreads;
+  report parity canonical SHA `669bf62e4db134a46e8a0dd8f3d5b6a72bba90a984c3a7901fa8e866e8f21a48`.
+- Cả3mẫu có raw score toàn câu khi đủ các cửa sổ, vẫn degraded/unclear,
+  prob_attack absent/null. Chỉ3giọng thật, không thử fit/chọn ngưỡng/chạy test,
+  không accuracy hoặc deploy, calibration_ready=false.
+- Manifest subset/measurement/audit/summary ngoài Git tại
+  `D:/vericlue/tmp/publish-review-2026-11-01/dnu-train-smoke/`.
+  Measurement SHA `375ee672601f2a3291d126e0942eb1342df8c6436b24a16552091afcd3c8ce9d`.
+  Native collect đã hoàn tất; helper ngoài Git từng import nhầm và xử lý thiếu
+  keyprob_attack vốn bị bỏ khi null. Đã sửa summary đọc report có schema/provenance,
+  giữ nguyên phép đo, không suy thời gian chạy từ lượt dựng summary.
