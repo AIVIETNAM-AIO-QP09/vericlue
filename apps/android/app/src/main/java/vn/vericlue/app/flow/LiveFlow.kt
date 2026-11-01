@@ -51,6 +51,7 @@ class LiveFlow(
     var session: CreateSessionResponse? = null
         private set
     val manualDemo: Boolean get() = session?.evaluationMode == "manual_demo"
+    val manualFullDemo: Boolean get() = session?.evaluationMode == "manual_full_demo"
     var challenge: Challenge? = null
         private set
     var accountReceipt: AccountReceipt? = null
@@ -144,9 +145,12 @@ class LiveFlow(
         val request = purpose?.let { CreateSessionRequest(it, nonce, spki, account?.accountId, account?.deviceId?.takeIf { purpose == "reauth" }) }
         return when (val r = api.createSession(mockScenario, request)) {
             is ApiResult.Ok -> {
-                if (r.value.evaluationMode !in setOf("standard", "manual_demo")) return ApiError.BadResponse
+                if (r.value.evaluationMode !in setOf("standard", "manual_demo", "manual_full_demo")) return ApiError.BadResponse
                 if (r.value.evaluationMode == "manual_demo" &&
                     (r.value.demoPolicyId?.matches(Regex("[0-9a-f]{64}")) != true || account != null || purpose !in setOf(null, "onboarding")))
+                    return ApiError.BadResponse
+                if (r.value.evaluationMode == "manual_full_demo" &&
+                    (r.value.demoPolicyId?.matches(Regex("[0-9a-f]{64}")) != true || purpose !in setOf("onboarding", "reauth", "recovery")))
                     return ApiError.BadResponse
                 if (r.value.evaluationMode == "standard" && r.value.demoPolicyId != null) return ApiError.BadResponse
                 if (mediaSigner != null && r.value.challenge.mediaNonce == null) return ApiError.BadResponse
@@ -329,6 +333,10 @@ class LiveFlow(
                         s.demoPolicyId == null || s.demoPolicyId != f.demoPolicyId || f.status !in setOf("review", "retry"))
                         return Next.Fail(ApiError.BadResponse)
                     if (f.demoComplete) return if (f.status == "review") Next.To(Routes.ManualDemoComplete) else Next.Fail(ApiError.BadResponse)
+                } else if (s.evaluationMode == "manual_full_demo" || f.evaluationMode == "manual_full_demo") {
+                    if (s.evaluationMode != "manual_full_demo" || f.evaluationMode != "manual_full_demo" ||
+                        s.demoPolicyId == null || s.demoPolicyId != f.demoPolicyId || f.demoComplete)
+                        return Next.Fail(ApiError.BadResponse)
                 } else if (f.evaluationMode != "standard" || f.demoPolicyId != null) return Next.Fail(ApiError.BadResponse)
                 if (f.status == "retry") {
                     // A retry comes with a fresh challenge for the next attempt (contract).
@@ -373,6 +381,13 @@ class LiveFlow(
             is ApiResult.Err -> Next.Fail(r.error)
             is ApiResult.Ok -> {
                 privacyError("voice_biometrics")?.let { return Next.Fail(it) }
+                if (s.evaluationMode == "manual_full_demo" || r.value.evaluationMode == "manual_full_demo") {
+                    if (s.evaluationMode != "manual_full_demo" || r.value.evaluationMode != "manual_full_demo" ||
+                        s.demoPolicyId == null || s.demoPolicyId != r.value.demoPolicyId)
+                        return Next.Fail(ApiError.BadResponse)
+                } else if (r.value.evaluationMode != "standard" || r.value.demoPolicyId != null) {
+                    return Next.Fail(ApiError.BadResponse)
+                }
                 pendingWav = null
                 voiceChecked = true
                 if (r.value.status == "pass") accountReceipt = r.value.account
@@ -403,6 +418,7 @@ class LiveFlow(
     private fun privacyError(category: String): ApiError? = when {
         privacy.stopping -> ApiError.Expired
         enforcePrivacy && !privacy.permits(category) -> ApiError.Conflict
+        enforcePrivacy && sessionPurpose == "onboarding" && !privacy.permitsAccountTemplate() -> ApiError.Conflict
         else -> null
     }
 

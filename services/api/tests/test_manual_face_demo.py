@@ -415,6 +415,8 @@ def test_manual_full_demo_binds_policy_and_rejects_mid_session_changes(client, t
         root.orchestrator._detectors[module] = RealManualChecks(module)
 
     created, auth = create(client)
+    assert created["evaluation_mode"] == "manual_full_demo"
+    assert created["demo_policy_id"] == policy.policy_id
     with root.transaction() as state:
         session = state.sessions.get(created["session_id"])
         assert session.created_model_mode == "manual_full_demo"
@@ -440,6 +442,8 @@ def test_manual_full_demo_binds_policy_and_rejects_mid_session_changes(client, t
     root.settings.manual_demo_pad_max = policy.pad_max
     result = submit_face(client, created, auth)
     assert result["status"] == "pass"
+    assert result["evaluation_mode"] == "manual_full_demo"
+    assert result["demo_policy_id"] == policy.policy_id
     with root.database.sessions() as db:
         decision = db.scalars(
             select(DecisionRow).where(DecisionRow.session_id == created["session_id"])

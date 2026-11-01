@@ -156,6 +156,8 @@ data class VoiceResponse(
     @SerialName("attempts_left") val attemptsLeft: Int? = null,
     @SerialName("voice_challenge_id") val voiceChallengeId: String? = null,
     val account: AccountReceipt? = null,
+    @SerialName("evaluation_mode") val evaluationMode: String = "standard",
+    @SerialName("demo_policy_id") val demoPolicyId: String? = null,
 )
 
 @Serializable
@@ -253,6 +255,18 @@ class SessionApi(
     suspend fun withdrawSessionConsent(sessionId: String, token: String): ApiResult<SessionPrivacyState> =
         call(post(url("v1", "sessions", sessionId, "privacy", "withdraw"),
             json.encodeToString(PrivacyWithdrawalRequest.serializer(), PrivacyWithdrawalRequest(true)).toRequestBody(JSON), token))
+
+    suspend fun accountTemplatePrivacy(sessionId: String, token: String): ApiResult<AccountTemplatePrivacyState> =
+        call(Request.Builder().url(url("v1", "sessions", sessionId, "privacy", "account-template"))
+            .header("Authorization", "Bearer $token").header("Cache-Control", "no-store").get().build())
+
+    suspend fun grantAccountTemplateConsent(
+        sessionId: String,
+        token: String,
+        consent: AccountTemplateConsentRequest,
+    ): ApiResult<AccountTemplatePrivacyState> =
+        call(post(url("v1", "sessions", sessionId, "privacy", "account-template", "consent"),
+            json.encodeToString(AccountTemplateConsentRequest.serializer(), consent).toRequestBody(JSON), token))
 
     /** Forward to the integrator backend; do not decode and authorize based on payload alone. */
     suspend fun signedResult(sessionId: String, token: String): ApiResult<SignedResult> =

@@ -744,6 +744,18 @@ def test_standard_real_flows_succeed_when_all_prerequisites_are_ready(
     )
     assert consent_resp.status_code == 200, consent_resp.text
 
+    acct_consent_resp = client.post(
+        f"/v1/sessions/{sid}/privacy/account-template/consent",
+        headers=auth,
+        json={
+            "policy_version": "account-template-v1",
+            "purpose": "account_template",
+            "consent": True,
+        },
+    )
+    assert acct_consent_resp.status_code == 200, acct_consent_resp.text
+    assert acct_consent_resp.json()["status"] == "granted"
+
     env.root.orchestrator.settings = env.root.settings
     env.verify_otp(sid, auth, "0901234567")
     hmac_key = env.root.settings.id_hmac_key.get_secret_value()
@@ -1060,6 +1072,7 @@ def test_standard_real_onboarding_fails_closed_when_any_condition_is_missing(
 @pytest.mark.parametrize(
     "fault",
     [
+        "onboarding_missing_account_template_consent",
         "reauth_missing_account_calibration",
         "reauth_missing_single_frame_deepfake_calibrator",
         "recovery_missing_recovery_calibration",
@@ -1103,6 +1116,16 @@ def test_standard_real_account_flows_fail_closed_when_prerequisites_missing(
             "consent": True,
         },
     )
+    if fault != "onboarding_missing_account_template_consent":
+        client.post(
+            f"/v1/sessions/{sid}/privacy/account-template/consent",
+            headers=auth,
+            json={
+                "policy_version": "account-template-v1",
+                "purpose": "account_template",
+                "consent": True,
+            },
+        )
     env.verify_otp(sid, auth, "0901234567")
     hmac_key = env.root.settings.id_hmac_key.get_secret_value()
     img_bytes = IMAGE["image"][1]
@@ -1146,14 +1169,16 @@ def test_standard_real_account_flows_fail_closed_when_prerequisites_missing(
             "frame_times": [],
         },
     )
-    assert (
-        client.post(
-            url(created, "finalize"),
-            headers=auth,
-            json={"challenge_id": created["challenge"]["challenge_id"]},
-        ).json()["status"]
-        == "pass"
+    fin_resp = client.post(
+        url(created, "finalize"),
+        headers=auth,
+        json={"challenge_id": created["challenge"]["challenge_id"]},
     )
+    if fault == "onboarding_missing_account_template_consent":
+        assert fin_resp.status_code == 409
+        assert fin_resp.json()["error_code"] == "account_template_consent_required"
+        return
+    assert fin_resp.json()["status"] == "pass"
     receipt = client.get(f"/v1/sessions/{sid}/account", headers=auth).json()
 
     if fault.startswith("reauth_"):
@@ -1370,3 +1395,199 @@ def test_standard_real_simulated_otp_endpoints_and_error_cases(client, tmp_path)
         f"/v1/sessions/{sid_many}/otp", headers=auth_many, json={"phone": "0901234567"}
     )
     assert too_many.status_code == 409 and too_many.json()["error_code"] == "otp_too_many"
+
+
+def test_standard_real_reauth_does_not_require_voice_or_onboarding_calibrators(
+    client, tmp_path, monkeypatch
+):
+    import base64
+
+    from vericlue_api.routers import privacy
+    from vericlue_api.services import orchestrator as orch_mod
+    from vericlue_api.services.identity_steps import _digest
+    from vericlue_ml.voice.nes2net_timeline import VERSION as NES2NET_TIMELINE_VERSION
+
+    if not any(
+        getattr(r, "path", "") == "/v1/sessions/{session_id}/privacy" for r in client.app.routes
+    ):
+        client.app.include_router(privacy.router)
+    env = _setup_ready_real_env(client, tmp_path)
+    monkeypatch.setattr(
+        orch_mod,
+        "match_enrolled",
+        lambda matcher, inp, template, cal_path: matcher.predict(inp),
+    )
+
+    # Enroll an account first
+    dev_key, dev_spki = env.make_key()
+    created = client.post(
+        "/v1/sessions",
+        json={"purpose": "onboarding", "nonce": NONCE, "device_public_key_spki": dev_spki},
+    ).json()
+    sid = created["session_id"]
+    auth = {"Authorization": "Bearer " + created["token"]}
+    client.post(
+        f"/v1/sessions/{sid}/privacy/consent",
+        headers=auth,
+        json={
+            "policy_version": "demo-v1",
+            "categories": ["contact", "id_document", "face_biometrics", "voice_biometrics"],
+            "consent": True,
+        },
+    )
+    client.post(
+        f"/v1/sessions/{sid}/privacy/account-template/consent",
+        headers=auth,
+        json={
+            "policy_version": "account-template-v1",
+            "purpose": "account_template",
+            "consent": True,
+        },
+    )
+    env.verify_otp(sid, auth, "0901234567")
+    hmac_key = env.root.settings.id_hmac_key.get_secret_value()
+    img_bytes = IMAGE["image"][1]
+    vid_bytes = b"\x00\x00\x00\x18ftypmp42synthetic-video"
+    with env.root.transaction() as state:
+        from vericlue_api.services.uploads import save_upload
+
+        sess = state.sessions.get(sid)
+        sess.id_confirmed = True
+        sess.id_source = "server_qr"
+        sess.id_number_hmac = sess.id_confirmed_number_hmac = _digest(hmac_key, "012345678901")
+        sess.id_front = save_upload(
+            state.settings.media_dir,
+            sid,
+            "id_front",
+            "front.jpg",
+            img_bytes,
+            privacy=state.privacy,
+        )
+    sig_face = env.sign_stage(
+        sid,
+        dev_key,
+        "face",
+        {"image": ("face.jpg", img_bytes), "video": ("face.mp4", vid_bytes)},
+    )
+    client.post(
+        url(created, "media"),
+        headers=auth,
+        data={"challenge_id": created["challenge"]["challenge_id"], "media_signature": sig_face},
+        files={
+            "image": ("face.jpg", img_bytes, "image/jpeg"),
+            "video": ("face.mp4", vid_bytes, "video/mp4"),
+        },
+    )
+    client.post(
+        url(created, "signals"),
+        headers=auth,
+        json={
+            "challenge_id": created["challenge"]["challenge_id"],
+            "color_events": [],
+            "frame_times": [],
+        },
+    )
+    assert (
+        client.post(
+            url(created, "finalize"),
+            headers=auth,
+            json={"challenge_id": created["challenge"]["challenge_id"]},
+        ).json()["status"]
+        == "pass"
+    )
+    receipt = client.get(f"/v1/sessions/{sid}/account", headers=auth).json()
+
+    # Now disable voice/onboarding/recovery prerequisites while keeping reauth face + L0 ready
+    env.store.path(Module.VOICE_SPOOF, env.spoof_ver).unlink()
+    env.store.path(Module.LIPSYNC, env.lipsync_ver).unlink()
+    env.store._cache.clear()
+    env.root.orchestrator._detectors[Module.VOICE_SPOOF].version = NES2NET_TIMELINE_VERSION
+    env.root.settings = env.root.settings.model_copy(
+        update={
+            "session_voice_models": False,
+            "identity_card_enabled": False,
+            "identity_consistency_required": False,
+            "session_face_checks": False,
+            "identity_voice_continuity": False,
+            "identity_face_calibration": None,
+            "identity_consistency_calibration": None,
+            "identity_voice_calibration": None,
+            "identity_recovery_calibration": None,
+        }
+    )
+
+    reauth_resp = client.post(
+        "/v1/sessions",
+        json={
+            "purpose": "reauth",
+            "nonce": NONCE,
+            "account_id": receipt["account_id"],
+            "device_id": receipt["device_id"],
+        },
+    )
+    assert reauth_resp.status_code == 200, reauth_resp.text
+    reauth_created = reauth_resp.json()
+    rsid = reauth_created["session_id"]
+    rauth = {"Authorization": "Bearer " + reauth_created["token"]}
+
+    assert (
+        client.post(
+            f"/v1/sessions/{rsid}/privacy/consent",
+            headers=rauth,
+            json={
+                "policy_version": "demo-v1",
+                "categories": ["face_biometrics"],
+                "consent": True,
+            },
+        ).status_code
+        == 200
+    )
+    dev_msg = base64.b64decode(reauth_created["device_challenge"]["message"])
+    assert (
+        client.post(
+            f"/v1/sessions/{rsid}/device-proof",
+            headers=rauth,
+            json={"signature": env.sign_bytes(dev_key, dev_msg)},
+        ).status_code
+        == 200
+    )
+    sig_reauth = env.sign_stage(
+        rsid,
+        dev_key,
+        "face",
+        {"image": ("face.jpg", img_bytes), "video": ("face.mp4", vid_bytes)},
+    )
+    assert (
+        client.post(
+            url(reauth_created, "media"),
+            headers=rauth,
+            data={
+                "challenge_id": reauth_created["challenge"]["challenge_id"],
+                "media_signature": sig_reauth,
+            },
+            files={
+                "image": ("face.jpg", img_bytes, "image/jpeg"),
+                "video": ("face.mp4", vid_bytes, "video/mp4"),
+            },
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            url(reauth_created, "signals"),
+            headers=rauth,
+            json={
+                "challenge_id": reauth_created["challenge"]["challenge_id"],
+                "color_events": [],
+                "frame_times": [],
+            },
+        ).status_code
+        == 200
+    )
+    rfin = client.post(
+        url(reauth_created, "finalize"),
+        headers=rauth,
+        json={"challenge_id": reauth_created["challenge"]["challenge_id"]},
+    )
+    assert rfin.status_code == 200, rfin.text
+    assert rfin.json() == {"status": "pass"}

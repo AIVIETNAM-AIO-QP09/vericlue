@@ -124,6 +124,12 @@ class FlowRulesTest {
         assertFalse(initial.canContinue)
         assertTrue(initial.toggle().canContinue)
         assertFalse(initial.toggle().toggle().canContinue)
+
+        val onboarding = Agreement(requiresAccountTemplate = true)
+        assertFalse(onboarding.canContinue)
+        assertFalse(onboarding.toggle().canContinue)
+        assertFalse(onboarding.toggleAccountTemplate().canContinue)
+        assertTrue(onboarding.toggle().toggleAccountTemplate().canContinue)
     }
 
     @Test

@@ -4,6 +4,13 @@
 
 ## Trạng thái
 
+**APP-01 / SEC-09 (01/11):** đồng ý lưu mẫu tài khoản mã hóa được ghi riêng với
+biên nhận, thời hạn 24 giờ; checkbox mặc định bỏ chọn. API kiểm trước trích mẫu và
+ghi danh. Android đối chiếu mode/policy cả finalize và voice, hiển thị nhãn
+“Demo · Ngưỡng chưa hiệu chỉnh” cho `manual_full_demo`. Có test và snapshot sáng/tối,
+font200%; chưa nghiệm thu đầy đủ trên điện thoại. Reauth chỉ đòi hỏi thành phần
+giọng khi thực sự chuyển sang bước giọng. Xem [bàn giao](../../docs/status/handoffs/2026-11-01-1015-app-01-ngoc-quang-codex.md).
+
 **APP-01 (31/10, ngưỡng demo):** Android nhận marker manual_demo/policy từ API,
 chỉ mở route riêng khi demo_complete và mode/hash khớp. Tiêu đề theo yêu cầu
 người dùng là “Xác minh thành công”, luôn kèm “Demo · Ngưỡng chưa hiệu chỉnh”
@@ -63,8 +70,9 @@ Receipt thành công dọn dữ liệu local và bỏ back stack cũ. Không h�
 khoản/backup/chứng nhận. Màn thành công chỉ dẫn tới mở tài khoản khi receipt/alias
 đã lưu bền; thiếu receipt hoặc lỗi lưu chỉ xác nhận hoàn tất phiên.
 
-Đây là consent **xử lý theo phiên**; hợp đồng lưu mẫu tài khoản của SEC-09 vẫn
-chưa hoàn thiện và không được suy diễn từ `face_biometrics`. OTP demo giữ nguyên.
+Đoạn cập nhật 30/10 ở trên mô tả consent **xử lý theo phiên**. Từ 01/11 có thêm
+hợp đồng lưu mẫu tài khoản riêng; không suy diễn quyền đó từ `face_biometrics`.
+OTP vẫn mô phỏng với `SIMULATED_OTP=true` trong `synthetic`, độc lập chế độ AI.
 Khi SESSION_FACE_MODELS bật, Quality SCRFD/CamProbe rules cũng chạy thật dù OTP vẫn demo. Môi trường/model nạp được không chứng minh chất lượng AI. Artifact hiệu chỉnh
 đúng protocol video và nghiệm thu máy thật còn thiếu; không mở guard hoặc dùng
 calibrator tạm của pipeline cũ để ép đạt.

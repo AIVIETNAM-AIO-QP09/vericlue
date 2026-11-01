@@ -116,7 +116,8 @@
           "type": "string",
           "enum": [
             "standard",
-            "manual_demo"
+            "manual_demo",
+            "manual_full_demo"
           ],
           "default": "standard"
         },
@@ -133,7 +134,10 @@
           "if": {
             "properties": {
               "evaluation_mode": {
-                "const": "manual_demo"
+                "enum": [
+                  "manual_demo",
+                  "manual_full_demo"
+                ]
               }
             },
             "required": [
@@ -338,7 +342,8 @@
           "type": "string",
           "enum": [
             "standard",
-            "manual_demo"
+            "manual_demo",
+            "manual_full_demo"
           ],
           "default": "standard"
         },
@@ -412,6 +417,28 @@
               "demo_policy_id"
             ]
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "evaluation_mode": {
+                "const": "manual_full_demo"
+              }
+            },
+            "required": [
+              "evaluation_mode"
+            ]
+          },
+          "then": {
+            "properties": {
+              "demo_policy_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "demo_policy_id"
+            ]
+          }
         }
       ]
     },
@@ -451,8 +478,51 @@
         },
         "account": {
           "$ref": "#/$defs/AccountReceipt"
+        },
+        "evaluation_mode": {
+          "type": "string",
+          "enum": [
+            "standard",
+            "manual_demo",
+            "manual_full_demo"
+          ],
+          "default": "standard"
+        },
+        "demo_policy_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "evaluation_mode": {
+                "enum": [
+                  "manual_demo",
+                  "manual_full_demo"
+                ]
+              }
+            },
+            "required": [
+              "evaluation_mode"
+            ]
+          },
+          "then": {
+            "properties": {
+              "demo_policy_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "demo_policy_id"
+            ]
+          }
+        }
+      ]
     },
     "OtpRequest": {
       "type": "object",

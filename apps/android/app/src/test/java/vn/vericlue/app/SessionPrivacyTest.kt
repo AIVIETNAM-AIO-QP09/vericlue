@@ -20,6 +20,17 @@ class SessionPrivacyTest {
         "categories":[$categories],"consent_receipt_id":"prv_${"a".repeat(32)}","consented_at":"2026-10-30T01:00:00Z",
         "withdrawal_receipt_id":null,"withdrawn_at":null,"storage_erasure":"not_requested",
         "processing_cleanup":"not_applicable","account_data_erased":false,"credential_revocation":"not_performed"} """
+    private fun accountTemplateReceipt(
+        policy: String = "account-template-v1",
+        status: String = "granted",
+        scope: String = "account_template",
+        purpose: String = "account_template",
+        retentionSeconds: Int = 86400,
+    ) = """{
+        "session_id":"ses_test","scope":"$scope","purpose":"$purpose","policy_version":"$policy",
+        "retention_seconds":$retentionSeconds,"status":"$status",
+        "consent_receipt_id":${if (status == "granted") "\"prv_${"c".repeat(32)}\"" else "null"},
+        "consented_at":${if (status == "granted") "\"2026-10-30T01:00:01Z\"" else "null"}}"""
     private suspend fun withPrivacy(block: suspend (MockWebServer, SessionPrivacyFlow) -> Unit) {
         val server = MockWebServer().apply { start() }
         try { block(server, SessionPrivacyFlow(SessionApi(server.url("/").toString())) { session }) }
@@ -30,12 +41,41 @@ class SessionPrivacyTest {
         withPrivacy { server, privacy ->
             server.enqueue(MockResponse().setBody(receipt(status = "not_granted", categories = "")))
             server.enqueue(MockResponse().setBody(receipt()))
+            server.enqueue(MockResponse().setBody(accountTemplateReceipt(status = "not_granted")))
+            server.enqueue(MockResponse().setBody(accountTemplateReceipt()))
             assertNull(privacy.grant(Purpose.Onboarding, PrivacyNotice.VERSION))
             assertEquals("/v1/sessions/ses_test/privacy", server.takeRequest().path)
             val grant = server.takeRequest()
             assertEquals("Bearer current_token", grant.getHeader("Authorization"))
             assertTrue(grant.body.readUtf8().contains("\"consent\":true"))
+            assertEquals("/v1/sessions/ses_test/privacy/account-template", server.takeRequest().path)
+            val tmplGrant = server.takeRequest()
+            assertEquals("/v1/sessions/ses_test/privacy/account-template/consent", tmplGrant.path)
+            assertTrue(tmplGrant.body.readUtf8().contains("\"purpose\":\"account_template\""))
             assertEquals("granted", privacy.receipt?.status)
+            assertTrue(privacy.permitsAccountTemplate())
+        }
+    }
+
+    @Test fun onboardingRejectsMissingOrMismatchedAccountTemplateConsent() = runTest {
+        withPrivacy { server, privacy ->
+            server.enqueue(MockResponse().setBody(receipt(status = "not_granted", categories = "")))
+            server.enqueue(MockResponse().setBody(receipt()))
+            server.enqueue(MockResponse().setBody(accountTemplateReceipt(policy = "other-version", status = "not_granted")))
+            assertEquals(ApiError.BadResponse, privacy.grant(Purpose.Onboarding, PrivacyNotice.VERSION))
+            assertNull(privacy.receipt)
+            assertFalse(privacy.permitsAccountTemplate())
+        }
+    }
+
+    @Test fun reauthAndRecoveryDoNotRequireAccountTemplateConsent() = runTest {
+        withPrivacy { server, privacy ->
+            server.enqueue(MockResponse().setBody(receipt(status = "not_granted", categories = "")))
+            server.enqueue(MockResponse().setBody(receipt(categories = "\"face_biometrics\",\"voice_biometrics\"")))
+            assertNull(privacy.grant(Purpose.Reauth, PrivacyNotice.VERSION))
+            assertEquals(2, server.requestCount)
+            assertTrue(privacy.permits("face_biometrics"))
+            assertFalse(privacy.permitsAccountTemplate())
         }
     }
 

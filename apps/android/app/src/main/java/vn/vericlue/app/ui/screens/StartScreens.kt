@@ -237,7 +237,15 @@ fun TermsScreen(
     error: String? = null,
 ) {
     val c = Vc.colors
-    var agreement by remember { mutableStateOf(Agreement(accepted = initialAccepted)) }
+    var agreement by remember(purpose, initialAccepted) {
+        mutableStateOf(
+            Agreement(
+                accepted = initialAccepted,
+                accountTemplateAccepted = initialAccepted,
+                requiresAccountTemplate = purpose == vn.vericlue.app.flow.Purpose.Onboarding,
+            ),
+        )
+    }
     var detailsOpen by remember { mutableStateOf(initialDetailsOpen) }
     VcScreen(
         onBack = onBack,
@@ -257,6 +265,9 @@ fun TermsScreen(
             DataUseRow(Icons.Outlined.Mic, "Giọng nói khi cần xác minh bổ sung")
         }
         Text("Thông báo ${vn.vericlue.app.flow.PrivacyNotice.VERSION} · xử lý trong phiên xác minh", style = VcType.bodySmall, color = c.ink)
+        if (purpose == vn.vericlue.app.flow.Purpose.Onboarding) {
+            Text("Thông báo ${vn.vericlue.app.flow.AccountTemplateNotice.VERSION} · lưu mẫu tài khoản 24 giờ", style = VcType.bodySmall, color = c.ink)
+        }
         error?.let { Text(it, style = VcType.body, color = c.ink) }
         LinkButton(
             if (detailsOpen) "Thu gọn thông tin xử lý dữ liệu" else "Xem chi tiết xử lý dữ liệu",
@@ -287,6 +298,27 @@ fun TermsScreen(
                     uncheckedColor = c.muted))
             Text("Tôi đồng ý để VeriClue xử lý các thông tin trên nhằm xác minh danh tính.",
                 style = VcType.body, color = c.ink)
+        }
+        if (purpose == vn.vericlue.app.flow.Purpose.Onboarding) {
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                    .background(if (agreement.accountTemplateAccepted) c.surfaceInfo else c.surface)
+                    .toggleable(value = agreement.accountTemplateAccepted, role = Role.Checkbox,
+                        enabled = !busy,
+                        onValueChange = { agreement = agreement.toggleAccountTemplate() })
+                    .padding(start = 4.dp, end = 14.dp, top = 8.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Checkbox(checked = agreement.accountTemplateAccepted, onCheckedChange = null,
+                    modifier = Modifier.size(48.dp),
+                    colors = CheckboxDefaults.colors(checkedColor = c.primary, checkmarkColor = c.onPrimary,
+                        uncheckedColor = c.muted))
+                Text(
+                    "Tôi đồng ý để VeriClue lưu mẫu khuôn mặt mã hóa trên máy chủ trong 24 giờ để đối chiếu khi đăng nhập lại hoặc khôi phục tài khoản. Dừng phiên xác minh không tự xóa tài khoản đã tạo.",
+                    style = VcType.body,
+                    color = c.ink,
+                )
+            }
         }
     }
 }

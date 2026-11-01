@@ -68,6 +68,21 @@ def build(detectors=None, *, timeout=0.1):
     return orchestrator, instances, constructed
 
 
+def test_video_identity_starts_and_runs_without_card_scanner():
+    instances = {module: FakeDetector(module) for module in Module}
+    orchestrator = Orchestrator(
+        Settings(identity_card_enabled=False, identity_face_from_video=True),
+        detector_factory=instances.__getitem__,
+    )
+    try:
+        orchestrator.start()
+        assert orchestrator.loaded_detector(Module.FACE_MATCH) is instances[Module.FACE_MATCH]
+        assert run(orchestrator, [Module.FACE_MATCH])[Module.FACE_MATCH].status == Status.OK
+        assert instances[Module.FACE_MATCH].calls == 1
+    finally:
+        orchestrator.close()
+
+
 def test_start_preloads_one_instance_once_and_runs_never_reload():
     orchestrator, instances, constructed = build()
     try:

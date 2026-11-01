@@ -116,7 +116,7 @@ class Challenge(BaseModel):
 
 
 class CreateSessionResponse(BaseModel):
-    evaluation_mode: Literal["standard", "manual_demo"] = Field(
+    evaluation_mode: Literal["standard", "manual_demo", "manual_full_demo"] = Field(
         default="standard", exclude_if=lambda v: v == "standard"
     )
     demo_policy_id: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
@@ -132,7 +132,9 @@ class CreateSessionResponse(BaseModel):
 
     @model_validator(mode="after")
     def evaluation_binding(self):
-        if (self.evaluation_mode == "manual_demo") != (self.demo_policy_id is not None):
+        if (self.evaluation_mode in {"manual_demo", "manual_full_demo"}) != (
+            self.demo_policy_id is not None
+        ):
             raise ValueError("Evaluation mode requires matching policy binding")
         return self
 
@@ -153,7 +155,7 @@ class StepAck(BaseModel):
 
 
 class FinalizeResponse(BaseModel):
-    evaluation_mode: Literal["standard", "manual_demo"] = Field(
+    evaluation_mode: Literal["standard", "manual_demo", "manual_full_demo"] = Field(
         default="standard", exclude_if=lambda v: v == "standard"
     )
     demo_policy_id: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
@@ -171,6 +173,8 @@ class FinalizeResponse(BaseModel):
             not self.demo_policy_id or self.status not in {"review", "retry"}
         ):
             raise ValueError("Manual evaluation cannot return an authenticated status")
+        if self.evaluation_mode == "manual_full_demo" and not self.demo_policy_id:
+            raise ValueError("Manual full demo requires matching policy binding")
         if self.evaluation_mode == "standard" and self.demo_policy_id is not None:
             raise ValueError("Standard evaluation has no manual policy")
         if self.demo_complete and (
@@ -183,11 +187,23 @@ class FinalizeResponse(BaseModel):
 
 
 class VoiceResponse(BaseModel):
+    evaluation_mode: Literal["standard", "manual_demo", "manual_full_demo"] = Field(
+        default="standard", exclude_if=lambda v: v == "standard"
+    )
+    demo_policy_id: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     status: Literal["pass", "review", "voice_challenge", "deny"]
     voice_prompt: str | None = None
     attempts_left: int | None = None
     voice_challenge_id: str | None = None
     account: AccountReceipt | None = None
+
+    @model_validator(mode="after")
+    def evaluation_binding(self):
+        if (self.evaluation_mode in {"manual_demo", "manual_full_demo"}) != (
+            self.demo_policy_id is not None
+        ):
+            raise ValueError("Evaluation mode requires matching policy binding")
+        return self
 
 
 class OtpRequest(BaseModel):

@@ -57,6 +57,9 @@ class AccountRow(Base):
     __tablename__ = "accounts"
     account_id: Mapped[str] = mapped_column(String(80), primary_key=True)
     source_session_id: Mapped[str] = mapped_column(String(80), unique=True)
+    consent_receipt_id: Mapped[str | None] = mapped_column(
+        String(40), ForeignKey("account_template_consents.receipt_id"), nullable=True
+    )
     # Nullable after expiration: live identities are unique; tombstones retain no lookup PII.
     id_number_hmac: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
     phone_hmac: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -288,3 +291,21 @@ class PrivacyEventRow(Base):
     token_expires_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+
+
+class AccountTemplateConsentRow(Base):
+    """Append-only receipt for post-session encrypted account template storage (SEC-09)."""
+
+    __tablename__ = "account_template_consents"
+    __table_args__ = (
+        CheckConstraint("purpose = 'account_template'", name="ck_account_template_purpose"),
+        CheckConstraint("retention_seconds = 86400", name="ck_account_template_retention"),
+    )
+    receipt_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    session_id: Mapped[str] = mapped_column(
+        ForeignKey("sessions.session_id"), unique=True, index=True
+    )
+    purpose: Mapped[str] = mapped_column(String(32), default="account_template")
+    policy_version: Mapped[str] = mapped_column(String(64))
+    retention_seconds: Mapped[int] = mapped_column(Integer, default=86400)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

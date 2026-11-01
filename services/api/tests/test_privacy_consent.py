@@ -593,3 +593,138 @@ def test_privacy_preflight_and_body_transaction_bound_locks_before_auth_reads(
         assert not db.in_transaction()
     finally:
         event.remove(root.database.engine, "before_execute", before_query)
+
+
+def test_account_template_consent_endpoint_and_append_only_ledger(private_client):
+    from vericlue_api.db.models import AccountTemplateConsentRow
+
+    client = private_client
+    res = client.post(
+        "/v1/sessions",
+        json={"purpose": "onboarding", "nonce": "onboarding_nonce_123456"},
+    )
+    assert res.status_code == 200, res.text
+    s = res.json()
+    sid = s["session_id"]
+    auth = {"Authorization": f"Bearer {s['token']}"}
+
+    # Initial state is not_granted
+    state_res = client.get(f"/v1/sessions/{sid}/privacy/account-template", headers=auth)
+    assert state_res.status_code == 200, state_res.text
+    assert state_res.json()["status"] == "not_granted"
+    assert state_res.json()["scope"] == "account_template"
+    assert state_res.json()["purpose"] == "account_template"
+    assert state_res.json()["retention_seconds"] == 86400
+
+    # Session consent is required before granting account_template consent when require_privacy_consent=True
+    before_session_consent = client.post(
+        f"/v1/sessions/{sid}/privacy/account-template/consent",
+        headers=auth,
+        json={
+            "policy_version": "account-template-v1",
+            "purpose": "account_template",
+            "consent": True,
+        },
+    )
+    assert (
+        before_session_consent.status_code == 409
+        and before_session_consent.json()["error_code"] == "privacy_consent_required"
+    )
+    assert (
+        grant(
+            client,
+            sid,
+            auth,
+            ["contact", "id_document", "face_biometrics", "voice_biometrics"],
+        ).status_code
+        == 200
+    )
+
+    # Wrong policy version is rejected with 409 account_template_policy_changed
+    wrong_pol = client.post(
+        f"/v1/sessions/{sid}/privacy/account-template/consent",
+        headers=auth,
+        json={
+            "policy_version": "wrong-v0",
+            "purpose": "account_template",
+            "consent": True,
+        },
+    )
+    assert (
+        wrong_pol.status_code == 409
+        and wrong_pol.json()["error_code"] == "account_template_policy_changed"
+    )
+
+    # Non-affirmative consent or arbitrary retention_seconds field is rejected with 422
+    for invalid_body in (
+        {
+            "policy_version": "account-template-v1",
+            "purpose": "account_template",
+            "consent": False,
+        },
+        {
+            "policy_version": "account-template-v1",
+            "purpose": "account_template",
+            "retention_seconds": 86400,
+            "consent": True,
+        },
+    ):
+        inv = client.post(
+            f"/v1/sessions/{sid}/privacy/account-template/consent",
+            headers=auth,
+            json=invalid_body,
+        )
+        assert inv.status_code == 422
+
+    # Valid grant succeeds and is idempotent
+    granted = client.post(
+        f"/v1/sessions/{sid}/privacy/account-template/consent",
+        headers=auth,
+        json={
+            "policy_version": "account-template-v1",
+            "purpose": "account_template",
+            "consent": True,
+        },
+    )
+    assert granted.status_code == 200, granted.text
+    body = granted.json()
+    assert body["status"] == "granted"
+    assert body["consent_receipt_id"].startswith("prv_")
+    assert body["consented_at"] is not None
+
+    idem = client.post(
+        f"/v1/sessions/{sid}/privacy/account-template/consent",
+        headers=auth,
+        json={
+            "policy_version": "account-template-v1",
+            "purpose": "account_template",
+            "consent": True,
+        },
+    )
+    assert idem.status_code == 200 and idem.json() == body
+
+    # Append-only trigger rejects UPDATE and DELETE
+    for sql in (
+        "UPDATE account_template_consents SET policy_version = 'tampered'",
+        "DELETE FROM account_template_consents",
+    ):
+        with pytest.raises(DBAPIError), client.app.state.vericlue.database.sessions.begin() as db:
+            db.execute(text(sql))
+
+    # Non-onboarding session cannot grant account_template consent
+    reauth_s, reauth_auth = start_session(client)
+    reauth_res = client.post(
+        f"/v1/sessions/{reauth_s['session_id']}/privacy/account-template/consent",
+        headers=reauth_auth,
+        json={
+            "policy_version": "account-template-v1",
+            "purpose": "account_template",
+            "consent": True,
+        },
+    )
+    assert (
+        reauth_res.status_code == 409
+        and reauth_res.json()["error_code"] == "enrollment_not_available"
+    )
+    with client.app.state.vericlue.database.sessions() as db:
+        assert db.scalar(select(func.count()).select_from(AccountTemplateConsentRow)) == 1

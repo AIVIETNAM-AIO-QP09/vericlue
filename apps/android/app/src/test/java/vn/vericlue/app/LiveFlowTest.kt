@@ -68,6 +68,30 @@ class LiveFlowTest {
         assertEquals(Next.Fail(ApiError.BadResponse), flow.submitFace(null, emptyList(), emptyMap()))
     }
 
+    @Test fun manualFullDemoSessionValidatesPolicyIdAcrossFinalizeAndVoice() = runTest {
+        val policy = "b".repeat(64)
+        server.enqueue(json(session.replace("\"session_id\":", "\"evaluation_mode\":\"manual_full_demo\",\"demo_policy_id\":\"$policy\",\"purpose\":\"onboarding\",\"session_id\":")))
+        assertEquals(null, flow.ensureSession(null, purpose = "onboarding"))
+        assertTrue(flow.manualFullDemo)
+        flow.frontalJpeg = byteArrayOf(1, 2, 3)
+        server.enqueue(json(ack)); server.enqueue(json("""{"step":"signals","received":true}"""))
+        server.enqueue(json("""{"status":"voice_challenge","voice_prompt":"Tôi xác nhận","voice_challenge_id":"vc_1","evaluation_mode":"manual_full_demo","demo_policy_id":"$policy"}"""))
+        assertEquals(Next.To(Routes.Voice), flow.submitFace(null, emptyList(), emptyMap()))
+        server.enqueue(json("""{"status":"pass","evaluation_mode":"manual_full_demo","demo_policy_id":"$policy","account":{"account_id":"acc_1","device_id":"dev_1","expires_at":"2026-10-24T10:00:00Z"}}"""))
+        assertEquals(Next.To(Routes.Success), flow.submitVoice(byteArrayOf(1, 2)))
+        assertEquals("acc_1", flow.accountReceipt?.accountId)
+    }
+
+    @Test fun manualFullDemoRejectsMismatchedPolicyIdOrModeDowngrade() = runTest {
+        val policy = "b".repeat(64)
+        server.enqueue(json(session.replace("\"session_id\":", "\"evaluation_mode\":\"manual_full_demo\",\"demo_policy_id\":\"$policy\",\"purpose\":\"onboarding\",\"session_id\":")))
+        assertEquals(null, flow.ensureSession(null, purpose = "onboarding"))
+        flow.frontalJpeg = byteArrayOf(1, 2, 3)
+        server.enqueue(json(ack)); server.enqueue(json("""{"step":"signals","received":true}"""))
+        server.enqueue(json("""{"status":"pass"}"""))
+        assertEquals(Next.Fail(ApiError.BadResponse), flow.submitFace(null, emptyList(), emptyMap()))
+    }
+
     @Test
     fun passGoesToSuccessAndSendsTokenAndScenario() = runTest {
         startAndCapture()

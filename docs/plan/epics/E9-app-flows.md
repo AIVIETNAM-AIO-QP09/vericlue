@@ -86,6 +86,10 @@ theo mẫu đăng ký/SEC-02 hoặc nghiệm thu Android. Chi tiết vận hành
 
 ### FLOW-04 · Thử thách quay đầu ngẫu nhiên
 
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M1 (+M3) | 1 | S1 | P0 | CAP-06 |
+
 **31/10 — policy trình diễn thủ công:** opt-in riêng PAD/GenD/identity, model
 thật với ngưỡng thử nghiệm, namespace và hash policy riêng; không giả artifact
 hiệu chỉnh hoặc probability. API vẫn review, marker riêng cho app hiển thị kết
@@ -97,10 +101,6 @@ một mẫu yaw vượt50°. Mẫu đó không cung cấp bằng chứng giữ; 
 gap/biên, baseline/thứ tự và chốt tilt. API chỉ cho retry chất lượng một lần
 khi các chốt khác phù hợp; giữ error hiệu chỉnh và mọi quyết định không đạt.
 Test tổng hợp, chưa nghiệm thu toàn luồng; không đổi ngưỡng hay kết luận 3D.
-
-| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
-|---|---|---|---|---|
-| M1 (+M3) | 1 | S1 | P0 | CAP-06 |
 
 **Mục tiêu:** làm bước B3 và ADR-0013 mục 6.
 

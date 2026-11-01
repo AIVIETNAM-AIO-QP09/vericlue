@@ -296,7 +296,12 @@ object OtpRules {
 }
 
 /** Explicit UI consent; reading or scrolling alone never enables continuing. */
-data class Agreement(val accepted: Boolean = false) {
+data class Agreement(
+    val accepted: Boolean = false,
+    val accountTemplateAccepted: Boolean = false,
+    val requiresAccountTemplate: Boolean = false,
+) {
     fun toggle(): Agreement = copy(accepted = !accepted)
-    val canContinue: Boolean get() = accepted
+    fun toggleAccountTemplate(): Agreement = copy(accountTemplateAccepted = !accountTemplateAccepted)
+    val canContinue: Boolean get() = accepted && (!requiresAccountTemplate || accountTemplateAccepted)
 }

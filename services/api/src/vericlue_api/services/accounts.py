@@ -202,6 +202,10 @@ class AccountStore:
             or aware(session.token_expires_at) <= utcnow()
         ):
             raise not_eligible()
+        if not recovery:
+            from vericlue_api.services.privacy_consent import require_account_template_consent
+
+            require_account_template_consent(self.db, self.settings, session)
         policy = s.manual_demo_policy
         if s.manual_full_demo:
             if (
@@ -396,6 +400,7 @@ class AccountStore:
             "key_fingerprint": hashlib.sha256(
                 base64.b64decode(session.media_public_key_spki, validate=True)
             ).hexdigest(),
+            "consent_receipt_id": row.consent_receipt_id,
             "evaluation_mode": "manual_full_demo" if self.settings.manual_full_demo else "standard",
             "demo_policy_id": policy.policy_id
             if self.settings.manual_full_demo and policy is not None
@@ -455,6 +460,9 @@ class AccountStore:
         except Exception as exc:
             raise not_eligible() from exc
         self._eligible(session, template, continuity)
+        from vericlue_api.services.privacy_consent import require_account_template_consent
+
+        consent_receipt_id = require_account_template_consent(self.db, self.settings, session)
         existing = self.db.scalar(
             select(AccountRow)
             .where(AccountRow.source_session_id == session.session_id)
@@ -471,6 +479,7 @@ class AccountStore:
         row = AccountRow(
             account_id="acct_" + secrets.token_hex(16),
             source_session_id=session.session_id,
+            consent_receipt_id=consent_receipt_id,
             id_number_hmac=session.id_number_hmac,
             phone_hmac=session.phone_hmac,
             device_id="dev_" + secrets.token_hex(16),
@@ -486,6 +495,7 @@ class AccountStore:
             "key_fingerprint": hashlib.sha256(
                 base64.b64decode(session.media_public_key_spki, validate=True)
             ).hexdigest(),
+            "consent_receipt_id": consent_receipt_id,
             "evaluation_mode": "manual_full_demo" if self.settings.manual_full_demo else "standard",
             "demo_policy_id": policy.policy_id
             if self.settings.manual_full_demo and policy is not None
@@ -534,6 +544,8 @@ class AccountStore:
             if (
                 template.session_id != row.source_session_id
                 or template.model_version != VIDEO_MATCH_VERSION
+                or not row.consent_receipt_id
+                or payload.get("consent_receipt_id") != row.consent_receipt_id
                 or payload["key_fingerprint"]
                 != hashlib.sha256(base64.b64decode(spki, validate=True)).hexdigest()
                 or payload.get("evaluation_mode", "standard") != expected_mode

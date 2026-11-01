@@ -21,6 +21,7 @@ from vericlue_api.core.errors import ApiError
 from vericlue_api.db.models import (
     AccessEventRow,
     AccountRow,
+    AccountTemplateConsentRow,
     CleanupAuditRow,
     SessionRow,
     aware,
@@ -80,7 +81,7 @@ def verdict(module, version="synthetic-storage-test", **changes):
     )
 
 
-def prepared(state, *, id_hmac="a" * 64, voiced=True):
+def prepared(state, *, id_hmac="a" * 64, voiced=True, consent=True):
     from vericlue_api.schemas.session import CreateSessionRequest
 
     key = ec.generate_private_key(ec.SECP256R1())
@@ -98,6 +99,18 @@ def prepared(state, *, id_hmac="a" * 64, voiced=True):
         ),
     )
     session = state.sessions.get(created.session_id)
+    if consent:
+        state.db.add(
+            AccountTemplateConsentRow(
+                receipt_id="prv_" + secrets.token_hex(16),
+                session_id=session.session_id,
+                purpose="account_template",
+                policy_version=state.settings.account_template_policy_version,
+                retention_seconds=86400,
+                recorded_at=utcnow(),
+            )
+        )
+        state.db.flush()
     session.completed = True
     session.otp_verified = True
     session.phone_hmac = "b" * 64
@@ -469,3 +482,55 @@ def test_account_reads_and_deletion_have_pii_free_append_only_chain(private_clie
         assert not any(
             value in serialized for value in ("embedding", "public_key", "phone", "id_number")
         )
+
+
+def test_account_enrollment_requires_explicit_account_template_consent_receipt(private_client):
+    from vericlue_api.services.enrollment import EnrollmentService
+
+    root = private_client.app.state.vericlue
+    with root.transaction() as state:
+        # 1. Missing consent receipt blocks validate_enrollment (before worker) and create
+        session, template, continuity = prepared(state, consent=False)
+        store = AccountStore(real_settings(state), state.db)
+
+        def forbidden_worker(*args, **kwargs):
+            pytest.fail("Template extraction must not run without account_template consent")
+
+        with pytest.raises(ApiError) as exc_info:
+            EnrollmentService(store, state.privacy, forbidden_worker).complete(session)
+        assert exc_info.value.status_code == 409
+        assert exc_info.value.error_code == "account_template_consent_required"
+
+        with pytest.raises(ApiError) as exc_info2:
+            store.create(session, template, continuity=continuity)
+        assert exc_info2.value.status_code == 409
+        assert exc_info2.value.error_code == "account_template_consent_required"
+        assert state.db.scalar(select(func.count()).select_from(AccountRow)) == 0
+
+        # 2. Outdated policy version on consent receipt is rejected
+        state.db.add(
+            AccountTemplateConsentRow(
+                receipt_id="prv_" + secrets.token_hex(16),
+                session_id=session.session_id,
+                purpose="account_template",
+                policy_version="outdated-v0",
+                retention_seconds=86400,
+                recorded_at=utcnow(),
+            )
+        )
+        state.db.flush()
+        with pytest.raises(ApiError) as exc_info3:
+            store.create(session, template, continuity=continuity)
+        assert exc_info3.value.error_code == "account_template_consent_required"
+
+        # 3. Valid consent receipt is recorded on AccountRow.consent_receipt_id
+        session2, template2, continuity2 = prepared(state, id_hmac="e" * 64, consent=True)
+        receipt = store.create(session2, template2, continuity=continuity2)
+        row = state.db.get(AccountRow, receipt.account_id)
+        consent_row = state.db.scalar(
+            select(AccountTemplateConsentRow).where(
+                AccountTemplateConsentRow.session_id == session2.session_id
+            )
+        )
+        assert row is not None and consent_row is not None
+        assert row.consent_receipt_id == consent_row.receipt_id

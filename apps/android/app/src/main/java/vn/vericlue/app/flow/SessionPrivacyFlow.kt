@@ -14,27 +14,47 @@ object PrivacyNotice {
     }
 }
 
+object AccountTemplateNotice {
+    const val VERSION = "account-template-v1"
+    const val RETENTION_SECONDS = 86400
+}
+
 /** Only an explicit user action calls grant. The session supplier always provides the latest bearer. */
 class SessionPrivacyFlow(private val api: SessionApi, private val mutation: Mutex = Mutex(), private val session: () -> CreateSessionResponse?) {
     var receipt: SessionPrivacyState? = null
         private set
+    var accountTemplateReceipt: AccountTemplatePrivacyState? = null
+        private set
     var stopping = false
         private set
 
-    fun reset() { receipt = null; stopping = false }
+    fun reset() { receipt = null; accountTemplateReceipt = null; stopping = false }
 
     fun permits(category: String): Boolean = !stopping && receipt?.let {
         it.sessionId == session()?.sessionId && it.status == "granted" && category in it.categories
     } == true
 
-    suspend fun grant(purpose: Purpose, displayedVersion: String): ApiError? {
-        return mutation.withLock { grantLocked(purpose, displayedVersion) }
+    fun permitsAccountTemplate(): Boolean = !stopping && accountTemplateReceipt?.let {
+        it.sessionId == session()?.sessionId && it.status == "granted" && validReceipt(it.consentReceiptId)
+    } == true
+
+    suspend fun grant(
+        purpose: Purpose,
+        displayedVersion: String,
+        displayedAccountTemplateVersion: String = AccountTemplateNotice.VERSION,
+    ): ApiError? {
+        return mutation.withLock { grantLocked(purpose, displayedVersion, displayedAccountTemplateVersion) }
     }
 
-    private suspend fun grantLocked(purpose: Purpose, displayedVersion: String): ApiError? {
+    private suspend fun grantLocked(
+        purpose: Purpose,
+        displayedVersion: String,
+        displayedAccountTemplateVersion: String,
+    ): ApiError? {
         if (stopping) return ApiError.Expired
         val current = session() ?: return ApiError.Expired
         receipt = null
+        accountTemplateReceipt = null
         val state = when (val result = api.sessionPrivacy(current.sessionId, current.token)) {
             is ApiResult.Err -> return result.error
             is ApiResult.Ok -> result.value
@@ -43,18 +63,47 @@ class SessionPrivacyFlow(private val api: SessionApi, private val mutation: Mute
             state.policyVersion != displayedVersion) return ApiError.BadResponse
         if (state.status == "withdrawn") { stopping = true; return ApiError.Expired }
         if (stopping || session() != current) return ApiError.Expired
-        return when (val result = api.grantSessionConsent(current.sessionId, current.token,
+        val granted = when (val result = api.grantSessionConsent(current.sessionId, current.token,
             PrivacyConsentRequest(displayedVersion, PrivacyNotice.categories(purpose), true))) {
-            is ApiResult.Err -> result.error
-            is ApiResult.Ok -> {
-                val granted = result.value
-                if (stopping || session() != current) return ApiError.Expired
-                if (!granted.validFor(current.sessionId) || granted.policyVersion != displayedVersion ||
-                    granted.status != "granted" || !granted.categories.containsAll(PrivacyNotice.categories(purpose)) ||
-                    !validReceipt(granted.consentReceiptId) || granted.consentedAt == null) ApiError.BadResponse
-                else { receipt = granted; null }
-            }
+            is ApiResult.Err -> return result.error
+            is ApiResult.Ok -> result.value
         }
+        if (stopping || session() != current) return ApiError.Expired
+        if (!granted.validFor(current.sessionId) || granted.policyVersion != displayedVersion ||
+            granted.status != "granted" || !granted.categories.containsAll(PrivacyNotice.categories(purpose)) ||
+            !validReceipt(granted.consentReceiptId) || granted.consentedAt == null) return ApiError.BadResponse
+        if (purpose == Purpose.Onboarding) {
+            val tmplState = when (val result = api.accountTemplatePrivacy(current.sessionId, current.token)) {
+                is ApiResult.Err -> return result.error
+                is ApiResult.Ok -> result.value
+            }
+            if (!tmplState.validFor(current.sessionId) ||
+                displayedAccountTemplateVersion != AccountTemplateNotice.VERSION ||
+                tmplState.policyVersion != displayedAccountTemplateVersion) return ApiError.BadResponse
+            if (tmplState.status == "withdrawn") { stopping = true; return ApiError.Expired }
+            if (stopping || session() != current) return ApiError.Expired
+            val tmplGranted = when (val result = api.grantAccountTemplateConsent(
+                current.sessionId,
+                current.token,
+                AccountTemplateConsentRequest(
+                    policyVersion = displayedAccountTemplateVersion,
+                    purpose = "account_template",
+                    consent = true,
+                ),
+            )) {
+                is ApiResult.Err -> return result.error
+                is ApiResult.Ok -> result.value
+            }
+            if (stopping || session() != current) return ApiError.Expired
+            if (!tmplGranted.validFor(current.sessionId) ||
+                tmplGranted.policyVersion != displayedAccountTemplateVersion ||
+                tmplGranted.status != "granted" ||
+                !validReceipt(tmplGranted.consentReceiptId) ||
+                tmplGranted.consentedAt == null) return ApiError.BadResponse
+            accountTemplateReceipt = tmplGranted
+        }
+        receipt = granted
+        return null
     }
 
     suspend fun withdraw(): ApiError? {

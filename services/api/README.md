@@ -1,5 +1,13 @@
 # services/api — Máy chủ API (FastAPI)
 
+**APP-01/SEC-09 (01/11):** migration `0011_account_template_consent` bổ sung sổ
+biên nhận append-only cho lưu mẫu tài khoản mã hóa 24 giờ. Android ghi lựa chọn
+qua `GET .../privacy/account-template` và `POST .../privacy/account-template/consent`;
+thiếu biên nhận đúng scope/version thì server không trích mẫu hoặc ghi danh.
+`manual_full_demo` truyền mode/policy rõ trên create/finalize/voice và chỉ chạy
+trong synthetic; chưa phải đường đã hiệu chỉnh. Reauth có thể nạp/chạy matcher
+video độc lập bộ quét CCCD. [Chi tiết](../../docs/architecture/mobile-privacy-integration.md).
+
 **APP-01/FLOW-04 (31/10, manual demo):** opt-in MANUAL_FACE_DEMO dùng điểm thô
 AI thật và ngưỡng thủ công riêng, không giả artifact/probability. Chỉ onboarding
 synthetic+mvp+ekyc, không enrollment/credentials/signing. API vẫn review, thêm
@@ -29,8 +37,9 @@ phải pass. Thao tác rút lại không xóa tài khoản hoặc thu hồi BBS 
 
 SEC-05 có profile `synthetic|protected` kiểm trước khi nhận request, khóa nền
 độc lập, bắt buộc privacy/ký media trong protected và preflight chỉ xuất trạng
-thái an toàn. Kênh OTP hiện chỉ mô phỏng; real/mixed/protected chưa có SMS thật
-phải đóng. Xem [profile bảo vệ dữ liệu](../../docs/runbooks/protected-profile.md).
+thái an toàn. Kênh OTP hiện chỉ mô phỏng, opt-in `SIMULATED_OTP=true` trong
+synthetic độc lập AI real/mixed/mock; protected vẫn từ chối. Xem
+[profile bảo vệ dữ liệu](../../docs/runbooks/protected-profile.md).
 
 Image API bổ sung runtime BBS/Node, holder bundle và CLI preflight; kích hoạt qua
 overlay riêng, khóa host mount read-only. Hướng dẫn và giới hạn nghiệm thu:

@@ -13,6 +13,8 @@ from vericlue_api.core.security import (
 )
 from vericlue_api.core.session_ingress import SessionAPIRoute
 from vericlue_api.schemas.privacy import (
+    AccountTemplateConsentRequest,
+    AccountTemplatePrivacyState,
     PrivacyConsentRequest,
     PrivacyState,
     PrivacyWithdrawalRequest,
@@ -88,4 +90,26 @@ def withdraw_consent(
     erase_committed_session_files(request.app.state.vericlue, session_id)
     with privacy_transaction(request, session_id) as (service, _):
         result = service.state(session_id)
+    return result
+
+
+@router.get("/{session_id}/privacy/account-template", response_model=AccountTemplatePrivacyState)
+def get_account_template_privacy(
+    session_id: str, request: Request, response: Response
+) -> AccountTemplatePrivacyState:
+    response.headers["Cache-Control"] = "no-store"
+    with privacy_transaction(request, session_id) as (service, _):
+        result = service.account_template_state(session_id)
+    return result
+
+
+@router.post(
+    "/{session_id}/privacy/account-template/consent", response_model=AccountTemplatePrivacyState
+)
+def grant_account_template_consent(
+    session_id: str, request: Request, body: AccountTemplateConsentRequest, response: Response
+) -> AccountTemplatePrivacyState:
+    response.headers["Cache-Control"] = "no-store"
+    with privacy_transaction(request, session_id) as (service, token):
+        result = service.grant_account_template(session_id, token, body)
     return result

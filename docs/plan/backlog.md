@@ -170,7 +170,7 @@
 | SEC-06 | Retention và thao tác riêng tư [contract] | M5 | Codex | 1 | S2 | P0 | PLAT-05 | done |
 | SEC-07 | Vá dependency web và kiểm chứng tích hợp | M2 | Codex | 0,5 | S2 | P0 | PLAT-02, PLAT-05 | doing |
 | SEC-08 | Vòng đời khóa và file tạm cho demo | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | done |
-| SEC-09 | Consent lưu mẫu và logic riêng tư app [contract] | M5 | Ngoc Quang+Codex | 1 | S2 | P0 | SEC-06, FLOW-06 | doing |
+| SEC-09 | Consent lưu mẫu: contract/API/Android và snapshot đã nối; chờ nghiệm thu thiết bị [contract] | M5 | Ngoc Quang+Codex | 1 | S2 | P0 | SEC-06, FLOW-06 | doing |
 
 ## Tổng hợp tải (chạy `plan_check.py` để có số mới nhất)
 

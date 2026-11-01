@@ -119,13 +119,20 @@ class SessionFlow:
     @staticmethod
     def _evaluation_fields(session: Session) -> dict:
         return (
-            {"evaluation_mode": "manual_demo", "demo_policy_id": session.manual_demo_policy_id}
-            if session.created_model_mode == "manual_demo" and session.manual_demo_policy_id
+            {
+                "evaluation_mode": session.created_model_mode,
+                "demo_policy_id": session.manual_demo_policy_id,
+            }
+            if session.created_model_mode in {"manual_demo", "manual_full_demo"}
+            and session.manual_demo_policy_id
             else {}
         )
 
     def _finalize_response(self, session: Session, **kwargs) -> FinalizeResponse:
         return FinalizeResponse(**self._evaluation_fields(session), **kwargs)
+
+    def _voice_response(self, session: Session, **kwargs) -> VoiceResponse:
+        return VoiceResponse(**self._evaluation_fields(session), **kwargs)
 
     def __init__(
         self,
@@ -187,16 +194,22 @@ class SessionFlow:
         *,
         account_bound: bool,
         session: Session | None = None,
+        voice_step: bool = False,
     ) -> None:
         """Fail closed unless every real model, calibration artifact, consent and account prerequisite is ready."""
         s = self.settings
+        needs_voice = (
+            purpose in {"onboarding", "recovery"}
+            or voice_step
+            or (session is not None and session.voice_requested)
+        )
         if (
             s.use_mock_models is not False
             or s.manual_face_demo
             or s.manual_full_demo
             or not s.require_privacy_consent
             or not s.session_face_models
-            or not s.session_voice_models
+            or (needs_voice and not s.session_voice_models)
             or not s.identity_face_from_video
             or self.orchestrator is None
         ):
@@ -211,16 +224,12 @@ class SessionFlow:
                 raise self._flow_unavailable() from exc
             if (
                 not s.require_media_proof
-                or not s.identity_card_enabled
-                or not s.identity_consistency_required
-                or not s.session_face_checks
-                or not s.identity_voice_continuity
                 or len(s.id_hmac_key.get_secret_value().encode("utf-8")) < 32
             ):
                 raise self._flow_unavailable()
         if purpose in {"onboarding", "recovery"} and (
             not s.session_face_checks
-            or not s.identity_card_enabled
+            or (purpose == "onboarding" and not s.identity_card_enabled)
             or not s.identity_consistency_required
             or not s.identity_voice_continuity
         ):
@@ -228,9 +237,10 @@ class SessionFlow:
 
         required_modules = [
             *self.router.profile.finalize_modules,
-            *self.router.profile.voice_step_modules,
             Module.FACE_MATCH,
         ]
+        if needs_voice:
+            required_modules.extend(self.router.profile.voice_step_modules)
         if purpose in {"onboarding", "recovery"}:
             required_modules.extend(
                 (Module.GAZE_TRACKING, Module.HEAD_TURN, Module.FACE_CONTINUITY)
@@ -271,19 +281,20 @@ class SessionFlow:
                 expected_attack_ver = session_model_version(frames_ver, protocol)
             self._require_fitted_calibrator(attack_mod, expected_attack_ver)
 
-        spoof_ver = str(getattr(detectors[Module.VOICE_SPOOF], "version", "") or "")
-        # VOICE-08/VOICE-13: NES2Net timeline remains diagnostic-only until parity & calib_fit exist.
-        if spoof_ver == NES2NET_TIMELINE_VERSION:
-            raise self._flow_unavailable()
-        self._require_fitted_calibrator(Module.VOICE_SPOOF, spoof_ver)
+        if needs_voice:
+            spoof_ver = str(getattr(detectors[Module.VOICE_SPOOF], "version", "") or "")
+            # VOICE-08/VOICE-13: NES2Net timeline remains diagnostic-only until parity & calib_fit exist.
+            if spoof_ver == NES2NET_TIMELINE_VERSION:
+                raise self._flow_unavailable()
+            self._require_fitted_calibrator(Module.VOICE_SPOOF, spoof_ver)
 
-        if (
-            Module.LIPSYNC in self.router.profile.voice_modules
-            or purpose == "recovery"
-            or (purpose == "onboarding" and s.account_enrollment)
-        ):
-            lipsync_ver = str(getattr(detectors[Module.LIPSYNC], "version", "") or "")
-            self._require_fitted_calibrator(Module.LIPSYNC, lipsync_ver)
+            if (
+                Module.LIPSYNC in self.router.profile.voice_modules
+                or purpose == "recovery"
+                or (purpose == "onboarding" and s.account_enrollment)
+            ):
+                lipsync_ver = str(getattr(detectors[Module.LIPSYNC], "version", "") or "")
+                self._require_fitted_calibrator(Module.LIPSYNC, lipsync_ver)
 
         if purpose == "onboarding":
             self._require_match_threshold(
@@ -1018,7 +1029,8 @@ class SessionFlow:
         if outcome.status == "voice_challenge":
             session.voice_rereads_used += 1
             session.accepted_steps.remove("voice")  # A fresh prompt grants one new voice attempt.
-            return VoiceResponse(
+            return self._voice_response(
+                session,
                 status="voice_challenge",
                 voice_prompt=self._new_prompt(session),
                 attempts_left=MAX_VOICE_REREADS - session.voice_rereads_used,
@@ -1028,7 +1040,7 @@ class SessionFlow:
         session.completed = True
         if outcome.status == "review":
             self._open_case(session, outcome)
-            return VoiceResponse(status="review")
+            return self._voice_response(session, status="review")
         receipt = None
         if (
             outcome.status == "pass"
@@ -1040,7 +1052,8 @@ class SessionFlow:
             receipt = self._enroll(session)
         if outcome.status == "pass" and session.purpose == "recovery" and session.account_id:
             receipt = self.accounts.recover(session)
-        return VoiceResponse(
+        return self._voice_response(
+            session,
             status=outcome.status,
             account=AccountReceipt.model_validate(receipt) if receipt is not None else None,
         )

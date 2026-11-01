@@ -42,3 +42,29 @@ data class SessionPrivacyState(
         val CATEGORIES = setOf("contact", "id_document", "face_biometrics", "voice_biometrics")
     }
 }
+
+@Serializable
+data class AccountTemplateConsentRequest(
+    @SerialName("policy_version") val policyVersion: String,
+    val purpose: String,
+    val consent: Boolean,
+)
+
+@Serializable
+data class AccountTemplatePrivacyState(
+    @SerialName("session_id") val sessionId: String,
+    val scope: String,
+    val purpose: String,
+    @SerialName("policy_version") val policyVersion: String,
+    @SerialName("retention_seconds") val retentionSeconds: Int,
+    val status: String,
+    @SerialName("consent_receipt_id") val consentReceiptId: String? = null,
+    @SerialName("consented_at") val consentedAt: String? = null,
+) {
+    fun validFor(sessionId: String): Boolean = this.sessionId == sessionId &&
+        scope == "account_template" &&
+        purpose == "account_template" &&
+        policyVersion.matches(Regex("[A-Za-z0-9._-]{1,64}")) &&
+        retentionSeconds == 86400 &&
+        status in setOf("not_granted", "granted", "withdrawn")
+}
