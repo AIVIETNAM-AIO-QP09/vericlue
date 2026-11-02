@@ -10,6 +10,17 @@ Nguồn chính thức: [model card](https://huggingface.co/Qwen/Qwen3-ASR-0.6B-h
 [processor tại v5.13.0](https://github.com/huggingface/transformers/blob/v5.13.0/src/transformers/models/qwen3_asr/processing_qwen3_asr.py).
 Chỉ dùng thư viện đã cài; không chép mã nguồn model hoặc chạy remote code.
 
+**Sửa 02/11:** version `cpu-fp32-content-v2-assistant-prefix` gọi public chat
+API với assistant continuation `language Vietnamese<asr_text>`, theo
+[Qwen gốc đã ghim](https://github.com/QwenLM/Qwen3-ASR/blob/c17a131fe028b2e428b6e80a33d30bb4fa57b8df/qwen_asr/inference/qwen3_asr.py#L445-L465).
+Helper `apply_transcription_request` của runtime 5.13.0 đặt ngôn ngữ ở system;
+[upstream sửa tại PR47111](https://github.com/huggingface/transformers/pull/47111).
+Giữ runtime/trọng số đã pin; không nâng thư viện hoặc truyền câu dự kiến làm
+context. Đầu ra sau prefill chỉ là transcript; wrapper phục hồi envelope cố
+định để kiểm parser, kiểm token điều khiển trước khi decoder có thể bỏ chúng.
+Ngôn ngữ lúc này được ép theo cấu hình; không coi envelope là bằng chứng model
+tự nhận ra tiếng Việt. Chất lượng nhận dạng trên điện thoại vẫn cần đo riêng.
+
 ## Chuẩn bị và chạy
 
 Chạy tại gốc repo bằng PowerShell; không đổi môi trường webcam/CUDA:

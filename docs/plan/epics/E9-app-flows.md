@@ -506,6 +506,13 @@ latch là hold đạt/đổi phase/qua gate; giữ các hằng và lịch5/5/2. 
 
 ### APP-03 · App: ghi âm đọc câu (WAV 16 kHz)
 
+**02/11 21:49 — doing, tiếp tục điều tra server:** sửa Qwen theo assistant
+language prefill gốc và SyncNet theo resize uint8 gốc, phiên bản riêng cho
+từng wrapper. Có regression/control-token guards và review chéo; trọng số,
+ngưỡng/câu thử thách/clock không đổi. Đối chứng bản ghi cũ vẫn không đạt nội
+dung và lipsync, chưa nghiệm thu recovery. Xem
+[bàn giao](../../status/handoffs/2026-11-02-2149-app-03-ngoc-quang-codex.md).
+
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
 |---|---|---|---|---|
 | M1 | 1 | S2 | P0 | APP-01 |

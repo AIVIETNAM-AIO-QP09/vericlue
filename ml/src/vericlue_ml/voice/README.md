@@ -1,5 +1,15 @@
 # VOICE-04 — kiểm câu đọc
 
+**02/11 — APP-03/VOICE-05, sửa parity đầu vào:** Qwen dùng assistant prefill
+`language Vietnamese<asr_text>` theo mã gốc, tránh helper đặt ngôn ngữ trong
+system ở Transformers 5.13.0; version `cpu-fp32-content-v2-assistant-prefix`.
+Ngôn ngữ được chỉ định trước, không phải dự đoán ngôn ngữ độc lập. Câu thử
+thách không đi vào model; EOS, token điều khiển, đầu ra rỗng và giới hạn sinh
+vẫn được kiểm. SyncNet phục hồi pixel uint8 sau resize rồi mới chuẩn hóa,
+version `voice05-v3-u8resize`; artifact v2 không được áp cho version mới.
+Trọng số/ngưỡng giữ nguyên. Đối chứng trên bản ghi đã lưu vẫn chưa đạt hai
+chốt; đây là sửa wrapper, chưa là nghiệm thu khôi phục hoặc số liệu accuracy.
+
 VOICE-13 thêm `Nes2NetTimelineDetector` và factory/mock riêng: các cửa sổ 4 giây
 phủ hết bản thu, điểm từng đoạn và độ phủ, không gộp xác suất/đạt. Lab micro/A/V
 dùng mode này; CLI first4s vẫn là mặc định. Xem

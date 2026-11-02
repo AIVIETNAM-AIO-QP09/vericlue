@@ -77,7 +77,7 @@
 | VOICE-02 | Tăng cường dữ liệu, chống học vẹt | M4 | | 1 | S1 | P0 | PLAT-03, DATA-01 | todo |
 | VOICE-03 | Tinh chỉnh AntiDeepfake cho tiếng Việt | M4 | | 2 | S1–S2 | P0 | VOICE-01, VOICE-02, DATA-03, DATA-05, DATA-06 | todo |
 | VOICE-04 | Câu thử thách, nhận dạng, so khớp 2 lớp (chặn lặp token) | M4 | Codex | 1,5 | S1–S2 | P0 | PLAT-03 | done |
-| VOICE-05 | Căn chỉnh câu, cắt ghép, SyncNet (thiết bị riêng, nạp lười) | M4 | Codex | 1,5 | S2 | P0 | VOICE-04, DATA-02 | doing |
+| VOICE-05 | Căn chỉnh câu/cắt ghép/SyncNet; sửa resize uint8 v3, chưa nghiệm thu lipsync | M4 | Codex | 1,5 | S2 | P0 | VOICE-04, DATA-02 | doing |
 | VOICE-06 | Gộp bước giọng nói vào luồng | M4 | | 0,5 | S2 | P0 | VOICE-03, VOICE-04, VOICE-05, ROUT-02 | todo |
 | VOICE-07 | Qwen3-ASR: backend + CLI kiểm câu đọc, diagnostic CPU riêng | M4 | Codex | 1 | S2 | P0 | PLAT-03, VOICE-04 | review |
 | VOICE-08 | Thử câu đọc bằng microphone, RAM-only và runtime Qwen riêng | M4 | Codex | 0,5 | S2 | P0 | VOICE-07 | review |

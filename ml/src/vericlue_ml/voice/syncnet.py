@@ -4,6 +4,8 @@ Architecture/config/preprocessing sources: ByteDance/LatentSync commit
  a229c3948406bc2cf6eaf4873e662e70c6a04746, configs/syncnet/syncnet_16_pixel_attn.yaml,
  configs/audio.yaml, latentsync/utils/audio.py and latentsync/data/syncnet_dataset.py.
 Stable checkpoint is NOT the older five-frame MFCC SyncNet evaluator.
+ImageProcessor.process_images preserves uint8 through bicubic Resize; restore
+bytes before normalization, following TorchVision v0.20.1 _functional_tensor.py.
 
 MVP difference: reuse PAD's SCRFD bounding boxes instead of upstream landmark-based
 face alignment. Confidence and its score conversion are provisional, not validated
@@ -365,7 +367,10 @@ class StableBackend:
                 align_corners=False,
                 antialias=True,
             )
-            tensors.append(image[0].clamp(0, 255) / 127.5 - 1)
+            # TorchVision 0.20.1 Resize restores the original uint8 dtype before
+            # ImageProcessor divides by 255 and applies Normalize(0.5, 0.5).
+            image = image[0].clamp(0, 255).round().to(torch.uint8)
+            tensors.append((image.float() / 255.0 - 0.5) / 0.5)
         tensor = torch.stack(tensors).reshape(
             1, SYNCNET_FRAMES * 3, SYNCNET_IMAGE_SIZE, SYNCNET_IMAGE_SIZE
         )
@@ -439,7 +444,9 @@ class SyncNetDetector:
         sync = _manifest_entry(SYNCNET_MODEL_ID, SYNCNET_FILE)["revision"][:8]
         ctc = _manifest_entry("ctc-aligner", "model.safetensors")["revision"][:8]
         scrfd = _manifest_entry(DETECTOR_MODEL_ID, DETECTOR_FILE)["revision"][:8]
-        self.version = f"stable-syncnet@{sync}+ctc-aligner@{ctc}+scrfd-10g@{scrfd}+voice05-v2"
+        self.version = (
+            f"stable-syncnet@{sync}+ctc-aligner@{ctc}+scrfd-10g@{scrfd}+voice05-v3-u8resize"
+        )
         self._lock = threading.RLock()
         self._loaded = False
         self._configured = False

@@ -436,7 +436,7 @@ def _setup_ready_real_env(client, tmp_path):
     gend_base = "gend-clip-l14@33333333+clip@44444444+scrfd-10g@22222222+agg-maxmeantop25-v1"
     gend_frames = gend_base + "+headturn-3views-v1"
     spoof_ver = "nes2net-x@c9fe1177+calibrated-test-v1"
-    lipsync_ver = "stable-syncnet@c42c7e6c+ctc-aligner@49402e95+scrfd-10g@bfcc7d48+voice05-v2+session-offset-v1"
+    lipsync_ver = "stable-syncnet@c42c7e6c+ctc-aligner@49402e95+scrfd-10g@bfcc7d48+voice05-v3-u8resize+session-offset-v1"
 
     save_fitted(Module.FACE_PAD, f"{pad_frames}+session-video-v2")
     save_fitted(Module.FACE_PAD, pad_base)
