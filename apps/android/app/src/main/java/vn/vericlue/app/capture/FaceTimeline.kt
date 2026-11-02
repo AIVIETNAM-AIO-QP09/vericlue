@@ -7,7 +7,8 @@ import vn.vericlue.app.flow.TurnDir
  * The face part as one recording (FLOW-01/LIVE-01, docs/architecture/dynamic-session-api.md):
  * grey baseline → colour steps → dot path → head turns. Every time is in ms from the first frame
  * of that recording (t = 0), exactly as the server scheduled it; the server cuts the video on the
- * same marks to check gaze (LIVE-02) and head turns (FLOW-04), so nothing here is re-timed.
+ * same marks to check gaze (LIVE-02). Opt-in adaptive head turns follow observed holds
+ * within the server's deadline; colour and gaze timestamps never move.
  * Pure Kotlin, unit-tested.
  */
 class FaceTimeline(
@@ -19,7 +20,10 @@ class FaceTimeline(
     val headTurns: List<TurnDir?>,
     val headStartMs: Int,
     val headDurationMs: Int,
+    val headTimeoutMs: Int? = null,
 ) {
+    val adaptiveHead: Boolean get() = headTimeoutMs != null
+    val headDeadlineMs: Int get() = headStartMs + (headTimeoutMs ?: headDurationMs)
     data class GazeMark(val x: Double, val y: Double, val atMs: Int)
 
     sealed interface Phase {
@@ -66,7 +70,7 @@ class FaceTimeline(
                 GazeMark(random.nextDouble(0.15, 0.85), random.nextDouble(0.3, 0.7), start + i * 850)
             }
             return FaceTimeline(slots, 500, marks, order + listOf(null),
-                marks.last().atMs, (order.size + 1) * 2000)
+                marks.last().atMs, (order.size + 1) * 2000, 30000 - marks.last().atMs)
         }
 
         /**
@@ -85,6 +89,10 @@ class FaceTimeline(
         /** The live schedule, or null when the challenge has no `dynamic` pack (MVP / re-auth). */
         fun from(challenge: Challenge): FaceTimeline? {
             val d = challenge.dynamic ?: return null
+            if (d.headMode != null && d.headMode != "adaptive") return null
+            if (d.headMode == "adaptive" && (d.headTimeoutMs == null || d.headTimeoutMs < 6000 ||
+                    d.headStartAtMs.toLong() + d.headTimeoutMs != 30000L)) return null
+            if (d.headMode == null && d.headTimeoutMs != null) return null
             val turns = d.headTurns.map {
                 when (it) {
                     "left" -> TurnDir.Left
@@ -101,6 +109,7 @@ class FaceTimeline(
                 headTurns = turns,
                 headStartMs = d.headStartAtMs,
                 headDurationMs = d.headDurationMs,
+                headTimeoutMs = d.headTimeoutMs,
             )
         }
     }

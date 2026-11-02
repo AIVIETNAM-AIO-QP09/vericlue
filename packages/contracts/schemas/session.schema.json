@@ -546,6 +546,12 @@
       ],
       "additionalProperties": false,
       "properties": {
+        "head_mode": {
+          "type": "string",
+          "enum": ["timed", "adaptive"],
+          "default": "timed",
+          "description": "Opt-in cho từng bước quay đầu chờ bằng chứng chuyển động; không gửi giữ lịch cũ."
+        },
         "device_public_key_spki": {
           "type": [
             "string",
@@ -667,6 +673,17 @@
         "head_duration_ms": {
           "type": "integer",
           "const": 6000
+        },
+        "head_mode": {
+          "type": ["string", "null"],
+          "enum": ["adaptive", null],
+          "description": "adaptive: chỉ tiến bước khi giữ đúng hướng; không chia head_duration_ms thành các ô thời gian. Không có/null giữ lịch cũ."
+        },
+        "head_timeout_ms": {
+          "type": ["integer", "null"],
+          "minimum": 6000,
+          "maximum": 29500,
+          "description": "Chỉ dùng với adaptive: ngân sách kể từ head_start_at_ms; tổng bản ghi tối đa 30000 ms. Có thể kết thúc sớm sau khi hoàn tất đúng thứ tự và giữ hướng giữa. Server tự kiểm tra video, không tin tiến độ client. voice_start_at_ms chỉ là mốc lịch cũ; adaptive chỉ bắt đầu giọng sau khi hoàn tất đầu và finalize yêu cầu."
         },
         "voice_start_at_ms": {
           "type": "integer",

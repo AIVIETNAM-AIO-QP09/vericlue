@@ -1,10 +1,6 @@
 package vn.vericlue.app.capture
 
-import androidx.compose.ui.geometry.Rect
-import kotlin.math.cos
-import kotlin.math.sin
-
-enum class FaceAttemptIssue { FaceLost, ActionIncomplete }
+enum class FaceAttemptIssue { FaceLost, ActionIncomplete, TimeLimit }
 
 /** Local capture guard, never an identity decision. Issued video-relative times remain unchanged. */
 class FaceAttemptGuard(private val timeline: FaceTimeline) {
@@ -19,7 +15,11 @@ class FaceAttemptGuard(private val timeline: FaceTimeline) {
         failed?.let { return it }
         if (!QualityGate.hasCompleteFace(signal, nowMs)) {
             val since = missingSince ?: nowMs.also { missingSince = it }
-            if (nowMs - since >= 450 || phase == FaceTimeline.Phase.Done) return fail(FaceAttemptIssue.FaceLost)
+            // During adaptive head guidance a temporary detection/pose problem is corrected
+            // inline. The bounded capture controller never completes with missing evidence.
+            val correctingHead = timeline.adaptiveHead && phase is FaceTimeline.Phase.Head
+            if ((!correctingHead && nowMs - since >= 450) || phase == FaceTimeline.Phase.Done ||
+                signal?.faces?.let { it > 1 } == true) return fail(FaceAttemptIssue.FaceLost)
         } else {
             missingSince = null
             val id = signal?.trackingId
@@ -47,18 +47,4 @@ class FaceAttemptGuard(private val timeline: FaceTimeline) {
     }
 
     private fun fail(issue: FaceAttemptIssue): FaceAttemptIssue = issue.also { failed = it }
-}
-
-/** Fits the whole detected face ellipse into the visible guide using CameraX-mapped bounds. */
-fun faceFitsGuide(face: Rect?, guide: Rect?): Boolean {
-    if (face == null || guide == null || face.isEmpty || guide.isEmpty ||
-        listOf(face.left, face.top, face.right, face.bottom, guide.left, guide.top, guide.right, guide.bottom).any { !it.isFinite() }) return false
-    val rx = guide.width * 0.48f
-    val ry = guide.height * 0.48f
-    return (0 until 16).all { i ->
-        val angle = i * Math.PI / 8
-        val x = (face.center.x + face.width / 2 * cos(angle) - guide.center.x) / rx
-        val y = (face.center.y + face.height / 2 * sin(angle) - guide.center.y) / ry
-        x * x + y * y <= 1.0
-    }
 }

@@ -51,6 +51,11 @@ import vn.vericlue.app.capture.FaceTimeline
 import vn.vericlue.app.capture.FaceAttemptGuard
 import vn.vericlue.app.capture.FaceAttemptIssue
 import vn.vericlue.app.capture.FaceSignal
+import vn.vericlue.app.capture.AdaptiveHeadCapture
+import vn.vericlue.app.capture.HeadCaptureState
+import vn.vericlue.app.capture.HeadFeedback
+import vn.vericlue.app.capture.hint
+import vn.vericlue.app.ui.components.Tone
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -131,6 +136,7 @@ fun FramingScreen(
     auto: Boolean = false,
     live: FramingState? = null,
     captureProgress: Float = 0f,
+    hintOverride: String? = null,
     onGuidePosition: ((Rect, Size) -> Unit)? = null,
 ) {
     var demo by remember { mutableStateOf(start) }
@@ -148,12 +154,12 @@ fun FramingScreen(
     val state = live ?: demo
     FaceCaptureSurface(
         title = "Đưa mặt vào khung", onStop = onExit,
-        hint = when (state) {
+        hint = hintOverride ?: when (state) {
             FramingState.NoFace -> "Nhìn thẳng vào camera"
             FramingState.LowLight -> "Chọn nơi đủ sáng"
-            FramingState.TooFar -> "Đưa điện thoại lại gần hơn"
+            FramingState.TooFar -> "Đưa điện thoại lại gần một chút"
             FramingState.TooClose -> "Đưa điện thoại ra xa một chút"
-            FramingState.OffCenter -> "Đưa mặt vào giữa khung"
+            FramingState.OffCenter -> "Giữ khoảng cách, đưa mặt vào giữa khung"
             FramingState.MultipleFaces -> "Chỉ để một người trong khung hình"
             FramingState.IncompleteFace -> "Đưa toàn bộ khuôn mặt vào khung"
             FramingState.NotStraight -> "Nhìn thẳng và giữ đầu ngay ngắn"
@@ -321,8 +327,8 @@ private fun TurnHeadContent(
 /**
  * Plays the server's schedule (FaceTimeline) on one continuous recording: grey baseline (frontal
  * still at its mark), colour steps, the dot path over the whole screen, then the head turns. Times
- * run from the recording's first frame, so the server can cut the video on the same marks; nothing
- * waits for the user. [recordingStartMs] gives that first frame on the capture clock (null until it
+ * run from the recording's first frame. Adaptive head guidance waits for each observed hold;
+ * colour/gaze marks stay unchanged. [recordingStartMs] gives the first frame (null until it
  * exists). Both offline and API flows use this screen; only their schedule source differs.
  */
 @Composable
@@ -342,6 +348,7 @@ fun FaceTimelineScreen(
 ) {
     var phase by remember { mutableStateOf<FaceTimeline.Phase>(FaceTimeline.Phase.Colour(0)) }
     var actionProgress by remember { mutableStateOf(0f) }
+    var headFeedback by remember { mutableStateOf<HeadCaptureState?>(null) }
     val currentSignal by rememberUpdatedState(faceSignal)
     val incomplete by rememberUpdatedState(onIncomplete)
     LaunchedEffect(Unit) {
@@ -360,15 +367,28 @@ fun FaceTimelineScreen(
         var baselineDone = false
         var coloursDone = false
         val guard = FaceAttemptGuard(timeline)
+        val adaptive = if (timeline.adaptiveHead) AdaptiveHeadCapture(timeline.headTurns, timeline.headDeadlineMs.toDouble()) else null
         while (true) {
             val nowMs = withFrameNanos { CaptureClock.frameNanosToMs(it) }
             val t = nowMs - start
-            val p = timeline.phaseAt(t)
-            guard.update(p, currentSignal(), android.os.SystemClock.elapsedRealtime())?.let {
+            val signal = currentSignal()
+            val observedNow = android.os.SystemClock.elapsedRealtime()
+            val headState = if (adaptive != null && t >= timeline.headStartMs) adaptive.update(signal, observedNow, t) else null
+            headState?.issue?.let {
                 incomplete(it)
                 return@LaunchedEffect
             }
-            actionProgress = guard.actionProgress
+            val p = when {
+                headState?.done == true -> FaceTimeline.Phase.Done
+                headState != null -> FaceTimeline.Phase.Head(headState.segment, headState.direction)
+                else -> timeline.phaseAt(t)
+            }
+            guard.update(p, signal, observedNow)?.let {
+                incomplete(it)
+                return@LaunchedEffect
+            }
+            actionProgress = headState?.progress ?: guard.actionProgress
+            headFeedback = headState
             phase = p
             if (p is FaceTimeline.Phase.Colour && p.slot != lastSlot) {
                 lastSlot = p.slot
@@ -394,7 +414,7 @@ fun FaceTimelineScreen(
     }
     BackHandler(onBack = onStop)
     FullBrightness(enabled = true)
-    FaceChallengeContent(timeline, phase, actionProgress, onStop)
+    FaceChallengeContent(timeline, phase, actionProgress, onStop, headFeedback)
 }
 
 /** Shared presentation, independently snapshot-tested without opening a camera or starting work. */
@@ -403,7 +423,8 @@ fun FaceChallengeContent(timeline: FaceTimeline, phase: FaceTimeline.Phase, onSt
     FaceChallengeContent(timeline, phase, 0f, onStop)
 
 @Composable
-fun FaceChallengeContent(timeline: FaceTimeline, phase: FaceTimeline.Phase, actionProgress: Float, onStop: () -> Unit) {
+fun FaceChallengeContent(timeline: FaceTimeline, phase: FaceTimeline.Phase, actionProgress: Float, onStop: () -> Unit,
+    headFeedback: HeadCaptureState? = null) {
     val colour = (phase as? FaceTimeline.Phase.Colour)?.let { timeline.slots[it.slot] }
     val gaze = phase as? FaceTimeline.Phase.Gaze
     val head = phase as? FaceTimeline.Phase.Head
@@ -421,5 +442,7 @@ fun FaceChallengeContent(timeline: FaceTimeline, phase: FaceTimeline.Phase, acti
         progress = (phase as? FaceTimeline.Phase.Colour)?.let { (it.slot + 1f) / timeline.slots.size.coerceAtLeast(1) },
         direction = head?.dir, gaze = gaze?.let { Offset(it.x.toFloat(), it.y.toFloat()) },
         headGuidance = head != null, actionProgress = actionProgress.takeIf { head != null },
+        feedback = headFeedback?.hint(),
+        feedbackTone = if (headFeedback?.feedback in setOf(HeadFeedback.Hold, HeadFeedback.Complete)) Tone.Ok else Tone.Info,
     )
 }

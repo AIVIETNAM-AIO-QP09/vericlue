@@ -500,6 +500,15 @@
             ],
             "title": "Device Public Key Spki"
           },
+          "head_mode": {
+            "default": "timed",
+            "enum": [
+              "timed",
+              "adaptive"
+            ],
+            "title": "Head Mode",
+            "type": "string"
+          },
           "nonce": {
             "pattern": "^[A-Za-z0-9_-]{16,128}$",
             "title": "Nonce",
@@ -820,10 +829,35 @@
             "title": "Head Duration Ms",
             "type": "integer"
           },
+          "head_mode": {
+            "anyOf": [
+              {
+                "const": "adaptive",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Head Mode"
+          },
           "head_start_at_ms": {
             "minimum": 0.0,
             "title": "Head Start At Ms",
             "type": "integer"
+          },
+          "head_timeout_ms": {
+            "anyOf": [
+              {
+                "maximum": 29500.0,
+                "minimum": 6000.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Head Timeout Ms"
           },
           "head_turns": {
             "items": {

@@ -7,9 +7,9 @@ import vn.vericlue.app.capture.*
 import vn.vericlue.app.flow.TurnDir
 
 class FaceAttemptGuardTest {
-    private fun timeline() = FaceTimeline(
+    private fun timeline(adaptive: Boolean = false) = FaceTimeline(
         listOf(ColorSlot(null, "#d1d1d1", 1000)), 500, emptyList(),
-        listOf(TurnDir.Left, TurnDir.Right, null), 1000, 6000,
+        listOf(TurnDir.Left, TurnDir.Right, null), 1000, 6000, if (adaptive) 29000 else null,
     )
 
     private fun frame(at: Long, yaw: Float = 0f, id: Int? = 7) = FaceSignal(
@@ -125,9 +125,44 @@ class FaceAttemptGuardTest {
         assertFalse(faceFitsGuide(Rect(-10f, 20f, 110f, 120f), guide))
         assertFalse(faceFitsGuide(Rect(15f, -20f, 85f, 100f), guide))
         assertFalse(faceFitsGuide(Rect(15f, 40f, 85f, 160f), guide))
-        assertFalse(faceFitsGuide(Rect(60f, 45f, 100f, 95f), guide))
+        assertFalse(faceFitsGuide(Rect(75f, 45f, 115f, 95f), guide))
         assertFalse(faceFitsGuide(null, guide))
         assertFalse(faceFitsGuide(Rect.Zero, guide))
         assertFalse(faceFitsGuide(Rect(Float.NaN, 0f, 50f, 50f), guide))
+    }
+
+    @Test fun adaptiveControllerAndGuardKeepWrongTurnInlineThenFinishTogether() {
+        val plan = timeline(adaptive = true)
+        val guard = FaceAttemptGuard(plan)
+        val controller = AdaptiveHeadCapture(plan.headTurns, plan.headDeadlineMs.toDouble())
+        assertNull(guard.update(FaceTimeline.Phase.Colour(0), frame(0), 0))
+        var done = false
+        for (at in 1000L..10000L step 100) {
+            val yaw = when {
+                at < 5000 -> -30f // wrong first direction for several former timed slots
+                at < 6100 -> 30f
+                at < 7300 -> -30f
+                else -> 0f
+            }
+            val signal = frame(at, yaw)
+            val state = controller.update(signal, at, at.toDouble())
+            assertNull(state.issue)
+            val phase = if (state.done) FaceTimeline.Phase.Done else FaceTimeline.Phase.Head(state.segment, state.direction)
+            assertNull(guard.update(phase, signal, at))
+            if (at < 5000) assertEquals(0, state.segment)
+            if (state.done) { done = true; break }
+        }
+        assertTrue(done)
+    }
+
+    @Test fun adaptivePoseCorrectionDoesNotClearPreviouslyCapturedEvidence() {
+        val guard = FaceAttemptGuard(timeline(adaptive = true))
+        assertNull(guard.update(FaceTimeline.Phase.Colour(0), frame(0), 0))
+        for (at in 1000L..3000L step 100) {
+            assertNull(guard.update(FaceTimeline.Phase.Head(0, TurnDir.Left), frame(at).copy(pitch = 25f), at))
+        }
+        complete(guard, 0, TurnDir.Left, 3100)
+        assertEquals(FaceAttemptIssue.FaceLost,
+            guard.update(FaceTimeline.Phase.Head(0, TurnDir.Left), frame(3500, 30f, id = 8), 3500))
     }
 }

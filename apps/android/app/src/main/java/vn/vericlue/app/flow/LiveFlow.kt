@@ -130,7 +130,9 @@ class LiveFlow(
         } }
         if (mediaSigner != null && spki == null && purpose != "reauth") return ApiError.Server
         val nonce = newNonce()
-        val request = purpose?.let { CreateSessionRequest(it, nonce, spki, account?.accountId, account?.deviceId?.takeIf { purpose == "reauth" }) }
+        val request = purpose?.let { CreateSessionRequest(it, nonce, spki, account?.accountId,
+            account?.deviceId?.takeIf { purpose == "reauth" },
+            headMode = "adaptive".takeIf { purpose in setOf("onboarding", "recovery") }) }
         return when (val r = api.createSession(mockScenario, request)) {
             is ApiResult.Ok -> {
                 if (mediaSigner != null && r.value.challenge.mediaNonce == null) return ApiError.BadResponse

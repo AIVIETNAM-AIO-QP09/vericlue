@@ -28,12 +28,29 @@ class FaceTimelineTest {
     private val json = Json { ignoreUnknownKeys = true }
 
     /** The contract's own example (packages/contracts/examples), so the app follows the real shape. */
-    private fun example(): FaceTimeline {
+    private fun challenge(): vn.vericlue.app.data.api.Challenge {
         val file = generateSequence(File("").absoluteFile) { it.parentFile }
             .map { File(it, "packages/contracts/examples/session.CreateSessionResponse.dynamic.json") }
             .first { it.exists() }
         val res = json.decodeFromString(CreateSessionResponse.serializer(), file.readText())
-        return FaceTimeline.from(res.challenge) ?: error("example has no dynamic schedule")
+        return res.challenge
+    }
+    private fun example(): FaceTimeline = FaceTimeline.from(challenge()) ?: error("example has no dynamic schedule")
+
+    @Test fun adaptiveHeadRequiresExplicitBoundedServerOptIn() {
+        val challenge = challenge()
+        val dynamic = requireNotNull(challenge.dynamic)
+        val enabled = dynamic.copy(headMode = "adaptive", headTimeoutMs = 30000 - dynamic.headStartAtMs)
+        val timeline = requireNotNull(FaceTimeline.from(challenge.copy(dynamic = enabled)))
+        assertTrue(timeline.adaptiveHead)
+        assertEquals(30000, timeline.headDeadlineMs)
+        assertTrue(!example().adaptiveHead)
+        for (invalid in listOf(
+            enabled.copy(headMode = "unknown"), enabled.copy(headTimeoutMs = null),
+            enabled.copy(headTimeoutMs = 60001), enabled.copy(headMode = null),
+        )) assertNull(FaceTimeline.from(challenge.copy(dynamic = invalid)))
+        assertEquals(example().gaze, timeline.gaze)
+        assertEquals(example().coloursEndMs, timeline.coloursEndMs)
     }
 
     @Test

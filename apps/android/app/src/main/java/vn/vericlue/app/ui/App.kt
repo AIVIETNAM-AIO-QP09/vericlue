@@ -32,8 +32,7 @@ import androidx.navigation.compose.rememberNavController
 import android.Manifest
 import android.os.SystemClock
 import androidx.compose.ui.geometry.Rect
-import vn.vericlue.app.capture.StableFaceGate
-import vn.vericlue.app.capture.faceFitsGuide
+import vn.vericlue.app.capture.FramingAlignmentGate
 import vn.vericlue.app.capture.FaceAttemptIssue
 import android.content.Context
 import android.content.pm.PackageManager
@@ -54,6 +53,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
@@ -67,7 +67,6 @@ import vn.vericlue.app.capture.IdQuality
 import vn.vericlue.app.ui.screens.idFields
 import vn.vericlue.app.capture.CaptureClock
 import vn.vericlue.app.capture.ColorSchedule
-import vn.vericlue.app.capture.QualityGate
 import vn.vericlue.app.capture.WavRecorder
 import vn.vericlue.app.data.AccountStore
 import vn.vericlue.app.data.PrefsStore
@@ -642,6 +641,7 @@ fun VeriClueApp() {
             var guide by remember { mutableStateOf<Rect?>(null) }
             var gate by remember { mutableStateOf(FramingState.NoFace) }
             var readiness by remember { mutableStateOf(0f) }
+            var preparingCamera by remember { mutableStateOf(false) }
             LaunchedEffect(Unit) {
                 if (!hasCamera) askPermissions.launch(arrayOf(Manifest.permission.CAMERA))
             }
@@ -658,26 +658,43 @@ fun VeriClueApp() {
             // Poll freshness even if StateFlow stops emitting. A frozen Good frame cannot start capture.
             LaunchedEffect(hasCamera, prepared) {
                 if (!hasCamera || !prepared) return@LaunchedEffect
-                val stable = StableFaceGate()
-                while (true) {
+                val alignment = FramingAlignmentGate()
+                fun updateFraming(): Boolean {
                     val signal = camera.face.value
-                    val now = SystemClock.elapsedRealtime()
                     val bounds = camera.previewBounds(signal)?.let { Rect(it.left, it.top, it.right, it.bottom) }
-                    val fits = faceFitsGuide(bounds, guide)
-                    val quality = QualityGate.evaluate(signal, now)
-                    gate = if (quality == FramingState.Good && !fits) FramingState.IncompleteFace else quality
-                    val ready = stable.update(signal, now, fits)
-                    readiness = stable.progress
-                    if (ready) {
-                        val shot = withTimeoutOrNull(3000) { camera.captureJpeg() }
-                        val latest = camera.face.value
-                        val mapped = camera.previewBounds(latest)?.let { Rect(it.left, it.top, it.right, it.bottom) }
-                        if (shot != null && QualityGate.evaluate(latest, SystemClock.elapsedRealtime()) == FramingState.Good && faceFitsGuide(mapped, guide)) {
+                    val feedback = alignment.update(signal, SystemClock.elapsedRealtime(), bounds, guide)
+                    gate = feedback.state
+                    readiness = feedback.progress
+                    preparingCamera = feedback.preparingCamera
+                    return feedback.ready
+                }
+                fun stillReady(): Boolean {
+                    val signal = camera.face.value
+                    val bounds = camera.previewBounds(signal)?.let { Rect(it.left, it.top, it.right, it.bottom) }
+                    return alignment.acceptsLatest(signal, SystemClock.elapsedRealtime(), bounds, guide)
+                }
+                while (true) {
+                    if (updateFraming()) {
+                        val pending = async {
+                            try { withTimeoutOrNull(3000) { camera.captureJpeg() } }
+                            catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                            catch (_: Exception) { null }
+                        }
+                        while (!pending.isCompleted) {
+                            delay(50)
+                            if (!stillReady()) {
+                                pending.cancel()
+                                updateFraming()
+                                break
+                            }
+                        }
+                        val shot = if (pending.isCancelled) null else pending.await()
+                        if (shot != null && stillReady()) {
                             live.frontalJpeg = shot
                             nav.go(Routes.HoldStill)
                             return@LaunchedEffect
                         }
-                        stable.reset()
+                        alignment.reset()
                         readiness = 0f
                     }
                     delay(50)
@@ -687,6 +704,7 @@ fun VeriClueApp() {
                 onExit = exit,
                 onCaptured = { nav.go(Routes.HoldStill) },
                 live = gate, auto = false, captureProgress = readiness,
+                hintOverride = if (preparingCamera) "Đang chuẩn bị camera…" else null,
                 onGuidePosition = { rect, _ -> guide = rect },
             )
         }
@@ -708,6 +726,7 @@ fun VeriClueApp() {
                 localFaceIssue = when (issue) {
                     FaceAttemptIssue.FaceLost -> "Giữ toàn bộ khuôn mặt trong khung và giữ nguyên điện thoại."
                     FaceAttemptIssue.ActionIncomplete -> "Vui lòng quay đầu theo hướng dẫn và giữ tư thế trong giây lát."
+                    FaceAttemptIssue.TimeLimit -> "Lượt thu đã hết thời gian. Vui lòng thử lại khi bạn sẵn sàng."
                 }
                 nav.navigate(Routes.RetryQuality) { popUpTo(Routes.HoldStill) { inclusive = true } }
             }

@@ -23,15 +23,27 @@ màn hình và thời gian do server cấp; viền navy/tâm sáng giúp nhìn r
   gồm crop/xoay/phản chiếu. Chưa có transform thì chưa bắt đầu.
 - `StableFaceGate` yêu cầu nằm trong oval qua nhiều frame khác nhau, mới và
   liên tục trong một giây. Poll UI hoặc một frame Good bị treo không đủ.
+- Căn mặt chấp nhận từ 24% chiều rộng ảnh nhưng ít nhất 100×100 pixel; giữ
+  nguyên kiểm tra mặt trọn trong ảnh và đủ landmarks. Oval có dung sai 6%,
+  tăng tối đa 10% khi đã căn ổn định để tránh rung mép làm mất tiến độ.
+  Dung sai không cho phép ảnh bị cắt mất mặt. Gợi ý phân biệt quá gần với
+  lệch tâm; chưa có transform thì báo đang chuẩn bị camera.
 - JPEG chỉ lấy từ frame mới đã qua kiểm tra mặt nhìn thẳng. Request hủy/timeout
   được xóa; route hủy coroutine nên ảnh cũ không ghi sang lượt thử mới.
-- `FaceAttemptGuard` giữ kiểm tra mặt trong lượt thu, kiểm hướng trái/phải/giữa
-  bằng `HeadActionGate`. Hướng phải đúng và giữ ít nhất 350ms qua ít nhất ba
-  frame mới. Thanh tiến độ là phần giữ tư thế đã quan sát, không phải điểm AI.
-- Nếu thiếu thao tác ở ranh giới pha, mất mặt/tín hiệu lâu hoặc thay tracking
-  identity, dừng thu, mở AE/AWB, xóa media tạm và không upload/đánh dấu thu xong.
-  Người dùng chủ động thử lại; API cấp challenge mới. Chưa có ảnh frontal hợp
-  lệ cũng không được hoàn tất. Thoát tới xác nhận dừng sẽ ngừng recording ngay.
+- App mới gửi `head_mode=adaptive` khi tạo phiên đăng ký/khôi phục. Server
+  trả `head_timeout_ms` giới hạn phần quay đầu tới mốc 30 giây của toàn video;
+  màu và đường chấm giữ nguyên lịch. `AdaptiveHeadCapture` giữ từng hướng
+  đến khi quan sát đúng tư thế qua nhiều frame mới trong 650ms, xác nhận ngắn
+  rồi mới chuyển. Quay sai/chưa quay/khó quan sát được nhắc ngay tại chỗ và
+  chỉ đặt lại tiến độ giữ tư thế hiện tại. Kết thúc cần đang nhìn chính diện.
+- `FaceAttemptGuard` vẫn chặn thay tracking identity/nhiều người. Mất dữ liệu
+  ở phần màu/gaze vẫn không được bỏ qua. Hết giới hạn thu hoặc thiếu ảnh
+  frontal hợp lệ thì không upload/đánh dấu hoàn tất. Server cũ không cấp
+  adaptive vẫn dùng lịch cũ; client không tự kéo dài lịch chưa được cấp.
+- Server adaptive đọc tới EOF, tự tìm đủ hướng theo thứ tự và giữ giữa ở
+  cuối video; không tin thời điểm hoàn tất do client khai. Video quá hạn,
+  thiếu coverage, nhiều mặt hoặc chỉ chuyển động sai không được coi là đạt.
+- Thoát tới xác nhận dừng sẽ ngừng recording ngay, mở AE/AWB và dọn lượt bỏ.
 - Callback recording cũ không được ghi đè đồng hồ của lượt mới; file lượt đã
   bỏ được dọn cả khi CameraX báo Finalize trễ.
 
@@ -39,6 +51,7 @@ Giá trị trên là chốt chất lượng client cho demo, không phải ngư�
 hiệu chỉnh. `trackingId` là theo dõi frame, không chứng minh danh tính.
 Nguồn: [ML Kit về landmarks/pose](https://developers.google.com/ml-kit/vision/face-detection/face-detection-concepts),
 [ánh xạ CameraX](https://developer.android.com/media/camera/camerax/transform-output).
+Kích thước ảnh mặt tham khảo: [ML Kit Android](https://developers.google.com/ml-kit/vision/face-detection/android).
 
 ## Chuyển động
 
@@ -50,10 +63,10 @@ Không thêm nhấp nháy hay vòng sáng trang trí vào thử thách đổi m�
 
 ## Giới hạn cần nghiệm thu
 
-Lịch head của server hiện cố định 6 giây; app không tự kéo dài để chờ người
-dùng. Khi chưa làm đủ, lượt thu được dừng để thử lại, không coi hết giờ là đạt.
-Muốn từng hướng chờ tùy tốc độ người dùng cần cập nhật contract/server/ML đồng
-bộ; không thay thời gian ở client riêng lẻ.
+Chế độ adaptive chờ từng hướng trong ngân sách còn lại của video tối đa
+30 giây, không phải chờ vô hạn. Cần cập nhật cả API và app; phiên đã tạo ở
+bản cũ giữ lịch cũ. Server real vẫn phải chứng minh gaze, danh tính và các
+mô-đun bắt buộc; hướng dẫn local không tự đưa ra kết quả eKYC.
 
 Client kiểm độ đầy đủ của mặt trong bước gaze, chưa suy được mắt có theo đúng
 chấm. Kiểm gaze và quyết định danh tính phải dựa trên bằng chứng server. Server
@@ -62,6 +75,6 @@ chính sách server. Phương thức không đổi màu cho người nhạy cả
 chưa có ở backend, xem bàn giao trước.
 
 Cần thử trên máy thật: khoảng cách cầm máy tự nhiên, thấy trọn mặt, trái/phải
-đúng chiều, giữ nguyên điện thoại, bỏ thao tác thì retry; thử che/cắt mặt, hai
+đúng chiều, giữ nguyên điện thoại, quay sai rồi chỉnh đúng trong cùng lượt; thử che/cắt mặt, hai
 người, camera mất frame, thoát giữa recording, thử lại nhanh và chữ 200%.
 Diện tích nền màu thay đổi theo oval; cần đánh giá ánh sáng/capture riêng.

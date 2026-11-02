@@ -511,6 +511,25 @@ trước/sau và ba APNG. Giữ `review`: cần nghiệm thu khoảng cách, hư
 và camera thực tế. Lịch server vẫn cố định; thiếu thao tác thì retry, chưa
 chờ thích ứng từng hướng. Chi tiết và giới hạn mock ở bàn giao 20:39.
 
+Phản hồi thử máy tiếp: căn mặt còn khó, cần nhắc sửa tại bước quay đầu thay
+vì bắt làm lại toàn lượt. Mở lại APP-11 theo yêu cầu trực tiếp; cập nhật hợp
+đồng/API/ML đồng bộ để hỗ trợ lịch quay đầu thích ứng, giữ tương thích bản cũ.
+
+- [x] Căn mặt chấp nhận khoảng cách tự nhiên, dung sai rung nhẹ và gợi ý đúng
+      khoảng cách/vị trí; vẫn bắt buộc một mặt đầy đủ, rõ và frame mới.
+- [x] Quay sai/chưa quay giữ nguyên yêu cầu và nhắc ngay tại chỗ; chỉ đổi
+      hướng khi có đủ frame giữ đúng tư thế, không qua bước theo đồng hồ.
+- [x] Server cấp chế độ thích ứng có giới hạn thời gian, tự kiểm động tác
+      trên video gốc; phiên/bản cũ giữ lịch cũ, refresh giữ chế độ đã chọn.
+- [x] Test Android/API/ML và snapshot, build APK; cập nhật tài liệu và bàn giao,
+      giữ nghiệm thu khoảng cách/tư thế trên máy thật ở mức review.
+
+Lượt thích ứng: 229 test Android đạt, lint 0 lỗi/12 cảnh báo/3 thông tin,
+APK build thành công. Backend/ML có hai lượt 193 và 122 test đạt (chồng lặp).
+39 ảnh gợi ý từ nội dung thật qua ba cấu hình, không nhảy footer/oval hoặc
+quá hai dòng ở chữ 200%. Schema/OpenAPI/SDK đồng bộ; mock không chứng minh
+liveness thật. Bàn giao 22:10 ghi cách kiểm và giới hạn tổng thu 30 giây.
+
 ---
 
 ### APP-02 ★ · App: chụp mặt, quay 3 giây, quay đầu ngẫu nhiên

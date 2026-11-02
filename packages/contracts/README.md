@@ -1,5 +1,16 @@
 # Contracts — hợp đồng giữa các phần
 
+APP-11 bổ sung opt-in `CreateSessionRequest.head_mode="adaptive"`. Server trả
+`DynamicChallenge.head_mode="adaptive"` và `head_timeout_ms`: ngân sách quay đầu
+tính từ `head_start_at_ms`, trong giới hạn toàn video 30 giây. Client chờ từng
+hướng đúng và hiển thị gợi ý sửa; hướng sai không tự chuyển bước. Server tự đọc
+video để kiểm tra các lần giữ hướng đúng thứ tự và hướng giữa cuối bản ghi;
+không nhận thời điểm hoàn tất hay kết quả đạt do client khai. `head_duration_ms=6000`
+và `voice_start_at_ms` vẫn là lịch cũ, không dùng để tự chuyển bước trong adaptive.
+Voice chỉ bắt đầu sau khi hoàn tất khuôn mặt và API yêu cầu. Không gửi opt-in
+giữ nguyên hành vi lịch cũ. Challenge refresh/retry giữ chế độ đã chọn; giới hạn
+media, kiểm tra chất lượng, màu, ánh mắt và so khớp danh tính giữ nguyên.
+
 LIVE-05 thêm `credential.schema.json`: authorization/device signature và BBS
 profile server-decision riêng, không dùng credential tổng hợp như kết quả thật.
 API chỉ nhận commitment/consent/chữ ký thiết bị; claims dựng từ quyết định đã

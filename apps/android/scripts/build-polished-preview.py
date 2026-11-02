@@ -27,6 +27,7 @@ MOTIONS = (
     ("right", "Quay phải", "demonstrateRightThenHold_head_right_false"),
     ("center", "Trở về chính diện", "demonstrateReturnToCenterThenHold_head_null_true"),
 )
+FEEDBACK = ((3, "Quay thêm"), (5, "Chỉnh hướng"), (7, "Giữ tư thế"), (9, "Đưa mặt vào khung"))
 
 
 def save_baseline() -> None:
@@ -65,7 +66,23 @@ def build() -> None:
         if source.exists():
             shutil.copy2(source, DEST / f"motion-{key}.png")
         motions.append({"key": key, "title": title, "available": source.exists()})
-    payload = json.dumps({"scenes": scenes, "motions": motions}, ensure_ascii=False)
+    feedback = []
+    for index, title in FEEDBACK:
+        source = (
+            SNAPSHOTS
+            / "images"
+            / (
+                "vn.vericlue.app.screenshots_CompactHeadFeedbackSnapshotTest_"
+                f"correctionsStayReadableAndKeepTheirFootprint_feedback_{index}.png"
+            )
+        )
+        if source.exists():
+            filename = f"feedback-{index}.png"
+            shutil.copy2(source, DEST / filename)
+            feedback.append({"title": title, "file": filename})
+    payload = json.dumps(
+        {"scenes": scenes, "motions": motions, "feedback": feedback}, ensure_ascii=False
+    )
     (DEST / "index.html").write_text(PAGE.replace("PAYLOAD", payload), encoding="utf-8")
     print(
         f"{DEST / 'index.html'} ({len(scenes)} scenes; {sum(m['available'] for m in motions)} APNGs)"
@@ -85,6 +102,7 @@ button:hover{border-color:#0b5fa5;background:#f1f5f8}button[aria-pressed=true]{b
 button:focus-visible,a:focus-visible{outline:3px solid #246bdf;outline-offset:3px}.pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
 figure{margin:0;min-width:0;border:1px solid #ece7e0;background:white;padding:20px;border-radius:24px}figcaption{font-weight:650;margin-bottom:16px}
 .pair img{display:block;max-width:375px;width:100%;height:auto;margin:auto;border-radius:16px}.missing{padding:24px;border:1px dashed #a6afb6;border-radius:16px}
+.feedback-gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:16px}.feedback-gallery img{width:100%;height:auto;display:block}
 .motion-stage{min-height:150px;display:flex;align-items:center;justify-content:center;background:#0e1822;border-radius:24px;padding:20px;color:white}
 .motion-stage img{display:block;max-width:320px;width:100%;height:auto;border-radius:16px}.motion-stage p{color:#b7c7d6;margin:0}
 .note{font-size:14px}a{color:#0b5fa5}footer{margin-top:32px;padding-top:24px;border-top:1px solid #ece7e0}
@@ -105,10 +123,12 @@ figure{margin:0;min-width:0;border:1px solid #ece7e0;background:white;padding:20
 <div class="motion-stage" id="motion-stage"><p>Chọn hướng để xem chuyển động.</p></div>
 <p class="note">APNG có thể lặp khi trình duyệt phát lại. Trong app, minh họa xoay một lượt rồi giữ yên; chế độ giảm chuyển động dùng tư thế tĩnh. Thanh giữ tư thế lấy từ quan sát khuôn mặt, không biểu thị kết quả xác minh.</p>
 <h2>Điều kiện tiếp tục</h2>
-<p>App cần quan sát đủ khuôn mặt và tư thế quay đầu được yêu cầu. Lịch quay đầu do server cấp vẫn dài 6 giây; thiếu thao tác sẽ yêu cầu thử lại bằng lượt mới, không tự kết luận đạt. Kiểm tra layout và mô phỏng chưa thay thế nghiệm thu camera hoặc chất lượng xác minh trên điện thoại.</p>
+<div class="feedback-gallery" id="feedback-gallery" aria-label="Gợi ý chỉnh tư thế ngay tại chỗ"></div>
+<p>App cần quan sát đủ khuôn mặt và tư thế quay đầu được yêu cầu. Phiên mới dùng hướng dẫn thích ứng: quay sai được nhắc ngay tại bước hiện tại, chỉ chuyển khi giữ đúng tư thế. Tổng lượt thu tối đa 30 giây theo server; phiên cũ giữ lịch cũ. Kiểm tra layout và mô phỏng chưa thay thế nghiệm thu camera hoặc chất lượng xác minh trên điện thoại.</p>
 <footer><a href="../three/index.html">Xem bộ cảnh Three.js</a> · <a href="../index.html">Toàn bộ hành trình</a> · <a href="../refined/index.html">Lượt chỉnh sửa trước</a></footer>
 </main><script>
 const data=PAYLOAD;
+data.feedback.forEach(item=>{const figure=document.createElement('figure'),caption=document.createElement('figcaption'),img=new Image();caption.textContent=item.title;img.src=item.file;img.alt=item.title+' · gợi ý native trong cùng bước quay đầu';figure.append(caption,img);document.getElementById('feedback-gallery').append(figure);});
 function show(scene){
  document.querySelectorAll('#scenes button').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.key===scene.key)));
  for(const side of ['before','after']){

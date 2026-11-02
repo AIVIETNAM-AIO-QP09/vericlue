@@ -151,7 +151,10 @@ class SessionFlow:
             session.reference_image_id = request.reference_image_id
             if request.purpose in {"onboarding", "recovery"}:
                 session.challenge = generate_dynamic_challenge(
-                    self.settings, session_id=session.session_id, nonce=request.nonce
+                    self.settings,
+                    session_id=session.session_id,
+                    nonce=request.nonce,
+                    adaptive_head=request.head_mode == "adaptive",
                 )
                 session.voice_prompt = session.challenge.dynamic.voice_prompt
                 session.voice_challenge_id = session.challenge.dynamic.voice_challenge_id
@@ -199,7 +202,10 @@ class SessionFlow:
         # Same as a retry: a whole new pack (LIVE-01 `dynamic` included) with new attempt IDs.
         session.challenge = (
             generate_dynamic_challenge(
-                self.settings, session_id=session.session_id, nonce=session.nonce
+                self.settings,
+                session_id=session.session_id,
+                nonce=session.nonce,
+                adaptive_head=session.challenge.dynamic.head_mode == "adaptive",
             )
             if session.challenge.dynamic is not None
             else generate_challenge(self.settings)
@@ -539,7 +545,12 @@ class SessionFlow:
             hint = outcome.retry_hint if outcome.retry_hint in RETRY_HINTS else DEFAULT_HINT
             session.retries_used += 1
             session.challenge = (
-                generate_dynamic_challenge(s, session_id=session.session_id, nonce=session.nonce)
+                generate_dynamic_challenge(
+                    s,
+                    session_id=session.session_id,
+                    nonce=session.nonce,
+                    adaptive_head=session.challenge.dynamic.head_mode == "adaptive",
+                )
                 if session.challenge.dynamic is not None
                 else generate_challenge(s)
             )

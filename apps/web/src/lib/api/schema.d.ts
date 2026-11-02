@@ -872,6 +872,12 @@ export interface components {
             device_id?: string | null;
             /** Device Public Key Spki */
             device_public_key_spki?: string | null;
+            /**
+             * Head Mode
+             * @default timed
+             * @enum {string}
+             */
+            head_mode: "timed" | "adaptive";
             /** Nonce */
             nonce: string;
             /**
@@ -1002,8 +1008,12 @@ export interface components {
              * @constant
              */
             head_duration_ms: 6000;
+            /** Head Mode */
+            head_mode?: "adaptive" | null;
             /** Head Start At Ms */
             head_start_at_ms: number;
+            /** Head Timeout Ms */
+            head_timeout_ms?: number | null;
             /** Head Turns */
             head_turns: ("left" | "right" | "center")[];
             /** Nonce */

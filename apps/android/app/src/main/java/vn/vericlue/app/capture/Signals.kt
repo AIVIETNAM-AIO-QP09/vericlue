@@ -49,7 +49,9 @@ data class FaceSignal(
 object QualityGate {
     // Capture guidance only. These checks never replace the server's verification decision.
     const val MIN_LUMA = 70f
-    const val MIN_FACE_WIDTH = 0.32f
+    const val MIN_FACE_WIDTH = 0.24f
+    // ML Kit recommends at least 100x100 pixels per face; avoid a fixed distance on every lens.
+    const val MIN_FACE_PIXELS = 100f
     // A side pose projects narrower than the same face held at the same distance.
     const val MIN_TRACKED_FACE_WIDTH = 0.20f
     const val MAX_FACE_WIDTH = 0.90f
@@ -88,7 +90,8 @@ object QualityGate {
         s.luma < MIN_LUMA -> FramingState.LowLight
         s.widthFraction > MAX_FACE_WIDTH || s.heightFraction > MAX_FACE_HEIGHT -> FramingState.TooClose
         !fullyInsideImage(s) || !s.landmarksComplete -> FramingState.IncompleteFace
-        s.widthFraction < MIN_FACE_WIDTH -> FramingState.TooFar
+        s.widthFraction < MIN_FACE_WIDTH || s.widthFraction * s.imageWidth < MIN_FACE_PIXELS ||
+            s.heightFraction * s.imageHeight < MIN_FACE_PIXELS -> FramingState.TooFar
         abs(s.yaw) > MAX_FRONTAL_YAW || abs(s.pitch) > MAX_FRONTAL_PITCH || abs(s.roll) > MAX_ROLL -> FramingState.NotStraight
         abs(s.centerX - 0.5f) > MAX_CENTER_OFFSET || abs(s.centerY - 0.45f) > MAX_CENTER_OFFSET -> FramingState.OffCenter
         else -> FramingState.Good

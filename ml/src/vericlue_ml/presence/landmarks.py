@@ -173,12 +173,15 @@ class FaceObservationReader:
                 self._load_failed = True
                 raise
 
-    def extract(self, video: Path, *, start_ms: float, end_ms: float) -> list[FaceObservation]:
+    def extract(
+        self, video: Path, *, start_ms: float, end_ms: float, require_eof: bool = False
+    ) -> list[FaceObservation]:
         """Sample by decoder timestamps; never manufacture timing from nominal FPS."""
         return self.extract_measurements(
             video,
             start_ms=start_ms,
             end_ms=end_ms,
+            require_eof=require_eof,
             observer=lambda frame, time: self.observe(frame, at_ms=time),
         )
 
@@ -189,6 +192,7 @@ class FaceObservationReader:
         start_ms: float,
         end_ms: float,
         observer: Callable[[np.ndarray, float], Measurement],
+        require_eof: bool = False,
     ) -> list[Measurement]:
         """Share bounded decoding with server-side measurements such as color ROIs."""
         if not 0 <= start_ms < end_ms <= MAX_VIDEO_MS:
@@ -229,6 +233,8 @@ class FaceObservationReader:
                         raise LandmarkError(ErrorCode.E_INTEGRITY)
                     previous = at_ms
                     if at_ms > end_ms:
+                        if require_eof:
+                            raise LandmarkError(ErrorCode.E_INTEGRITY)
                         break
                     if perf_counter() - started > MAX_EXTRACT_SECONDS:
                         raise LandmarkError(ErrorCode.E_TIMEOUT)

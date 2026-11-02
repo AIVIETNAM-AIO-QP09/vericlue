@@ -13,9 +13,11 @@ Camera mặt dùng `FIT_CENTER` để không phóng ảnh lấp màn hình dài;
 Chỉ bắt đầu khi một mặt đầy đủ, nhìn thẳng, nằm trong oval và ổn định qua các
 frame mới trong một giây. Tọa độ mặt được ánh xạ bằng CameraX tới đúng khung UI.
 Gaze thu phần xem camera vào góc bằng transform lớp vẽ, giữ nguyên CameraX và
-tọa độ chấm. Kết thúc gaze khôi phục khung chính. Quay sai/không quay/thiếu mặt
-thì dừng lượt thu và yêu cầu thử lại bằng challenge mới; không tự chuyển yêu cầu
-kế tiếp. Lịch server giữ nguyên. Chi tiết/giới hạn: [capture khuôn mặt](docs/face-capture.md).
+tọa độ chấm. Kết thúc gaze khôi phục khung chính. Lượt phản hồi tiếp bổ sung
+dung sai căn mặt và chế độ quay đầu thích ứng: quay sai/chưa quay được nhắc
+ngay tại chỗ, giữ yêu cầu hiện tại đến khi quan sát đủ tư thế. API cấp chế độ
+này theo opt-in và tự kiểm video gốc; tổng video tối đa 30 giây. Bản cũ giữ
+lịch cũ. Chi tiết/giới hạn: [capture khuôn mặt](docs/face-capture.md).
 Preview mới: `tmp/app11-ui/polished/index.html`, tạo bằng
 `python apps/android/scripts/build-polished-preview.py` sau Paparazzi.
 

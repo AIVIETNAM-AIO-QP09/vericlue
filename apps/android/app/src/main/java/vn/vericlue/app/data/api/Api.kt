@@ -64,6 +64,8 @@ data class DynamicChallenge(
     @SerialName("voice_prompt") val voicePrompt: String,
     @SerialName("voice_challenge_id") val voiceChallengeId: String,
     @SerialName("frontal_capture_at_ms") val frontalCaptureAtMs: Int,
+    @SerialName("head_mode") val headMode: String? = null,
+    @SerialName("head_timeout_ms") val headTimeoutMs: Int? = null,
 )
 
 @Serializable
@@ -72,6 +74,7 @@ data class CreateSessionRequest(
     @SerialName("device_public_key_spki") val devicePublicKeySpki: String? = null,
     @SerialName("account_id") val accountId: String? = null,
     @SerialName("device_id") val deviceId: String? = null,
+    @SerialName("head_mode") val headMode: String? = null,
 )
 
 @Serializable

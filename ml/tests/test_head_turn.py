@@ -157,3 +157,108 @@ def test_reader_errors_are_sanitized():
     result = HeadTurnDetector(Reader()).predict(inputs())
     assert result.status == Status.ERROR and result.gate == Gate.UNCLEAR
     assert "private path" not in result.model_dump_json()
+
+
+def adaptive_inputs():
+    inp = inputs()
+    inp.metadata["expected_challenge"]["dynamic"].update(
+        head_mode="adaptive", head_timeout_ms=18000
+    )
+    return inp
+
+
+def corrective_motion():
+    """Wrong first direction, long wait, then correct left/right/center with a tilt correction."""
+    rows = []
+    for time in range(11500, 24601, 100):
+        yaw = 0.0
+        pitch = 0.0
+        if 12500 <= time < 14000 or 23000 <= time < 24000:
+            yaw = -28.0
+        elif 21500 <= time < 23000:
+            yaw = 28.0
+        if 21000 <= time < 21500:
+            pitch = 25.0
+        rows.append(FaceObservation(float(time), 1, yaw_deg=yaw, pitch_deg=pitch, roll_deg=0.0))
+    return rows
+
+
+def test_adaptive_waits_through_wrong_direction_and_accepts_later_ordered_holds():
+    result = evaluate_head_turn(corrective_motion(), parse_head_plan(adaptive_inputs()))
+    assert result.status == Status.OK and result.gate == Gate.PASS
+    assert 21500 <= result.view_times_ms["left"] < result.view_times_ms["right"] < 24000
+    # Exactly the same trace never changes the behavior of the fixed six-second plan.
+    assert evaluate_head_turn(corrective_motion(), parse_head_plan(inputs())).gate == Gate.FAIL
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_adaptive_accepts_early_finish_only_with_server_issued_order(reverse):
+    inp = adaptive_inputs()
+    if reverse:
+        inp.metadata["expected_challenge"]["dynamic"]["head_turns"] = ["right", "left", "center"]
+    assert evaluate_head_turn(motion(reverse), parse_head_plan(inp)).gate == Gate.PASS
+    assert evaluate_head_turn(motion(not reverse), parse_head_plan(inp)).gate == Gate.FAIL
+
+
+def test_adaptive_missing_observation_breaks_hold_even_inside_coverage_tolerance():
+    rows = motion()
+    rows = [
+        replace(row, yaw_deg=None) if row.at_ms % 300 == 0 and row.yaw_deg else row for row in rows
+    ]
+    assert evaluate_head_turn(rows, parse_head_plan(adaptive_inputs())).gate == Gate.FAIL
+
+
+@pytest.mark.parametrize(
+    "kind",
+    ["still", "wrong_only", "no_center", "cropped", "gap", "multi", "late", "tail_tilt", "spikes"],
+)
+def test_adaptive_never_accepts_missing_actions_or_unusable_evidence(kind):
+    rows = corrective_motion()
+    if kind == "still":
+        rows = [replace(row, yaw_deg=0.0) for row in rows]
+    elif kind == "wrong_only":
+        rows = [replace(row, yaw_deg=-28.0) if row.at_ms >= 12000 else row for row in rows]
+    elif kind == "no_center":
+        rows = [row for row in rows if row.at_ms < 24000]
+    elif kind == "cropped":
+        rows = [replace(row, face_count=0) if row.at_ms > 24000 else row for row in rows]
+    elif kind == "gap":
+        rows = [row for row in rows if not 22000 <= row.at_ms <= 23000]
+    elif kind == "multi":
+        rows[10] = replace(rows[10], face_count=2)
+    elif kind == "late":
+        rows.append(replace(rows[-1], at_ms=30100))
+    elif kind == "tail_tilt":
+        rows[-1] = replace(rows[-1], pitch_deg=30.0)
+    else:
+        rows = [replace(row, yaw_deg=0.0) if row.at_ms % 300 else row for row in rows]
+    assert evaluate_head_turn(rows, parse_head_plan(adaptive_inputs())).gate != Gate.PASS
+
+
+@pytest.mark.parametrize(
+    "mode,timeout",
+    [
+        ("unknown", 18000),
+        (None, 18000),
+        ("adaptive", None),
+        ("adaptive", True),
+        ("adaptive", 18001),
+        ("adaptive", 5999),
+    ],
+)
+def test_adaptive_malformed_or_over_budget_plan_rejected(mode, timeout):
+    inp = adaptive_inputs()
+    inp.metadata["expected_challenge"]["dynamic"].update(head_mode=mode, head_timeout_ms=timeout)
+    with pytest.raises(LandmarkError):
+        parse_head_plan(inp)
+
+
+def test_adaptive_detector_requires_eof_and_ignores_client_completion_claims():
+    class Reader:
+        def extract(self, path, **kwargs):
+            assert kwargs == {"start_ms": 11500.0, "end_ms": 30000.0, "require_eof": True}
+            return [replace(row, yaw_deg=0.0) for row in corrective_motion()]
+
+    inp = adaptive_inputs()
+    inp.signals = {"head_turn": {"gate": "pass", "completed": True, "end_ms": 24600}}
+    assert HeadTurnDetector(Reader()).predict(inp).gate == Gate.FAIL
