@@ -40,3 +40,13 @@
 - Lượt này voice_requested=false/voice_owed=false: chỉ xác nhận một lượt đăng ký CCCD/mặt. Không coi là nghiệm thu giọng, đăng nhập lại, khôi phục, chống tấn công hoặc chất lượng AI.
 - Aggregate không PII/model artifact nằm tại docs/status/results/APP-02-s24fe-onboarding-2026-11-02.json, có source commits, model versions và n=1. Không dùng dữ liệu lượt nghiệm thu để fit/chọn ngưỡng.
 - Đã hoàn tất mục1(cài/probe) và mục2(thử lạiCCCD/quay đầu) trong danh sách bước trên cho đúng phạm vi một lượt; bước tiếp theo là đóng/mở app→đăng nhập lại, khôi phục và nhánh giọng khi cần, do người dùng thực hiện trên máy.
+
+## Đăng nhập lại sau đóng/mở app
+- Người dùng xác nhận thành công; server có phiên reauth pass/completed, device_verified=true, tài khoản tồn tại/registered device khớp, một device proof đã consume và năm moduleok/pass. Không có yêu cầu giọng.
+- Aggregate APP-01-s24fe-physical-acceptance-2026-11-02.json ghi n=1 cho từng luồng đã thử, commit/model versions và giới hạn. Khôi phục/nhánh giọng vẫn chờ thao tác người dùng; không gọi cả app đã done.
+
+## Khôi phục và chỉnh nhịp UI tiếp theo
+- Lượt khôi phục sau đăng nhập lại trảreview: gaze trajectory_mismatch, headwrong_order; các model cần ba tư thế degraded. Replay cho thấy hướng đầu đúng nhưng giữ trong vùng nhận không đủ liên tục, vẫn có đoạn vượt50độ. Tài khoản cũ và registered device còn nguyên, không có recovery binding commit; chưa tới giọng.
+- Người dùng xác nhận lời nhắc rõ/kịp nhưng đổi bước nhanh. Chỉnh nhịp Android v2 từ4/4/4 sang5/5/2giây để dành thêm thời gian hai bên; tổng12giây, voiceoffset/headend/version/schema/model/threshold không đổi. Audit độc lập xác nhận server chỉ kiểm thứ tự/hold trong toàn cửa sổ, không ép ba đoạn bằng nhau. v1/passive/những timeline khác giữ nguyên.
+- Cần cài đè và thử lại bản nhịp mới; các nghiệm thu đăng ký/reauth bên trên thuộc APK1367c2e, không tự áp kết quả đó cho APK mới.
+- Kiểm tra bản nhịp mới: FaceTimeline RED11test/2lỗi trước sửa; GREEN11/11. FullAndroid233test/0failure/error/skip; lint0errors/44warnings; assembleDebug thành công. Cập nhật ca frame giao trễ qua ranh giới5giây để giữ đúng mục tiêu kiểm thử. Review độc lập không có finding; không tự suy nghiệm thu từ APK cũ sang nhịp mới.

@@ -76,12 +76,13 @@
     "database_read_only": true,
     "user_reported_easier_and_completed": true
   },
-  "not_accepted": [
+  "privacy": "No identifiers, QR contents, media, account templates, embeddings, tokens or keys included.",
+  "not_accepted_at_this_onboarding_observation": [
     "restart and reauthentication",
     "account recovery",
     "voice challenge with real recording",
     "full three-flow acceptance",
     "AI accuracy or attack performance"
   ],
-  "privacy": "No identifiers, QR contents, media, account templates, embeddings, tokens or keys included."
+  "follow_up_evidence": "APP-01-s24fe-physical-acceptance-2026-11-02.json"
 }

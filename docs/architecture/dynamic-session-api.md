@@ -1,6 +1,8 @@
 # API luồng xác minh và gói thử thách — FLOW-01 / LIVE-01
 
-**Cập nhật 30/10:** lượt mới dùng dynamic v2, quay đầu 12 giây (4 giây/hướng).
+**Cập nhật 02/11:** lượt mới dùng dynamic v2, quay đầu tổng12giây. Android
+dành5giây cho mỗi bên và2giây nhìn thẳng cuối lượt; server kiểm thứ tự/giữ
+tư thế trong toàn bộ cửa sổ12giây, không quy định ba khoảng bằng nhau.
 V1/6000 ms vẫn được nhận cho lượt cũ; không nhận cặp version/duration chéo.
 `voice_start_at_ms` bằng head start cộng head duration, head end không vượt
 30000 ms. Android dùng mốc server, có đếm ngược và hướng tiếp theo. iOS hiện

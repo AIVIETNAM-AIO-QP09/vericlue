@@ -8,13 +8,15 @@
 “Quay chậm…” và “Dừng xoay, giữ yên”; các dao động ngắn không liên tục cắt/phát
 lại giọng. Cảnh báo tư thế và đổi bước vẫn được ưu tiên. Không kéo dài hoặc
 đổi lịch challenge12s phía server, không đổi ngưỡng hay coi hướng dẫn local là
-kết quả xác minh. Sau20s tự chụp CCCD dừng, màn hình yêu cầu bấm “Chụp ảnh thẻ”
+kết quả xác minh. Nhịp UI mới dành5giây mỗi bên và2giây nhìn thẳng, tổng vẫn
+12giây; v1 giữ2/2/2giây. Sau20s tự chụp CCCD dừng, màn hình yêu cầu bấm “Chụp ảnh thẻ”
 và vẫn giữ lý do cần chụp lại nếu có. Log debug QR chỉ bổ sung cờ định dạng hợp
 lệ, góc xoay và cropRect để phân biệt lỗi đọc với mã nằm ngoài khung; không log
 nội dung QR/thông tin thẻ. Sau cập nhật APK1367c2e/API6f3171e, người dùng xác
 nhận một lượt đăng ký dễ theo và hoàn tất; server ghi đủ bảy module ok/pass,
-tài khoản mã hóa và consent receipt. Lượt đó không yêu cầu đọc câu; đăng nhập
-lại, khôi phục và nhánh giọng vẫn chưa nghiệm thu.
+tài khoản mã hóa và consent receipt. Người dùng tiếp tục đóng/mở app và đăng
+nhập lại thành công; server xác nhận khóa/tài khoản và năm module ok/pass.
+Hai lượt không yêu cầu đọc câu; khôi phục và nhánh giọng vẫn chưa nghiệm thu.
 
 **Chuẩn bị thử sáng 02/11 — source 7904d70:** triển khai trước khi có điện thoại
 đã hoàn tất; ba luồng AI thật trên máy vẫn chưa nghiệm thu. Gói cô lập tại
@@ -100,7 +102,8 @@ hướng dẫn local, không phải kết quả API. Không đổi ngưỡng ser
 lượng góc khác nhau và chưa có bằng chứng nghiệm thu toàn luồng.
 
 **APP-01 / LIVE-01 (30/10, quay đầu chậm hơn):** backend phát dynamic v2,
-12000 ms cho ba hướng, mỗi hướng 4 giây. App kiểm cặp version/duration, giới
+12000 ms cho ba hướng, ban đầu4giây/hướng; từ02/11 Android dùng5/5/2giây
+trong cùng cửa sổ12giây. App kiểm cặp version/duration, giới
 hạn 30 giây và offset giọng; vẫn nhận v1/6000 ms. Hiện đếm ngược và hướng tiếp
 theo, giữ một video liên tục và cùng gốc thời gian. Không thêm thời gian chờ
 vào lịch, hiệu ứng camera hoặc TTS. Bắt đầu phiên mới sau cập nhật để thử v2.

@@ -131,7 +131,8 @@ Test tổng hợp, chưa nghiệm thu toàn luồng; không đổi ngưỡng hay
 
 **Lát cắt backend 24/10 (Codex, doing):** `head_turn` dùng reader MediaPipe,
 chỉ kiểm chuyển động/thứ tự/thời gian từ video với lịch server gắn phiên/lượt.
-Lượt mới dùng lịch v2 12 giây (4 giây/hướng) từ 30/10; vẫn nhận v1 6 giây.
+Lượt mới dùng lịch v2 tổng12giây từ30/10; Android từ02/11 dành5giây mỗi bên,
+2giây nhìn thẳng cuối lượt. Server không chia cứng ba khoảng; vẫn nhận v1 6giây.
 Các hằng góc/giữ tư thế là thử nghiệm và không đổi trong lần kéo dài lịch.
 Đã có chuỗi offline lấy ảnh chính diện/nghiêng trong RAM cho LVFace và GenD
 (bật tùy chọn), và PAD FS-VFM-L FAS FP32. PAD dùng SCRFD thay MTCNN, chưa có
@@ -475,7 +476,8 @@ model cần ba tư thế giữ `degraded`. Sửa ổn định lời nhắc để
 góc dao động, giữ cảnh báo ưu tiên và lịch challenge12s. Sau cập nhật, người
 dùng xác nhận dễ theo và hoàn tất; server xác nhận một lượt CCCD/mặt đạt,
 bảy module ok/pass và tài khoản/consent receipt đã commit. Chưa nghiệm thu
-nhánh giọng, đăng nhập lại hoặc khôi phục.
+nhánh giọng hoặc khôi phục. Đăng nhập lại sau đóng/mở app sau đó đã đạt, đúng
+khóa/tài khoản và năm module ok/pass (tổng hợp APP-01-s24fe-physical-acceptance).
 
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
 |---|---|---|---|---|

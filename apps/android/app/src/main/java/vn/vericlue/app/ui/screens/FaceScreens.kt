@@ -675,7 +675,7 @@ fun FaceTimelineScreen(
 @Composable
 fun FaceChallengeContent(timeline: FaceTimeline, phase: FaceTimeline.Phase, onStop: () -> Unit) {
     val seconds = (phase as? FaceTimeline.Phase.Head)?.let {
-        timeline.headRemainingSeconds(timeline.headStartMs + it.segment * (timeline.headDurationMs / timeline.headTurns.size).toDouble())
+        timeline.headRemainingSeconds(timeline.headSegmentStartMs(it.segment).toDouble())
     }
     FaceChallengeContent(timeline, phase, seconds, null, onStop = onStop)
 }

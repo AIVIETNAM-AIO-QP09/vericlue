@@ -1,0 +1,144 @@
+{
+  "task": [
+    "APP-01",
+    "APP-02",
+    "APP-04"
+  ],
+  "date": "2026-11-02",
+  "observed_at_local": "10:06 Asia/Bangkok",
+  "device": "Samsung Galaxy S24 FE (SM-S721B), Android16",
+  "apk_source_commit": "1367c2e8953e7e5ee11049e90de7e05884d84f04",
+  "api_source_commit": "6f3171e502b0e99d8f336bee9040f6c5008c5463",
+  "evaluation_mode": "manual_full_demo",
+  "thresholds_calibrated": false,
+  "otp": "simulated",
+  "onboarding": {
+    "physical_attempts_in_result": 1,
+    "status": "accepted_one_CCCD_face_attempt",
+    "evidence": "APP-02-s24fe-onboarding-2026-11-02.json",
+    "voice_requested": false
+  },
+  "reauth": {
+    "physical_attempts_in_result": 1,
+    "user_confirmed": "closed app, reopened and reauthentication succeeded",
+    "server_observation": {
+      "purpose": "reauth",
+      "status": "pass",
+      "completed": true,
+      "device_verified": true,
+      "account_link_exists": true,
+      "registered_device_matches": true,
+      "voice_requested": false,
+      "voice_owed": false,
+      "accepted_steps": [
+        "media",
+        "signals",
+        "finalize"
+      ],
+      "consumed_device_proofs": 1,
+      "model_results": 5,
+      "database_read_only": true,
+      "modules": {
+        "quality": {
+          "status": "ok",
+          "gate": "pass",
+          "error_code": null,
+          "model_version": "quality-scrfd-10g@bfcc7d48"
+        },
+        "face_pad": {
+          "status": "ok",
+          "gate": "pass",
+          "error_code": null,
+          "model_version": "fs-vfm-vit-l-fas@59f7b50a+scrfd@bfcc7d48+scrfd128-align224-rgb-v1+manual-demo-2f7e8becee1dff4d"
+        },
+        "face_deepfake": {
+          "status": "ok",
+          "gate": "pass",
+          "error_code": null,
+          "model_version": "gend-clip-l14@891ce014+clip@32bd6428+scrfd-10g@bfcc7d48+agg-maxmeantop25-v1+single-frame-v1+manual-demo-2f7e8becee1dff4d"
+        },
+        "camprobe": {
+          "status": "ok",
+          "gate": "pass",
+          "error_code": null,
+          "model_version": "camprobe-rules@0.1"
+        },
+        "face_match": {
+          "status": "ok",
+          "gate": "pass",
+          "error_code": null,
+          "model_version": "lvface-b@b12702ab1f5c7217+scrfd10g@bfcc7d48+arcface112-rgb-minus1to1-v1+front-reference-v2+video-frontal-v1+enrolled-reauth-v1+manual-demo-2f7e8becee1dff4d"
+        }
+      }
+    }
+  },
+  "recovery": {
+    "status": "not_accepted_one_attempt_review_before_voice",
+    "physical_attempts_in_result": 1,
+    "server_observation": {
+      "purpose": "recovery",
+      "status": "review",
+      "completed": true,
+      "voice_requested": false,
+      "voice_owed": false,
+      "account_retained": true,
+      "registered_device_unchanged": true,
+      "recovery_binding_not_committed": true,
+      "database_read_only": true
+    },
+    "modules": {
+      "quality": {
+        "status": "ok",
+        "gate": "pass",
+        "error_code": null,
+        "model_version": "quality-scrfd-10g@bfcc7d48"
+      },
+      "face_pad": {
+        "status": "degraded",
+        "gate": "unclear",
+        "error_code": "E_LOW_QUALITY",
+        "model_version": "fs-vfm-vit-l-fas@59f7b50a+scrfd@bfcc7d48+scrfd128-align224-rgb-v1+headturn-3views-max-v1+session-video-v2+manual-demo-2f7e8becee1dff4d"
+      },
+      "face_deepfake": {
+        "status": "degraded",
+        "gate": "unclear",
+        "error_code": "E_LOW_QUALITY",
+        "model_version": "gend-clip-l14@891ce014+clip@32bd6428+scrfd-10g@bfcc7d48+agg-maxmeantop25-v1+headturn-3views-v1+session-video-v2+manual-demo-2f7e8becee1dff4d"
+      },
+      "camprobe": {
+        "status": "ok",
+        "gate": "pass",
+        "error_code": null,
+        "model_version": "camprobe-rules@0.1"
+      },
+      "gaze_tracking": {
+        "status": "ok",
+        "gate": "fail",
+        "error_code": null,
+        "model_version": "gaze-rules@0.3+face-landmarker-f16-1"
+      },
+      "head_turn": {
+        "status": "ok",
+        "gate": "fail",
+        "error_code": null,
+        "model_version": "head-turn-rules@0.2+face-landmarker-f16-1"
+      },
+      "face_match": {
+        "status": "degraded",
+        "gate": "unclear",
+        "error_code": "E_LOW_QUALITY",
+        "model_version": "lvface-b@b12702ab1f5c7217+scrfd10g@bfcc7d48+arcface112-rgb-minus1to1-v1+front-reference-v2+video-frontal-v1+enrolled-recovery-v1+head12s-v2"
+      }
+    },
+    "user_feedback": "speech clear and timely, head steps advance too quickly",
+    "next_action": "new Android-only5/5/2 pacing requires physical retry; API and thresholds unchanged"
+  },
+  "voice_challenge": "not_accepted_no_real_voice_requested_in_completed_attempts",
+  "not_claimed": [
+    "AI accuracy",
+    "attack performance",
+    "calibrated thresholds",
+    "production readiness"
+  ],
+  "privacy": "Only technical aggregates; no personal identifiers, QR contents, media, templates, keys or tokens."
+}

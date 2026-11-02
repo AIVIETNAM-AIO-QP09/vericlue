@@ -35,7 +35,10 @@ response của lượt đó.
 hơn và đăng ký hoàn tất. Server xác nhận một lượt `pass`, bảy module `ok/pass`,
 tài khoản mã hóa và consent receipt đã commit, binding đúng. Lượt này không
 yêu cầu giọng (`voice_requested=false`, `voice_owed=false`), nên chỉ nghiệm thu
-đăng ký CCCD/mặt; đăng nhập lại, khôi phục và nhánh giọng vẫn chưa nghiệm thu.
+đăng ký CCCD/mặt. Sau đó người dùng đóng/mở app và đăng nhập lại thành công;
+server xác nhận đúng tài khoản/khóa, device proof đã dùng một lần và năm module
+ok/pass. Khôi phục và nhánh giọng vẫn chưa nghiệm thu. Theo dõi tổng hợp tại
+[`APP-01-s24fe-physical-acceptance-2026-11-02.json`](../status/results/APP-01-s24fe-physical-acceptance-2026-11-02.json).
 Kết quả không có dữ liệu cá nhân:
 [`APP-02-s24fe-onboarding-2026-11-02.json`](../status/results/APP-02-s24fe-onboarding-2026-11-02.json).
 

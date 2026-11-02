@@ -4,8 +4,9 @@ Ngày 30/10/2026. Đây là kịch bản quay và checklist, không phải biên
 điện thoại. Đã cài bản 4 giây/hướng qua ADB Wi-Fi trên Samsung SM_A526B; hash
 APK trên máy khớp, chưa có lượt nghiệm thu người dùng sau cập nhật.
 
-**Cập nhật lịch quay đầu:** bản mới nhận dynamic v2 với mỗi hướng 4 giây,
-gồm hai hướng ngẫu nhiên rồi nhìn thẳng. Khi app đổi hướng, quay đầu chậm theo
+**Cập nhật02/11:** bản mới nhận dynamic v2 tổng12giây, app dành5giây mỗi bên
+và2giây nhìn thẳng cuối lượt. Gói/hash ngày30/10 bên dưới là bản cũ4/4/4;
+bản hiện tại xem [checklist02/11](android-02-11-checklist.md). Khi app đổi hướng, quay đầu chậm theo
 mũi tên và giữ hướng đó đến hướng dẫn kế tiếp, giữ điện thoại cố định. Nhãn
 đếm ngược/hướng tiếp theo hỗ trợ thao tác, không tự xác nhận động tác đã đạt.
 Sau cài lại/restart server, về màn đầu và tạo phiên mới; phiên v1 cũ vẫn 2

@@ -58,7 +58,7 @@ class PresenceDebugTraceTest {
         val trace = PresenceDebugTrace(enabled = true)
         val timeline = vn.vericlue.app.capture.FaceTimeline.demo(listOf(HeadTurnDirection.Left, HeadTurnDirection.Right))
         val origin = 100_000.0
-        val frameRel = timeline.headStartMs + 3950L
+        val frameRel = timeline.headStartMs + 4950L
         val face = vn.vericlue.app.capture.FaceSignal(1, .45f, .5f, .45f, 26f, 120f,
             ((origin + frameRel) * 1_000_000).toLong())
         val event = trace.recordAnalyzerFrame(face, timeline, origin, origin + frameRel + 500)!!
