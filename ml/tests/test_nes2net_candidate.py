@@ -413,7 +413,7 @@ def test_failed_unused_bridge_keeps_full_connected_group_for_ltt(tmp_path, monke
         candidate.select_report(report, fit, fit_measurement, protocol_path, tmp_path / "no.json")
 
 
-@pytest.mark.parametrize("target", ["input", "existing", "models", "config"])
+@pytest.mark.parametrize("target", ["input", "existing", "models", "config", "calibrators"])
 def test_output_cannot_overwrite_inputs_or_enter_model_config_storage(
     tmp_path, monkeypatch, target
 ):
@@ -428,6 +428,9 @@ def test_output_cannot_overwrite_inputs_or_enter_model_config_storage(
     elif target == "models":
         monkeypatch.setenv("MODELS_DIR", str(tmp_path / "model-store"))
         output = tmp_path / "model-store" / "new.json"
+    elif target == "calibrators":
+        monkeypatch.setenv("CALIBRATORS_DIR", str(tmp_path / "calibrator-store"))
+        output = tmp_path / "calibrator-store" / "new.json"
     else:
         output = (
             Path(utterance.__file__).resolve().parents[4] / "ml/configs/forbidden-candidate.json"
@@ -436,7 +439,7 @@ def test_output_cannot_overwrite_inputs_or_enter_model_config_storage(
     with pytest.raises(ValueError):
         candidate.score_report(report, fit, report, output, split="calib_ltt")
     assert report.read_bytes() == original
-    if target in ("models", "config"):
+    if target in ("models", "config", "calibrators"):
         assert not output.exists()
     if target == "existing":
         assert output.read_text() == "keep me"

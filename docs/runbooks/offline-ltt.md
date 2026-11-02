@@ -74,8 +74,9 @@ python -m vericlue_ml.eval.nes2net_candidate evaluate --report <test-measurement
 
 `scripts/fit_thresholds.py` là entry point chọn candidate giọng với cùng input
 như lệnh `select`; tên script không có nghĩa ghi vào thresholds.yaml. Core mặt
-có trong Python API, nhưng chưa có consumer báo cáo mặt đã hiệu chỉnh/fusion
-tương đương. Không coi phần mặt đã chứng nhận từ một file điểm rời.
+có trong Python API; [consumer ghép điểm mặt](face-candidate-scoring.md) chỉ
+chấm calib_fit, chưa chọn/đánh giá ngưỡng mặt do thiếu metadata bắt buộc.
+Không coi phần mặt đã chứng nhận từ một file điểm rời.
 
 Protocol JSON khớp `LTTProtocol`: `mode`, `grid` (giọng: `[[t], ...]`),
 `expected_attack_types`, `alpha`, `delta`, `total_delta`,
