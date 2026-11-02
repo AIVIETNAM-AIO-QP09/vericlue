@@ -25,6 +25,7 @@ from vericlue_ml.runtime.voice_wire import (
     worker_hello,
     worker_scope,
 )
+from vericlue_ml.voice.content_backend import validate_content_backend
 
 
 class VoiceWorkerClient:
@@ -40,6 +41,7 @@ class VoiceWorkerClient:
         manual_demo: ManualDemoThresholds | None = None,
         warmup_kinds: tuple[str, ...] = (),
         startup_timeout: float = 180,
+        content_backend: str = "qwen06",
     ) -> None:
         self.python, self.models_dir, self.media_root = (
             python.resolve(),
@@ -47,6 +49,8 @@ class VoiceWorkerClient:
             media_root.resolve(),
         )
         self.timeout = timeout
+        validate_content_backend(content_backend, manual=manual_demo is not None)
+        self._content_backend = content_backend
         if not math.isfinite(startup_timeout) or not 0 < startup_timeout <= 600:
             raise ValueError("Invalid worker startup timeout")
         if manual_demo is not None and (not warmup_kinds or not set(warmup_kinds) <= KINDS.keys()):
@@ -62,6 +66,10 @@ class VoiceWorkerClient:
     @property
     def manual_demo(self):
         return self._manual_demo
+
+    @property
+    def content_backend(self):
+        return self._content_backend
 
     def preload(self) -> None:
         """Manual readiness requires successful backend loading in the private worker."""
@@ -119,6 +127,11 @@ class VoiceWorkerClient:
                     "--media-root",
                     str(self.media_root),
                     *(
+                        ["--content-backend", self.content_backend]
+                        if self.content_backend != "qwen06"
+                        else []
+                    ),
+                    *(
                         [
                             "--manual-policy-json",
                             self.manual_demo.model_dump_json(),
@@ -146,7 +159,7 @@ class VoiceWorkerClient:
                 raise RuntimeError("Closed while spawning worker")
             ready = self._line(lambda: process.stdout.readline(MAX_REPLY + 1), deadline)
             if len(ready) > MAX_REPLY or json.loads(ready) != worker_hello(
-                self.manual_demo, self.warmup_kinds
+                self.manual_demo, self.warmup_kinds, content_backend=self.content_backend
             ):
                 raise ValueError("Invalid worker hello")
         return self._process
@@ -205,7 +218,9 @@ class VoiceWorkerClient:
         if not self._lock.acquire(timeout=max(0.0, deadline - monotonic())):
             return ModuleResult(
                 module=KINDS[kind],
-                model_version=expected_version(kind, self.manual_demo),
+                model_version=expected_version(
+                    kind, self.manual_demo, content_backend=self.content_backend
+                ),
                 status="error",
                 gate="unclear",
                 error_code="E_TIMEOUT",
@@ -223,7 +238,9 @@ class VoiceWorkerClient:
             # Invalid input must not poison a shared worker for later sessions.
             return ModuleResult(
                 module=KINDS[kind],
-                model_version=expected_version(kind, self.manual_demo),
+                model_version=expected_version(
+                    kind, self.manual_demo, content_backend=self.content_backend
+                ),
                 status="error",
                 gate="unclear",
                 error_code="E_DECODE",
@@ -239,7 +256,7 @@ class VoiceWorkerClient:
             )
             request = {
                 "protocol": PROTOCOL,
-                **worker_scope(self.manual_demo),
+                **worker_scope(self.manual_demo, content_backend=self.content_backend),
                 "request_id": uuid.uuid4().hex,
                 "kind": kind,
                 "input": selected.model_dump(mode="json"),
@@ -261,7 +278,12 @@ class VoiceWorkerClient:
             body = json.loads(response)
             if (
                 body.get("protocol") != PROTOCOL
-                or any(body.get(k) != v for k, v in worker_scope(self.manual_demo).items())
+                or any(
+                    body.get(k) != v
+                    for k, v in worker_scope(
+                        self.manual_demo, content_backend=self.content_backend
+                    ).items()
+                )
                 or body.get("request_id") != request["request_id"]
                 or body.get("request_sha256") != hashlib.sha256(raw).hexdigest()
                 or body.get("sources") != sources
@@ -275,7 +297,10 @@ class VoiceWorkerClient:
                 or (result.score is not None and not math.isfinite(result.score))
                 or (
                     result.status != "error"
-                    and result.model_version != expected_version(kind, self.manual_demo)
+                    and result.model_version
+                    != expected_version(
+                        kind, self.manual_demo, content_backend=self.content_backend
+                    )
                 )
                 or (
                     kind != "content"

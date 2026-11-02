@@ -234,6 +234,17 @@ class AccountStore:
                 raise not_eligible()
             if (
                 s.manual_full_demo
+                and module == Module.VOICE_CHALLENGE
+                and (
+                    not s.voice_content_pin_matches(
+                        getattr(session, "created_voice_content_version", None)
+                    )
+                    or result.model_version != s.voice_content_model_version
+                )
+            ):
+                raise not_eligible()
+            if (
+                s.manual_full_demo
                 and module in {Module.VOICE_SPOOF, Module.LIPSYNC}
                 and policy is not None
             ):

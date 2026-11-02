@@ -270,6 +270,7 @@ def _source_provenance() -> dict[str, str]:
         "ml/src/vericlue_ml/voice/challenge.py",
         "ml/src/vericlue_ml/voice/qwen_asr.py",
         "ml/src/vericlue_ml/eval/qwen17_asr.py",
+        "ml/src/vericlue_ml/voice/qwen17_asr.py",
         "ml/src/vericlue_ml/eval/voice_challenge.py",
     )
     return {name: _sha(ROOT / name) for name in files}

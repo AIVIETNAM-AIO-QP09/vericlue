@@ -18,7 +18,11 @@ class SessionVoiceDetector:
         self.client, self.kind = client, kind
         self.name, self.version = (
             KINDS[kind],
-            expected_version(kind, getattr(client, "manual_demo", None)),
+            expected_version(
+                kind,
+                getattr(client, "manual_demo", None),
+                content_backend=getattr(client, "content_backend", "qwen06"),
+            ),
         )
         self.match_config = match_config
 

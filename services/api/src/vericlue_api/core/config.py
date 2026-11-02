@@ -195,12 +195,24 @@ class Settings(BaseSettings):
     session_face_models: bool = False
     manual_face_demo: bool = False
     manual_full_demo: bool = False
+    manual_demo_content_backend: Literal["qwen06", "qwen17"] = "qwen06"
     manual_demo_pad_max: float = Field(default=0.50, gt=0, lt=1, allow_inf_nan=False)
     manual_demo_gend_max: float = Field(default=0.50, gt=0, lt=1, allow_inf_nan=False)
     manual_demo_spoof_max: float = Field(default=0.50, gt=0, lt=1, allow_inf_nan=False)
     manual_demo_lipsync_max: float = Field(default=0.50, gt=0, lt=1, allow_inf_nan=False)
     manual_demo_match_min: float = Field(default=0.30, gt=0, lt=1, allow_inf_nan=False)
     manual_demo_consistency_min: float = Field(default=0.30, gt=0, lt=1, allow_inf_nan=False)
+
+    @property
+    def voice_content_model_version(self) -> str:
+        from vericlue_ml.voice.content_backend import content_model_version
+
+        return content_model_version(self.manual_demo_content_backend)
+
+    def voice_content_pin_matches(self, pin: str | None) -> bool:
+        from vericlue_ml.voice.content_backend import content_pin_matches
+
+        return content_pin_matches(pin, self.manual_demo_content_backend)
 
     @property
     def manual_demo_policy(self):
@@ -233,6 +245,8 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def consistency_requires_video(self):
+        if self.manual_demo_content_backend != "qwen06" and not self.manual_full_demo:
+            raise ValueError("Qwen 1.7B requires explicit MANUAL_FULL_DEMO")
         if self.manual_face_demo and self.manual_full_demo:
             raise ValueError("MANUAL_FACE_DEMO and MANUAL_FULL_DEMO are mutually exclusive")
         if self.manual_face_demo and (

@@ -88,8 +88,32 @@ credential và signed result cho bên tích hợp không được mở bởi ch�
 
 ## Giọng nói và chốt tài khoản
 
+**APP-03 (03/11):** `MANUAL_DEMO_CONTENT_BACKEND=qwen06` là mặc định như cũ.
+Chỉ khi `MANUAL_FULL_DEMO=true` mới được chọn `qwen17`; thiếu hoặc sai artifact
+không fallback về 0.6. Bản 1.7B cố định revision
+`bcd2b5b7f32b480ab5790554cfa8347f246a14f3`, wrapper
+`cpu-fp32-content-v2-assistant-prefix`, thư mục riêng
+`MODELS_DIR/qwen3-asr-17b-hf`; không ghi đè 0.6B hoặc đọc config override của nó.
+Pin byte và kiểm thư mục không được thoát MODELS_DIR qua symlink/junction.
+
+Hash policy vẫn biểu diễn đúng sáu ngưỡng bên trên. ASR được ràng buộc riêng:
+worker preload/hello/request/reply và kết quả phải cùng phiên bản; phiên mới
+lưu phiên bản ASR trong snapshot mã hóa do server tạo. Bản 1.7 từ chối pin
+thiếu/sai/của 0.6, không tự backfill phiên cũ. Rollback sang 0.6 cũng không nhận
+phiên đã pin 1.7; cần bắt đầu phiên mới. Chỉ 0.6 giữ tương thích phiên lịch sử
+chưa có pin. Các endpoint công khai và ngưỡng không thêm quyền chọn mô hình
+cho người dùng. SessionFlow và AccountStore kiểm pin/result khi cần giọng.
+
+Tài khoản cũ giữ template/version mặt, consent, khóa, mode và policy hiện có;
+không migration hoặc đổi nhãn. Khôi phục vẫn cần toàn bộ chốt mới đạt.
+18 mẫu/18 người DNU calib_fit cho kết quả khả quan với 1.7, nhưng CPU chậm
+hơn khoảng 2,5 lần, trọng số FP32 khoảng 8,15 GB. Trước khi bật cần preload
+thật toàn stack và kiểm ngân sách RAM/timeout. Fit không thay nghiệm thu
+điện thoại hay đánh giá spoof/lipsync. Xem bàn giao `2026-11-03-0128` và
+[hướng dẫn đo ASR](../../ml/src/vericlue_ml/eval/DNU_ASR_FIT.md).
+
 - Worker manual dùng raw **AntiDeepfake** (`voice01-v1-vad1-ln-win4-hop1-tail-meanlogits`)
-  và raw **SyncNet** (`voice05-v2`), giữ revision backend đầy đủ trước hậu tố
+  và raw **SyncNet** (`voice05-v3-u8resize`), giữ revision backend đầy đủ trước hậu tố
   policy. NES2Net ở đường tiêu chuẩn vẫn là diagnostic; không đổi
   `degraded/error` thành `ok/pass`, không dùng cửa sổ NES hoặc probability chung
   làm bằng chứng đạt cho manual full demo.

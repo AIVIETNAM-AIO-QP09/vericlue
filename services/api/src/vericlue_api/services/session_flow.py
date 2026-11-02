@@ -420,6 +420,8 @@ class SessionFlow:
         )
         if policy is not None:
             session.manual_demo_policy_id = policy.policy_id
+        if self.settings.manual_full_demo:
+            session.created_voice_content_version = self.settings.voice_content_model_version
         session.result_issuer = self.settings.result_issuer
         session.result_audience = self.settings.result_audience
         device_challenge = None
@@ -534,6 +536,12 @@ class SessionFlow:
     def _ensure_evaluation_binding(self, session: Session) -> None:
         policy = self.settings.manual_demo_policy
         expected = policy.policy_id if policy is not None else None
+        if self.settings.manual_full_demo and not self.settings.voice_content_pin_matches(
+            getattr(session, "created_voice_content_version", None)
+        ):
+            raise ApiError(
+                409, "session_expired", "Cấu hình trình diễn đã đổi. Vui lòng bắt đầu phiên mới."
+            )
         expected_manual_mode = (
             "manual_demo"
             if self.settings.manual_face_demo
@@ -1274,6 +1282,10 @@ class SessionFlow:
         challenge = decision_results.get(Module.VOICE_CHALLENGE)
         if (
             challenge is None
+            or not self.settings.voice_content_pin_matches(
+                getattr(session, "created_voice_content_version", None)
+            )
+            or challenge.model_version != self.settings.voice_content_model_version
             or challenge.status != Status.OK
             or (
                 challenge.error_code is not None

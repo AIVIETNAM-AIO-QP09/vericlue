@@ -368,7 +368,11 @@ def test_full_manual_voice_requires_both_bound_raw_gates(purpose, fault):
     )
     results = {m: manual_voice_result(policy, m) for m in (Module.LIPSYNC, Module.VOICE_SPOOF)}
     results[Module.VOICE_CHALLENGE] = ModuleResult(
-        module="voice_challenge", model_version="real-asr", status="ok", gate="pass", latency_ms=0
+        module="voice_challenge",
+        model_version=flow.settings.voice_content_model_version,
+        status="ok",
+        gate="pass",
+        latency_ms=0,
     )
     if fault == "missing_lipsync":
         del results[Module.LIPSYNC]
@@ -780,6 +784,9 @@ def test_manual_full_demo_requires_lipsync_in_recovery_and_protects_existing_acc
             suffix = policy.version_suffix
             session.created_model_mode = "manual_full_demo"
             session.manual_demo_policy_id = policy.policy_id
+            session.results[Module.VOICE_CHALLENGE] = session.results[
+                Module.VOICE_CHALLENGE
+            ].model_copy(update={"model_version": demo_settings.voice_content_model_version})
             for mod in (Module.FACE_PAD, Module.FACE_DEEPFAKE):
                 session.results[mod] = verdict(
                     mod,
@@ -854,9 +861,52 @@ def test_manual_full_demo_requires_lipsync_in_recovery_and_protects_existing_acc
 
             # 3. Valid raw manual gates succeed.
             session.results[Module.VOICE_SPOOF] = manual_voice_result(policy, Module.VOICE_SPOOF)
+            candidate_settings = full_config(
+                session_privacy=True,
+                session_master_key=state.settings.session_master_key,
+                id_hmac_key=demo_settings.id_hmac_key,
+                manual_demo_content_backend="qwen17",
+            )
+            candidate_store = AccountStore(candidate_settings, state.db)
+            original_content = session.results[Module.VOICE_CHALLENGE]
+            for pin, version in (
+                (None, candidate_settings.voice_content_model_version),
+                (
+                    demo_settings.voice_content_model_version,
+                    candidate_settings.voice_content_model_version,
+                ),
+                (
+                    candidate_settings.voice_content_model_version,
+                    demo_settings.voice_content_model_version,
+                ),
+            ):
+                session.created_voice_content_version = pin
+                session.results[Module.VOICE_CHALLENGE] = original_content.model_copy(
+                    update={"model_version": version}
+                )
+                with pytest.raises(ApiError):
+                    candidate_store.validate_enrollment(session, continuity=continuity)
+            session.created_voice_content_version = candidate_settings.voice_content_model_version
+            session.results[Module.VOICE_CHALLENGE] = original_content.model_copy(
+                update={"model_version": candidate_settings.voice_content_model_version}
+            )
+            candidate_store.validate_enrollment(session, continuity=continuity)
+            session.created_voice_content_version = None  # Existing 0.6B snapshot compatibility.
+            session.results[Module.VOICE_CHALLENGE] = original_content
             receipt = store.create(session, template, continuity=continuity)
             first_row = state.db.get(AccountRow, receipt.account_id)
             assert first_row is not None and first_row.destroyed_at is None
+            old_ciphertext = (
+                first_row.wrapped_key,
+                first_row.encrypted_payload,
+                first_row.device_id,
+            )
+            assert candidate_store.get(receipt.account_id).receipt == receipt
+            assert (
+                first_row.wrapped_key,
+                first_row.encrypted_payload,
+                first_row.device_id,
+            ) == old_ciphertext
 
             # 4. Experimental account is isolated from calibrated standard AccountStore.
             standard_store = AccountStore(real_settings(state), state.db)
@@ -867,6 +917,7 @@ def test_manual_full_demo_requires_lipsync_in_recovery_and_protects_existing_acc
             session2, template2, continuity2 = prepared(state, id_hmac=session.id_number_hmac)
             session2.created_model_mode = "manual_full_demo"
             session2.manual_demo_policy_id = policy.policy_id
+            session2.results[Module.VOICE_CHALLENGE] = original_content
             for mod in (Module.FACE_PAD, Module.FACE_DEEPFAKE):
                 session2.results[mod] = session.results[mod]
             session2.results[Module.FACE_MATCH] = session2.results[Module.FACE_MATCH].model_copy(
@@ -907,6 +958,7 @@ def test_manual_full_demo_requires_lipsync_in_recovery_and_protects_existing_acc
             rec_session.registered_device_id = receipt.device_id
             rec_session.created_model_mode = "manual_full_demo"
             rec_session.manual_demo_policy_id = policy.policy_id
+            rec_session.results[Module.VOICE_CHALLENGE] = original_content
             for mod in (Module.FACE_PAD, Module.FACE_DEEPFAKE):
                 rec_session.results[mod] = session.results[mod]
             rec_session.results[Module.FACE_MATCH] = rec_session.results[
@@ -972,7 +1024,9 @@ def test_manual_full_demo_requires_lipsync_in_recovery_and_protects_existing_acc
             state.db.get(SessionRow, voice_session.session_id).status = "incomplete"
             voice_session.results[Module.FACE_MATCH] = rec_session.results[Module.FACE_MATCH]
             state.flow._run = lambda modules, **kwargs: {
-                Module.VOICE_CHALLENGE: verdict(Module.VOICE_CHALLENGE),
+                Module.VOICE_CHALLENGE: verdict(
+                    Module.VOICE_CHALLENGE, demo_settings.voice_content_model_version
+                ),
                 Module.VOICE_SPOOF: manual_voice_result(policy, Module.VOICE_SPOOF),
                 Module.LIPSYNC: degraded_lipsync,
                 Module.FACE_CONTINUITY: rec_continuity.model_copy(

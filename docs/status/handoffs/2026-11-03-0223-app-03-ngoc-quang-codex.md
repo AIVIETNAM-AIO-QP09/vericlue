@@ -42,6 +42,23 @@
 4. Lưu bàn giao cuối, dừng tiến trình thử, tắt máy theo yêu cầu người dùng.
    Lần mở máy sau chạy `D:/vericlue/tmp/phone-demo-2026-11-02/START-DEMO.cmd`.
 
+## Lựa chọn ASR đã review, chưa kích hoạt
+
+- Cờ server `MANUAL_DEMO_CONTENT_BACKEND=qwen17` chỉ cho manual full demo;
+  mặc định 0.6 giữ nguyên. Phiên bản được kiểm tại worker preload/IPC, snapshot
+  phiên mã hóa, quyết định và quyền ghi danh có giọng. Không backfill pin 1.7.
+  Hash sáu ngưỡng và account/template/key/device/consent không đổi.
+- Adapter cố định đã chuyển từ eval sang voice; eval giữ re-export. Không đổi
+  thuật toán suy luận, VAD, prefix, matcher hay YAML model/threshold.
+- RED 19 ca ban đầu có 15 lỗi đúng phần thiếu; 229 hồi quy hẹp đạt, 70 ca
+  account/auth đạt; sau kiểm containment thư mục có 56 worker/API đạt.
+  Các nhóm chồng lặp, không cộng thành một số test độc lập.
+- Review độc lập không tìm thấy blocker. Chưa chạy preload thật toàn stack;
+  chưa coi lựa chọn mô hình là đã triển khai hoặc recovery đã sửa.
+- Root chạy lại selection/session/manual-demo: **92 ca đạt**.
+- Đã chép 11 file artifact/giấy phép/provenance được kiểm hash vào thư mục
+  1.7B mới ngoài repo; không ghi đè trọng số 0.6B hoặc bật cấu hình.
+
 ## Câu hỏi cho nhóm và giới hạn nghiệm thu
 
 - Còn cần người dùng thử recovery đến kết quả trên S24 FE và xác nhận preview
