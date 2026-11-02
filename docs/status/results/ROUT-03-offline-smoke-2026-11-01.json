@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "task": "ROUT-03",
+  "source_commit": "87a740fcc09c8a42ec71fca421768c6356f8bb16",
+  "model_version": "nes2net-x@c9fe1177f44040f002cb40def928332d2e261f1e+hf4576-cpu-fp32-timeline4s-tail-maxmargin-v1",
+  "dataset": "synthetic-unit-fixture",
+  "smoke_summary_sha256": "d53598aa8833334548ce4039a14acdcced02c710f97f034a1b27920121931de0",
+  "synthetic_cli_only": true,
+  "real_model_inference_run": false,
+  "sample_counts": {
+    "fit": 8,
+    "ltt": 101,
+    "test": 4
+  },
+  "command_count": 6,
+  "expected_successes": 4,
+  "expected_refusals": 2,
+  "synthetic_degraded_preserved": true,
+  "tampered_ltt_refused_without_output": true,
+  "real_data_gate": {
+    "dataset": "DNU calib_fit bonafide only",
+    "measurement_report_sha256": "30c94ca655d172f1b950181579293a4af5e9303ec7242aec29663daeb4918504",
+    "missing_attack_class_refused_without_artifact": true,
+    "new_inference": false
+  },
+  "diagnostic_only": true,
+  "deployed": false,
+  "runtime_eligible": false,
+  "real_accuracy_or_r4_claim": false
+}

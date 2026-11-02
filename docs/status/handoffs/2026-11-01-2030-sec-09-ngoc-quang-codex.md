@@ -9,12 +9,12 @@
 
 ## Đang dở
 <!-- file:dòng, việc gì còn dang dở -->
-- PostgreSQL local skip vì không có TEST_DATABASE_URL. CI dùng DB vericlue_test riêng; chỉ sau CI mới xác nhận hành vi trên engine này.
+- PostgreSQL local skip vì không có TEST_DATABASE_URL. **Cập nhật sau CI:** PR122/47f3209 xanh 8/8; job Python chạy PostgreSQL16 trên DB vericlue_test riêng đạt 4749 test, 78 skip. Hành vi engine đã được kiểm qua CI.
 - Không có điện thoại để nghiệm thu CCCD/mặt/giọng và ba luồng. OTP vẫn mô phỏng, demo AI thật chưa nghiệm thu.
 
 ## Bước tiếp theo
 <!-- Viết đủ rõ để người khác hoặc AI khác làm ngay, không cần hỏi lại -->
-1. Xem CI PostgreSQL trên Draft PR, sửa nếu có lỗi thực tế. Không dùng DB sản phẩm để chạy test.
+1. Review Draft PR122 đã xanh CI; không dùng DB sản phẩm để chạy test hoặc merge thay nhóm.
 2. Khi có điện thoại, cài đè APK đã chuẩn bị và thử checklist ba luồng/consent; không reset dữ liệu.
 
 ## Quyết định, lưu ý, bẫy
