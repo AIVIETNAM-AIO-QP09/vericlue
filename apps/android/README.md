@@ -4,17 +4,26 @@
 
 ## Trạng thái
 
-APP-11 / Three.js: bảy cảnh offline trên bốn màn — chọn thẻ/khuôn mặt/giọng nói
-ở màn đầu, khiên/khóa ở đồng ý dữ liệu, ba thao tác trước camera và huy hiệu
-thành công. Nút chọn/dừng/xem lại và nội dung vẫn native; đổi cảnh trong cùng
-renderer. Cảnh hướng dẫn chạy tối đa 6 giây, quyền riêng tư/thành công 3 giây,
-tạm dừng khi ẩn/ra nền. Giảm chuyển động hoặc lỗi
+APP-11 / phản hồi test thiết bị: 3D chỉ trang trí, tự chạy tối đa 3 giây rồi đứng
+yên; bỏ tab, nút xem lại/tạm dừng và lời thuyết minh minh họa khỏi app. Bốn cảnh
+được dùng: thẻ ở màn đầu, khiên/khóa ở đồng ý, khuôn mặt ở chuẩn bị và huy hiệu
+thành công. Tạm dừng khi ẩn/ra nền. Giảm chuyển động hoặc lỗi
 WebGL dùng hình native dự phòng. Chi tiết và giới hạn kiểm tra:
 [Three.js trên Android](docs/three-scene.md). Preview tương tác tại máy:
 `tmp/app11-ui/three/index.html` từ repo root.
 Tạo lại bằng `python apps/android/scripts/build-three-preview.py` sau khi render
 Paparazzi và chạy kiểm tra WebGL. Màn thành công dùng 3D; Lottie vẫn có ở
 `SuccessBadge` cho màn ngân hàng mẫu/gallery, không chạy chồng lên cảnh 3D.
+
+Camera: `FaceCaptureSurface` dùng một viewport toàn màn hình và cùng hình học
+oval cho căn mặt, đổi màu, theo chấm và quay đầu. `StableCameraScene` không
+scale/translate preview theo cửa sổ nhỏ nữa. Chấm vẫn theo tọa độ toàn màn hình
+do server cấp; giữ lịch, màu, độ sáng và mốc recording. Diện tích màu nhìn thấy
+thay đổi do khung camera thống nhất, cần kiểm lại chất lượng thu trên thiết bị.
+Màn chuẩn bị rút gọn; đăng nhập thụ động không có cảnh báo đổi màu. Trợ giúp về
+nhạy cảm ánh sáng mở bottom sheet, không tự rời phiên. Backend hiện chưa có
+luồng đăng ký/khôi phục không đổi màu; đây là việc sản phẩm/backend còn thiếu, không được
+bỏ thử thách rồi tự kết luận đạt. Xem bàn giao APP-11 ngày 02/11 lúc 18:36.
 
 APP-11 mở rộng: màn đầu có thẻ navy và hành trình đánh số; màn số điện
 thoại/OTP có dán chủ động, phản hồi lỗi và trạng thái đang gửi/kiểm mã.
@@ -92,9 +101,9 @@ Hardware acceptance còn chờ. Xem [demo một bản](../../docs/runbooks/veric
 APP-07: luồng đầy đủ Giả lập và API dùng chung `FaceTimelineScreen` và bộ UI A
 hiện có (khung oval lúc giữ yên, hướng dẫn quay đầu trên camera). Giả lập tạo
 lịch cục bộ; API luôn theo lịch/tọa độ toàn màn hình do server cấp, không rơi về
-lịch mẫu khi lỗi. `StableCameraScene` giữ một PreviewView, chỉ biến đổi lớp hiển
-thị qua các cửa sổ camera, không gắn lại View hoặc đổi kích thước layout trong
-lúc quay. Màn quay đầu riêng trong gallery chỉ phục vụ xem màn. Snapshot mới
+lịch mẫu khi lỗi. `StableCameraScene` giữ một PreviewView toàn màn hình; APP-11
+đã bỏ biến đổi scale/translate theo cửa sổ camera và thống nhất oval giữa các pha.
+Màn quay đầu riêng trong gallery chỉ phục vụ xem màn. Snapshot mới
 bao phủ các pha ở sáng/tối, 375dp và chữ 200%; nghiệm thu video liên tục trên máy
 thật vẫn phải kiểm riêng. Activity hiện khóa dọc, không bổ sung flow xoay ngang.
 

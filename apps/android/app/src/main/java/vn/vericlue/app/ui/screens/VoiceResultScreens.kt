@@ -331,8 +331,8 @@ object Messages {
 
     /** "Bỏ qua nháy màu": the face part cannot be done in the app. Promises nothing (nothing was sent). */
     @Composable fun FlashSkipped(onBank: () -> Unit) = MessageScreen(
-        Icons.Outlined.PhoneAndroid, "Cần cách xác minh khác",
-        "Phiên này cần thử thách đổi màu màn hình. Hãy dừng và liên hệ đơn vị cung cấp dịch vụ nếu bạn cần cách xác minh khác.",
+        Icons.Outlined.PhoneAndroid, "Bạn đã rời bước xác minh",
+        "Luồng này chưa hỗ trợ xác minh không đổi màu màn hình. Yêu cầu chưa được hoàn tất.",
         "Về màn hình chính" to onBank,
     )
 

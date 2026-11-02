@@ -4,7 +4,7 @@ import { SCENES, createIllustration } from './illustrations.js';
 // Original procedural illustration. No identity data, textures, models or requests.
 const canvas = document.querySelector('#scene');
 const motion = matchMedia('(prefers-reduced-motion: reduce)');
-const duration = () => ['privacy', 'success'].includes(mode) ? 3 : 6;
+const duration = () => 3;
 let status = 'loading', renderer, scene, camera, illustration, observer;
 let active = false, elapsed = 0, last = 0, frame = 0, frames = 0, disposed = false;
 let mode = 'card', dark = true;

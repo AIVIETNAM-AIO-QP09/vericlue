@@ -16,43 +16,30 @@ import org.junit.Test
 import vn.vericlue.app.ui.components.*
 import vn.vericlue.app.ui.theme.VcTheme
 
-/** Native content remains complete and selectable without creating a WebView. */
+/** Decoration must never expose a player or chapter selection in citizen screens. */
 abstract class SceneExperienceSnapshots(device: DeviceConfig) {
     @get:Rule val paparazzi = Paparazzi(deviceConfig = device)
-
-    @Test fun chapterControlsAndReducedMotionFallbacks() {
-        for (dark in listOf(false, true)) {
-            for ((preparation, scene) in listOf(false to IllustrationScene.Card, false to IllustrationScene.Face,
-                false to IllustrationScene.Voice, true to IllustrationScene.Face, true to IllustrationScene.Eyes,
-                true to IllustrationScene.Turn)) {
-                var tabs = 0
-                var selected = 0
-                var disabled = 0
-                var readable = false
-                var minimumTouchHeight = Float.MAX_VALUE
-                paparazzi.snapshot("${preparation}_${scene.name}_$dark") {
-                    VcTheme(dark = dark, motionEnabled = false) {
-                        val root = LocalView.current as RootForTest
-                        VcScreen {
-                            Column(Modifier.onGloballyPositioned {
-                                val nodes = root.semanticsOwner.getAllSemanticsNodes(mergingEnabled = true)
-                                val controls = nodes.filter { it.config.getOrNull(SemanticsProperties.Role) == Role.Tab }
-                                tabs = controls.size
-                                selected = controls.count { it.config.getOrNull(SemanticsProperties.Selected) == true }
-                                minimumTouchHeight = controls.minOfOrNull { it.boundsInRoot.height } ?: 0f
-                                disabled = nodes.count { it.config.contains(SemanticsProperties.Disabled) }
-                                readable = nodes.any { node -> node.config.getOrNull(SemanticsProperties.Text)
-                                    ?.any { it.text == scene.explanation } == true }
-                            }) { SceneExplorer(preparation, scene) }
-                        }
+    @Test fun decorationDoesNotAddControls() {
+        for (dark in listOf(false, true)) for (screen in listOf("auth", "ready", "passive")) {
+            var texts = emptyList<String>()
+            var tabs = 0
+            paparazzi.snapshot("${screen}_$dark") {
+                VcTheme(dark = dark, motionEnabled = false) {
+                    val root = LocalView.current as RootForTest
+                    Column(Modifier.onGloballyPositioned {
+                        val nodes = root.semanticsOwner.getAllSemanticsNodes(mergingEnabled = true)
+                        texts = nodes.flatMap { it.config.getOrNull(SemanticsProperties.Text)?.map { text -> text.text } ?: emptyList() }
+                        tabs = nodes.count { it.config.getOrNull(SemanticsProperties.Role) == Role.Tab }
+                    }) {
+                        if (screen == "auth") vn.vericlue.app.ui.screens.AuthScreen({}, {}, {})
+                        else vn.vericlue.app.ui.screens.FaceReadyScreen({}, {}, {}, usesLightChallenge = screen != "passive")
                     }
                 }
-                assertEquals("All native chapter controls remain available", 3, tabs)
-                assertEquals("Exactly one chapter announces selection", 1, selected)
-                assertTrue("Native explanation survives WebGL fallback", readable)
-                assertTrue("Motion controls respect reduced motion", disabled >= 2)
-                assertTrue("Tab touch target must be at least 48dp", minimumTouchHeight >= 48f)
             }
+            assertEquals(0, tabs)
+            assertTrue("Primary action must remain present", texts.contains(if (screen == "auth") "Bắt đầu đăng ký" else "Bắt đầu"))
+            assertFalse(texts.any { it == "Xem lại" || it == "Tạm dừng" || it.contains("Chọn từng mục") })
+            if (screen == "passive") assertFalse(texts.any { it.contains("đổi màu") || it.contains("nhạy cảm") })
         }
     }
 }

@@ -51,14 +51,14 @@ button[aria-pressed="true"],#replay{background:#0c2345;color:#fff;border-color:#
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
 </style><main><div class="tag">VERICLUE / ANDROID / THREE.JS</div>
 <h1>Mỗi bước, một cách hiểu rõ hơn.</h1>
-<p>Bảy cảnh 3D tự dựng, dùng ở bốn màn Android. Chọn từng mục để xem vật liệu, ánh sáng và chuyển động theo ngữ cảnh — cùng mã nguồn được đóng gói trong app.</p>
+<p>App dùng 3D trang trí tự chạy 3 giây, không có nút xem lại/tạm dừng hoặc tab chọn cảnh. Các nút bên dưới chỉ phục vụ review kỹ thuật bộ cảnh. <a href="../refined/index.html">Xem UI mới và khung camera đồng bộ →</a></p>
 <div class="chapters" aria-label="Chọn cảnh minh họa" id="chapters"></div>
 <div class="grid"><section><span id="context" class="context"></span><h2 id="title"></h2>
 <div class="stage" id="stage"><div class="stage-head"><span>MINH HỌA 3D TRỰC TIẾP</span><button id="theme">Nền sáng</button></div>
 <iframe id="preview" title="Cảnh Three.js minh họa"></iframe></div>
 <p id="description"></p><div class="controls"><button id="replay">Xem lại chuyển động</button><button id="pause">Tạm dừng</button></div>
 <p id="status" role="status" class="note">Đang nạp cảnh…</p>
-<p class="note">Đổi mục trong cùng một renderer. Hướng dẫn có nút dừng/xem lại và chạy tối đa 6 giây; quyền riêng tư và hoàn tất chạy 3 giây. Sóng âm là minh họa, không thu micro. Cảnh khuôn mặt không phải thử thách xác minh thật.</p>
+<p class="note">Công cụ review: đổi mục trong cùng renderer, chạy tối đa 3 giây. Trong app không có các nút điều khiển này. Sóng âm không nối micro; khuôn mặt không phải thử thách thật.</p>
 </section><section><h2>Vị trí trong app Android</h2><div class="native"><img id="native" class="native-shot" alt="Bố cục Android với hình dự phòng"></div>
 <p id="native-note" class="note"></p><p class="note">Ảnh Compose thật dùng hình tĩnh dự phòng. Cảnh bên trái chạy WebGL trên trình duyệt, chưa phải bằng chứng WebView đã chạy trên điện thoại.</p></section></div>
 <div class="gallery" id="gallery" aria-label="Bộ cảnh"></div>
@@ -67,10 +67,10 @@ button[aria-pressed="true"],#replay{background:#0c2345;color:#fff;border-color:#
 <script>const payload=PAYLOAD;
 const items=[
  ['card','Thẻ căn cước','Màn bắt đầu','auth','Chuẩn bị thẻ thật, giữ trọn thẻ trong khung và tránh ánh sáng phản chiếu.'],
- ['face','Giữ thẳng','Màn bắt đầu / Chuẩn bị khuôn mặt','face','Mô hình đầu và khung hướng dẫn giúp hình dung vị trí điện thoại ngang tầm mắt.'],
- ['eyes','Đưa mắt','Chuẩn bị khuôn mặt','face','Đầu giữ yên, mắt di chuyển theo điểm minh họa. Khi xác minh, làm theo hướng dẫn thực tế.'],
- ['turn','Quay đầu','Chuẩn bị khuôn mặt','face','Xem chuyển động quay chậm rồi trở lại nhìn thẳng trước khi bắt đầu camera.'],
- ['voice','Giọng nói','Màn bắt đầu','auth','Micro và dải âm minh họa cho bước bổ sung. Chỉ đọc khi được yêu cầu; đây không phải ghi âm.'],
+ ['face','Giữ thẳng','Chuẩn bị khuôn mặt','face','Mô hình khuôn mặt trang trí. Hướng dẫn nằm trong nội dung native.'],
+ ['eyes','Đưa mắt','Chỉ trong bộ cảnh review','face','Cảnh thử nghiệm, không có lựa chọn tương tác này trong app.'],
+ ['turn','Quay đầu','Chỉ trong bộ cảnh review','face','Cảnh thử nghiệm, không có lựa chọn tương tác này trong app.'],
+ ['voice','Giọng nói','Chỉ trong bộ cảnh review','auth','Micro và dải âm minh họa trong bộ cảnh, không thu âm.'],
  ['privacy','Quyền riêng tư','Màn đồng ý dữ liệu','terms','Minh họa cho phần giải thích quyền chủ động. Đồng ý vẫn là lựa chọn riêng, không được chọn sẵn.'],
  ['success','Hoàn tất','Màn xác minh thành công','success','Huy hiệu nổi và các điểm sáng mở ra ngắn. Trong app, màn này chỉ xuất hiện theo kết quả của luồng xác minh.']
 ];

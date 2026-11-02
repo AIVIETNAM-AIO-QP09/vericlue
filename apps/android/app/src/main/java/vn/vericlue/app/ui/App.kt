@@ -616,7 +616,8 @@ fun VeriClueApp() {
         composable(Routes.FaceReady) {
             // Skipping the flash must not skip the face part: stop here. Nothing reaches the server yet,
             // so the screen promises no review (question 14 in docs/can-chot.md).
-            FaceReadyScreen(onBack = { nav.popBackStack() }, onReady = ::startFace, onSkipFlash = {
+            FaceReadyScreen(onBack = { nav.popBackStack() }, onReady = ::startFace,
+                usesLightChallenge = flow.purpose != Purpose.Reauth, onSkipFlash = {
                 camera.unbind()
                 nav.go(Routes.FlashSkipped)
             })

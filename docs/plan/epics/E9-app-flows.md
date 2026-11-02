@@ -472,6 +472,22 @@ WebGL đạt, kiểm bảy cảnh/hai theme và 56 lần chuyển không tăng g
 GPU; thêm 36 snapshot lựa chọn native. Preview tại `tmp/app11-ui/three/index.html`,
 tái tạo bằng script trong repo. Giữ `review` chờ điện thoại, bàn giao 17:52.
 
+Phản hồi test thiết bị: 3D chỉ trang trí, bỏ điều khiển/thuyết minh thừa;
+khung mặt bị đổi tỷ lệ qua căn mặt/đổi màu/theo chấm/quay đầu.
+
+- [x] 3D tự chạy ngắn, không có tab/xem lại/dừng trong luồng người dân; rút gọn copy.
+- [x] Dùng chung viewport camera và oval cho mọi pha, không scale/crop lại khi chuyển pha;
+      giữ tọa độ chấm toàn màn hình, lịch màu, recording và điều kiện xác minh.
+- [x] Nêu đúng giới hạn luồng không đổi màu; đăng nhập thụ động không hiện cảnh báo đổi màu.
+- [x] Test hình học thực qua các màn, snapshot/chữ lớn, lint/build, cập nhật preview và APK local.
+
+Kết quả: 177 test Android đạt, lint không lỗi (12 cảnh báo/1 thông tin có sẵn),
+APK local build thành công. Đo cùng viewport/oval qua chín trạng thái trên ba
+cấu hình (27 ảnh); 18 ảnh kiểm không có player và cảnh báo đổi màu ở reauth.
+Năm nhóm WebGL đạt. Preview `tmp/app11-ui/refined/index.html` so với `2aa9971`.
+Giữ `review` chờ thử lại trên điện thoại; phương thức không đổi màu cho đăng ký/
+khôi phục chưa triển khai, câu hỏi và phạm vi backend ở bàn giao 18:36.
+
 ---
 
 ### APP-02 ★ · App: chụp mặt, quay 3 giây, quay đầu ngẫu nhiên

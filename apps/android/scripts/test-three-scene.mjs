@@ -49,9 +49,9 @@ try {
   await page.waitForTimeout(300);
   assert.equal(await page.evaluate(() => window.vericlueScene.frames), paused, 'Paused scene drew new frames');
   await page.evaluate(() => window.vericlueScene.setActive(true));
-  await page.waitForFunction(() => !window.vericlueScene.playing && window.vericlueScene.elapsed === 6);
+  await page.waitForFunction(() => !window.vericlueScene.playing && window.vericlueScene.elapsed === 3);
   const completed = await page.evaluate(() => ({ frames: window.vericlueScene.frames, calls: window.vericlueScene.drawCalls }));
-  assert.ok(completed.frames <= 195, `Frame budget exceeded: ${completed.frames}`);
+  assert.ok(completed.frames <= 105, `Frame budget exceeded: ${completed.frames}`);
   assert.ok(completed.calls <= 24, `Draw call budget exceeded: ${completed.calls}`);
   await page.waitForTimeout(300);
   assert.equal(await page.evaluate(() => window.vericlueScene.frames), completed.frames);
@@ -60,7 +60,7 @@ try {
   assert.deepEqual(unexpected, []); assert.deepEqual(errors, []);
   await page.evaluate(() => window.vericlueScene.dispose());
   assert.equal(await page.evaluate(() => window.vericlueScene.status), 'disposed');
-  results.push({ test: 'WebGL render, pause/resume, six-second budget, resize, dispose, offline', ...completed });
+  results.push({ test: 'WebGL render, pause/resume, three-second budget, resize, dispose, offline', ...completed });
   await page.close();
 
   const chapters = await pageFor();
@@ -77,7 +77,7 @@ try {
       const metrics = await chapters.page.evaluate(() => ({ scene: window.vericlueScene.scene, memory: window.vericlueScene.memory,
         calls: window.vericlueScene.drawCalls, canvases: document.querySelectorAll('canvas').length }));
       assert.equal(metrics.scene, mode); assert.equal(metrics.canvases, 1);
-      assert.equal(await chapters.page.evaluate(() => window.vericlueScene.duration), ['privacy', 'success'].includes(mode) ? 3 : 6);
+      assert.equal(await chapters.page.evaluate(() => window.vericlueScene.duration), 3);
       assert.ok(metrics.calls <= 24, `${mode}: too many draw calls`);
       memory[mode] = metrics.memory;
     }

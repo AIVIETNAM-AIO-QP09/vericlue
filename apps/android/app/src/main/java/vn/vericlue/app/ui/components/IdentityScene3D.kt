@@ -50,8 +50,6 @@ private class IllustrationWebView(context: Context) : WebView(context) {
 fun IdentityScene3D(
     modifier: Modifier = Modifier,
     scene: IllustrationScene = IllustrationScene.Card,
-    paused: Boolean = false,
-    replay: Int = 0,
 ) {
     val preview = LocalInspectionMode.current || LocalView.current.isInEditMode
     if (preview || !Vc.motion.enabled) {
@@ -96,17 +94,12 @@ fun IdentityScene3D(
             browser?.evaluateJavascript("window.vericlueScene?.configure('${scene.wireName}', $dark)", null)
         }.onFailure { failed = true }
     }
-    LaunchedEffect(replay) {
-        if (replay > 0 && ready) runCatching {
-            browser?.evaluateJavascript("window.vericlueScene?.replay()", null)
-        }.onFailure { failed = true }
-    }
-    LaunchedEffect(browser, resumed, visible, ready, paused) {
+    LaunchedEffect(browser, resumed, visible, ready) {
         browser?.let { view ->
             runCatching {
                 if (resumed && visible) {
                     view.onResume()
-                    view.evaluateJavascript("window.vericlueScene?.setActive(${ready && !paused})", null)
+                    view.evaluateJavascript("window.vericlueScene?.setActive(${ready})", null)
                 } else {
                     view.evaluateJavascript("window.vericlueScene?.setActive(false)", null)
                     view.onPause()

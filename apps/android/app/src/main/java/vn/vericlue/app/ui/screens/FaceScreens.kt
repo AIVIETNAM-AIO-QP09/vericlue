@@ -3,63 +3,41 @@ package vn.vericlue.app.ui.screens
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.VectorConverter
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.automirrored.outlined.ArrowForward
-import androidx.compose.material.icons.outlined.CenterFocusWeak
-import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material.icons.outlined.OpenInFull
-import androidx.compose.material.icons.outlined.SwapHoriz
+import androidx.compose.material.icons.outlined.Face
 import androidx.compose.material.icons.outlined.WbSunny
-import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.PhoneAndroid
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -70,34 +48,19 @@ import vn.vericlue.app.capture.ColorSchedule
 import vn.vericlue.app.capture.ColorSlot
 import vn.vericlue.app.capture.TurnTracker
 import vn.vericlue.app.capture.FaceTimeline
-import vn.vericlue.app.ui.components.CameraFeed
 import androidx.compose.runtime.withFrameNanos
-import vn.vericlue.app.ui.components.Banner
 import vn.vericlue.app.ui.components.ContentCard
-import vn.vericlue.app.ui.components.SceneExplorer
+import vn.vericlue.app.ui.components.FaceCaptureSurface
+import vn.vericlue.app.ui.components.IdentityScene3D
+import vn.vericlue.app.ui.components.IllustrationScene
 import vn.vericlue.app.ui.components.FeatureRow
-import vn.vericlue.app.ui.components.CameraArea
-import vn.vericlue.app.ui.components.FullCamera
-import vn.vericlue.app.ui.components.GuidanceChip
 import vn.vericlue.app.ui.components.LinkButton
 import vn.vericlue.app.ui.components.PrimaryButton
-import vn.vericlue.app.ui.components.NumberedRow
-import vn.vericlue.app.ui.components.StepProgress
-import vn.vericlue.app.ui.components.StableCameraScene
-import vn.vericlue.app.ui.components.SystemBarIcons
 import vn.vericlue.app.ui.components.TitleBlock
-import vn.vericlue.app.ui.components.Tone
-import vn.vericlue.app.ui.components.TopBar
 import vn.vericlue.app.ui.components.VcScreen
-import vn.vericlue.app.ui.components.stepLabel
-import vn.vericlue.app.ui.components.HelpButton
-import vn.vericlue.app.ui.theme.LightColors
-import vn.vericlue.app.ui.theme.LocalVcColors
 import vn.vericlue.app.ui.theme.Palette
 import vn.vericlue.app.ui.theme.Vc
-import vn.vericlue.app.ui.theme.VcTheme
 import vn.vericlue.app.ui.theme.VcType
-import androidx.compose.runtime.CompositionLocalProvider
 
 /*
  * Stage B of ADR-0016 (22/10 update): two tasks, about 18 seconds.
@@ -106,43 +69,44 @@ import androidx.compose.runtime.CompositionLocalProvider
  * Camera and flash screens have no decorative motion; only guidance moves.
  */
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun FaceReadyScreen(onBack: () -> Unit, onReady: () -> Unit, onSkipFlash: () -> Unit) {
+fun FaceReadyScreen(onBack: () -> Unit, onReady: () -> Unit, onSkipFlash: () -> Unit, usesLightChallenge: Boolean = true) {
     val c = Vc.colors
+    var lightHelp by remember { mutableStateOf(false) }
     VcScreen(
         onBack = onBack,
         step = 2,
         actions = {
-            PrimaryButton("Tôi đã sẵn sàng", onReady)
-            LinkButton("Tôi không thể tiếp tục", onSkipFlash)
+            PrimaryButton("Bắt đầu", onReady)
         },
     ) {
-        TitleBlock("Sẵn sàng\nxác minh khuôn mặt", "Chọn nơi đủ sáng và giữ điện thoại ngang tầm mắt.", eyebrow = "CHUẨN BỊ TRƯỚC CAMERA")
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.warnBg).padding(16.dp)) {
-            Banner(
-                "Màn hình sẽ đổi màu trong lúc xác minh. Nếu nhạy cảm với ánh sáng nhấp nháy, hãy dừng tại đây.",
-                tone = Tone.Warn,
-            )
-        }
+        TitleBlock("Xác minh khuôn mặt", "Giữ điện thoại ngang tầm mắt.")
+        IdentityScene3D(Modifier.fillMaxWidth().height(132.dp), IllustrationScene.Face)
         ContentCard {
-            SceneExplorer(facePreparation = true)
+            FeatureRow(Icons.Outlined.WbSunny, "Chọn nơi đủ sáng")
+            FeatureRow(Icons.Outlined.Face, "Không che khuôn mặt")
+            FeatureRow(Icons.Outlined.PhoneAndroid, "Giữ nguyên vị trí điện thoại")
         }
-        HelpButton(step = 2)
+        if (usesLightChallenge) {
+            Text("Màn hình sẽ thay đổi màu trong vài giây.", style = VcType.bodySmall, color = c.muted)
+            LinkButton("Tôi nhạy cảm với ánh sáng", { lightHelp = true })
+        }
     }
-}
-
-/** Dark camera layout shared by framing and turn-head screens. */
-@Composable
-private fun CameraScaffold(onBack: () -> Unit, content: @Composable () -> Unit) {
-    BackHandler(onBack = onBack)
-    VcTheme(dark = true) {
-        val c = Vc.colors
-        SystemBarIcons(c.background)
-        Column(Modifier.fillMaxSize().background(c.background).statusBarsPadding()) {
-            TopBar(onBack)
-            StepProgress(2, stepLabel(2))
-            Box(Modifier.weight(1f).fillMaxWidth()) { content() }
-            Spacer(Modifier.navigationBarsPadding())
+    if (lightHelp) {
+        androidx.compose.material3.ModalBottomSheet(
+            onDismissRequest = { lightHelp = false },
+            sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = c.background,
+        ) {
+            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                TitleBlock("Về bước đổi màu", "Luồng này chưa hỗ trợ xác minh không đổi màu màn hình.")
+                Text("Nếu ánh sáng thay đổi khiến bạn khó chịu, đừng bắt đầu bước này. Bạn có thể quay lại trước khi mở camera.",
+                    style = VcType.body, color = c.ink)
+                PrimaryButton("Quay lại", { lightHelp = false })
+                LinkButton("Rời bước xác minh", onSkipFlash)
+            }
         }
     }
 }
@@ -160,7 +124,6 @@ fun FramingScreen(
     start: FramingState = FramingState.LowLight,
     auto: Boolean = true,
     live: FramingState? = null,
-    onDebugCapture: (() -> Unit)? = null,
 ) {
     var demo by remember { mutableStateOf(start) }
     LaunchedEffect(auto, live == null) {
@@ -175,55 +138,19 @@ fun FramingScreen(
         onCaptured()
     }
     val state = live ?: demo
-    CameraScaffold(onExit) {
-        Box(Modifier.fillMaxSize()) {
-            Box(Modifier.fillMaxSize()) {
-                CameraFeed(faceScale = if (state == FramingState.TooFar) 0.6f else 1f, dim = if (state == FramingState.LowLight) 0.45f else 0f)
-            }
-            val good = state == FramingState.Good
-            Box(Modifier.fillMaxSize()) {
-                vn.vericlue.app.ui.components.OvalOverlay(
-                    ringColor = if (good) Palette.OkOnDark else Color.White,
-                    ringWidth = if (good) 3.dp else 2.dp,
-                    progress = if (good) 0.72f else null,
-                )
-            }
-            CameraArea { oval ->
-                Text(
-                    "Đưa khuôn mặt vào khung",
-                    style = VcType.titleMedium,
-                    color = Color.White,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(top = 18.dp),
-                )
-                Box(Modifier.fillMaxWidth().offset(y = oval.bottom + 24.dp), contentAlignment = Alignment.TopCenter) {
-                    when (state) {
-                        FramingState.NoFace -> GuidanceChip("Đưa khuôn mặt vào khung", Icons.Outlined.CenterFocusWeak)
-                        FramingState.LowLight -> GuidanceChip("Chọn nơi đủ sáng", Icons.Outlined.WbSunny, Tone.Warn)
-                        FramingState.TooFar -> GuidanceChip("Đưa điện thoại lại gần hơn", Icons.Outlined.OpenInFull)
-                        FramingState.OffCenter -> GuidanceChip("Đưa khuôn mặt vào giữa khung hình", Icons.Outlined.CenterFocusWeak)
-                        FramingState.Good -> GuidanceChip("Giữ yên khuôn mặt", Icons.Outlined.Check, Tone.Ok)
-                    }
-                }
-                Text(
-                    if (good) "Đang tự chụp…" else "Giữ khuôn mặt trong khung",
-                    style = VcType.bodySmall,
-                    color = Color.White.copy(alpha = 0.85f),
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter).padding(bottom = 24.dp),
-                )
-                if (onDebugCapture != null) DebugButton("Chụp ngay (debug)", onDebugCapture, Modifier.align(Alignment.BottomCenter).padding(bottom = 56.dp))
-            }
-        }
-    }
-}
-
-/** Debug builds only: lets developers test the upload path on an emulator with no face in view. */
-@Composable
-private fun DebugButton(text: String, onClick: () -> Unit, modifier: Modifier) {
-    androidx.compose.material3.TextButton(onClick = onClick, modifier = modifier) {
-        Text(text, style = VcType.labelSmall, color = Palette.WarnBorder)
-    }
+    FaceCaptureSurface(
+        title = "Đưa mặt vào khung", onStop = onExit,
+        hint = when (state) {
+            FramingState.NoFace -> "Nhìn thẳng vào camera"
+            FramingState.LowLight -> "Chọn nơi đủ sáng"
+            FramingState.TooFar -> "Đưa điện thoại lại gần hơn"
+            FramingState.OffCenter -> "Đưa mặt vào giữa khung"
+            FramingState.Good -> "Giữ yên, đang bắt đầu"
+        },
+        good = state == FramingState.Good,
+        faceScale = if (state == FramingState.TooFar) 0.6f else 1f,
+        dim = if (state == FramingState.LowLight) 0.45f else 0f,
+    )
 }
 
 // ── Task 1: hold still (grey → colour flash → follow the dot) ────────────────
@@ -276,51 +203,15 @@ fun HoldStillScreen(
     }
     BackHandler(onBack = onStop)
     FullBrightness(enabled = auto)
-    // The flash screens are light whatever the system theme, so the light palette is forced.
-    CompositionLocalProvider(LocalVcColors provides LightColors) {
-        val current = slots.getOrNull(slot)
-        val bg = current?.let { Color(ColorSchedule.parse(it.rgb)) } ?: Color.White
-        SystemBarIcons(bg)
-        Column(Modifier.fillMaxSize().background(bg).statusBarsPadding()) {
-            TopBar(onStop)
-            StepProgress(2, stepLabel(2))
-            Column(
-                Modifier.weight(1f).fillMaxWidth().padding(horizontal = 20.dp, vertical = 20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(20.dp),
-            ) {
-                if (current != null) {
-                    Text(
-                        if (current.index == null) "Giữ yên, nhìn thẳng" else "Giữ yên",
-                        style = VcType.titleMedium,
-                        color = Palette.Ink,
-                    )
-                    OvalPreview(progress = (slot + 1f) / (slots.size + 1))
-                } else {
-                    Text(
-                        "Giữ đầu yên, chỉ đưa mắt theo chấm sáng",
-                        style = VcType.titleMedium,
-                        color = Palette.Ink,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    FollowDot(
-                        Modifier.fillMaxWidth().weight(1f, fill = false).height(220.dp),
-                        running = auto,
-                        onFinished = { dotFinished = true },
-                    )
-                }
-                Banner("Màn hình sẽ nhấp nháy màu nhạt vài giây. Người nhạy cảm với ánh sáng nhấp nháy không nên tiếp tục.", cameraLayout = true)
-                Spacer(Modifier.weight(1f))
-                Button(
-                    onClick = onStop,
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Palette.Primary),
-                ) { Text("Dừng", style = VcType.cameraButton) }
-            }
-            Spacer(Modifier.navigationBarsPadding())
-        }
-    }
+    val current = slots.getOrNull(slot)
+    FaceCaptureSurface(
+        title = if (current != null) "Giữ yên, nhìn thẳng" else "Đưa mắt theo chấm",
+        hint = if (current != null) "Giữ nguyên vị trí điện thoại" else "Giữ đầu yên, chỉ di chuyển mắt",
+        onStop = onStop, light = true,
+        background = current?.let { Color(ColorSchedule.parse(it.rgb)) } ?: Color.White,
+        progress = current?.let { (slot + 1f) / slots.size.coerceAtLeast(1) },
+        extraOverlay = { if (current == null) FollowDot(Modifier.fillMaxSize(), auto) { dotFinished = true } },
+    )
 }
 
 private const val SETTLE_MS = 600L
@@ -345,26 +236,6 @@ private fun FullBrightness(enabled: Boolean) {
     }
 }
 
-@Composable
-private fun OvalPreview(progress: Float) {
-    Box(Modifier.size(width = 196.dp, height = 252.dp), contentAlignment = Alignment.Center) {
-        Box(Modifier.size(width = 172.dp, height = 228.dp).clip(androidx.compose.foundation.shape.GenericShape { s, _ -> addOval(androidx.compose.ui.geometry.Rect(Offset.Zero, s)) })) {
-            CameraFeed()
-        }
-        Canvas(Modifier.fillMaxSize()) {
-            drawArc(
-                Palette.Primary,
-                startAngle = -90f,
-                sweepAngle = 360f * progress,
-                useCenter = false,
-                topLeft = Offset(2.dp.toPx(), 2.dp.toPx()),
-                size = Size(size.width - 4.dp.toPx(), size.height - 4.dp.toPx()),
-                style = Stroke(2.5.dp.toPx()),
-            )
-        }
-    }
-}
-
 /** Demo / MVP: the dot wanders at random; the user follows it with the eyes only (ADR-0016, layer 2). */
 @Composable
 private fun FollowDot(modifier: Modifier, running: Boolean, onFinished: () -> Unit = {}) {
@@ -384,10 +255,6 @@ private fun FollowDot(modifier: Modifier, running: Boolean, onFinished: () -> Un
             }
             onFinished()
         }
-        Box(
-            Modifier.align(Alignment.TopEnd).size(width = 60.dp, height = 78.dp).clip(RoundedCornerShape(12.dp))
-                .border(2.dp, Palette.Border, RoundedCornerShape(12.dp)),
-        ) { CameraFeed() }
         Box(
             Modifier.offset(x = (pos.value.x - 12).dp, y = (pos.value.y - 12).dp).size(24.dp)
                 .clip(CircleShape).background(Palette.Primary.copy(alpha = 0.18f)),
@@ -411,7 +278,6 @@ fun TurnHeadScreen(
     onDone: () -> Unit,
     auto: Boolean = true,
     yaw: Float? = null,
-    onDebugSkip: (() -> Unit)? = null,
 ) {
     var index by remember { mutableIntStateOf(0) }
     // Live: advance when the head turn is detected (ML Kit yaw). Demo: advance on a timer.
@@ -432,79 +298,18 @@ fun TurnHeadScreen(
         onDone()
     }
     val dir = order[index]
-    TurnHeadContent(dir, index, order.size, onExit, onDebugSkip, returnToCenter = true)
+    TurnHeadContent(dir, onExit)
 }
 
 /** The latest demo's camera layout, shared with each server-scheduled head segment. */
 @Composable
 private fun TurnHeadContent(
-    dir: TurnDir?, index: Int, total: Int, onExit: () -> Unit,
-    onDebugSkip: (() -> Unit)? = null,
-    returnToCenter: Boolean = false,
+    dir: TurnDir?, onExit: () -> Unit,
 ) {
-    val shift = if (Vc.motion.enabled) {
-        val nudge = rememberInfiniteTransition(label = "turn-nudge")
-        val value by nudge.animateFloat(0f, 1f,
-            infiniteRepeatable(tween(700, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "turn-shift")
-        value
-    } else 0f
-    CameraScaffold(onExit) {
-        Box(Modifier.fillMaxSize()) {
-            FullCamera()
-            CameraArea { oval ->
-                Text(
-                    when (dir) {
-                        TurnDir.Left -> "Quay sang trái"
-                        TurnDir.Right -> "Quay sang phải"
-                        null -> "Nhìn thẳng"
-                    },
-                    style = VcType.titleMedium,
-                    color = Color.White,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(top = 18.dp),
-                )
-                val sign = if (dir == TurnDir.Left) -1 else 1
-                val x = if (dir == TurnDir.Left) oval.left - 28.dp else oval.left + oval.width - 36.dp
-                if (dir != null) Box(
-                    Modifier.offset(x = x + (8 * shift * sign).dp, y = oval.centerY - 32.dp).size(64.dp)
-                        .clip(CircleShape).background(Palette.LogoNavy.copy(alpha = 0.55f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        if (dir == TurnDir.Left) Icons.AutoMirrored.Outlined.ArrowBack else Icons.AutoMirrored.Outlined.ArrowForward,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(32.dp),
-                    )
-                }
-                Column(
-                    Modifier.fillMaxWidth().offset(y = oval.bottom + 24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                ) {
-                    GuidanceChip(when {
-                        dir == null -> "Giữ yên, nhìn thẳng vào camera"
-                        returnToCenter -> "Quay chậm, sau đó nhìn thẳng"
-                        else -> "Quay chậm theo hướng mũi tên"
-                    })
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        repeat(total) { i ->
-                            Box(Modifier.size(6.dp).clip(CircleShape).background(if (i == index) Color.White else Color.White.copy(alpha = 0.35f)))
-                            if (i == index) Text("${index + 1} / $total", style = VcType.labelXs, color = Color.White)
-                        }
-                    }
-                }
-                if (onDebugSkip != null) DebugButton("Bỏ qua (debug)", onDebugSkip, Modifier.align(Alignment.BottomCenter).padding(bottom = 56.dp))
-                Text(
-                    "Camera đang ghi hình. Bạn không cần bấm chụp.",
-                    style = VcType.bodySmall,
-                    color = Color.White.copy(alpha = 0.85f),
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter).padding(bottom = 24.dp),
-                )
-            }
-        }
-    }
+    FaceCaptureSurface(
+        title = when (dir) { TurnDir.Left -> "Quay sang trái"; TurnDir.Right -> "Quay sang phải"; null -> "Nhìn thẳng" },
+        hint = "Giữ nguyên vị trí điện thoại", onStop = onExit, direction = dir,
+    )
 }
 
 // ── Live FLOW-01 schedule: the whole face part on one recording ─────────────
@@ -580,54 +385,21 @@ fun FaceTimelineScreen(
 /** Shared presentation, independently snapshot-tested without opening a camera or starting work. */
 @Composable
 fun FaceChallengeContent(timeline: FaceTimeline, phase: FaceTimeline.Phase, onStop: () -> Unit) {
-    StableCameraScene {
-        when (phase) {
-            is FaceTimeline.Phase.Colour -> HoldStillScreen(
-                onStop, {}, auto = false, slots = timeline.slots, frozenSlot = phase.slot,
-            )
-            FaceTimeline.Phase.Gap, is FaceTimeline.Phase.Gaze ->
-                TimelineGaze(phase as? FaceTimeline.Phase.Gaze, onStop)
-            is FaceTimeline.Phase.Head ->
-                TurnHeadContent(phase.dir, phase.segment, timeline.headTurns.size, onStop)
-            FaceTimeline.Phase.Done ->
-                TurnHeadContent(null, timeline.headTurns.lastIndex.coerceAtLeast(0), timeline.headTurns.size, onStop)
-        }
-    }
-}
-
-/** The dot moves over the whole screen: x/y are fractions of this area, not of the camera image. */
-@Composable
-private fun TimelineGaze(gaze: FaceTimeline.Phase.Gaze?, onStop: () -> Unit) {
-    SystemBarIcons(Color.White)
-    CompositionLocalProvider(LocalVcColors provides LightColors) {
-      BoxWithConstraints(Modifier.fillMaxSize().background(Color.White)) {
-        Column(Modifier.fillMaxWidth().statusBarsPadding()) {
-            TopBar(onStop)
-            StepProgress(2, stepLabel(2))
-            Text(
-                "Giữ đầu yên, chỉ đưa mắt theo chấm sáng",
-                style = VcType.titleMedium,
-                color = Palette.Ink,
-                modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 128.dp, top = 20.dp),
-            )
-        }
-        Box(Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 132.dp, end = 16.dp)
-            .size(width = 96.dp, height = 128.dp).clip(RoundedCornerShape(14.dp))
-            .border(2.dp, Palette.Border, RoundedCornerShape(14.dp))) { CameraFeed() }
-        Button(onStop, modifier = Modifier.align(Alignment.BottomCenter)
-            .navigationBarsPadding().padding(20.dp).fillMaxWidth().height(52.dp),
-            shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Palette.Primary),
-        ) { Text("Dừng", style = VcType.cameraButton) }
-        if (gaze != null) {
-            val x = maxWidth * gaze.x.toFloat()
-            val y = maxHeight * gaze.y.toFloat()
-            Box(
-                Modifier.offset(x = x - 24.dp, y = y - 24.dp).size(48.dp).clip(CircleShape)
-                    .background(Palette.Primary.copy(alpha = 0.18f)),
-                contentAlignment = Alignment.Center,
-            ) { Box(Modifier.size(28.dp).clip(CircleShape).background(Palette.Primary)) }
-        }
-      }
-    }
+    val colour = (phase as? FaceTimeline.Phase.Colour)?.let { timeline.slots[it.slot] }
+    val gaze = phase as? FaceTimeline.Phase.Gaze
+    val head = phase as? FaceTimeline.Phase.Head
+    val light = colour != null || phase == FaceTimeline.Phase.Gap || gaze != null
+    FaceCaptureSurface(
+        title = when {
+            gaze != null -> "Đưa mắt theo chấm"
+            head?.dir == TurnDir.Left -> "Quay sang trái"
+            head?.dir == TurnDir.Right -> "Quay sang phải"
+            else -> "Giữ yên, nhìn thẳng"
+        },
+        hint = if (gaze != null) "Giữ đầu yên, chỉ di chuyển mắt" else "Giữ nguyên vị trí điện thoại",
+        onStop = onStop, light = light,
+        background = colour?.let { Color(ColorSchedule.parse(it.rgb)) } ?: if (light) Color.White else Palette.CameraBg,
+        progress = (phase as? FaceTimeline.Phase.Colour)?.let { (it.slot + 1f) / timeline.slots.size.coerceAtLeast(1) },
+        direction = head?.dir, gaze = gaze?.let { Offset(it.x.toFloat(), it.y.toFloat()) },
+    )
 }

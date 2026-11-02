@@ -50,6 +50,17 @@ nguyên vẹn, không cắt chuỗi để biến thành số/mã hợp lệ. Dá
 Trợ giúp hoạt động local; mở hoặc đóng không đồng ý điều khoản, gửi dữ liệu
 hay bỏ qua bước. Có nút đóng rõ ràng để không phụ thuộc thao tác kéo.
 
+## Điều chỉnh sau test thiết bị (APP-11)
+
+Áp dụng mẫu progressive disclosure của bottom sheet/material-dialogs cho mục
+nhạy cảm ánh sáng: chỉ mở giải thích khi người dùng chọn, đóng sheet không
+thoát phiên. Không hứa có phương thức thay thế nếu backend chưa cung cấp.
+Three.js dùng như phần trang trí 3 giây, bỏ player và tab khỏi luồng xác minh.
+Rà lại bằng skill `ui-ux-pro-max`: giới hạn chuyển động trang trí, giữ layout
+ổn định, nội dung ngắn và nút native. Không thêm dependency từ danh mục chỉ
+để có thêm hiệu ứng. Camera dùng bố cục chung để giữ mặt/oval không nhảy;
+đối chiếu [CameraX PreviewView](https://developer.android.com/media/camera/camerax/preview).
+
 ## Setup
 
 Không cần clone danh mục để build app. Gradle tự tải dependency:

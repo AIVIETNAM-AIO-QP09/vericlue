@@ -1,27 +1,25 @@
 package vn.vericlue.app
 
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Size
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
+import org.junit.Assert.*
 import org.junit.Test
-import vn.vericlue.app.ui.components.previewTransform
+import vn.vericlue.app.ui.components.faceGuideRect
 
 class PreviewTransformTest {
-    @Test fun fillsEachWindowWithoutStretchingTheFace() {
-        val host = Size(400f, 800f)
-        for (window in listOf(Rect(114f, 170f, 286f, 398f), Rect(288f, 130f, 384f, 258f), Rect(0f, 100f, 400f, 780f))) {
-            val t = previewTransform(host, window)
-            val w = host.width * t.scale
-            val h = host.height * t.scale
-            assertTrue(w >= window.width && h >= window.height)
-            assertEquals(host.width / host.height, w / h, 0.0001f)
-            assertEquals(window.center.x, host.width / 2 + t.x, 0.0001f)
-            assertEquals(window.center.y, host.height / 2 + t.y, 0.0001f)
+    @Test fun guideFitsBetweenReadingAndActionAreas() {
+        for (scale in listOf(1f, 2f)) {
+            for (density in listOf(1f, 3f)) {
+                val r = faceGuideRect(375f * density, 812f * density, density, scale, 24f * density, 24f * density)
+                assertEquals(1.32f, r.height / r.width, 0.001f)
+                assertEquals(375f * density / 2, r.center.x, 0.01f)
+                assertTrue(r.top >= (24 + 128 + 32 * scale) * density)
+                assertTrue(r.bottom <= (812 - 24 - 84 - 32 * scale) * density)
+            }
         }
     }
-
-    @Test fun unmeasuredPreviewIsNotScaledToZero() {
-        assertEquals(1f, previewTransform(Size.Zero, Rect.Zero).scale, 0f)
+    @Test fun shortWindowStillHasAVisibleUndistortedGuide() {
+        val r = faceGuideRect(812f, 375f, 1f, 1f, 0f, 0f)
+        assertTrue(r.width > 0 && r.height > 0)
+        assertTrue(r.left >= 0 && r.right <= 812 && r.top >= 0 && r.bottom <= 375)
+        assertEquals(1.32f, r.height / r.width, 0.001f)
     }
 }

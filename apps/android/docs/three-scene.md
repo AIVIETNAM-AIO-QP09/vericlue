@@ -3,24 +3,25 @@
 ## Cách tích hợp
 
 Three.js là JavaScript, app vẫn dùng Kotlin/Compose. `IdentityScene3D`
-nhúng WebView trang trí ở bốn màn. `SceneExplorer` dùng nút chọn native để
-đổi cảnh trong cùng một renderer, không nạp lại trang. Cảnh tự
+nhúng WebView trang trí ở bốn màn. Theo phản hồi test thiết bị, không có
+tab/chọn cảnh/xem lại/tạm dừng trong app. Cảnh tự
 tạo bằng hình học: thẻ, đầu mannequin, micro, khiên/khóa và huy hiệu;
 không dùng ảnh, mô hình 3D tải ngoài, dữ liệu định danh hoặc kết quả xác minh.
 Không dùng 3D trên camera, gaze, nháy màu hoặc màn chờ kết quả.
 
 | Vị trí | Cảnh và mục đích |
 |---|---|
-| Màn bắt đầu | Chọn thẻ/khuôn mặt/giọng nói để xem trước hành trình; không thu dữ liệu |
+| Màn bắt đầu | Thẻ căn cước 3D trang trí trong hero gọn |
 | Đồng ý dữ liệu | Khiên/khóa minh họa phần quyền chủ động; không tự đồng ý hay hứa mức bảo mật mới |
-| Chuẩn bị khuôn mặt | Chọn giữ thẳng/đưa mắt/quay đầu; mô hình minh họa tách khỏi camera và lịch thử thách thật |
+| Chuẩn bị khuôn mặt | Khuôn mặt 3D trang trí; hướng dẫn thao tác là chữ native ngắn |
 | Thành công | Huy hiệu nổi và điểm sáng; chỉ được gọi từ màn kết quả đã có, không quyết định kết quả |
 
 `illustrations.js` chứa bảy cảnh tự dựng bằng `ExtrudeGeometry`, đường cong
 `TubeGeometry`, vật liệu/ánh sáng và nhóm chuyển động. Lưới micro, dải âm và
 điểm sáng dùng `InstancedMesh`. Sóng âm là minh họa, không nối micro. Khi đổi
 cảnh, geometry/material/instance cũ được dispose; ánh sáng/camera/renderer dùng
-chung. Chuyển cảnh có nhịp xuất hiện ngắn, mỗi lựa chọn có lời giải thích native.
+chung. Bộ bảy cảnh còn ở trang review cho người phát triển; app chỉ dùng bốn
+cảnh phù hợp từng màn. Các nút điều khiển trong trang review không phải UI app.
 Tham khảo API upstream [InstancedMesh r170](https://github.com/mrdoob/three.js/blob/r170/docs/api/en/objects/InstancedMesh.html)
 và [quản lý tài nguyên](https://github.com/mrdoob/three.js/blob/r170/manual/en/cleanup.html);
 không chép các scene/ví dụ của tài liệu.
@@ -47,12 +48,11 @@ Không cần npm hoặc CDN để build/chạy app, không clone ví dụ/model 
 - WebView chặn network/file/content access, mixed content, popup và quyền web;
   CSP chỉ cho script/style local. Không có `addJavascriptInterface`, lưu trữ DOM
   hoặc dữ liệu phiên. Native chỉ đọc trạng thái, gửi tên enum cố định, boolean
-  theme/chạy/dừng và lệnh xem lại; không đưa nội dung người dùng vào JavaScript.
+  theme/chạy/dừng theo lifecycle; không đưa nội dung người dùng vào JavaScript.
 - Cảnh không nhận touch/focus hoặc xuất hiện trong cây trợ năng; kéo cuộn đi
   qua vùng minh họa vẫn do giao diện Compose xử lý. Nội dung/nút chính là native.
-- Đặt pixel ratio tối đa 1,5, nhắm tối đa khoảng 30 lần vẽ mỗi giây. Cảnh hướng
-  dẫn chạy tối đa 6 giây mỗi lựa chọn/xem lại, có nút tạm dừng/tiếp tục; cảnh
-  quyền riêng tư/thành công chỉ chạy 3 giây rồi tĩnh. Không có shadow map/postprocessing.
+- Đặt pixel ratio tối đa 1,5, nhắm tối đa khoảng 30 lần vẽ mỗi giây; tất cả cảnh
+  tự chạy tối đa 3 giây rồi tĩnh. Không có shadow map/postprocessing.
 - Tạm dừng khi app ra nền hoặc vùng minh họa ra ngoài vùng nhìn; hủy tài nguyên
   khi rời màn. Tắt chuyển động ở Android thì dùng hình native ngay, không tạo WebView.
 - Hình native luôn có lúc chờ nạp; thiếu WebView/WebGL, timeout nạp 3,5 giây,
@@ -83,9 +83,9 @@ enum không hợp lệ và tài nguyên sau dispose. Ảnh/kết quả ở `tmp/
 Preview tự chứa `tmp/app11-ui/three/index.html` mở trực tiếp từ file, chạy
 cùng thư viện/cảnh qua Blob URL, không CDN. Preview này không dùng policy
 WebView của APK. Paparazzi chỉ kiểm bố cục/hình native dự phòng.
-`SceneExperienceSnapshotTest` kiểm ba lựa chọn, đúng một lựa chọn được đánh dấu,
-vùng chạm 48dp, giữ lời hướng dẫn khi không có WebGL và tắt nút chuyển động
-khi giảm chuyển động; có ảnh 375dp, chữ 200%, ngang và hai theme.
+`SceneExperienceSnapshotTest` kiểm không có tab/nút player/lời thuyết minh 3D
+trong UI và không có cảnh báo đổi màu trong chuẩn bị đăng nhập thụ động;
+có ảnh 375dp, chữ 200%, ngang và hai theme.
 
 Trên điện thoại cần kiểm: scene hiện và cuộn không bị giữ, chuyển nền/quay lại,
 tắt chuyển động, rời màn trước khi nạp xong, WebView cũ và máy ít bộ nhớ.
