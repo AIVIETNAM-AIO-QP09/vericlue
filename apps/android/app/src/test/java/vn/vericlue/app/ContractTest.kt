@@ -26,6 +26,11 @@ import vn.vericlue.app.data.api.StepAck
 import vn.vericlue.app.data.api.VoiceResponse
 import vn.vericlue.app.data.api.SignedResult
 import vn.vericlue.app.data.api.SigningKey
+import vn.vericlue.app.data.api.PrivacyConsentRequest
+import vn.vericlue.app.data.api.PrivacyWithdrawalRequest
+import vn.vericlue.app.data.api.SessionPrivacyState
+import vn.vericlue.app.data.api.AccountTemplateConsentRequest
+import vn.vericlue.app.data.api.AccountTemplatePrivacyState
 
 /**
  * AGENTS.md §6 rule 1: the app's models must match packages/contracts. Reads the JSON Schema
@@ -37,6 +42,9 @@ class ContractTest {
     ).jsonObject["\$defs"]!!.jsonObject
     private val resultDefs: JsonObject = Json.parseToJsonElement(
         File("../../../packages/contracts/schemas/result.schema.json").readText(),
+    ).jsonObject["\$defs"]!!.jsonObject
+    private val privacyDefs: JsonObject = Json.parseToJsonElement(
+        File("../../../packages/contracts/schemas/privacy.schema.json").readText(),
     ).jsonObject["\$defs"]!!.jsonObject
 
     private fun props(def: JsonObject): Set<String> = def["properties"]?.jsonObject?.keys.orEmpty()
@@ -80,6 +88,11 @@ class ContractTest {
         checkResponse("DeviceProofResponse", DeviceProofResponse.serializer())
         checkRequest(defs["CreateSessionRequest"]!!.jsonObject, "CreateSessionRequest", CreateSessionRequest.serializer())
         checkRequest(defs["DeviceProofRequest"]!!.jsonObject, "DeviceProofRequest", DeviceProofRequest.serializer())
+        checkResponse("PrivacyState", SessionPrivacyState.serializer(), privacyDefs)
+        checkResponse("AccountTemplatePrivacyState", AccountTemplatePrivacyState.serializer(), privacyDefs)
+        checkRequest(privacyDefs["PrivacyConsentRequest"]!!.jsonObject, "PrivacyConsentRequest", PrivacyConsentRequest.serializer())
+        checkRequest(privacyDefs["PrivacyWithdrawalRequest"]!!.jsonObject, "PrivacyWithdrawalRequest", PrivacyWithdrawalRequest.serializer())
+        checkRequest(privacyDefs["AccountTemplateConsentRequest"]!!.jsonObject, "AccountTemplateConsentRequest", AccountTemplateConsentRequest.serializer())
     }
 
     @Test

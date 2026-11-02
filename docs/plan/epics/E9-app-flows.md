@@ -90,6 +90,18 @@ theo mẫu đăng ký/SEC-02 hoặc nghiệm thu Android. Chi tiết vận hành
 |---|---|---|---|---|
 | M1 (+M3) | 1 | S1 | P0 | CAP-06 |
 
+**31/10 — policy trình diễn thủ công:** opt-in riêng PAD/GenD/identity, model
+thật với ngưỡng thử nghiệm, namespace và hash policy riêng; không giả artifact
+hiệu chỉnh hoặc probability. API vẫn review, marker riêng cho app hiển thị kết
+quả có nhãn demo. Không mở account/proof/credential hoặc đổi thresholds.yaml.
+Không là nghiệm thu toàn task. Xem [runbook](../../runbooks/manual-face-demo.md).
+
+**31/10 — sửa góc thoáng qua:** head rules0.2 không phủ quyết video chỉ vì
+một mẫu yaw vượt50°. Mẫu đó không cung cấp bằng chứng giữ; vẫn kiểm coverage,
+gap/biên, baseline/thứ tự và chốt tilt. API chỉ cho retry chất lượng một lần
+khi các chốt khác phù hợp; giữ error hiệu chỉnh và mọi quyết định không đạt.
+Test tổng hợp, chưa nghiệm thu toàn luồng; không đổi ngưỡng hay kết luận 3D.
+
 **Mục tiêu:** làm bước B3 và ADR-0013 mục 6.
 
 **Đầu ra:**
@@ -103,11 +115,13 @@ theo mẫu đăng ký/SEC-02 hoặc nghiệm thu Android. Chi tiết vận hành
 - [x] Chọn ba khung từ video theo timestamp server, kiểm lại tư thế trên đúng pixel, so mặt trong RAM; lỗi/thiếu/trùng khung không được đạt.
 - [x] Đưa đúng ba khung đã chọn vào GenD trong RAM; trả điểm deepfake riêng, version lấy mẫu riêng, không dùng nhầm calibrator video cũ.
 - [x] Tùy chọn FS-VFM-L FAS trên cùng khung RAM; nạp checkpoint gốc có kiểm SHA, điểm PAD thô riêng, không dùng ngưỡng cũ hay thay MiniFASNet của API.
+- [x] Công cụ đo/fit đúng protocol phiên, kiểm provenance/chia người và giữ mẫu lỗi; adapter nhận calibrator fitted đúng full version, từ chối identity/provisional/sai version. Chỉ test tổng hợp; chưa có artifact thực và chưa mở guard.
 - [ ] Test mặt phẳng (biến đổi homography) và kiểm chứng chiều sâu vật lý.
 
 **Lát cắt backend 24/10 (Codex, doing):** `head_turn` dùng reader MediaPipe,
 chỉ kiểm chuyển động/thứ tự/thời gian từ video với lịch server gắn phiên/lượt.
-Lịch hiện hành 6 giây theo LIVE-01; các hằng góc/giữ tư thế là thử nghiệm.
+Lượt mới dùng lịch v2 12 giây (4 giây/hướng) từ 30/10; vẫn nhận v1 6 giây.
+Các hằng góc/giữ tư thế là thử nghiệm và không đổi trong lần kéo dài lịch.
 Đã có chuỗi offline lấy ảnh chính diện/nghiêng trong RAM cho LVFace và GenD
 (bật tùy chọn), và PAD FS-VFM-L FAS FP32. PAD dùng SCRFD thay MTCNN, chưa có
 kiểm chứng tương đương/hiệu chỉnh trên dữ liệu thật. Chưa kiểm 3D, chưa nối quyết định API/retry hay sửa UI. Gate pass của module
@@ -276,6 +290,42 @@ cứng. Xem `media-proof.md` và `account-authentication.md`.
   tài khoản trên điện thoại thật vì server còn chặn sinh trắc account-bound (FLOW-05/SEC-02).
 
 ---
+
+**Cập nhật 31/10 — tập và giọng hướng dẫn:** thêm phần tập local tùy chọn trước
+chuẩn bị challenge, không ghi hình/API; bỏ qua chỉ bỏ phần tập. Giọng Việt đọc
+câu cố định, ưu tiên offline, bíp dự phòng nhỏ và khác nhau giữa quay/giữ/nhìn
+thẳng; dừng âm cũ khi đổi trạng thái hoặc ra nền. Oval mảnh, mũi tên chỉ hiện
+khi còn cần quay. Không đổi ngưỡng/lịch/guard server; chờ nghiệm thu người thật.
+Xem [runbook](../../runbooks/head-turn-coaching.md).
+
+**Phản hồi sáng31/10:** bỏ phần tập khỏi điều hướng theo yêu cầu người dùng.
+Giọng TTS thêm trace opt-in và probe phát câu thật; người dùng đang bận điện
+thoại nên nghe trực tiếp/chạy lượt mới còn chờ, không ghi đã khắc phục âm thanh.
+
+**Tiếp tục 31/10 — ngưỡng demo:** người dùng duyệt ngưỡng thủ công để quay video,
+model thật và yêu cầu tiêu đề “Xác minh thành công”. App chỉ dùng tiêu đề đó ở
+route riêng có nhãn “Demo · Ngưỡng chưa hiệu chỉnh”, không lưu tài khoản thật;
+mode/hash phải khớp từ tạo phiên tới finalize, camera tắt khi vào kết quả.
+Điện thoại đổi sang Samsung A04; chờ lượt nghiệm thu thật trên máy mới.
+
+**Cập nhật 30/10 — hướng dẫn quay đầu:** thêm nhắc nghiêng/cúi/ngẩng từ ML Kit
+trước khi báo xanh; oval riêng bước quay đầu rộng hơn, giữ vừa màn chữ lớn.
+Âm báo nhỏ/ngắn, bỏ âm cảnh báo và chống rung lặp cùng trạng thái trong đoạn.
+Không đổi quyết định server, timeline hoặc điều kiện hoàn thành toàn task;
+chờ người dùng nghiệm thu bản APK mới và dữ liệu hiệu chỉnh toàn luồng.
+
+
+**Rà soát 30/10 tối:** vẫn chưa nghiệm thu mắt/quay đầu; artifact video v2 còn
+thiếu. Kế hoạch giao Gemini:
+[ổn định presence](../../superpowers/plans/2026-10-30-presence-demo-stabilization-gemini.md).
+Đây là kế hoạch sửa và nghiệm thu, không phải xác nhận toàn luồng đã đạt.
+
+**Tiếp tục 30/10, 23:25 — Codex:** trace đã nối và có freshness guard;
+182 test Android và4544 test Python qua (80 skip). Lượt thật mới mắt đạt,
+đầu không mất mặt nhưng roll16,2° vượt giới hạn15°, chưa hoàn tất xác minh.
+Đã sửa cleanup trace qua media ACK sau khi mất trace lượt đầu; chờ paired
+trial khi người dùng sẵn sàng. Không đổi ngưỡng hoặc đánh dấu toàn luồng đạt.
+Xem [runbook](../../runbooks/presence-phone-diagnostics.md).
 
 ### APP-07 · Đồng bộ UI phần mặt giữa Giả lập và API
 
@@ -738,6 +788,7 @@ Không gộp receipt binding/device proof/media signing (SEC-02). Xem
 **Tiêu chí hoàn thành:**
 - [x] Test: hai phiên có gói/mã khác nhau; gửi lại cùng bước hoặc mã lượt cũ bị từ chối (409).
 - [x] Hợp đồng, API và type web khớp nhau (`gen_openapi --check`).
+- [x] Lịch mới v2/12000 ms đồng bộ API–ML–Android, chặn cặp chéo và tách version hiệu chỉnh; giữ v1/6000. Android có đếm ngược/hướng tiếp theo. Chưa nâng cấp iOS hoặc nghiệm thu đạt toàn luồng thật.
 
 **Cập nhật 24/10 — nền backend (`doing`):** Gói có 8 màu an toàn dùng chung,
 đường chấm sáng 7 giây, thứ tự quay trái/phải rồi về giữa, câu đọc và mã lần đọc;

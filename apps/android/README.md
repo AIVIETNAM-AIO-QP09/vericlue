@@ -4,6 +4,85 @@
 
 ## Trạng thái
 
+**Review timestamp trước PR (01/11):** không suy thời gian chụp từ lúc giao frame.
+Camera chỉ chuyển đổi hai miền đồng hồ đã nhận diện và giữ tuổi khung; timestamp
+không hợp lệ/bất định bị bỏ trước phân tích hoặc ghi frame_times. Hướng dẫn quay
+đầu không đếm giữ hướng từ timestamp thiếu, tương lai hoặc khung quá cũ. Có test
+đồng hồ REALTIME/UNKNOWN và khung lặp; vẫn cần nghiệm thu thực trên thiết bị.
+
+**APP-01 / SEC-09 (01/11):** đồng ý lưu mẫu tài khoản mã hóa được ghi riêng với
+biên nhận, thời hạn 24 giờ; checkbox mặc định bỏ chọn. API kiểm trước trích mẫu và
+ghi danh. Android đối chiếu mode/policy cả finalize và voice, hiển thị nhãn
+“Demo · Ngưỡng chưa hiệu chỉnh” cho `manual_full_demo`. Có test và snapshot sáng/tối,
+font200%; chưa nghiệm thu đầy đủ trên điện thoại. Reauth chỉ đòi hỏi thành phần
+giọng khi thực sự chuyển sang bước giọng. Xem [bàn giao](../../docs/status/handoffs/2026-11-01-1015-app-01-ngoc-quang-codex.md).
+
+**APP-01 (31/10, ngưỡng demo):** Android nhận marker manual_demo/policy từ API,
+chỉ mở route riêng khi demo_complete và mode/hash khớp. Tiêu đề theo yêu cầu
+người dùng là “Xác minh thành công”, luôn kèm “Demo · Ngưỡng chưa hiệu chỉnh”
+và không đi qua tạo/lưu tài khoản thật. Camera tắt khi vào kết quả. Mặc định
+server không bật manual; xem [runbook](../../docs/runbooks/manual-face-demo.md).
+
+**APP-01 (31/10, sửa kiểm góc):** bỏ phần tập tự hiện trước xác minh theo phản hồi
+người dùng; chuẩn bị challenge và kiểm chất lượng như luồng trước khi thêm tập.
+API cho làm lại riêng phần mặt một lần với hint hiện có khi chỉ vướng chất lượng
+góc, giữ các chốt còn lại. Chưa phải nghiệm thu xác minh toàn luồng.
+Mũi tên dừng khi giữ đúng góc; oval mảnh và nền nhẹ hơn. Giọng Việt chỉ đọc các
+câu hướng dẫn cố định trong bước tập/quay đầu, ưu tiên giọng offline có sẵn,
+không tự tải gói giọng hay đổi cài đặt máy. Nếu chỉ có giọng cần mạng thì engine
+có thể gửi câu hướng dẫn cố định; không gửi ảnh/âm thanh hay thông tin người dùng.
+Tiếng báo nhỏ phân biệt quay/giữ/nhìn thẳng vẫn dự phòng khi TTS lỗi; dừng âm
+khi đổi hướng, thoát màn hoặc app về nền. Trace opt-in bổ sung sự kiện khởi tạo/
+nhận/phát xong câu TTS cố định để phân biệt lỗi phát trong luồng với test engine.
+Không đổi lịch ghi hình/ngưỡng server; nghe giọng trên máy vẫn chờ người dùng thử.
+Xem [hướng dẫn thử](../../docs/runbooks/head-turn-coaching.md).
+
+**APP-01 (30/10 tối, chẩn đoán góc mặt):** kết quả analyzer trễ hơn 300ms không
+được dùng đếm giữ hoặc giữ khung xanh; màn hướng dẫn tự kiểm tuổi kết quả mỗi
+100ms. Trace opt-in đã nối camera–timeline–hướng dẫn–chấm được vẽ, gắn digest
+đúng attempt, tắt mặc định/release. Bản kiểm tra dùng
+`-Pvericlue.presenceTrace=true`; dữ liệu số lưu private, giữ qua media ACK,
+xóa khi bỏ lượt/rút đồng ý/lượt mới và dọn theo hạn 15 phút. Không đổi thuật
+toán mắt/ngưỡng server. Hướng dẫn: [chẩn đoán điện thoại](../../docs/runbooks/presence-phone-diagnostics.md).
+
+**APP-01 (30/10, hướng dẫn quay đầu):** oval riêng bước quay đầu rộng hơn,
+co theo chiều cao khi chữ lớn; không đổi video ghi. Gợi ý ML Kit kiểm cả yaw,
+pitch/roll (biên nhắc nhở 12°), không báo xanh khi góc không hữu hạn hoặc đầu
+nghiêng/cúi quá mức. Bộ đếm giữ bắt đầu lại khi nhịp đo gián đoạn trên 300 ms
+hoặc thời gian không tăng. Âm báo chuyển bước/giữ đủ ngắn ở mức 35/100, không phát
+âm cảnh báo; mỗi trạng thái chỉ rung một lần trong đoạn. Tín hiệu giữ đủ là
+hướng dẫn local, không phải kết quả API. Không đổi ngưỡng server; hai bộ ước
+lượng góc khác nhau và chưa có bằng chứng nghiệm thu toàn luồng.
+
+**APP-01 / LIVE-01 (30/10, quay đầu chậm hơn):** backend phát dynamic v2,
+12000 ms cho ba hướng, mỗi hướng 4 giây. App kiểm cặp version/duration, giới
+hạn 30 giây và offset giọng; vẫn nhận v1/6000 ms. Hiện đếm ngược và hướng tiếp
+theo, giữ một video liên tục và cùng gốc thời gian. Không thêm thời gian chờ
+vào lịch, hiệu ứng camera hoặc TTS. Bắt đầu phiên mới sau cập nhật để thử v2.
+Không đổi ngưỡng xác minh; lượt vẫn có thể review do dữ liệu/hiệu chỉnh chưa đủ.
+Phiên bản này chưa cập nhật iOS.
+
+**APP-01 / SEC-09 (30/10):** màn đồng ý tạo phiên đúng purpose/khóa, đọc version
+privacy và ghi lựa chọn theo nhóm trước OTP/CCCD/camera/micro. Chỉ chấp nhận
+receipt đúng phiên/phạm vi/version; policy đổi không tự grant. Thông báo đóng
+gói hiện là `demo-v1`. Đăng nhập lại có binding đi từ đồng ý tới L0/mặt, không
+OTP; khôi phục có binding bỏ CCCD sau OTP và dùng mẫu tài khoản theo API hiện có.
+Guard sinh trắc account-bound vẫn giữ 503, chưa phải nghiệm thu đăng nhập thật.
+
+Chọn dừng ở phiên API có thêm thao tác rút đồng ý. Camera/micro dừng, các bước
+upload mới bị chặn; refresh token đang chạy được nhận đầy đủ trước withdrawal.
+Lỗi giữ ngữ cảnh để retry; có thể về màn đầu với thông báo chưa xác nhận xóa.
+Receipt thành công dọn dữ liệu local và bỏ back stack cũ. Không hứa xóa mẫu tài
+khoản/backup/chứng nhận. Màn thành công chỉ dẫn tới mở tài khoản khi receipt/alias
+đã lưu bền; thiếu receipt hoặc lỗi lưu chỉ xác nhận hoàn tất phiên.
+
+Đoạn cập nhật 30/10 ở trên mô tả consent **xử lý theo phiên**. Từ 01/11 có thêm
+hợp đồng lưu mẫu tài khoản riêng; không suy diễn quyền đó từ `face_biometrics`.
+OTP vẫn mô phỏng với `SIMULATED_OTP=true` trong `synthetic`, độc lập chế độ AI.
+Khi SESSION_FACE_MODELS bật, Quality SCRFD/CamProbe rules cũng chạy thật dù OTP vẫn demo. Môi trường/model nạp được không chứng minh chất lượng AI. Artifact hiệu chỉnh
+đúng protocol video và nghiệm thu máy thật còn thiếu; không mở guard hoặc dùng
+calibrator tạm của pipeline cũ để ép đạt.
+
 APP-10: quét thẻ yêu cầu ảnh phân tích tối đa 1920×1440, fallback theo khả năng
 CameraX/thiết bị; camera trước dùng cấu hình cũ. Bước lấy QR không chạy thêm
 face detector. ML Kit trả cả vùng nghi là QR và có thể đề nghị zoom; chỉ bước

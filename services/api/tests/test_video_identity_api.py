@@ -133,3 +133,12 @@ def test_opt_in_detectors_share_one_task_owner():
     )
     for module in (Module.FACE_MATCH, Module.GAZE_TRACKING, Module.HEAD_TURN):
         assert orchestrator._default_detector(module).reader is orchestrator._face_reader
+
+
+def test_video_identity_selects_real_matcher_without_card_scanner():
+    from vericlue_api.core.config import Settings
+
+    orchestrator = orchestration.Orchestrator(
+        Settings(identity_card_enabled=False, identity_face_from_video=True)
+    )
+    assert isinstance(orchestrator._default_detector(Module.FACE_MATCH), VideoFaceMatchDetector)

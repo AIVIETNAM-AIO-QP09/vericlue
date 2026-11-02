@@ -606,6 +606,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/sessions/{session_id}/privacy/account-template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Account Template Privacy */
+        get: operations["get_account_template_privacy_v1_sessions__session_id__privacy_account_template_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sessions/{session_id}/privacy/account-template/consent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Grant Account Template Consent */
+        post: operations["grant_account_template_consent_v1_sessions__session_id__privacy_account_template_consent_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/sessions/{session_id}/privacy/consent": {
         parameters: {
             query?: never;
@@ -706,6 +740,55 @@ export interface components {
              * Format: date-time
              */
             expires_at: string;
+        };
+        /** AccountTemplateConsentRequest */
+        AccountTemplateConsentRequest: {
+            /**
+             * Consent
+             * @constant
+             */
+            consent: true;
+            /** Policy Version */
+            policy_version: string;
+            /**
+             * Purpose
+             * @constant
+             */
+            purpose: "account_template";
+        };
+        /** AccountTemplatePrivacyState */
+        AccountTemplatePrivacyState: {
+            /** Consent Receipt Id */
+            consent_receipt_id?: string | null;
+            /** Consented At */
+            consented_at?: string | null;
+            /** Policy Version */
+            policy_version: string;
+            /**
+             * Purpose
+             * @default account_template
+             * @constant
+             */
+            purpose: "account_template";
+            /**
+             * Retention Seconds
+             * @default 86400
+             * @constant
+             */
+            retention_seconds: 86400;
+            /**
+             * Scope
+             * @default account_template
+             * @constant
+             */
+            scope: "account_template";
+            /** Session Id */
+            session_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "not_granted" | "granted" | "withdrawn";
         };
         /** AuditVerification */
         AuditVerification: {
@@ -885,7 +968,15 @@ export interface components {
         /** CreateSessionResponse */
         CreateSessionResponse: {
             challenge: components["schemas"]["Challenge"];
+            /** Demo Policy Id */
+            demo_policy_id?: string | null;
             device_challenge?: components["schemas"]["DeviceChallenge"] | null;
+            /**
+             * Evaluation Mode
+             * @default standard
+             * @enum {string}
+             */
+            evaluation_mode: "standard" | "manual_demo" | "manual_full_demo";
             /**
              * Expires At
              * Format: date-time
@@ -999,9 +1090,9 @@ export interface components {
             gaze_points: components["schemas"]["GazePoint"][];
             /**
              * Head Duration Ms
-             * @constant
+             * @enum {integer}
              */
-            head_duration_ms: 6000;
+            head_duration_ms: 6000 | 12000;
             /** Head Start At Ms */
             head_start_at_ms: number;
             /** Head Turns */
@@ -1012,9 +1103,9 @@ export interface components {
             session_id: string;
             /**
              * Version
-             * @constant
+             * @enum {integer}
              */
-            version: 1;
+            version: 1 | 2;
             /** Voice Challenge Id */
             voice_challenge_id: string;
             /** Voice Prompt */
@@ -1052,6 +1143,19 @@ export interface components {
             attempts_left?: number | null;
             /** @description Chỉ có khi status = retry */
             challenge?: components["schemas"]["Challenge"] | null;
+            /**
+             * Demo Complete
+             * @default false
+             */
+            demo_complete: boolean;
+            /** Demo Policy Id */
+            demo_policy_id?: string | null;
+            /**
+             * Evaluation Mode
+             * @default standard
+             * @enum {string}
+             */
+            evaluation_mode: "standard" | "manual_demo" | "manual_full_demo";
             /** Retry Hint */
             retry_hint?: ("MORE_LIGHT" | "MOVE_CLOSER" | "MOVE_BACK" | "FACE_CENTER" | "HOLD_STILL" | "QUIET_PLACE" | "BRIGHTNESS_UP") | null;
             /**
@@ -1832,6 +1936,14 @@ export interface components {
             account?: components["schemas"]["AccountReceipt"] | null;
             /** Attempts Left */
             attempts_left?: number | null;
+            /** Demo Policy Id */
+            demo_policy_id?: string | null;
+            /**
+             * Evaluation Mode
+             * @default standard
+             * @enum {string}
+             */
+            evaluation_mode: "standard" | "manual_demo" | "manual_full_demo";
             /**
              * Status
              * @enum {string}
@@ -3782,6 +3894,180 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PrivacyState"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gone */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_account_template_privacy_v1_sessions__session_id__privacy_account_template_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountTemplatePrivacyState"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gone */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    grant_account_template_consent_v1_sessions__session_id__privacy_account_template_consent_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountTemplateConsentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountTemplatePrivacyState"];
                 };
             };
             /** @description Bad Request */

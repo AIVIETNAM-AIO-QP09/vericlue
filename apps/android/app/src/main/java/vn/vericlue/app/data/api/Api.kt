@@ -108,6 +108,8 @@ data class CreateSessionResponse(
     val purpose: String? = null,
     val nonce: String? = null,
     @SerialName("device_challenge") val deviceChallenge: DeviceChallenge? = null,
+    @SerialName("evaluation_mode") val evaluationMode: String = "standard",
+    @SerialName("demo_policy_id") val demoPolicyId: String? = null,
 )
 
 @Serializable
@@ -142,6 +144,9 @@ data class FinalizeResponse(
     @SerialName("attempts_left") val attemptsLeft: Int? = null,
     val challenge: Challenge? = null,
     @SerialName("voice_challenge_id") val voiceChallengeId: String? = null,
+    @SerialName("evaluation_mode") val evaluationMode: String = "standard",
+    @SerialName("demo_policy_id") val demoPolicyId: String? = null,
+    @SerialName("demo_complete") val demoComplete: Boolean = false,
 )
 
 @Serializable
@@ -151,6 +156,8 @@ data class VoiceResponse(
     @SerialName("attempts_left") val attemptsLeft: Int? = null,
     @SerialName("voice_challenge_id") val voiceChallengeId: String? = null,
     val account: AccountReceipt? = null,
+    @SerialName("evaluation_mode") val evaluationMode: String = "standard",
+    @SerialName("demo_policy_id") val demoPolicyId: String? = null,
 )
 
 @Serializable
@@ -236,6 +243,30 @@ class SessionApi(
     suspend fun accountReceipt(sessionId: String, token: String): ApiResult<AccountReceipt> =
         call(Request.Builder().url(url("v1", "sessions", sessionId, "account"))
             .header("Authorization", "Bearer $token").header("Cache-Control", "no-store").get().build())
+
+    suspend fun sessionPrivacy(sessionId: String, token: String): ApiResult<SessionPrivacyState> =
+        call(Request.Builder().url(url("v1", "sessions", sessionId, "privacy"))
+            .header("Authorization", "Bearer $token").header("Cache-Control", "no-store").get().build())
+
+    suspend fun grantSessionConsent(sessionId: String, token: String, consent: PrivacyConsentRequest): ApiResult<SessionPrivacyState> =
+        call(post(url("v1", "sessions", sessionId, "privacy", "consent"),
+            json.encodeToString(PrivacyConsentRequest.serializer(), consent).toRequestBody(JSON), token))
+
+    suspend fun withdrawSessionConsent(sessionId: String, token: String): ApiResult<SessionPrivacyState> =
+        call(post(url("v1", "sessions", sessionId, "privacy", "withdraw"),
+            json.encodeToString(PrivacyWithdrawalRequest.serializer(), PrivacyWithdrawalRequest(true)).toRequestBody(JSON), token))
+
+    suspend fun accountTemplatePrivacy(sessionId: String, token: String): ApiResult<AccountTemplatePrivacyState> =
+        call(Request.Builder().url(url("v1", "sessions", sessionId, "privacy", "account-template"))
+            .header("Authorization", "Bearer $token").header("Cache-Control", "no-store").get().build())
+
+    suspend fun grantAccountTemplateConsent(
+        sessionId: String,
+        token: String,
+        consent: AccountTemplateConsentRequest,
+    ): ApiResult<AccountTemplatePrivacyState> =
+        call(post(url("v1", "sessions", sessionId, "privacy", "account-template", "consent"),
+            json.encodeToString(AccountTemplateConsentRequest.serializer(), consent).toRequestBody(JSON), token))
 
     /** Forward to the integrator backend; do not decode and authorize based on payload alone. */
     suspend fun signedResult(sessionId: String, token: String): ApiResult<SignedResult> =

@@ -1,5 +1,6 @@
 """PLAT-08 bounded parallel detector execution with CPU-only fakes."""
 
+import asyncio
 import threading
 import time
 from collections import Counter
@@ -11,6 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
+from vericlue_api.core import state as application_state
 from vericlue_api.core.config import Settings, get_settings
 from vericlue_api.db.models import ModuleResultRow
 from vericlue_api.main import create_app
@@ -66,6 +68,21 @@ def build(detectors=None, *, timeout=0.1):
         detector_factory=factory,
     )
     return orchestrator, instances, constructed
+
+
+def test_video_identity_starts_and_runs_without_card_scanner():
+    instances = {module: FakeDetector(module) for module in Module}
+    orchestrator = Orchestrator(
+        Settings(identity_card_enabled=False, identity_face_from_video=True),
+        detector_factory=instances.__getitem__,
+    )
+    try:
+        orchestrator.start()
+        assert orchestrator.loaded_detector(Module.FACE_MATCH) is instances[Module.FACE_MATCH]
+        assert run(orchestrator, [Module.FACE_MATCH])[Module.FACE_MATCH].status == Status.OK
+        assert instances[Module.FACE_MATCH].calls == 1
+    finally:
+        orchestrator.close()
 
 
 def test_start_preloads_one_instance_once_and_runs_never_reload():
@@ -675,11 +692,31 @@ def test_three_concurrent_finalize_requests_all_pass_and_store_five_results(monk
 
 
 @pytest.mark.parametrize("step", ["finalize", "voice"])
-def test_sqlite_guarded_routes_pass_lock_timeout_and_consume_absolute_budget(monkeypatch, step):
+@pytest.mark.parametrize("admission_delay", [0, 0.35])
+def test_sqlite_guarded_routes_pass_lock_timeout_and_consume_absolute_budget(
+    monkeypatch, step, admission_delay
+):
     monkeypatch.setenv("INFERENCE_BUDGET_SECONDS", "0.25")
     get_settings.cache_clear()
     try:
-        with TestClient(create_app()) as client:
+        budget_origins = []
+        real_clock = application_state.perf_counter
+
+        def budget_clock():
+            now = real_clock()
+            budget_origins.append(now)
+            return now
+
+        monkeypatch.setattr(application_state, "perf_counter", budget_clock)
+        app = create_app()
+
+        @app.middleware("http")
+        async def delayed_admission(request, call_next):
+            if admission_delay and request.url.path.endswith(("/finalize", "/voice")):
+                await asyncio.sleep(admission_delay)
+            return await call_next(request)
+
+        with TestClient(app) as client:
             body = client.post("/v1/sessions").json()
             sid = body["session_id"]
             root = client.app.state.vericlue
@@ -725,7 +762,9 @@ def test_sqlite_guarded_routes_pass_lock_timeout_and_consume_absolute_budget(mon
             assert response.status_code == 200 and response.json() == {"status": "pass"}
             timeout, deadline = transaction_arguments[-1]
             assert timeout == root.settings.db_lock_timeout_seconds
-            assert before < deadline <= before + 0.3
+            # The inference budget starts in get_state, after HTTP admission/parsing.
+            assert before <= budget_origins[-1]
+            assert deadline == budget_origins[-1] + 0.25
             assert runner_arguments and runner_arguments[0][0] == deadline
             assert 0 < deadline - runner_arguments[0][1] < 0.23
             # Non-inference endpoints do not consume the inference deadline.

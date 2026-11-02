@@ -54,7 +54,31 @@ import vn.vericlue.app.BuildConfig
  * Also collects frame_times, region_means and the camprobe facts sent with the signals.
  * Not done yet: the dot path (waits for LIVE-01) and media signing (SEC-02).
  */
-class CameraSession(private val context: Context) {
+class CameraSession(
+    private val context: Context,
+    val debugTrace: PresenceDebugTrace = PresenceDebugTrace(enabled = BuildConfig.DEBUG && BuildConfig.PRESENCE_TRACE_ENABLED),
+) {
+    private val diagnosticCache = PresenceTraceCache(File(context.cacheDir, "presence-debug.json"))
+    init {
+        // Diagnostic data stays private and short-lived; never survives into a regular build.
+        diagnosticCache.prune()
+        if (!debugTrace.enabled) diagnosticCache.clear()
+    }
+
+    fun savePresenceDebugTrace() {
+        if (debugTrace.enabled) runCatching {
+            diagnosticCache.save(debugTrace)
+            val cache = diagnosticCache
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
+                { cache.prune() }, PresenceTraceCache.TTL_MS,
+            )
+        }
+    }
+
+    fun clearPresenceDebugTrace() {
+        debugTrace.clear()
+        diagnosticCache.clear()
+    }
     val controller = LifecycleCameraController(context)
     private val analysisExecutor = Executors.newSingleThreadExecutor()
     private val detector = FaceDetection.getClient(
@@ -128,6 +152,16 @@ class CameraSession(private val context: Context) {
 
     private var videoEnabled = false
     private var usedFallbackCamera = false
+    @Volatile private var realtimeTimestampSource = false
+
+    @androidx.annotation.OptIn(ExperimentalCamera2Interop::class)
+    private fun queryTimestampSource(): String = runCatching {
+        val info = controller.cameraInfo ?: return@runCatching "unknown"
+        when (Camera2CameraInfo.from(info).getCameraCharacteristic(CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE)) {
+            CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE_REALTIME -> "realtime"
+            else -> "unknown"
+        }
+    }.getOrDefault("unknown")
 
     /**
      * Opens the front camera (face part) or the rear camera (ID card, APP-04). Main thread only.
@@ -165,6 +199,7 @@ class CameraSession(private val context: Context) {
                 runCatching { controller.setZoomRatio(1f) }
                 lastQrZoomMs = 0L
                 lastCardDiagnosticMs = 0L
+                analyzedFrames = 0
                 return true
             }
         }
@@ -302,6 +337,8 @@ class CameraSession(private val context: Context) {
         if (!voice) {
             synchronized(frames) { frames.clear() }
             synchronized(regionFrames) { regionFrames.clear() }
+            debugTrace.clear()
+            diagnosticCache.clear()
             firstFrameNs = 0L
             recordingFrames = true
         }
@@ -377,9 +414,11 @@ class CameraSession(private val context: Context) {
         awaitVideoFile(videoFile, finalized, timeoutMs)
 
     /** Deletes every recorded video in the cache: once the server has it, or when the attempt is dropped. */
-    fun deleteVideo() {
+    fun deleteVideo(preserveDiagnostics: Boolean = false) {
+        diagnosticCache.mediaDeleted(preserveDiagnostics)
         videoFile = null
         finalized = null
+        debugTrace.clear()
         context.cacheDir.listFiles { f -> (f.name.startsWith("face_") || f.name.startsWith("voice_")) && f.name.endsWith(".mp4") }
             ?.forEach { it.delete() }
     }
@@ -417,9 +456,17 @@ class CameraSession(private val context: Context) {
             proxy.close()
             return
         }
-        if (analyzedFrames == 0) analysisStartMs = CaptureClock.nowMs()
+        if (analyzedFrames == 0) {
+            analysisStartMs = CaptureClock.nowMs()
+            realtimeTimestampSource = queryTimestampSource() == "realtime"
+        }
         analyzedFrames++
-        val ts = proxy.imageInfo.timestamp
+        val ts = CaptureClock.sensorTimestampToElapsedNanos(proxy.imageInfo.timestamp, realtimeTimestampSource)
+        if (ts <= 0L) {
+            _face.value = null
+            proxy.close()
+            return
+        }
         if (recordingFrames) {
             if (firstFrameNs == 0L) firstFrameNs = ts
             synchronized(frames) {
@@ -462,6 +509,8 @@ class CameraSession(private val context: Context) {
                             centerX = b.exactCenterX() / w,
                             centerY = b.exactCenterY() / h,
                             yaw = face.headEulerAngleY,
+                            pitch = face.headEulerAngleX,
+                            roll = face.headEulerAngleZ,
                             luma = luma,
                             timestampNs = ts,
                         )

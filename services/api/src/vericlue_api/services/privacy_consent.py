@@ -12,8 +12,19 @@ from sqlalchemy.orm import Session as DBSession
 from vericlue_api.core.config import Settings
 from vericlue_api.core.errors import ApiError
 from vericlue_api.core.session_tokens import token_digest
-from vericlue_api.db.models import PrivacyEventRow, SessionRow, aware, utcnow
-from vericlue_api.schemas.privacy import PrivacyConsentRequest, PrivacyState
+from vericlue_api.db.models import (
+    AccountTemplateConsentRow,
+    PrivacyEventRow,
+    SessionRow,
+    aware,
+    utcnow,
+)
+from vericlue_api.schemas.privacy import (
+    AccountTemplateConsentRequest,
+    AccountTemplatePrivacyState,
+    PrivacyConsentRequest,
+    PrivacyState,
+)
 from vericlue_api.services.session_privacy import SessionPrivacy
 from vericlue_api.services.session_store import Session, SessionStore
 from vericlue_api.services.storage import _delete_folder, _folder
@@ -128,6 +139,31 @@ def require_categories(db: DBSession, settings: Settings, session: Session, endp
         )
 
 
+def require_account_template_consent(db: DBSession, settings: Settings, session: Session) -> str:
+    """Enforce explicit user consent before extracting or storing an encrypted account template."""
+    session_id = session.session_id
+    require_session_active(db, session_id)
+    row = db.scalar(
+        select(AccountTemplateConsentRow).where(AccountTemplateConsentRow.session_id == session_id)
+    )
+    now = utcnow()
+    if row is not None and aware(row.recorded_at) > now:
+        raise ApiError(401, "unauthorized", "Thiếu hoặc sai token phiên.")
+    if (
+        row is None
+        or row.purpose != "account_template"
+        or row.retention_seconds != 86400
+        or row.policy_version != settings.account_template_policy_version
+        or (session.created_at is not None and aware(row.recorded_at) < aware(session.created_at))
+    ):
+        raise ApiError(
+            409,
+            "account_template_consent_required",
+            "Vui lòng đồng ý lưu mẫu khuôn mặt mã hóa để tạo tài khoản.",
+        )
+    return row.receipt_id
+
+
 class PrivacyService:
     def __init__(self, settings: Settings, db: DBSession) -> None:
         self.settings, self.db = settings, db
@@ -240,6 +276,106 @@ class PrivacyService:
         )
         self.db.flush()
         return self.state(session_id)
+
+    def account_template_state(self, session_id: str) -> AccountTemplatePrivacyState:
+        withdrawal = withdrawal_event(self.db, session_id)
+        if withdrawal is not None and aware(withdrawal.recorded_at) > utcnow():
+            raise ApiError(401, "unauthorized", "Thiếu hoặc sai token phiên.")
+        row = self.db.scalar(
+            select(AccountTemplateConsentRow).where(
+                AccountTemplateConsentRow.session_id == session_id
+            )
+        )
+        if row is not None and aware(row.recorded_at) > utcnow():
+            raise ApiError(401, "unauthorized", "Thiếu hoặc sai token phiên.")
+        policy = (
+            row.policy_version
+            if withdrawal is not None and row is not None
+            else self.settings.account_template_policy_version
+        )
+        granted = (
+            row is not None
+            and row.purpose == "account_template"
+            and row.retention_seconds == 86400
+            and row.policy_version == policy
+        )
+        return AccountTemplatePrivacyState(
+            session_id=session_id,
+            policy_version=policy,
+            status="withdrawn"
+            if withdrawal is not None
+            else "granted"
+            if granted
+            else "not_granted",
+            consent_receipt_id=row.receipt_id if granted else None,
+            consented_at=aware(row.recorded_at) if granted else None,
+        )
+
+    def grant_account_template(
+        self, session_id: str, token: str, body: AccountTemplateConsentRequest
+    ) -> AccountTemplatePrivacyState:
+        self.lock(session_id)
+        session = self.authorize(session_id, token)
+        if session is None:
+            raise withdrawn()
+        if session.purpose != "onboarding":
+            raise ApiError(409, "enrollment_not_available", "Phiên chưa thể hoàn tất ghi danh.")
+        if session.completed or session.case_id is not None:
+            raise ApiError(409, "session_closed", "Phiên đã kết thúc. Vui lòng bắt đầu lại.")
+        if body.policy_version != self.settings.account_template_policy_version:
+            raise ApiError(
+                409,
+                "account_template_policy_changed",
+                "Thông báo lưu mẫu khuôn mặt đã thay đổi. Vui lòng xem lại.",
+            )
+        if self.settings.require_privacy_consent:
+            events = self._events(session_id)
+            if any(aware(e.recorded_at) > utcnow() for e in events):
+                raise ApiError(401, "unauthorized", "Thiếu hoặc sai token phiên.")
+            granted_categories = {
+                c
+                for e in events
+                if e.kind == "consent" and e.policy_version == self.settings.privacy_policy_version
+                for c in e.categories
+            }
+            if not {"contact", "id_document", "face_biometrics", "voice_biometrics"}.issubset(
+                granted_categories
+            ):
+                raise ApiError(
+                    409,
+                    "privacy_consent_required",
+                    "Vui lòng xem và đồng ý mục xử lý dữ liệu phù hợp.",
+                )
+        now = utcnow()
+        if aware(session.token_expires_at) <= now:
+            raise ApiError(401, "unauthorized", "Thiếu hoặc sai token phiên.")
+        existing = self.db.scalar(
+            select(AccountTemplateConsentRow).where(
+                AccountTemplateConsentRow.session_id == session_id
+            )
+        )
+        if existing is not None:
+            if aware(existing.recorded_at) > now:
+                raise ApiError(401, "unauthorized", "Thiếu hoặc sai token phiên.")
+            if existing.policy_version != body.policy_version:
+                raise ApiError(
+                    409,
+                    "account_template_policy_changed",
+                    "Thông báo lưu mẫu khuôn mặt đã thay đổi. Vui lòng xem lại.",
+                )
+            return self.account_template_state(session_id)
+        self.db.add(
+            AccountTemplateConsentRow(
+                receipt_id="prv_" + secrets.token_hex(16),
+                session_id=session_id,
+                purpose="account_template",
+                policy_version=body.policy_version,
+                retention_seconds=86400,
+                recorded_at=now,
+            )
+        )
+        self.db.flush()
+        return self.account_template_state(session_id)
 
     def withdraw(self, session_id: str, token: str) -> None:
         self.lock(session_id)

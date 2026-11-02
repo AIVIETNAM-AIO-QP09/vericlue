@@ -22,6 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from vericlue_ml.common.detector import DetectorInput
 from vericlue_ml.common.device import check_onnx_session, onnx_providers
+from vericlue_ml.common.manual_demo import ManualDemoThresholds
 from vericlue_ml.common.result import ErrorCode, Evidence, Gate, Module, ModuleResult, Status
 from vericlue_ml.face.pad import (
     FaceFinder,
@@ -193,8 +194,10 @@ class FaceMatchDetector:
         embedder: Embedder | None = None,
         calibration_path: Path | None = None,
         consistency_path: Path | None = None,
+        manual_demo: ManualDemoThresholds | None = None,
     ) -> None:
         self.finder = finder
+        self.manual_demo = manual_demo
         self.embedder = embedder if embedder is not None else LVFaceEmbedder()
         self.calibration_path = calibration_path
         self.consistency_path = consistency_path
@@ -202,6 +205,9 @@ class FaceMatchDetector:
         self._threshold: MatchThreshold | None = None
         self._loaded = self._failed = False
         self._lock = RLock()
+
+    def _supported_versions(self) -> tuple[str, ...]:
+        return (self.version,)
 
     def preload(self, *, models_dir: Path | str | None = None, device: str | None = None) -> None:
         with self._lock:
@@ -218,19 +224,18 @@ class FaceMatchDetector:
                 if isinstance(self.embedder, LVFaceEmbedder):
                     self.embedder.preload(models_dir=models_dir, device=device)
                 artifact = self.calibration_path or os.environ.get("FACE_MATCH_CALIBRATION")
-                if artifact is not None:
+                if artifact is not None and self.manual_demo is None:
                     self._threshold = MatchThreshold.model_validate_json(
                         Path(artifact).read_text(encoding="utf-8")
                     )
-                    if self._threshold.model_version != self.version:
+                    if self._threshold.model_version not in self._supported_versions():
                         raise MatchError(ErrorCode.E_INTEGRITY)
-                if self.consistency_path is not None:
+                if self.consistency_path is not None and self.manual_demo is None:
                     self._consistency_threshold = MatchThreshold.model_validate_json(
                         self.consistency_path.read_text(encoding="utf-8")
                     )
-                    if (
-                        self._consistency_threshold.model_version
-                        != self.version + "+view-consistency-v1"
+                    if self._consistency_threshold.model_version not in tuple(
+                        v + "+view-consistency-v1" for v in self._supported_versions()
                     ):
                         raise MatchError(ErrorCode.E_INTEGRITY)
                 self._loaded = True
@@ -275,6 +280,7 @@ class FaceMatchDetector:
         frames: Mapping[str, np.ndarray],
         *,
         reference_frame: np.ndarray | None = None,
+        result_version: str | None = None,
     ) -> ModuleResult:
         """Internal ML call with decoded server-selected pixels; no frames are written to disk.
 
@@ -284,7 +290,11 @@ class FaceMatchDetector:
         It does not create a client-controlled reference resolver or change preprocessing.
         """
         return self._predict(
-            inp, list(frames), list(frames.values()), reference_frame=reference_frame
+            inp,
+            list(frames),
+            list(frames.values()),
+            reference_frame=reference_frame,
+            result_version=result_version,
         )
 
     def _predict(
@@ -294,9 +304,13 @@ class FaceMatchDetector:
         sources: list[Path | np.ndarray],
         *,
         reference_frame: np.ndarray | None = None,
+        result_version: str | None = None,
     ) -> ModuleResult:
         started = perf_counter()
+        version = result_version if result_version is not None else self.version
         try:
+            if version not in self._supported_versions():
+                raise MatchError(ErrorCode.E_INTEGRITY)
             reference_source = (
                 reference_frame if reference_frame is not None else inp.reference_image
             )
@@ -326,11 +340,38 @@ class FaceMatchDetector:
                     a + "_" + b: float(np.clip(vectors[a] @ vectors[b], -1, 1))
                     for a, b in combinations(sorted(vectors), 2)
                 }
-                available = self._threshold is not None
-                passed = available and frontal_cosine >= self._threshold.threshold
+                threshold = (
+                    self._threshold
+                    if self._threshold is not None and self._threshold.model_version == version
+                    else None
+                )
+                consistency = (
+                    self._consistency_threshold
+                    if self._consistency_threshold is not None
+                    and self._consistency_threshold.model_version
+                    == version + "+view-consistency-v1"
+                    else None
+                )
+                available = threshold is not None or self.manual_demo is not None
+                threshold_value = (
+                    self.manual_demo.match_min
+                    if self.manual_demo
+                    else threshold.threshold
+                    if threshold
+                    else None
+                )
+                consistency_value = (
+                    self.manual_demo.consistency_min
+                    if self.manual_demo
+                    else consistency.threshold
+                    if consistency
+                    else None
+                )
+                passed = available and frontal_cosine >= threshold_value
                 return ModuleResult(
                     module=Module.FACE_MATCH,
-                    model_version=self.version,
+                    model_version=version
+                    + (self.manual_demo.version_suffix if self.manual_demo else ""),
                     status=Status.OK if available else Status.DEGRADED,
                     gate=(Gate.PASS if passed else Gate.FAIL) if available else Gate.UNCLEAR,
                     score=1 - frontal_cosine,
@@ -338,18 +379,24 @@ class FaceMatchDetector:
                         "threshold_available": available,
                         "views": len(roles),
                         "comparisons": len(similarities),
-                        "threshold_cosine": self._threshold.threshold if available else None,
+                        "threshold_cosine": threshold_value,
                         "consistency_comparisons": len(view_similarities),
                         "consistency_verified": bool(
                             len(view_similarities) == 3
-                            and self._consistency_threshold is not None
-                            and min(view_similarities.values())
-                            >= self._consistency_threshold.threshold
+                            and consistency_value is not None
+                            and min(view_similarities.values()) >= consistency_value
                         ),
-                        "consistency_threshold_available": self._consistency_threshold is not None,
-                        "consistency_threshold_cosine": self._consistency_threshold.threshold
-                        if self._consistency_threshold is not None
-                        else None,
+                        "consistency_threshold_available": consistency_value is not None,
+                        "consistency_threshold_cosine": consistency_value,
+                        **(
+                            {
+                                "manual_demo": True,
+                                "calibrated": False,
+                                "demo_policy_id": self.manual_demo.policy_id,
+                            }
+                            if self.manual_demo
+                            else {}
+                        ),
                     },
                     evidence=[
                         Evidence(
@@ -367,7 +414,7 @@ class FaceMatchDetector:
         except Exception as exc:
             return ModuleResult(
                 module=Module.FACE_MATCH,
-                model_version=self.version,
+                model_version=version,
                 status=exc.status if isinstance(exc, MatchError) else Status.ERROR,
                 error_code=exc.code if isinstance(exc, PadError) else ErrorCode.E_INTERNAL,
                 gate=Gate.UNCLEAR,

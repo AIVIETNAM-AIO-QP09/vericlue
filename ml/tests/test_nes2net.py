@@ -287,3 +287,314 @@ def test_cli_output_does_not_overwrite_inputs_models_or_existing_files(tmp_path,
     with pytest.raises(SystemExit):
         main(["--audio", str(audio), "--models-dir", str(models), "--output", str(output)])
     assert audio.read_bytes() == b"source" and existing.read_text() == "keep"
+
+
+def _load_parity_script():
+    import importlib.util
+    from pathlib import Path
+
+    script = Path(__file__).resolve().parents[1] / "scripts" / "parity_nes2net.py"
+    spec = importlib.util.spec_from_file_location("parity_nes2net", script)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_parity_compare_logits_enforces_tolerance_sign_and_sample_count():
+    parity = _load_parity_script()
+    converted = [
+        {"window_index": i, "logits": [1.5 + 0.01 * i, -0.5], "margin_score": 2.0 + 0.01 * i}
+        for i in range(32)
+    ]
+    reference = [[1.5 + 0.01 * i + 2e-5, -0.5 - 1e-5] for i in range(32)]
+    passed = parity.compare_logits(converted, reference, synthetic=False)
+    assert passed["status"] == "PASS" and passed["sign_agreement"] == 1.0
+
+    # Synthetic or < 32 clips must remain UNVERIFIED even when numerically identical.
+    assert parity.compare_logits(converted, reference, synthetic=True)["status"] == "UNVERIFIED"
+    assert (
+        parity.compare_logits(converted[:8], reference[:8], synthetic=False)["status"]
+        == "UNVERIFIED"
+    )
+
+    # Exceeding logit tolerance or flipping margin sign must FAIL.
+    drifted = [[row[0] + 5e-4, row[1]] for row in reference]
+    assert parity.compare_logits(converted, drifted, synthetic=False)["status"] == "FAIL"
+    flipped = [{"window_index": 0, "logits": [1e-6, 0.0], "margin_score": 1e-6}] * 32
+    flipped_ref = [[-1e-6, 0.0]] * 32
+    assert parity.compare_logits(flipped, flipped_ref, synthetic=False)["status"] == "FAIL"
+
+
+def test_parity_cli_without_reference_stays_unverified_with_exit_code_two(monkeypatch, tmp_path):
+    parity = _load_parity_script()
+
+    class StubBackend:
+        def __init__(self, _root):
+            self.model_hashes = {"nes2net-x-xlsr/checkpoint.pth": "a" * 64}
+            self.load_report = {"missing_keys": [], "unexpected_keys": [], "ignored_keys": []}
+            self.config = {"model_subdir": "nes2net-x-xlsr", "checkpoint": "checkpoint.pth"}
+
+        def preload(self):
+            pass
+
+        def logits(self, window):
+            assert window.shape == (64000,) and window.dtype == np.float32
+            return np.array([float(window[0]), -float(window[0])], dtype=np.float32)
+
+    monkeypatch.setattr(parity.nes2net, "Nes2NetBackend", StubBackend)
+    out = tmp_path / "parity.json"
+    code = parity.main(["--models-dir", str(tmp_path), "--synthetic-smoke", "--output", str(out)])
+    report = json.loads(out.read_text(encoding="utf-8"))
+    assert code == 2
+    assert report["status"] == "UNVERIFIED"
+    assert report["reference_runtime"] is None
+    assert len(report["windows"]) == 4
+
+
+def test_parity_reference_worker_executes_upstream_wav2vec2_nes2net_contract(monkeypatch, tmp_path):
+    import hashlib
+    import pickle
+    from pathlib import Path
+
+    parity = _load_parity_script()
+    upstream_dir = tmp_path / "upstream"
+    (upstream_dir / "model_scripts").mkdir(parents=True)
+    xlsr_path = tmp_path / "xlsr2_300m.pt"
+    xlsr_path.write_bytes(b"xlsr-stub")
+    ckpt_path = tmp_path / "checkpoint.pth"
+
+    # Provide a numpy-backed torch stub inside upstream_dir so this subprocess contract test
+    # runs both in lightweight CI venvs (without torch) and in full ML venvs.
+    torch_pkg = upstream_dir / "torch"
+    torch_pkg.mkdir()
+    (torch_pkg / "__init__.py").write_text(
+        """from contextlib import nullcontext
+import pickle
+import numpy as np
+from . import nn
+
+__version__ = "1.13.1+stub"
+float16 = "float16"
+float32 = "float32"
+threads = None
+seed = None
+
+def set_num_threads(n):
+    global threads
+    threads = n
+
+def manual_seed(s):
+    global seed
+    seed = s
+
+def no_grad():
+    return nullcontext()
+
+def inference_mode():
+    return nullcontext()
+
+class Tensor:
+    def __init__(self, arr, device="cpu", dtype=float32):
+        np_dtype = np.float16 if dtype == float16 else np.float32
+        self._arr = np.asarray(arr, dtype=np_dtype)
+        self.device = device
+        self.dtype = dtype
+
+    def to(self, device=None, dtype=None):
+        return Tensor(
+            self._arr,
+            device=self.device if device is None else device,
+            dtype=self.dtype if dtype is None else dtype,
+        )
+
+    def unsqueeze(self, axis=0):
+        return Tensor(np.expand_dims(self._arr, axis=axis), self.device, self.dtype)
+
+    def squeeze(self, axis=-1):
+        if self._arr.shape[axis] == 1:
+            return Tensor(np.squeeze(self._arr, axis=axis), self.device, self.dtype)
+        return self
+
+    def detach(self):
+        return self
+
+    def cpu(self):
+        return self
+
+    def numpy(self):
+        return self._arr
+
+def from_numpy(arr):
+    return Tensor(arr, device="cpu", dtype=float32)
+
+def load(path, map_location="cpu", weights_only=True):
+    with open(path, "rb") as fh:
+        raw = pickle.load(fh)
+    return {k: Tensor(v, device=map_location, dtype=float32) for k, v in raw.items()}
+""",
+        encoding="utf-8",
+    )
+    (torch_pkg / "nn.py").write_text(
+        """import numpy as np
+
+class Module:
+    def __init__(self):
+        self.training = True
+
+    def _children(self):
+        for val in self.__dict__.values():
+            if isinstance(val, Module):
+                yield val
+
+    def parameters(self):
+        for key, val in self.__dict__.items():
+            if hasattr(val, "dtype") and hasattr(val, "device"):
+                yield val
+        for child in self._children():
+            yield from child.parameters()
+
+    def to(self, device=None, dtype=None):
+        for key, val in list(self.__dict__.items()):
+            if hasattr(val, "to") and not isinstance(val, Module):
+                setattr(self, key, val.to(device=device, dtype=dtype))
+        for child in self._children():
+            child.to(device=device, dtype=dtype)
+        return self
+
+    def train(self, mode=True):
+        self.training = bool(mode)
+        for child in self._children():
+            child.train(mode)
+        return self
+
+    def eval(self):
+        return self.train(False)
+
+    def __call__(self, *args, **kwargs):
+        return self.forward(*args, **kwargs)
+""",
+        encoding="utf-8",
+    )
+
+    # Minimal Fairseq + upstream wav2vec2_Nes2Net_no_Res_w_allT contract matching
+    # Liu-Tianchi/Nes2Net_ASVspoof_ITW/model_scripts/wav2vec2_Nes2Net_X.py:
+    # - SSLModel calls fairseq.checkpoint_utils.load_model_ensemble_and_task(['xlsr2_300m.pt'])
+    # - extract_feat flips self.model.train() if parameter dtype/device != input_data
+    # - wav2vec2_Nes2Net_no_Res_w_allT reads args.n_output_logits, Nes_ratio, dilation, pool_func, SE_ratio
+    fairseq_pkg = upstream_dir / "fairseq"
+    fairseq_pkg.mkdir()
+    (fairseq_pkg / "__init__.py").write_text(
+        '__version__ = "0.12.2"\nfrom . import checkpoint_utils\n',
+        encoding="utf-8",
+    )
+    (fairseq_pkg / "checkpoint_utils.py").write_text(
+        """import numpy as np
+import torch
+import torch.nn as nn
+
+class _DummyW2V(nn.Module):
+    def __init__(self):
+        super().__init__()
+        # Start in float16 to verify worker casts to float32 before load_state_dict/extract_feat
+        self.weight = torch.Tensor(np.zeros((8, 4), dtype=np.float16), dtype=torch.float16)
+        self.bias = torch.Tensor(np.zeros(8, dtype=np.float16), dtype=torch.float16)
+
+    def forward(self, x, mask=False, features_only=True):
+        arr = x.numpy().reshape(x.numpy().shape[0], -1, 4)
+        out = arr @ self.weight.numpy().T + self.bias.numpy()
+        return {"x": torch.Tensor(out, device=x.device, dtype=x.dtype)}
+
+def load_model_ensemble_and_task(filenames, arg_overrides=None, **kwargs):
+    assert filenames and ("/" in filenames[0] or "\\\\" in filenames[0])
+    return [_DummyW2V()], None, None
+""",
+        encoding="utf-8",
+    )
+    upstream_script = upstream_dir / "model_scripts" / "wav2vec2_Nes2Net_X.py"
+    script_text = """import numpy as np
+import torch
+import torch.nn as nn
+import fairseq
+
+class SSLModel(nn.Module):
+    def __init__(self, device):
+        super().__init__()
+        cp_path = "xlsr2_300m.pt"
+        model, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task([cp_path])
+        self.model = model[0]
+        self.device = device
+        self.out_dim = 8
+
+    def extract_feat(self, input_data):
+        if (
+            next(self.model.parameters()).device != input_data.device
+            or next(self.model.parameters()).dtype != input_data.dtype
+        ):
+            self.model.to(input_data.device, dtype=input_data.dtype)
+            self.model.train()
+        return self.model(input_data, mask=False, features_only=True)["x"]
+
+class wav2vec2_Nes2Net_no_Res_w_allT(nn.Module):
+    def __init__(self, args, device):
+        super().__init__()
+        self.device = device
+        self.n_output_logits = args.n_output_logits
+        assert args.Nes_ratio == [8, 8]
+        assert args.dilation == 2
+        assert args.pool_func == "mean"
+        assert args.SE_ratio == [1]
+        self.ssl_model = SSLModel(self.device)
+        self.head_weight = torch.Tensor(np.zeros((self.n_output_logits, 8), dtype=np.float32))
+        self.head_bias = torch.Tensor(np.zeros(self.n_output_logits, dtype=np.float32))
+
+    def load_state_dict(self, state, strict=True):
+        expected = {
+            "ssl_model.model.weight",
+            "ssl_model.model.bias",
+            "Nested_Res2Net_TDNN.weight",
+            "Nested_Res2Net_TDNN.bias",
+        }
+        missing = sorted(expected - set(state.keys()))
+        unexpected = sorted(set(state.keys()) - expected)
+        if strict and (missing or unexpected):
+            raise RuntimeError(f"missing={missing}, unexpected={unexpected}")
+        self.ssl_model.model.weight = state["ssl_model.model.weight"]
+        self.ssl_model.model.bias = state["ssl_model.model.bias"]
+        self.head_weight = state["Nested_Res2Net_TDNN.weight"]
+        self.head_bias = state["Nested_Res2Net_TDNN.bias"]
+        return missing, unexpected
+
+    def forward(self, x):
+        feat = self.ssl_model.extract_feat(x.squeeze(-1))
+        pooled = feat.numpy().mean(axis=1)
+        logits = pooled @ self.head_weight.numpy().T + self.head_bias.numpy()
+        return torch.Tensor(logits, device=feat.device, dtype=feat.dtype)
+"""
+    upstream_script.write_text(script_text, encoding="utf-8")
+    monkeypatch.setattr(
+        parity,
+        "UPSTREAM_MODEL_SHA256",
+        hashlib.sha256(upstream_script.read_bytes()).hexdigest(),
+    )
+
+    state = {
+        "module.ssl_model.model.weight": np.full((8, 4), 0.25, dtype=np.float32),
+        "module.ssl_model.model.bias": np.zeros(8, dtype=np.float32),
+        "module.Nested_Res2Net_TDNN.weight": np.array([[1.0] * 8, [-0.5] * 8], dtype=np.float32),
+        "module.Nested_Res2Net_TDNN.bias": np.array([0.1, -0.2], dtype=np.float32),
+    }
+    with ckpt_path.open("wb") as fh:
+        pickle.dump(state, fh)
+
+    windows = np.ones((2, parity.nes2net.WINDOW_SAMPLES), dtype=np.float32) * 0.5
+    out = parity._run_reference_python(
+        Path(sys.executable),
+        upstream_dir,
+        xlsr_path,
+        ckpt_path,
+        windows,
+    )
+    assert out["fairseq_version"] == "0.12.2"
+    assert len(out["window_logits"]) == 2
+    assert out["window_logits"][0] == pytest.approx([4.1, -2.2], abs=1e-5)

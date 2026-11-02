@@ -111,8 +111,51 @@
         },
         "device_challenge": {
           "$ref": "#/$defs/DeviceChallenge"
+        },
+        "evaluation_mode": {
+          "type": "string",
+          "enum": [
+            "standard",
+            "manual_demo",
+            "manual_full_demo"
+          ],
+          "default": "standard"
+        },
+        "demo_policy_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "evaluation_mode": {
+                "enum": [
+                  "manual_demo",
+                  "manual_full_demo"
+                ]
+              }
+            },
+            "required": [
+              "evaluation_mode"
+            ]
+          },
+          "then": {
+            "properties": {
+              "demo_policy_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "demo_policy_id"
+            ]
+          }
+        }
+      ]
     },
     "Signals": {
       "type": "object",
@@ -294,8 +337,110 @@
             "null"
           ],
           "description": "Mã lần đọc, phải gửi lại trong form /voice của phiên có purpose."
+        },
+        "evaluation_mode": {
+          "type": "string",
+          "enum": [
+            "standard",
+            "manual_demo",
+            "manual_full_demo"
+          ],
+          "default": "standard"
+        },
+        "demo_policy_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "demo_complete": {
+          "type": "boolean",
+          "default": false,
+          "description": "Hoàn tất trình diễn theo ngưỡng thủ công; không phải xác minh danh tính."
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "demo_complete": {
+                "const": true
+              }
+            },
+            "required": [
+              "demo_complete"
+            ]
+          },
+          "then": {
+            "properties": {
+              "status": {
+                "const": "review"
+              },
+              "evaluation_mode": {
+                "const": "manual_demo"
+              },
+              "demo_policy_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "evaluation_mode",
+              "demo_policy_id"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "evaluation_mode": {
+                "const": "manual_demo"
+              }
+            },
+            "required": [
+              "evaluation_mode"
+            ]
+          },
+          "then": {
+            "properties": {
+              "demo_policy_id": {
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "review",
+                  "retry"
+                ]
+              }
+            },
+            "required": [
+              "demo_policy_id"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "evaluation_mode": {
+                "const": "manual_full_demo"
+              }
+            },
+            "required": [
+              "evaluation_mode"
+            ]
+          },
+          "then": {
+            "properties": {
+              "demo_policy_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "demo_policy_id"
+            ]
+          }
+        }
+      ]
     },
     "VoiceResponse": {
       "type": "object",
@@ -333,8 +478,51 @@
         },
         "account": {
           "$ref": "#/$defs/AccountReceipt"
+        },
+        "evaluation_mode": {
+          "type": "string",
+          "enum": [
+            "standard",
+            "manual_demo",
+            "manual_full_demo"
+          ],
+          "default": "standard"
+        },
+        "demo_policy_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "evaluation_mode": {
+                "enum": [
+                  "manual_demo",
+                  "manual_full_demo"
+                ]
+              }
+            },
+            "required": [
+              "evaluation_mode"
+            ]
+          },
+          "then": {
+            "properties": {
+              "demo_policy_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "demo_policy_id"
+            ]
+          }
+        }
+      ]
     },
     "OtpRequest": {
       "type": "object",
@@ -631,7 +819,10 @@
       "properties": {
         "version": {
           "type": "integer",
-          "const": 1
+          "enum": [
+            1,
+            2
+          ]
         },
         "session_id": {
           "type": "string"
@@ -666,7 +857,10 @@
         },
         "head_duration_ms": {
           "type": "integer",
-          "const": 6000
+          "enum": [
+            6000,
+            12000
+          ]
         },
         "voice_start_at_ms": {
           "type": "integer",
@@ -683,7 +877,41 @@
           "minimum": 0
         }
       },
-      "description": "Mọi at_ms tính từ đầu bản ghi giai đoạn B. Thu âm được bắt đầu theo lịch, không cần chờ finalize; chỉ gửi /voice sau khi finalize yêu cầu. Gói này là lệnh, không phải bằng chứng đã làm đúng."
+      "description": "Mọi at_ms tính từ đầu bản ghi giai đoạn B. Thu âm được bắt đầu theo lịch, không cần chờ finalize; chỉ gửi /voice sau khi finalize yêu cầu. Gói này là lệnh, không phải bằng chứng đã làm đúng.",
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "version": {
+                "const": 1
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "head_duration_ms": {
+                "const": 6000
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "version": {
+                "const": 2
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "head_duration_ms": {
+                "const": 12000
+              }
+            }
+          }
+        }
+      ]
     },
     "FinalizeRequest": {
       "type": "object",

@@ -108,10 +108,11 @@ class Orchestrator:
             )
         if (
             module == Module.FACE_MATCH
-            and self.settings.identity_card_enabled
+            and (self.settings.identity_card_enabled or self.settings.identity_face_from_video)
             or module == Module.FACE_CONTINUITY
             and self.settings.identity_voice_continuity
         ):
+            # Video identity also serves enrolled accounts without a card scanner.
             # Identity opt-in uses real QR/portrait and face matching in this process,
             # even when the remaining API detectors are mocked for the demo.
             artifact = self.settings.identity_face_calibration
@@ -120,6 +121,7 @@ class Orchestrator:
                     reader=self._face_reader,
                     calibration_path=Path(artifact) if artifact else None,
                     with_consistency=self.settings.identity_consistency_required,
+                    manual_demo=self.settings.manual_demo_policy,
                     consistency_path=Path(self.settings.identity_consistency_calibration)
                     if self.settings.identity_consistency_calibration
                     else None,
@@ -143,10 +145,24 @@ class Orchestrator:
             if module == Module.HEAD_TURN:
                 return HeadTurnDetector(self._face_reader)
         if self.settings.session_face_models:
+            if module in {Module.QUALITY, Module.CAMPROBE}:
+                # Keep synthetic OTP independent of these existing server checks.
+                # Missing real dependencies must remain unavailable, never mock pass.
+                return get_detector(module, mock=False)
             if module == Module.FACE_PAD:
-                return SessionAttackDetector(FsvfmPadDetector(), self._face_reader)
+                return SessionAttackDetector(
+                    FsvfmPadDetector(),
+                    self._face_reader,
+                    self.router.calibrators,
+                    manual_demo=self.settings.manual_demo_policy,
+                )
             if module == Module.FACE_DEEPFAKE:
-                return SessionAttackDetector(FaceDeepfakeDetector(), self._face_reader)
+                return SessionAttackDetector(
+                    FaceDeepfakeDetector(),
+                    self._face_reader,
+                    self.router.calibrators,
+                    manual_demo=self.settings.manual_demo_policy,
+                )
             if module == Module.CHROMAPULSE:
                 return ChromaPulseDetector(ColorObservationReader(self._face_reader))
         return get_detector(module, mock=self.settings.use_mock_models)
@@ -170,7 +186,7 @@ class Orchestrator:
             if self._started:
                 return
             modules = list(self.router.profile.modules)
-            if self.settings.identity_card_enabled:
+            if self.settings.identity_card_enabled or self.settings.identity_face_from_video:
                 modules.append(Module.FACE_MATCH)
             if self.settings.identity_voice_continuity:
                 modules.append(Module.FACE_CONTINUITY)
@@ -305,7 +321,10 @@ class Orchestrator:
             ), finished
         try:
             if reference_template is not None:
-                if self.settings.use_mock_models is not False:
+                if (
+                    self.settings.use_mock_models is not False
+                    and not self.settings.manual_full_demo
+                ):
                     raise ValueError("Enrolled matching requires real model mode")
                 detector = self._detectors[module]
                 if module != Module.FACE_MATCH or not isinstance(detector, VideoFaceMatchDetector):
@@ -423,7 +442,9 @@ class Orchestrator:
         media_lease=None,
     ) -> FaceTemplate:
         """Private bounded worker operation on the already loaded LVFace instance."""
-        if self.settings.use_mock_models is not False or not self.settings.identity_face_from_video:
+        if (
+            self.settings.use_mock_models is not False and not self.settings.manual_full_demo
+        ) or not self.settings.identity_face_from_video:
             raise ApiError(503, "enrollment_unavailable", "Chưa thể hoàn tất ghi danh lúc này.")
         started = perf_counter()
         deadline = min(
@@ -496,7 +517,10 @@ class Orchestrator:
                 module = Module(value)
                 if module not in self.router.profile.modules and not (
                     module == Module.FACE_MATCH
-                    and self.settings.identity_card_enabled
+                    and (
+                        self.settings.identity_card_enabled
+                        or self.settings.identity_face_from_video
+                    )
                     or module == Module.FACE_CONTINUITY
                     and self.settings.identity_voice_continuity
                     or module in {Module.GAZE_TRACKING, Module.HEAD_TURN}

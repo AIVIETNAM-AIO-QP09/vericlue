@@ -11,6 +11,7 @@ plugins {
 val apiBaseUrl = (project.findProperty("vericlue.apiBaseUrl") as String?) ?: "http://localhost:8421/"
 val signedMedia = (project.findProperty("vericlue.signedMedia") as String?)?.toBooleanStrict() ?: true
 val deferSigning = (project.findProperty("vericlue.deferSigning") as String?)?.toBooleanStrict() ?: false
+val presenceTrace = (project.findProperty("vericlue.presenceTrace") as String?)?.toBooleanStrict() ?: false
 // A release build only talks HTTPS: stop it when the address is not https:// (debug may use http).
 val checkReleaseApiUrl by tasks.registering {
     val url = apiBaseUrl
@@ -32,14 +33,17 @@ android {
         targetSdk = 35
         versionCode = 2
         versionName = "0.3.0"
+        testInstrumentationRunner = "vn.vericlue.app.HeadSpeechProbe"
         manifestPlaceholders["appLabel"] = "@string/app_name"
 
         buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
         buildConfigField("boolean", "SIGNED_MEDIA", signedMedia.toString())
+        buildConfigField("boolean", "PRESENCE_TRACE_ENABLED", "false")
     }
 
     buildTypes {
         debug {
+            buildConfigField("boolean", "PRESENCE_TRACE_ENABLED", presenceTrace.toString())
             if (deferSigning) signingConfig = null
         }
         release {

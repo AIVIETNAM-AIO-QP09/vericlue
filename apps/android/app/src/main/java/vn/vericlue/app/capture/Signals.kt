@@ -3,6 +3,7 @@ package vn.vericlue.app.capture
 import android.os.SystemClock
 import vn.vericlue.app.data.api.Challenge
 import vn.vericlue.app.flow.FramingState
+import vn.vericlue.app.flow.TurnDir
 import kotlin.math.abs
 
 /**
@@ -15,6 +16,31 @@ object CaptureClock {
     /** Choreographer/withFrameNanos times use System.nanoTime(); shift them onto elapsedRealtime. */
     fun frameNanosToMs(frameNanos: Long): Double =
         (frameNanos + (SystemClock.elapsedRealtimeNanos() - System.nanoTime())) / 1e6
+
+    private const val MAX_CLOCK_SKEW_NS = 5_000_000_000L
+
+    /**
+     * Normalises a camera sensor timestamp (ns) onto `elapsedRealtimeNanos`.
+     * Devices with `SENSOR_INFO_TIMESTAMP_SOURCE_UNKNOWN` (e.g. Samsung Galaxy A04) stamp frames
+     * with `System.nanoTime()` (`CLOCK_MONOTONIC`), which lags `elapsedRealtimeNanos` by total deep-sleep time.
+     */
+    fun sensorTimestampToElapsedNanos(
+        sensorTimestampNs: Long,
+        realtimeSource: Boolean = false,
+        elapsedRealtimeNs: Long = SystemClock.elapsedRealtimeNanos(),
+        nanoTimeNs: Long = System.nanoTime(),
+    ): Long {
+        if (sensorTimestampNs <= 0L) return 0L
+        val elapsedAge = elapsedRealtimeNs - sensorTimestampNs
+        val nanoAge = nanoTimeNs - sensorTimestampNs
+        if (realtimeSource) return if (elapsedAge in 0L..MAX_CLOCK_SKEW_NS) sensorTimestampNs else 0L
+        if (nanoAge in 0L..MAX_CLOCK_SKEW_NS &&
+            (elapsedAge !in 0L..MAX_CLOCK_SKEW_NS || nanoAge < elapsedAge)) {
+            return elapsedRealtimeNs - nanoAge
+        }
+        if (elapsedAge in 0L..MAX_CLOCK_SKEW_NS) return sensorTimestampNs
+        return 0L
+    }
 }
 
 /** What the face analyzer reports for one camera frame. Coordinates are 0..1 of the upright image. */
@@ -26,6 +52,8 @@ data class FaceSignal(
     val yaw: Float,
     val luma: Float,
     val timestampNs: Long,
+    val pitch: Float = 0f,
+    val roll: Float = 0f,
 )
 
 /** Turns a face signal into the single quality hint shown on the framing screen. */
@@ -64,6 +92,161 @@ class TurnTracker(private val thresholdDeg: Float = 25f, private val holdMs: Lon
             return false
         }
         return abs(yaw) <= straightDeg
+    }
+}
+
+enum class TurnPoseState {
+    /** Waiting for user to reach the target angle range. */
+    TurnMore,
+    /** User is inside the safe target angle range (or centered in center phase) — hold steady. */
+    Hold,
+    /** User held the target side angle long enough in this segment and may return to center. */
+    Completed,
+    /** User turned too far, drifted off-frame, or lost face — ease back into frame. */
+    Warn,
+}
+
+/**
+ * Assistive live hint during scheduled head turns. Purely advisory UI feedback;
+ * never gates completion or overrides the server's detector decision.
+ *
+ * ML Kit Face.headEulerAngleY is positive when the face turns toward the right side of the
+ * processed image. CameraSession passes unmirrored front-camera frames to InputImage.fromMediaImage,
+ * so user-left (TurnDir.Left) turns toward the right of the unmirrored image (yaw > 0) and
+ * user-right (TurnDir.Right) turns toward the left of the unmirrored image (yaw < 0).
+ */
+object HeadTurnGuide {
+    const val TURN_MIN_DEG = 16f
+    const val TURN_MAX_SAFE_DEG = 29f
+    const val CENTER_MAX_DEG = 8f
+    const val MAX_TURN_OFFSET = 0.24f
+    const val HOLD_COMPLETE_MS = 850L
+    const val MAX_FRAME_AGE_MS = 300L
+    // Advisory margin only: ML Kit and server pose estimates are not interchangeable.
+    const val MAX_TILT_DEG = 12f
+
+    private fun invalidPose(face: FaceSignal): Boolean =
+        !face.yaw.isFinite() || !face.pitch.isFinite() || !face.roll.isFinite()
+
+    private fun tilted(face: FaceSignal): Boolean =
+        abs(face.pitch) > MAX_TILT_DEG || abs(face.roll) > MAX_TILT_DEG
+
+    /** Only recent, positively identified capture times may drive pose coaching. */
+    fun freshFace(face: FaceSignal?, nowMs: Long, segmentStartMs: Long): FaceSignal? =
+        face?.takeIf {
+            it.timestampNs > 0L && (it.timestampNs / 1_000_000L >= segmentStartMs &&
+                nowMs - it.timestampNs / 1_000_000L in 0L..MAX_FRAME_AGE_MS)
+        }
+
+    fun evaluatePose(
+        dir: TurnDir?,
+        face: FaceSignal?,
+        segmentCompleted: Boolean = false,
+    ): TurnPoseState {
+        if (face == null) return TurnPoseState.TurnMore
+        if (face.faces != 1 || invalidPose(face) || tilted(face)) return TurnPoseState.Warn
+        val offFrame = abs(face.centerX - 0.5f) > MAX_TURN_OFFSET || abs(face.centerY - 0.45f) > MAX_TURN_OFFSET
+        if (dir == null) {
+            return when {
+                offFrame -> TurnPoseState.Warn
+                abs(face.yaw) > CENTER_MAX_DEG -> TurnPoseState.TurnMore
+                else -> TurnPoseState.Hold
+            }
+        }
+        val signedYaw = if (dir == TurnDir.Left) face.yaw else -face.yaw
+        return when {
+            signedYaw > TURN_MAX_SAFE_DEG || abs(face.yaw) > TURN_MAX_SAFE_DEG || offFrame -> TurnPoseState.Warn
+            segmentCompleted -> TurnPoseState.Completed
+            signedYaw < TURN_MIN_DEG -> TurnPoseState.TurnMore
+            else -> TurnPoseState.Hold
+        }
+    }
+
+    fun guidanceText(
+        dir: TurnDir?,
+        face: FaceSignal?,
+        returnToCenter: Boolean = false,
+        remainingSeconds: Int? = null,
+        segmentCompleted: Boolean = false,
+    ): String {
+        if (face != null) {
+            if (face.faces == 0) return "Đưa khuôn mặt vào khung"
+            if (face.faces > 1) return "Chỉ để một khuôn mặt trong khung"
+            if (invalidPose(face)) return "Giữ yên để camera nhận khuôn mặt"
+            if (tilted(face)) return "Giữ đầu thẳng, tránh nghiêng hoặc cúi/ngẩng"
+            val offFrame = abs(face.centerX - 0.5f) > MAX_TURN_OFFSET || abs(face.centerY - 0.45f) > MAX_TURN_OFFSET
+            return if (dir == null) {
+                val absYaw = abs(face.yaw)
+                when {
+                    offFrame -> "Đưa khuôn mặt vào giữa khung hình"
+                    absYaw > CENTER_MAX_DEG -> "Quay về giữa, nhìn thẳng vào camera"
+                    else -> "Giữ yên, nhìn thẳng vào camera"
+                }
+            } else {
+                val signedYaw = if (dir == TurnDir.Left) face.yaw else -face.yaw
+                when {
+                    signedYaw > TURN_MAX_SAFE_DEG || abs(face.yaw) > TURN_MAX_SAFE_DEG -> "Quay vừa phải, giữ mặt trong khung"
+                    offFrame -> "Quay vừa phải, giữ mặt trong khung"
+                    segmentCompleted -> if (abs(face.yaw) > CENTER_MAX_DEG) {
+                        "Tạm giữ đủ góc, nhìn thẳng"
+                    } else {
+                        "Giữ yên, nhìn thẳng chờ bước tiếp"
+                    }
+                    signedYaw < TURN_MIN_DEG -> "Quay chậm theo hướng mũi tên"
+                    returnToCenter -> "Quay chậm, sau đó nhìn thẳng"
+                    else -> "Giữ hướng này đến khi đổi hướng dẫn"
+                }
+            }
+        }
+        return when {
+            dir == null -> "Giữ yên, nhìn thẳng vào camera"
+            returnToCenter -> "Quay chậm, sau đó nhìn thẳng"
+            else -> "Quay chậm theo hướng mũi tên"
+        }
+    }
+}
+
+/**
+ * Tracks whether the user has held the requested side angle long enough within a single
+ * scheduled head-turn segment so the UI can cue them to return to center early.
+ */
+class SegmentHoldTracker(
+    private val requiredHoldMs: Long = HeadTurnGuide.HOLD_COMPLETE_MS,
+    private val segmentStartMs: Long = 0L,
+) {
+    private var holdStartMs: Long? = null
+    private var lastFrameMs: Long? = null
+    var completed: Boolean = false
+        private set
+
+    /** Returns true on the transition frame where the hold completes. */
+    fun update(dir: TurnDir?, face: FaceSignal?, nowMs: Long): Boolean {
+        if (dir == null || completed) return false
+        if (face == null || face.timestampNs <= 0L) {
+            holdStartMs = null
+            lastFrameMs = null
+            return false
+        }
+        val frameMs = face.timestampNs / 1_000_000L
+        if (nowMs < segmentStartMs || frameMs < segmentStartMs ||
+            nowMs - frameMs !in 0L..HeadTurnGuide.MAX_FRAME_AGE_MS) {
+            holdStartMs = null
+            return false
+        }
+        val previous = lastFrameMs
+        if (previous != null && (frameMs <= previous || frameMs - previous > 300L)) holdStartMs = null
+        lastFrameMs = frameMs
+        val state = HeadTurnGuide.evaluatePose(dir, face, segmentCompleted = false)
+        if (state == TurnPoseState.Hold) {
+            val start = holdStartMs ?: frameMs.also { holdStartMs = it }
+            if (frameMs - start >= requiredHoldMs) {
+                completed = true
+                return true
+            }
+        } else {
+            holdStartMs = null
+        }
+        return false
     }
 }
 

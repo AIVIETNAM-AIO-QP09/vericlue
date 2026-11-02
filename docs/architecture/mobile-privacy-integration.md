@@ -1,5 +1,15 @@
 # Bàn giao nối quyền riêng tư vào app — FLOW-06
 
+**Cập nhật Android 01/11 (APP-01/SEC-09):** đã hoàn thiện hợp đồng `AccountTemplateConsentRequest` + `AccountTemplatePrivacyState` (`scope: "account_template"`, `purpose: "account_template"`, `retention_seconds: 86400`), bảng `account_template_consents` trên API, kiểm tra bắt buộc biên nhận lưu mẫu trước trích chọn/ghi danh tài khoản trong `AccountStore`, và checkbox tách biệt trên `TermsScreen` + `SessionPrivacyFlow` của Android (từ chối lưu mẫu dừng tạo tài khoản theo D1). iOS chưa được sửa trong thay đổi này; nghiệm thu cuối trên máy thật thực hiện cùng phiên quay.
+
+**Cập nhật Android 30/10 (APP-01/SEC-09):** đã có model/client privacy và
+`SessionPrivacyFlow`; Terms ghi lựa chọn đúng version/phạm vi trước thu dữ liệu.
+Có đường rút đồng ý, giữ bearer để thử lại, tuần tự hóa với refresh token và bỏ
+back stack sau thành công. Đăng nhập lại bỏ OTP; khôi phục có binding bỏ CCCD,
+khớp account-authentication hiện hành. Không mở guard account-bound. Các đoạn
+"hiện chưa" dưới đây là đối chiếu lịch sử 28/10; tiêu chí nghiệm thu và ranh giới
+vẫn áp dụng.
+
 Nguồn đối chiếu: main `54acaad` sau PR #105, ngày 28/10/2026.
 Tài liệu dành cho người nối logic Android/iOS; **chưa có thay đổi app trong PR
 này**. Luồng người dùng và các quyết định ở [workflow](project-workflow.md).

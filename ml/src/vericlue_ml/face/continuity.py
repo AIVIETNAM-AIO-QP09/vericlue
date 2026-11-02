@@ -19,11 +19,12 @@ import numpy as np
 
 from vericlue_ml.common.detector import DetectorInput
 from vericlue_ml.common.result import ErrorCode, Evidence, Gate, Module, ModuleResult, Status
-from vericlue_ml.face.enrolled import RECOVERY_MATCH_VERSION
+from vericlue_ml.face.enrolled import recovery_match_version
 from vericlue_ml.face.match import FaceMatchDetector, MatchThreshold
 from vericlue_ml.face.pad import PadError
 from vericlue_ml.face.video_match import VIDEO_MATCH_VERSION
 from vericlue_ml.presence.challenge import expected_dynamic
+from vericlue_ml.presence.head_protocol import head_protocol_version
 from vericlue_ml.presence.head_turn import CENTER_MAX_DEG, MAX_PITCH_ROLL_DEG
 from vericlue_ml.presence.landmarks import FaceObservationReader, LandmarkError
 from vericlue_ml.presence.views import (
@@ -156,12 +157,37 @@ class FaceContinuityDetector:
         if inp.reference_video is None or inp.video is None or inp.audio is None:
             raise LandmarkError(ErrorCode.E_DECODE, Status.DEGRADED)
         approved = ModuleResult.model_validate(inp.metadata.get("face_reference_result"))
-        expected_version = (
-            RECOVERY_MATCH_VERSION
-            if inp.metadata.get("purpose") == "recovery" and inp.metadata.get("account_id")
-            else VIDEO_MATCH_VERSION
+        manual_demo = getattr(self.matcher, "manual_demo", None)
+        using_manual = manual_demo is not None and self._threshold is None
+        suffix = manual_demo.version_suffix if using_manual else ""
+        supported = getattr(self.matcher, "_supported_versions", lambda: (VIDEO_MATCH_VERSION,))()
+        is_recovery = inp.metadata.get("purpose") == "recovery" and bool(
+            inp.metadata.get("account_id")
         )
-        if approved.module != Module.FACE_MATCH or approved.model_version != expected_version:
+        recovery_version = (
+            recovery_match_version(head_protocol_version(inp)) if is_recovery else None
+        )
+        expected_versions = (
+            (recovery_version + suffix,)
+            if is_recovery and using_manual
+            else (recovery_version,)
+            if is_recovery
+            else tuple(dict.fromkeys(v + suffix for v in (VIDEO_MATCH_VERSION, *supported)))
+            if using_manual
+            else (VIDEO_MATCH_VERSION, *supported)
+        )
+        if (
+            approved.module != Module.FACE_MATCH
+            or approved.model_version not in expected_versions
+            or (
+                using_manual
+                and (
+                    approved.quality.get("manual_demo") is not True
+                    or approved.quality.get("demo_policy_id") != manual_demo.policy_id
+                )
+            )
+            or (not using_manual and approved.quality.get("manual_demo") is True)
+        ):
             raise LandmarkError(ErrorCode.E_INTEGRITY)
         reference_hash = video_sha256(inp.reference_video)
         voice_hash = video_sha256(inp.video)
@@ -220,14 +246,21 @@ class FaceContinuityDetector:
             and approved.gate == Gate.PASS
             and approved.error_code is None
         )
-        available = self._threshold is not None
+        threshold_value = (
+            self._threshold.threshold
+            if self._threshold is not None
+            else manual_demo.match_min
+            if manual_demo is not None
+            else None
+        )
+        available = threshold_value is not None
         usable = available and reference_ok
         cosine = min(similarities)
         return ModuleResult(
             module=Module.FACE_CONTINUITY,
-            model_version=self.version,
+            model_version=self.version + suffix,
             status=Status.OK if usable else Status.DEGRADED,
-            gate=(Gate.PASS if cosine >= self._threshold.threshold else Gate.FAIL)
+            gate=(Gate.PASS if cosine >= threshold_value else Gate.FAIL)
             if usable
             else Gate.UNCLEAR,
             score=1 - cosine,
@@ -235,9 +268,18 @@ class FaceContinuityDetector:
                 "samples": 3,
                 "audio_offset_ms": offset,
                 "threshold_available": available,
-                "threshold_cosine": self._threshold.threshold if available else None,
+                "threshold_cosine": threshold_value,
                 "reference_identity_verified": reference_ok,
                 "coverage": "three_samples_not_full_video",
+                **(
+                    {
+                        "manual_demo": True,
+                        "calibrated": False,
+                        "demo_policy_id": manual_demo.policy_id,
+                    }
+                    if using_manual
+                    else {}
+                ),
             },
             evidence=[
                 *[

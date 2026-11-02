@@ -47,7 +47,11 @@ def security_profile_checks(settings: Settings) -> dict[str, bool]:
         "identity_hmac_key": _usable_secret(hmac_key),
         "session_signing_key": _usable_secret(token_key),
         "independent_secrets": distinct,
-        "real_model_mode": settings.use_mock_models is False,
+        "real_model_mode": settings.use_mock_models is False
+        and not settings.manual_face_demo
+        and not settings.manual_full_demo,
+        "no_manual_demo": not settings.manual_face_demo and not settings.manual_full_demo,
+        "no_simulated_otp": not settings.simulated_otp,
     }
 
 
@@ -64,8 +68,8 @@ def validate_security_profile(settings: Settings) -> None:
 
 
 def ensure_otp_available(settings: Settings) -> None:
-    """The implemented SMS channel is simulated and can only run in synthetic mocks."""
-    if settings.security_profile != "synthetic" or settings.use_mock_models is not True:
+    """The implemented SMS channel is simulated and requires explicit synthetic opt-in."""
+    if settings.security_profile != "synthetic" or not settings.simulated_otp:
         raise ApiError(
             503,
             "otp_unavailable",

@@ -130,12 +130,12 @@
 | FLOW-01 | Purpose/luật theo luồng; kết quả Ed25519 opt-in, chờ nghiệm thu thật | M5 | Codex | 1 | S1 | P0 | ROUT-02, PLAT-08 | doing |
 | FLOW-02 | OTP mô phỏng | M2 | Ngọc Quang+Claude | 0,5 | S1 | P0 | PLAT-05 | doing |
 | FLOW-03 | Chụp CCCD, QR, chân dung, kiểm đã đăng ký; bảo toàn ảnh khi lỗi | M1 | Ngọc Quang+Claude | 1,5 | S1 | P0 | PLAT-05, FACE-01 | doing |
-| FLOW-04 | Quay đầu, chọn khung RAM, GenD và FS-VFM-L PAD — diagnostic | M1 (+M3) | Codex | 1 | S1 | P0 | CAP-06 | doing |
+| FLOW-04 | Quay đầu, chọn khung RAM, GenD/PAD và công cụ hiệu chỉnh video — chờ dữ liệu | M1 (+M3) | Codex | 1 | S1 | P0 | CAP-06 | doing |
 | FLOW-05 | LVFace-B/mặt–giọng; ghi danh, receipt, so mẫu đã lưu; giữ chốt luồng thật | M3 | Codex | 1 | S1 | P0 | FLOW-03, FACE-01 | doing |
 | FLOW-06 | Rà workflow mobile và bàn giao tích hợp riêng tư | M5 | Codex | 0,5 | S2 | P0 | PLAT-05 | review |
 | SEC-01 | Khóa theo phiên, che dữ liệu, nhật ký truy cập | M2 | Codex | 1,5 | S1 | P0 | REV-01, PLAT-05 | review |
 | SEC-02 ★ | Ký media, L0 khóa ghi danh; service khôi phục/thu hồi, chờ nghiệm thu máy thật | M2 (+M1) | Codex | 1 | S2 | P0 | APP-01, PLAT-06 | doing |
-| APP-01 ★ | App Kotlin: UI A, receipt/alias và 3 luồng; chờ HTTPS và nghiệm thu tài khoản thật | M1 | Ngọc Quang+Claude+Codex | 1,5 | S1 | P0 | PLAT-04 | doing |
+| APP-01 ★ | App Kotlin: UI A, receipt/alias, retry góc và ngưỡng demo có nhãn; chờ HTTPS và nghiệm thu tài khoản thật | M1 | Ngọc Quang+Claude+Codex+Gemini | 1,5 | S1 | P0 | PLAT-04 | doing |
 | APP-02 ★ | App: chụp mặt, quay 3 s, quay đầu ngẫu nhiên | M1 | Ngọc Quang+Claude | 2 | S1–S2 | P0 | APP-01 | doing |
 | APP-03 | App: ghi âm đọc câu (WAV 16 kHz) | M1 | Ngọc Quang+Claude | 1 | S2 | P0 | APP-01 | doing |
 | APP-04 | App: OTP, chụp CCCD, xác nhận thông tin | M2 (+M1) | Ngọc Quang+Claude | 1,5 | S1–S2 | P0 | APP-01 | doing |
@@ -152,8 +152,8 @@
 | IOS-05 | App iOS: đọc câu, WAV 16 kHz, MP4 và audio_offset_ms | M1 | Lý Anh Quân | 1 | S2 | P1 | IOS-04 | review |
 | IOS-06 | App iOS: xử lý gián đoạn, retry theo acknowledgment và dọn file tạm | M1 | Lý Anh Quân | 1 | S2 | P1 | IOS-04 | doing |
 | IOS-07 | App iOS: đóng gói Release HTTPS, README và bàn giao; chờ domain và số đo iPhone | M1 | Lý Anh Quân | 1 | S2 | P1 | IOS-03, IOS-05, IOS-06 | doing |
-| LIVE-01 | Gói thử thách động theo phiên (màu, chấm sáng, quay đầu, câu) [contract] | M5 | Codex | 1 | S2 | P0 | FLOW-01 | doing |
-| LIVE-02 | Dò mắt, chuỗi kiểm mặt và webcam lab — diagnostic | M3 (+M1) | Codex | 1,5 | S2 | P0 | LIVE-01 | doing |
+| LIVE-01 | Gói thử thách động theo phiên v2, quay đầu 4 giây/hướng [contract] | M5 | Codex | 1 | S2 | P0 | FLOW-01 | doing |
+| LIVE-02 | Dò mắt, chuỗi kiểm mặt và webcam lab — diagnostic | M3 (+M1) | Codex+Gemini | 1,5 | S2 | P0 | LIVE-01 | doing |
 | LIVE-03 | Ký media theo phiên trên web (WebAuthn), chặn phát lại | M2 (+M1) | | 1 | S2 | P0 | LIVE-01 | todo |
 | LIVE-04 | Kháng lượng tử: đường truyền ML-KEM, ký kết quả ML-DSA | M2 | | 1 | S2 | P0 | FLOW-01 | todo |
 | LIVE-05 | BBS API/SDK/HTTP/runtime; bàn giao app sau thống nhất workflow, còn nghiệm thu thật | M5 | Codex | 2,5 | S3 | P1 | PLAT-03 | doing |
@@ -170,7 +170,7 @@
 | SEC-06 | Retention và thao tác riêng tư [contract] | M5 | Codex | 1 | S2 | P0 | PLAT-05 | done |
 | SEC-07 | Vá dependency web và kiểm chứng tích hợp | M2 | Codex | 0,5 | S2 | P0 | PLAT-02, PLAT-05 | doing |
 | SEC-08 | Vòng đời khóa và file tạm cho demo | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | done |
-| SEC-09 | Consent lưu mẫu và logic riêng tư app [contract] | M5 | | 1 | S2 | P0 | SEC-06, FLOW-06 | todo |
+| SEC-09 | Consent lưu mẫu: contract/API/Android và snapshot đã nối; chờ nghiệm thu thiết bị [contract] | M5 | Ngoc Quang+Codex | 1 | S2 | P0 | SEC-06, FLOW-06 | doing |
 
 ## Tổng hợp tải (chạy `plan_check.py` để có số mới nhất)
 

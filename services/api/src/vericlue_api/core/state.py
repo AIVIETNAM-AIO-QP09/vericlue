@@ -93,6 +93,7 @@ class AppState:
             privacy=self.privacy,
             enroll=self.enrollment.complete,
             accounts=self.accounts,
+            orchestrator=self.orchestrator,
         )
         self.identity = IdentitySteps(
             self.settings, privacy=self.privacy, runtime=self.identity_runtime

@@ -111,6 +111,8 @@ import vn.vericlue.app.ui.screens.ReviewScreen
 import vn.vericlue.app.ui.screens.SplashScreen
 import vn.vericlue.app.ui.screens.SuccessScreen
 import vn.vericlue.app.ui.screens.TermsScreen
+import vn.vericlue.app.ui.screens.PrivacyStopScreen
+import vn.vericlue.app.flow.PrivacyNotice
 import vn.vericlue.app.ui.screens.TurnHeadScreen
 import vn.vericlue.app.ui.screens.VoiceScreen
 import vn.vericlue.app.ui.theme.Vc
@@ -162,7 +164,7 @@ fun VeriClueApp() {
     val scope = rememberCoroutineScope()
     val camera = remember { CameraSession(context.applicationContext) }
     val api = remember { SessionApi(BuildConfig.API_BASE_URL) }
-    var live by remember { mutableStateOf(LiveFlow(api)) }
+    var live by remember { mutableStateOf(LiveFlow(api, enforcePrivacy = true)) }
     val accounts = remember {
         AccountStore(PrefsStore(context.applicationContext.getSharedPreferences("vericlue.account", Context.MODE_PRIVATE)))
     }
@@ -242,7 +244,7 @@ fun VeriClueApp() {
             return@once
         }
         flow.purpose = entry?.purpose ?: requested
-        live = LiveFlow(api, mediaSigner = entry?.signer).apply { boundAccount = entry?.account }
+        live = LiveFlow(api, mediaSigner = entry?.signer, enforcePrivacy = true).apply { boundAccount = entry?.account }
         accountEntry = entry
         entry?.hint?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
         nav.go(entry?.route ?: if (requested == Purpose.Onboarding) Routes.Terms else Routes.Phone)
@@ -345,11 +347,13 @@ fun VeriClueApp() {
     }
 
     fun follow(next: Next) {
+        if (live.privacy.stopping) return
+        if (flow.live && live.session == null) return
         val route = when (next) {
             is Next.To -> next.route
             is Next.Fail -> errorRoute(next.error)
         }
-        if (route == Routes.Success || route == Routes.Review) camera.unbind()
+        if (FlowRules.closesCameraOnResult(route)) camera.unbind()
         nav.navigate(route) { popUpTo(Routes.Uploading) { inclusive = true } }
     }
 
@@ -357,6 +361,10 @@ fun VeriClueApp() {
     fun VoiceRoute(again: Boolean) {
         val level by recorder.level.collectAsState()
         LaunchedEffect(Unit) {
+            if (flow.live && !live.privacy.permits("voice_biometrics")) {
+                nav.go(Routes.ErrorService)
+                return@LaunchedEffect
+            }
             if (!hasMic) askPermissions.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
         }
         VoiceScreen(
@@ -463,7 +471,19 @@ fun VeriClueApp() {
             )
         }
         // Terms and consent on one screen; no intro or permission screen (short flow, 24/10).
-        composable(Routes.Terms) { TermsScreen(onBack = { nav.popBackStack() }, onAccept = { nav.go(Routes.Phone) }) }
+        composable(Routes.Terms) {
+            var consentError by remember { mutableStateOf<String?>(null) }
+            TermsScreen(onBack = { if (!busy) nav.popBackStack() }, purpose = flow.purpose, busy = busy, error = consentError, onAccept = {
+                if (!flow.live) nav.go(FlowRules.afterConsent(flow.purpose)) else once {
+                    consentError = null
+                    val error = live.ensureSession(flow.mockScenario, FlowRules.purposeCode(flow.purpose))
+                        ?: live.privacy.grant(flow.purpose, PrivacyNotice.VERSION)
+                    if (error != null) {
+                        consentError = "Chưa ghi nhận được đồng ý. Hãy kiểm tra kết nối hoặc cập nhật ứng dụng rồi thử lại."
+                    } else nav.go(FlowRules.afterConsent(flow.purpose))
+                }
+            })
+        }
 
         // Stage A: identity
         composable(Routes.Phone) {
@@ -494,7 +514,7 @@ fun VeriClueApp() {
                     onCode = { code ->
                         once {
                             when (val r = live.verifyOtp(code)) {
-                                LiveFlow.OtpResult.Pass -> nav.go(FlowRules.afterOtp(flow.purpose))
+                                LiveFlow.OtpResult.Pass -> nav.go(FlowRules.afterOtp(flow.purpose, accountBound = live.boundAccount != null))
                                 is LiveFlow.OtpResult.Wrong -> otpError = FlowRules.otpWrongText(r.attemptsLeft)
                                 is LiveFlow.OtpResult.Fail -> FlowRules.otpErrorText(r.code)?.let { otpError = it } ?: nav.go(errorRoute(r.error))
                             }
@@ -615,7 +635,7 @@ fun VeriClueApp() {
         composable(Routes.FaceReady) {
             // Skipping the flash must not skip the face part: stop here. Nothing reaches the server yet,
             // so the screen promises no review (question 14 in docs/can-chot.md).
-            FaceReadyScreen(onBack = { nav.popBackStack() }, onReady = ::startFace, onSkipFlash = {
+            FaceReadyScreen(onBack = { nav.popBackStack() }, onReady = ::startFace, manualDemo = flow.live && (live.manualDemo || live.manualFullDemo), onSkipFlash = {
                 camera.unbind()
                 nav.go(Routes.FlashSkipped)
             })
@@ -650,6 +670,7 @@ fun VeriClueApp() {
             )
         }
         composable(Routes.HoldStill) {
+            val face by camera.face.collectAsState()
             val challenge = live.challenge
             // One presentation in both modes. Only API mode consumes a server challenge;
             // a missing/invalid server schedule must never fall back to the offline demo.
@@ -672,6 +693,7 @@ fun VeriClueApp() {
                     onStart = {
                         live.colorEvents.clear()
                         if (hasCamera) camera.startRecording() else if (!flow.live) demoStart = CaptureClock.nowMs()
+                        camera.debugTrace.bindAttempt(challenge?.challengeId)
                     },
                     recordingStartMs = { if (hasCamera || flow.live) camera.recordingStartMs() else demoStart },
                     onPainted = { slot, t -> slot.index?.let { live.colorEvents += ColorEvent(it, slot.rgb, t) } },
@@ -679,12 +701,15 @@ fun VeriClueApp() {
                     onBaselineDone = { camera.lockAeAwb(true) },
                     onColorsDone = { camera.lockAeAwb(false) },
                     onDone = {
+                        camera.savePresenceDebugTrace()
                         camera.stopRecording()
                         faceCaptured = true
-                        val next = FlowRules.afterFace(flow.purpose, idConfirmed, live = flow.live)
+                        val next = FlowRules.afterFace(flow.purpose, idConfirmed, live = flow.live, accountBound = live.boundAccount != null)
                         nav.navigate(next) { if (next == Routes.Confirm) popUpTo(Routes.FaceReady) { inclusive = true } }
                     },
                     onNoRecording = { nav.go(Routes.ErrorDevice) },
+                    face = if (hasCamera) face else null,
+                    debugTrace = camera.debugTrace,
                 )
             }
         }
@@ -711,7 +736,7 @@ fun VeriClueApp() {
                     // A retry comes back here; LiveFlow resends only what the server has not received.
                     val next = submitWithVideo(camera.finishedVideo()) { video ->
                         if (wav != null) {
-                            live.submitVoice(wav, video, live.audioOffsetMs, onAccepted = camera::deleteVideo)
+                            live.submitVoice(wav, video, live.audioOffsetMs, onAccepted = { camera.deleteVideo(preserveDiagnostics = true) })
                         } else {
                             val probe = withContext(Dispatchers.IO) { camera.camProbe() }
                             live.submitFace(
@@ -720,7 +745,7 @@ fun VeriClueApp() {
                                 camera.clientQuality(video),
                                 probe,
                                 camera.regionMeans().ifEmpty { null },
-                                onMediaAcked = camera::deleteVideo,
+                                onMediaAcked = { camera.deleteVideo(preserveDiagnostics = true) },
                             )
                         }
                     }
@@ -741,9 +766,14 @@ fun VeriClueApp() {
         composable(Routes.Success) {
             SuccessScreen(
                 flow.purpose,
-                onContinue = { if (flow.purpose == Purpose.Onboarding) nav.go(Routes.BankOpened) else leave() },
+                onContinue = { if (flow.purpose == Purpose.Onboarding && (!flow.live || accountFlow.accountSaved)) nav.go(Routes.BankOpened) else leave() },
                 checked = if (flow.live) FlowRules.checkedByServer(live.voiceChecked) else null,
+                accountReady = if (flow.live && flow.purpose != Purpose.Reauth) accountFlow.accountSaved else null,
+                manualFullDemo = flow.live && live.manualFullDemo,
             )
+        }
+        composable(Routes.ManualDemoComplete) {
+            vn.vericlue.app.ui.screens.ManualDemoCompleteScreen(onDone = { leave() })
         }
         composable(Routes.Review) { ReviewScreen(onBackToBank = { leave() }) }
         composable(Routes.RetryQuality) {
@@ -814,11 +844,47 @@ fun VeriClueApp() {
                     camera.stopRecording()
                     camera.deleteVideo()
                     recorder.stop()
-                    nav.go(Routes.Stopped)
+                    nav.go(if (flow.live && live.session != null) Routes.PrivacyStop else Routes.Stopped)
                 },
             )
         }
-        composable(Routes.Stopped) { Messages.Stopped(onBank = { leave() }) }
+        composable(Routes.PrivacyStop) {
+            var requested by remember { mutableStateOf(false) }
+            var sending by remember { mutableStateOf(false) }
+            var failure by remember { mutableStateOf(false) }
+            BackHandler(enabled = requested) { }
+            PrivacyStopScreen(sending, requested, failure,
+                onResume = { nav.popBackStack() },
+                onWithdraw = {
+                    if (!sending) {
+                        requested = true
+                        sending = true
+                        camera.clearPresenceDebugTrace()
+                        voiceStart.value?.cancel()
+                        camera.unbind()
+                        recorder.stop()
+                        scope.launch {
+                            try {
+                                failure = live.privacy.withdraw() != null
+                                if (!failure) {
+                                    camera.deleteVideo()
+                                    live.reset()
+                                    idFront = null; idBack = null; cccd = null
+                                    idConfirmed = false; faceCaptured = false
+                                    nav.navigate(Routes.Stopped) {
+                                        popUpTo(Routes.BankStart) { inclusive = false }
+                                        launchSingleTop = true
+                                    }
+                                }
+                            } finally { sending = false }
+                        }
+                    }
+                }, onLeaveUnconfirmed = { leave() })
+        }
+        composable(Routes.Stopped) {
+            BackHandler { leave() }
+            Messages.Stopped(onBank = { leave() })
+        }
         composable(Routes.FlashSkipped) { Messages.FlashSkipped(onBank = { leave() }) }
         composable(Routes.Deny) { Messages.Denied(onBank = { leave() }) }
         composable(Routes.RecoveryRequired) { Messages.RecoveryRequired(onBank = { leave() }) }

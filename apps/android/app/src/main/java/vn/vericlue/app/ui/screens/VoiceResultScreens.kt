@@ -50,6 +50,7 @@ import androidx.compose.material.icons.outlined.Dns
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import vn.vericlue.app.ui.components.Banner
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -206,12 +207,31 @@ fun CheckingScreen(purpose: Purpose, onDone: () -> Unit, auto: Boolean = true) {
 // ── Results ──────────────────────────────────────────────────────────────────
 
 @Composable
-fun SuccessScreen(purpose: Purpose, onContinue: () -> Unit, auto: Boolean = false, checked: List<String>? = null) {
+fun ManualDemoCompleteScreen(onDone: () -> Unit) {
+    VcScreen(centered = true, actions = { PrimaryButton("Về màn hình chính", onDone) }) {
+        SuccessBadge()
+        TitleBlock("Xác minh thành công", "Các bước AI đã thỏa ngưỡng thử nghiệm của bản demo.", centered = true)
+        Banner("Demo · Ngưỡng chưa hiệu chỉnh", tone = Tone.Warn)
+        Text("Kết quả phục vụ trình diễn, chưa dùng để mở tài khoản hoặc xác minh danh tính thực tế.", style = VcType.body, color = Vc.colors.ink)
+    }
+}
+
+@Composable
+fun SuccessScreen(
+    purpose: Purpose,
+    onContinue: () -> Unit,
+    auto: Boolean = false,
+    checked: List<String>? = null,
+    accountReady: Boolean? = null,
+    manualFullDemo: Boolean = false,
+) {
     CompletionHaptic(true)
     LaunchedEffect(auto) { if (auto) { delay(2600); onContinue() } }
     VcScreen(centered = true, actions = { PrimaryButton("Hoàn tất", onContinue) }) {
         SuccessBadge()
         TitleBlock("Xác minh thành công", centered = true)
+        if (manualFullDemo) Banner("Demo · Ngưỡng chưa hiệu chỉnh", tone = Tone.Warn)
+        if (accountReady == false) Text("Phiên xác minh đã hoàn tất. Tài khoản chưa được lưu trên thiết bị; bạn chưa thể dùng đăng nhập lại.", style = VcType.body, color = Vc.colors.ink)
         if (!checked.isNullOrEmpty()) ChecklistCard(null, checked.map { Triple(null, it, RowState.Done) })
     }
 }

@@ -19,7 +19,16 @@ spec.loader.exec_module(cli)
 
 
 @pytest.mark.parametrize("status", ["pass", "deny", "recovery_required"])
-def test_cli_validity_is_not_an_authorization_result(tmp_path, capsys, status):
+def test_cli_validity_is_not_an_authorization_result(tmp_path, capsys, status, monkeypatch):
+    # This test checks signed context/status, not elapsed wall time on a busy laptop.
+    fixed = datetime(2026, 1, 1, tzinfo=UTC)
+
+    class Clock:
+        @staticmethod
+        def now(tz):
+            return fixed
+
+    monkeypatch.setattr(cli, "datetime", Clock)
     key = Ed25519PrivateKey.generate()
     public = tmp_path / "public.pem"
     public.write_bytes(
@@ -27,7 +36,7 @@ def test_cli_validity_is_not_an_authorization_result(tmp_path, capsys, status):
             serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo
         )
     )
-    now = int(datetime.now(UTC).timestamp())
+    now = int(fixed.timestamp())
     claims = ResultClaims(
         version=1,
         issuer="vericlue-demo",

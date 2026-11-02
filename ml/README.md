@@ -21,6 +21,22 @@
 
 ## Quy ước bắt buộc
 
+APP-01/FLOW-04 (31/10): manual demo là policy opt-in riêng cho các adapter phiên,
+không phải calibrator. Kết quả hợp lệ giữ điểm thô/prob_attack=null, marker và
+version policy riêng; mặc định đường hiệu chỉnh chuẩn không đổi. Lỗi/degraded
+không được nâng thành đạt. [Runbook](../docs/runbooks/manual-face-demo.md).
+
+FLOW-04 (31/10) head rules0.2 loại yaw quá góc thoáng qua khỏi bằng chứng giữ
+thay vì phủ quyết cả video; vẫn kiểm coverage/gap/biên, baseline/thứ tự và
+tilt. Quá góc kéo dài/giữ thiếu vẫn không đạt. Không đổi ngưỡng, không chứng
+minh 3D hay accuracy; xem [thiết kế](../docs/architecture/head-and-match.md).
+
+FLOW-04 (30/10) có công cụ `eval.session_calibration collect|fit` đo đúng video/
+lịch bằng session_views, giữ mẫu lỗi và kiểm nhóm không giao split trước fit.
+SessionAttackDetector chỉ nhận fitted non-provisional calibrator đúng full
+session version; thiếu/sai vẫn degraded, không mở guard. Chưa có artifact thực
+trên laptop. Xem [hướng dẫn](../docs/runbooks/session-face-calibration.md).
+
 PRES-05 thêm `eval.presence_lab`: một lượt ánh sáng → mắt → quay đầu, cùng
 camera/reader/đồng hồ, giữ các số đo độc lập và chỉ chấm ba ảnh khi motion đủ.
 Không kết luận xác minh/API; xem [hướng dẫn](../docs/architecture/presence-lab.md).

@@ -52,7 +52,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -66,6 +68,8 @@ import vn.vericlue.app.flow.FramingState
 import vn.vericlue.app.capture.CaptureClock
 import vn.vericlue.app.capture.ColorSchedule
 import vn.vericlue.app.capture.ColorSlot
+import vn.vericlue.app.capture.FaceSignal
+import vn.vericlue.app.capture.HeadTurnGuide
 import vn.vericlue.app.capture.TurnTracker
 import vn.vericlue.app.capture.FaceTimeline
 import vn.vericlue.app.ui.components.CameraFeed
@@ -101,7 +105,7 @@ import androidx.compose.runtime.CompositionLocalProvider
  */
 
 @Composable
-fun FaceReadyScreen(onBack: () -> Unit, onReady: () -> Unit, onSkipFlash: () -> Unit) {
+fun FaceReadyScreen(onBack: () -> Unit, onReady: () -> Unit, onSkipFlash: () -> Unit, manualDemo: Boolean = false) {
     val c = Vc.colors
     VcScreen(
         onBack = onBack,
@@ -112,9 +116,10 @@ fun FaceReadyScreen(onBack: () -> Unit, onReady: () -> Unit, onSkipFlash: () -> 
         },
     ) {
         TitleBlock("Xác minh khuôn mặt", "Đặt điện thoại ngang tầm mắt, tại nơi đủ sáng.")
+        if (manualDemo) Banner("Chế độ trình diễn · Ngưỡng thử nghiệm, chưa hiệu chỉnh. Kết quả không dùng để xác minh danh tính.", tone = Tone.Warn)
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             NumberedRow(1, "1 · Giữ đầu thẳng".substringAfter(" · "), "Nhìn thẳng khi màn hình đổi màu, sau đó đưa mắt theo chấm sáng.")
-            NumberedRow(2, "2 · Quay đầu theo hướng dẫn".substringAfter(" · "), "Làm theo mũi tên.", last = true)
+            NumberedRow(2, "2 · Quay đầu theo hướng dẫn".substringAfter(" · "), "Quay nhẹ; dừng khi nghe lời nhắc giữ yên.", last = true)
         }
         Banner(
             "Màn hình sẽ đổi màu trong lúc xác minh. Nếu nhạy cảm với ánh sáng nhấp nháy, hãy dừng tại đây.",
@@ -125,7 +130,7 @@ fun FaceReadyScreen(onBack: () -> Unit, onReady: () -> Unit, onSkipFlash: () -> 
 
 /** Dark camera layout shared by framing and turn-head screens. */
 @Composable
-private fun CameraScaffold(onBack: () -> Unit, content: @Composable () -> Unit) {
+internal fun CameraScaffold(onBack: () -> Unit, content: @Composable () -> Unit) {
     BackHandler(onBack = onBack)
     VcTheme(dark = true) {
         val c = Vc.colors
@@ -433,67 +438,145 @@ private fun TurnHeadContent(
     dir: TurnDir?, index: Int, total: Int, onExit: () -> Unit,
     onDebugSkip: (() -> Unit)? = null,
     returnToCenter: Boolean = false,
+    remainingSeconds: Int? = null,
+    nextInstruction: String? = null,
+    face: FaceSignal? = null,
+    debugTrace: vn.vericlue.app.capture.PresenceDebugTrace? = null,
+    recordingOriginMs: Double? = null,
+    speech: vn.vericlue.app.capture.HeadSpeech? = null,
 ) {
-    val shift = if (Vc.motion.enabled) {
-        val nudge = rememberInfiniteTransition(label = "turn-nudge")
-        val value by nudge.animateFloat(0f, 1f,
-            infiniteRepeatable(tween(700, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "turn-shift")
-        value
-    } else 0f
-    CameraScaffold(onExit) {
-        Box(Modifier.fillMaxSize()) {
-            FullCamera()
-            CameraArea { oval ->
-                Text(
-                    when (dir) {
-                        TurnDir.Left -> "Quay sang trái"
-                        TurnDir.Right -> "Quay sang phải"
-                        null -> "Nhìn thẳng"
-                    },
-                    style = VcType.titleMedium,
-                    color = Color.White,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(top = 18.dp),
-                )
-                val sign = if (dir == TurnDir.Left) -1 else 1
-                val x = if (dir == TurnDir.Left) oval.left - 28.dp else oval.left + oval.width - 36.dp
-                if (dir != null) Box(
-                    Modifier.offset(x = x + (8 * shift * sign).dp, y = oval.centerY - 32.dp).size(64.dp)
-                        .clip(CircleShape).background(Palette.LogoNavy.copy(alpha = 0.55f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        if (dir == TurnDir.Left) Icons.AutoMirrored.Outlined.ArrowBack else Icons.AutoMirrored.Outlined.ArrowForward,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(32.dp),
-                    )
+    val view = androidx.compose.ui.platform.LocalView.current
+    val liveAssist = face != null
+    val segmentStartMs = remember(index, dir) { android.os.SystemClock.elapsedRealtime() }
+    var guideClockMs by remember { mutableStateOf(android.os.SystemClock.elapsedRealtime()) }
+    LaunchedEffect(liveAssist) {
+        if (liveAssist) while (true) {
+            guideClockMs = android.os.SystemClock.elapsedRealtime()
+            delay(100)
+        }
+    }
+    val nowMs = maxOf(guideClockMs, android.os.SystemClock.elapsedRealtime())
+    val activeFace = HeadTurnGuide.freshFace(face, nowMs, segmentStartMs)
+    val staleFace = face != null && activeFace == null
+    val holdTracker = remember(index, dir) {
+        vn.vericlue.app.capture.SegmentHoldTracker(segmentStartMs = segmentStartMs)
+    }
+    var segmentCompleted by remember(index, dir) { mutableStateOf(false) }
+    LaunchedEffect(activeFace, index, dir) {
+        val current = activeFace ?: return@LaunchedEffect
+        if (holdTracker.update(dir, current, android.os.SystemClock.elapsedRealtime())) {
+            segmentCompleted = true
+        }
+    }
+    val poseState = if (staleFace) vn.vericlue.app.capture.TurnPoseState.Warn
+        else HeadTurnGuide.evaluatePose(dir, activeFace, segmentCompleted)
+    LaunchedEffect(guideClockMs, poseState, segmentCompleted) {
+        recordingOriginMs?.let { origin -> debugTrace?.recordGuidance(
+            (nowMs - origin).toLong(), index, poseState.name, segmentCompleted,
+            activeFace?.timestampNs?.takeIf { it > 0L }?.let { (it / 1e6 - origin).toLong() },
+        ) }
+    }
+    // Each hint vibrates at most once per segment, even if the estimated angle oscillates.
+    val notifiedStates = remember(index, dir) { mutableSetOf<vn.vericlue.app.capture.TurnPoseState>() }
+    LaunchedEffect(index, dir, liveAssist) {
+        if (!liveAssist) return@LaunchedEffect
+        runCatching {
+            view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+        }
+    }
+    LaunchedEffect(poseState, index, liveAssist) {
+        if (!liveAssist || !notifiedStates.add(poseState)) return@LaunchedEffect
+        runCatching {
+            when (poseState) {
+                vn.vericlue.app.capture.TurnPoseState.Hold -> {
+                    view.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
                 }
-                Column(
-                    Modifier.fillMaxWidth().offset(y = oval.bottom + 24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                ) {
-                    GuidanceChip(when {
-                        dir == null -> "Giữ yên, nhìn thẳng vào camera"
-                        returnToCenter -> "Quay chậm, sau đó nhìn thẳng"
-                        else -> "Quay chậm theo hướng mũi tên"
-                    })
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        repeat(total) { i ->
-                            Box(Modifier.size(6.dp).clip(CircleShape).background(if (i == index) Color.White else Color.White.copy(alpha = 0.35f)))
-                            if (i == index) Text("${index + 1} / $total", style = VcType.labelXs, color = Color.White)
+                vn.vericlue.app.capture.TurnPoseState.Completed -> {
+                    view.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
+                }
+                vn.vericlue.app.capture.TurnPoseState.Warn -> {
+                    view.performHapticFeedback(android.view.HapticFeedbackConstants.REJECT)
+                }
+                vn.vericlue.app.capture.TurnPoseState.TurnMore -> Unit
+            }
+        }
+    }
+    val cue = vn.vericlue.app.capture.headCue(dir, activeFace, segmentCompleted)
+    val cuePolicy = remember { vn.vericlue.app.capture.HeadCuePolicy() }
+    LaunchedEffect(cue, guideClockMs, index, speech) {
+        val waitingForFirstFrame = staleFace && nowMs - segmentStartMs <= HeadTurnGuide.MAX_FRAME_AGE_MS
+        if (liveAssist && !waitingForFirstFrame) cuePolicy.dispatch(index, cue, nowMs,
+            stop = { speech?.stop() }, say = { speech?.say(it) })
+    }
+    androidx.compose.runtime.DisposableEffect(index, speech) {
+        onDispose { speech?.stop() }
+    }
+    val ringColor = when (poseState) {
+        vn.vericlue.app.capture.TurnPoseState.Hold,
+        vn.vericlue.app.capture.TurnPoseState.Completed -> Palette.OkOnDark
+        vn.vericlue.app.capture.TurnPoseState.Warn -> Palette.WarnBorder
+        vn.vericlue.app.capture.TurnPoseState.TurnMore -> Color.White.copy(alpha = .65f)
+    }
+    val ringWidth = if (poseState == vn.vericlue.app.capture.TurnPoseState.TurnMore) 1.5.dp else 2.dp
+    val titleText = if (!liveAssist) when (dir) {
+        TurnDir.Left -> "Quay nhẹ sang trái"
+        TurnDir.Right -> "Quay nhẹ sang phải"
+        null -> "Nhìn thẳng"
+    } else cue.text
+    CameraScaffold(onExit) {
+        Column(Modifier.fillMaxSize()) {
+            Text(
+                titleText,
+                style = VcType.titleMedium,
+                color = Color.White,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(top = 18.dp),
+            )
+            Box(Modifier.fillMaxWidth().weight(1f).clipToBounds()) {
+                FullCamera(ringColor = ringColor, ringWidth = ringWidth, fitHeight = true)
+                CameraArea(fitHeight = true) { oval ->
+                    val x = if (dir == TurnDir.Left) oval.left - 28.dp else oval.left + oval.width - 36.dp
+                    if (dir != null && poseState == vn.vericlue.app.capture.TurnPoseState.TurnMore) {
+                        Box(
+                            Modifier.offset(x = x, y = oval.centerY - 32.dp).size(64.dp)
+                                .clip(CircleShape).background(Palette.LogoNavy.copy(alpha = .55f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(if (dir == TurnDir.Left) Icons.AutoMirrored.Outlined.ArrowBack
+                                else Icons.AutoMirrored.Outlined.ArrowForward,
+                                contentDescription = null, tint = Color.White, modifier = Modifier.size(32.dp))
                         }
                     }
                 }
-                if (onDebugSkip != null) DebugButton("Bỏ qua (debug)", onDebugSkip, Modifier.align(Alignment.BottomCenter).padding(bottom = 56.dp))
-                Text(
-                    "Camera đang ghi hình. Bạn không cần bấm chụp.",
-                    style = VcType.bodySmall,
-                    color = Color.White.copy(alpha = 0.85f),
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter).padding(bottom = 24.dp),
-                )
+            }
+            Column(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (remainingSeconds != null) Text("Còn $remainingSeconds giây", style = VcType.label, color = Color.White)
+                val chipText = if (staleFace) "Giữ yên, chờ camera nhận khuôn mặt"
+                    else if (poseState == vn.vericlue.app.capture.TurnPoseState.Hold && dir != null) "Dừng xoay, giữ yên một chút"
+                    else HeadTurnGuide.guidanceText(dir, activeFace, returnToCenter, remainingSeconds, segmentCompleted)
+                when (poseState) {
+                    vn.vericlue.app.capture.TurnPoseState.Hold,
+                    vn.vericlue.app.capture.TurnPoseState.Completed ->
+                        GuidanceChip(chipText, Icons.Outlined.Check, Tone.Ok)
+                    vn.vericlue.app.capture.TurnPoseState.Warn ->
+                        GuidanceChip(chipText, Icons.Outlined.CenterFocusWeak, Tone.Warn)
+                    vn.vericlue.app.capture.TurnPoseState.TurnMore ->
+                        GuidanceChip(chipText)
+                }
+                nextInstruction?.let {
+                    Text(it, style = VcType.bodySmall, color = Color.White, textAlign = TextAlign.Center)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    repeat(total) { i ->
+                        Box(Modifier.size(6.dp).clip(CircleShape).background(if (i == index) Color.White else Color.White.copy(alpha = 0.35f)))
+                        if (i == index) Text("${index + 1} / $total", style = VcType.labelXs, color = Color.White)
+                    }
+                }
+                if (onDebugSkip != null) DebugButton("Bỏ qua (debug)", onDebugSkip, Modifier)
             }
         }
     }
@@ -520,8 +603,14 @@ fun FaceTimelineScreen(
     onColorsDone: () -> Unit,
     onDone: () -> Unit,
     onNoRecording: () -> Unit,
+    face: FaceSignal? = null,
+    debugTrace: vn.vericlue.app.capture.PresenceDebugTrace? = null,
 ) {
+    val speech = if (timeline.headTurns.isNotEmpty()) vn.vericlue.app.ui.components.rememberHeadSpeech() else null
     var phase by remember { mutableStateOf<FaceTimeline.Phase>(FaceTimeline.Phase.Colour(0)) }
+    var remainingSeconds by remember { mutableStateOf<Int?>(null) }
+    var recordingOriginMs by remember { mutableStateOf<Double?>(null) }
+    val latestFace by androidx.compose.runtime.rememberUpdatedState(face)
     LaunchedEffect(Unit) {
         delay(SETTLE_MS) // let the preview settle before recording (see HoldStillScreen)
         onStart()
@@ -533,7 +622,9 @@ fun FaceTimelineScreen(
             }
         }
         val start = t0 ?: return@LaunchedEffect onNoRecording()
+        recordingOriginMs = start
         var lastSlot = -1
+        var lastHeadSegment = -1
         var frontalDone = false
         var baselineDone = false
         var coloursDone = false
@@ -542,6 +633,17 @@ fun FaceTimelineScreen(
             val t = nowMs - start
             val p = timeline.phaseAt(t)
             phase = p
+            remainingSeconds = timeline.headRemainingSeconds(t)
+            debugTrace?.recordAnalyzerFrame(latestFace, timeline, start, nowMs)
+            if (p is FaceTimeline.Phase.Head && p.segment != lastHeadSegment) {
+                lastHeadSegment = p.segment
+                debugTrace?.recordPhaseBoundary(
+                    recordingRelMs = t.toLong(),
+                    phase = "head",
+                    segmentIndex = p.segment,
+                    direction = p.dir,
+                )
+            }
             if (p is FaceTimeline.Phase.Colour && p.slot != lastSlot) {
                 lastSlot = p.slot
                 onPainted(timeline.slots[p.slot], nowMs)
@@ -566,21 +668,50 @@ fun FaceTimelineScreen(
     }
     BackHandler(onBack = onStop)
     FullBrightness(enabled = true)
-    FaceChallengeContent(timeline, phase, onStop)
+    FaceChallengeContent(timeline, phase, remainingSeconds, face, debugTrace, recordingOriginMs, speech, onStop)
 }
 
 /** Shared presentation, independently snapshot-tested without opening a camera or starting work. */
 @Composable
 fun FaceChallengeContent(timeline: FaceTimeline, phase: FaceTimeline.Phase, onStop: () -> Unit) {
+    val seconds = (phase as? FaceTimeline.Phase.Head)?.let {
+        timeline.headRemainingSeconds(timeline.headStartMs + it.segment * (timeline.headDurationMs / timeline.headTurns.size).toDouble())
+    }
+    FaceChallengeContent(timeline, phase, seconds, null, onStop = onStop)
+}
+
+@Composable
+fun FaceChallengeContent(
+    timeline: FaceTimeline,
+    phase: FaceTimeline.Phase,
+    remainingSeconds: Int?,
+    face: FaceSignal? = null,
+    debugTrace: vn.vericlue.app.capture.PresenceDebugTrace? = null,
+    recordingOriginMs: Double? = null,
+    speech: vn.vericlue.app.capture.HeadSpeech? = null,
+    onStop: () -> Unit,
+) {
     StableCameraScene {
         when (phase) {
             is FaceTimeline.Phase.Colour -> HoldStillScreen(
                 onStop, {}, auto = false, slots = timeline.slots, frozenSlot = phase.slot,
             )
             FaceTimeline.Phase.Gap, is FaceTimeline.Phase.Gaze ->
-                TimelineGaze(phase as? FaceTimeline.Phase.Gaze, onStop)
+                TimelineGaze(phase as? FaceTimeline.Phase.Gaze, onStop, debugTrace, recordingOriginMs)
             is FaceTimeline.Phase.Head ->
-                TurnHeadContent(phase.dir, phase.segment, timeline.headTurns.size, onStop)
+                TurnHeadContent(phase.dir, phase.segment, timeline.headTurns.size, onStop,
+                    remainingSeconds = remainingSeconds,
+                    nextInstruction = if (phase.segment >= timeline.headTurns.lastIndex) "Giữ yên đến khi kết thúc lượt quay" else
+                        "Tiếp theo: " + when (timeline.headTurns[phase.segment + 1]) {
+                            TurnDir.Left -> "Quay sang trái"
+                            TurnDir.Right -> "Quay sang phải"
+                            null -> "Nhìn thẳng"
+                        },
+                    face = face,
+                    debugTrace = debugTrace,
+                    recordingOriginMs = recordingOriginMs,
+                    speech = speech,
+                )
             FaceTimeline.Phase.Done ->
                 TurnHeadContent(null, timeline.headTurns.lastIndex.coerceAtLeast(0), timeline.headTurns.size, onStop)
         }
@@ -589,7 +720,8 @@ fun FaceChallengeContent(timeline: FaceTimeline, phase: FaceTimeline.Phase, onSt
 
 /** The dot moves over the whole screen: x/y are fractions of this area, not of the camera image. */
 @Composable
-private fun TimelineGaze(gaze: FaceTimeline.Phase.Gaze?, onStop: () -> Unit) {
+private fun TimelineGaze(gaze: FaceTimeline.Phase.Gaze?, onStop: () -> Unit,
+    debugTrace: vn.vericlue.app.capture.PresenceDebugTrace? = null, recordingOriginMs: Double? = null) {
     SystemBarIcons(Color.White)
     CompositionLocalProvider(LocalVcColors provides LightColors) {
       BoxWithConstraints(Modifier.fillMaxSize().background(Color.White)) {
@@ -615,7 +747,13 @@ private fun TimelineGaze(gaze: FaceTimeline.Phase.Gaze?, onStop: () -> Unit) {
             val x = maxWidth * gaze.x.toFloat()
             val y = maxHeight * gaze.y.toFloat()
             Box(
-                Modifier.offset(x = x - 24.dp, y = y - 24.dp).size(48.dp).clip(CircleShape)
+                Modifier.offset(x = x - 24.dp, y = y - 24.dp).size(48.dp)
+                    .drawWithContent {
+                        drawContent()
+                        recordingOriginMs?.let { origin -> debugTrace?.recordGazeTarget(
+                            (CaptureClock.nowMs() - origin).toLong(), gaze.x.toFloat(), gaze.y.toFloat(),
+                        ) }
+                    }.clip(CircleShape)
                     .background(Palette.Primary.copy(alpha = 0.18f)),
                 contentAlignment = Alignment.Center,
             ) { Box(Modifier.size(28.dp).clip(CircleShape).background(Palette.Primary)) }

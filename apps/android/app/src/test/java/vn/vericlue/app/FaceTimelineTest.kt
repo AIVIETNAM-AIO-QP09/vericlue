@@ -8,6 +8,8 @@ import org.junit.Test
 import vn.vericlue.app.capture.FaceTimeline
 import vn.vericlue.app.capture.FaceTimeline.Phase
 import vn.vericlue.app.data.api.CreateSessionResponse
+import vn.vericlue.app.data.api.Challenge
+import vn.vericlue.app.flow.TurnDir
 import java.io.File
 
 /** The FLOW-01 schedule runs on the server's marks, from the recording's first frame. */
@@ -28,12 +30,52 @@ class FaceTimelineTest {
     private val json = Json { ignoreUnknownKeys = true }
 
     /** The contract's own example (packages/contracts/examples), so the app follows the real shape. */
-    private fun example(): FaceTimeline {
+    private fun exampleChallenge(): Challenge {
         val file = generateSequence(File("").absoluteFile) { it.parentFile }
             .map { File(it, "packages/contracts/examples/session.CreateSessionResponse.dynamic.json") }
             .first { it.exists() }
         val res = json.decodeFromString(CreateSessionResponse.serializer(), file.readText())
-        return FaceTimeline.from(res.challenge) ?: error("example has no dynamic schedule")
+        return res.challenge
+    }
+
+    private fun example(): FaceTimeline = FaceTimeline.from(exampleChallenge()) ?: error("example has no dynamic schedule")
+
+    @Test fun longScheduleHasFourSecondsPerDirectionAndCountdown() {
+        for (order in listOf(listOf("left", "right", "center"), listOf("right", "left", "center"))) {
+            val ch = exampleChallenge()
+            val tl = FaceTimeline.from(ch.copy(dynamic = ch.dynamic!!.copy(headTurns = order)))!!
+            val start = tl.headStartMs.toDouble()
+            assertEquals(12000, tl.headDurationMs)
+            for ((offset, segment) in listOf(0 to 0, 3999 to 0, 4000 to 1, 7999 to 1, 8000 to 2, 11999 to 2)) {
+                assertEquals(segment, (tl.phaseAt(start + offset) as Phase.Head).segment)
+            }
+            assertEquals(Phase.Done, tl.phaseAt(start + 12000))
+            assertEquals(4, tl.headRemainingSeconds(start))
+            assertEquals(1, tl.headRemainingSeconds(start + 3999))
+            assertEquals(4, tl.headRemainingSeconds(start + 4000))
+            assertNull(tl.headRemainingSeconds(start - 1))
+            assertNull(tl.headRemainingSeconds(start + 12000))
+            assertEquals(if (order[1] == "left") TurnDir.Left else TurnDir.Right, tl.nextHeadDirection(start))
+            assertNull(tl.nextHeadDirection(start + 4000)) // Next is center, never a fourth segment.
+            assertNull(tl.nextHeadDirection(start + 12000))
+        }
+    }
+
+    @Test fun oldScheduleRemainsTwoSecondsPerDirection() {
+        val ch = exampleChallenge()
+        val d = ch.dynamic!!
+        val tl = FaceTimeline.from(ch.copy(dynamic = d.copy(version = 1, headDurationMs = 6000, voiceStartAtMs = d.headStartAtMs + 6000)))!!
+        assertEquals(0, (tl.phaseAt(tl.headStartMs + 1999.0) as Phase.Head).segment)
+        assertEquals(1, (tl.phaseAt(tl.headStartMs + 2000.0) as Phase.Head).segment)
+    }
+
+    @Test fun invalidServerHeadScheduleCannotBecomeAnOfflineTimeline() {
+        val ch = exampleChallenge()
+        val d = ch.dynamic!!
+        val invalid = listOf(d.copy(version = 1), d.copy(version = 3), d.copy(headDurationMs = 6000),
+            d.copy(headStartAtMs = 19000, voiceStartAtMs = 31000), d.copy(voiceStartAtMs = 1),
+            d.copy(headTurns = listOf("left", "left", "center")), d.copy(headTurns = listOf("left", "right")))
+        invalid.forEach { assertNull(FaceTimeline.from(ch.copy(dynamic = it))) }
     }
 
     @Test

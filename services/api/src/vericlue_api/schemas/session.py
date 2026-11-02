@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 RetryHint = Literal[
     "MORE_LIGHT",
@@ -64,17 +64,33 @@ class GazePoint(BaseModel):
 class DynamicChallenge(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    version: Literal[1]
+    version: Literal[1, 2]
     session_id: str
     nonce: str
     gaze_points: list[GazePoint] = Field(min_length=8, max_length=8)
     head_turns: list[Literal["left", "right", "center"]] = Field(min_length=3, max_length=3)
     head_start_at_ms: int = Field(ge=0)
-    head_duration_ms: Literal[6000]
+    head_duration_ms: Literal[6000, 12000]
     voice_start_at_ms: int = Field(ge=0)
     voice_prompt: str
     voice_challenge_id: str
     frontal_capture_at_ms: int = Field(ge=0)
+
+    @field_validator("version", mode="before")
+    @classmethod
+    def integer_version(cls, value):
+        if type(value) is not int:
+            raise ValueError("Protocol version must be an integer")
+        return value
+
+    @model_validator(mode="after")
+    def head_timing(self):
+        if self.head_duration_ms != {1: 6000, 2: 12000}[self.version]:
+            raise ValueError("Head duration differs from protocol")
+        end = self.head_start_at_ms + self.head_duration_ms
+        if end > 30000 or self.voice_start_at_ms != end:
+            raise ValueError("Invalid head/voice timeline")
+        return self
 
 
 class FinalizeRequest(BaseModel):
@@ -100,6 +116,10 @@ class Challenge(BaseModel):
 
 
 class CreateSessionResponse(BaseModel):
+    evaluation_mode: Literal["standard", "manual_demo", "manual_full_demo"] = Field(
+        default="standard", exclude_if=lambda v: v == "standard"
+    )
+    demo_policy_id: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     session_id: str
     token: str = Field(
         description="Token HMAC-SHA256 theo phiên, có hạn; gửi Authorization: Bearer. DB chỉ lưu hash token."
@@ -109,6 +129,14 @@ class CreateSessionResponse(BaseModel):
     purpose: SessionPurpose | None = None
     nonce: str | None = None
     device_challenge: DeviceChallenge | None = None
+
+    @model_validator(mode="after")
+    def evaluation_binding(self):
+        if (self.evaluation_mode in {"manual_demo", "manual_full_demo"}) != (
+            self.demo_policy_id is not None
+        ):
+            raise ValueError("Evaluation mode requires matching policy binding")
+        return self
 
 
 class Signals(BaseModel):
@@ -127,6 +155,11 @@ class StepAck(BaseModel):
 
 
 class FinalizeResponse(BaseModel):
+    evaluation_mode: Literal["standard", "manual_demo", "manual_full_demo"] = Field(
+        default="standard", exclude_if=lambda v: v == "standard"
+    )
+    demo_policy_id: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    demo_complete: bool = Field(default=False, exclude_if=lambda v: v is False)
     status: Literal["pass", "retry", "review", "voice_challenge", "deny", "recovery_required"]
     retry_hint: RetryHint | None = None
     voice_prompt: str | None = None
@@ -134,13 +167,43 @@ class FinalizeResponse(BaseModel):
     challenge: Challenge | None = Field(default=None, description="Chỉ có khi status = retry")
     voice_challenge_id: str | None = None
 
+    @model_validator(mode="after")
+    def demo_cannot_be_verified(self):
+        if self.evaluation_mode == "manual_demo" and (
+            not self.demo_policy_id or self.status not in {"review", "retry"}
+        ):
+            raise ValueError("Manual evaluation cannot return an authenticated status")
+        if self.evaluation_mode == "manual_full_demo" and not self.demo_policy_id:
+            raise ValueError("Manual full demo requires matching policy binding")
+        if self.evaluation_mode == "standard" and self.demo_policy_id is not None:
+            raise ValueError("Standard evaluation has no manual policy")
+        if self.demo_complete and (
+            self.status != "review"
+            or self.evaluation_mode != "manual_demo"
+            or not self.demo_policy_id
+        ):
+            raise ValueError("Demo completion is not an authenticated pass")
+        return self
+
 
 class VoiceResponse(BaseModel):
+    evaluation_mode: Literal["standard", "manual_demo", "manual_full_demo"] = Field(
+        default="standard", exclude_if=lambda v: v == "standard"
+    )
+    demo_policy_id: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     status: Literal["pass", "review", "voice_challenge", "deny"]
     voice_prompt: str | None = None
     attempts_left: int | None = None
     voice_challenge_id: str | None = None
     account: AccountReceipt | None = None
+
+    @model_validator(mode="after")
+    def evaluation_binding(self):
+        if (self.evaluation_mode in {"manual_demo", "manual_full_demo"}) != (
+            self.demo_policy_id is not None
+        ):
+            raise ValueError("Evaluation mode requires matching policy binding")
+        return self
 
 
 class OtpRequest(BaseModel):

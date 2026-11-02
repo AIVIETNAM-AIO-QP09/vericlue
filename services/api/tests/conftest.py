@@ -33,6 +33,7 @@ def _mock_env(monkeypatch, tmp_path, db_template):
     monkeypatch.setenv("FORENSIC_TTL_DAYS", "")
     monkeypatch.setenv("USE_MOCK_MODELS", "true")
     monkeypatch.setenv("SECURITY_PROFILE", "synthetic")
+    monkeypatch.setenv("SIMULATED_OTP", "true")
     monkeypatch.setenv("PRODUCT_MODE", "tools")
     monkeypatch.setenv("REQUIRE_PRIVACY_CONSENT", "false")
     monkeypatch.setenv("FORENSIC_PDF_NODE", "")

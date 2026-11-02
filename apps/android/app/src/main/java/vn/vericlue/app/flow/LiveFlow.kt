@@ -5,6 +5,11 @@ import java.security.SecureRandom
 import java.util.Base64
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import vn.vericlue.app.security.MediaSigner
 import vn.vericlue.app.security.MediaProof
 import vn.vericlue.app.security.AndroidMediaSigner
@@ -39,9 +44,14 @@ sealed interface Next {
 class LiveFlow(
     private val api: SessionApi,
     private val mediaSigner: MediaSigner? = if (BuildConfig.SIGNED_MEDIA) AndroidMediaSigner() else null,
+    private val enforcePrivacy: Boolean = false,
 ) {
+    private val sessionMutation = Mutex()
+    val privacy = SessionPrivacyFlow(api, sessionMutation) { session }
     var session: CreateSessionResponse? = null
         private set
+    val manualDemo: Boolean get() = session?.evaluationMode == "manual_demo"
+    val manualFullDemo: Boolean get() = session?.evaluationMode == "manual_full_demo"
     var challenge: Challenge? = null
         private set
     var accountReceipt: AccountReceipt? = null
@@ -81,6 +91,7 @@ class LiveFlow(
         private set
 
     fun reset() {
+        privacy.reset()
         session = null
         challenge = null
         accountReceipt = null
@@ -120,6 +131,7 @@ class LiveFlow(
      * old MVP session.
      */
     suspend fun ensureSession(mockScenario: String?, purpose: String? = null, account: AccountReceipt? = boundAccount): ApiError? {
+        if (privacy.stopping) return ApiError.Expired
         if (session != null) return if (purpose == sessionPurpose && account == sessionAccount) null else ApiError.BadResponse
         if (mediaSigner != null && purpose !in setOf("onboarding", "recovery", "reauth")) return ApiError.BadResponse
         if (purpose == "reauth" && (account == null || mediaSigner == null)) return ApiError.BadResponse
@@ -133,6 +145,14 @@ class LiveFlow(
         val request = purpose?.let { CreateSessionRequest(it, nonce, spki, account?.accountId, account?.deviceId?.takeIf { purpose == "reauth" }) }
         return when (val r = api.createSession(mockScenario, request)) {
             is ApiResult.Ok -> {
+                if (r.value.evaluationMode !in setOf("standard", "manual_demo", "manual_full_demo")) return ApiError.BadResponse
+                if (r.value.evaluationMode == "manual_demo" &&
+                    (r.value.demoPolicyId?.matches(Regex("[0-9a-f]{64}")) != true || account != null || purpose !in setOf(null, "onboarding")))
+                    return ApiError.BadResponse
+                if (r.value.evaluationMode == "manual_full_demo" &&
+                    (r.value.demoPolicyId?.matches(Regex("[0-9a-f]{64}")) != true || purpose !in setOf("onboarding", "reauth", "recovery")))
+                    return ApiError.BadResponse
+                if (r.value.evaluationMode == "standard" && r.value.demoPolicyId != null) return ApiError.BadResponse
                 if (mediaSigner != null && r.value.challenge.mediaNonce == null) return ApiError.BadResponse
                 if (purpose == "reauth") {
                     val signature = withContext(Dispatchers.IO) {
@@ -176,6 +196,17 @@ class LiveFlow(
      * session already exists (stage A took time, a retry, or a redo after an interruption).
      */
     suspend fun prepareFace(mockScenario: String?, purpose: String? = null): ApiError? {
+        // A committed refresh invalidates the old bearer. Consume its reply even if navigation
+        // cancels the camera screen, then let withdrawal use the latest bearer under the same lock.
+        val result = withContext(NonCancellable) {
+            sessionMutation.withLock { prepareFaceLocked(mockScenario, purpose) }
+        }
+        currentCoroutineContext().ensureActive()
+        return result
+    }
+
+    private suspend fun prepareFaceLocked(mockScenario: String?, purpose: String?): ApiError? {
+        privacyError("face_biometrics")?.let { return it }
         val s = session ?: return ensureSession(mockScenario, purpose)
         return when (val r = api.refreshChallenge(s.sessionId, s.token)) {
             is ApiResult.Ok -> {
@@ -187,7 +218,7 @@ class LiveFlow(
                         mediaAcked = false
                 signalsAcked = false
                 voiceChecked = false
-                null
+                if (privacy.stopping) ApiError.Expired else null
             }
             is ApiResult.Err -> r.error
         }
@@ -205,6 +236,7 @@ class LiveFlow(
 
     /** Starts the session if needed and asks for a code. Null = sent. */
     suspend fun sendOtp(phone: String, mockScenario: String?, purpose: String? = null): ApiError? {
+        privacyError("contact")?.let { return it }
         ensureSession(mockScenario, purpose)?.let { return it }
         val s = session ?: return ApiError.Expired
         return when (val r = api.sendOtp(s.sessionId, s.token, phone)) {
@@ -233,6 +265,7 @@ class LiveFlow(
 
     /** Sends both photos and the QR text. Returns null when the server read the card, else a retry hint or error. */
     suspend fun sendIdCard(front: ByteArray, back: ByteArray?, qr: String?): Pair<String?, ApiError?> {
+        privacyError("id_document")?.let { return null to it }
         val s = session ?: return null to ApiError.Expired
         return when (val r = api.uploadIdCard(s.sessionId, s.token, front, back, qr)) {
             is ApiResult.Ok -> {
@@ -245,6 +278,7 @@ class LiveFlow(
 
     /** Null when the server took the fields; otherwise the error with its code (e.g. 422 `identity_incomplete`). */
     suspend fun confirmIdCard(fields: IdCardFields): ApiResult.Err? {
+        privacyError("id_document")?.let { return ApiResult.Err(it) }
         val s = session ?: return ApiResult.Err(ApiError.Expired)
         val error = api.confirmIdCard(s.sessionId, s.token, fields) as? ApiResult.Err
         if (error == null) idFields = fields
@@ -263,6 +297,7 @@ class LiveFlow(
         regionMeans: List<RegionFrame>? = null,
         onMediaAcked: () -> Unit = {},
     ): Next {
+        privacyError("face_biometrics")?.let { return Next.Fail(it) }
         val s = session ?: return Next.Fail(ApiError.Expired)
         val jpeg = frontalJpeg ?: return Next.Fail(ApiError.BadResponse)
         val challengeId = challenge?.challengeId
@@ -276,19 +311,33 @@ class LiveFlow(
                 }
             } }
             if (proof.isFailure) return Next.Fail(ApiError.Server)
+            privacyError("face_biometrics")?.let { return Next.Fail(it) }
             api.uploadMedia(s.sessionId, s.token, jpeg, video, challengeId, proof.getOrNull()).ackOrFail()?.let { return it }
             mediaAcked = true
             onMediaAcked() // the server has the video: the local copy can go
         }
+        privacyError("face_biometrics")?.let { return Next.Fail(it) }
         if (!signalsAcked) {
             api.sendSignals(s.sessionId, s.token, Signals(colorEvents.toList(), frameTimes, clientQuality, camprobe, regionMeans, challengeId))
                 .ackOrFail()?.let { return it }
             signalsAcked = true
         }
+        privacyError("face_biometrics")?.let { return Next.Fail(it) }
         return when (val r = api.finalize(s.sessionId, s.token, challengeId)) {
             is ApiResult.Err -> Next.Fail(r.error)
             is ApiResult.Ok -> {
+                privacyError("face_biometrics")?.let { return Next.Fail(it) }
                 val f = r.value
+                if (s.evaluationMode == "manual_demo" || f.evaluationMode == "manual_demo" || f.demoComplete) {
+                    if (s.evaluationMode != "manual_demo" || f.evaluationMode != "manual_demo" ||
+                        s.demoPolicyId == null || s.demoPolicyId != f.demoPolicyId || f.status !in setOf("review", "retry"))
+                        return Next.Fail(ApiError.BadResponse)
+                    if (f.demoComplete) return if (f.status == "review") Next.To(Routes.ManualDemoComplete) else Next.Fail(ApiError.BadResponse)
+                } else if (s.evaluationMode == "manual_full_demo" || f.evaluationMode == "manual_full_demo") {
+                    if (s.evaluationMode != "manual_full_demo" || f.evaluationMode != "manual_full_demo" ||
+                        s.demoPolicyId == null || s.demoPolicyId != f.demoPolicyId || f.demoComplete)
+                        return Next.Fail(ApiError.BadResponse)
+                } else if (f.evaluationMode != "standard" || f.demoPolicyId != null) return Next.Fail(ApiError.BadResponse)
                 if (f.status == "retry") {
                     // A retry comes with a fresh challenge for the next attempt (contract).
                     challenge = f.challenge ?: return Next.Fail(ApiError.BadResponse)
@@ -314,6 +363,7 @@ class LiveFlow(
      * (lip sync, VOICE-05). [onAccepted] runs once the server has both, so the local video can go.
      */
     suspend fun submitVoice(wav: ByteArray, video: File? = null, audioOffsetMs: Int? = null, onAccepted: () -> Unit = {}): Next {
+        privacyError("voice_biometrics")?.let { return Next.Fail(it) }
         val s = session ?: return Next.Fail(ApiError.Expired)
         if (wav.isEmpty()) return Next.To(Routes.NoVoice)
         val proof = withContext(Dispatchers.IO) { runCatching {
@@ -326,9 +376,18 @@ class LiveFlow(
             }
         } }
         if (proof.isFailure) return Next.Fail(ApiError.Server)
+        privacyError("voice_biometrics")?.let { return Next.Fail(it) }
         return when (val r = api.sendVoice(s.sessionId, s.token, wav, video, audioOffsetMs, voiceChallengeId, proof.getOrNull())) {
             is ApiResult.Err -> Next.Fail(r.error)
             is ApiResult.Ok -> {
+                privacyError("voice_biometrics")?.let { return Next.Fail(it) }
+                if (s.evaluationMode == "manual_full_demo" || r.value.evaluationMode == "manual_full_demo") {
+                    if (s.evaluationMode != "manual_full_demo" || r.value.evaluationMode != "manual_full_demo" ||
+                        s.demoPolicyId == null || s.demoPolicyId != r.value.demoPolicyId)
+                        return Next.Fail(ApiError.BadResponse)
+                } else if (r.value.evaluationMode != "standard" || r.value.demoPolicyId != null) {
+                    return Next.Fail(ApiError.BadResponse)
+                }
                 pendingWav = null
                 voiceChecked = true
                 if (r.value.status == "pass") accountReceipt = r.value.account
@@ -354,6 +413,13 @@ class LiveFlow(
         // Nothing of this attempt reached the server yet: a fresh challenge and a new recording fix it.
         if (err.error == ApiError.Conflict && err.code == "challenge_expired" && !mediaAcked) return Next.To(Routes.FaceExpired)
         return Next.Fail(err.error)
+    }
+
+    private fun privacyError(category: String): ApiError? = when {
+        privacy.stopping -> ApiError.Expired
+        enforcePrivacy && !privacy.permits(category) -> ApiError.Conflict
+        enforcePrivacy && sessionPurpose == "onboarding" && !privacy.permitsAccountTemplate() -> ApiError.Conflict
+        else -> null
     }
 
     private fun newNonce(): String {

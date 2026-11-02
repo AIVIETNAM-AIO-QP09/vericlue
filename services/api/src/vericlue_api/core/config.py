@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     product_mode: Literal["ekyc", "tools"] = "tools"
     require_privacy_consent: bool = False
     privacy_policy_version: str = Field(default="demo-v1", pattern=r"^[A-Za-z0-9._-]{1,64}$")
+    account_template_policy_version: str = Field(
+        default="account-template-v1", pattern=r"^[A-Za-z0-9._-]{1,64}$"
+    )
     api_cors_origins: str = "http://localhost:3000"
     use_mock_models: bool | Literal["mixed"] = True  # mixed: module có mô hình thật dùng thật
     router_profile: Literal["full", "mvp"] = "full"
@@ -174,6 +177,8 @@ class Settings(BaseSettings):
     # Giới hạn tổng của một phiên khi gia hạn token (ADR-0017 §2).
     session_max_seconds: int = Field(default=900, gt=0)
     # OTP mô phỏng (FLOW-02): mã 6 số, hạn 2 phút, sai 5 lần thì khóa.
+    # Mặc định tắt; chỉ được bật khi SECURITY_PROFILE=synthetic.
+    simulated_otp: bool = False
     otp_ttl_seconds: int = 120
     otp_max_attempts: int = 5
     otp_max_sends: int = 3  # số lần gửi mã mỗi phiên
@@ -188,6 +193,28 @@ class Settings(BaseSettings):
     identity_face_from_video: bool = False
     session_face_checks: bool = False
     session_face_models: bool = False
+    manual_face_demo: bool = False
+    manual_full_demo: bool = False
+    manual_demo_pad_max: float = Field(default=0.50, gt=0, lt=1, allow_inf_nan=False)
+    manual_demo_gend_max: float = Field(default=0.50, gt=0, lt=1, allow_inf_nan=False)
+    manual_demo_match_min: float = Field(default=0.30, gt=0, lt=1, allow_inf_nan=False)
+    manual_demo_consistency_min: float = Field(default=0.30, gt=0, lt=1, allow_inf_nan=False)
+
+    @property
+    def manual_demo_policy(self):
+        from vericlue_ml.common.manual_demo import ManualDemoThresholds
+
+        return (
+            ManualDemoThresholds(
+                pad_max=self.manual_demo_pad_max,
+                gend_max=self.manual_demo_gend_max,
+                match_min=self.manual_demo_match_min,
+                consistency_min=self.manual_demo_consistency_min,
+            )
+            if self.manual_face_demo or self.manual_full_demo
+            else None
+        )
+
     identity_consistency_required: bool = False
     identity_consistency_calibration: str | None = None
     identity_voice_continuity: bool = False
@@ -199,6 +226,45 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def consistency_requires_video(self):
+        if self.manual_face_demo and self.manual_full_demo:
+            raise ValueError("MANUAL_FACE_DEMO and MANUAL_FULL_DEMO are mutually exclusive")
+        if self.manual_face_demo and (
+            self.security_profile != "synthetic"
+            or self.product_mode != "ekyc"
+            or self.router_profile != "mvp"
+            or self.use_mock_models is not True
+            or not self.session_face_checks
+            or not self.session_face_models
+            or not self.identity_card_enabled
+            or not self.identity_face_from_video
+            or not self.identity_consistency_required
+            or self.account_enrollment
+            or self.private_credentials
+            or self.result_signing_key_file
+            or self.identity_voice_continuity
+        ):
+            raise ValueError(
+                "Manual demo requires isolated synthetic onboarding with real face checks; no enrollment/credentials/signing"
+            )
+        if self.manual_full_demo and (
+            self.security_profile != "synthetic"
+            or self.product_mode != "ekyc"
+            or self.router_profile != "mvp"
+            or self.use_mock_models is not True
+            or not self.session_face_checks
+            or not self.session_face_models
+            or not self.session_voice_models
+            or not self.identity_card_enabled
+            or not self.identity_face_from_video
+            or not self.identity_consistency_required
+            or not self.identity_voice_continuity
+            or not self.account_enrollment
+            or self.private_credentials
+            or self.result_signing_key_file
+        ):
+            raise ValueError(
+                "MANUAL_FULL_DEMO requires isolated synthetic profile with real face/voice checks and account enrollment; no credentials/signing"
+            )
         if self.identity_consistency_required and not self.identity_face_from_video:
             raise ValueError("IDENTITY_CONSISTENCY_REQUIRED requires IDENTITY_FACE_FROM_VIDEO")
         if self.identity_voice_continuity and (
