@@ -113,6 +113,14 @@ fun idCaptureUsable(q: IdQuality, back: Boolean, manual: Boolean): Boolean {
     return q.good && q.brightness >= 45 && (back || manual || q.portraitPresent)
 }
 
+/** Once auto-capture stops, direct the user to the manual action that remains available. */
+fun idScanDisplayHint(q: IdQuality?, back: Boolean, timedOut: Boolean, hint: String? = null): String {
+    if (!timedOut) return hint ?: idScanHint(q, back)
+    val manualHint = "Tự chụp đã dừng. Bấm “Chụp ảnh thẻ” để tiếp tục."
+    val captureProblem = hint?.takeUnless { it == "Giữ yên, ứng dụng đang tự chụp" }
+    return captureProblem?.let { "$it. $manualHint" } ?: manualHint
+}
+
 fun idScanErrorText(hint: String?): String = when (hint) {
     "PORTRAIT_UNREADABLE" -> "Chưa thấy rõ chân dung trên thẻ. Hãy quét lại mặt có ảnh chân dung."
     "QR_INVALID" -> "Mã QR chưa có đủ thông tin phù hợp. Hãy quét lại đúng thẻ."

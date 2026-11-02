@@ -20,9 +20,9 @@ class HeadVoiceSearch {
 }
 
 enum class HeadCue(val text: String, val beeps: List<Long>, val warning: Boolean = false) {
-    Left("Quay nhẹ sang trái", listOf(45)),
-    Right("Quay nhẹ sang phải", listOf(45)),
-    Hold("Dừng, giữ yên", listOf(45, 45)),
+    Left("Quay chậm sang trái", listOf(45)),
+    Right("Quay chậm sang phải", listOf(45)),
+    Hold("Dừng xoay, giữ yên", listOf(45, 45)),
     Center("Nhìn thẳng", listOf(150)),
     EaseBack("Quay nhẹ lại", listOf(40, 40, 40), true),
     Straighten("Giữ đầu thẳng", listOf(40, 40, 40), true),
@@ -31,31 +31,62 @@ enum class HeadCue(val text: String, val beeps: List<Long>, val warning: Boolean
 }
 
 class HeadCuePolicy {
-    private var observedPhase = Int.MIN_VALUE
-    private var observedCue: HeadCue? = null
-    fun dispatch(phase: Int, cue: HeadCue, nowMs: Long, stop: () -> Unit, say: (HeadCue) -> Unit) {
-        if (phase != observedPhase || cue != observedCue) {
-            stop()
-            observedPhase = phase
-            observedCue = cue
-        }
-        poll(phase, cue, nowMs)?.let(say)
-    }
     private var phase = Int.MIN_VALUE
-    private var last: HeadCue? = null
+    private var observedCue: HeadCue? = null
+    private var observedSinceMs = 0L
+    private var spokenCue: HeadCue? = null
+    private var playingCue: HeadCue? = null
+    private var spokenAtMs = 0L
+    private var recovering = false
     private val warnings = mutableMapOf<HeadCue, Long>()
+
+    fun dispatch(phase: Int, cue: HeadCue, nowMs: Long, stop: () -> Unit, say: (HeadCue) -> Unit) {
+        val phaseChanged = phase != this.phase
+        val warningChanged = cue.warning && cue != observedCue
+        val replacement = poll(phase, cue, nowMs)
+        // A throttled warning still cancels an unsafe Hold. Ordinary jitter must not
+        // flush a useful utterance unless a stable replacement will actually play.
+        val obsoleteSpeech = warningChanged && playingCue != null && playingCue != cue
+        if (phaseChanged || obsoleteSpeech || replacement != null) {
+            stop()
+            playingCue = null
+        }
+        replacement?.let {
+            say(it)
+            playingCue = it
+        }
+    }
+
     fun poll(phase: Int, cue: HeadCue, nowMs: Long): HeadCue? {
-        if (this.phase != phase) {
+        val phaseChanged = this.phase != phase
+        if (phaseChanged) {
             this.phase = phase
-            last = null
+            observedCue = null
+            spokenCue = null
+            recovering = false
             warnings.clear()
         }
-        val changed = cue != last
-        last = cue
+        val changed = cue != observedCue
+        if (changed) {
+            observedCue = cue
+            observedSinceMs = nowMs
+        }
         if (cue.warning) {
+            recovering = true
+            // dispatch cancels the previous cue even when replay is rate-limited.
+            if (changed) spokenCue = null
             if (warnings[cue]?.let { nowMs - it < 2500L } == true) return null
             warnings[cue] = nowMs
-        } else if (!changed) return null
+        } else {
+            if (!recovering && cue == spokenCue) return null
+            val turn = cue == HeadCue.Left || cue == HeadCue.Right
+            val needsStableRecovery = recovering && (turn || cue == HeadCue.Hold)
+            if (!phaseChanged && (turn || needsStableRecovery) && nowMs - observedSinceMs < 300L) return null
+            if (!phaseChanged && turn && nowMs - spokenAtMs < 1000L) return null
+            recovering = false
+        }
+        spokenCue = cue
+        spokenAtMs = nowMs
         return cue
     }
 }

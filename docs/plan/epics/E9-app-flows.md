@@ -131,7 +131,8 @@ Test tổng hợp, chưa nghiệm thu toàn luồng; không đổi ngưỡng hay
 
 **Lát cắt backend 24/10 (Codex, doing):** `head_turn` dùng reader MediaPipe,
 chỉ kiểm chuyển động/thứ tự/thời gian từ video với lịch server gắn phiên/lượt.
-Lượt mới dùng lịch v2 12 giây (4 giây/hướng) từ 30/10; vẫn nhận v1 6 giây.
+Lượt mới dùng lịch v2 tổng12giây từ30/10; Android từ02/11 dành5giây mỗi bên,
+2giây nhìn thẳng cuối lượt. Server không chia cứng ba khoảng; vẫn nhận v1 6giây.
 Các hằng góc/giữ tư thế là thử nghiệm và không đổi trong lần kéo dài lịch.
 Đã có chuỗi offline lấy ảnh chính diện/nghiêng trong RAM cho LVFace và GenD
 (bật tùy chọn), và PAD FS-VFM-L FAS FP32. PAD dùng SCRFD thay MTCNN, chưa có
@@ -469,6 +470,15 @@ không dùng ảnh căn cước/người dùng thật, không cài điện tho�
 
 ### APP-02 ★ · App: chụp mặt, quay 3 giây, quay đầu ngẫu nhiên
 
+**02/11 — doing, thử S24 FE:** lượt mới đã qua CCCD/gaze nhưng quay hướng đầu
+vượt vùng nhận, các đoạn giữ không đủ liên tục; server trả `wrong_order`, các
+model cần ba tư thế giữ `degraded`. Sửa ổn định lời nhắc để giảm cắt giọng khi
+góc dao động, giữ cảnh báo ưu tiên và lịch challenge12s. Sau cập nhật, người
+dùng xác nhận dễ theo và hoàn tất; server xác nhận một lượt CCCD/mặt đạt,
+bảy module ok/pass và tài khoản/consent receipt đã commit. Chưa nghiệm thu
+nhánh giọng hoặc khôi phục. Đăng nhập lại sau đóng/mở app sau đó đã đạt, đúng
+khóa/tài khoản và năm module ok/pass (tổng hợp APP-01-s24fe-physical-acceptance).
+
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
 |---|---|---|---|---|
 | M1 | 2 | S1–S2 | P0 | APP-01 |
@@ -483,7 +493,9 @@ không dùng ảnh căn cước/người dùng thật, không cài điện tho�
 - Camera không tắt cho tới bước đọc câu.
 
 **Tiêu chí hoàn thành:**
-- [ ] Đi hết giai đoạn B trên điện thoại thật; server chấm bằng mô hình thật.
+- [x] Đi hết giai đoạn B trên điện thoại thật; server chấm bằng mô hình thật.
+      (02/11, S24 FE, một lượt đăng ký CCCD/mặt, APK1367c2e/API6f3171e;
+      kết quả `APP-02-s24fe-onboarding-2026-11-02.json`, chưa nghiệm thu giọng.)
 
 ---
 
@@ -505,6 +517,11 @@ không dùng ảnh căn cước/người dùng thật, không cài điện tho�
 ---
 
 ### APP-04 · App: OTP, chụp CCCD, xác nhận thông tin
+
+**02/11 — thử lại S24 FE:** bản đang dùng đã có cải thiện QR từ PR115. Có
+khung đọc được mã nhưng chưa qua lọc định dạng/ROI; bổ sung log cờ kỹ thuật để
+tách hai nguyên nhân, không công khai nội dung mã. Sửa thông báo hết20s tự
+chụp để hướng dẫn bấm nút thủ công và giữ lý do chụp lại. Không bỏ chốt QR.
 
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
 |---|---|---|---|---|

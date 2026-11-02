@@ -31,6 +31,17 @@ server, giữ nguyên toàn bộ kiểm tra integrity và rollback. Cần thử 
 khi triển khai; chưa kết luận lượt thứ hai chắc chắn gặp503 nếu chưa thu được
 response của lượt đó.
 
+**Sau cập nhật APK1367c2e / API6f3171e:** người dùng xác nhận hướng dẫn dễ theo
+hơn và đăng ký hoàn tất. Server xác nhận một lượt `pass`, bảy module `ok/pass`,
+tài khoản mã hóa và consent receipt đã commit, binding đúng. Lượt này không
+yêu cầu giọng (`voice_requested=false`, `voice_owed=false`), nên chỉ nghiệm thu
+đăng ký CCCD/mặt. Sau đó người dùng đóng/mở app và đăng nhập lại thành công;
+server xác nhận đúng tài khoản/khóa, device proof đã dùng một lần và năm module
+ok/pass. Khôi phục và nhánh giọng vẫn chưa nghiệm thu. Theo dõi tổng hợp tại
+[`APP-01-s24fe-physical-acceptance-2026-11-02.json`](../status/results/APP-01-s24fe-physical-acceptance-2026-11-02.json).
+Kết quả không có dữ liệu cá nhân:
+[`APP-02-s24fe-onboarding-2026-11-02.json`](../status/results/APP-02-s24fe-onboarding-2026-11-02.json).
+
 ## Phiếu nghiệm thu thực tế
 
 Các tiêu chí dưới đây **chưa được nghiệm thu**, không đánh dấu từ unit test.
