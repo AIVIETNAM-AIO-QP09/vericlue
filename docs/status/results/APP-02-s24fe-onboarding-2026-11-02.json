@@ -1,0 +1,87 @@
+{
+  "task": [
+    "APP-02",
+    "APP-04"
+  ],
+  "date": "2026-11-02",
+  "device": "Samsung Galaxy S24 FE (SM-S721B), Android16",
+  "apk_source_commit": "1367c2e8953e7e5ee11049e90de7e05884d84f04",
+  "api_source_commit": "6f3171e502b0e99d8f336bee9040f6c5008c5463",
+  "apk_sha256": "ea19a8959e57117061f433cd9f7abac7726a0e2b20bbb9c326dcd40e88b12a98",
+  "evaluation_mode": "manual_full_demo",
+  "thresholds_calibrated": false,
+  "otp": "simulated",
+  "physical_attempts_in_this_result": 1,
+  "acceptance_scope": "one successful CCCD/face onboarding after guidance update; voice not requested",
+  "user_confirmed": "easier to follow and completed",
+  "server_observation": {
+    "scope": "one physical S24 FE onboarding attempt after guidance update",
+    "status": "pass",
+    "completed": true,
+    "id_confirmed": true,
+    "accepted_steps": [
+      "media",
+      "signals",
+      "finalize"
+    ],
+    "voice_requested": false,
+    "voice_owed": false,
+    "modules": {
+      "quality": {
+        "status": "ok",
+        "gate": "pass",
+        "error_code": null,
+        "model_version": "quality-scrfd-10g@bfcc7d48"
+      },
+      "face_pad": {
+        "status": "ok",
+        "gate": "pass",
+        "error_code": null,
+        "model_version": "fs-vfm-vit-l-fas@59f7b50a+scrfd@bfcc7d48+scrfd128-align224-rgb-v1+headturn-3views-max-v1+session-video-v2+manual-demo-2f7e8becee1dff4d"
+      },
+      "face_deepfake": {
+        "status": "ok",
+        "gate": "pass",
+        "error_code": null,
+        "model_version": "gend-clip-l14@891ce014+clip@32bd6428+scrfd-10g@bfcc7d48+agg-maxmeantop25-v1+headturn-3views-v1+session-video-v2+manual-demo-2f7e8becee1dff4d"
+      },
+      "camprobe": {
+        "status": "ok",
+        "gate": "pass",
+        "error_code": null,
+        "model_version": "camprobe-rules@0.1"
+      },
+      "gaze_tracking": {
+        "status": "ok",
+        "gate": "pass",
+        "error_code": null,
+        "model_version": "gaze-rules@0.3+face-landmarker-f16-1"
+      },
+      "head_turn": {
+        "status": "ok",
+        "gate": "pass",
+        "error_code": null,
+        "model_version": "head-turn-rules@0.2+face-landmarker-f16-1"
+      },
+      "face_match": {
+        "status": "ok",
+        "gate": "pass",
+        "error_code": null,
+        "model_version": "lvface-b@b12702ab1f5c7217+scrfd10g@bfcc7d48+arcface112-rgb-minus1to1-v1+front-reference-v2+video-frontal-v1+head12s-v2+manual-demo-2f7e8becee1dff4d"
+      }
+    },
+    "account_committed": true,
+    "encrypted_account_binding_valid": true,
+    "consent_receipt_committed": true,
+    "database_read_only": true,
+    "user_reported_easier_and_completed": true
+  },
+  "not_accepted": [
+    "restart and reauthentication",
+    "account recovery",
+    "voice challenge with real recording",
+    "full three-flow acceptance",
+    "AI accuracy or attack performance"
+  ],
+  "privacy": "No identifiers, QR contents, media, account templates, embeddings, tokens or keys included."
+}

@@ -472,7 +472,10 @@ không dùng ảnh căn cước/người dùng thật, không cài điện tho�
 **02/11 — doing, thử S24 FE:** lượt mới đã qua CCCD/gaze nhưng quay hướng đầu
 vượt vùng nhận, các đoạn giữ không đủ liên tục; server trả `wrong_order`, các
 model cần ba tư thế giữ `degraded`. Sửa ổn định lời nhắc để giảm cắt giọng khi
-góc dao động, giữ cảnh báo ưu tiên và lịch challenge12s. Chưa nghiệm thu lại.
+góc dao động, giữ cảnh báo ưu tiên và lịch challenge12s. Sau cập nhật, người
+dùng xác nhận dễ theo và hoàn tất; server xác nhận một lượt CCCD/mặt đạt,
+bảy module ok/pass và tài khoản/consent receipt đã commit. Chưa nghiệm thu
+nhánh giọng, đăng nhập lại hoặc khôi phục.
 
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
 |---|---|---|---|---|
@@ -488,7 +491,9 @@ góc dao động, giữ cảnh báo ưu tiên và lịch challenge12s. Chưa ngh
 - Camera không tắt cho tới bước đọc câu.
 
 **Tiêu chí hoàn thành:**
-- [ ] Đi hết giai đoạn B trên điện thoại thật; server chấm bằng mô hình thật.
+- [x] Đi hết giai đoạn B trên điện thoại thật; server chấm bằng mô hình thật.
+      (02/11, S24 FE, một lượt đăng ký CCCD/mặt, APK1367c2e/API6f3171e;
+      kết quả `APP-02-s24fe-onboarding-2026-11-02.json`, chưa nghiệm thu giọng.)
 
 ---
 

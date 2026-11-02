@@ -11,7 +11,10 @@ lại giọng. Cảnh báo tư thế và đổi bước vẫn được ưu tiên
 kết quả xác minh. Sau20s tự chụp CCCD dừng, màn hình yêu cầu bấm “Chụp ảnh thẻ”
 và vẫn giữ lý do cần chụp lại nếu có. Log debug QR chỉ bổ sung cờ định dạng hợp
 lệ, góc xoay và cropRect để phân biệt lỗi đọc với mã nằm ngoài khung; không log
-nội dung QR/thông tin thẻ. Vẫn cần nghiệm thu bản cập nhật trên máy thật.
+nội dung QR/thông tin thẻ. Sau cập nhật APK1367c2e/API6f3171e, người dùng xác
+nhận một lượt đăng ký dễ theo và hoàn tất; server ghi đủ bảy module ok/pass,
+tài khoản mã hóa và consent receipt. Lượt đó không yêu cầu đọc câu; đăng nhập
+lại, khôi phục và nhánh giọng vẫn chưa nghiệm thu.
 
 **Chuẩn bị thử sáng 02/11 — source 7904d70:** triển khai trước khi có điện thoại
 đã hoàn tất; ba luồng AI thật trên máy vẫn chưa nghiệm thu. Gói cô lập tại

@@ -34,3 +34,9 @@
 - HeadSpeechProbe im lặng trên máy: initialized=true,vietnamese_available=true,offline_vietnamese=true,network_required=false,silent_utterance_callback=true,closed=true. Chỉ xác nhận engine/callback, chưa xác nhận người dùng nghe mượt hoặc hoàn tất xác minh.
 - Bộ duyệt tự động chặn lệnh mở lại MainActivity qua ADB, chỉ trả blocked by policy. Đã báo người dùng tự mở app; không đổi cách gọi để vượt chặn. Các thao tác cài-r và probe trước đó đã thành công.
 - Draft PR129 theo sau PR128; PR128 kiểm CI8/8SUCCESS. PR129 đang chờ CI/nghiệm thu bản mới.
+
+## Nghiệm thu một lượt sau cập nhật (10:00)
+- Người dùng xác nhận “Dễ theo hơn, đã hoàn tất”. Server ghi pass/completed, CCCDid_confirmed, bảy moduleok/pass, tài khoản mã hóa/consent receipt đã commit và binding mode/policy/template đúng; kiểm tra SQLite read-only, không ghi thêm audit hoặc dữ liệu.
+- Lượt này voice_requested=false/voice_owed=false: chỉ xác nhận một lượt đăng ký CCCD/mặt. Không coi là nghiệm thu giọng, đăng nhập lại, khôi phục, chống tấn công hoặc chất lượng AI.
+- Aggregate không PII/model artifact nằm tại docs/status/results/APP-02-s24fe-onboarding-2026-11-02.json, có source commits, model versions và n=1. Không dùng dữ liệu lượt nghiệm thu để fit/chọn ngưỡng.
+- Đã hoàn tất mục1(cài/probe) và mục2(thử lạiCCCD/quay đầu) trong danh sách bước trên cho đúng phạm vi một lượt; bước tiếp theo là đóng/mở app→đăng nhập lại, khôi phục và nhánh giọng khi cần, do người dùng thực hiện trên máy.
