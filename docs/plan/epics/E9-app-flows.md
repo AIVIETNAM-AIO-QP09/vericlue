@@ -456,6 +456,22 @@ Preview `tmp/app11-ui/three/index.html`; browser dùng SwiftShader, Paparazzi
 dùng hình dự phòng. Chưa nghiệm thu WebView/GPU/lifecycle/cuộn trên điện thoại;
 giữ `review`, chi tiết ở bàn giao 17:20.
 
+Yêu cầu mở rộng Three.js: dùng cảnh theo ngữ cảnh ở nhiều màn, có tương tác
+chọn nội dung và chuyển cảnh, thay vì chỉ minh họa một thẻ ở màn đầu.
+
+- [x] Màn đầu có các chương thẻ/khuôn mặt/giọng nói; chuẩn bị khuôn mặt có
+      các tư thế minh họa chọn bằng nút native; đồng ý/thành công có cảnh riêng.
+- [x] Một renderer mỗi vùng, đổi cảnh không nạp lại WebView; giải phóng geometry,
+      material/instance khi đổi cảnh; giới hạn chuyển động và giữ fallback có nghĩa.
+- [x] Kiểm chuyển cảnh liên tục, dừng/chạy, giảm chuyển động, lỗi WebGL,
+      tài nguyên GPU; kiểm native controls, snapshot, lint/build và preview mới.
+
+Lượt mở rộng: 174 test Android đạt; lint 0 lỗi/12 cảnh báo/1 thông tin có sẵn,
+APK build được, sáu asset/license Three.js trong APK khớp source. Năm nhóm
+WebGL đạt, kiểm bảy cảnh/hai theme và 56 lần chuyển không tăng geometry/texture
+GPU; thêm 36 snapshot lựa chọn native. Preview tại `tmp/app11-ui/three/index.html`,
+tái tạo bằng script trong repo. Giữ `review` chờ điện thoại, bàn giao 17:52.
+
 ---
 
 ### APP-02 ★ · App: chụp mặt, quay 3 giây, quay đầu ngẫu nhiên

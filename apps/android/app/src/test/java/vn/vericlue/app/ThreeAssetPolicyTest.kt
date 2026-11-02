@@ -6,8 +6,8 @@ import org.junit.Test
 import vn.vericlue.app.ui.ThreeAssetPolicy
 
 class ThreeAssetPolicyTest {
-    @Test fun onlyBundledPageAndItsThreeResourcesAreAllowed() {
-        listOf("index.html", "scene.js", "scene.css", "vendor/three.module.min.js").forEach { path ->
+    @Test fun onlyBundledPageAndItsFourResourcesAreAllowed() {
+        listOf("index.html", "scene.js", "illustrations.js", "scene.css", "vendor/three.module.min.js").forEach { path ->
             val asset = requireNotNull(ThreeAssetPolicy.asset("${ThreeAssetPolicy.ORIGIN}/three/$path"))
             assertEquals("three/$path", asset.first)
             assertTrue(File("src/main/assets", asset.first).isFile)

@@ -95,6 +95,8 @@ import vn.vericlue.app.ui.components.FeatureRow
 import vn.vericlue.app.ui.components.LinkButton
 import vn.vericlue.app.ui.components.PrimaryButton
 import vn.vericlue.app.ui.components.IdentityIllustration
+import vn.vericlue.app.ui.components.IdentityScene3D
+import vn.vericlue.app.ui.components.IllustrationScene
 import vn.vericlue.app.ui.components.NumberedRow
 import vn.vericlue.app.ui.components.SampleAccount
 import vn.vericlue.app.ui.components.SuccessBadge
@@ -242,7 +244,10 @@ fun TermsScreen(
     ) {
         TitleBlock("Đồng ý xác minh", "Tìm hiểu cách VeriClue sử dụng thông tin của bạn.", eyebrow = "QUYỀN RIÊNG TƯ")
         ContentCard {
-            Text("Thông tin cần sử dụng", style = VcType.section, color = c.ink)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Thông tin cần sử dụng", style = VcType.section, color = c.ink, modifier = Modifier.weight(0.6f))
+                IdentityScene3D(Modifier.weight(0.4f).height(100.dp), IllustrationScene.Privacy)
+            }
             FeatureRow(Icons.Outlined.Phone, "Số điện thoại")
             FeatureRow(Icons.Outlined.Badge, "Thẻ căn cước", "Thông tin và chân dung trên thẻ.")
             FeatureRow(Icons.Outlined.Face, "Khuôn mặt", "Ảnh, video và mẫu khuôn mặt mã hóa.")

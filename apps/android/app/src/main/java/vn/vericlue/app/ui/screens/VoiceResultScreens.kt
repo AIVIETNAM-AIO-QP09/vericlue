@@ -69,6 +69,8 @@ import vn.vericlue.app.flow.Purpose
 import vn.vericlue.app.ui.components.ChecklistCard
 import vn.vericlue.app.ui.components.CompletionHaptic
 import vn.vericlue.app.ui.components.SuccessBadge
+import vn.vericlue.app.ui.components.IdentityScene3D
+import vn.vericlue.app.ui.components.IllustrationScene
 import vn.vericlue.app.ui.components.ContentCard
 import vn.vericlue.app.ui.components.FeatureRow
 import vn.vericlue.app.ui.components.NextStepCard
@@ -219,7 +221,7 @@ fun SuccessScreen(purpose: Purpose, onContinue: () -> Unit, auto: Boolean = fals
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(20.dp)) {
                 Text("ĐÃ HOÀN TẤT", style = VcType.labelSmall, color = Vc.colors.ok)
-                SuccessBadge()
+                IdentityScene3D(Modifier.fillMaxWidth().height(168.dp), IllustrationScene.Success)
                 TitleBlock("Xác minh thành công", "Bạn có thể tiếp tục với dịch vụ.", centered = true)
             }
             if (!checked.isNullOrEmpty()) ChecklistCard("Nội dung đã xác minh", checked.map { Triple(null, it, RowState.Done) })

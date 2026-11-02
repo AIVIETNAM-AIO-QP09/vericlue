@@ -10,7 +10,7 @@ const assets = fileURLToPath(new URL('../app/src/main/assets/three/', import.met
 const output = fileURLToPath(new URL('../../../tmp/app11-ui/three/', import.meta.url));
 const origin = 'https://appassets.androidplatform.net';
 const types = new Map([['index.html', 'text/html'], ['scene.css', 'text/css'],
-  ['scene.js', 'text/javascript'], ['vendor/three.module.min.js', 'text/javascript']]);
+  ['scene.js', 'text/javascript'], ['illustrations.js', 'text/javascript'], ['vendor/three.module.min.js', 'text/javascript']]);
 await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ headless: true,
   ...(process.env.VERICLUE_BROWSER_PATH ? { executablePath: process.env.VERICLUE_BROWSER_PATH }
@@ -62,6 +62,56 @@ try {
   assert.equal(await page.evaluate(() => window.vericlueScene.status), 'disposed');
   results.push({ test: 'WebGL render, pause/resume, six-second budget, resize, dispose, offline', ...completed });
   await page.close();
+
+  const chapters = await pageFor();
+  await open(chapters.page);
+  const modes = ['card', 'face', 'eyes', 'turn', 'voice', 'privacy', 'success'];
+  const memory = {};
+  for (const mode of modes) {
+    for (const dark of [true, false]) {
+      assert.equal(await chapters.page.evaluate(({ mode, dark }) => window.vericlueScene.configure(mode, dark), { mode, dark }), true);
+      await chapters.page.evaluate(() => window.vericlueScene.setActive(true));
+      await chapters.page.waitForTimeout(550);
+      await chapters.page.evaluate(() => window.vericlueScene.setActive(false));
+      await chapters.page.screenshot({ path: path.join(output, `${mode}-${dark ? 'dark' : 'light'}.png`), omitBackground: true });
+      const metrics = await chapters.page.evaluate(() => ({ scene: window.vericlueScene.scene, memory: window.vericlueScene.memory,
+        calls: window.vericlueScene.drawCalls, canvases: document.querySelectorAll('canvas').length }));
+      assert.equal(metrics.scene, mode); assert.equal(metrics.canvases, 1);
+      assert.equal(await chapters.page.evaluate(() => window.vericlueScene.duration), ['privacy', 'success'].includes(mode) ? 3 : 6);
+      assert.ok(metrics.calls <= 24, `${mode}: too many draw calls`);
+      memory[mode] = metrics.memory;
+    }
+  }
+  // Switching reuses one renderer and frees old geometry/instance buffers.
+  for (let cycle = 0; cycle < 8; cycle++) {
+    for (const mode of modes) {
+      const metrics = await chapters.page.evaluate(mode => {
+        window.vericlueScene.configure(mode, false); return window.vericlueScene.memory;
+      }, mode);
+      assert.deepEqual(metrics, memory[mode], `GPU allocations grew for ${mode} in cycle ${cycle}`);
+    }
+  }
+  const unchanged = await chapters.page.evaluate(() => {
+    const s = window.vericlueScene;
+    return [s.configure('unknown', false), s.configure('face', 'false'), s.scene];
+  });
+  assert.deepEqual(unchanged, [false, false, 'success']);
+  await chapters.page.evaluate(() => { window.vericlueScene.setActive(true); window.vericlueScene.replay(); });
+  await chapters.page.waitForFunction(() => window.vericlueScene.elapsed === 3 && !window.vericlueScene.playing);
+  await chapters.page.evaluate(() => window.vericlueScene.replay());
+  await chapters.page.waitForFunction(() => window.vericlueScene.elapsed > 0.1);
+  await chapters.page.emulateMedia({ reducedMotion: 'reduce' });
+  await chapters.page.waitForTimeout(100);
+  const frozen = await chapters.page.evaluate(() => window.vericlueScene.frames);
+  await chapters.page.waitForTimeout(200);
+  assert.equal(await chapters.page.evaluate(() => window.vericlueScene.frames), frozen);
+  await chapters.page.evaluate(() => window.vericlueScene.configure('turn', true));
+  assert.equal(await chapters.page.evaluate(() => window.vericlueScene.playing), false);
+  assert.deepEqual(chapters.errors, []); assert.deepEqual(chapters.unexpected, []);
+  await chapters.page.evaluate(() => window.vericlueScene.dispose());
+  assert.equal(await chapters.page.evaluate(() => window.vericlueScene.memory.geometries), 0);
+  results.push({ test: 'Seven chapters, both themes, 56 switches without GPU growth, replay, live reduced motion, invalid input', memory });
+  await chapters.page.close();
 
   const reduced = await pageFor({ reducedMotion: 'reduce' });
   await open(reduced.page);

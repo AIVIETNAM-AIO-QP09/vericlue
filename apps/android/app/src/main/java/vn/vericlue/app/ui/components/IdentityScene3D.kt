@@ -47,10 +47,15 @@ private class IllustrationWebView(context: Context) : WebView(context) {
 /** Offline Three.js hero; snapshots, reduced motion and unavailable WebGL use the native drawing. */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun IdentityScene3D(modifier: Modifier = Modifier) {
+fun IdentityScene3D(
+    modifier: Modifier = Modifier,
+    scene: IllustrationScene = IllustrationScene.Card,
+    paused: Boolean = false,
+    replay: Int = 0,
+) {
     val preview = LocalInspectionMode.current || LocalView.current.isInEditMode
     if (preview || !Vc.motion.enabled) {
-        IdentityIllustration(modifier)
+        SceneFallback(scene, modifier)
         return
     }
     var browser by remember { mutableStateOf<WebView?>(null) }
@@ -84,12 +89,24 @@ fun IdentityScene3D(modifier: Modifier = Modifier) {
         }
         if (!ready && browser === view) failed = true
     }
-    LaunchedEffect(browser, resumed, visible, ready) {
+    val dark = Vc.colors.isDark
+    // Configuration contains only enum literals and booleans; switching never recreates the WebView.
+    LaunchedEffect(browser, ready, scene, dark) {
+        if (ready) runCatching {
+            browser?.evaluateJavascript("window.vericlueScene?.configure('${scene.wireName}', $dark)", null)
+        }.onFailure { failed = true }
+    }
+    LaunchedEffect(replay) {
+        if (replay > 0 && ready) runCatching {
+            browser?.evaluateJavascript("window.vericlueScene?.replay()", null)
+        }.onFailure { failed = true }
+    }
+    LaunchedEffect(browser, resumed, visible, ready, paused) {
         browser?.let { view ->
             runCatching {
                 if (resumed && visible) {
                     view.onResume()
-                    view.evaluateJavascript("window.vericlueScene?.setActive(${ready})", null)
+                    view.evaluateJavascript("window.vericlueScene?.setActive(${ready && !paused})", null)
                 } else {
                     view.evaluateJavascript("window.vericlueScene?.setActive(false)", null)
                     view.onPause()
@@ -98,7 +115,7 @@ fun IdentityScene3D(modifier: Modifier = Modifier) {
         }
     }
     Box(modifier.clearAndSetSemantics {}.onGloballyPositioned { visible = !it.boundsInWindow().isEmpty }) {
-        if (!ready || failed) IdentityIllustration(Modifier.fillMaxSize())
+        if (!ready || failed) SceneFallback(scene, Modifier.fillMaxSize())
         if (!failed) AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = { context ->

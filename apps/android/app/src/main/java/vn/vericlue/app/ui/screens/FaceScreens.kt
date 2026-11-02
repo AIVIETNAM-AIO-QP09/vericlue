@@ -74,6 +74,7 @@ import vn.vericlue.app.ui.components.CameraFeed
 import androidx.compose.runtime.withFrameNanos
 import vn.vericlue.app.ui.components.Banner
 import vn.vericlue.app.ui.components.ContentCard
+import vn.vericlue.app.ui.components.SceneExplorer
 import vn.vericlue.app.ui.components.FeatureRow
 import vn.vericlue.app.ui.components.CameraArea
 import vn.vericlue.app.ui.components.FullCamera
@@ -117,16 +118,14 @@ fun FaceReadyScreen(onBack: () -> Unit, onReady: () -> Unit, onSkipFlash: () -> 
         },
     ) {
         TitleBlock("Sẵn sàng\nxác minh khuôn mặt", "Chọn nơi đủ sáng và giữ điện thoại ngang tầm mắt.", eyebrow = "CHUẨN BỊ TRƯỚC CAMERA")
-        ContentCard {
-            FeatureRow(Icons.Outlined.PhoneAndroid, "Giữ đầu thẳng", "Nhìn thẳng khi màn hình đổi màu.")
-            FeatureRow(Icons.Outlined.Visibility, "Đưa mắt theo chấm sáng", "Giữ đầu yên, chỉ di chuyển mắt.")
-            FeatureRow(Icons.Outlined.SwapHoriz, "Quay đầu theo mũi tên", "Quay chậm, sau đó nhìn thẳng trở lại.")
-        }
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.warnBg).padding(16.dp)) {
             Banner(
                 "Màn hình sẽ đổi màu trong lúc xác minh. Nếu nhạy cảm với ánh sáng nhấp nháy, hãy dừng tại đây.",
                 tone = Tone.Warn,
             )
+        }
+        ContentCard {
+            SceneExplorer(facePreparation = true)
         }
         HelpButton(step = 2)
     }

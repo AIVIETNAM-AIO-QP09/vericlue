@@ -188,9 +188,9 @@ hiện có. Bảng nguồn → thành phần ở `apps/android/docs/ui-libraries
 
 | Nguồn | Giấy phép | Dùng ở đâu | Cách dùng |
 |---|---|---|---|
-| [mrdoob/three.js r170 / 0.170.0](https://github.com/mrdoob/three.js/tree/r170) | MIT, Copyright 2010–2024 Three.js Authors | `apps/android/app/src/main/assets/three/vendor/three.module.min.js` | Build ES module minified upstream, giữ header; minh họa ở màn đầu trong WebView local |
+| [mrdoob/three.js r170 / 0.170.0](https://github.com/mrdoob/three.js/tree/r170) | MIT, Copyright 2010–2024 Three.js Authors | `apps/android/app/src/main/assets/three/vendor/three.module.min.js` | Build ES module minified upstream, giữ header; bảy cảnh trên bốn màn Android, WebView local |
 
 Giấy phép upstream tại `third_party/licenses/three-r170-MIT.txt` và
 `assets/three/vendor/LICENSE` (đóng gói trong APK). Hash/nguồn tải tại
-`apps/android/docs/three-scene.md`. `scene.js`, HTML/CSS và hình học thẻ
+`apps/android/docs/three-scene.md`. `scene.js`, `illustrations.js`, HTML/CSS và hình học
 là code tự viết; không chép ví dụ, model, texture hoặc hình cá nhân upstream.

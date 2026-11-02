@@ -17,7 +17,6 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.unit.dp
 import vn.vericlue.app.ui.theme.Palette
@@ -55,19 +54,9 @@ fun WelcomePanel() {
         Surface(color = Palette.LogoNavy, shape = RoundedCornerShape(28.dp)) {
             Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text("ĐỊNH DANH ĐIỆN TỬ", style = VcType.labelXs, color = Vc.colors.accent)
-                if (LocalDensity.current.fontScale < 1.4f) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Xác minh\ndanh tính", style = VcType.titleLarge,
-                            color = Vc.colors.ink, modifier = Modifier.weight(0.64f).semantics { heading() })
-                        IdentityScene3D(Modifier.weight(0.36f).height(120.dp))
-                    }
-                } else {
-                    Text("Xác minh danh tính", style = VcType.titleLarge,
-                        color = Vc.colors.ink, modifier = Modifier.semantics { heading() })
-                    IdentityScene3D(Modifier.fillMaxWidth().height(120.dp))
-                }
-                Text("Chuẩn bị thẻ căn cước. Bắt đầu khi bạn sẵn sàng.",
-                    style = VcType.body, color = Vc.colors.muted)
+                Text("Xác minh danh tính", style = VcType.titleLarge,
+                    color = Vc.colors.ink, modifier = Modifier.semantics { heading() })
+                SceneExplorer()
             }
         }
     }

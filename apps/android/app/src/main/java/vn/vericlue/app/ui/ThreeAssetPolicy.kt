@@ -10,6 +10,7 @@ internal object ThreeAssetPolicy {
         "/three/index.html" to "text/html",
         "/three/scene.css" to "text/css",
         "/three/scene.js" to "text/javascript",
+        "/three/illustrations.js" to "text/javascript",
         "/three/vendor/three.module.min.js" to "text/javascript",
     )
 
