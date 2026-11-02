@@ -469,6 +469,11 @@ không dùng ảnh căn cước/người dùng thật, không cài điện tho�
 
 ### APP-02 ★ · App: chụp mặt, quay 3 giây, quay đầu ngẫu nhiên
 
+**02/11 — doing, thử S24 FE:** lượt mới đã qua CCCD/gaze nhưng quay hướng đầu
+vượt vùng nhận, các đoạn giữ không đủ liên tục; server trả `wrong_order`, các
+model cần ba tư thế giữ `degraded`. Sửa ổn định lời nhắc để giảm cắt giọng khi
+góc dao động, giữ cảnh báo ưu tiên và lịch challenge12s. Chưa nghiệm thu lại.
+
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
 |---|---|---|---|---|
 | M1 | 2 | S1–S2 | P0 | APP-01 |
@@ -505,6 +510,11 @@ không dùng ảnh căn cước/người dùng thật, không cài điện tho�
 ---
 
 ### APP-04 · App: OTP, chụp CCCD, xác nhận thông tin
+
+**02/11 — thử lại S24 FE:** bản đang dùng đã có cải thiện QR từ PR115. Có
+khung đọc được mã nhưng chưa qua lọc định dạng/ROI; bổ sung log cờ kỹ thuật để
+tách hai nguyên nhân, không công khai nội dung mã. Sửa thông báo hết20s tự
+chụp để hướng dẫn bấm nút thủ công và giữ lý do chụp lại. Không bỏ chốt QR.
 
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
 |---|---|---|---|---|

@@ -4,6 +4,15 @@
 
 ## Trạng thái
 
+**02/11 — sửa hướng dẫn sau thử S24 FE:** lời nhắc quay đầu dùng câu ngắn
+“Quay chậm…” và “Dừng xoay, giữ yên”; các dao động ngắn không liên tục cắt/phát
+lại giọng. Cảnh báo tư thế và đổi bước vẫn được ưu tiên. Không kéo dài hoặc
+đổi lịch challenge12s phía server, không đổi ngưỡng hay coi hướng dẫn local là
+kết quả xác minh. Sau20s tự chụp CCCD dừng, màn hình yêu cầu bấm “Chụp ảnh thẻ”
+và vẫn giữ lý do cần chụp lại nếu có. Log debug QR chỉ bổ sung cờ định dạng hợp
+lệ, góc xoay và cropRect để phân biệt lỗi đọc với mã nằm ngoài khung; không log
+nội dung QR/thông tin thẻ. Vẫn cần nghiệm thu bản cập nhật trên máy thật.
+
 **Chuẩn bị thử sáng 02/11 — source 7904d70:** triển khai trước khi có điện thoại
 đã hoàn tất; ba luồng AI thật trên máy vẫn chưa nghiệm thu. Gói cô lập tại
 `D:/vericlue/tmp/phone-demo-2026-11-02/`, source đầy đủ

@@ -585,7 +585,8 @@ class CameraSession(
                     qrRecentlySeen = qrState.recentlySeen(generation, proxy.imageInfo.timestamp))
                 if (BuildConfig.DEBUG && started - lastCardDiagnosticMs >= 1000) {
                     lastCardDiagnosticMs = started
-                    Log.d("VeriClueCardScan", "size=${proxy.width}x${proxy.height} qrOnly=$idQrOnly candidate=${qrTask.result.any { it.boundingBox != null }} decoded=${qrTask.result.any { it.rawValue != null }} qrRead=${qr != null} portrait=${faces.size == 1} sharp=${sharp >= IdQuality.MIN_SHARPNESS} glareClear=${glare <= IdQuality.MAX_GLARE} bright=${luma >= 45} elapsedMs=${SystemClock.elapsedRealtime() - started}")
+                    // Fixed technical flags only; never log QR contents or document fields.
+                    Log.d("VeriClueCardScan", "size=${proxy.width}x${proxy.height} rotation=$rotation crop=${proxy.cropRect} qrOnly=$idQrOnly candidate=${qrTask.result.any { it.boundingBox != null }} decoded=${qrTask.result.any { it.rawValue != null }} formatValid=${qrTask.result.any { CccdQr.parse(it.rawValue) != null }} qrRead=${qr != null} portrait=${faces.size == 1} sharp=${sharp >= IdQuality.MIN_SHARPNESS} glareClear=${glare <= IdQuality.MAX_GLARE} bright=${luma >= 45} elapsedMs=${SystemClock.elapsedRealtime() - started}")
                 }
             } finally { proxy.close() }
         }

@@ -31,13 +31,69 @@ class HeadGuidanceTest {
             stop = { playing = null }, say = { playing = it })
         dispatch(HeadCue.EaseBack, 1000)
         dispatch(HeadCue.Hold, 1100)
+        dispatch(HeadCue.Hold, 1400)
         assertEquals(HeadCue.Hold, playing)
-        dispatch(HeadCue.EaseBack, 1200)
+        dispatch(HeadCue.EaseBack, 1500)
         assertNull(playing)
-        dispatch(HeadCue.Hold, 1300)
+        dispatch(HeadCue.Hold, 1600)
+        assertNull(playing)
+        dispatch(HeadCue.Hold, 1900)
         assertEquals(HeadCue.Hold, playing)
         dispatch(HeadCue.EaseBack, 3700)
         assertEquals(HeadCue.EaseBack, playing)
+    }
+
+    @Test fun briefTurnJitterDoesNotStopOrRestartTheHoldInstruction() {
+        val policy = HeadCuePolicy()
+        val spoken = mutableListOf<HeadCue>()
+        var stops = 0
+        fun dispatch(cue: HeadCue, at: Long) = policy.dispatch(0, cue, at,
+            stop = { stops++ }, say = { spoken.add(it) })
+        dispatch(HeadCue.Left, 1000)
+        dispatch(HeadCue.Hold, 1100)
+        val stopsAtHold = stops
+        dispatch(HeadCue.Left, 1200)
+        dispatch(HeadCue.Hold, 1300)
+        dispatch(HeadCue.Left, 1400)
+        dispatch(HeadCue.Hold, 1500)
+        assertEquals(stopsAtHold, stops)
+        assertEquals(listOf(HeadCue.Left, HeadCue.Hold), spoken)
+        dispatch(HeadCue.Left, 1600)
+        dispatch(HeadCue.Left, 1900)
+        assertEquals(2, spoken.size)
+        dispatch(HeadCue.Left, 2100)
+        assertEquals(listOf(HeadCue.Left, HeadCue.Hold, HeadCue.Left), spoken)
+    }
+
+    @Test fun noisyRecoveryCannotKeepRestartingSpeechBetweenHoldAndWarning() {
+        val policy = HeadCuePolicy()
+        val spoken = mutableListOf<HeadCue>()
+        var stops = 0
+        fun dispatch(cue: HeadCue, at: Long) = policy.dispatch(0, cue, at,
+            stop = { stops++ }, say = { spoken.add(it) })
+        dispatch(HeadCue.Left, 1000)
+        dispatch(HeadCue.EaseBack, 1100)
+        val stopsAtWarning = stops
+        for (at in 1200L..1800L step 200L) {
+            dispatch(HeadCue.Hold, at)
+            dispatch(HeadCue.EaseBack, at + 100)
+        }
+        assertEquals(listOf(HeadCue.Left, HeadCue.EaseBack), spoken)
+        assertEquals(stopsAtWarning, stops)
+        dispatch(HeadCue.Hold, 2000)
+        dispatch(HeadCue.Hold, 2299)
+        assertEquals(2, spoken.size)
+        dispatch(HeadCue.Hold, 2300)
+        assertEquals(HeadCue.Hold, spoken.last())
+    }
+
+    @Test fun phaseChangeAndCenterDoNotWaitForTurnDebounce() {
+        val policy = HeadCuePolicy()
+        assertEquals(HeadCue.Left, policy.poll(0, HeadCue.Left, 1000))
+        assertEquals(HeadCue.Hold, policy.poll(0, HeadCue.Hold, 1100))
+        assertNull(policy.poll(0, HeadCue.Left, 1200))
+        assertEquals(HeadCue.Right, policy.poll(1, HeadCue.Right, 1250))
+        assertEquals(HeadCue.Center, policy.poll(1, HeadCue.Center, 1300))
     }
 
     @Test fun holdAndOvershootReplaceTurnInstructionWithoutRepeatingEveryFrame() {
@@ -46,15 +102,18 @@ class HeadGuidanceTest {
         assertEquals(HeadCue.Hold, policy.poll(0, HeadCue.Hold, 1100))
         assertNull(policy.poll(0, HeadCue.Hold, 1200))
         assertEquals(HeadCue.EaseBack, policy.poll(0, HeadCue.EaseBack, 1300))
-        assertEquals(HeadCue.Hold, policy.poll(0, HeadCue.Hold, 1400))
-        assertNull(policy.poll(0, HeadCue.EaseBack, 1500))
+        assertNull(policy.poll(0, HeadCue.Hold, 1400))
+        assertEquals(HeadCue.Hold, policy.poll(0, HeadCue.Hold, 1700))
+        assertNull(policy.poll(0, HeadCue.EaseBack, 1800))
         assertNull(policy.poll(0, HeadCue.EaseBack, 2000))
         assertEquals(HeadCue.EaseBack, policy.poll(0, HeadCue.EaseBack, 3900))
         assertEquals(HeadCue.Center, policy.poll(1, HeadCue.Center, 4000))
     }
 
     @Test fun speechAndFallbackClearlyDistinguishTurnHoldAndReturn() {
-        assertEquals("Dừng, giữ yên", HeadCue.Hold.text)
+        assertEquals("Quay chậm sang trái", HeadCue.Left.text)
+        assertEquals("Quay chậm sang phải", HeadCue.Right.text)
+        assertEquals("Dừng xoay, giữ yên", HeadCue.Hold.text)
         assertEquals("Nhìn thẳng", HeadCue.Center.text)
         assertEquals(3, setOf(HeadCue.Left.beeps, HeadCue.Hold.beeps, HeadCue.Center.beeps).size)
         assertEquals(HeadCue.Straighten, headCue(TurnDir.Left, face(26f, 1000, 18f), false))
