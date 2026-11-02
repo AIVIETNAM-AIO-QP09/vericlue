@@ -3,6 +3,7 @@
   "date": "2026-11-02",
   "branch": "codex/APP-03-micro-capture-diagnostic",
   "base_commit": "332dad3860ebfc7e6a6ec7b273a860e58bdefc93",
+  "apk_source_commit": "1273d32ada4f3cb5ea35a145f9ed80527e53d88c",
   "scope": "native recording parser and truthful error routing, not biometric accuracy or recovery acceptance",
   "capture_policy": "muxed-av-pcm-v2-clock1ms",
   "normalization_policy": "pcm16-mono16k-sinc-v1",

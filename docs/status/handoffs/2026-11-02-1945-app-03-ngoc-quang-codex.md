@@ -15,9 +15,9 @@
 - Full Android/native replay đã qua và ứng viên đã cài-r. Decode admission không phải nghiệm thu SyncNet, capture chuẩn hay recovery; chờ người dùng thử đúng lượt mới.
 
 ## Bước tiếp theo
-1. Full Android/Paparazzi verify/lint/assemble main+test, cài-r cùng signer; replay cached file và3fixtures/cancel synthetic trên đúng production helper mới.
-2. Ghi source/hash/policy vào gói demo, giữ APK cũ. API/model/schema/threshold/migration không đổi nên không restart/đổi server.
-3. Khi kỹ thuật đã qua, bật monitor mới và mời thử đúng một lượt recovery; đối chiếu attempt sau mốc mới, không dùng phiên attestation hoặc lượt cũ. Chưa đánh dấu done đến nghiệm thu thật.
+1. Kỹ thuật đã qua; monitor đã bật lại và mời thử đúng một lượt recovery. Đối chiếu attempt sau mốc trong private`phone-recovery-retry-anchor.json`, không dùng phiên attestation hoặc lượt cũ.
+2. Theo dõi CI/review bản sửa trên PR mới. API/model/schema/threshold/migration giữ nguyên, không cần restart server.
+3. Chưa đánh dấu done đến nghiệm thu capture/upload/AI thực; nếu tiếp tục review phải đọc đúng module/lý do, không nới gate.
 
 ## Quyết định, lưu ý, bẫy
 - Review độc lập thiết kế/code clock không thấy blocker; bổ sung adjacent guard để hai residual−900/+900us không che gap1.8ms. Source/version được ghi cả report lỗi và thành công.
@@ -34,3 +34,8 @@
 - Native replay đúng file từng lỗi: nay331blocks, decodedtrue, WAV PCM16mono16k qua guard continuity thật. First origin và metadata prefix47blocks giữ nguyên, native resources release đủ; không gửi file vào API hoặc chạy AI trong probe.
 - Native3fixtures syntheticzero/positive/negative đạt, giữ offsets nhưv1;3ca cancellation bị từ chối/khôngWAVdởdang và release đủ. Clock source reportv2 và budget1000us, normalizationv1 ghi rõ.
 - APK ứng viên SHA256`63b53b45b45b57b0ce0109d08168193de3f9de632f9478fc8164bfb1827026cb`; signer822e5e44.../v2verified, liveDefaulttrue/signedtrue/tracefalse; cài-r giữ appdata. API frozen d73dd773 giữ nguyên, healthok. Ruff sạch, plan_check0lỗi/10cảnhbáo, diff--check sạch. Pythonproduction/API/ML không đổi, không chạy lại full Python cho thay đổi Kotlin này.
+
+## Triển khai và lượt mới
+- CodeAPK `1273d32ada4f3cb5ea35a145f9ed80527e53d88c`, hash63b53b45... đã đối chiếu base.apk đang cài. Gói demo/APK/build-info được cập nhật, bản cũ af2105b1... backup; không reset, cấp thêm quyền, đổi khóa hay xóa dữ liệu.
+- Native replay/tests kết thúc trước mốc mới; đã bật monitor19:54 và mời người dùng tự mở app thử recovery. Không gọi amstart hoặc capture hộ; người dùng tự thao tác/đồng ý.
+- Kết quả lượt người thật sau bản sửa đang chờ, không suy pass từ WAV đọc được. Dữ liệu/audio/traces thật giữ ngoài Git, không publish samplehash hoặc nội dung câu đọc.
