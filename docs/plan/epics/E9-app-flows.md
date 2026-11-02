@@ -506,16 +506,23 @@ latch là hold đạt/đổi phase/qua gate; giữ các hằng và lịch5/5/2. 
 
 ### APP-03 · App: ghi âm đọc câu (WAV 16 kHz)
 
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M1 | 1 | S2 | P0 | APP-01 |
+
+**02/11 22:50 — doing, đã nhận xác nhận đọc đúng:** người dùng xác nhận đủ câu
+và sáu số cả hai lượt. Đối chứng cùng trọng số Qwen với runtime chính thức
+cho bản đọc lại có cùng token sinh và vẫn mismatch; VAD không cắt PCM.
+Chưa có bằng chứng cho lỗi wrapper còn lại ở bản ghi này. Lipsync còn khác recipe căn mặt,
+recovery chưa nghiệm thu; xem
+[bàn giao](../../status/handoffs/2026-11-02-2250-app-03-ngoc-quang-codex.md).
+
 **02/11 21:49 — doing, tiếp tục điều tra server:** sửa Qwen theo assistant
 language prefill gốc và SyncNet theo resize uint8 gốc, phiên bản riêng cho
 từng wrapper. Có regression/control-token guards và review chéo; trọng số,
 ngưỡng/câu thử thách/clock không đổi. Đối chứng bản ghi cũ vẫn không đạt nội
 dung và lipsync, chưa nghiệm thu recovery. Xem
 [bàn giao](../../status/handoffs/2026-11-02-2149-app-03-ngoc-quang-codex.md).
-
-| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
-|---|---|---|---|---|
-| M1 | 1 | S2 | P0 | APP-01 |
 
 **02/11 21:16 — doing, lượt người thật mới trên v3:** cả bản đọc đầu và bản
 đọc lại đã tới AI. Mặt/quay đầu, voice spoof và continuity đạt; nội dung câu

@@ -36,7 +36,7 @@
     "protocol": "fixed model/waveform/VAD/greedy for Qwen; fixed model/alignment/clock for SyncNet; only corrected preprocessing varies",
     "retained_phone_reread": {
       "sample_count": 1,
-      "independent_transcript_label": "pending user confirmation",
+      "independent_transcript_label": "user confirms complete correct sentence and six digits in both attempts; not independently transcribed from retained audio",
       "qwen_before": "content_mismatch",
       "qwen_after": "content_mismatch",
       "lipsync_before": "ok/fail",
@@ -52,6 +52,44 @@
     "fit_model_selection_or_threshold_tuning": false,
     "vivos_parity_used": false,
     "biometric_scores_transcripts_media_identifiers": "private, excluded from Git"
+  },
+  "followup_after_user_confirmation": {
+    "user_label": "both complete correct readings including six digits",
+    "independent_audio_transcription_available": false,
+    "retained_reread_vad_removes_samples": false,
+    "original_reference": {
+      "repo": "Qwen/Qwen3-ASR-0.6B",
+      "revision": "5eb144179a02acc5e5ba31e748d22b0cf3e303b0",
+      "package": "qwen-asr==0.0.6",
+      "transformers": "4.57.6",
+      "isolated_runtime_not_deployed": true,
+      "all_611_native_tensor_payloads_equal_after_rename": true,
+      "original_extra_lm_head_equals_tied_embedding": true
+    },
+    "protocol": "same numerical weights and PCM, fixed VAD/budget, CPU FP32/eager/greedy; no expected text context, no model or threshold selection",
+    "retained_reread_comparison": {
+      "sample_count": 1,
+      "prefix_token_ids_equal": true,
+      "valid_audio_features_equal": true,
+      "text_attention_mask_equal": true,
+      "generated_token_ids_equal": true,
+      "raw_generated_text_equal": true,
+      "both_content_mismatch": true
+    },
+    "preselected_dnu_calib_fit_control": {
+      "sample_count": 1,
+      "same_preselected_control_as_before": true,
+      "prefix_token_ids_equal": true,
+      "valid_audio_features_equal": true,
+      "text_attention_mask_equal": true,
+      "generated_token_ids_equal": false,
+      "raw_generated_text_equal": false,
+      "normalized_transcripts_equal": true,
+      "both_content_matched": true
+    },
+    "universal_runtime_parity_or_accuracy_claim": false,
+    "production_code_runtime_models_or_thresholds_changed": false,
+    "conclusion": "same retained reread fails in the official original runtime with identical generated tokens; no remaining wrapper defect demonstrated for this recording; recognition and lipsync acceptance remain unresolved"
   },
   "deployment": {
     "frozen_source_matches_implementation_commit": true,

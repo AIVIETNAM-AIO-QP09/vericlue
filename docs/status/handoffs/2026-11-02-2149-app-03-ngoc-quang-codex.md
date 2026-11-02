@@ -17,10 +17,10 @@
 ## Đang dở
 - Hai chốt người thật vẫn chưa đạt. Sửa wrapper có bằng chứng không đồng nghĩa đã tìm đầy đủ nguyên nhân thất bại trên điện thoại.
 - Spatial input vẫn SCRFD square box, khác upstream 106-landmark alignment. Không copy `affine_transform.py` có nguồn StyleSync chưa rõ giấy phép; chưa có recipe tương đương đã kiểm chứng/cleared.
-- Câu hỏi ngắn đang chờ người dùng: đã đọc đủ câu mới ở cả hai lần hay có bỏ/đổi từ. Chưa gán nhãn nghe độc lập cho bản thu; không dùng ASR để tự xác nhận ASR đúng/sai.
+- Cập nhật tiếp lúc 22:50: người dùng xác nhận đã đọc đủ và đúng câu mới cùng sáu số ở cả hai lần. Đây là nhãn do người thực hiện xác nhận, chưa phải bản chép lại độc lập từ audio; không dùng ASR để tự xác nhận ASR đúng/sai. Xem bàn giao 22:50 về kiểm tra tiếp.
 
 ## Bước tiếp theo
-1. Lấy nhãn đọc độc lập cho bản giữ lại trước khi kết luận ASR sai hay câu đọc khác đề; không dùng confidence model thay nhãn thật.
+1. Người dùng đã xác nhận đọc đầy đủ/đúng cả hai lượt; điều tra tiếp VAD/feature/runtime trên bản giữ lại. Không lặp lại câu hỏi này hoặc kết luận người dùng đọc sai từ đầu ra ASR.
 2. Xử lý recipe căn mặt có giấy phép và kiểm parity trước khi tuyên bố lipsync hoàn tất; không tự thay bằng recipe khác rồi gắn nhãn upstream parity. Dữ liệu hiệu chỉnh/eval theo người vẫn là việc riêng chưa đủ.
 3. Theo dõi CI của commit tài liệu tiếp theo; không gọi launcher connect/am start hoặc yêu cầu người dùng quay lại khi chưa có giả thuyết mới.
 

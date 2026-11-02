@@ -38,7 +38,8 @@ cùng VAD/ASR/luật khớp; không nạp Qwen vào runtime mặt hoặc thay l�
 `metadata["prompt"]`. Trả `ModuleResult(module="voice_challenge")`:
 
 - `ok/pass`: nội dung khớp; chưa phải kết luận giọng thật hoặc cho qua eKYC.
-- `ok/fail`, `E_CHALLENGE_MISMATCH`: sai câu; API có thể cấp câu mới một lần.
+- `ok/fail`, `E_CHALLENGE_MISMATCH`: ASR không khớp câu; API có thể cấp câu mới
+  một lần. Kết quả này không tự chứng minh người dùng đã đọc sai.
 - `error/unclear`: thiếu model/dependency, audio hỏng, lỗi ASR; không được pass.
 - `not_applicable/unclear`: không tìm thấy tiếng nói; không được pass.
 
