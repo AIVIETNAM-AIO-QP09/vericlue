@@ -1,5 +1,9 @@
 # Nghiên cứu: mô hình chạy trên điện thoại (on-device) cho VeriClue
 
+> Tài liệu lịch sử. Bảng [đối chiếu paper02/11](2026-11-02-model-paper-evidence.md)
+> xác định đúng biến thể hiện dùng; không trộn NES2Net single/averaged checkpoint
+> hoặc gán tốc độ/accuracy từ paper cho điện thoại và pipeline VeriClue.
+
 Ngày: 18/10/2026. Chỉ nghiên cứu, không sửa repo.
 
 **Cách đọc:** [XM] = đã xác minh từ nguồn trong phiên này (có link ở mục Nguồn). [SĐ] = suy đoán hoặc kiến thức chung, chưa kiểm lại. "Chưa có số công bố" = không tìm thấy số đo trên điện thoại.

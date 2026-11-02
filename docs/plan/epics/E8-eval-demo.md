@@ -132,6 +132,12 @@
 |---|---|---|---|---|
 | M2 (+cả nhóm) | 1 | S3 | P0 | ROUT-05, EVAL-02, FACE-04, VOICE-03, PRES-04 |
 
+**Chuẩn bị tài liệu02/11:** đã tổng hợp [số công bố và nguồn gốc cho đúng mô
+hình tích hợp](../../research/2026-11-02-model-paper-evidence.md), kèm đoạn có thể
+đưa vào mục cơ sở lựa chọn mô hình, điều kiện benchmark và các chỗ cần sửa khi
+trích nghiên cứu18/10. Đây là phần tham khảo, không thay R1–R6 hoặc nghiệm thu
+thiết bị; task báo cáo hoàn chỉnh vẫn `todo`, các phụ thuộc chưa được coi là xong.
+
 **Phân công viết:**
 
 | Người | Phần |
