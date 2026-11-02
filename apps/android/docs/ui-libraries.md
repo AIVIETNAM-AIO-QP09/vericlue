@@ -52,6 +52,14 @@ hay bỏ qua bước. Có nút đóng rõ ràng để không phụ thuộc thao 
 
 ## Điều chỉnh sau test thiết bị (APP-11)
 
+Lượt trau chuốt tiếp dùng Compose animation cho thứ tự xuất hiện của hero/hành
+trình và thu preview vào góc; Canvas cho hướng dẫn quay đầu nhẹ, rõ tư thế.
+Three.js tăng chuyển động ghép lớp/xoay của vật thể, vẫn kết thúc ở 3 giây.
+Không thêm dependency View/XML chỉ để có hiệu ứng: tiếp tục khai thác các mẫu
+animation/progress trong danh mục bằng stack Compose hiện có. Skill
+`ui-ux-pro-max` được dùng cho line wrapping tự nhiên, không đổi layout trong
+animation, giảm chuyển động và các kiểm tra safe area/chữ lớn.
+
 Áp dụng mẫu progressive disclosure của bottom sheet/material-dialogs cho mục
 nhạy cảm ánh sáng: chỉ mở giải thích khi người dùng chọn, đóng sheet không
 thoát phiên. Không hứa có phương thức thay thế nếu backend chưa cung cấp.

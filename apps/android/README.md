@@ -4,6 +4,21 @@
 
 ## Trạng thái
 
+APP-11 / lượt trau chuốt chuyển động và chốt capture: màn danh tính chỉ giữ ba
+nhãn hành trình, bỏ mô tả và câu chuẩn bị thừa; native xuất hiện tuần tự, cảnh
+Three.js ghép lớp/xoay rồi ổn định trong 3 giây. Quay đầu có hình hướng dẫn chuyển
+động, tiến độ giữ tư thế lấy từ frame thật. Tất cả có trạng thái giảm chuyển động.
+
+Camera mặt dùng `FIT_CENTER` để không phóng ảnh lấp màn hình dài; oval rộng hơn.
+Chỉ bắt đầu khi một mặt đầy đủ, nhìn thẳng, nằm trong oval và ổn định qua các
+frame mới trong một giây. Tọa độ mặt được ánh xạ bằng CameraX tới đúng khung UI.
+Gaze thu phần xem camera vào góc bằng transform lớp vẽ, giữ nguyên CameraX và
+tọa độ chấm. Kết thúc gaze khôi phục khung chính. Quay sai/không quay/thiếu mặt
+thì dừng lượt thu và yêu cầu thử lại bằng challenge mới; không tự chuyển yêu cầu
+kế tiếp. Lịch server giữ nguyên. Chi tiết/giới hạn: [capture khuôn mặt](docs/face-capture.md).
+Preview mới: `tmp/app11-ui/polished/index.html`, tạo bằng
+`python apps/android/scripts/build-polished-preview.py` sau Paparazzi.
+
 APP-11 / phản hồi test thiết bị: 3D chỉ trang trí, tự chạy tối đa 3 giây rồi đứng
 yên; bỏ tab, nút xem lại/tạm dừng và lời thuyết minh minh họa khỏi app. Bốn cảnh
 được dùng: thẻ ở màn đầu, khiên/khóa ở đồng ý, khuôn mặt ở chuẩn bị và huy hiệu
@@ -16,8 +31,8 @@ Paparazzi và chạy kiểm tra WebGL. Màn thành công dùng 3D; Lottie vẫn 
 `SuccessBadge` cho màn ngân hàng mẫu/gallery, không chạy chồng lên cảnh 3D.
 
 Camera: `FaceCaptureSurface` dùng một viewport toàn màn hình và cùng hình học
-oval cho căn mặt, đổi màu, theo chấm và quay đầu. `StableCameraScene` không
-scale/translate preview theo cửa sổ nhỏ nữa. Chấm vẫn theo tọa độ toàn màn hình
+oval chính cho căn mặt, đổi màu và quay đầu; bước gaze dùng thumbnail từ cùng
+nguồn, chỉ biến đổi lớp vẽ. Chấm vẫn theo tọa độ toàn màn hình
 do server cấp; giữ lịch, màu, độ sáng và mốc recording. Diện tích màu nhìn thấy
 thay đổi do khung camera thống nhất, cần kiểm lại chất lượng thu trên thiết bị.
 Màn chuẩn bị rút gọn; đăng nhập thụ động không có cảnh báo đổi màu. Trợ giúp về

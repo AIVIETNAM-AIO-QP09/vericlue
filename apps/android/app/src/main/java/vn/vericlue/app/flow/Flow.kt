@@ -14,7 +14,7 @@ enum class Purpose { Onboarding, Reauth, Recovery }
 enum class TurnDir { Left, Right }
 
 /** One quality hint on the framing screen (ADR-0017 §1: one sentence about quality). */
-enum class FramingState { NoFace, LowLight, TooFar, OffCenter, Good }
+enum class FramingState { NoFace, LowLight, TooFar, TooClose, OffCenter, MultipleFaces, IncompleteFace, NotStraight, Good }
 
 /**
  * What the fake server answers after the checking screen. Mirrors the citizen-facing

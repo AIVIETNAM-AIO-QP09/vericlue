@@ -488,6 +488,29 @@ Năm nhóm WebGL đạt. Preview `tmp/app11-ui/refined/index.html` so với `2aa
 Giữ `review` chờ thử lại trên điện thoại; phương thức không đổi màu cho đăng ký/
 khôi phục chưa triển khai, câu hỏi và phạm vi backend ở bàn giao 18:36.
 
+Phản hồi tiếp: tăng chất lượng chuyển động, bỏ mô tả thừa ở màn danh tính;
+khung mặt cần vừa ở khoảng cách tự nhiên, camera thu gọn lúc theo chấm;
+không bắt đầu khi thiếu mặt và không tự chuyển yêu cầu quay đầu khi chưa làm.
+Mở lại theo yêu cầu trực tiếp, cùng nhánh/PR; cho phép subagent chia việc.
+
+- [x] Chuyển động native/Three.js rõ, hữu hạn và tôn trọng giảm chuyển động;
+      bỏ mô tả dưới ba mục và câu chuẩn bị ở hero, chữ ngắn/chuyên nghiệp.
+- [x] Preview mặt giữ đầy đủ ảnh, oval rộng hơn; gaze dùng thumbnail góc và
+      chấm có tương phản rõ, giữ tọa độ server và crop nguồn khi chuyển pha.
+- [x] Chỉ bắt đầu khi một mặt đầy đủ nằm trong oval, nhìn thẳng, ổn định qua
+      các frame mới; không cho tín hiệu cũ/thiếu quyền camera kích hoạt timer demo.
+- [x] Kiểm đúng hướng quay/nhìn giữa qua nhiều frame; chưa đạt thì dừng/thử lại
+      bằng challenge mới, không tự chuyển tiếp hoặc kéo lệch lịch thu server.
+- [x] Test hồi quy thiếu mặt/không làm/sai hướng/tín hiệu cũ/hủy capture, ảnh
+      và chuyển động ở chữ lớn/màn nhỏ, lint/build, cập nhật preview/APK.
+
+Kết quả tích hợp: 208 test Android đạt; lint 0 lỗi/12 cảnh báo/3 thông tin,
+APK build thành công. Sáu nhóm WebGL đạt; ba APNG native có chuyển động
+thực rồi đứng yên. Preview `tmp/app11-ui/polished/index.html` gồm chín cặp
+trước/sau và ba APNG. Giữ `review`: cần nghiệm thu khoảng cách, hướng quay
+và camera thực tế. Lịch server vẫn cố định; thiếu thao tác thì retry, chưa
+chờ thích ứng từng hướng. Chi tiết và giới hạn mock ở bàn giao 20:39.
+
 ---
 
 ### APP-02 ★ · App: chụp mặt, quay 3 giây, quay đầu ngẫu nhiên

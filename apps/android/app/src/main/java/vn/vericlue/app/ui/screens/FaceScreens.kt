@@ -48,6 +48,12 @@ import vn.vericlue.app.capture.ColorSchedule
 import vn.vericlue.app.capture.ColorSlot
 import vn.vericlue.app.capture.TurnTracker
 import vn.vericlue.app.capture.FaceTimeline
+import vn.vericlue.app.capture.FaceAttemptGuard
+import vn.vericlue.app.capture.FaceAttemptIssue
+import vn.vericlue.app.capture.FaceSignal
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.runtime.withFrameNanos
 import vn.vericlue.app.ui.components.ContentCard
 import vn.vericlue.app.ui.components.FaceCaptureSurface
@@ -122,8 +128,10 @@ fun FramingScreen(
     onExit: () -> Unit,
     onCaptured: () -> Unit,
     start: FramingState = FramingState.LowLight,
-    auto: Boolean = true,
+    auto: Boolean = false,
     live: FramingState? = null,
+    captureProgress: Float = 0f,
+    onGuidePosition: ((Rect, Size) -> Unit)? = null,
 ) {
     var demo by remember { mutableStateOf(start) }
     LaunchedEffect(auto, live == null) {
@@ -144,12 +152,17 @@ fun FramingScreen(
             FramingState.NoFace -> "Nhìn thẳng vào camera"
             FramingState.LowLight -> "Chọn nơi đủ sáng"
             FramingState.TooFar -> "Đưa điện thoại lại gần hơn"
+            FramingState.TooClose -> "Đưa điện thoại ra xa một chút"
             FramingState.OffCenter -> "Đưa mặt vào giữa khung"
-            FramingState.Good -> "Giữ yên, đang bắt đầu"
+            FramingState.MultipleFaces -> "Chỉ để một người trong khung hình"
+            FramingState.IncompleteFace -> "Đưa toàn bộ khuôn mặt vào khung"
+            FramingState.NotStraight -> "Nhìn thẳng và giữ đầu ngay ngắn"
+            FramingState.Good -> "Giữ yên trong giây lát"
         },
         good = state == FramingState.Good,
         faceScale = if (state == FramingState.TooFar) 0.6f else 1f,
         dim = if (state == FramingState.LowLight) 0.45f else 0f,
+        progress = captureProgress.takeIf { it > 0f }, onGuidePosition = onGuidePosition,
     )
 }
 
@@ -281,21 +294,12 @@ fun TurnHeadScreen(
 ) {
     var index by remember { mutableIntStateOf(0) }
     // Live: advance when the head turn is detected (ML Kit yaw). Demo: advance on a timer.
-    val tracker = remember(index) { TurnTracker() }
+    val tracker = remember(index) { TurnTracker(direction = order[index]) }
     LaunchedEffect(yaw) {
         if (yaw == null || !auto) return@LaunchedEffect
         if (tracker.update(yaw, android.os.SystemClock.elapsedRealtime())) {
             if (index < order.size - 1) index++ else onDone()
         }
-    }
-    LaunchedEffect(auto, yaw == null) {
-        if (!auto || yaw != null) return@LaunchedEffect
-        while (index < order.size - 1) {
-            delay(2600)
-            index++
-        }
-        delay(2600)
-        onDone()
     }
     val dir = order[index]
     TurnHeadContent(dir, onExit)
@@ -308,7 +312,7 @@ private fun TurnHeadContent(
 ) {
     FaceCaptureSurface(
         title = when (dir) { TurnDir.Left -> "Quay sang trái"; TurnDir.Right -> "Quay sang phải"; null -> "Nhìn thẳng" },
-        hint = "Giữ nguyên vị trí điện thoại", onStop = onExit, direction = dir,
+        hint = "Giữ nguyên vị trí điện thoại", onStop = onExit, direction = dir, headGuidance = true,
     )
 }
 
@@ -333,8 +337,13 @@ fun FaceTimelineScreen(
     onColorsDone: () -> Unit,
     onDone: () -> Unit,
     onNoRecording: () -> Unit,
+    faceSignal: () -> FaceSignal?,
+    onIncomplete: (FaceAttemptIssue) -> Unit,
 ) {
     var phase by remember { mutableStateOf<FaceTimeline.Phase>(FaceTimeline.Phase.Colour(0)) }
+    var actionProgress by remember { mutableStateOf(0f) }
+    val currentSignal by rememberUpdatedState(faceSignal)
+    val incomplete by rememberUpdatedState(onIncomplete)
     LaunchedEffect(Unit) {
         delay(SETTLE_MS) // let the preview settle before recording (see HoldStillScreen)
         onStart()
@@ -350,10 +359,16 @@ fun FaceTimelineScreen(
         var frontalDone = false
         var baselineDone = false
         var coloursDone = false
+        val guard = FaceAttemptGuard(timeline)
         while (true) {
             val nowMs = withFrameNanos { CaptureClock.frameNanosToMs(it) }
             val t = nowMs - start
             val p = timeline.phaseAt(t)
+            guard.update(p, currentSignal(), android.os.SystemClock.elapsedRealtime())?.let {
+                incomplete(it)
+                return@LaunchedEffect
+            }
+            actionProgress = guard.actionProgress
             phase = p
             if (p is FaceTimeline.Phase.Colour && p.slot != lastSlot) {
                 lastSlot = p.slot
@@ -379,19 +394,23 @@ fun FaceTimelineScreen(
     }
     BackHandler(onBack = onStop)
     FullBrightness(enabled = true)
-    FaceChallengeContent(timeline, phase, onStop)
+    FaceChallengeContent(timeline, phase, actionProgress, onStop)
 }
 
 /** Shared presentation, independently snapshot-tested without opening a camera or starting work. */
 @Composable
-fun FaceChallengeContent(timeline: FaceTimeline, phase: FaceTimeline.Phase, onStop: () -> Unit) {
+fun FaceChallengeContent(timeline: FaceTimeline, phase: FaceTimeline.Phase, onStop: () -> Unit) =
+    FaceChallengeContent(timeline, phase, 0f, onStop)
+
+@Composable
+fun FaceChallengeContent(timeline: FaceTimeline, phase: FaceTimeline.Phase, actionProgress: Float, onStop: () -> Unit) {
     val colour = (phase as? FaceTimeline.Phase.Colour)?.let { timeline.slots[it.slot] }
     val gaze = phase as? FaceTimeline.Phase.Gaze
     val head = phase as? FaceTimeline.Phase.Head
     val light = colour != null || phase == FaceTimeline.Phase.Gap || gaze != null
     FaceCaptureSurface(
         title = when {
-            gaze != null -> "Đưa mắt theo chấm"
+            gaze != null -> "Nhìn theo chấm"
             head?.dir == TurnDir.Left -> "Quay sang trái"
             head?.dir == TurnDir.Right -> "Quay sang phải"
             else -> "Giữ yên, nhìn thẳng"
@@ -401,5 +420,6 @@ fun FaceChallengeContent(timeline: FaceTimeline, phase: FaceTimeline.Phase, onSt
         background = colour?.let { Color(ColorSchedule.parse(it.rgb)) } ?: if (light) Color.White else Palette.CameraBg,
         progress = (phase as? FaceTimeline.Phase.Colour)?.let { (it.slot + 1f) / timeline.slots.size.coerceAtLeast(1) },
         direction = head?.dir, gaze = gaze?.let { Offset(it.x.toFloat(), it.y.toFloat()) },
+        headGuidance = head != null, actionProgress = actionProgress.takeIf { head != null },
     )
 }

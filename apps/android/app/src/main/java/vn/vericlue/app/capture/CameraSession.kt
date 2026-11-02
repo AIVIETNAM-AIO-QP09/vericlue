@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Matrix
+import android.graphics.RectF
 import android.hardware.camera2.CameraCharacteristics
 import android.os.SystemClock
 import android.util.Log
@@ -24,6 +25,9 @@ import androidx.camera.video.Recording
 import androidx.camera.video.VideoRecordEvent
 import androidx.camera.view.CameraController
 import androidx.camera.view.LifecycleCameraController
+import androidx.camera.view.transform.CoordinateTransform
+import androidx.camera.view.transform.ImageProxyTransformFactory
+import androidx.camera.view.transform.OutputTransform
 import androidx.camera.view.video.AudioConfig
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
@@ -34,6 +38,7 @@ import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
+import com.google.mlkit.vision.face.FaceLandmark
 import com.google.android.gms.tasks.Tasks
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -54,12 +59,15 @@ import vn.vericlue.app.BuildConfig
  * Also collects frame_times, region_means and the camprobe facts sent with the signals.
  * Not done yet: the dot path (waits for LIVE-01) and media signing (SEC-02).
  */
+@androidx.annotation.OptIn(androidx.camera.view.TransformExperimental::class)
 class CameraSession(private val context: Context) {
     val controller = LifecycleCameraController(context)
     private val analysisExecutor = Executors.newSingleThreadExecutor()
     private val detector = FaceDetection.getClient(
         FaceDetectorOptions.Builder()
             .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
+            .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
+            .enableTracking()
             .setMinFaceSize(0.15f)
             .build(),
     )
@@ -99,8 +107,24 @@ class CameraSession(private val context: Context) {
 
     private val _face = MutableStateFlow<FaceSignal?>(null)
     val face: StateFlow<FaceSignal?> = _face
+    @Volatile private var faceGeneration = 0L
+    @Volatile private var faceOutput: Pair<Long, OutputTransform>? = null
+    private val faceTransformFactory = ImageProxyTransformFactory().apply { isUsingRotationDegrees = true }
 
-    private var bound = false
+    /** Main thread: actual CameraX crop, rotation and selfie mirroring, in PreviewView pixels. */
+    fun previewBounds(signal: FaceSignal?): RectF? {
+        if (signal == null) return null
+        val source = faceOutput?.takeIf { it.first == signal.timestampNs }?.second ?: return null
+        val target = preview?.outputTransform ?: return null
+        return runCatching {
+            RectF(signal.left * signal.imageWidth, signal.top * signal.imageHeight,
+                signal.right * signal.imageWidth, signal.bottom * signal.imageHeight).also {
+                CoordinateTransform(source, target).mapRect(it)
+            }.takeIf { listOf(it.left, it.top, it.right, it.bottom).all { coordinate -> coordinate.isFinite() } }
+        }.getOrNull()
+    }
+
+    @Volatile private var bound = false
     private var preview: androidx.camera.view.PreviewView? = null
 
     /**
@@ -110,16 +134,26 @@ class CameraSession(private val context: Context) {
     fun previewView(activityContext: Context): androidx.camera.view.PreviewView =
         preview ?: androidx.camera.view.PreviewView(activityContext).apply {
             implementationMode = androidx.camera.view.PreviewView.ImplementationMode.COMPATIBLE
-            scaleType = androidx.camera.view.PreviewView.ScaleType.FILL_CENTER
+            scaleType = if (backMode) androidx.camera.view.PreviewView.ScaleType.FILL_CENTER
+                else androidx.camera.view.PreviewView.ScaleType.FIT_CENTER
             controller = this@CameraSession.controller
         }.also { preview = it }
-    private var jpegRequest: CompletableDeferred<ByteArray>? = null
+    private data class JpegRequest(val result: CompletableDeferred<ByteArray>, val afterMs: Long)
+    @Volatile private var jpegRequest: JpegRequest? = null
+
+    private fun clearFaceAnalysis() {
+        faceGeneration++
+        _face.value = null
+        faceOutput = null
+        synchronized(this) { jpegRequest?.result?.cancel(); jpegRequest = null }
+    }
 
     // Frame timing while recording (Signals.frame_times).
     private val frames = mutableListOf<FrameTime>()
     @Volatile private var recordingFrames = false
     private var firstFrameNs = 0L
     private var recording: Recording? = null
+    private var recordingGeneration = 0L
     private var videoFile: File? = null
     private var analyzedFrames = 0
     private val duplicates = DuplicateFrameMeter()
@@ -136,9 +170,12 @@ class CameraSession(private val context: Context) {
      * opened, so the caller shows an error screen instead of crashing.
      */
     suspend fun start(owner: LifecycleOwner, back: Boolean, idQrOnly: Boolean = false): Boolean {
+        clearFaceAnalysis()
         if (!awaitInitialized()) return false
         if (backMode != back) clearQr()
         backMode = back
+        preview?.scaleType = if (back) androidx.camera.view.PreviewView.ScaleType.FILL_CENTER
+            else androidx.camera.view.PreviewView.ScaleType.FIT_CENTER
         this.idQrOnly = back && idQrOnly
         val preferred = if (back) CameraSelector.DEFAULT_BACK_CAMERA else CameraSelector.DEFAULT_FRONT_CAMERA
         val other = if (back) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
@@ -249,17 +286,22 @@ class CameraSession(private val context: Context) {
     }
 
     fun unbind() {
+        clearFaceAnalysis()
         stopRecording()
         controller.unbind()
         bound = false
-        _face.value = null
     }
 
-    /** JPEG of the next analysed frame (upright, high quality). Used for the frontal still. */
+    /** Next freshly analysed, complete frontal face. A timed-out request cannot capture later. */
     suspend fun captureJpeg(): ByteArray {
-        val req = CompletableDeferred<ByteArray>()
-        jpegRequest = req
-        return req.await()
+        val req = synchronized(this) {
+            jpegRequest?.takeIf { it.result.isActive }
+                ?: JpegRequest(CompletableDeferred(), SystemClock.elapsedRealtime()).also { jpegRequest = it }
+        }
+        try { return req.result.await() } finally {
+            if (req.result.isActive) req.result.cancel()
+            synchronized(this) { if (jpegRequest === req) jpegRequest = null }
+        }
     }
 
     @Volatile private var aeAwbLocked = false
@@ -292,13 +334,15 @@ class CameraSession(private val context: Context) {
     @SuppressLint("MissingPermission")
     fun startRecording(voice: Boolean = false) {
         if (recording != null) return
+        val generation = ++recordingGeneration
+        recordedAt = null
         if (!videoEnabled) {
             videoFile = null
             finalized = null
             return
         }
         val prefix = if (voice) "voice_" else "face_"
-        val file = File(context.cacheDir, "$prefix${System.currentTimeMillis()}.mp4").also { videoFile = it }
+        val file = File(context.cacheDir, "$prefix${System.currentTimeMillis()}_$generation.mp4").also { videoFile = it }
         if (!voice) {
             synchronized(frames) { frames.clear() }
             synchronized(regionFrames) { regionFrames.clear() }
@@ -307,7 +351,6 @@ class CameraSession(private val context: Context) {
         }
         val done = CompletableDeferred<Boolean>().also { finalized = it }
         val begun = CompletableDeferred<Unit>().also { started = it }
-        recordedAt = null
         recording = runCatching {
             controller.startRecording(
                 FileOutputOptions.Builder(file).build(),
@@ -315,13 +358,16 @@ class CameraSession(private val context: Context) {
                 ContextCompat.getMainExecutor(context),
             ) { event ->
                 // Start arrives before any frame; the first frame shows as recorded time > 0.
-                if (event is VideoRecordEvent.Status && event.recordingStats.recordedDurationNanos > 0) {
+                if (event is VideoRecordEvent.Status && generation == recordingGeneration && recording != null &&
+                    event.recordingStats.recordedDurationNanos > 0) {
                     recordedAt = event.recordingStats.recordedDurationNanos to SystemClock.elapsedRealtimeNanos()
                     begun.complete(Unit)
                 }
                 if (event is VideoRecordEvent.Finalize) {
                     begun.complete(Unit)
                     done.complete(!event.hasError())
+                    // An aborted attempt may finalize after deleteVideo or after its replacement starts.
+                    if (videoFile != file) file.delete()
                 }
             }
         }.getOrNull()
@@ -368,8 +414,11 @@ class CameraSession(private val context: Context) {
 
     fun stopRecording() {
         recordingFrames = false
-        recording?.stop()
+        val current = recording
         recording = null
+        recordingGeneration++
+        recordedAt = null
+        current?.stop()
     }
 
     /** A file is ready only after CameraX successfully closes that recording. */
@@ -412,6 +461,8 @@ class CameraSession(private val context: Context) {
 
     @androidx.annotation.OptIn(ExperimentalGetImage::class)
     private fun analyze(proxy: ImageProxy) {
+        val generation = faceGeneration
+        val observedAtMs = SystemClock.elapsedRealtime()
         val media = proxy.image
         if (media == null) {
             proxy.close()
@@ -434,23 +485,29 @@ class CameraSession(private val context: Context) {
         val upright = rotation % 180 == 0
         val w = if (upright) proxy.width else proxy.height
         val h = if (upright) proxy.height else proxy.width
+        val outputTransform = runCatching { faceTransformFactory.getOutputTransform(proxy) }.getOrNull()
         val luma = meanLuma(proxy)
         duplicates.add(thumbnail(proxy))
-        val request = jpegRequest
-        if (request != null) {
-            jpegRequest = null
-            request.complete(toJpeg(proxy, rotation))
-        }
         // One listener on the analysis thread: the frame must stay open while regions are measured.
         detector.process(InputImage.fromMediaImage(media, rotation))
             .addOnCompleteListener(analysisExecutor) { task ->
                 try {
+                    if (generation != faceGeneration || backMode || !bound) return@addOnCompleteListener
                     val faces = if (task.isSuccessful) task.result else emptyList()
                     val face = faces.maxByOrNull { it.boundingBox.width() }
-                    _face.value = if (face == null) {
-                        FaceSignal(0, 0f, 0f, 0f, 0f, luma, ts)
+                    val signal = if (face == null) {
+                        FaceSignal(0, 0f, 0f, 0f, 0f, luma, ts,
+                            imageWidth = w, imageHeight = h, observedAtMs = observedAtMs)
                     } else {
                         val b = face.boundingBox
+                        fun visibleLandmark(type: Int): Boolean = face.getLandmark(type)?.position?.let { p ->
+                            p.x.isFinite() && p.y.isFinite() &&
+                                p.x >= 0 && p.x < w && p.y >= 0 && p.y < h &&
+                                p.x >= b.left && p.x <= b.right && p.y >= b.top && p.y <= b.bottom
+                        } == true
+                        val leftEye = visibleLandmark(FaceLandmark.LEFT_EYE)
+                        val rightEye = visibleLandmark(FaceLandmark.RIGHT_EYE)
+                        val noseAndMouth = visibleLandmark(FaceLandmark.NOSE_BASE) && visibleLandmark(FaceLandmark.MOUTH_BOTTOM)
                         if (recordingFrames) {
                             val box = Box(b.left.toFloat(), b.top.toFloat(), b.right.toFloat(), b.bottom.toFloat())
                             val stats = Regions.measure(box, w, h) { x, y -> rgbAt(proxy, x, y, rotation) }
@@ -464,7 +521,25 @@ class CameraSession(private val context: Context) {
                             yaw = face.headEulerAngleY,
                             luma = luma,
                             timestampNs = ts,
+                            heightFraction = b.height().toFloat() / h,
+                            imageWidth = w,
+                            imageHeight = h,
+                            pitch = face.headEulerAngleX,
+                            roll = face.headEulerAngleZ,
+                            landmarksComplete = leftEye && rightEye && noseAndMouth,
+                            landmarksVisible = (leftEye || rightEye) && noseAndMouth,
+                            observedAtMs = observedAtMs,
+                            trackingId = face.trackingId,
                         )
+                    }
+                    if (generation != faceGeneration || backMode || !bound) return@addOnCompleteListener
+                    faceOutput = outputTransform?.let { ts to it }
+                    _face.value = signal
+                    val request = jpegRequest
+                    if (request != null && request.result.isActive && signal.observedAtMs >= request.afterMs &&
+                        QualityGate.evaluate(signal, SystemClock.elapsedRealtime()) == vn.vericlue.app.flow.FramingState.Good) {
+                        runCatching { toJpeg(proxy, rotation) }.fold(request.result::complete, request.result::completeExceptionally)
+                        synchronized(this) { if (jpegRequest === request) jpegRequest = null }
                     }
                 } finally {
                     proxy.close()

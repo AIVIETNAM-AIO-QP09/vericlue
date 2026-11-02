@@ -90,7 +90,13 @@ class SuccessAnimationSnapshotTest {
                 }
             }
         }
-        paparazzi.gif(view, name = "motion_$dark", end = 1500L, fps = 30)
+        try {
+            paparazzi.gif(view, name = "motion_$dark", end = 1500L, fps = 30)
+        } finally {
+            // Layoutlib detachment does not reliably dispose a manually created ComposeView.
+            // Release its recomposer before the next test creates a fresh frame clock.
+            view.disposeComposition()
+        }
         assertTrue("Animation did not reach its final frame: $lastDrawnProgress", lastDrawnProgress >= 0.99f)
     }
 }

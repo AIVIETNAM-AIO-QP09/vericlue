@@ -22,6 +22,10 @@ Không dùng 3D trên camera, gaze, nháy màu hoặc màn chờ kết quả.
 cảnh, geometry/material/instance cũ được dispose; ánh sáng/camera/renderer dùng
 chung. Bộ bảy cảnh còn ở trang review cho người phát triển; app chỉ dùng bốn
 cảnh phù hợp từng màn. Các nút điều khiển trong trang review không phải UI app.
+Chuyển động hiện có nâng/xoay khối, ghép lớp thẻ và đóng khóa, sau đó ổn định
+đúng tư thế cuối ở mốc 3 giây. Reduced motion dùng cùng tư thế cuối. Hero và
+các mục hành trình native xuất hiện tuần tự; WebGL sẵn sàng được chuyển vào
+bằng alpha, không đẩy bố cục hoặc khóa nút chính.
 Tham khảo API upstream [InstancedMesh r170](https://github.com/mrdoob/three.js/blob/r170/docs/api/en/objects/InstancedMesh.html)
 và [quản lý tài nguyên](https://github.com/mrdoob/three.js/blob/r170/manual/en/cleanup.html);
 không chép các scene/ví dụ của tài liệu.

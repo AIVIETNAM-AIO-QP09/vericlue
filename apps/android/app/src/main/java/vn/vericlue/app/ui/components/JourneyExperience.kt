@@ -1,6 +1,9 @@
 package vn.vericlue.app.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
@@ -17,6 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.unit.dp
@@ -52,21 +56,22 @@ fun JourneyHeader(step: Int) {
 @Composable
 fun WelcomePanel() {
     VcTheme(dark = true) {
-        Surface(color = Palette.LogoNavy, shape = RoundedCornerShape(28.dp)) {
-            Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text("ĐỊNH DANH ĐIỆN TỬ", style = VcType.labelXs, color = Vc.colors.accent)
-                if (LocalDensity.current.fontScale < 1.5f) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Xác minh\ndanh tính", style = VcType.titleLarge,
-                            color = Vc.colors.ink, modifier = Modifier.weight(0.6f).semantics { heading() })
-                        IdentityScene3D(Modifier.weight(0.4f).height(136.dp))
+        JourneyReveal(0) {
+            Surface(color = Palette.LogoNavy, shape = RoundedCornerShape(28.dp)) {
+                Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text("ĐỊNH DANH ĐIỆN TỬ", style = VcType.labelXs, color = Vc.colors.accent)
+                    if (LocalDensity.current.fontScale < 1.5f) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Xác minh danh tính", style = VcType.titleLarge,
+                                color = Vc.colors.ink, modifier = Modifier.weight(0.6f).semantics { heading() })
+                            IdentityScene3D(Modifier.weight(0.4f).height(156.dp))
+                        }
+                    } else {
+                        Text("Xác minh danh tính", style = VcType.titleLarge,
+                            color = Vc.colors.ink, modifier = Modifier.semantics { heading() })
+                        IdentityScene3D(Modifier.fillMaxWidth().height(112.dp))
                     }
-                } else {
-                    Text("Xác minh danh tính", style = VcType.titleLarge,
-                        color = Vc.colors.ink, modifier = Modifier.semantics { heading() })
-                    IdentityScene3D(Modifier.fillMaxWidth().height(112.dp))
                 }
-                Text("Chuẩn bị thẻ căn cước và chọn nơi đủ sáng.", style = VcType.bodySmall, color = Vc.colors.muted)
             }
         }
     }
@@ -75,25 +80,45 @@ fun WelcomePanel() {
 @Composable
 fun JourneyOverview(currentStep: Int? = null) {
     val titles = listOf("Thông tin của bạn", "Xác minh khuôn mặt", "Bổ sung khi cần")
-    val details = listOf("Xác nhận số điện thoại và kiểm tra thẻ căn cước.",
-        "Làm theo hướng dẫn trên màn hình.", "Chỉ đọc câu xác nhận khi được yêu cầu.")
-    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         titles.forEachIndexed { index, title ->
-            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                Box(Modifier.size(32.dp).background(
-                    if (currentStep == index + 1) Vc.colors.primary else Vc.colors.surfaceSubtle, CircleShape),
-                    contentAlignment = Alignment.Center) {
-                    Text("${index + 1}", style = VcType.labelSmall,
-                        color = if (currentStep == index + 1) Vc.colors.onPrimary else Vc.colors.accent)
-                }
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(title, style = VcType.bodyStrong, color = Vc.colors.ink)
-                    Text(details[index], style = VcType.bodySmall, color = Vc.colors.muted)
-                    if (currentStep == index + 1) Text("Bạn đang ở bước này", style = VcType.caption, color = Vc.colors.accent)
+            JourneyReveal(index + 1) {
+                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Box(Modifier.size(32.dp).background(
+                        if (currentStep == index + 1) Vc.colors.primary else Vc.colors.surfaceSubtle, CircleShape),
+                        contentAlignment = Alignment.Center) {
+                        Text("${index + 1}", style = VcType.labelSmall,
+                            color = if (currentStep == index + 1) Vc.colors.onPrimary else Vc.colors.accent)
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(title, style = VcType.bodyStrong, color = Vc.colors.ink)
+                        if (currentStep == index + 1) Text("Bạn đang ở bước này", style = VcType.caption, color = Vc.colors.accent)
+                    }
                 }
             }
         }
     }
+}
+
+/** Stagger drawing only: text keeps its final measure and actions never wait for the entrance. */
+@Composable
+private fun JourneyReveal(index: Int, content: @Composable () -> Unit) {
+    val motion = Vc.motion
+    var entered by remember(motion.enabled) { mutableStateOf(!motion.enabled) }
+    LaunchedEffect(motion.enabled) { entered = true }
+    val progress by animateFloatAsState(
+        if (entered || !motion.enabled) 1f else 0f,
+        tween(motion.duration(480), motion.duration(index * 70), FastOutSlowInEasing),
+        label = "journey-entry-$index",
+    )
+    val distance = with(LocalDensity.current) { 18.dp.toPx() }
+    Box(Modifier.fillMaxWidth().graphicsLayer {
+        alpha = progress
+        translationY = distance * (1f - progress)
+        scaleX = 0.98f + 0.02f * progress
+        scaleY = scaleX
+    }) { content() }
 }
 
 enum class HelpTopic { Journey, Phone, Otp }

@@ -21,16 +21,18 @@ import vn.vericlue.app.flow.Routes
 
 class CaptureTest {
     private fun face(width: Float = 0.45f, x: Float = 0.5f, y: Float = 0.45f, luma: Float = 120f, faces: Int = 1) =
-        FaceSignal(faces, width, x, y, 0f, luma, 0L)
+        FaceSignal(faces, width, x, y, 0f, luma, 0L, heightFraction = 0.6f,
+            imageWidth = 480, imageHeight = 640, pitch = 0f, roll = 0f,
+            landmarksComplete = true, landmarksVisible = true, observedAtMs = 0)
 
     @Test
     fun qualityGateGivesOneHintAtATime() {
-        assertEquals(FramingState.NoFace, QualityGate.evaluate(null))
-        assertEquals(FramingState.NoFace, QualityGate.evaluate(face(faces = 0)))
-        assertEquals(FramingState.LowLight, QualityGate.evaluate(face(luma = 30f, width = 0.1f)))
-        assertEquals(FramingState.TooFar, QualityGate.evaluate(face(width = 0.2f)))
-        assertEquals(FramingState.OffCenter, QualityGate.evaluate(face(x = 0.8f)))
-        assertEquals(FramingState.Good, QualityGate.evaluate(face()))
+        assertEquals(FramingState.NoFace, QualityGate.evaluate(null, 0))
+        assertEquals(FramingState.NoFace, QualityGate.evaluate(face(faces = 0), 0))
+        assertEquals(FramingState.LowLight, QualityGate.evaluate(face(luma = 30f, width = 0.1f), 0))
+        assertEquals(FramingState.TooFar, QualityGate.evaluate(face(width = 0.2f), 0))
+        assertEquals(FramingState.OffCenter, QualityGate.evaluate(face(x = 0.7f), 0))
+        assertEquals(FramingState.Good, QualityGate.evaluate(face(), 0))
     }
 
     @Test

@@ -51,7 +51,7 @@ button[aria-pressed="true"],#replay{background:#0c2345;color:#fff;border-color:#
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
 </style><main><div class="tag">VERICLUE / ANDROID / THREE.JS</div>
 <h1>Mỗi bước, một cách hiểu rõ hơn.</h1>
-<p>App dùng 3D trang trí tự chạy 3 giây, không có nút xem lại/tạm dừng hoặc tab chọn cảnh. Các nút bên dưới chỉ phục vụ review kỹ thuật bộ cảnh. <a href="../refined/index.html">Xem UI mới và khung camera đồng bộ →</a></p>
+<p>App dùng 3D trang trí tự chạy 3 giây, không có nút xem lại/tạm dừng hoặc tab chọn cảnh. Các nút bên dưới chỉ phục vụ review kỹ thuật bộ cảnh. <a href="../polished/index.html">Xem UI mới, chuyển động và khung camera →</a></p>
 <div class="chapters" aria-label="Chọn cảnh minh họa" id="chapters"></div>
 <div class="grid"><section><span id="context" class="context"></span><h2 id="title"></h2>
 <div class="stage" id="stage"><div class="stage-head"><span>MINH HỌA 3D TRỰC TIẾP</span><button id="theme">Nền sáng</button></div>

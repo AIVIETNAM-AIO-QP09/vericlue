@@ -108,9 +108,34 @@ try {
   await chapters.page.evaluate(() => window.vericlueScene.configure('turn', true));
   assert.equal(await chapters.page.evaluate(() => window.vericlueScene.playing), false);
   assert.deepEqual(chapters.errors, []); assert.deepEqual(chapters.unexpected, []);
+  const choreography = await chapters.page.evaluate(async () => {
+    const { SCENES, createIllustration } = await import('./illustrations.js');
+    return SCENES.map(mode => {
+      const illustration = createIllustration(mode, true);
+      const sample = (t, animate = true) => {
+        illustration.pose(t, animate);
+        const transforms = [];
+        illustration.root.traverse(object => {
+          transforms.push(...object.position.toArray(), ...object.rotation.toArray().slice(0, 3), ...object.scale.toArray());
+        });
+        return JSON.stringify(transforms);
+      };
+      const initial = sample(0), reveal = sample(0.55), resting = sample(3);
+      const result = { mode, visibleMotion: initial !== reveal && reveal !== resting,
+        settled: resting === sample(4), reducedMotionResting: resting === sample(0, false) };
+      illustration.dispose();
+      return result;
+    });
+  });
+  for (const result of choreography) {
+    assert.equal(result.visibleMotion, true, `${result.mode}: entrance did not move`);
+    assert.equal(result.settled, true, `${result.mode}: motion continued after settling`);
+    assert.equal(result.reducedMotionResting, true, `${result.mode}: reduced motion kept a partial entrance`);
+  }
   await chapters.page.evaluate(() => window.vericlueScene.dispose());
   assert.equal(await chapters.page.evaluate(() => window.vericlueScene.memory.geometries), 0);
   results.push({ test: 'Seven chapters, both themes, 56 switches without GPU growth, replay, live reduced motion, invalid input', memory });
+  results.push({ test: 'Staged entrance, exact resting pose and reduced-motion final pose in all seven scenes', choreography });
   await chapters.page.close();
 
   const reduced = await pageFor({ reducedMotion: 'reduce' });

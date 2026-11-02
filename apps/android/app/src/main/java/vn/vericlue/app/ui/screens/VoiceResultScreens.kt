@@ -239,11 +239,11 @@ fun ReviewScreen(onBackToBank: () -> Unit) {
 }
 
 @Composable
-fun RetryQualityScreen(onBack: () -> Unit, onRetake: () -> Unit, hint: String? = null, attemptsLeft: Int? = 1, hintCode: String? = null) {
+fun RetryQualityScreen(onBack: () -> Unit, onRetake: () -> Unit, hint: String? = null, attemptsLeft: Int? = 1, hintCode: String? = null, captureIncomplete: Boolean = false) {
     val audio = hintCode == "QUIET_PLACE"
-    VcScreen(onBack = onBack, step = if (audio) 3 else 2, centered = true, actions = { PrimaryButton(if (audio) "Thử lại" else "Chụp lại", onRetake) }) {
-        StatusBadge(retryHintIcon(hintCode), Tone.Warn)
-        TitleBlock(if (audio) "Chưa thu rõ giọng nói" else "Chưa thu rõ khuôn mặt", centered = true)
+    VcScreen(onBack = onBack, step = if (audio) 3 else 2, centered = true, actions = { PrimaryButton(if (audio || captureIncomplete) "Thử lại" else "Chụp lại", onRetake) }) {
+        StatusBadge(if (captureIncomplete) Icons.Outlined.Refresh else retryHintIcon(hintCode), Tone.Warn)
+        TitleBlock(if (captureIncomplete) "Thực hiện lại bước khuôn mặt" else if (audio) "Chưa thu rõ giọng nói" else "Chưa thu rõ khuôn mặt", centered = true)
         NextStepCard("Trước khi thử lại", hint ?: if (audio) "Chọn nơi yên tĩnh và đọc rõ từng từ." else "Hãy ra chỗ sáng hơn và giữ điện thoại ngang tầm mặt.")
         if (attemptsLeft != null) Text(if (audio) "Còn $attemptsLeft lần đọc lại" else "Còn $attemptsLeft lần chụp lại", style = VcType.caption, color = Vc.colors.muted)
     }

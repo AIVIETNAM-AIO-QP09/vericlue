@@ -3,6 +3,7 @@ package vn.vericlue.app.capture
 import android.os.SystemClock
 import vn.vericlue.app.data.api.Challenge
 import vn.vericlue.app.flow.FramingState
+import vn.vericlue.app.flow.TurnDir
 import kotlin.math.abs
 
 /**
@@ -26,36 +27,90 @@ data class FaceSignal(
     val yaw: Float,
     val luma: Float,
     val timestampNs: Long,
-)
+    val heightFraction: Float = 0f,
+    val imageWidth: Int = 0,
+    val imageHeight: Int = 0,
+    val pitch: Float = Float.NaN,
+    val roll: Float = Float.NaN,
+    val landmarksComplete: Boolean = false,
+    /** Nose, mouth and at least one eye are visible in side poses. */
+    val landmarksVisible: Boolean = false,
+    /** Local monotonic time when this frame entered analysis, independent of the sensor clock. */
+    val observedAtMs: Long = -1L,
+    val trackingId: Int? = null,
+) {
+    val left: Float get() = centerX - widthFraction / 2
+    val right: Float get() = centerX + widthFraction / 2
+    val top: Float get() = centerY - heightFraction / 2
+    val bottom: Float get() = centerY + heightFraction / 2
+}
 
 /** Turns a face signal into the single quality hint shown on the framing screen. */
 object QualityGate {
-    // Starting values for the scaffold; tune on real phones (plan, phase 9).
+    // Capture guidance only. These checks never replace the server's verification decision.
     const val MIN_LUMA = 70f
     const val MIN_FACE_WIDTH = 0.32f
+    // A side pose projects narrower than the same face held at the same distance.
+    const val MIN_TRACKED_FACE_WIDTH = 0.20f
+    const val MAX_FACE_WIDTH = 0.90f
+    const val MAX_FACE_HEIGHT = 0.90f
+    const val EDGE_MARGIN = 0.02f
     const val MAX_CENTER_OFFSET = 0.18f
     const val GOOD_HOLD_MS = 1000L
+    const val MAX_FRAME_AGE_MS = 500L
+    const val MAX_FRONTAL_YAW = 12f
+    const val MAX_FRONTAL_PITCH = 15f
+    const val MAX_ROLL = 15f
 
-    fun evaluate(s: FaceSignal?): FramingState = when {
-        s == null || s.faces == 0 -> FramingState.NoFace
+    fun isFresh(s: FaceSignal?, nowMs: Long): Boolean = s != null && s.observedAtMs >= 0 &&
+        nowMs - s.observedAtMs in 0..MAX_FRAME_AGE_MS
+
+    private fun geometryValid(s: FaceSignal): Boolean =
+        s.imageWidth > 0 && s.imageHeight > 0 &&
+            listOf(s.widthFraction, s.heightFraction, s.centerX, s.centerY, s.yaw, s.pitch, s.roll, s.luma).all { it.isFinite() } &&
+            s.widthFraction > 0 && s.heightFraction > 0
+
+    private fun fullyInsideImage(s: FaceSignal): Boolean =
+        s.left >= EDGE_MARGIN && s.top >= EDGE_MARGIN &&
+            s.right <= 1f - EDGE_MARGIN && s.bottom <= 1f - EDGE_MARGIN
+
+    /** Full, fresh single-face evidence; unlike readiness, side turns are permitted here. */
+    fun hasCompleteFace(s: FaceSignal?, nowMs: Long): Boolean =
+        s != null && isFresh(s, nowMs) && s.faces == 1 && geometryValid(s) &&
+            fullyInsideImage(s) && s.landmarksVisible && s.widthFraction >= MIN_TRACKED_FACE_WIDTH &&
+            s.widthFraction <= MAX_FACE_WIDTH && s.heightFraction <= MAX_FACE_HEIGHT &&
+            abs(s.roll) <= MAX_ROLL && abs(s.pitch) <= MAX_FRONTAL_PITCH
+
+    fun evaluate(s: FaceSignal?, nowMs: Long = SystemClock.elapsedRealtime()): FramingState = when {
+        s == null || !isFresh(s, nowMs) || s.faces <= 0 -> FramingState.NoFace
+        s.faces != 1 -> FramingState.MultipleFaces
+        !geometryValid(s) -> FramingState.IncompleteFace
         s.luma < MIN_LUMA -> FramingState.LowLight
+        s.widthFraction > MAX_FACE_WIDTH || s.heightFraction > MAX_FACE_HEIGHT -> FramingState.TooClose
+        !fullyInsideImage(s) || !s.landmarksComplete -> FramingState.IncompleteFace
         s.widthFraction < MIN_FACE_WIDTH -> FramingState.TooFar
+        abs(s.yaw) > MAX_FRONTAL_YAW || abs(s.pitch) > MAX_FRONTAL_PITCH || abs(s.roll) > MAX_ROLL -> FramingState.NotStraight
         abs(s.centerX - 0.5f) > MAX_CENTER_OFFSET || abs(s.centerY - 0.45f) > MAX_CENTER_OFFSET -> FramingState.OffCenter
         else -> FramingState.Good
     }
 }
 
 /** Head-turn check for task 2: turn past the threshold, hold briefly, then face forward again. */
-class TurnTracker(private val thresholdDeg: Float = 25f, private val holdMs: Long = 300, private val straightDeg: Float = 10f) {
+class TurnTracker(
+    private val thresholdDeg: Float = 25f,
+    private val holdMs: Long = 300,
+    private val straightDeg: Float = 10f,
+    private val direction: TurnDir = TurnDir.Left,
+) {
     private var turnedSinceMs: Long? = null
     var turned = false
         private set
 
     /** Returns true once the turn is complete (turned, then back to straight). */
     fun update(yaw: Float, nowMs: Long): Boolean {
-        // The sign of yaw for left/right must be checked on a real front camera; any side counts for now.
+        if (!yaw.isFinite()) { turnedSinceMs = null; turned = false; return false }
         if (!turned) {
-            if (abs(yaw) >= thresholdDeg) {
+            if (if (direction == TurnDir.Left) yaw >= thresholdDeg else yaw <= -thresholdDeg) {
                 val since = turnedSinceMs ?: nowMs.also { turnedSinceMs = it }
                 if (nowMs - since >= holdMs) turned = true
             } else {

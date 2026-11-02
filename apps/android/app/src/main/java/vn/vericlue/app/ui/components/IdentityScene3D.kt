@@ -16,10 +16,12 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalInspectionMode
@@ -107,8 +109,10 @@ fun IdentityScene3D(
             }.onFailure { failed = true }
         }
     }
+    val reveal by animateFloatAsState(if (ready && !failed) 1f else 0f,
+        Vc.motion.tween(240), label = "illustration-ready")
     Box(modifier.clearAndSetSemantics {}.onGloballyPositioned { visible = !it.boundsInWindow().isEmpty }) {
-        if (!ready || failed) SceneFallback(scene, Modifier.fillMaxSize())
+        if (reveal < 1f || failed) SceneFallback(scene, Modifier.fillMaxSize().graphicsLayer { alpha = 1f - reveal })
         if (!failed) AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = { context ->
@@ -173,7 +177,7 @@ fun IdentityScene3D(
                     }
                 }
             },
-            update = { host -> host.getChildAt(0)?.alpha = if (ready) 1f else 0f },
+            update = { host -> host.getChildAt(0)?.alpha = reveal },
             onRelease = { host ->
                 (host.getChildAt(0) as? WebView)?.let { view ->
                     if (browser === view) browser = null

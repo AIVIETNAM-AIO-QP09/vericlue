@@ -1,6 +1,13 @@
 import * as THREE from './vendor/three.module.min.js';
 
 export const SCENES = Object.freeze(['card', 'face', 'eyes', 'turn', 'voice', 'privacy', 'success']);
+const clamp = value => Math.max(0, Math.min(1, value));
+const ease = value => 1 - Math.pow(1 - clamp(value), 3);
+const smooth = value => { const p = clamp(value); return p * p * (3 - 2 * p); };
+const arrive = value => {
+  const p = clamp(value) - 1;
+  return 1 + 2.15 * p * p * p + 1.15 * p * p;
+};
 
 // Original procedural sculptures. Each instance owns and releases all its GPU resources.
 export function createIllustration(mode, dark) {
@@ -28,7 +35,8 @@ export function createIllustration(mode, dark) {
   const sphere = (r, mat, parent = body, x = 0, y = 0, z = 0) => mesh(new THREE.SphereGeometry(r, 24, 16), mat, parent, x, y, z);
   const line = (points, mat, parent = body, radius = 0.025) => mesh(new THREE.TubeGeometry(
     new THREE.CatmullRomCurve3(points.map(p => new THREE.Vector3(...p))), 32, radius, 8, false), mat, parent);
-  const orbit = mesh(new THREE.TorusGeometry(1.5, 0.012, 6, 80), wire, root, 0, 0, -0.55);
+  const orbitGroup = new THREE.Group(); root.add(orbitGroup);
+  const orbit = mesh(new THREE.TorusGeometry(1.5, 0.012, 6, 80), wire, orbitGroup, 0, 0, -0.55);
   orbit.scale.y = 0.84;
   let articulate = () => {};
 
@@ -41,6 +49,13 @@ export function createIllustration(mode, dark) {
     portrait.rotation.x = Math.PI / 2;
     sphere(0.105, ivory, body, 0.7, 0.23, 0.25);
     plate(0.38, 0.17, 0.08, 0.02, ivory, body, 0.7, -0.03, 0.25);
+    articulate = t => {
+      // Separate planes briefly reveal physical depth, then align as a single identity card.
+      const reveal = ease((t - 0.12) / 1.05);
+      back.position.set(0.12 + 0.24 * (1 - reveal), 0.12 + 0.16 * (1 - reveal), -0.18 - 0.42 * (1 - reveal));
+      back.rotation.z = 0.09 + 0.18 * (1 - reveal);
+      portrait.scale.setScalar(0.72 + 0.28 * arrive((t - 0.28) / 0.65));
+    };
   } else if (['face', 'eyes', 'turn'].includes(mode)) {
     // A stylised mannequin, never a reconstruction of the user's face.
     const head = new THREE.Group(); body.add(head);
@@ -54,8 +69,9 @@ export function createIllustration(mode, dark) {
     const frame = mesh(new THREE.TorusGeometry(1.0, 0.022, 8, 64), wire, root, 0, 0.08, -0.2); frame.scale.set(0.79, 1.22, 1);
     const gaze = sphere(0.07, gold, root, 0, 0.4, 0.9); gaze.visible = mode === 'eyes';
     articulate = t => {
-      head.rotation.y = mode === 'turn' ? Math.sin(t * Math.PI / 3) * 0.55 : 0;
-      const x = mode === 'eyes' ? Math.sin(t * Math.PI / 3) * 0.65 : 0;
+      head.rotation.y = mode === 'turn' ? Math.sin(t * Math.PI * 2 / 3) * 0.55
+        : mode === 'face' ? -0.28 * (1 - ease(t / 1.2)) : 0;
+      const x = mode === 'eyes' ? Math.sin(t * Math.PI * 2 / 3) * 0.65 : 0;
       gaze.position.x = x;
       eyes.forEach((eye, i) => { eye.position.x = (i ? 0.20 : -0.20) + x * 0.045; });
     };
@@ -92,7 +108,10 @@ export function createIllustration(mode, dark) {
     plate(0.72, 0.55, 0.1, 0.12, ivory, body, 0, -0.08, 0.23);
     sphere(0.06, ink, body, 0, -0.05, 0.40);
     plate(0.04, 0.12, 0.015, 0.01, ink, body, 0, -0.13, 0.39);
-    articulate = t => { shackle.position.y = 0.24 + Math.sin(Math.min(t / 0.8, 1) * Math.PI) * 0.08; };
+    articulate = t => {
+      // The lock settles visibly into place; it is illustration, never a security verdict.
+      shackle.position.y = 0.24 + 0.28 * (1 - arrive((t - 0.3) / 0.75));
+    };
   } else if (mode === 'success') {
     const seal = mesh(new THREE.CylinderGeometry(0.83, 0.83, 0.18, 64), green); seal.rotation.x = Math.PI / 2;
     mesh(new THREE.TorusGeometry(0.87, 0.035, 10, 64), gold, body, 0, 0, 0.10);
@@ -113,17 +132,26 @@ export function createIllustration(mode, dark) {
     };
   }
   // Small orbit markers add depth without textures, bloom passes or transparency stacks.
-  [0.4, 2.5, 4.6].forEach((angle, i) => sphere(0.045, [gold, silver, blue][i], root,
+  [0.4, 2.5, 4.6].forEach((angle, i) => sphere(0.045, [gold, silver, blue][i], orbitGroup,
     Math.cos(angle) * 1.5, Math.sin(angle) * 1.5 * 0.84, -0.55));
   return {
     root,
     pose(t, animate = true) {
+      // All channels share an exact resting pose. Reduced motion skips the entrance entirely.
+      const time = animate ? Math.max(0, Math.min(3, t)) : 3;
+      const enter = ease(time / 1.15), rest = smooth((time - 1.5) / 1.5);
       const face = ['face', 'eyes', 'turn'].includes(mode);
-      body.rotation.set(face ? 0 : 0.10, face ? 0 : -0.22 + Math.sin(t * 0.6) * 0.12, face ? 0 : -0.06);
-      body.position.y = face ? 0 : Math.sin(t * 0.9) * 0.035;
-      // Short scale entrance on each user-selected chapter; the camera itself stays still.
-      root.scale.setScalar(animate ? 0.93 + 0.07 * (1 - Math.pow(1 - Math.min(t / 0.45, 1), 3)) : 1);
-      articulate(t);
+      const drift = Math.sin(time * 2.1) * (1 - rest);
+      body.rotation.set(
+        (face ? 0 : 0.10) + 0.26 * (1 - enter),
+        (face ? 0 : -0.18) - (face ? 0.12 : 0.62) * (1 - enter) + drift * 0.10,
+        (face ? 0 : -0.06) - 0.12 * (1 - enter),
+      );
+      body.position.y = -0.18 * (1 - enter) + drift * 0.06;
+      root.scale.setScalar(0.76 + 0.24 * arrive(time / 0.95));
+      orbitGroup.rotation.set(0.22 * (1 - rest), -0.25 * (1 - rest), -0.35 * (1 - enter) + drift * 0.18);
+      orbitGroup.scale.setScalar(0.82 + 0.18 * ease(time / 1.25));
+      articulate(time);
     },
     dispose() { resources.forEach(resource => resource.dispose()); resources.clear(); },
   };
