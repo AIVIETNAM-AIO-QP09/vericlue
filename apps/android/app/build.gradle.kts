@@ -24,6 +24,15 @@ val checkReleaseApiUrl by tasks.registering {
 }
 tasks.matching { it.name == "preReleaseBuild" }.configureEach { dependsOn(checkReleaseApiUrl) }
 
+// Layoutlib/Compose keeps a process-wide frame clock across Paparazzi classes.
+// Reusing it can leave later motion snapshots at progress 0 despite fresh rules/views.
+// Isolate classes in the standard AGP tasks so both unit-test and snapshot CI keep
+// running the real animation assertions. Sequential workers also bound Layoutlib memory.
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    forkEvery = 1
+    maxParallelForks = 1
+}
+
 android {
     namespace = "vn.vericlue.app"
     compileSdk = 35
@@ -92,6 +101,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.extended)
+    implementation(libs.lottie.compose)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     implementation(libs.androidx.camera.camera2)

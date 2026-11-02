@@ -23,6 +23,7 @@ class CreateSessionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     purpose: SessionPurpose
+    head_mode: Literal["timed", "adaptive"] = "timed"
     device_public_key_spki: str | None = Field(default=None, max_length=256)
     nonce: str = Field(pattern=r"^[A-Za-z0-9_-]{16,128}$")
     reference_image_id: str | None = Field(default=None, pattern=r"^ref_[A-Za-z0-9_-]{1,120}$")
@@ -71,6 +72,8 @@ class DynamicChallenge(BaseModel):
     head_turns: list[Literal["left", "right", "center"]] = Field(min_length=3, max_length=3)
     head_start_at_ms: int = Field(ge=0)
     head_duration_ms: Literal[6000, 12000]
+    head_mode: Literal["adaptive"] | None = None
+    head_timeout_ms: int | None = Field(default=None, ge=6000, le=29500)
     voice_start_at_ms: int = Field(ge=0)
     voice_prompt: str
     voice_challenge_id: str

@@ -153,7 +153,12 @@ def test_every_sample_must_meet_own_threshold(monkeypatch, tmp_path, similaritie
 
 
 @pytest.mark.parametrize("approved_protocol", [1, 2])
-def test_recovery_continuity_requires_same_head_protocol(monkeypatch, tmp_path, approved_protocol):
+@pytest.mark.parametrize(
+    "adaptive,approved_adaptive", [(False, False), (True, False), (True, True)]
+)
+def test_recovery_continuity_requires_same_head_protocol(
+    monkeypatch, tmp_path, approved_protocol, adaptive, approved_adaptive
+):
     from vericlue_ml.face.enrolled import recovery_match_version
 
     model, inp, _, _ = fixture(monkeypatch, tmp_path, threshold=0.5)
@@ -161,11 +166,15 @@ def test_recovery_continuity_requires_same_head_protocol(monkeypatch, tmp_path, 
     inp.metadata["expected_challenge"]["dynamic"].update(
         version=2, head_start_at_ms=1000, head_duration_ms=12000
     )
+    if adaptive:
+        inp.metadata["expected_challenge"]["dynamic"].update(
+            head_mode="adaptive", head_timeout_ms=29000
+        )
     inp.metadata["face_reference_result"]["model_version"] = recovery_match_version(
-        approved_protocol
+        approved_protocol, adaptive=approved_adaptive
     )
     result = model.predict(inp)
-    if approved_protocol == 2:
+    if approved_protocol == 2 and adaptive == approved_adaptive:
         assert result.status == "ok" and result.gate == "pass"
     else:
         assert result.status == "error" and result.gate == "unclear"

@@ -534,3 +534,40 @@ def test_account_enrollment_requires_explicit_account_template_consent_receipt(p
         )
         assert row is not None and consent_row is not None
         assert row.consent_receipt_id == consent_row.receipt_id
+
+
+@pytest.mark.parametrize("manual", [False, True])
+@pytest.mark.parametrize("match_mode", ["adaptive-v2", "timed-v2", "adaptive-v1"])
+def test_adaptive_enrollment_requires_exact_match_sampling(private_client, manual, match_mode):
+    from vericlue_ml.presence.head_protocol import head_sampling_suffix
+
+    with private_client.app.state.vericlue.transaction() as state:
+        session, _, _ = prepared(state, voiced=False)
+        session.challenge.dynamic.head_mode = "adaptive"
+        session.challenge.dynamic.head_timeout_ms = (
+            30000 - session.challenge.dynamic.head_start_at_ms
+        )
+        settings = real_settings(state).model_copy(update={"manual_full_demo": manual})
+        suffix = ""
+        if manual:
+            policy = settings.manual_demo_policy
+            session.created_model_mode = "manual_full_demo"
+            session.manual_demo_policy_id = policy.policy_id
+            suffix = policy.version_suffix
+            for module in (Module.FACE_PAD, Module.FACE_DEEPFAKE, Module.FACE_MATCH):
+                result = session.results[module]
+                result.model_version += suffix
+                result.quality.update(manual_demo=True, demo_policy_id=policy.policy_id)
+        session.results[Module.FACE_MATCH].model_version = (
+            VIDEO_MATCH_VERSION
+            + head_sampling_suffix(
+                1 if match_mode == "adaptive-v1" else 2, adaptive=match_mode != "timed-v2"
+            )
+            + suffix
+        )
+        store = AccountStore(settings, state.db)
+        if match_mode == "adaptive-v2":
+            store.validate_enrollment(session)
+        else:
+            with pytest.raises(ApiError):
+                store.validate_enrollment(session)

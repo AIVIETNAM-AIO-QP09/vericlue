@@ -206,3 +206,30 @@ def test_wrong_protocol_or_untrusted_evidence_never_passes(monkeypatch, tmp_path
         monkeypatch.setattr(enrolled, "session_views", corrupted)
     result = match_enrolled(matcher, inp, template, artifact)
     assert result.gate != "pass" and result.status != "ok"
+
+
+@pytest.mark.parametrize("match_adaptive", [False, True])
+@pytest.mark.parametrize("consistency_adaptive", [False, True])
+def test_adaptive_recovery_requires_matching_sampling_for_both_artifacts(
+    monkeypatch, tmp_path, match_adaptive, consistency_adaptive
+):
+    from vericlue_ml.face.enrolled import recovery_match_version
+    from vericlue_ml.presence.head_protocol import head_sampling_suffix
+
+    matcher, inp, template, artifact, _, _ = setup(monkeypatch, tmp_path, recovery=True)
+    inp.metadata["expected_challenge"]["dynamic"].update(
+        version=2, head_duration_ms=12000, head_mode="adaptive", head_timeout_ms=29000
+    )
+    artifact.write_text(json.dumps(threshold(recovery_match_version(2, adaptive=match_adaptive))))
+    matcher._consistency_threshold = MatchThreshold(
+        **threshold(
+            VIDEO_MATCH_VERSION
+            + head_sampling_suffix(2, adaptive=consistency_adaptive)
+            + "+view-consistency-v1"
+        )
+    )
+    result = match_enrolled(matcher, inp, template, artifact)
+    if match_adaptive and consistency_adaptive:
+        assert result.status == "ok" and result.gate == "pass"
+    else:
+        assert result.status != "ok" and result.gate == "unclear"

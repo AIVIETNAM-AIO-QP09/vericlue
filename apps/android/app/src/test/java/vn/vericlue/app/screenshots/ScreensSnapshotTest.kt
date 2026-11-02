@@ -54,7 +54,7 @@ class ScreensSnapshotTest {
     private val n: () -> Unit = {}
 
     @Test fun polishDarkScreens() {
-        shot("12_phone_dark", dark = true) { PhoneScreen(n) {} }
+        shot("12_phone_dark", dark = true) { PhoneScreen(n, onSend = {}) }
         shot("13_otp_dark", dark = true) { OtpScreen(n, n) }
         shot("14_id_front_dark", dark = true) { IdCaptureScreen(false, false, n, n) }
         shot("14_id_front_captured_dark", dark = true) { IdCaptureScreen(false, false, n, n, captured = true) }
@@ -72,7 +72,7 @@ class ScreensSnapshotTest {
     }
 
     @Test fun identity() {
-        shot("12_phone") { PhoneScreen(n) {} }
+        shot("12_phone") { PhoneScreen(n, onSend = {}) }
         shot("13_otp") { OtpScreen(n, n) }
         shot("13_otp_error") { OtpScreen(n, n, startWithError = true) }
         // Allow autofill and its button colour to settle before comparing the filled state.

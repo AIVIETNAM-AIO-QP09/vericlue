@@ -108,7 +108,18 @@ class PresenceDebugTrace(
         if (!enabled || !originMs.isFinite() || !observedMs.isFinite()) return null
         val capturedMs = face?.timestampNs?.takeIf { it > 0L }?.div(1e6)
         val frameRel = capturedMs?.minus(originMs)?.toLong()
-        val phase = frameRel?.let { timeline.phaseAt(it.toDouble()) } as? FaceTimeline.Phase.Head
+        val phase = if (timeline.adaptiveHead) {
+            // Adaptive cues follow observed holds, not the nominal timed slots. Attribute delayed
+            // analysis to the instruction shown when the frame was captured, never delivery time.
+            frameRel?.let { capturedRel ->
+                synchronized(lock) {
+                    buffer.filterIsInstance<PresenceDebugEvent.PhaseBoundary>()
+                        .lastOrNull { it.recordingRelMs <= capturedRel }
+                        ?.takeIf { it.phase == "head" && it.segmentIndex in timeline.headTurns.indices }
+                        ?.let { FaceTimeline.Phase.Head(it.segmentIndex, it.direction) }
+                }
+            }
+        } else frameRel?.let { timeline.phaseAt(it.toDouble()) } as? FaceTimeline.Phase.Head
         return recordFaceSample((observedMs - originMs).toLong(), face?.yaw, face?.pitch,
             face?.roll, phase?.dir, 0, frameRel, capturedMs?.let { (observedMs - it).toLong() },
             face?.faces, phase?.segment ?: -1)

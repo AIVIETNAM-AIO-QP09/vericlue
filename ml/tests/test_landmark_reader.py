@@ -137,3 +137,14 @@ def test_modified_weights_are_rejected_before_importing_mediapipe(tmp_path):
     with pytest.raises(LandmarkError) as error:
         reader.preload()
     assert error.value.code == ErrorCode.E_INTEGRITY
+
+
+def test_adaptive_reader_requires_actual_eof_without_silently_truncating(monkeypatch, tmp_path):
+    reader, video, captures, _ = fake_reader(monkeypatch, tmp_path, [0, 100, 200, 310])
+    with pytest.raises(LandmarkError) as error:
+        reader.extract(video, start_ms=0, end_ms=200, require_eof=True)
+    assert error.value.code == ErrorCode.E_INTEGRITY
+    assert captures[0].released
+    reader, video, captures, _ = fake_reader(monkeypatch, tmp_path, [0, 100, 200])
+    assert len(reader.extract(video, start_ms=0, end_ms=200, require_eof=True)) == 3
+    assert captures[0].released

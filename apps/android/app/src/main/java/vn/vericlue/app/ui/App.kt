@@ -30,6 +30,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import android.Manifest
+import android.os.SystemClock
+import androidx.compose.ui.geometry.Rect
+import vn.vericlue.app.capture.FramingAlignmentGate
+import vn.vericlue.app.capture.FaceAttemptIssue
 import android.content.Context
 import android.content.pm.PackageManager
 import android.util.Log
@@ -49,6 +53,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
@@ -69,7 +74,6 @@ import vn.vericlue.app.capture.IdQuality
 import vn.vericlue.app.ui.screens.idFields
 import vn.vericlue.app.capture.CaptureClock
 import vn.vericlue.app.capture.ColorSchedule
-import vn.vericlue.app.capture.QualityGate
 import vn.vericlue.app.capture.WavRecorder
 import vn.vericlue.app.capture.AudioCaptureState
 import vn.vericlue.app.capture.VoiceCapture
@@ -192,7 +196,12 @@ fun VeriClueApp() {
         result[Manifest.permission.CAMERA]?.let { hasCamera = it; if (!it) nav.go(Routes.ErrorCamera) }
         result[Manifest.permission.RECORD_AUDIO]?.let { hasMic = it; if (!it) nav.go(Routes.ErrorMic) }
     }
-    val exit = { nav.go(Routes.ExitConfirm) }
+    val exit = {
+        camera.stopRecording()
+        camera.lockAeAwb(false)
+        recorder.stop()
+        nav.go(Routes.ExitConfirm)
+    }
 
     // ID card photos and QR text; in live mode they go to the server at the back-side review (FLOW-03).
     var idFront by remember { mutableStateOf<Pair<ByteArray, IdQuality>?>(null) }
@@ -205,6 +214,7 @@ fun VeriClueApp() {
     // Short flow: the confirm screen comes after the face recording. Nothing of the face part is sent
     // before the confirm: the server refuses a confirm or a new card once it has media (FLOW-05 runbook).
     var faceCaptured by remember { mutableStateOf(false) }
+    var localFaceIssue by remember { mutableStateOf<String?>(null) }
     // Why the server asked for the card again; shown on the camera until the next shot.
     var idHint by remember { mutableStateOf<String?>(null) }
     // Why the server refused the confirmed fields; shown on the edit screen.
@@ -338,7 +348,12 @@ fun VeriClueApp() {
 
     fun startFace() {
         flow.newChallenge()
-        live.frontalJpeg = null
+        camera.stopRecording()
+        camera.deleteVideo()
+        camera.lockAeAwb(false)
+        localFaceIssue = null
+        faceCaptured = false
+        live.dropFaceAttempt()
         nav.go(Routes.Framing)
     }
 
@@ -568,7 +583,7 @@ fun VeriClueApp() {
 
         // Stage A: identity
         composable(Routes.Phone) {
-            PhoneScreen(onBack = { nav.popBackStack() }, onSend = { number ->
+            PhoneScreen(onBack = { nav.popBackStack() }, busy = busy, onSend = { number ->
                 phone = number
                 otpError = null
                 if (!flow.live) {
@@ -590,6 +605,7 @@ fun VeriClueApp() {
                     onBack = { nav.popBackStack() },
                     onVerified = {},
                     autoCode = smsCode,
+                    busy = busy,
                     sms = live.otpSms,
                     serverError = otpError,
                     onCode = { code ->
@@ -716,13 +732,18 @@ fun VeriClueApp() {
         composable(Routes.FaceReady) {
             // Skipping the flash must not skip the face part: stop here. Nothing reaches the server yet,
             // so the screen promises no review (question 14 in docs/can-chot.md).
-            FaceReadyScreen(onBack = { nav.popBackStack() }, onReady = ::startFace, manualDemo = flow.live && (live.manualDemo || live.manualFullDemo), onSkipFlash = {
+            FaceReadyScreen(onBack = { nav.popBackStack() }, onReady = ::startFace,
+                manualDemo = flow.live && (live.manualDemo || live.manualFullDemo),
+                usesLightChallenge = flow.purpose != Purpose.Reauth, onSkipFlash = {
                 camera.unbind()
                 nav.go(Routes.FlashSkipped)
             })
         }
         composable(Routes.Framing) {
-            val face by camera.face.collectAsState()
+            var guide by remember { mutableStateOf<Rect?>(null) }
+            var gate by remember { mutableStateOf(FramingState.NoFace) }
+            var readiness by remember { mutableStateOf(0f) }
+            var preparingCamera by remember { mutableStateOf(false) }
             LaunchedEffect(Unit) {
                 if (!hasCamera) askPermissions.launch(arrayOf(Manifest.permission.CAMERA))
             }
@@ -736,22 +757,81 @@ fun VeriClueApp() {
                     live.prepareFace(flow.mockScenario, FlowRules.purposeCode(flow.purpose))?.let { nav.go(errorRoute(it)) } ?: run { prepared = true }
                 }
             }
-            val gate = if (hasCamera) QualityGate.evaluate(face) else null
-            // Good for a moment → take the frontal still (on the grey screen, before the flash: ADR-0016).
-            LaunchedEffect(gate == FramingState.Good && prepared) {
-                if (gate != FramingState.Good || !prepared) return@LaunchedEffect
-                delay(QualityGate.GOOD_HOLD_MS)
-                live.frontalJpeg = withTimeoutOrNull(3000) { camera.captureJpeg() }
-                nav.go(Routes.HoldStill)
+            // Poll freshness even if StateFlow stops emitting. A frozen Good frame cannot start capture.
+            LaunchedEffect(hasCamera, prepared) {
+                if (!hasCamera || !prepared) return@LaunchedEffect
+                val alignment = FramingAlignmentGate()
+                fun updateFraming(): Boolean {
+                    val signal = camera.face.value
+                    val bounds = camera.previewBounds(signal)?.let { Rect(it.left, it.top, it.right, it.bottom) }
+                    val feedback = alignment.update(signal, SystemClock.elapsedRealtime(), bounds, guide)
+                    gate = feedback.state
+                    readiness = feedback.progress
+                    preparingCamera = feedback.preparingCamera
+                    return feedback.ready
+                }
+                fun stillReady(): Boolean {
+                    val signal = camera.face.value
+                    val bounds = camera.previewBounds(signal)?.let { Rect(it.left, it.top, it.right, it.bottom) }
+                    return alignment.acceptsLatest(signal, SystemClock.elapsedRealtime(), bounds, guide)
+                }
+                while (true) {
+                    if (updateFraming()) {
+                        val pending = async {
+                            try { withTimeoutOrNull(3000) { camera.captureJpeg() } }
+                            catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                            catch (_: Exception) { null }
+                        }
+                        while (!pending.isCompleted) {
+                            delay(50)
+                            if (!stillReady()) {
+                                pending.cancel()
+                                updateFraming()
+                                break
+                            }
+                        }
+                        val shot = if (pending.isCancelled) null else pending.await()
+                        if (shot != null && stillReady()) {
+                            live.frontalJpeg = shot
+                            nav.go(Routes.HoldStill)
+                            return@LaunchedEffect
+                        }
+                        alignment.reset()
+                        readiness = 0f
+                    }
+                    delay(50)
+                }
             }
             FramingScreen(
                 onExit = exit,
                 onCaptured = { nav.go(Routes.HoldStill) },
-                live = gate,
+                live = gate, auto = false, captureProgress = readiness,
+                hintOverride = if (preparingCamera) "Đang chuẩn bị camera…" else null,
+                onGuidePosition = { rect, _ -> guide = rect },
             )
         }
         composable(Routes.HoldStill) {
-            val face by camera.face.collectAsState()
+            val captureScope = rememberCoroutineScope()
+            var frontalJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+            var frontalReady by remember { mutableStateOf(false) }
+            var terminal by remember { mutableStateOf(false) }
+            DisposableEffect(Unit) { onDispose { frontalJob?.cancel(); camera.lockAeAwb(false) } }
+            fun rejectAttempt(issue: FaceAttemptIssue) {
+                if (terminal) return
+                terminal = true
+                frontalJob?.cancel()
+                camera.stopRecording()
+                camera.lockAeAwb(false)
+                camera.deleteVideo()
+                live.dropFaceAttempt()
+                faceCaptured = false
+                localFaceIssue = when (issue) {
+                    FaceAttemptIssue.FaceLost -> "Giữ toàn bộ khuôn mặt trong khung và giữ nguyên điện thoại."
+                    FaceAttemptIssue.ActionIncomplete -> "Vui lòng quay đầu theo hướng dẫn và giữ tư thế trong giây lát."
+                    FaceAttemptIssue.TimeLimit -> "Lượt thu đã hết thời gian. Vui lòng thử lại khi bạn sẵn sàng."
+                }
+                nav.navigate(Routes.RetryQuality) { popUpTo(Routes.HoldStill) { inclusive = true } }
+            }
             val challenge = live.challenge
             // One presentation in both modes. Only API mode consumes a server challenge;
             // a missing/invalid server schedule must never fall back to the offline demo.
@@ -767,10 +847,10 @@ fun VeriClueApp() {
             LaunchedEffect(timeline) {
                 if (timeline == null || !ColorSchedule.isSafe(timeline.slots)) nav.go(Routes.ErrorService)
             }
-            if (timeline != null) {
+            if (timeline != null && ColorSchedule.isSafe(timeline.slots)) {
                 FaceTimelineScreen(
                     timeline,
-                    onStop = exit,
+                    onStop = { terminal = true; frontalJob?.cancel(); exit() },
                     onStart = {
                         live.colorEvents.clear()
                         if (hasCamera) camera.startRecording() else if (!flow.live) demoStart = CaptureClock.nowMs()
@@ -778,18 +858,38 @@ fun VeriClueApp() {
                     },
                     recordingStartMs = { if (hasCamera || flow.live) camera.recordingStartMs() else demoStart },
                     onPainted = { slot, t -> slot.index?.let { live.colorEvents += ColorEvent(it, slot.rgb, t) } },
-                    onFrontal = { if (hasCamera) scope.launch { withTimeoutOrNull(1500) { camera.captureJpeg() }?.let { live.frontalJpeg = it } } },
+                    onFrontal = { if (hasCamera) frontalJob = captureScope.launch {
+                        val shot = withTimeoutOrNull(1500) { camera.captureJpeg() }
+                        frontalJob = null
+                        if (!terminal) {
+                            if (shot != null) { live.frontalJpeg = shot; frontalReady = true }
+                            else rejectAttempt(FaceAttemptIssue.FaceLost)
+                        }
+                    } },
                     onBaselineDone = { camera.lockAeAwb(true) },
                     onColorsDone = { camera.lockAeAwb(false) },
-                    onDone = {
+                    onDone = done@ {
+                        if (terminal) return@done
+                        if (!frontalReady || live.frontalJpeg == null) {
+                            rejectAttempt(FaceAttemptIssue.FaceLost)
+                            return@done
+                        }
+                        terminal = true
                         camera.savePresenceDebugTrace()
                         camera.stopRecording()
                         faceCaptured = true
                         val next = FlowRules.afterFace(flow.purpose, idConfirmed, live = flow.live, accountBound = live.boundAccount != null)
                         nav.navigate(next) { if (next == Routes.Confirm) popUpTo(Routes.FaceReady) { inclusive = true } }
                     },
-                    onNoRecording = { nav.go(Routes.ErrorDevice) },
-                    face = if (hasCamera) face else null,
+                    onNoRecording = noRecording@ {
+                        if (terminal) return@noRecording
+                        terminal = true
+                        camera.stopRecording(); camera.lockAeAwb(false); camera.deleteVideo()
+                        live.dropFaceAttempt(); faceCaptured = false
+                        nav.go(Routes.ErrorDevice)
+                    },
+                    faceSignal = { camera.face.value },
+                    onIncomplete = ::rejectAttempt,
                     debugTrace = camera.debugTrace,
                 )
             }
@@ -863,9 +963,10 @@ fun VeriClueApp() {
             RetryQualityScreen(
                 onBack = exit,
                 onRetake = { flow.outcome = DemoOutcome.Pass; startFace() },
-                hint = if (flow.live) FlowRules.retryHintText(live.retryHint) else null,
-                attemptsLeft = if (flow.live) live.attemptsLeft else 1,
-                hintCode = if (flow.live) live.retryHint else null,
+                hint = localFaceIssue ?: if (flow.live) FlowRules.retryHintText(live.retryHint) else null,
+                attemptsLeft = if (localFaceIssue != null) null else if (flow.live) live.attemptsLeft else 1,
+                hintCode = if (localFaceIssue == null && flow.live) live.retryHint else null,
+                captureIncomplete = localFaceIssue != null,
             )
         }
         composable(Routes.RetryChallenge) {

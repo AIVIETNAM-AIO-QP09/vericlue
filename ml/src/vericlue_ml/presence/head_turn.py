@@ -12,7 +12,12 @@ from vericlue_ml.common.detector import DetectorInput
 from vericlue_ml.common.result import ErrorCode, Evidence, Gate, Module, ModuleResult, Status
 from vericlue_ml.presence.challenge import expected_dynamic
 from vericlue_ml.presence.head_protocol import head_protocol_version
-from vericlue_ml.presence.landmarks import FaceObservation, FaceObservationReader, LandmarkError
+from vericlue_ml.presence.landmarks import (
+    MAX_VIDEO_MS,
+    FaceObservation,
+    FaceObservationReader,
+    LandmarkError,
+)
 
 HEAD_VERSION = "head-turn-rules@0.2+face-landmarker-f16-1"
 # Provisional motion/quality constants, not calibrated attack thresholds.
@@ -36,6 +41,7 @@ class HeadPlan:
     end_ms: float
     order: tuple[str, ...]
     frontal_capture_at_ms: float
+    adaptive: bool = False
 
 
 def parse_head_plan(inp: DetectorInput) -> HeadPlan:
@@ -44,6 +50,7 @@ def parse_head_plan(inp: DetectorInput) -> HeadPlan:
     start, duration = dynamic.get("head_start_at_ms"), dynamic.get("head_duration_ms")
     frontal = dynamic.get("frontal_capture_at_ms")
     order = dynamic.get("head_turns")
+    mode, timeout = dynamic.get("head_mode"), dynamic.get("head_timeout_ms")
     if (
         type(start) is not int
         or not BASELINE_MS <= start <= 24_000
@@ -51,9 +58,16 @@ def parse_head_plan(inp: DetectorInput) -> HeadPlan:
         or type(frontal) is not int
         or not 0 <= frontal < start - BASELINE_MS
         or order not in (["left", "right", "center"], ["right", "left", "center"])
+        or mode not in (None, "adaptive")
+        or (mode is None and timeout is not None)
+        or (
+            mode == "adaptive"
+            and (type(timeout) is not int or not 6000 <= timeout <= MAX_VIDEO_MS - start)
+        )
     ):
         raise LandmarkError(ErrorCode.E_CHALLENGE_MISMATCH)
-    return HeadPlan(float(start), float(start + duration), tuple(order), float(frontal))
+    end = start + (timeout if mode == "adaptive" else duration)
+    return HeadPlan(float(start), float(end), tuple(order), float(frontal), mode == "adaptive")
 
 
 @dataclass(frozen=True)
@@ -86,6 +100,8 @@ def evaluate_head_turn(rows: list[FaceObservation], plan: HeadPlan) -> HeadEvalu
     ):
         return result(Status.DEGRADED, Gate.UNCLEAR, "missing_or_invalid_timestamps")
     window = [row for row in rows if plan.start_ms - BASELINE_MS <= row.at_ms <= plan.end_ms]
+    if plan.adaptive and any(row.at_ms > plan.end_ms for row in rows):
+        return result(Status.DEGRADED, Gate.UNCLEAR, "capture_deadline_exceeded")
     if any(row.face_count > 1 for row in window):
         return result(Status.NOT_APPLICABLE, Gate.UNCLEAR, "multiple_faces")
     if window and all(row.face_count == 0 for row in window):
@@ -99,39 +115,45 @@ def evaluate_head_turn(rows: list[FaceObservation], plan: HeadPlan) -> HeadEvalu
             for value in (row.yaw_deg, row.pitch_deg, row.roll_deg)
         )
     ]
-    expected = (plan.end_ms - plan.start_ms + BASELINE_MS) / 100 + 1
-    if len(valid) / expected < MIN_COVERAGE:
+    # Adaptive recordings end at decoder EOF, never at a client-claimed completion timestamp.
+    observed_end = window[-1].at_ms if plan.adaptive and window else plan.end_ms
+    expected = (observed_end - plan.start_ms + BASELINE_MS) / 100 + 1
+    if len(valid) < 2 or expected <= 0 or len(valid) / expected < MIN_COVERAGE:
         return result(Status.DEGRADED, Gate.UNCLEAR, "insufficient_coverage")
     times = np.asarray([row.at_ms for row in valid])
     if (
         times[0] > plan.start_ms - BASELINE_MS + EDGE_TOLERANCE_MS
-        or times[-1] < plan.end_ms - EDGE_TOLERANCE_MS
+        or times[-1] < observed_end - EDGE_TOLERANCE_MS
         or np.diff(times).max() > MAX_GAP_MS
     ):
         return result(Status.DEGRADED, Gate.UNCLEAR, "incomplete_time_window")
-    if any(
+    if not plan.adaptive and any(
         abs(row.pitch_deg) > MAX_PITCH_ROLL_DEG or abs(row.roll_deg) > MAX_PITCH_ROLL_DEG
         for row in valid
     ):
         return result(Status.DEGRADED, Gate.UNCLEAR, "pose_out_of_range")
-    # A transient yaw overshoot is unusable evidence, not an automatic whole-video veto.
-    # Keep the same coverage/gap/edge limits; prolonged overshoot still fails closed.
-    usable = [row for row in valid if abs(row.yaw_deg) <= MAX_USABLE_YAW_DEG]
-    usable_times = np.asarray([row.at_ms for row in usable])
-    if (
-        len(usable) / expected < MIN_COVERAGE
-        or usable_times[0] > plan.start_ms - BASELINE_MS + EDGE_TOLERANCE_MS
-        or usable_times[-1] < plan.end_ms - EDGE_TOLERANCE_MS
-        or np.diff(usable_times).max() > MAX_GAP_MS
-    ):
-        return result(Status.DEGRADED, Gate.UNCLEAR, "pose_out_of_range")
+    if not plan.adaptive:
+        # A transient yaw overshoot is unusable evidence, not an automatic whole-video veto.
+        # Keep the same coverage/gap/edge limits; prolonged overshoot still fails closed.
+        usable = [row for row in valid if abs(row.yaw_deg) <= MAX_USABLE_YAW_DEG]
+        usable_times = np.asarray([row.at_ms for row in usable])
+        if (
+            len(usable) / expected < MIN_COVERAGE
+            or usable_times[0] > plan.start_ms - BASELINE_MS + EDGE_TOLERANCE_MS
+            or usable_times[-1] < plan.end_ms - EDGE_TOLERANCE_MS
+            or np.diff(usable_times).max() > MAX_GAP_MS
+        ):
+            return result(Status.DEGRADED, Gate.UNCLEAR, "pose_out_of_range")
     baseline = [row for row in valid if row.at_ms < plan.start_ms]
     if (
         not baseline
         or baseline[-1].at_ms - baseline[0].at_ms < BASELINE_HOLD_MS
         or any(direction(row) != "center" for row in baseline)
+        or any(max(abs(row.pitch_deg), abs(row.roll_deg)) > MAX_PITCH_ROLL_DEG for row in baseline)
     ):
         return result(Status.DEGRADED, Gate.UNCLEAR, "neutral_baseline_missing")
+    if plan.adaptive:
+        return evaluate_adaptive_holds(window, plan)
     # Iterate all measured poses: out-of-range yaw maps to None and breaks a hold,
     # so filtering cannot join brief valid fragments into a sustained command.
     runs: list[tuple[str, float]] = []
@@ -181,6 +203,48 @@ def evaluate_head_turn(rows: list[FaceObservation], plan: HeadPlan) -> HeadEvalu
     return result(Status.OK, Gate.PASS, "motion_matched_depth_unverified", view_times)
 
 
+def evaluate_adaptive_holds(rows: list[FaceObservation], plan: HeadPlan) -> HeadEvaluation:
+    """Wait for each ordered hold; wrong or unusable poses reset only the current hold."""
+    stage = 0
+    hold_start = None
+    last = None
+    view_times = {"front": plan.frontal_capture_at_ms}
+    for row in rows:
+        if row.at_ms < plan.start_ms:
+            continue
+        usable = row.face_count == 1 and all(
+            type(value) in (int, float) and math.isfinite(value)
+            for value in (row.yaw_deg, row.pitch_deg, row.roll_deg)
+        )
+        usable = usable and (
+            abs(row.pitch_deg) <= MAX_PITCH_ROLL_DEG
+            and abs(row.roll_deg) <= MAX_PITCH_ROLL_DEG
+            and abs(row.yaw_deg) <= TURN_MAX_DEG
+        )
+        label = direction(row) if usable else None
+        # Completion still requires a sustained neutral tail at the actual media end.
+        if stage == len(plan.order):
+            if label == "center" and last is not None and row.at_ms - last <= MAX_GAP_MS:
+                last = row.at_ms
+                continue
+            stage = len(plan.order) - 1
+            hold_start = None
+        if label != plan.order[stage] or (last is not None and row.at_ms - last > MAX_GAP_MS):
+            hold_start = None
+        if label == plan.order[stage]:
+            if hold_start is None:
+                hold_start = row.at_ms
+            if row.at_ms - hold_start >= MIN_HOLD_MS:
+                if label != "center":
+                    view_times[label] = (hold_start + row.at_ms) / 2
+                stage += 1
+                hold_start = None
+        last = row.at_ms
+    if stage != len(plan.order):
+        return HeadEvaluation(Status.OK, Gate.FAIL, "motion_incomplete", {})
+    return HeadEvaluation(Status.OK, Gate.PASS, "motion_matched_depth_unverified", view_times)
+
+
 class HeadTurnDetector:
     name = Module.HEAD_TURN.value
     version = HEAD_VERSION
@@ -197,9 +261,10 @@ class HeadTurnDetector:
             plan = parse_head_plan(inp)
             if inp.video is None:
                 raise LandmarkError(ErrorCode.E_DECODE, Status.DEGRADED)
-            rows = self.reader.extract(
-                inp.video, start_ms=plan.start_ms - BASELINE_MS, end_ms=plan.end_ms
-            )
+            bounds = {"start_ms": plan.start_ms - BASELINE_MS, "end_ms": plan.end_ms}
+            if plan.adaptive:
+                bounds["require_eof"] = True
+            rows = self.reader.extract(inp.video, **bounds)
             result = evaluate_head_turn(rows, plan)
             return ModuleResult(
                 module=Module.HEAD_TURN,

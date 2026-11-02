@@ -22,7 +22,7 @@ class HeadGuidanceTest {
     }
 
     private fun face(yaw: Float = 0f, at: Long, roll: Float = 0f) =
-        FaceSignal(1, .45f, .5f, .45f, yaw, 120f, at * 1_000_000, roll = roll)
+        FaceSignal(1, .45f, .5f, .45f, yaw, 120f, at * 1_000_000, pitch = 0f, roll = roll)
 
     @Test fun throttledWarningStillCancelsTheObsoleteHoldSpeech() {
         val policy = HeadCuePolicy()

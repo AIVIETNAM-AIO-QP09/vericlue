@@ -63,7 +63,7 @@ from vericlue_ml.face.continuity import FACE_VOICE_VERSION
 from vericlue_ml.face.enrolled import REAUTH_MATCH_VERSION, recovery_match_version
 from vericlue_ml.face.match import MATCH_VERSION, MatchThreshold
 from vericlue_ml.face.video_match import VIDEO_MATCH_VERSION
-from vericlue_ml.presence.head_protocol import session_model_version
+from vericlue_ml.presence.head_protocol import head_sampling_suffix, session_model_version
 from vericlue_ml.router.flows import route_face, route_voice
 from vericlue_ml.router.policy import TrustRouter
 from vericlue_ml.voice.nes2net_timeline import VERSION as NES2NET_TIMELINE_VERSION
@@ -195,6 +195,7 @@ class SessionFlow:
         account_bound: bool,
         session: Session | None = None,
         voice_step: bool = False,
+        adaptive_head: bool = False,
     ) -> None:
         """Fail closed unless every real model, calibration artifact, consent and account prerequisite is ready."""
         s = self.settings
@@ -270,6 +271,8 @@ class SessionFlow:
             if session is not None and session.challenge.dynamic is not None
             else 2
         )
+        if session is not None and session.challenge.dynamic is not None:
+            adaptive_head = session.challenge.dynamic.head_mode == "adaptive"
         for attack_mod in (Module.FACE_PAD, Module.FACE_DEEPFAKE):
             det = detectors[attack_mod]
             backend = getattr(det, "backend", None)
@@ -282,7 +285,9 @@ class SessionFlow:
                 )
             else:
                 frames_ver = str(getattr(backend, "frames_version", "") or "")
-                expected_attack_ver = session_model_version(frames_ver, protocol)
+                expected_attack_ver = session_model_version(
+                    frames_ver, protocol, adaptive=adaptive_head
+                )
             self._require_fitted_calibrator(attack_mod, expected_attack_ver)
 
         if needs_voice:
@@ -301,7 +306,9 @@ class SessionFlow:
                 self._require_fitted_calibrator(Module.LIPSYNC, lipsync_ver)
 
         if purpose == "onboarding":
-            video_version = VIDEO_MATCH_VERSION + ("+head12s-v2" if protocol == 2 else "")
+            video_version = VIDEO_MATCH_VERSION + head_sampling_suffix(
+                protocol, adaptive=adaptive_head
+            )
             self._require_match_threshold(
                 s.identity_face_calibration,
                 (video_version,),
@@ -319,13 +326,14 @@ class SessionFlow:
             if not account_bound:
                 raise self._flow_unavailable()
             self._require_match_threshold(
-                s.identity_recovery_calibration, (recovery_match_version(protocol),)
+                s.identity_recovery_calibration,
+                (recovery_match_version(protocol, adaptive=adaptive_head),),
             )
             self._require_match_threshold(
                 s.identity_consistency_calibration,
                 (
                     VIDEO_MATCH_VERSION
-                    + ("+head12s-v2" if protocol == 2 else "")
+                    + head_sampling_suffix(protocol, adaptive=adaptive_head)
                     + "+view-consistency-v1",
                 ),
             )
@@ -393,7 +401,9 @@ class SessionFlow:
         # These flows need gaze/head/match/device verification before real deployment.
         # No environment switch can accidentally enable an incomplete acceptance path.
         if request is not None and self.settings.use_mock_models is not True and not account_bound:
-            self._ensure_standard_flow_ready(request.purpose, account_bound=False)
+            self._ensure_standard_flow_ready(
+                request.purpose, account_bound=False, adaptive_head=request.head_mode == "adaptive"
+            )
         session = self.sessions.create(
             scenario=scenario,
             challenge=generate_challenge(self.settings),
@@ -422,7 +432,10 @@ class SessionFlow:
             session.reference_image_id = request.reference_image_id
             if request.purpose in {"onboarding", "recovery"}:
                 session.challenge = generate_dynamic_challenge(
-                    self.settings, session_id=session.session_id, nonce=request.nonce
+                    self.settings,
+                    session_id=session.session_id,
+                    nonce=request.nonce,
+                    adaptive_head=request.head_mode == "adaptive",
                 )
                 session.voice_prompt = session.challenge.dynamic.voice_prompt
                 session.voice_challenge_id = session.challenge.dynamic.voice_challenge_id
@@ -472,7 +485,10 @@ class SessionFlow:
         # Same as a retry: a whole new pack (LIVE-01 `dynamic` included) with new attempt IDs.
         session.challenge = (
             generate_dynamic_challenge(
-                self.settings, session_id=session.session_id, nonce=session.nonce
+                self.settings,
+                session_id=session.session_id,
+                nonce=session.nonce,
+                adaptive_head=session.challenge.dynamic.head_mode == "adaptive",
             )
             if session.challenge.dynamic is not None
             else generate_challenge(self.settings)
@@ -874,7 +890,12 @@ class SessionFlow:
             hint = outcome.retry_hint if outcome.retry_hint in RETRY_HINTS else DEFAULT_HINT
             session.retries_used += 1
             session.challenge = (
-                generate_dynamic_challenge(s, session_id=session.session_id, nonce=session.nonce)
+                generate_dynamic_challenge(
+                    s,
+                    session_id=session.session_id,
+                    nonce=session.nonce,
+                    adaptive_head=session.challenge.dynamic.head_mode == "adaptive",
+                )
                 if session.challenge.dynamic is not None
                 else generate_challenge(s)
             )
@@ -1389,11 +1410,27 @@ class SessionFlow:
         suffix = policy.version_suffix if manual and policy is not None else ""
         if session.account_id and session.purpose == "recovery":
             dynamic = session.challenge.dynamic
-            base_versions = (recovery_match_version(dynamic.version),) if dynamic else ()
+            base_versions = (
+                (recovery_match_version(dynamic.version, adaptive=dynamic.head_mode == "adaptive"),)
+                if dynamic
+                else ()
+            )
         elif session.account_id:
             base_versions = (REAUTH_MATCH_VERSION,)
         elif self.settings.identity_face_from_video:
-            base_versions = (VIDEO_MATCH_VERSION, VIDEO_MATCH_VERSION + "+head12s-v2")
+            dynamic = session.challenge.dynamic
+            base_versions = (
+                (
+                    VIDEO_MATCH_VERSION
+                    + head_sampling_suffix(
+                        dynamic.version, adaptive=dynamic.head_mode == "adaptive"
+                    ),
+                )
+                if self.settings.identity_consistency_required
+                and dynamic is not None
+                and dynamic.head_mode == "adaptive"
+                else (VIDEO_MATCH_VERSION, VIDEO_MATCH_VERSION + "+head12s-v2")
+            )
         else:
             base_versions = (MATCH_VERSION,)
         expected_versions = tuple(v + suffix for v in base_versions) if manual else base_versions

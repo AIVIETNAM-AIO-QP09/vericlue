@@ -22,8 +22,15 @@ def head_protocol_version(inp: DetectorInput) -> int:
     return version
 
 
-def session_model_version(base: str, protocol: int) -> str:
+def head_sampling_suffix(protocol: int, *, adaptive: bool = False) -> str:
+    """Separate timed and adaptive selected-view artifact identities."""
+    if type(protocol) is not int or protocol not in (1, 2):
+        raise ValueError("Unknown head protocol")
+    return ("+head12s-v2" if protocol == 2 else "") + ("+head-adaptive-v1" if adaptive else "")
+
+
+def session_model_version(base: str, protocol: int, *, adaptive: bool = False) -> str:
     """Keep calibration identity specific to the capture protocol."""
     if type(protocol) is not int or protocol not in (1, 2):
         raise ValueError("Unknown head protocol")
-    return base + f"+session-video-v{protocol}"
+    return base + f"+session-video-v{protocol}" + ("+head-adaptive-v1" if adaptive else "")

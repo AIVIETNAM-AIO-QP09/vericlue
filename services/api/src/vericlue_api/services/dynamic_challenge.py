@@ -72,7 +72,9 @@ def new_dynamic_voice_prompt(previous: str | None = None) -> str:
             return prompt
 
 
-def generate_dynamic_challenge(settings: Settings, *, session_id: str, nonce: str) -> Challenge:
+def generate_dynamic_challenge(
+    settings: Settings, *, session_id: str, nonce: str, adaptive_head: bool = False
+) -> Challenge:
     """Keep the shared safe color configuration and append gaze/head capture phases."""
     challenge = generate_challenge(settings)
     challenge.challenge_id = f"ch_{secrets.token_hex(16)}"
@@ -114,6 +116,8 @@ def generate_dynamic_challenge(settings: Settings, *, session_id: str, nonce: st
         head_turns=[*turns, "center"],
         head_start_at_ms=head_start,
         head_duration_ms=HEAD_DURATION_MS,
+        head_mode="adaptive" if adaptive_head else None,
+        head_timeout_ms=30_000 - head_start if adaptive_head else None,
         voice_start_at_ms=head_start + HEAD_DURATION_MS,
         voice_prompt=new_dynamic_voice_prompt(),
         voice_challenge_id=f"vc_{secrets.token_hex(16)}",

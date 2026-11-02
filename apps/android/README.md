@@ -4,6 +4,78 @@
 
 ## Trạng thái
 
+**Tích hợp PR #130 với main:** app giữ UI APP-11 và chế độ quay đầu thích ứng
+(opt-in `head_mode=adaptive`), đồng thời giữ sửa lỗi nguồn ghi hình/tiếng chung,
+consent và chế độ API của APP-01…03. Mô tả lịch 5/5/2 bên dưới áp dụng cho
+challenge v2 theo thời gian; adaptive chờ đủ bằng chứng từng hướng trong
+ngân sách video, không đổi bước chỉ vì hết một đoạn thời gian.
+
+APP-11 / lượt trau chuốt chuyển động và chốt capture: màn danh tính chỉ giữ ba
+nhãn hành trình, bỏ mô tả và câu chuẩn bị thừa; native xuất hiện tuần tự, cảnh
+Three.js ghép lớp/xoay rồi ổn định trong 3 giây. Quay đầu có hình hướng dẫn chuyển
+động, tiến độ giữ tư thế lấy từ frame thật. Tất cả có trạng thái giảm chuyển động.
+
+Camera mặt dùng `FIT_CENTER` để không phóng ảnh lấp màn hình dài; oval rộng hơn.
+Chỉ bắt đầu khi một mặt đầy đủ, nhìn thẳng, nằm trong oval và ổn định qua các
+frame mới trong một giây. Tọa độ mặt được ánh xạ bằng CameraX tới đúng khung UI.
+Gaze thu phần xem camera vào góc bằng transform lớp vẽ, giữ nguyên CameraX và
+tọa độ chấm. Kết thúc gaze khôi phục khung chính. Lượt phản hồi tiếp bổ sung
+dung sai căn mặt và chế độ quay đầu thích ứng: quay sai/chưa quay được nhắc
+ngay tại chỗ, giữ yêu cầu hiện tại đến khi quan sát đủ tư thế. API cấp chế độ
+này theo opt-in và tự kiểm video gốc; tổng video tối đa 30 giây. Bản cũ giữ
+lịch cũ. Chi tiết/giới hạn: [capture khuôn mặt](docs/face-capture.md).
+Preview mới: `tmp/app11-ui/polished/index.html`, tạo bằng
+`python apps/android/scripts/build-polished-preview.py` sau Paparazzi.
+
+APP-11 / phản hồi test thiết bị: 3D chỉ trang trí, tự chạy tối đa 3 giây rồi đứng
+yên; bỏ tab, nút xem lại/tạm dừng và lời thuyết minh minh họa khỏi app. Bốn cảnh
+được dùng: thẻ ở màn đầu, khiên/khóa ở đồng ý, khuôn mặt ở chuẩn bị và huy hiệu
+thành công. Tạm dừng khi ẩn/ra nền. Giảm chuyển động hoặc lỗi
+WebGL dùng hình native dự phòng. Chi tiết và giới hạn kiểm tra:
+[Three.js trên Android](docs/three-scene.md). Preview tương tác tại máy:
+`tmp/app11-ui/three/index.html` từ repo root.
+Tạo lại bằng `python apps/android/scripts/build-three-preview.py` sau khi render
+Paparazzi và chạy kiểm tra WebGL. Màn thành công dùng 3D; Lottie vẫn có ở
+`SuccessBadge` cho màn ngân hàng mẫu/gallery, không chạy chồng lên cảnh 3D.
+
+Camera: `FaceCaptureSurface` dùng một viewport toàn màn hình và cùng hình học
+oval chính cho căn mặt, đổi màu và quay đầu; bước gaze dùng thumbnail từ cùng
+nguồn, chỉ biến đổi lớp vẽ. Chấm vẫn theo tọa độ toàn màn hình
+do server cấp; giữ lịch, màu, độ sáng và mốc recording. Diện tích màu nhìn thấy
+thay đổi do khung camera thống nhất, cần kiểm lại chất lượng thu trên thiết bị.
+Màn chuẩn bị rút gọn; đăng nhập thụ động không có cảnh báo đổi màu. Trợ giúp về
+nhạy cảm ánh sáng mở bottom sheet, không tự rời phiên. Backend hiện chưa có
+luồng đăng ký/khôi phục không đổi màu; đây là việc sản phẩm/backend còn thiếu, không được
+bỏ thử thách rồi tự kết luận đạt. Xem bàn giao APP-11 ngày 02/11 lúc 18:36.
+
+APP-11 mở rộng: màn đầu có thẻ navy và hành trình đánh số; màn số điện
+thoại/OTP có dán chủ động, phản hồi lỗi và trạng thái đang gửi/kiểm mã.
+Trợ giúp theo ngữ cảnh mở bằng bottom sheet, FAQ mở rộng từng câu; đọc
+hướng dẫn không gửi dữ liệu hoặc chuyển bước. Màn chờ, kết quả và làm lại
+có thẻ nội dung thống nhất. Bộ đếm gửi lại OTP chạy lại ở mỗi lượt và chặn
+chạm lặp. Các mẫu được chọn từ awesome-android-ui, tự triển khai bằng
+Compose/Material 3; bảng nguồn và cách thử tại [UI libraries](docs/ui-libraries.md).
+Preview so với bản vừa có Lottie: `tmp/app11-ui/upgrade/index.html` từ repo root.
+
+APP-11 bổ sung: đã chọn Lottie Compose 6.6.2 từ danh mục
+`wasabeef/awesome-android-ui`, dùng cho vòng viền động quanh huy hiệu thành công.
+Asset vector tự tạo được đóng gói trong APK; chạy một lần, tạm dừng khi app
+không ở foreground, hiện trạng thái cuối khi tắt chuyển động. Logo/dấu xác
+nhận tĩnh luôn hiện kể cả khi parse asset lỗi; animation không điều khiển kết
+quả hoặc nút tiếp tục. Setup và cách xem: [UI libraries](docs/ui-libraries.md).
+
+APP-11 (02/11): làm mới màn bắt đầu, đồng ý, xác nhận thông tin và chuẩn bị
+khuôn mặt bằng `ContentCard`/`FeatureRow`, giữ nền ngà, navy và Be Vietnam Pro.
+Ô đồng ý nằm cạnh nút tiếp tục, không chọn sẵn; chi tiết xử lý dữ liệu mở
+trong cùng vùng cuộn. Các hướng dẫn trước camera tách riêng giữ đầu thẳng,
+đưa mắt theo chấm và quay đầu; vẫn giữ cảnh báo nhạy cảm ánh sáng.
+`VcScreen` giới hạn vùng đọc 600dp, lề 24dp, tránh bàn phím hệ thống và cho
+cả nội dung/nút/bàn phím số cuộn khi vùng hiển thị thấp hơn 560dp hoặc chữ
+từ 150%. Các màn còn lại giữ nút dưới cùng. Liên kết có vùng bấm tối thiểu
+48dp, tiêu đề có semantics heading. Không thay lịch màu/chấm/quay đầu,
+camera, API hay kết quả xác minh. Bộ ảnh onboarding có thêm tablet và
+`AdaptiveScreenSnapshotTest` kiểm tra cuộn tới toàn bộ nút tiếp tục.
+
 **02/11 — APP-03, chung nguồn hình/tiếng (doing):** luồng API thật dùng CameraX
 ghi micro và video vào một MP4, giới hạn 8 giây. Chỉ báo sẵn sàng khi có khung
 video và audio native ACTIVE. Sau finalize, MediaCodec giải mã âm thanh từ
@@ -208,9 +280,9 @@ Hardware acceptance còn chờ. Xem [demo một bản](../../docs/runbooks/veric
 APP-07: luồng đầy đủ Giả lập và API dùng chung `FaceTimelineScreen` và bộ UI A
 hiện có (khung oval lúc giữ yên, hướng dẫn quay đầu trên camera). Giả lập tạo
 lịch cục bộ; API luôn theo lịch/tọa độ toàn màn hình do server cấp, không rơi về
-lịch mẫu khi lỗi. `StableCameraScene` giữ một PreviewView, chỉ biến đổi lớp hiển
-thị qua các cửa sổ camera, không gắn lại View hoặc đổi kích thước layout trong
-lúc quay. Màn quay đầu riêng trong gallery chỉ phục vụ xem màn. Snapshot mới
+lịch mẫu khi lỗi. `StableCameraScene` giữ một PreviewView toàn màn hình; APP-11
+đã bỏ biến đổi scale/translate theo cửa sổ camera và thống nhất oval giữa các pha.
+Màn quay đầu riêng trong gallery chỉ phục vụ xem màn. Snapshot mới
 bao phủ các pha ở sáng/tối, 375dp và chữ 200%; nghiệm thu video liên tục trên máy
 thật vẫn phải kiểm riêng. Activity hiện khóa dọc, không bổ sung flow xoay ngang.
 
@@ -367,6 +439,7 @@ app/src/main/java/vn/vericlue/app/
 - Hiệu ứng trang trí dùng `Vc.motion` (`ui/theme/Motion.kt`). Theme theo dõi `Settings.Global.ANIMATOR_DURATION_SCALE`; bằng 0 thì hiện trạng thái cuối ngay, kể cả khi đổi cài đặt lúc app đang mở. Chuyển màn tắt ở cả hai chiều khi đi vào/ra camera. Không dùng thời lượng này cho lịch màu/chấm sáng do server cấp.
 - Rung nhẹ sau khi chụp CCCD và khi thành công dùng phản hồi hệ thống (`CONTEXT_CLICK`), tôn trọng cài đặt rung của máy, không xin thêm quyền.
 - Ảnh Paparazzi đặt `motionEnabled = false` để so bố cục ở trạng thái tĩnh. Chạy `recordPaparazziDebug --tests '*ScreensSnapshotTest*'` trước/sau khi sửa; không commit ảnh trong `app/src/test/snapshots/`.
+- Các task test Gradle chạy từng lớp trong JVM riêng (`forkEvery = 1`, tuần tự) để đồng hồ Compose/Layoutlib của lớp snapshot trước không làm chuyển động ở lớp sau đứng tại frame đầu. Cấu hình này áp dụng cả `testDebugUnitTest` và `recordPaparazziDebug` trên local/CI; vẫn giữ assertion hoạt ảnh phải chạy tới frame cuối. Đổi lại, bộ test tốn thêm thời gian khởi động JVM.
 - Chưa dùng lại code từ `AIVIETNAM-AIO-QP09/eKYC-system`; khi chép Keystore từ đó (SEC-02) phải giữ dòng giấy phép MIT và ghi vào `third_party/README.md`.
 
 Kiểm tra giảm chuyển động trên máy ảo: khi app đang ở màn đăng ký/đăng nhập, chạy `adb shell settings put global animator_duration_scale 0`, kiểm tra các thẻ đứng yên và nút/OTP đổi ngay. Đặt lại giá trị ban đầu sau khi thử (thường là `1`; nếu ban đầu chưa có giá trị thì dùng `adb shell settings delete global animator_duration_scale`). Vẫn phải thử cảm giác rung trên điện thoại thật.

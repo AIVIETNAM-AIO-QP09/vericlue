@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -53,6 +54,15 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.material3.TextButton
+import vn.vericlue.app.ui.InputAssist
+import vn.vericlue.app.ui.OtpCooldown
+import vn.vericlue.app.ui.components.HelpButton
+import vn.vericlue.app.ui.components.HelpTopic
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
@@ -71,6 +81,7 @@ import androidx.compose.ui.layout.ContentScale
 import vn.vericlue.app.flow.PhoneRules
 import vn.vericlue.app.flow.FlowRules
 import vn.vericlue.app.ui.components.Banner
+import vn.vericlue.app.ui.components.ContentCard
 import vn.vericlue.app.ui.components.LinkButton
 import vn.vericlue.app.ui.components.NumericKeypad
 import vn.vericlue.app.ui.components.OtpBoxes
@@ -89,41 +100,56 @@ import vn.vericlue.app.ui.theme.VcType
 import vn.vericlue.app.ui.theme.Palette
 
 @Composable
-fun PhoneScreen(onBack: () -> Unit, onSend: (String) -> Unit) {
+fun PhoneScreen(onBack: () -> Unit, onSend: (String) -> Unit, busy: Boolean = false, initialPhone: String = "") {
     val c = Vc.colors
-    var phone by remember { mutableStateOf("") }
+    val clipboard = LocalClipboardManager.current
+    var phone by remember { mutableStateOf(initialPhone) }
+    var pasteError by remember { mutableStateOf<String?>(null) }
     val valid = PhoneRules.isValid(phone)
     VcScreen(
         onBack = onBack,
         step = 1,
-        actions = { PrimaryButton("Gửi mã", { onSend(phone) }, enabled = valid) },
+        actions = { PrimaryButton(if (busy) "Đang gửi mã…" else "Gửi mã xác nhận", { onSend(phone) }, enabled = valid, loading = busy) },
         bottom = {
             NumericKeypad(
-                onDigit = { phone = PhoneRules.append(phone, it) },
-                onBackspace = { phone = phone.dropLast(1) },
-                onDone = { if (valid) onSend(phone) },
+                onDigit = { phone = PhoneRules.append(phone, it); pasteError = null },
+                onBackspace = { phone = phone.dropLast(1); pasteError = null },
+                onDone = { if (valid && !busy) onSend(phone) },
+                enabled = !busy, doneEnabled = valid,
             )
         },
     ) {
-        TitleBlock("Nhập số điện thoại", "Nhận mã xác nhận để tiếp tục.")
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Số điện thoại", style = VcType.label, color = c.ink)
-            Row(
-                Modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(12.dp)).background(c.surface)
-                    .border(if (phone.isNotEmpty()) 2.dp else 1.dp, if (phone.isNotEmpty()) c.accent else c.border, RoundedCornerShape(12.dp))
-                    .padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Icon(Icons.Outlined.Phone, contentDescription = null, tint = c.muted, modifier = Modifier.size(20.dp))
-                Text(
-                    if (phone.isEmpty()) "09xx xxx xxx" else PhoneRules.format(phone),
-                    style = VcType.body,
-                    color = if (phone.isEmpty()) c.muted else c.ink,
-                )
+        TitleBlock("Số điện thoại\ncủa bạn", "Chúng tôi sẽ gửi mã xác nhận qua tin nhắn.")
+        ContentCard {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Số điện thoại", style = VcType.label, color = c.ink)
+                Row(
+                    Modifier.fillMaxWidth().heightIn(min = 60.dp).clip(RoundedCornerShape(16.dp)).background(c.surface)
+                        .border(if (phone.isNotEmpty()) 2.dp else 1.dp, if (phone.isNotEmpty()) c.accent else c.muted, RoundedCornerShape(16.dp))
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Icon(Icons.Outlined.Phone, contentDescription = null, tint = c.muted, modifier = Modifier.size(20.dp))
+                    Text(
+                        if (phone.isEmpty()) "09xx xxx xxx" else PhoneRules.format(phone),
+                        style = VcType.body,
+                        color = if (phone.isEmpty()) c.muted else c.ink,
+                    )
+                }
+                val hint = pasteError ?: if (phone.length == 10 && !valid) "Số điện thoại cần bắt đầu bằng 0." else "10 chữ số, bắt đầu bằng 0."
+                Text(hint, style = VcType.caption, color = if (pasteError != null || phone.length == 10 && !valid) c.warn else c.muted,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                TextButton(enabled = !busy, onClick = {
+                    val pasted = InputAssist.phone(clipboard.getText()?.text)
+                    if (pasted == null) pasteError = "Chưa có số điện thoại hợp lệ để dán."
+                    else { phone = pasted; pasteError = null }
+                }, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Text("Dán số điện thoại", style = VcType.labelSmall)
+                }
             }
-
         }
+        HelpButton(HelpTopic.Phone, enabled = !busy)
     }
 }
 
@@ -141,8 +167,11 @@ fun OtpScreen(
     onCode: ((String) -> Unit)? = null,
     onResend: () -> Unit = {},
     autoCode: String? = null,
+    busy: Boolean = false,
 ) {
     val c = Vc.colors
+    val clipboard = LocalClipboardManager.current
+    var pasteError by remember { mutableStateOf<String?>(null) }
     var code by remember { mutableStateOf(if (startWithError) "472910" else "") }
     var error by remember { mutableStateOf(startWithError) }
     var filled by remember { mutableStateOf(false) }
@@ -155,15 +184,12 @@ fun OtpScreen(
             filled = true
         }
     }
-    val submit = { if (onCode != null) onCode(code) else onVerified() }
-    var seconds by remember { mutableIntStateOf(45) }
-    LaunchedEffect(Unit) {
-        while (seconds > 0) {
-            delay(1000)
-            seconds--
-        }
-    }
+    val submit = { if (!busy) { if (onCode != null) onCode(code) else onVerified() } }
+    val cooldown = remember { OtpCooldown() }
+    val seconds = cooldown.seconds
+    LaunchedEffect(cooldown.generation) { cooldown.run() }
     fun type(d: Char) {
+        pasteError = null
         filled = false
         if (error) {
             code = ""
@@ -174,25 +200,38 @@ fun OtpScreen(
     VcScreen(
         onBack = onBack,
         step = 1,
-        actions = { PrimaryButton("Xác nhận", submit, enabled = OtpRules.isComplete(code) && !error) },
-        bottom = { NumericKeypad(onDigit = ::type, onBackspace = { code = code.dropLast(1); error = false }, onDone = { if (OtpRules.isComplete(code) && !error) submit() }) },
+        actions = { PrimaryButton(if (busy) "Đang xử lý…" else "Xác nhận mã", submit, enabled = OtpRules.isComplete(code) && !error, loading = busy) },
+        bottom = { NumericKeypad(onDigit = ::type, onBackspace = { code = code.dropLast(1); error = false; filled = false; pasteError = null }, onDone = { if (OtpRules.isComplete(code) && !error) submit() }, enabled = !busy, doneEnabled = OtpRules.isComplete(code) && !error) },
     ) {
         OtpRules.codeIn(sms)?.let { Banner("Mã dùng thử: $it", icon = Icons.Outlined.ChatBubbleOutline) }
-        Text("Nhập mã xác nhận", style = VcType.titleLarge, color = c.ink)
-        OtpBoxes(code, error)
-        if (error) Banner(serverError ?: "Mã chưa đúng. Bạn còn 2 lần thử.", tone = Tone.Warn)
-        Text(
-            if (seconds > 0) "Gửi lại mã sau 0:${seconds.toString().padStart(2, '0')}" else "Gửi lại mã",
-            style = VcType.caption,
-            color = if (seconds > 0) c.muted else c.accent,
-            modifier = Modifier.fillMaxWidth().clickable(enabled = seconds == 0, role = Role.Button) {
-                seconds = 45
-                code = ""
-                error = false
-                onResend()
-            },
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-        )
+        TitleBlock("Kiểm tra tin nhắn", "Nhập mã gồm 6 chữ số để tiếp tục.")
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            OtpBoxes(code, error)
+            Text(if (filled) "Đã điền mã từ tin nhắn. Kiểm tra rồi xác nhận." else "Đã nhập ${code.length}/6 chữ số",
+                style = VcType.caption, color = c.muted)
+            if (error) Banner(serverError ?: "Mã chưa đúng. Bạn còn 2 lần thử.", tone = Tone.Warn,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+            if (pasteError != null) Banner(pasteError!!, tone = Tone.Warn,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+            TextButton(enabled = !busy, onClick = {
+                val pasted = InputAssist.otp(clipboard.getText()?.text)
+                if (pasted == null) pasteError = "Hãy sao chép đúng 6 chữ số của mã xác nhận."
+                else { code = pasted; error = false; filled = false; pasteError = null }
+            }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Dán mã", style = VcType.labelSmall) }
+        }
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+            if (seconds > 0) Text("Gửi lại mã sau 0:${seconds.toString().padStart(2, '0')}", style = VcType.caption, color = c.muted)
+            else TextButton(enabled = !busy, onClick = {
+                if (cooldown.restart()) {
+                    code = ""
+                    error = false
+                    filled = false
+                    pasteError = null
+                    onResend()
+                }
+            }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Gửi lại mã", style = VcType.labelSmall) }
+            HelpButton(HelpTopic.Otp, enabled = !busy)
+        }
     }
 }
 
@@ -466,10 +505,7 @@ fun ConfirmInfoScreen(
     ) {
         if (afterFace) Banner("Kiểm tra thông tin trước khi tiếp tục.", tone = Tone.Ok)
         TitleBlock("Kiểm tra thông tin", "Đối chiếu với thông tin trên thẻ trước khi xác nhận.")
-        Column(
-            Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
+        ContentCard {
             if (fields === sampleIdFields) {
                 Text(
                     "Thông tin minh họa",

@@ -1,5 +1,6 @@
 package vn.vericlue.app.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -22,6 +23,24 @@ import vn.vericlue.app.flow.TurnDir
 import vn.vericlue.app.ui.components.*
 import vn.vericlue.app.ui.theme.Palette
 import vn.vericlue.app.ui.theme.VcType
+import vn.vericlue.app.ui.theme.Vc
+import vn.vericlue.app.ui.theme.VcTheme
+
+/** Practice-only frame; the verification flow uses the persistent FaceCaptureSurface. */
+@Composable
+private fun PracticeScaffold(onBack: () -> Unit, content: @Composable () -> Unit) {
+    BackHandler(onBack = onBack)
+    VcTheme(dark = true) {
+        val background = Vc.colors.background
+        SystemBarIcons(background)
+        Column(Modifier.fillMaxSize().background(background).statusBarsPadding()) {
+            TopBar(onBack)
+            StepProgress(2, stepLabel(2))
+            Box(Modifier.weight(1f).fillMaxWidth()) { content() }
+            Spacer(Modifier.navigationBarsPadding())
+        }
+    }
+}
 
 @Composable
 fun HeadPracticeScreen(face: FaceSignal?, onExit: () -> Unit, onContinue: () -> Unit) {
@@ -54,7 +73,7 @@ fun HeadPracticeContent(step: Int, cue: HeadCue, pose: TurnPoseState,
     onExit: () -> Unit, onContinue: () -> Unit, onRestart: () -> Unit) {
     val ready = step >= 5
     val dir = when (step) { 1 -> TurnDir.Left; 3 -> TurnDir.Right; else -> null }
-    CameraScaffold(onExit) {
+    PracticeScaffold(onExit) {
         Column(Modifier.fillMaxSize()) {
             Text(if (ready) "Tập xong" else "Tập quay đầu", style = VcType.titleMedium, color = Color.White,
                 textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(top = 16.dp))

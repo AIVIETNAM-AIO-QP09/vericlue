@@ -134,6 +134,32 @@ def test_gaze_head_schedule_is_after_safe_color_sequence(client):
     assert plan["head_duration_ms"] == 12000
     assert plan["voice_start_at_ms"] == plan["head_start_at_ms"] + 12000
     assert plan["voice_start_at_ms"] <= 30000
+    assert plan.get("head_mode") is None and plan.get("head_timeout_ms") is None
+
+
+@pytest.mark.parametrize("purpose", ["onboarding", "recovery"])
+def test_adaptive_head_is_opt_in_bounded_and_preserved_on_refresh_and_retry(client, purpose):
+    request = {"purpose": purpose, "nonce": NONCE, "head_mode": "adaptive"}
+    validate(request, "session", "CreateSessionRequest")
+    response = client.post("/v1/sessions", json=request, headers={"X-Mock-Scenario": "low_quality"})
+    assert response.status_code == 200
+    created = response.json()
+    validate(created, "session", "CreateSessionResponse")
+    auth = {"Authorization": "Bearer " + created["token"]}
+    refreshed = client.post(url(created, "challenge"), headers=auth)
+    assert refreshed.status_code == 200
+    body = refreshed.json()
+    validate(body, "session", "ChallengeResponse")
+    auth = {"Authorization": "Bearer " + body["token"]}
+    retried = submit_face(client, created, auth, body["challenge"])
+    assert retried["status"] == "retry"
+    for challenge in (created["challenge"], body["challenge"], retried["challenge"]):
+        plan = challenge["dynamic"]
+        assert plan["head_mode"] == "adaptive"
+        assert plan["head_start_at_ms"] + plan["head_timeout_ms"] == 30000
+        assert plan["version"] == 2
+        assert plan["head_duration_ms"] == 12000
+        assert plan["head_start_at_ms"] == plan["gaze_points"][-1]["at_ms"]
 
 
 def test_challenges_are_distinct_even_with_the_same_caller_nonce(client):
@@ -1622,3 +1648,19 @@ def test_standard_real_reauth_does_not_require_voice_or_onboarding_calibrators(
     )
     assert rfin.status_code == 200, rfin.text
     assert rfin.json() == {"status": "pass"}
+
+
+def test_adaptive_standard_flow_cannot_start_with_timed_calibrators(client, tmp_path):
+    env = _setup_ready_real_env(client, tmp_path)
+    _, spki = env.make_key()
+    response = client.post(
+        "/v1/sessions",
+        json={
+            "purpose": "onboarding",
+            "nonce": NONCE,
+            "device_public_key_spki": spki,
+            "head_mode": "adaptive",
+        },
+    )
+    assert response.status_code == 503
+    assert response.json()["error_code"] == "flow_unavailable"

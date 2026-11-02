@@ -55,11 +55,11 @@ abstract class OnboardingJourneySnapshots(device: DeviceConfig, private val comp
             if (complete) {
                 shot("00_host", dark) { BankStartScreen(n, n) }
                 shot("01_splash", dark) { SplashScreen(n) }
-                shot("02_auth", dark) { AuthScreen(n, n, n) }
             }
+            shot("02_auth", dark) { AuthScreen(n, n, n) }
             shot("03_terms", dark) { TermsScreen(n, n) }
             shot("03b_terms_selected", dark) { TermsScreen(n, n, initialAccepted = true) }
-            shot("04_phone", dark) { PhoneScreen(n) {} }
+            shot("04_phone", dark) { PhoneScreen(n, onSend = {}) }
             shot("05_otp", dark) { OtpScreen(n, n, sms = "Mã dùng thử: 482910.") }
             shot("06_card_front", dark) { IdScanScreen(false, null, n, n, n) }
             if (complete) shot("07_card_processing", dark) { IdProcessingScreen(n, n) }
@@ -85,7 +85,7 @@ abstract class OnboardingJourneySnapshots(device: DeviceConfig, private val comp
             shot("p02_withdraw", dark) { PrivacyStopScreen(false, false, false, n, n, n) }
             shot("p03_withdraw_unconfirmed", dark) { PrivacyStopScreen(false, true, true, n, n, n) }
             shot("p04_session_only_success", dark) { SuccessScreen(Purpose.Onboarding, n, checked = FlowRules.checkedByServer(false), accountReady = false) }
-            if (complete) shot("b01_terms_details", dark) { TermsScreen(n, n, initialAccepted = true, initialDetailsOpen = true) }
+            shot("b01_terms_details", dark) { TermsScreen(n, n, initialAccepted = true, initialDetailsOpen = true) }
             shot("b02_card_back", dark) { IdScanScreen(true, null, n, n, n) }
             shot("b03_voice", dark) { VoiceScreen(n, n, sentence = "Tôi xác nhận danh tính, mã số tám ba năm một.") }
             if (complete) {
@@ -116,4 +116,7 @@ class LargeTextOnboardingJourneySnapshotTest : OnboardingJourneySnapshots(Device
 class LandscapeOnboardingJourneySnapshotTest : OnboardingJourneySnapshots(DeviceConfig(
     screenWidth = 812, screenHeight = 375, xdpi = 160, ydpi = 160, density = Density.MEDIUM,
     orientation = ScreenOrientation.LANDSCAPE,
+))
+class TabletOnboardingJourneySnapshotTest : OnboardingJourneySnapshots(DeviceConfig(
+    screenWidth = 800, screenHeight = 1280, xdpi = 160, ydpi = 160, density = Density.MEDIUM,
 ))

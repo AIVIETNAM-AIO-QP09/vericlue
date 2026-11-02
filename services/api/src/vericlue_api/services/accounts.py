@@ -37,6 +37,7 @@ from vericlue_ml.face.continuity import FACE_VOICE_VERSION
 from vericlue_ml.face.enrolled import recovery_match_version
 from vericlue_ml.face.template import FaceTemplate
 from vericlue_ml.face.video_match import VIDEO_MATCH_VERSION
+from vericlue_ml.presence.head_protocol import head_sampling_suffix
 
 ACCOUNT_TTL = timedelta(hours=24)
 _GATES = {
@@ -266,23 +267,20 @@ class AccountStore:
                 raise not_eligible()
         match = session.results[Module.FACE_MATCH]
         suffix = policy.version_suffix if s.manual_full_demo and policy is not None else ""
-        recovery_version = None
+        dynamic = session.challenge.dynamic
         if recovery:
-            if session.challenge.dynamic is None:
+            if dynamic is None:
                 raise not_eligible()
-            recovery_version = recovery_match_version(session.challenge.dynamic.version)
-        expected_match_versions = (
-            (recovery_version + suffix,)
-            if recovery and s.manual_full_demo
-            else (recovery_version,)
-            if recovery
-            else (
-                VIDEO_MATCH_VERSION + suffix,
-                VIDEO_MATCH_VERSION + "+head12s-v2" + suffix,
+            base_versions = (
+                recovery_match_version(dynamic.version, adaptive=dynamic.head_mode == "adaptive"),
             )
-            if s.manual_full_demo
-            else (VIDEO_MATCH_VERSION, VIDEO_MATCH_VERSION + "+head12s-v2")
-        )
+        elif dynamic is not None and dynamic.head_mode == "adaptive":
+            base_versions = (
+                VIDEO_MATCH_VERSION + head_sampling_suffix(dynamic.version, adaptive=True),
+            )
+        else:
+            base_versions = (VIDEO_MATCH_VERSION, VIDEO_MATCH_VERSION + "+head12s-v2")
+        expected_match_versions = tuple(version + suffix for version in base_versions)
         if (
             match.model_version not in expected_match_versions
             or match.quality.get("consistency_verified") is not True

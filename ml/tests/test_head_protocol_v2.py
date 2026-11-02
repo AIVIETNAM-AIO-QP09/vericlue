@@ -192,7 +192,8 @@ def test_collector_rejects_challenge_replaced_after_preflight(
     assert not output.exists()
 
 
-def test_video_match_passes_local_v2_version_to_identity_backend(monkeypatch):
+@pytest.mark.parametrize("adaptive", [False, True])
+def test_video_match_passes_local_v2_version_to_identity_backend(monkeypatch, adaptive):
     import numpy as np
     from test_video_frontal_match import inputs as match_input
     from test_video_frontal_match import setup
@@ -206,18 +207,23 @@ def test_video_match_passes_local_v2_version_to_identity_backend(monkeypatch):
     inp.metadata["expected_challenge"]["dynamic"].update(
         version=2, head_start_at_ms=12000, head_duration_ms=12000
     )
+    if adaptive:
+        inp.metadata["expected_challenge"]["dynamic"].update(
+            head_mode="adaptive", head_timeout_ms=18000
+        )
+    suffix = "+head12s-v2" + ("+head-adaptive-v1" if adaptive else "")
     frames = {k: np.full((112, 112, 3), 42, np.uint8) for k in ("front", "left", "right")}
     monkeypatch.setattr(video_match, "session_views", lambda *_: (frames, "a" * 64))
 
     def score(inp, frames, *, result_version=None):
-        assert result_version == video_match.VIDEO_MATCH_VERSION + "+head12s-v2"
+        assert result_version == video_match.VIDEO_MATCH_VERSION + suffix
         return ModuleResult(
             module="face_match", model_version=result_version, status="degraded", latency_ms=0
         )
 
     monkeypatch.setattr(matcher, "predict_frames", score)
     result = matcher.predict(inp)
-    assert result.model_version.endswith("+head12s-v2")
+    assert result.model_version.endswith(suffix)
     assert result.status == Status.DEGRADED
     assert matcher.version == video_match.VIDEO_MATCH_VERSION
 
@@ -257,3 +263,26 @@ def test_face_match_accepts_only_exact_new_threshold_and_consistency(tmp_path):
     assert result.status == Status.OK and result.gate == Gate.PASS
     assert result.model_version == version
     assert result.quality["consistency_verified"] is False
+
+
+@pytest.mark.parametrize("mixed", [False, True])
+def test_collector_keeps_adaptive_sampling_separate_from_timed(monkeypatch, tmp_path, mixed):
+    path, _ = write_manifest(tmp_path)
+    rewrite_protocol(tmp_path, range(8))
+    for index in range(1) if mixed else range(8):
+        source = tmp_path / f"{index}.json"
+        value = json.loads(source.read_text())
+        dynamic = value["challenge"]["dynamic"]
+        dynamic.update(head_mode="adaptive", head_timeout_ms=30000 - dynamic["head_start_at_ms"])
+        source.write_text(json.dumps(value))
+    fake_runtime(monkeypatch)
+    output = tmp_path / "report.json"
+    if mixed:
+        with pytest.raises(ValueError, match="exactly one capture protocol"):
+            sc.collect(path, tmp_path, tmp_path / "models", "face_pad", output)
+        assert not output.exists()
+    else:
+        result = sc.collect(path, tmp_path, tmp_path / "models", "face_pad", output)
+        assert result["model_version"] == "synthetic-views+session-video-v2+head-adaptive-v1"
+        fitted = sc.fit_report(output, tmp_path / "calibrators", n_splits=3)
+        assert fitted["model_version"] == result["model_version"]

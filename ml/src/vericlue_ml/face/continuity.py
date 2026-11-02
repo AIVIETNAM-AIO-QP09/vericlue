@@ -168,7 +168,12 @@ class FaceContinuityDetector:
             inp.metadata.get("account_id")
         )
         recovery_version = (
-            recovery_match_version(head_protocol_version(inp)) if is_recovery else None
+            recovery_match_version(
+                head_protocol_version(inp),
+                adaptive=expected_dynamic(inp).get("head_mode") == "adaptive",
+            )
+            if is_recovery
+            else None
         )
         expected_versions = (
             (recovery_version + suffix,)
