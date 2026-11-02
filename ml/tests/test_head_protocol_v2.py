@@ -257,3 +257,26 @@ def test_face_match_accepts_only_exact_new_threshold_and_consistency(tmp_path):
     assert result.status == Status.OK and result.gate == Gate.PASS
     assert result.model_version == version
     assert result.quality["consistency_verified"] is False
+
+
+@pytest.mark.parametrize("mixed", [False, True])
+def test_collector_keeps_adaptive_sampling_separate_from_timed(monkeypatch, tmp_path, mixed):
+    path, _ = write_manifest(tmp_path)
+    rewrite_protocol(tmp_path, range(8))
+    for index in range(1) if mixed else range(8):
+        source = tmp_path / f"{index}.json"
+        value = json.loads(source.read_text())
+        dynamic = value["challenge"]["dynamic"]
+        dynamic.update(head_mode="adaptive", head_timeout_ms=30000 - dynamic["head_start_at_ms"])
+        source.write_text(json.dumps(value))
+    fake_runtime(monkeypatch)
+    output = tmp_path / "report.json"
+    if mixed:
+        with pytest.raises(ValueError, match="exactly one capture protocol"):
+            sc.collect(path, tmp_path, tmp_path / "models", "face_pad", output)
+        assert not output.exists()
+    else:
+        result = sc.collect(path, tmp_path, tmp_path / "models", "face_pad", output)
+        assert result["model_version"] == "synthetic-views+session-video-v3-adaptive"
+        fitted = sc.fit_report(output, tmp_path / "calibrators", n_splits=3)
+        assert fitted["model_version"] == result["model_version"]

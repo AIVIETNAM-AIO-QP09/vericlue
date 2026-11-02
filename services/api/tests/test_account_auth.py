@@ -380,3 +380,28 @@ def test_recovery_transaction_failure_preserves_old_key(private_client):
         store = AccountStore(real_settings(state), state.db)
         assert store.get(receipt.account_id).public_key_spki == spki(key)
         assert state.db.scalar(select(func.count()).select_from(AccountRecoveryRow)) == 0
+
+
+@pytest.mark.parametrize("approved_protocol", [1, 2, 3])
+def test_adaptive_recovery_keeps_original_template_and_requires_exact_match_sampling(
+    private_client, approved_protocol
+):
+    _, receipt, _, _ = seeded(private_client)
+    key = new_key()
+    with private_client.app.state.vericlue.transaction() as state:
+        session = recovery_ready(state, receipt, key)
+        dynamic = session.challenge.dynamic
+        dynamic.head_mode = "adaptive"
+        dynamic.head_timeout_ms = 30000 - dynamic.head_start_at_ms
+        session.results[Module.FACE_MATCH].model_version = recovery_match_version(approved_protocol)
+        store = AccountStore(real_settings(state), state.db)
+        before = store.get(receipt.account_id)
+        if approved_protocol == 3:
+            recovered = store.recover(session)
+            after = store.get(recovered.account_id)
+            assert after.template == before.template
+            assert after.public_key_spki == spki(key)
+        else:
+            with pytest.raises(ApiError):
+                store.recover(session)
+            assert store.get(receipt.account_id).public_key_spki == before.public_key_spki

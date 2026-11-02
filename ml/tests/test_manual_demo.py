@@ -78,8 +78,9 @@ def test_policy_binding_changes_with_cutoffs_and_rejects_invalid_values():
 
 
 @pytest.mark.parametrize("score,expected", [(0.2, "pass"), (0.8, "fail")])
+@pytest.mark.parametrize("adaptive", [False, True])
 def test_attack_adapter_uses_manual_gate_without_fabricating_probability(
-    monkeypatch, score, expected
+    monkeypatch, score, expected, adaptive
 ):
     from test_session_attack import attack_input
 
@@ -99,9 +100,14 @@ def test_attack_adapter_uses_manual_gate_without_fabricating_probability(
     monkeypatch.setattr(session_attack, "session_views", lambda *_: ({}, "a" * 64))
     monkeypatch.setattr(session_attack, "video_sha256", lambda *_: "a" * 64)
     policy = ManualDemoThresholds()
+    inp = attack_input(video=Path("synthetic.mp4"))
+    if adaptive:
+        inp.metadata["expected_challenge"]["dynamic"].update(
+            version=2, head_duration_ms=12000, head_mode="adaptive", head_timeout_ms=18000
+        )
     result = session_attack.SessionAttackDetector(
         backend, SimpleNamespace(), manual_demo=policy
-    ).predict(attack_input(video=Path("synthetic.mp4")))
+    ).predict(inp)
     assert result.status == "ok" and result.gate == expected
     assert result.prob_attack is None
     assert result.quality["calibrated"] is False

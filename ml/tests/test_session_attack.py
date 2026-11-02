@@ -259,3 +259,23 @@ def test_reauth_uses_frontal_frame_and_requires_fitted_calibrator_in_standard_mo
     assert calibrated.prob_attack == pytest.approx(artifact.predict([0.15])[0])
     assert calibrated.quality["calibrated"] is True
     assert "manual_demo" not in calibrated.quality
+
+
+@pytest.mark.parametrize("protocol", [1, 2])
+def test_adaptive_attack_never_borrows_timed_calibration(monkeypatch, tmp_path, protocol):
+    backend, store, artifact = fixture_detector(monkeypatch, tmp_path)
+    timed_version = f"synthetic-3views+session-video-v{protocol}"
+    store.save(artifact.model_copy(update={"model_version": timed_version}))
+    inp = attack_input(video=Path("sample.mp4"))
+    inp.metadata["expected_challenge"]["dynamic"].update(
+        version=2,
+        head_duration_ms=12000,
+        head_mode="adaptive",
+        head_timeout_ms=18000,
+    )
+    result = SessionAttackDetector(backend, SimpleNamespace(), store).predict(inp)
+    assert result.status == Status.DEGRADED and result.prob_attack is None
+    assert result.model_version == "synthetic-3views+session-video-v3-adaptive"
+    store.save(artifact.model_copy(update={"model_version": result.model_version}))
+    calibrated = SessionAttackDetector(backend, SimpleNamespace(), store).predict(inp)
+    assert calibrated.status == Status.OK and calibrated.prob_attack is not None

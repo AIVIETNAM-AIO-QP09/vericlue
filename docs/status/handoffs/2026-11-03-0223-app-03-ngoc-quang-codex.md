@@ -59,6 +59,22 @@
 - Đã chép 11 file artifact/giấy phép/provenance được kiểm hash vào thư mục
   1.7B mới ngoài repo; không ghi đè trọng số 0.6B hoặc bật cấu hình.
 
+## Hòa giải main7cb73ba
+
+- Hai nhánh đã chứa cả parent658139f và332dad3; khác biệt còn lại là cách xử
+  lý merge. Merge thường có 25 xung đột, đã đối chiếu từng nhóm; giữ trọn các
+  sửa PTS/native voice, preview, timeout/ack, schema mode-budget và protocol3
+  adaptive hiện có. Không thay bằng toàn bộ bản merge của bên kia.
+- Đã lấy hai sửa camera nêu trên. Giữ dải hướng dẫn adaptive hiện có 25…45°
+  thay vì đổi sang 16…29° khi server đang yêu cầu tối thiểu20°; không khẳng
+  định góc ML Kit tương đương góc server. Giữ timed coaching là gợi ý như trước.
+- Giữ bàn giao lịch sử của bạn `2026-11-02-2337-app-11-codex.md`. Bổ sung,
+  chuyển 23 trường hợp test có ích sang API protocol3: không mượn artifact
+  timed, không trộn calibrator, kiểm account recovery/enrollment và giữ mẫu cũ.
+  **Root chạy nhóm 7 file: 198 ca đạt.** Mã Android không đổi so với lượt445 ca
+  vừa build. Không thêm workaround mỗi class một tiến trình khi fixture animation
+  hiện có đã được kiểm toàn bộ.
+
 ## Câu hỏi cho nhóm và giới hạn nghiệm thu
 
 - Còn cần người dùng thử recovery đến kết quả trên S24 FE và xác nhận preview
