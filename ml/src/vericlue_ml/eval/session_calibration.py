@@ -90,7 +90,9 @@ class SessionReport(Record):
     @field_validator("model_version")
     @classmethod
     def session_version(cls, value):
-        if not value.endswith((SUFFIX, "+session-video-v2")) or value.startswith("mock@"):
+        if not value.endswith(
+            (SUFFIX, "+session-video-v2", "+session-video-v3-adaptive")
+        ) or value.startswith("mock@"):
             raise ValueError("Exact session-view model version required")
         return value
 

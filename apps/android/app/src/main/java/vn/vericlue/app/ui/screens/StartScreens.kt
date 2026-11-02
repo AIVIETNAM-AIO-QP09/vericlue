@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -44,6 +45,7 @@ import androidx.compose.material.icons.outlined.Badge
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Face
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.Checkbox
@@ -51,6 +53,8 @@ import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -70,6 +74,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -82,9 +88,16 @@ import vn.vericlue.app.R
 import vn.vericlue.app.flow.Agreement
 import vn.vericlue.app.ui.components.ChecklistCard
 import vn.vericlue.app.ui.components.Banner
+import vn.vericlue.app.ui.components.ContentCard
+import vn.vericlue.app.ui.components.WelcomePanel
+import vn.vericlue.app.ui.components.JourneyOverview
+import vn.vericlue.app.ui.components.HelpButton
+import vn.vericlue.app.ui.components.FeatureRow
 import vn.vericlue.app.ui.components.LinkButton
 import vn.vericlue.app.ui.components.PrimaryButton
 import vn.vericlue.app.ui.components.IdentityIllustration
+import vn.vericlue.app.ui.components.IdentityScene3D
+import vn.vericlue.app.ui.components.IllustrationScene
 import vn.vericlue.app.ui.components.NumberedRow
 import vn.vericlue.app.ui.components.SampleAccount
 import vn.vericlue.app.ui.components.SuccessBadge
@@ -192,32 +205,18 @@ fun SplashScreen(onDone: () -> Unit) {
 @Composable
 fun AuthScreen(onRegister: () -> Unit, onLogin: () -> Unit, onRecover: () -> Unit, manualFullDemo: Boolean = false, preview: Boolean = false) {
     val c = Vc.colors
-    val phase = if (Vc.motion.enabled) {
-        val float = rememberInfiniteTransition(label = "float")
-        val value by float.animateFloat(
-            initialValue = -1f, targetValue = 1f,
-            animationSpec = infiniteRepeatable(tween(2400, easing = LinearEasing), RepeatMode.Reverse), label = "phase",
-        )
-        value
-    } else 0f
     VcScreen(actions = {
-        PrimaryButton("Đăng ký", onRegister)
+        PrimaryButton("Bắt đầu đăng ký", onRegister)
         SecondaryButton("Đăng nhập", onLogin)
         LinkButton("Khôi phục tài khoản", onRecover)
     }) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (manualFullDemo) Banner("Demo · Ngưỡng chưa hiệu chỉnh", tone = Tone.Warn)
-            if (preview) Banner("Xem trước giao diện · Không chạy AI", tone = Tone.Warn)
-            IdentityIllustration(Modifier.height(200.dp), phase)
-            TitleBlock(
-                "Xác minh danh tính",
-                "Chuẩn bị thẻ căn cước và chọn nơi đủ sáng.",
-            )
-            Column {
-                NumberedRow(1, "Thẻ căn cước")
-                NumberedRow(2, "Khuôn mặt")
-                NumberedRow(3, "Đọc một câu", detail = "Chỉ khi cần", last = true)
-            }
+        if (manualFullDemo) Banner("Demo · Ngưỡng chưa hiệu chỉnh", tone = Tone.Warn)
+        if (preview) Banner("Xem trước giao diện · Không chạy AI", tone = Tone.Warn)
+        WelcomePanel()
+        ContentCard {
+            Text("Hành trình xác minh", style = VcType.section, color = c.ink)
+            JourneyOverview()
+            HelpButton()
         }
     }
 }
@@ -258,14 +257,12 @@ fun TermsScreen(
         onBack = onBack,
         actions = { PrimaryButton(if (busy) "Đang ghi nhận…" else "Đồng ý và tiếp tục", onAccept, enabled = agreement.canContinue && !busy) },
     ) {
-        TitleBlock("Đồng ý xác minh")
-        Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-                .background(c.surface).border(1.dp, c.border, RoundedCornerShape(16.dp))
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Text("Thông tin cần sử dụng", style = VcType.label, color = c.ink)
+        TitleBlock("Đồng ý xác minh", "Tìm hiểu cách VeriClue sử dụng thông tin của bạn.", eyebrow = "QUYỀN RIÊNG TƯ")
+        ContentCard {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Thông tin cần sử dụng", style = VcType.section, color = c.ink, modifier = Modifier.weight(0.6f))
+                IdentityScene3D(Modifier.weight(0.4f).height(100.dp), IllustrationScene.Privacy)
+            }
             if (purpose != vn.vericlue.app.flow.Purpose.Reauth) DataUseRow(Icons.Outlined.Phone, "Số điện thoại")
             if (purpose == vn.vericlue.app.flow.Purpose.Onboarding) DataUseRow(Icons.Outlined.Badge, "Thông tin và chân dung trên thẻ")
             DataUseRow(Icons.Outlined.Face, if (purpose == vn.vericlue.app.flow.Purpose.Onboarding) "Ảnh và video khuôn mặt" else "Video khuôn mặt và đối chiếu mẫu tài khoản")
@@ -285,7 +282,7 @@ fun TermsScreen(
                 dataUseDetails.forEach { (title, body) ->
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(title, style = VcType.labelSmall, color = c.ink)
-                        Text(body, style = VcType.body, color = c.ink)
+                        Text(body, style = VcType.bodySmall, color = c.muted)
                     }
                 }
             }
@@ -335,5 +332,29 @@ private fun DataUseRow(icon: ImageVector, title: String) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(icon, contentDescription = null, tint = Vc.colors.accent, modifier = Modifier.size(24.dp))
         Text(title, style = VcType.body, color = Vc.colors.ink)
+    }
+}
+
+@Composable
+private fun ConsentChoice(accepted: Boolean, onToggle: () -> Unit) {
+    val c = Vc.colors
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
+            .background(if (accepted) c.surfaceInfo else c.surfaceSubtle)
+            .border(1.dp, if (accepted) c.accent else c.border, RoundedCornerShape(20.dp))
+            .toggleable(value = accepted, role = Role.Checkbox, onValueChange = { onToggle() })
+            .padding(start = 4.dp, end = 14.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Checkbox(
+            checked = accepted, onCheckedChange = null, modifier = Modifier.size(48.dp),
+            colors = CheckboxDefaults.colors(
+                checkedColor = c.primary, checkmarkColor = c.onPrimary, uncheckedColor = c.muted,
+            ),
+        )
+        Text(
+            "Tôi đồng ý để VeriClue xử lý các thông tin trên nhằm xác minh danh tính.",
+            style = VcType.body, color = c.ink, modifier = Modifier.weight(1f).padding(vertical = 10.dp),
+        )
     }
 }

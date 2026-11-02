@@ -11,6 +11,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import vn.vericlue.app.capture.CamProbe
 import vn.vericlue.app.data.api.Challenge
+import vn.vericlue.app.data.api.DynamicChallenge
 import vn.vericlue.app.data.api.ColorEvent
 import vn.vericlue.app.data.api.ColorStep
 import vn.vericlue.app.data.api.CreateSessionResponse
@@ -77,6 +78,7 @@ class ContractTest {
     fun responsesMatchTheContract() {
         checkResponse("ColorStep", ColorStep.serializer())
         checkResponse("Challenge", Challenge.serializer())
+        checkResponse("DynamicChallenge", DynamicChallenge.serializer())
         checkResponse("CreateSessionResponse", CreateSessionResponse.serializer())
         checkResponse("StepAck", StepAck.serializer())
         checkResponse("FinalizeResponse", FinalizeResponse.serializer())

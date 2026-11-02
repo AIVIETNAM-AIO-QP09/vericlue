@@ -25,13 +25,13 @@ import vn.vericlue.app.ui.theme.Palette
  * [faceScale] < 1 shows the person further away ("Lại gần hơn").
  */
 @Composable
-fun FakeCameraFeed(modifier: Modifier = Modifier, faceScale: Float = 1f, dim: Float = 0f) {
+fun FakeCameraFeed(modifier: Modifier = Modifier, faceScale: Float = 1f, dim: Float = 0f, centerYFraction: Float = 0.36f) {
     Canvas(modifier.fillMaxSize()) {
         drawRect(Brush.verticalGradient(listOf(Color(0xFF2A3038), Palette.CameraBg)))
         val cx = size.width / 2f
         val headW = size.width * 0.42f * faceScale
         val headH = headW * 1.3f
-        val headTop = size.height * 0.36f - headH / 2f
+        val headTop = size.height * centerYFraction - headH / 2f
         val skin = Color(0xFF6B5A50)
         drawOval(
             Brush.radialGradient(listOf(skin, Color(0xFF3E342F)), center = Offset(cx, headTop + headH * 0.45f), radius = headW),

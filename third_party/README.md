@@ -165,3 +165,32 @@ Dùng nguyên bản qua Gradle, không chép mã.
 | ML Kit Face Detection 16.1, Barcode Scanning 17.3 (bản đóng gói trong app) | Điều khoản dịch vụ Google APIs / ML Kit (miễn phí, không phải mã nguồn mở); không phải GPL | `apps/android/.../capture/CameraSession.kt` (hướng dẫn căn mặt, góc quay đầu, đọc QR CCCD; không ra phán quyết) | APP-02, APP-04 |
 | OkHttp 4.12 (+ MockWebServer khi test) | Apache-2.0 | `apps/android/.../data/api/Api.kt` | APP-01 |
 | kotlinx.serialization 1.7, kotlinx.coroutines 1.9 | Apache-2.0 | `apps/android` | APP-01 |
+
+## APP-11 (danh mục UI và Lottie Compose)
+
+| Nguồn | Giấy phép | Dùng ở đâu | Cách dùng |
+|---|---|---|---|
+| [wasabeef/awesome-android-ui](https://github.com/wasabeef/awesome-android-ui) @ `312f9be3c50b3ea33ff3ba7eb9aa1c21b52de8b2` | MIT, Copyright (c) 2019 wasabeef | `tmp/ui-references/awesome-android-ui` (không commit/đóng gói) | Danh mục tham khảo để chọn thư viện, không chép code/ảnh demo |
+| [Airbnb Lottie Android / Compose 6.6.2](https://github.com/airbnb/lottie-android/tree/v6.6.2) | Apache-2.0 | `apps/android/.../ui/components/SuccessAnimation.kt` | Dependency Maven `com.airbnb.android:lottie-compose:6.6.2`, không chép source implementation |
+
+Giấy phép upstream nguyên bản tại `third_party/licenses/lottie-android-Apache-2.0.txt`,
+đóng gói cùng APK ở `app/src/main/assets/licenses/lottie-android.txt`.
+`res/raw/vericlue_success.json` là vector tự tạo cho VeriClue, không lấy
+animation hoặc ảnh từ LottieFiles/danh mục. Không có ảnh, font, URL ngoài trong asset.
+
+Lượt mở rộng APP-11 tham khảo thêm mẫu từ ComposeCookBook, BottomSheet,
+material-dialogs, ExpandableLayout, Material Code Input và circular-progress-button.
+Chỉ tham khảo cách tổ chức/tương tác; không chép mã hoặc asset, không thêm
+dependency của các thư viện này. Thành phần tự viết dùng Compose/Material 3
+hiện có. Bảng nguồn → thành phần ở `apps/android/docs/ui-libraries.md`.
+
+## APP-11 (Three.js offline)
+
+| Nguồn | Giấy phép | Dùng ở đâu | Cách dùng |
+|---|---|---|---|
+| [mrdoob/three.js r170 / 0.170.0](https://github.com/mrdoob/three.js/tree/r170) | MIT, Copyright 2010–2024 Three.js Authors | `apps/android/app/src/main/assets/three/vendor/three.module.min.js` | Build ES module minified upstream, giữ header; bảy cảnh trên bốn màn Android, WebView local |
+
+Giấy phép upstream tại `third_party/licenses/three-r170-MIT.txt` và
+`assets/three/vendor/LICENSE` (đóng gói trong APK). Hash/nguồn tải tại
+`apps/android/docs/three-scene.md`. `scene.js`, `illustrations.js`, HTML/CSS và hình học
+là code tự viết; không chép ví dụ, model, texture hoặc hình cá nhân upstream.

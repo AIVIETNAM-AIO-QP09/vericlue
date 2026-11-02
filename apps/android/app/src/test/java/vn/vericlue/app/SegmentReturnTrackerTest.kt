@@ -7,7 +7,7 @@ import vn.vericlue.app.flow.TurnDir
 
 class SegmentReturnTrackerTest {
     private fun face(yaw: Float = 0f, at: Long) =
-        FaceSignal(1, .45f, .5f, .45f, yaw, 120f, at * 1_000_000)
+        FaceSignal(1, .45f, .5f, .45f, yaw, 120f, at * 1_000_000, pitch = 0f, roll = 0f)
 
     @Test fun oneExcursionAndReturnDoesNotAskForTheSameTurnAgainInEitherOrder() {
         for (order in listOf(listOf(TurnDir.Left, TurnDir.Right), listOf(TurnDir.Right, TurnDir.Left))) {

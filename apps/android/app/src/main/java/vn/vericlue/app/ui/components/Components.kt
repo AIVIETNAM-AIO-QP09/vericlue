@@ -12,6 +12,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,11 +30,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -69,8 +72,16 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.material.icons.outlined.HourglassEmpty
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -177,41 +188,62 @@ fun VcScreen(
     background: Color = Vc.colors.background,
     actions: (@Composable ColumnScope.() -> Unit)? = null,
     bottom: (@Composable () -> Unit)? = null,
+    scrollState: ScrollState = rememberScrollState(),
     content: @Composable ColumnScope.() -> Unit,
 ) {
     SystemBarIcons(background)
-    Column(Modifier.fillMaxSize().background(background).statusBarsPadding()) {
-        TopBar(onBack, showLogo)
-        if (step != null) StepProgress(step, stepLabel(step))
-        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-            val minimumHeight = if (centered) (maxHeight - 48.dp).coerceAtLeast(0.dp) else 0.dp
-            Column(
-                Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 24.dp).heightIn(min = minimumHeight),
-                verticalArrangement = if (centered) {
-                    Arrangement.spacedBy(24.dp, Alignment.CenterVertically)
-                } else {
-                    Arrangement.spacedBy(24.dp)
-                },
-                horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start,
-                content = content,
-            )
+    BoxWithConstraints(
+        Modifier.fillMaxSize().background(background).statusBarsPadding().imePadding(),
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        // A fixed footer/keypad must never consume the entire reading viewport.
+        val scrollActions = maxHeight < 560.dp || LocalDensity.current.fontScale >= 1.5f
+        val bodyAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start
+        Column(Modifier.widthIn(max = 600.dp).fillMaxWidth().fillMaxHeight()) {
+            TopBar(onBack, showLogo)
+            if (step != null) JourneyHeader(step)
+            if (scrollActions) {
+                Column(Modifier.weight(1f).verticalScroll(scrollState)) {
+                    Column(
+                        Modifier.fillMaxWidth().padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(24.dp),
+                        horizontalAlignment = bodyAlignment,
+                        content = content,
+                    )
+                    if (actions != null) ActionPanel(navigationInset = bottom == null, content = actions)
+                    if (bottom != null) bottom()
+                    if (bottom != null || actions == null) Spacer(Modifier.navigationBarsPadding())
+                }
+            } else {
+                BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+                    val minimumHeight = if (centered) (maxHeight - 48.dp).coerceAtLeast(0.dp) else 0.dp
+                    Column(
+                        Modifier.fillMaxWidth().verticalScroll(scrollState)
+                            .padding(24.dp).heightIn(min = minimumHeight),
+                        verticalArrangement = if (centered) {
+                            Arrangement.spacedBy(24.dp, Alignment.CenterVertically)
+                        } else {
+                            Arrangement.spacedBy(24.dp)
+                        },
+                        horizontalAlignment = bodyAlignment,
+                        content = content,
+                    )
+                }
+                if (actions != null) ActionPanel(navigationInset = bottom == null, content = actions)
+                if (bottom != null) bottom()
+                if (bottom != null || actions == null) Spacer(Modifier.navigationBarsPadding())
+            }
         }
-        if (actions != null) {
-            ActionPanel(navigationInset = bottom == null, content = actions)
-        }
-        if (bottom != null) bottom()
-        if (bottom != null || actions == null) Spacer(Modifier.navigationBarsPadding())
     }
 }
 
 /** A quiet, fixed action area shared by the warm screens. */
 @Composable
 fun ActionPanel(navigationInset: Boolean = true, content: @Composable ColumnScope.() -> Unit) {
-    Surface(color = Vc.colors.surface, shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp), shadowElevation = 4.dp) {
+    Surface(color = Vc.colors.surface, shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp), shadowElevation = 2.dp) {
         Column(
             Modifier.fillMaxWidth().then(if (navigationInset) Modifier.navigationBarsPadding() else Modifier)
-                .padding(horizontal = 20.dp, vertical = 16.dp),
+                .padding(horizontal = 24.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp), content = content,
         )
     }
@@ -227,7 +259,7 @@ fun TitleBlock(title: String, body: String? = null, eyebrow: String? = null, cen
         horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start,
     ) {
         if (eyebrow != null) Text(eyebrow, style = VcType.labelXs, color = c.accent)
-        Text(title, style = titleStyle, color = c.ink, textAlign = align)
+        Text(title, style = titleStyle, color = c.ink, textAlign = align, modifier = Modifier.semantics { heading() })
         if (body != null) Text(body, style = VcType.body, color = c.muted, textAlign = align)
     }
 }
@@ -239,6 +271,7 @@ fun PrimaryButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     container: Color = Vc.colors.primary,
+    loading: Boolean = false,
 ) {
     val c = Vc.colors
     val motion = Vc.motion
@@ -253,8 +286,9 @@ fun PrimaryButton(
     val fg = c.buttonForeground(bg)
     Button(
         onClick = onClick,
-        enabled = enabled,
-        modifier = modifier.fillMaxWidth().heightIn(min = 56.dp).scale(if (motion.enabled) scale else 1f),
+        enabled = enabled && !loading,
+        modifier = modifier.fillMaxWidth().heightIn(min = 56.dp).scale(if (motion.enabled) scale else 1f)
+            .semantics { if (loading) { stateDescription = "Đang xử lý"; liveRegion = LiveRegionMode.Polite } },
         interactionSource = interactions,
         shape = CircleShape,
         colors = ButtonDefaults.buttonColors(
@@ -263,7 +297,14 @@ fun PrimaryButton(
             disabledContainerColor = bg,
             disabledContentColor = fg,
         ),
-    ) { Text(text, style = VcType.button) }
+    ) {
+        if (loading) {
+            if (motion.enabled) CircularProgressIndicator(Modifier.size(20.dp).clearAndSetSemantics {}, color = fg, strokeWidth = 2.dp)
+            else Icon(Icons.Outlined.HourglassEmpty, null, tint = fg, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(10.dp))
+        }
+        Text(text, style = VcType.button)
+    }
 }
 
 @Composable
@@ -288,7 +329,7 @@ fun LinkButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier)
     val interactions = remember { MutableInteractionSource() }
     val pressed by interactions.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.97f else 1f, motion.tween(110), label = "link-press")
-    TextButton(onClick = onClick, modifier = modifier.fillMaxWidth().scale(if (motion.enabled) scale else 1f), interactionSource = interactions) {
+    TextButton(onClick = onClick, modifier = modifier.fillMaxWidth().heightIn(min = 48.dp).scale(if (motion.enabled) scale else 1f), interactionSource = interactions) {
         Text(text, style = VcType.label, color = Vc.colors.accent, textAlign = TextAlign.Center)
     }
 }
@@ -423,7 +464,7 @@ private fun StateIcon(state: RowState) {
 
 /** Android-style number pad. Digits only: phone and OTP screens. */
 @Composable
-fun NumericKeypad(onDigit: (Char) -> Unit, onBackspace: () -> Unit, onDone: () -> Unit) {
+fun NumericKeypad(onDigit: (Char) -> Unit, onBackspace: () -> Unit, onDone: () -> Unit, enabled: Boolean = true, doneEnabled: Boolean = true) {
     val c = Vc.colors
     val rows = listOf("123", "456", "789")
     Column(
@@ -432,30 +473,30 @@ fun NumericKeypad(onDigit: (Char) -> Unit, onBackspace: () -> Unit, onDone: () -
     ) {
         rows.forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                row.forEach { d -> Key(Modifier.weight(1f), c.key, { onDigit(d) }) { DigitLabel(d) } }
+                row.forEach { d -> Key(Modifier.weight(1f), c.key, { onDigit(d) }, enabled) { DigitLabel(d) } }
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Key(Modifier.weight(1f), c.border, onBackspace) {
+            Key(Modifier.weight(1f), c.border, onBackspace, enabled) {
                 Icon(Icons.AutoMirrored.Outlined.Backspace, contentDescription = "Xóa", tint = c.ink)
             }
-            Key(Modifier.weight(1f), c.key, { onDigit('0') }) { DigitLabel('0') }
-            Key(Modifier.weight(1f), c.primary, onDone) {
-                Icon(Icons.Outlined.Check, contentDescription = "Xong", tint = c.onPrimary)
+            Key(Modifier.weight(1f), c.key, { onDigit('0') }, enabled) { DigitLabel('0') }
+            Key(Modifier.weight(1f), if (enabled && doneEnabled) c.primary else c.disabled, onDone, enabled && doneEnabled) {
+                Icon(Icons.Outlined.Check, contentDescription = "Xong", tint = if (enabled && doneEnabled) c.onPrimary else c.onDisabled)
             }
         }
     }
 }
 
 @Composable
-private fun Key(modifier: Modifier, color: Color, onClick: () -> Unit, content: @Composable () -> Unit) {
+private fun Key(modifier: Modifier, color: Color, onClick: () -> Unit, enabled: Boolean = true, content: @Composable () -> Unit) {
     val motion = Vc.motion
     val interactions = remember { MutableInteractionSource() }
     val pressed by interactions.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.97f else 1f, motion.tween(110), label = "key-press")
     Box(
         modifier.heightIn(min = 50.dp).scale(if (motion.enabled) scale else 1f).clip(RoundedCornerShape(8.dp)).background(color)
-            .clickable(interactionSource = interactions, indication = LocalIndication.current, role = Role.Button, onClick = onClick),
+            .clickable(enabled = enabled, interactionSource = interactions, indication = LocalIndication.current, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { content() }
 }

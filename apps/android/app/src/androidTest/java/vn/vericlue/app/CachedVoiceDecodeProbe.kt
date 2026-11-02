@@ -23,7 +23,7 @@ internal object CachedVoiceDecodeProbe {
         var directory: File? = null
         try {
             val name = requireNotNull(arguments.getString("cacheName"))
-            require(Regex("voice_[0-9]+\\.mp4").matches(name))
+            require(Regex("voice_[0-9]+(?:_[0-9]+)?\\.mp4").matches(name))
             val cache = instrumentation.targetContext.cacheDir.canonicalFile
             val source = File(cache, name).canonicalFile
             require(source.parentFile == cache && source.isFile)

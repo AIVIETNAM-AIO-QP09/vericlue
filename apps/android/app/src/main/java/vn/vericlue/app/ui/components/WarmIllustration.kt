@@ -38,7 +38,7 @@ fun IdentityIllustration(modifier: Modifier = Modifier, phase: Float = 0f) {
     val c = Vc.colors
     val mark = painterResource(R.drawable.logo_mark)
     Canvas(modifier.fillMaxWidth().height(168.dp)) {
-        val unit = size.height / 180f
+        val unit = minOf(size.height / 180f, size.width / 210f)
         val center = Offset(size.width / 2f, size.height / 2f)
         drawCircle(c.illustration, 83f * unit, center)
         rotate(8f, center) {

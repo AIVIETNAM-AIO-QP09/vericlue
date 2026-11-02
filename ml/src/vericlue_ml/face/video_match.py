@@ -13,7 +13,7 @@ from vericlue_ml.face.match import MATCH_VERSION, FaceMatchDetector, MatchError
 from vericlue_ml.face.pad import PadError
 from vericlue_ml.face.template import FaceTemplate
 from vericlue_ml.presence.challenge import expected_dynamic
-from vericlue_ml.presence.head_protocol import head_protocol_version
+from vericlue_ml.presence.head_protocol import head_identity_suffix, head_protocol_version
 from vericlue_ml.presence.head_turn import CENTER_MAX_DEG, MAX_PITCH_ROLL_DEG
 from vericlue_ml.presence.landmarks import FaceObservationReader, LandmarkError
 from vericlue_ml.presence.session_views import session_views
@@ -40,7 +40,7 @@ class VideoFaceMatchDetector(FaceMatchDetector):
 
     def _supported_versions(self) -> tuple[str, ...]:
         return (
-            (self.version, self.version + "+head12s-v2")
+            tuple(self.version + head_identity_suffix(protocol) for protocol in (1, 2, 3))
             if self.with_consistency
             else (self.version,)
         )
@@ -114,8 +114,8 @@ class VideoFaceMatchDetector(FaceMatchDetector):
         version = self.version
         try:
             dynamic = expected_dynamic(inp)
-            if self.with_consistency and head_protocol_version(inp) == 2:
-                version += "+head12s-v2"
+            if self.with_consistency:
+                version += head_identity_suffix(head_protocol_version(inp))
             target = dynamic.get("frontal_capture_at_ms")
             baseline = inp.metadata["expected_challenge"].get("baseline_ms")
             if (

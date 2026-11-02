@@ -468,6 +468,158 @@ không dùng ảnh căn cước/người dùng thật, không cài điện tho�
 
 ---
 
+### APP-11 · Hoàn thiện giao diện Android
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M1 | 1 | S2 | P0 | PLAT-04 |
+
+Yêu cầu 02/11: làm đẹp UI/UX app Android. Giữ nhận diện nền ngà/navy và
+Be Vietnam Pro; cải thiện phân cấp nội dung, thẻ thông tin, điều khoản và
+hướng dẫn trước camera. Không thay hợp đồng, lịch thử thách hoặc luật xác minh.
+Task được mở từ yêu cầu trực tiếp; PLAT-04 đã `done`.
+
+- [x] Màn bắt đầu, đồng ý, xác nhận thông tin và chuẩn bị khuôn mặt có phân cấp
+      rõ, dùng chung thành phần và màu theo theme.
+- [x] Nút/chữ không bị che ở màn nhỏ, chữ lớn; giữ đồng ý chủ động, trạng thái
+      lỗi và các cảnh báo cần thiết. Camera không thêm hiệu ứng trang trí.
+- [x] Render Compose sáng/tối, 375dp, chữ 200%, ngang; kiểm tra trực quan và
+      chạy unit test/lint/build Android.
+- [x] README, bàn giao và backlog cập nhật; `plan_check.py` không lỗi.
+
+Kiểm tra 02/11: 154 test đạt, `lintDebug` không lỗi (12 cảnh báo ở mã/tài
+nguyên có sẵn), `assembleDebug` thành công. Bộ onboarding có 194 ảnh, gồm
+tablet 800dp. Đã xem ảnh đại diện sáng/tối, màn nhỏ, chữ lớn và ngang;
+chưa nghiệm thu trên điện thoại thật. Xem bàn giao APP-11 ngày 02/11.
+
+Yêu cầu tiếp 02/11: setup và dùng `wasabeef/awesome-android-ui`. Mở lại
+APP-11 trên cùng nhánh/PR theo yêu cầu người dùng. Repo là danh mục tham
+khảo; chọn Lottie Compose (Apache-2.0) để thử animation thành công.
+
+- [x] Clone danh mục tham khảo local, ghi commit/nguồn và hướng dẫn setup.
+- [x] Ghim Lottie Compose, dùng asset vector tự tạo trong app, có fallback
+      tĩnh và tôn trọng giảm chuyển động/vòng đời; không nối vào camera.
+- [x] Test parse/render asset thật, reduced motion/fallback, unit/lint/build;
+      ghi giấy phép và ảnh xem thử.
+
+Lượt bổ sung: 158 test đạt; lint 0 lỗi/12 cảnh báo/1 thông tin có sẵn;
+build APK debug chưa ký thành công. Lottie có 10 ảnh và 2 APNG kiểm
+frame cuối, preview local `tmp/app11-ui/lottie/index.html`. Chưa thử
+lifecycle/chuyển động trên thiết bị thật; task giữ `review`.
+
+Yêu cầu mở rộng 02/11: khai thác thêm danh mục UI để nâng cấp toàn trải nghiệm.
+Tiếp tục trên nhánh/PR APP-11 theo yêu cầu trực tiếp, giữ hợp đồng và lịch camera.
+
+- [x] Màn bắt đầu, tiến trình, nhập số/OTP, chờ/kết quả có bố cục đồng bộ và rõ hơn.
+- [x] Trợ giúp theo ngữ cảnh, FAQ mở rộng; dán dữ liệu theo thao tác chủ động,
+      phản hồi busy/validation và bộ đếm gửi lại OTP hoạt động nhiều lượt.
+- [x] Ghi rõ thư viện dùng trực tiếp và mẫu tham khảo triển khai bằng Compose;
+      test logic/render, kiểm 375dp/chữ 200%/ngang/tối, lint/build và preview trước/sau.
+
+Lượt mở rộng: 168 test đạt, lint 0 lỗi/12 cảnh báo/1 thông tin có sẵn,
+APK debug chưa ký build thành công. Preview `tmp/app11-ui/upgrade/index.html`
+có 194 ảnh hành trình và 42 ảnh form/trợ giúp so với bản `4698f2a`.
+Chưa nghiệm thu modal/TalkBack/clipboard trên điện thoại; giữ `review`.
+
+Yêu cầu tiếp 02/11: dùng `mrdoob/three.js` để bổ sung chiều sâu cho giao diện.
+Mở lại APP-11 theo yêu cầu trực tiếp, cùng nhánh/PR.
+
+- [x] Three.js ghim phiên bản, giấy phép/nguồn rõ; cảnh tự tạo đóng gói offline.
+- [x] Tích hợp vùng minh họa 3D ở màn đầu Compose, giữ CTA native, fallback
+      khi giảm chuyển động/WebGL lỗi; tạm dừng/hủy tài nguyên theo vòng đời.
+- [x] Kiểm WebGL thật, pause/resume/reduced motion/lỗi/context loss;
+      Android test/lint/build và preview; không đưa 3D vào camera hoặc API.
+
+Kết quả: 171 test Android và 4 nhóm WebGL đạt; lint không lỗi (12 cảnh báo,
+1 thông tin có sẵn), APK debug chưa ký build được và chứa tài nguyên Three.js.
+Preview `tmp/app11-ui/three/index.html`; browser dùng SwiftShader, Paparazzi
+dùng hình dự phòng. Chưa nghiệm thu WebView/GPU/lifecycle/cuộn trên điện thoại;
+giữ `review`, chi tiết ở bàn giao 17:20.
+
+Yêu cầu mở rộng Three.js: dùng cảnh theo ngữ cảnh ở nhiều màn, có tương tác
+chọn nội dung và chuyển cảnh, thay vì chỉ minh họa một thẻ ở màn đầu.
+
+- [x] Màn đầu có các chương thẻ/khuôn mặt/giọng nói; chuẩn bị khuôn mặt có
+      các tư thế minh họa chọn bằng nút native; đồng ý/thành công có cảnh riêng.
+- [x] Một renderer mỗi vùng, đổi cảnh không nạp lại WebView; giải phóng geometry,
+      material/instance khi đổi cảnh; giới hạn chuyển động và giữ fallback có nghĩa.
+- [x] Kiểm chuyển cảnh liên tục, dừng/chạy, giảm chuyển động, lỗi WebGL,
+      tài nguyên GPU; kiểm native controls, snapshot, lint/build và preview mới.
+
+Lượt mở rộng: 174 test Android đạt; lint 0 lỗi/12 cảnh báo/1 thông tin có sẵn,
+APK build được, sáu asset/license Three.js trong APK khớp source. Năm nhóm
+WebGL đạt, kiểm bảy cảnh/hai theme và 56 lần chuyển không tăng geometry/texture
+GPU; thêm 36 snapshot lựa chọn native. Preview tại `tmp/app11-ui/three/index.html`,
+tái tạo bằng script trong repo. Giữ `review` chờ điện thoại, bàn giao 17:52.
+
+Phản hồi test thiết bị: 3D chỉ trang trí, bỏ điều khiển/thuyết minh thừa;
+khung mặt bị đổi tỷ lệ qua căn mặt/đổi màu/theo chấm/quay đầu.
+
+- [x] 3D tự chạy ngắn, không có tab/xem lại/dừng trong luồng người dân; rút gọn copy.
+- [x] Dùng chung viewport camera và oval cho mọi pha, không scale/crop lại khi chuyển pha;
+      giữ tọa độ chấm toàn màn hình, lịch màu, recording và điều kiện xác minh.
+- [x] Nêu đúng giới hạn luồng không đổi màu; đăng nhập thụ động không hiện cảnh báo đổi màu.
+- [x] Test hình học thực qua các màn, snapshot/chữ lớn, lint/build, cập nhật preview và APK local.
+
+Kết quả: 177 test Android đạt, lint không lỗi (12 cảnh báo/1 thông tin có sẵn),
+APK local build thành công. Đo cùng viewport/oval qua chín trạng thái trên ba
+cấu hình (27 ảnh); 18 ảnh kiểm không có player và cảnh báo đổi màu ở reauth.
+Năm nhóm WebGL đạt. Preview `tmp/app11-ui/refined/index.html` so với `2aa9971`.
+Giữ `review` chờ thử lại trên điện thoại; phương thức không đổi màu cho đăng ký/
+khôi phục chưa triển khai, câu hỏi và phạm vi backend ở bàn giao 18:36.
+
+Phản hồi tiếp: tăng chất lượng chuyển động, bỏ mô tả thừa ở màn danh tính;
+khung mặt cần vừa ở khoảng cách tự nhiên, camera thu gọn lúc theo chấm;
+không bắt đầu khi thiếu mặt và không tự chuyển yêu cầu quay đầu khi chưa làm.
+Mở lại theo yêu cầu trực tiếp, cùng nhánh/PR; cho phép subagent chia việc.
+
+- [x] Chuyển động native/Three.js rõ, hữu hạn và tôn trọng giảm chuyển động;
+      bỏ mô tả dưới ba mục và câu chuẩn bị ở hero, chữ ngắn/chuyên nghiệp.
+- [x] Preview mặt giữ đầy đủ ảnh, oval rộng hơn; gaze dùng thumbnail góc và
+      chấm có tương phản rõ, giữ tọa độ server và crop nguồn khi chuyển pha.
+- [x] Chỉ bắt đầu khi một mặt đầy đủ nằm trong oval, nhìn thẳng, ổn định qua
+      các frame mới; không cho tín hiệu cũ/thiếu quyền camera kích hoạt timer demo.
+- [x] Kiểm đúng hướng quay/nhìn giữa qua nhiều frame; chưa đạt thì dừng/thử lại
+      bằng challenge mới, không tự chuyển tiếp hoặc kéo lệch lịch thu server.
+- [x] Test hồi quy thiếu mặt/không làm/sai hướng/tín hiệu cũ/hủy capture, ảnh
+      và chuyển động ở chữ lớn/màn nhỏ, lint/build, cập nhật preview/APK.
+
+Kết quả tích hợp: 208 test Android đạt; lint 0 lỗi/12 cảnh báo/3 thông tin,
+APK build thành công. Sáu nhóm WebGL đạt; ba APNG native có chuyển động
+thực rồi đứng yên. Preview `tmp/app11-ui/polished/index.html` gồm chín cặp
+trước/sau và ba APNG. Giữ `review`: cần nghiệm thu khoảng cách, hướng quay
+và camera thực tế. Lịch server vẫn cố định; thiếu thao tác thì retry, chưa
+chờ thích ứng từng hướng. Chi tiết và giới hạn mock ở bàn giao 20:39.
+
+Phản hồi thử máy tiếp: căn mặt còn khó, cần nhắc sửa tại bước quay đầu thay
+vì bắt làm lại toàn lượt. Mở lại APP-11 theo yêu cầu trực tiếp; cập nhật hợp
+đồng/API/ML đồng bộ để hỗ trợ lịch quay đầu thích ứng, giữ tương thích bản cũ.
+
+- [x] Căn mặt chấp nhận khoảng cách tự nhiên, dung sai rung nhẹ và gợi ý đúng
+      khoảng cách/vị trí; vẫn bắt buộc một mặt đầy đủ, rõ và frame mới.
+- [x] Quay sai/chưa quay giữ nguyên yêu cầu và nhắc ngay tại chỗ; chỉ đổi
+      hướng khi có đủ frame giữ đúng tư thế, không qua bước theo đồng hồ.
+- [x] Server cấp chế độ thích ứng có giới hạn thời gian, tự kiểm động tác
+      trên video gốc; phiên/bản cũ giữ lịch cũ, refresh giữ chế độ đã chọn.
+- [x] Test Android/API/ML và snapshot, build APK; cập nhật tài liệu và bàn giao,
+      giữ nghiệm thu khoảng cách/tư thế trên máy thật ở mức review.
+
+Lượt thích ứng: 229 test Android đạt, lint 0 lỗi/12 cảnh báo/3 thông tin,
+APK build thành công. Backend/ML có hai lượt 193 và 122 test đạt (chồng lặp).
+39 ảnh gợi ý từ nội dung thật qua ba cấu hình, không nhảy footer/oval hoặc
+quá hai dòng ở chữ 200%. Schema/OpenAPI/SDK đồng bộ; mock không chứng minh
+liveness thật. Bàn giao 22:10 ghi cách kiểm và giới hạn tổng thu 30 giây.
+
+**02/11 23:31 — tích hợp S24 FE theo yêu cầu:** ghép PR130 `658139f` với
+nền PR134 `9291bb5`, giữ các sửa giọng, quyền riêng tư và tài khoản. Review chéo
+ba agent bổ sung kiểm sensor clock, giữ Finalize hiện tại, chống lặp lời nhắc,
+EOF thật và phiên bản phép đo adaptive riêng; không mượn artifact timed.
+Schema/OpenAPI/SDK đồng bộ. Giữ `review`, chưa nghiệm thu máy thật của bản này;
+khôi phục vẫn còn chốt nhận dạng câu/lipsync. Kết quả kiểm tra và triển khai ở
+[bàn giao tích hợp](../../status/handoffs/2026-11-02-2331-app-11-ngoc-quang-codex.md).
+
+---
+
 ### APP-02 ★ · App: chụp mặt, quay 3 giây, quay đầu ngẫu nhiên
 
 **02/11 — doing, thử S24 FE:** lượt mới đã qua CCCD/gaze nhưng quay hướng đầu

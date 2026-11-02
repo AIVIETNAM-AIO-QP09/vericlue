@@ -47,7 +47,7 @@ abstract class FaceChallengeSnapshots(device: DeviceConfig) {
 
     @Test fun headAssistStates() {
         val timeline = FaceTimeline.demo(listOf(TurnDir.Left, TurnDir.Right))
-        val front = vn.vericlue.app.capture.FaceSignal(1, 0.45f, 0.5f, 0.45f, 26f, 120f, 0)
+        val front = vn.vericlue.app.capture.FaceSignal(1, 0.45f, 0.5f, 0.45f, 26f, 120f, 0, pitch = 0f, roll = 0f)
         for ((name, face) in listOf("hold" to front, "tilt" to front.copy(roll = 16f), "too_far" to front.copy(yaw = 55f))) {
             // Use the renderer's capture time; a fixed future stamp races the first guide tick.
             val view = ComposeView(paparazzi.context)
@@ -58,7 +58,12 @@ abstract class FaceChallengeSnapshots(device: DeviceConfig) {
                     FaceChallengeContent(timeline, FaceTimeline.Phase.Head(0, TurnDir.Left), 3, captured) {}
                 }
             }
-            paparazzi.snapshot(view, "assist_$name", offsetMillis = 100L)
+            try {
+                paparazzi.snapshot(view, "assist_$name", offsetMillis = 100L)
+            } finally {
+                // A manual host owns the timed guidance poller beyond Layoutlib detachment.
+                view.disposeComposition()
+            }
         }
     }
 

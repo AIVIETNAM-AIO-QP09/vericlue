@@ -20,7 +20,7 @@ from vericlue_ml.face.match import MatchThreshold
 from vericlue_ml.face.template import FaceTemplate
 from vericlue_ml.face.video_match import VIDEO_MATCH_VERSION, VideoFaceMatchDetector
 from vericlue_ml.presence.challenge import expected_dynamic
-from vericlue_ml.presence.head_protocol import head_protocol_version
+from vericlue_ml.presence.head_protocol import head_identity_suffix, head_protocol_version
 from vericlue_ml.presence.head_turn import CENTER_MAX_DEG, MAX_PITCH_ROLL_DEG
 from vericlue_ml.presence.landmarks import LandmarkError
 from vericlue_ml.presence.session_views import session_views
@@ -32,9 +32,7 @@ RECOVERY_MATCH_VERSION = VIDEO_MATCH_VERSION + "+enrolled-recovery-v1"
 
 def recovery_match_version(protocol: int) -> str:
     """Bind enrolled recovery to the exact server capture protocol."""
-    if type(protocol) is not int or protocol not in (1, 2):
-        raise ValueError("Unknown recovery head protocol")
-    return RECOVERY_MATCH_VERSION + ("+head12s-v2" if protocol == 2 else "")
+    return RECOVERY_MATCH_VERSION + head_identity_suffix(protocol)
 
 
 def match_enrolled(
@@ -99,9 +97,7 @@ def match_enrolled(
         consistency = matcher._consistency_threshold
         if recovery and matcher.manual_demo is None and consistency is not None:
             expected_consistency = (
-                VIDEO_MATCH_VERSION
-                + ("+head12s-v2" if protocol == 2 else "")
-                + "+view-consistency-v1"
+                VIDEO_MATCH_VERSION + head_identity_suffix(protocol) + "+view-consistency-v1"
             )
             if consistency.model_version != expected_consistency:
                 raise LandmarkError(ErrorCode.E_INTEGRITY)

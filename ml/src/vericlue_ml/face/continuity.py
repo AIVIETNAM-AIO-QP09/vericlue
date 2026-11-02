@@ -24,7 +24,7 @@ from vericlue_ml.face.match import FaceMatchDetector, MatchThreshold
 from vericlue_ml.face.pad import PadError
 from vericlue_ml.face.video_match import VIDEO_MATCH_VERSION
 from vericlue_ml.presence.challenge import expected_dynamic
-from vericlue_ml.presence.head_protocol import head_protocol_version
+from vericlue_ml.presence.head_protocol import head_identity_suffix, head_protocol_version
 from vericlue_ml.presence.head_turn import CENTER_MAX_DEG, MAX_PITCH_ROLL_DEG
 from vericlue_ml.presence.landmarks import FaceObservationReader, LandmarkError
 from vericlue_ml.presence.views import (
@@ -170,14 +170,19 @@ class FaceContinuityDetector:
         recovery_version = (
             recovery_match_version(head_protocol_version(inp)) if is_recovery else None
         )
+        onboarding_versions = (
+            (VIDEO_MATCH_VERSION + head_identity_suffix(head_protocol_version(inp)),)
+            if dynamic.get("head_mode") == "adaptive"
+            else tuple(v for v in (VIDEO_MATCH_VERSION, *supported) if "+head-adaptive-v1" not in v)
+        )
         expected_versions = (
             (recovery_version + suffix,)
             if is_recovery and using_manual
             else (recovery_version,)
             if is_recovery
-            else tuple(dict.fromkeys(v + suffix for v in (VIDEO_MATCH_VERSION, *supported)))
+            else tuple(v + suffix for v in onboarding_versions)
             if using_manual
-            else (VIDEO_MATCH_VERSION, *supported)
+            else onboarding_versions
         )
         if (
             approved.module != Module.FACE_MATCH

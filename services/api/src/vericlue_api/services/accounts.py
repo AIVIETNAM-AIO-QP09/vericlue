@@ -37,6 +37,7 @@ from vericlue_ml.face.continuity import FACE_VOICE_VERSION
 from vericlue_ml.face.enrolled import recovery_match_version
 from vericlue_ml.face.template import FaceTemplate
 from vericlue_ml.face.video_match import VIDEO_MATCH_VERSION
+from vericlue_ml.presence.head_protocol import head_capture_protocol, head_identity_suffix
 
 ACCOUNT_TTL = timedelta(hours=24)
 _GATES = {
@@ -270,18 +271,26 @@ class AccountStore:
         if recovery:
             if session.challenge.dynamic is None:
                 raise not_eligible()
-            recovery_version = recovery_match_version(session.challenge.dynamic.version)
+            recovery_version = recovery_match_version(
+                head_capture_protocol(session.challenge.dynamic.model_dump())
+            )
+        dynamic = session.challenge.dynamic
+        onboarding_versions = (
+            (
+                VIDEO_MATCH_VERSION
+                + head_identity_suffix(head_capture_protocol(dynamic.model_dump())),
+            )
+            if dynamic is not None and dynamic.head_mode == "adaptive"
+            else (VIDEO_MATCH_VERSION, VIDEO_MATCH_VERSION + "+head12s-v2")
+        )
         expected_match_versions = (
             (recovery_version + suffix,)
             if recovery and s.manual_full_demo
             else (recovery_version,)
             if recovery
-            else (
-                VIDEO_MATCH_VERSION + suffix,
-                VIDEO_MATCH_VERSION + "+head12s-v2" + suffix,
-            )
+            else tuple(version + suffix for version in onboarding_versions)
             if s.manual_full_demo
-            else (VIDEO_MATCH_VERSION, VIDEO_MATCH_VERSION + "+head12s-v2")
+            else onboarding_versions
         )
         if (
             match.model_version not in expected_match_versions

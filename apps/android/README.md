@@ -4,6 +4,14 @@
 
 ## Trạng thái
 
+**02/11 tối — APP-11, tích hợp thử trên S24 FE:** ghép PR130 tại `658139f`
+với sửa giọng/quyền riêng tư tại `9291bb5` trên nhánh riêng. Giữ ghi hình–tiếng
+chung và decoder PTS v3, hai đồng ý độc lập, tài khoản và nhãn demo. Giao diện
+mới chờ giữ đúng hướng trước khi chuyển bước; cập nhật API kèm danh tính phép
+đo adaptive riêng. Đây chưa phải nghiệm thu khôi phục; nhận dạng câu và
+lipsync ở lượt thật trước vẫn chưa đạt. Kiểm tra và triển khai ghi trong
+[bàn giao tích hợp](../../docs/status/handoffs/2026-11-02-2331-app-11-ngoc-quang-codex.md).
+
 **02/11 21:16 — APP-03, đã thử người thật trên v3:** lượt khôi phục mới đã gửi
 được cả bản đọc đầu và bản đọc lại đến AI. Các chốt mặt/quay đầu, voice spoof
 và face continuity đạt; nhận dạng câu và lipsync không đạt. API kết thúc ở
@@ -189,6 +197,71 @@ OTP vẫn mô phỏng với `SIMULATED_OTP=true` trong `synthetic`, độc lập
 Khi SESSION_FACE_MODELS bật, Quality SCRFD/CamProbe rules cũng chạy thật dù OTP vẫn demo. Môi trường/model nạp được không chứng minh chất lượng AI. Artifact hiệu chỉnh
 đúng protocol video và nghiệm thu máy thật còn thiếu; không mở guard hoặc dùng
 calibrator tạm của pipeline cũ để ép đạt.
+APP-11 / lượt trau chuốt chuyển động và chốt capture: màn danh tính chỉ giữ ba
+nhãn hành trình, bỏ mô tả và câu chuẩn bị thừa; native xuất hiện tuần tự, cảnh
+Three.js ghép lớp/xoay rồi ổn định trong 3 giây. Quay đầu có hình hướng dẫn chuyển
+động, tiến độ giữ tư thế lấy từ frame thật. Tất cả có trạng thái giảm chuyển động.
+
+Camera mặt dùng `FIT_CENTER` để không phóng ảnh lấp màn hình dài; oval rộng hơn.
+Chỉ bắt đầu khi một mặt đầy đủ, nhìn thẳng, nằm trong oval và ổn định qua các
+frame mới trong một giây. Tọa độ mặt được ánh xạ bằng CameraX tới đúng khung UI.
+Gaze thu phần xem camera vào góc bằng transform lớp vẽ, giữ nguyên CameraX và
+tọa độ chấm. Kết thúc gaze khôi phục khung chính. Lượt phản hồi tiếp bổ sung
+dung sai căn mặt và chế độ quay đầu thích ứng: quay sai/chưa quay được nhắc
+ngay tại chỗ, giữ yêu cầu hiện tại đến khi quan sát đủ tư thế. API cấp chế độ
+này theo opt-in và tự kiểm video gốc; tổng video tối đa 30 giây. Bản cũ giữ
+lịch cũ. Chi tiết/giới hạn: [capture khuôn mặt](docs/face-capture.md).
+Preview mới: `tmp/app11-ui/polished/index.html`, tạo bằng
+`python apps/android/scripts/build-polished-preview.py` sau Paparazzi.
+
+APP-11 / phản hồi test thiết bị: 3D chỉ trang trí, tự chạy tối đa 3 giây rồi đứng
+yên; bỏ tab, nút xem lại/tạm dừng và lời thuyết minh minh họa khỏi app. Bốn cảnh
+được dùng: thẻ ở màn đầu, khiên/khóa ở đồng ý, khuôn mặt ở chuẩn bị và huy hiệu
+thành công. Tạm dừng khi ẩn/ra nền. Giảm chuyển động hoặc lỗi
+WebGL dùng hình native dự phòng. Chi tiết và giới hạn kiểm tra:
+[Three.js trên Android](docs/three-scene.md). Preview tương tác tại máy:
+`tmp/app11-ui/three/index.html` từ repo root.
+Tạo lại bằng `python apps/android/scripts/build-three-preview.py` sau khi render
+Paparazzi và chạy kiểm tra WebGL. Màn thành công dùng 3D; Lottie vẫn có ở
+`SuccessBadge` cho màn ngân hàng mẫu/gallery, không chạy chồng lên cảnh 3D.
+
+Camera: `FaceCaptureSurface` dùng một viewport toàn màn hình và cùng hình học
+oval chính cho căn mặt, đổi màu và quay đầu; bước gaze dùng thumbnail từ cùng
+nguồn, chỉ biến đổi lớp vẽ. Chấm vẫn theo tọa độ toàn màn hình
+do server cấp; giữ lịch, màu, độ sáng và mốc recording. Diện tích màu nhìn thấy
+thay đổi do khung camera thống nhất, cần kiểm lại chất lượng thu trên thiết bị.
+Màn chuẩn bị rút gọn; đăng nhập thụ động không có cảnh báo đổi màu. Trợ giúp về
+nhạy cảm ánh sáng mở bottom sheet, không tự rời phiên. Backend hiện chưa có
+luồng đăng ký/khôi phục không đổi màu; đây là việc sản phẩm/backend còn thiếu, không được
+bỏ thử thách rồi tự kết luận đạt. Xem bàn giao APP-11 ngày 02/11 lúc 18:36.
+
+APP-11 mở rộng: màn đầu có thẻ navy và hành trình đánh số; màn số điện
+thoại/OTP có dán chủ động, phản hồi lỗi và trạng thái đang gửi/kiểm mã.
+Trợ giúp theo ngữ cảnh mở bằng bottom sheet, FAQ mở rộng từng câu; đọc
+hướng dẫn không gửi dữ liệu hoặc chuyển bước. Màn chờ, kết quả và làm lại
+có thẻ nội dung thống nhất. Bộ đếm gửi lại OTP chạy lại ở mỗi lượt và chặn
+chạm lặp. Các mẫu được chọn từ awesome-android-ui, tự triển khai bằng
+Compose/Material 3; bảng nguồn và cách thử tại [UI libraries](docs/ui-libraries.md).
+Preview so với bản vừa có Lottie: `tmp/app11-ui/upgrade/index.html` từ repo root.
+
+APP-11 bổ sung: đã chọn Lottie Compose 6.6.2 từ danh mục
+`wasabeef/awesome-android-ui`, dùng cho vòng viền động quanh huy hiệu thành công.
+Asset vector tự tạo được đóng gói trong APK; chạy một lần, tạm dừng khi app
+không ở foreground, hiện trạng thái cuối khi tắt chuyển động. Logo/dấu xác
+nhận tĩnh luôn hiện kể cả khi parse asset lỗi; animation không điều khiển kết
+quả hoặc nút tiếp tục. Setup và cách xem: [UI libraries](docs/ui-libraries.md).
+
+APP-11 (02/11): làm mới màn bắt đầu, đồng ý, xác nhận thông tin và chuẩn bị
+khuôn mặt bằng `ContentCard`/`FeatureRow`, giữ nền ngà, navy và Be Vietnam Pro.
+Ô đồng ý nằm cạnh nút tiếp tục, không chọn sẵn; chi tiết xử lý dữ liệu mở
+trong cùng vùng cuộn. Các hướng dẫn trước camera tách riêng giữ đầu thẳng,
+đưa mắt theo chấm và quay đầu; vẫn giữ cảnh báo nhạy cảm ánh sáng.
+`VcScreen` giới hạn vùng đọc 600dp, lề 24dp, tránh bàn phím hệ thống và cho
+cả nội dung/nút/bàn phím số cuộn khi vùng hiển thị thấp hơn 560dp hoặc chữ
+từ 150%. Các màn còn lại giữ nút dưới cùng. Liên kết có vùng bấm tối thiểu
+48dp, tiêu đề có semantics heading. Không thay lịch màu/chấm/quay đầu,
+camera, API hay kết quả xác minh. Bộ ảnh onboarding có thêm tablet và
+`AdaptiveScreenSnapshotTest` kiểm tra cuộn tới toàn bộ nút tiếp tục.
 
 APP-10: quét thẻ yêu cầu ảnh phân tích tối đa 1920×1440, fallback theo khả năng
 CameraX/thiết bị; camera trước dùng cấu hình cũ. Bước lấy QR không chạy thêm
@@ -238,9 +311,9 @@ Hardware acceptance còn chờ. Xem [demo một bản](../../docs/runbooks/veric
 APP-07: luồng đầy đủ Giả lập và API dùng chung `FaceTimelineScreen` và bộ UI A
 hiện có (khung oval lúc giữ yên, hướng dẫn quay đầu trên camera). Giả lập tạo
 lịch cục bộ; API luôn theo lịch/tọa độ toàn màn hình do server cấp, không rơi về
-lịch mẫu khi lỗi. `StableCameraScene` giữ một PreviewView, chỉ biến đổi lớp hiển
-thị qua các cửa sổ camera, không gắn lại View hoặc đổi kích thước layout trong
-lúc quay. Màn quay đầu riêng trong gallery chỉ phục vụ xem màn. Snapshot mới
+lịch mẫu khi lỗi. `StableCameraScene` giữ một PreviewView toàn màn hình; APP-11
+đã bỏ biến đổi scale/translate theo cửa sổ camera và thống nhất oval giữa các pha.
+Màn quay đầu riêng trong gallery chỉ phục vụ xem màn. Snapshot mới
 bao phủ các pha ở sáng/tối, 375dp và chữ 200%; nghiệm thu video liên tục trên máy
 thật vẫn phải kiểm riêng. Activity hiện khóa dọc, không bổ sung flow xoay ngang.
 
