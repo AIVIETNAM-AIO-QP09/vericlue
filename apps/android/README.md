@@ -4,6 +4,12 @@
 
 ## Trạng thái
 
+**03/11 — kiểm phản hồi trước khi giải phóng bản thu:** HTTP 200 chỉ được coi
+là tiếp nhận media/signals khi `received=true` và đúng tên bước. Phản hồi
+đọc lại phải có câu và mã thử thách hợp lệ trước khi app bỏ bản thu cũ;
+phản hồi lỗi/thiếu trường giữ dữ liệu đang chờ. Các route hợp lệ, consent,
+chữ ký và xử lý 409 xác nhận bước đã nhận giữ nguyên.
+
 **03/11 — chờ phản hồi AI:** finalize và gửi giọng dùng read timeout 120 giây,
 vì deadline suy luận server tối đa 90,8 giây có thể vượt mức chờ 60 giây trước
 đó. Các endpoint thường giữ 60 giây; connect/write vẫn 15/60 giây. Không bổ sung

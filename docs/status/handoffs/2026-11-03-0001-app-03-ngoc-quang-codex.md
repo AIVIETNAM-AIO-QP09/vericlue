@@ -144,3 +144,20 @@
   60 giây trong test. Plan check **0 lỗi / 10 cảnh báo**. Review độc lập không
   có blocker. Cơ chế retry OkHttp hiện hữu không đổi; không tuyên bố mọi POST
   đều được transport đảm bảo gửi đúng một lần.
+
+## Review thêm phản hồi upload/giọng
+
+- HTTP 200 với `received=false` hoặc sai tên bước trước đây vẫn đánh dấu ack
+  và gọi callback bỏ video. Giờ media/signals đòi đúng StepAck; giữ nguyên
+  đường 409 `step_already_received` cho phản hồi đã mất.
+- Trước đây phản hồi giọng có trạng thái lạ/thiếu câu/mã đọc lại đã xóa pending
+  WAV và gọi callback trước khi bị từ chối. Giờ kiểm mode/policy, trạng thái,
+  câu/mã và route trước mọi thay đổi. Callback chỉ chạy sau khi cập nhật đúng
+  thử thách mới; legacy không purpose vẫn tương thích mã đọc lại vắng mặt.
+- Đây là hai lỗi kiểm phản hồi tìm bằng review, không khẳng định là nguyên
+  nhân ASR/lipsync ở ca người thật. Không đổi schema hoặc chốt AI.
+- RED 36 ca của ba lớp: 7 lỗi đúng mục tiêu. GREEN toàn Android **441 ca /
+  0 failure / 0 error / 1 export skip / 88 lớp**, lint **0 lỗi / 44 cảnh báo /
+  5 thông tin**, hai APK build đạt. 11 ca mới kiểm response thật qua
+  MockWebServer. Bốn fixture cũ trả nhầm ack media cho signals được sửa tên
+  bước; assertion cũ giữ nguyên. Review độc lập không có blocker.

@@ -29,6 +29,7 @@ import vn.vericlue.app.data.api.IdCardFields
 import vn.vericlue.app.data.api.FrameTime
 import vn.vericlue.app.data.api.SessionApi
 import vn.vericlue.app.data.api.Signals
+import vn.vericlue.app.data.api.StepAck
 import vn.vericlue.app.capture.VideoResult
 
 /** Where the flow goes after a server call: a route, or an error screen. */
@@ -330,14 +331,14 @@ class LiveFlow(
             } }
             if (proof.isFailure) return Next.Fail(ApiError.Server)
             privacyError("face_biometrics")?.let { return Next.Fail(it) }
-            api.uploadMedia(s.sessionId, s.token, jpeg, video, challengeId, proof.getOrNull()).ackOrFail()?.let { return it }
+            api.uploadMedia(s.sessionId, s.token, jpeg, video, challengeId, proof.getOrNull()).ackOrFail("media")?.let { return it }
             mediaAcked = true
             onMediaAcked() // the server has the video: the local copy can go
         }
         privacyError("face_biometrics")?.let { return Next.Fail(it) }
         if (!signalsAcked) {
             api.sendSignals(s.sessionId, s.token, Signals(colorEvents.toList(), frameTimes, clientQuality, camprobe, regionMeans, challengeId))
-                .ackOrFail()?.let { return it }
+                .ackOrFail("signals")?.let { return it }
             signalsAcked = true
         }
         privacyError("face_biometrics")?.let { return Next.Fail(it) }
@@ -406,31 +407,41 @@ class LiveFlow(
                 } else if (r.value.evaluationMode != "standard" || r.value.demoPolicyId != null) {
                     return Next.Fail(ApiError.BadResponse)
                 }
+                when (r.value.status) {
+                    "voice_challenge" -> if (r.value.voicePrompt.isNullOrBlank() ||
+                        s.purpose != null && r.value.voiceChallengeId.isNullOrBlank())
+                        return Next.Fail(ApiError.BadResponse)
+                    "pass", "review", "deny" -> Unit
+                    else -> return Next.Fail(ApiError.BadResponse)
+                }
+                val route = FlowRules.routeForStatus(r.value.status, null, inVoiceStep = true)
+                    ?: return Next.Fail(ApiError.BadResponse)
+                if (r.value.status == "voice_challenge") {
+                    // A re-read has a new sentence and a new id; the old recording cannot be resent.
+                    voicePrompt = r.value.voicePrompt
+                    voiceChallengeId = r.value.voiceChallengeId
+                }
                 pendingWav = null
                 voiceChecked = true
                 if (r.value.status == "pass") accountReceipt = r.value.account
                 onAccepted()
-                if (r.value.status == "voice_challenge") {
-                    // A re-read has a new sentence and a new id; the old recording cannot be resent.
-                    voicePrompt = r.value.voicePrompt ?: return Next.Fail(ApiError.BadResponse)
-                    voiceChallengeId = r.value.voiceChallengeId
-                }
-                FlowRules.routeForStatus(r.value.status, null, inVoiceStep = true)?.let { Next.To(it) } ?: Next.Fail(ApiError.BadResponse)
+                Next.To(route)
             }
         }
     }
 
     /**
-     * Null when the step counts as received: OK, or 409 `step_already_received` (the server has this
-     * step of the attempt, the earlier response was lost). Any other 409 (closed session, stale or
-     * expired challenge) is an error.
+     * Null only for a matching positive acknowledgment, or 409 `step_already_received`
+     * (the earlier receipt was lost). Any other response must retain unacknowledged media.
      */
-    private fun <T> ApiResult<T>.ackOrFail(): Next? {
-        val err = this as? ApiResult.Err ?: return null
-        if (err.error == ApiError.Conflict && err.code == "step_already_received") return null
-        // Nothing of this attempt reached the server yet: a fresh challenge and a new recording fix it.
-        if (err.error == ApiError.Conflict && err.code == "challenge_expired" && !mediaAcked) return Next.To(Routes.FaceExpired)
-        return Next.Fail(err.error)
+    private fun ApiResult<StepAck>.ackOrFail(expectedStep: String): Next? = when (this) {
+        is ApiResult.Ok -> if (value.received && value.step == expectedStep) null else Next.Fail(ApiError.BadResponse)
+        is ApiResult.Err -> when {
+            error == ApiError.Conflict && code == "step_already_received" -> null
+            // Nothing reached the server yet: a fresh challenge and recording fix it.
+            error == ApiError.Conflict && code == "challenge_expired" && !mediaAcked -> Next.To(Routes.FaceExpired)
+            else -> Next.Fail(error)
+        }
     }
 
     private fun privacyError(category: String): ApiError? = when {

@@ -112,7 +112,7 @@ class LiveFlowTest {
     fun voiceChallengeCarriesThePrompt() = runTest {
         startAndCapture()
         server.enqueue(json(ack))
-        server.enqueue(json(ack))
+        server.enqueue(json("""{"step":"signals","received":true}"""))
         server.enqueue(json("""{"status":"voice_challenge","voice_prompt":"Tôi xác nhận mở tài khoản"}"""))
         assertEquals(Next.To(Routes.Voice), flow.submitFace(null, emptyList(), emptyMap()))
         assertEquals("Tôi xác nhận mở tài khoản", flow.voicePrompt)
@@ -122,7 +122,7 @@ class LiveFlowTest {
     fun unknownStatusIsAnErrorNotAPass() = runTest {
         startAndCapture()
         server.enqueue(json(ack))
-        server.enqueue(json(ack))
+        server.enqueue(json("""{"step":"signals","received":true}"""))
         server.enqueue(json("""{"status":"degraded"}"""))
         assertTrue(flow.submitFace(null, emptyList(), emptyMap()) is Next.Fail)
     }
@@ -146,7 +146,7 @@ class LiveFlowTest {
     fun retryWithoutANewChallengeIsAnError() = runTest {
         startAndCapture()
         server.enqueue(json(ack))
-        server.enqueue(json(ack))
+        server.enqueue(json("""{"step":"signals","received":true}"""))
         server.enqueue(json("""{"status":"retry","retry_hint":"MORE_LIGHT"}"""))
         assertTrue(flow.submitFace(null, emptyList(), emptyMap()) is Next.Fail)
     }
@@ -155,7 +155,7 @@ class LiveFlowTest {
     fun voiceSendsTheReadingVideoNextToTheWav() = runTest {
         startAndCapture()
         server.enqueue(json(ack))
-        server.enqueue(json(ack))
+        server.enqueue(json("""{"step":"signals","received":true}"""))
         server.enqueue(json("""{"status":"voice_challenge","voice_prompt":"Tôi xác nhận"}"""))
         flow.submitFace(null, emptyList(), emptyMap())
         val video = kotlin.io.path.createTempFile("voice_", ".mp4").toFile().apply { writeBytes(byteArrayOf(9, 9, 9)); deleteOnExit() }
