@@ -59,12 +59,12 @@ fun WelcomePanel() {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Xác minh\ndanh tính", style = VcType.titleLarge,
                             color = Vc.colors.ink, modifier = Modifier.weight(0.64f).semantics { heading() })
-                        IdentityIllustration(Modifier.weight(0.36f).height(100.dp))
+                        IdentityScene3D(Modifier.weight(0.36f).height(120.dp))
                     }
                 } else {
                     Text("Xác minh danh tính", style = VcType.titleLarge,
                         color = Vc.colors.ink, modifier = Modifier.semantics { heading() })
-                    IdentityIllustration(Modifier.fillMaxWidth().height(112.dp))
+                    IdentityScene3D(Modifier.fillMaxWidth().height(120.dp))
                 }
                 Text("Chuẩn bị thẻ căn cước. Bắt đầu khi bạn sẵn sàng.",
                     style = VcType.body, color = Vc.colors.muted)

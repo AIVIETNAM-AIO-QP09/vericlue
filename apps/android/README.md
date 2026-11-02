@@ -4,6 +4,13 @@
 
 ## Trạng thái
 
+APP-11 / Three.js: màn đầu có minh họa thẻ 3D bằng Three.js r170, đóng gói
+offline trong một WebView trang trí. Nút/nội dung vẫn native; cảnh chạy nhẹ
+tối đa 6 giây rồi dừng, tạm dừng khi ẩn/ra nền. Giảm chuyển động hoặc lỗi
+WebGL dùng hình native dự phòng. Chi tiết và giới hạn kiểm tra:
+[Three.js trên Android](docs/three-scene.md). Preview tương tác tại máy:
+`tmp/app11-ui/three/index.html` từ repo root.
+
 APP-11 mở rộng: màn đầu có thẻ navy và hành trình đánh số; màn số điện
 thoại/OTP có dán chủ động, phản hồi lỗi và trạng thái đang gửi/kiểm mã.
 Trợ giúp theo ngữ cảnh mở bằng bottom sheet, FAQ mở rộng từng câu; đọc

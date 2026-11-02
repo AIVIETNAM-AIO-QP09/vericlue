@@ -441,6 +441,21 @@ APK debug chưa ký build thành công. Preview `tmp/app11-ui/upgrade/index.html
 có 194 ảnh hành trình và 42 ảnh form/trợ giúp so với bản `4698f2a`.
 Chưa nghiệm thu modal/TalkBack/clipboard trên điện thoại; giữ `review`.
 
+Yêu cầu tiếp 02/11: dùng `mrdoob/three.js` để bổ sung chiều sâu cho giao diện.
+Mở lại APP-11 theo yêu cầu trực tiếp, cùng nhánh/PR.
+
+- [x] Three.js ghim phiên bản, giấy phép/nguồn rõ; cảnh tự tạo đóng gói offline.
+- [x] Tích hợp vùng minh họa 3D ở màn đầu Compose, giữ CTA native, fallback
+      khi giảm chuyển động/WebGL lỗi; tạm dừng/hủy tài nguyên theo vòng đời.
+- [x] Kiểm WebGL thật, pause/resume/reduced motion/lỗi/context loss;
+      Android test/lint/build và preview; không đưa 3D vào camera hoặc API.
+
+Kết quả: 171 test Android và 4 nhóm WebGL đạt; lint không lỗi (12 cảnh báo,
+1 thông tin có sẵn), APK debug chưa ký build được và chứa tài nguyên Three.js.
+Preview `tmp/app11-ui/three/index.html`; browser dùng SwiftShader, Paparazzi
+dùng hình dự phòng. Chưa nghiệm thu WebView/GPU/lifecycle/cuộn trên điện thoại;
+giữ `review`, chi tiết ở bàn giao 17:20.
+
 ---
 
 ### APP-02 ★ · App: chụp mặt, quay 3 giây, quay đầu ngẫu nhiên
