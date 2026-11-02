@@ -470,11 +470,6 @@ không dùng ảnh căn cước/người dùng thật, không cài điện tho�
 
 ### APP-02 ★ · App: chụp mặt, quay 3 giây, quay đầu ngẫu nhiên
 
-**02/11 — sửa nhắc lặp:** người dùng xác nhận bị nhắc cùng bên; local hold chưa
-hoàn tất có thể nhắc quay ra lại sau khi đã về giữa. Thêm latch hướng dẫn riêng
-từng đoạn: một excursion đúng phía rồi về giữa thì chờ hướng tiếp. Không coi
-latch là hold đạt/đổi phase/qua gate; giữ các hằng và lịch5/5/2. Cần thử bản mới.
-
 **02/11 — doing, thử S24 FE:** lượt mới đã qua CCCD/gaze nhưng quay hướng đầu
 vượt vùng nhận, các đoạn giữ không đủ liên tục; server trả `wrong_order`, các
 model cần ba tư thế giữ `degraded`. Sửa ổn định lời nhắc để giảm cắt giọng khi
@@ -487,6 +482,11 @@ khóa/tài khoản và năm module ok/pass (tổng hợp APP-01-s24fe-physical-a
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
 |---|---|---|---|---|
 | M1 | 2 | S1–S2 | P0 | APP-01 |
+
+**02/11 — sửa nhắc lặp:** người dùng xác nhận bị nhắc cùng bên; local hold chưa
+hoàn tất có thể nhắc quay ra lại sau khi đã về giữa. Thêm latch hướng dẫn riêng
+từng đoạn: một excursion đúng phía rồi về giữa thì chờ hướng tiếp. Không coi
+latch là hold đạt/đổi phase/qua gate; giữ các hằng và lịch5/5/2. Cần thử bản mới.
 
 **Mục tiêu:** làm giai đoạn B của ADR-0013 trên app.
 
