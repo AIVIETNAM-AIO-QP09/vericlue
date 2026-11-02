@@ -1,5 +1,10 @@
 # Khung đánh giá chung (EVAL-01)
 
+VOICE-09/APP-01 (01/11): `eval.nes2net_utterance prepare|collect|fit` đo toàn câu,
+gộp max raw margin có version riêng, giữ lỗi/thiếu, kiểm người/nguồn cho split
+và CV. Chỉ fit calib_fit, không cài artifact hoặc mở chốt API.
+[Runbook](../../../../docs/runbooks/nes2net-utterance-calibration.md).
+
 Đọc/sinh kết quả R1–R4 qua `vericlue_ml.eval`, không tự viết lại công thức ở
 notebook hay script mô hình. `metrics.py` nhập **ECE/Brier** từ
 `vericlue_ml.common.calibration`; `report.py` đọc CSV, bootstrap và sinh Markdown.

@@ -22,8 +22,13 @@
 - Parity thật trên32 WAV đã thực thi cả HF torch2.8 và Fairseq torch2.2.2:
   sign agreement1.0, max logit diff `9.441375732421875e-05`, max margin diff
   `0.00017642974853515625` > mức đặt sẵn1e-4 → **FAIL**, không tăng tolerance.
-  Báo cáo local `nes2net-parity-vivos.json`. Đang đối chiếu thêm với torch2.2.2
-  cùng phiên bản để phân biệt ảnh hưởng backend; chưa khẳng định parity đạt.
+  Báo cáo local `nes2net-parity-vivos.json`. Lượt cùng Torch2.2.2 và cùng4 CPU
+  threads sau đó đạt PASS (max margin diff `2.47955322265625e-05`,32/32 cùng dấu).
+  Xem bàn giao `2026-11-01-1030-voice-09-ngoc-quang-codex.md` cho provenance và
+  giới hạn; không đổi nhãn diagnostic hay tuyên bố hiệu chỉnh đã xong.
+- Runtime Windows thực tế cũng PASS trên cùng32 PCM với reference4threads:
+  max margin diff `7.271766662597656e-05`,32/32 cùng dấu. Cả hai báo cáo PASS có
+  source commit52cebaf và giữ giới hạn1e-4. Các lượt FAIL trước đó không bị xóa.
 - Còn thiếu dữ liệu hiệu chỉnh/đánh giá đúng protocol video12s và giọng, chia theo người. Không dùng VIVOS hoặc lượt thử cá nhân để chọn ngưỡng. Không tạo calibrator giả hay đổi trạng thái diagnostic để mở guard.
 - Chưa chạy nghiệm thu người dùng trên điện thoại; không tự đổi server, xóa tài khoản hoặc thu dữ liệu.
 
@@ -32,6 +37,9 @@
 1. Sau khi có báo cáo parity số học, ghi kết quả và giới hạn. Nếu lệch phải sửa/kiểm chứng mapping; nếu đạt vẫn cần quy tắc gộp điểm/hiệu chỉnh hợp lệ trước quyết định chống giả giọng.
 2. Thu/nhận dữ liệu có quyền sử dụng cho PAD/GenD/match/continuity/lipsync/voice, chia `calib_fit`/`calib_ltt`/test theo người và giữ protocol/version; chạy công cụ đo/fit đã có, không lấy dữ liệu test để chọn ngưỡng.
 3. Nghiệm thu cả ca đạt/từ chối trên điện thoại trước khi gọi xong toàn luồng. OTP vẫn mô phỏng `synthetic` + `SIMULATED_OTP=true`.
+4. APK đã ký để kiểm giao diện/code tại `D:/vericlue/tmp/finish-2026-11-01/apk/VeriClue-SEC09-debug.apk`,
+   build-info trỏ commit tích hợp `a542a47`. Chưa cài điện thoại hoặc đổi server.
+   Checklist và các entry point có thật: `docs/runbooks/real-ekyc-next-steps.md`.
 
 ## Quyết định, lưu ý, bẫy
 - Không push/PR; không tắt máy. Không commit media/trọng số/nguồn dữ liệu hay bí mật. Giữ cơ chế từ chối thiếu bằng chứng.

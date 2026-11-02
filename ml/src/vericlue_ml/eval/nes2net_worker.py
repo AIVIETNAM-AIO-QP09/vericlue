@@ -38,7 +38,7 @@ def serve(source: BinaryIO, target: BinaryIO, detector) -> None:
                 "load_report": backend.load_report,
                 "runtime": runtime_versions(),
                 "sample_count": 1,
-                "frontend_parity_verified": False,
+                "frontend_parity_verified": result.quality.get("frontend_parity_verified", False),
                 "calibrated": False,
                 "resampled_sample_rate": 16000,
                 "received_samples": len(samples),

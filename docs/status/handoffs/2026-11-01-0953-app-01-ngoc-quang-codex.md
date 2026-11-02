@@ -3,6 +3,11 @@
 **Nhánh:** `codex/APP-01-demo-integration`
 **Trạng thái task sau phiên này:** `doing`
 
+> Cập nhật tiếp quản: phần code/API/Android của bàn giao này đã được kiểm tra,
+> bổ sung regression/snapshot và commit tại `a542a47`. Công cụ parity tiếp tục
+> tại `52cebaf`; xem bàn giao 10:15 và10:30 ngày01/11 cho kết quả mới.
+> Các ghi chú “chưa commit” bên dưới là trạng thái lúc Anti bàn giao09:53.
+
 ## Đã xong
 - **Mục 1 (Sửa 2 lỗi đã tìm thấy — `SessionFlow._ensure_standard_flow_ready` & `README-parity-nes2net.md`):**
   - Tách điều kiện sẵn sàng trong `services/api/src/vericlue_api/services/session_flow.py` (`_ensure_standard_flow_ready` và `ensure_flow_available`) theo đúng từng luồng (`onboarding`, `reauth`, `recovery`) và từng chặng (`voice_step=False` / `voice_step=True`):
