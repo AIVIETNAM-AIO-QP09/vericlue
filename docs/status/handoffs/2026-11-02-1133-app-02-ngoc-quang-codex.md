@@ -22,3 +22,9 @@
 1. Cài-r APK mới, ghi hash/source/kiểm health/ADB; giữ account/profile/media/source cũ.
 2. Rà cách ghi AV/cropSyncNet, lập proof bằng fixtures/giao thức đúng trước khi sửa. Chỉ mời thử thêm khi có thay đổi cụ thể cần nghiệm thu.
 3. Không đổi ngưỡng từ các lượt máy thật, không dùngVIVOSparity đểfit; dữ liệu hiệu chỉnh/eval theo người vẫn cần nhóm chuẩn bị có quyền dùng.
+
+## Cài11:35 và tiến triển giọng
+- APK266ef4f06549c196591fb0120f87d4578e027c78, SHAe956a3f37fbe42d42e9a9526d530be862cfa3471f15a21ed0ab14cc81b34b7c3, cùng signer/v2verified, cài-r11:35:47. API giữD73, healthok; khôngreset dữ liệu. Metadatahead-ui-once-5-5-2-v2, tracefalse; chờ nghiệmthu riêng latch.
+- Rootplan_check ban đầu có1lỗi vì thêm ghi chú đẩy bảng ownershipAPP-02 khỏi cửa sổ parser; đã chuyển vị trí ghi chú, chạy lại0lỗi/10cảnhbáo vàcommit66d0d12. Không đổi codeAPK266.
+- Lượtvoice trênD73 đã xác nhận rereadcount1 và Qwencontentpass; mọi module khác qua trừlipsync. Cập nhật aggregate APP-03, khôngclaimkhôiphụchoàn tất.
+- Hướng tiếp theo: probeAVcùngcontainer bằng fixture tổng hợp để loại sai số callback, giữ chốt và API; khôngdùngbestmodeloffset sửa dữliệu.

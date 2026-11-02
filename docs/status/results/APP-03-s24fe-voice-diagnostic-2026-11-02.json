@@ -112,5 +112,84 @@
     "green_without_server_face": 0
   },
   "fix_validation": "software regressions and full suites documented in APP-03 handoff; physical retry after deployment still pending",
-  "privacy": "No raw trace, attempt hash, identifiers, transcripts, nonce code, media, embeddings, keys, tokens or personal detector scores included."
+  "privacy": "No raw trace, attempt hash, identifiers, transcripts, nonce code, media, embeddings, keys, tokens or personal detector scores included.",
+  "post_fix_observation": {
+    "api_source_commit": "d73dd773485c970aeae70f2f0c01c7fbede07ac2",
+    "apk_source_commit": "d73dd773485c970aeae70f2f0c01c7fbede07ac2",
+    "physical_attempts_in_result": 1,
+    "status": "review",
+    "completed": true,
+    "voice_rereads_used": 1,
+    "account_retained": true,
+    "recovery_binding_committed": false,
+    "modules": {
+      "quality": {
+        "status": "ok",
+        "gate": "pass",
+        "error_code": null,
+        "model_version": "quality-scrfd-10g@bfcc7d48"
+      },
+      "face_pad": {
+        "status": "ok",
+        "gate": "pass",
+        "error_code": null,
+        "model_version": "fs-vfm-vit-l-fas@59f7b50a+scrfd@bfcc7d48+scrfd128-align224-rgb-v1+headturn-3views-max-v1+session-video-v2+manual-demo-2f7e8becee1dff4d"
+      },
+      "face_deepfake": {
+        "status": "ok",
+        "gate": "pass",
+        "error_code": null,
+        "model_version": "gend-clip-l14@891ce014+clip@32bd6428+scrfd-10g@bfcc7d48+agg-maxmeantop25-v1+headturn-3views-v1+session-video-v2+manual-demo-2f7e8becee1dff4d"
+      },
+      "camprobe": {
+        "status": "ok",
+        "gate": "pass",
+        "error_code": null,
+        "model_version": "camprobe-rules@0.1"
+      },
+      "gaze_tracking": {
+        "status": "ok",
+        "gate": "pass",
+        "error_code": null,
+        "model_version": "gaze-rules@0.3+face-landmarker-f16-1"
+      },
+      "head_turn": {
+        "status": "ok",
+        "gate": "pass",
+        "error_code": null,
+        "model_version": "head-turn-rules@0.2+face-landmarker-f16-1"
+      },
+      "face_match": {
+        "status": "ok",
+        "gate": "pass",
+        "error_code": null,
+        "model_version": "lvface-b@b12702ab1f5c7217+scrfd10g@bfcc7d48+arcface112-rgb-minus1to1-v1+front-reference-v2+video-frontal-v1+enrolled-recovery-v1+head12s-v2+manual-demo-2f7e8becee1dff4d"
+      },
+      "voice_challenge": {
+        "status": "ok",
+        "gate": "pass",
+        "error_code": null,
+        "model_version": "qwen3-asr-06b@7f1569a48a89f3e3f4dc3a5c9d28bddd903bc76c+cpu-fp32-content-v1"
+      },
+      "voice_spoof": {
+        "status": "ok",
+        "gate": "pass",
+        "error_code": null,
+        "model_version": "mms-300m-antideepfake@7928e119e09f616b2ce698892e00ca22dbaa40bf+voice01-v1-vad1-ln-win4-hop1-tail-meanlogits+manual-demo-2f7e8becee1dff4d"
+      },
+      "lipsync": {
+        "status": "ok",
+        "gate": "fail",
+        "error_code": null,
+        "model_version": "stable-syncnet@c42c7e6c+ctc-aligner@49402e95+scrfd-10g@bfcc7d48+voice05-v2+manual-demo-2f7e8becee1dff4d"
+      },
+      "face_continuity": {
+        "status": "ok",
+        "gate": "pass",
+        "error_code": null,
+        "model_version": "lvface-b@b12702ab1f5c7217+scrfd10g@bfcc7d48+arcface112-rgb-minus1to1-v1+front-reference-v2+video-frontal-v1+face-voice-v1+manual-demo-2f7e8becee1dff4d"
+      }
+    },
+    "interpretation": "Native reread flow and Qwen content passed; all required modules except lipsync passed. Recovery not accepted."
+  }
 }
