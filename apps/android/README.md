@@ -4,14 +4,22 @@
 
 ## Trạng thái
 
-**02/11 tối — APP-03, đang sửa ca đọc lại:** v2 đã gửi được một lượt giọng tới
+**02/11 21:16 — APP-03, đã thử người thật trên v3:** lượt khôi phục mới đã gửi
+được cả bản đọc đầu và bản đọc lại đến AI. Các chốt mặt/quay đầu, voice spoof
+và face continuity đạt; nhận dạng câu và lipsync không đạt. API kết thúc ở
+`review`, tài khoản còn nguyên, chưa ghi liên kết khôi phục. Kiểm tra độc lập
+WAV/container không tái hiện lỗi parser cũ; chưa xác định nguyên nhân gốc của
+hai chốt AI. Không coi việc gửi được giọng hoặc CI xanh là nghiệm thu khôi phục.
+Xem [bàn giao lượt mới](../../docs/status/handoffs/2026-11-02-2116-app-03-ngoc-quang-codex.md).
+
+**Lịch sử 02/11 tối — APP-03, sửa ca đọc lại:** v2 đã gửi được một lượt giọng tới
 server, nhưng các lượt đọc lại vẫn bị parser từ chối bởi bước nhảy PTS. Không
 có kết luận người dùng nói nhỏ từ lỗi này. Đã kiểm chứng bộ đọc nguồn
 `muxed-av-pcm-v3-ptsgrid`: WAV16k nội suy theo timeline presentation trong MP4,
 policy `pcm16-mono16k-pts-sinc-v2`. Đây là cách biểu diễn dữ liệu theo container,
 không chứng minh clock vật lý hoặc dữ liệu chưa từng bị mất. Giữ mốc đầu,
 giới hạn thời lượng/định dạng/rate và chốt AI.320tests/0failure/1exportskip,
-5file đọc lại đều qua native decoder/WAV guard; khôi phục thật vẫn chờ thử mới.
+5file đọc lại đều qua native decoder/WAV guard; đây là kiểm tra bộ đọc.
 Lỗi xử lý bản ghi được diễn đạt riêng với thiếu quyền/độ rõ giọng.
 
 **02/11 tối — APP-03, lỗi báo thiếu quyền micro:** quyền Android đã được cấp,

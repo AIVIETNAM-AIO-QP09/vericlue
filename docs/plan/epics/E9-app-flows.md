@@ -510,7 +510,13 @@ latch là hold đạt/đổi phase/qua gate; giữ các hằng và lịch5/5/2. 
 |---|---|---|---|---|
 | M1 | 1 | S2 | P0 | APP-01 |
 
-**02/11 tối — doing, sửa tiếp ca đọc lại:** v2 đã đưa giọng tới API, nhưng ca
+**02/11 21:16 — doing, lượt người thật mới trên v3:** cả bản đọc đầu và bản
+đọc lại đã tới AI. Mặt/quay đầu, voice spoof và continuity đạt; nội dung câu
+và lipsync không đạt, kết quả `review`, chưa commit liên kết khôi phục, tài khoản
+vẫn còn nguyên. Không tái hiện lỗi parser trước gửi ở lượt này; nguyên nhân
+gốc của hai chốt AI chưa được xác định. Giữ Draft PR134 và chưa nghiệm thu.
+
+**Lịch sử 02/11 tối — sửa tiếp ca đọc lại:** v2 đã đưa giọng tới API, nhưng ca
 đọc lại vẫn bị từ chối bởi bước nhảy timestamp. V3 đã kiểm chứng nội suy WAV
 theo timeline presentation và normalizer version riêng; không dùng kết quả AI
 để dịch media/chọn ngưỡng.320test và5native replays đạt; chưa nghiệm thu toàn
