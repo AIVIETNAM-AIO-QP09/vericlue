@@ -168,6 +168,7 @@ object HeadTurnGuide {
         returnToCenter: Boolean = false,
         remainingSeconds: Int? = null,
         segmentCompleted: Boolean = false,
+        waitingForNext: Boolean = false,
     ): String {
         if (face != null) {
             if (face.faces == 0) return "Đưa khuôn mặt vào khung"
@@ -192,6 +193,7 @@ object HeadTurnGuide {
                     } else {
                         "Giữ yên, nhìn thẳng chờ bước tiếp"
                     }
+                    waitingForNext -> "Giữ yên, nhìn thẳng chờ hướng tiếp"
                     signedYaw < TURN_MIN_DEG -> "Quay chậm theo hướng mũi tên"
                     returnToCenter -> "Quay chậm, sau đó nhìn thẳng"
                     else -> "Giữ hướng này đến khi đổi hướng dẫn"
@@ -199,6 +201,7 @@ object HeadTurnGuide {
             }
         }
         return when {
+            waitingForNext -> "Giữ yên để camera nhận khuôn mặt"
             dir == null -> "Giữ yên, nhìn thẳng vào camera"
             returnToCenter -> "Quay chậm, sau đó nhìn thẳng"
             else -> "Quay chậm theo hướng mũi tên"

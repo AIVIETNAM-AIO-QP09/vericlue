@@ -91,14 +91,42 @@ class HeadCuePolicy {
     }
 }
 
-fun headCue(dir: TurnDir?, face: FaceSignal?, completed: Boolean): HeadCue {
+fun headCue(dir: TurnDir?, face: FaceSignal?, completed: Boolean, waitingForNext: Boolean = false): HeadCue {
     if (face == null || face.faces != 1 || listOf(face.yaw, face.pitch, face.roll).any { !it.isFinite() }) return HeadCue.FindFace
     if (kotlin.math.abs(face.pitch) > HeadTurnGuide.MAX_TILT_DEG || kotlin.math.abs(face.roll) > HeadTurnGuide.MAX_TILT_DEG) return HeadCue.Straighten
     if (kotlin.math.abs(face.yaw) > HeadTurnGuide.TURN_MAX_SAFE_DEG && dir != null) return HeadCue.EaseBack
     if (HeadTurnGuide.evaluatePose(dir, face, completed) == TurnPoseState.Warn) return HeadCue.FindFace
-    if (completed || dir == null) return HeadCue.Center
+    if (completed || waitingForNext || dir == null) return HeadCue.Center
     if (HeadTurnGuide.evaluatePose(dir, face) == TurnPoseState.Hold) return HeadCue.Hold
     return if (dir == TurnDir.Left) HeadCue.Left else HeadCue.Right
+}
+
+/** Guidance only: a return after one side excursion must not request the same side again. */
+class SegmentReturnTracker(private val segmentStartMs: Long) {
+    private var sawRequestedSide = false
+    private var lastFrameMs: Long? = null
+    var waitingForNext = false
+        private set
+
+    fun update(dir: TurnDir?, face: FaceSignal?, nowMs: Long) {
+        if (waitingForNext || dir == null) return
+        val current = HeadTurnGuide.freshFace(face, nowMs, segmentStartMs)
+        if (current == null || current.faces != 1 ||
+            listOf(current.yaw, current.pitch, current.roll, current.centerX, current.centerY).any { !it.isFinite() } ||
+            HeadTurnGuide.evaluatePose(dir, current) == TurnPoseState.Warn) {
+            return
+        }
+        val at = current.timestampNs / 1_000_000L
+        val previous = lastFrameMs
+        if (previous != null && at <= previous) {
+            return
+        }
+        lastFrameMs = at
+        when {
+            HeadTurnGuide.evaluatePose(dir, current) == TurnPoseState.Hold -> sawRequestedSide = true
+            kotlin.math.abs(current.yaw) <= HeadTurnGuide.CENTER_MAX_DEG && sawRequestedSide -> waitingForNext = true
+        }
+    }
 }
 
 /** Local rehearsal only: this never records, starts an API attempt or decides verification. */

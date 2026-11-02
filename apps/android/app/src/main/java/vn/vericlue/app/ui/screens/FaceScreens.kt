@@ -461,15 +461,24 @@ private fun TurnHeadContent(
     val holdTracker = remember(index, dir) {
         vn.vericlue.app.capture.SegmentHoldTracker(segmentStartMs = segmentStartMs)
     }
+    val returnTracker = remember(index, dir) {
+        vn.vericlue.app.capture.SegmentReturnTracker(segmentStartMs = segmentStartMs)
+    }
+    var waitingForNext by remember(index, dir) { mutableStateOf(false) }
     var segmentCompleted by remember(index, dir) { mutableStateOf(false) }
     LaunchedEffect(activeFace, index, dir) {
+        returnTracker.update(dir, activeFace, android.os.SystemClock.elapsedRealtime())
+        waitingForNext = returnTracker.waitingForNext
         val current = activeFace ?: return@LaunchedEffect
         if (holdTracker.update(dir, current, android.os.SystemClock.elapsedRealtime())) {
             segmentCompleted = true
         }
     }
-    val poseState = if (staleFace) vn.vericlue.app.capture.TurnPoseState.Warn
+    val measuredPoseState = if (staleFace || (waitingForNext && activeFace == null)) vn.vericlue.app.capture.TurnPoseState.Warn
         else HeadTurnGuide.evaluatePose(dir, activeFace, segmentCompleted)
+    // Waiting is neutral coaching, separate from a successfully measured hold.
+    val poseState = if (waitingForNext && !segmentCompleted && measuredPoseState != vn.vericlue.app.capture.TurnPoseState.Warn)
+        vn.vericlue.app.capture.TurnPoseState.TurnMore else measuredPoseState
     LaunchedEffect(guideClockMs, poseState, segmentCompleted) {
         recordingOriginMs?.let { origin -> debugTrace?.recordGuidance(
             (nowMs - origin).toLong(), index, poseState.name, segmentCompleted,
@@ -501,11 +510,11 @@ private fun TurnHeadContent(
             }
         }
     }
-    val cue = vn.vericlue.app.capture.headCue(dir, activeFace, segmentCompleted)
+    val cue = vn.vericlue.app.capture.headCue(dir, activeFace, segmentCompleted, waitingForNext)
     val cuePolicy = remember { vn.vericlue.app.capture.HeadCuePolicy() }
     LaunchedEffect(cue, guideClockMs, index, speech) {
         val waitingForFirstFrame = staleFace && nowMs - segmentStartMs <= HeadTurnGuide.MAX_FRAME_AGE_MS
-        if (liveAssist && !waitingForFirstFrame) cuePolicy.dispatch(index, cue, nowMs,
+        if ((liveAssist || waitingForNext) && !waitingForFirstFrame) cuePolicy.dispatch(index, cue, nowMs,
             stop = { speech?.stop() }, say = { speech?.say(it) })
     }
     androidx.compose.runtime.DisposableEffect(index, speech) {
@@ -518,7 +527,7 @@ private fun TurnHeadContent(
         vn.vericlue.app.capture.TurnPoseState.TurnMore -> Color.White.copy(alpha = .65f)
     }
     val ringWidth = if (poseState == vn.vericlue.app.capture.TurnPoseState.TurnMore) 1.5.dp else 2.dp
-    val titleText = if (!liveAssist) when (dir) {
+    val titleText = if (!liveAssist && !waitingForNext) when (dir) {
         TurnDir.Left -> "Quay nhẹ sang trái"
         TurnDir.Right -> "Quay nhẹ sang phải"
         null -> "Nhìn thẳng"
@@ -536,7 +545,7 @@ private fun TurnHeadContent(
                 FullCamera(ringColor = ringColor, ringWidth = ringWidth, fitHeight = true)
                 CameraArea(fitHeight = true) { oval ->
                     val x = if (dir == TurnDir.Left) oval.left - 28.dp else oval.left + oval.width - 36.dp
-                    if (dir != null && poseState == vn.vericlue.app.capture.TurnPoseState.TurnMore) {
+                    if (dir != null && !waitingForNext && poseState == vn.vericlue.app.capture.TurnPoseState.TurnMore) {
                         Box(
                             Modifier.offset(x = x, y = oval.centerY - 32.dp).size(64.dp)
                                 .clip(CircleShape).background(Palette.LogoNavy.copy(alpha = .55f)),
@@ -557,7 +566,7 @@ private fun TurnHeadContent(
                 if (remainingSeconds != null) Text("Còn $remainingSeconds giây", style = VcType.label, color = Color.White)
                 val chipText = if (staleFace) "Giữ yên, chờ camera nhận khuôn mặt"
                     else if (poseState == vn.vericlue.app.capture.TurnPoseState.Hold && dir != null) "Dừng xoay, giữ yên một chút"
-                    else HeadTurnGuide.guidanceText(dir, activeFace, returnToCenter, remainingSeconds, segmentCompleted)
+                    else HeadTurnGuide.guidanceText(dir, activeFace, returnToCenter, remainingSeconds, segmentCompleted, waitingForNext)
                 when (poseState) {
                     vn.vericlue.app.capture.TurnPoseState.Hold,
                     vn.vericlue.app.capture.TurnPoseState.Completed ->
