@@ -29,3 +29,9 @@
 ## Câu hỏi cho nhóm
 - Chưa có dữ liệu thật/TTS/VC quyền dùng và mã người/nguồn cho hiệu chỉnh/eval; vẫn giữ chốt. Không dùng32VIVOSparity để chọn ngưỡng.
 - Lipsync originalclockconfidence thấp, bestoffset cao hơn chưa chứng minh lệchhardware; không tự dịch audio theo optimum của model để cho qua. Mốc phần mềm mới cũng chưa là hardware firstsample timestamp.
+
+## Triển khai11:10
+- API/APKsource d73dd773485c970aeae70f2f0c01c7fbede07ac2, APK SHA8b0fb7adaa48c14f3a3777558a8936291f52bbabf3ce58ee12b9b37a29da13b7, signer822e…giữ nguyên/v2verified. APK normaltracefalse, signedMedia/liveByDefaulttrue, localhost8421; cài-r thành công11:10:15.
+- Serversourcearchive581file, có modelmanifest/third_party; backupSQLitequick_check đạt, source/APK cũ giữ nguyên, profile/khóa/DB/media không reset. Ownership/HMAC/mode/policy và healthok/failed_modules[] đã kiểm; ADBreverse8421 hợp lệ.
+- Metadata private ghi micro-ready-wav8-auto-v1; offset vẫn phần mềm. Người dùng được mời thửrecovery từphiên mới, chờ chữĐangghiâm vàđọcnguyêncâu/câu mới nếuđượcđọclại. Chờkếtquảtrênmáy, chưa đánh dấuđạt.
+- DraftPR131 theo sauPR129; khôngmerge main. CóPR130UIpolish độc lập trênGitHub, chưa nhập vào nhánhđangnghiệmthu đểtránhđổiUIđồngthời; cầnxemxétconflictFaceScreens khi tíchhợpsau.
