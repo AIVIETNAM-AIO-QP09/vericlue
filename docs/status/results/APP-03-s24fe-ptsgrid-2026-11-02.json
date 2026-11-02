@@ -3,6 +3,7 @@
   "date": "2026-11-02",
   "scope": "presentation-time representation and parser engineering, not physical capture or AI acceptance",
   "capture_policy": "muxed-av-pcm-v3-ptsgrid",
+  "apk_source_commit": "8049d6bbccfb51e22e28e1f47739b3fcf250e305",
   "normalization_policy": "pcm16-mono16k-pts-sinc-v2",
   "clock_map": "piecewise linear decoded-PTS anchors; final unanchored tail uses nominal sample rate",
   "local_rate_ratio_open_dsp_range": [0.5, 2.0],
