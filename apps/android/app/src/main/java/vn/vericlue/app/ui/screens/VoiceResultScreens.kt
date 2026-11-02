@@ -66,6 +66,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import vn.vericlue.app.capture.VoiceCapturePhase
 import vn.vericlue.app.flow.Purpose
 import vn.vericlue.app.ui.components.ChecklistCard
 import vn.vericlue.app.ui.components.CompletionHaptic
@@ -132,33 +133,41 @@ fun VoiceScreen(
     sentence: String? = null,
     level: Float? = null,
     onStartRecording: () -> Unit = {},
+    capturePhase: VoiceCapturePhase = if (startRecording) VoiceCapturePhase.Recording else VoiceCapturePhase.Idle,
 ) {
     val c = Vc.colors
-    var recording by remember { mutableStateOf(startRecording) }
+    val recording = capturePhase == VoiceCapturePhase.Recording
+    val preparing = capturePhase == VoiceCapturePhase.Preparing
     VcScreen(onBack = onBack, step = 3, actions = {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(
                 Modifier.size(76.dp).clip(CircleShape).background(if (recording) Palette.LogoNavy else c.primary)
-                    .clickable(role = Role.Button) {
+                    .clickable(enabled = capturePhase in setOf(VoiceCapturePhase.Idle, VoiceCapturePhase.Recording), role = Role.Button) {
                         if (recording) {
                             onFinished()
                         } else {
-                            recording = true
                             onStartRecording()
                         }
                     },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    if (recording) Icons.Outlined.Stop else Icons.Outlined.Mic,
-                    contentDescription = if (recording) "Dừng ghi âm" else "Bắt đầu ghi âm",
+                    if (preparing) Icons.Outlined.HourglassEmpty else if (recording) Icons.Outlined.Stop else Icons.Outlined.Mic,
+                    contentDescription = if (preparing) "Đang chuẩn bị ghi âm" else if (recording) "Dừng ghi âm" else "Bắt đầu ghi âm",
                     tint = if (recording) Color.White else c.onPrimary,
                     modifier = Modifier.size(34.dp),
                 )
             }
             if (recording) Waveform(level)
             Text(
-                if (recording) "Đang ghi âm · Chạm để kết thúc" else "Chạm để bắt đầu đọc",
+                when (capturePhase) {
+                    VoiceCapturePhase.Preparing -> "Đang chuẩn bị · Chờ thông báo rồi bắt đầu đọc"
+                    VoiceCapturePhase.Recording -> "Đang ghi âm · Đọc câu rồi chạm để kết thúc"
+                    VoiceCapturePhase.Finished -> "Đã kết thúc ghi âm"
+                    VoiceCapturePhase.Failed -> "Chưa thể bắt đầu ghi âm"
+                    VoiceCapturePhase.Idle -> "Chạm và chờ sẵn sàng rồi bắt đầu đọc"
+                },
+                textAlign = TextAlign.Center,
                 style = VcType.caption,
                 color = c.muted,
             )

@@ -120,3 +120,100 @@ def test_private_reader_gets_configured_models_and_always_releases_lease(constru
     else:
         compare_private_video(settings, privacy, payload, {}, factory)
     assert released == [True]
+
+
+@pytest.mark.parametrize("failure", [None, "native", "database_close"])
+def test_cli_closes_database_before_native_work_and_releases_detached_lease(
+    tmp_path, monkeypatch, failure
+):
+    import json
+    from types import SimpleNamespace
+
+    from scripts import compare_presence_trace as script
+
+    state = {"database_open": False, "released": 0, "disposed": False, "native_called": False}
+    payload = {
+        "session_id": "synthetic",
+        "video": "synthetic.mp4",
+        "challenge": {
+            "challenge_id": "synthetic-challenge",
+            "dynamic": {
+                "gaze_points": [{"at_ms": 1000}],
+                "head_start_at_ms": 8000,
+                "head_duration_ms": 12000,
+            },
+        },
+    }
+    trace = {
+        "schema_version": 1,
+        "events": [],
+        "attempt_sha256": hashlib.sha256(b"synthetic-challenge").hexdigest(),
+    }
+    trace_path = tmp_path / "trace.json"
+    trace_path.write_text(json.dumps(trace), encoding="utf-8")
+
+    class DatabaseScope:
+        def __enter__(self):
+            state["database_open"] = True
+            return SimpleNamespace(scalars=lambda _: [object()])
+
+        def __exit__(self, *args):
+            state["database_open"] = False
+            if failure == "database_close":
+                raise RuntimeError("synthetic database close failure")
+
+    class Database:
+        def __init__(self, _url):
+            pass
+
+        def sessions(self):
+            return DatabaseScope()
+
+        def dispose(self):
+            state["disposed"] = True
+
+    def release():
+        state["released"] += 1
+
+    def prepare(*args):
+        assert state["database_open"]
+        return {"video": tmp_path / "decoded-synthetic.mp4"}, SimpleNamespace(release=release)
+
+    def preload(_reader, **kwargs):
+        assert not state["database_open"], "Native work must not retain a database transaction"
+        assert state["released"] == 0
+        state["native_called"] = True
+        if failure == "native":
+            raise RuntimeError("synthetic native failure")
+
+    def extract(_reader, *args, **kwargs):
+        assert not state["database_open"] and state["released"] == 0
+        return []
+
+    monkeypatch.setattr(
+        script,
+        "Settings",
+        lambda: SimpleNamespace(database_url="synthetic", models_dir="external-models"),
+    )
+    monkeypatch.setattr(script, "Database", Database)
+    monkeypatch.setattr(script, "SessionPrivacy", lambda *args: SimpleNamespace(prepare=prepare))
+    monkeypatch.setattr(script, "open_retained_payload", lambda *args: payload)
+    monkeypatch.setattr(script.FaceObservationReader, "preload", preload)
+    monkeypatch.setattr(script.FaceObservationReader, "extract", extract)
+    monkeypatch.setattr(script.subprocess, "check_output", lambda *args, **kwargs: "synthetic")
+    argv = [
+        "--trace",
+        str(trace_path),
+        "--server-dir",
+        str(tmp_path),
+        "--output",
+        str(tmp_path / "report.json"),
+    ]
+    if failure:
+        with pytest.raises(RuntimeError, match="synthetic"):
+            script.main(argv)
+    else:
+        assert script.main(argv) == 0
+    assert state["released"] == 1
+    assert state["disposed"]
+    assert state["native_called"] == (failure != "database_close")

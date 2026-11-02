@@ -4,6 +4,13 @@
 
 ## Trạng thái
 
+**02/11 — APP-03, sẵn sàng ghi âm:** màn đọc câu có trạng thái chuẩn bị riêng,
+chỉ báo đang ghi khi AudioRecord đã xác nhận chạy. Mốc audio offset lấy sau
+khi micro bắt đầu, vẫn là ước lượng phần mềm. Camera đã finalize không được
+coi là còn ghi; hủy/chạm lặp không mở micro muộn. Đủ8giây thì kết thúc và gửi
+một lần, không tiếp tục báo ghi khi WAV đã dừng nhận mẫu. Không đổi thời lượng,
+ngưỡng hoặc khẳng định đồng bộ hardware. Cần thử lại trên S24 FE sau triển khai.
+
 **02/11 — sửa hướng dẫn sau thử S24 FE:** lời nhắc quay đầu dùng câu ngắn
 “Quay chậm…” và “Dừng xoay, giữ yên”; các dao động ngắn không liên tục cắt/phát
 lại giọng. Cảnh báo tư thế và đổi bước vẫn được ưu tiên. Không kéo dài hoặc

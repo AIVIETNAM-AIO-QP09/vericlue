@@ -389,11 +389,12 @@ class CameraSession(
         return (atNs - lengthNs) / 1e6
     }
 
-    fun videoElapsedMs(): Int? {
-        if (recording == null) return null
-        val (lengthNs, atNs) = recordedAt ?: return null
-        return ((lengthNs + SystemClock.elapsedRealtimeNanos() - atNs) / 1_000_000).toInt()
-    }
+    fun videoElapsedMs(): Int? = runningVideoElapsedMs(
+        recordingActive = recording != null,
+        recordedAt = recordedAt,
+        finalized = finalized,
+        nowNs = SystemClock.elapsedRealtimeNanos(),
+    )
 
     /**
      * Waits until the first video frame is written (about 0.9 s after the start on the emulator).
