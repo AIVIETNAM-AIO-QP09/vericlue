@@ -510,6 +510,14 @@ latch là hold đạt/đổi phase/qua gate; giữ các hằng và lịch5/5/2. 
 |---|---|---|---|---|
 | M1 | 1 | S2 | P0 | APP-01 |
 
+**02/11 tối — doing, sửa lỗi micro:** Android đã cấp quyền nhưng decoder từ
+chối PTS của file thực; callback báo nhầm thiếu quyền. Policy nguồn mới
+`muxed-av-pcm-v2-clock1ms` kiểm sai số tối đa1ms cả theo mốc đầu và đoạn kế cận,
+PTS phải tăng, không sửa PCM/offset. Lỗi capture khi đã có quyền chuyển màn
+ghi lại; chỉ quyền thực sự bị từ chối mới mở hướng dẫn quyền. Ngưỡng AI/API
+vẫn giữ nguyên. Full Android và native decoder replay đã qua; cần thử lại toàn
+luồng sau cài.
+
 **02/11 — doing, nguồn ghi chung:** CameraX ghi micro/video vào một MP4 có
 cap 8 giây; chuẩn bị chỉ kết thúc khi có video và audio native ACTIVE. Sau
 finalize, giải mã chính file sẽ tải lên thành WAV PCM 16-bit, mono, 16 kHz, giữ offset

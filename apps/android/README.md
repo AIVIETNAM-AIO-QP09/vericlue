@@ -4,6 +4,18 @@
 
 ## Trạng thái
 
+**02/11 tối — APP-03, lỗi báo thiếu quyền micro:** quyền Android đã được cấp,
+nhưng decoder từ chối timestamp của bản ghi thật vì kiểm clock quá sát từng mẫu.
+Nguồn `muxed-av-pcm-v2-clock1ms` cho phép sai số clock tối đa1ms so với mốc đầu
+và đoạn kế cận; PTS vẫn phải tăng, không chèn/cắt mẫu hoặc tự dịch offset.
+Đây là ngân sách sai số của app, không phải bảo đảm clock Android hay ngưỡng AI.
+Chuẩn hóa WAV vẫn `pcm16-mono16k-sinc-v1`. Hai callback lỗi ghi/giải mã kiểm lại
+quyền hiện tại: chỉ khi quyền bị từ chối mới mở hướng dẫn cấp quyền; lỗi bản ghi
+khi đã có quyền mở màn “Chưa thu được giọng nói”. Chốt gửi/AI không đổi.
+Full Android304ca/0failure/1exportskip, native replay file bị lỗi đã giải mã
+thành công và qua WAV guard; fixtures/cancellation cũng đạt. Đây là kiểm chứng
+bộ đọc bản ghi, khôi phục toàn luồng vẫn chưa nghiệm thu.
+
 **02/11 — APP-03, chung nguồn hình/tiếng (doing):** luồng API thật dùng CameraX
 ghi micro và video vào một MP4, giới hạn 8 giây. Chỉ báo sẵn sàng khi có khung
 video và audio native ACTIVE. Sau finalize, MediaCodec giải mã âm thanh từ

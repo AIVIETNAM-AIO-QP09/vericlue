@@ -388,7 +388,11 @@ fun VeriClueApp() {
                     nav.go(Routes.Uploading)
                 },
                 onFailure = { failure ->
-                    nav.go(if (failure == VoiceCaptureFailure.Camera) Routes.ErrorCamera else Routes.ErrorMic)
+                    nav.go(FlowRules.voiceCaptureFailureRoute(
+                        failure,
+                        cameraGranted = granted(context, Manifest.permission.CAMERA),
+                        micGranted = granted(context, Manifest.permission.RECORD_AUDIO),
+                    ))
                 },
             )
         }
@@ -422,7 +426,11 @@ fun VeriClueApp() {
                     }
                 },
                 onFailure = { failure ->
-                    nav.go(if (failure == VoiceCaptureFailure.Camera) Routes.ErrorCamera else Routes.ErrorMic)
+                    nav.go(FlowRules.voiceCaptureFailureRoute(
+                        failure,
+                        cameraGranted = granted(context, Manifest.permission.CAMERA),
+                        micGranted = granted(context, Manifest.permission.RECORD_AUDIO),
+                    ))
                 },
                 failureReason = { camera.muxedVoiceFailure ?: VoiceCaptureFailure.Camera },
             )

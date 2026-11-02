@@ -15,6 +15,7 @@ import vn.vericlue.app.capture.av.MuxedDecodeEvent
 import vn.vericlue.app.capture.av.MuxedVoiceAudio
 import vn.vericlue.app.capture.av.MuxedVoiceAudioDecoder
 import vn.vericlue.app.capture.av.MuxedVoiceAudioException
+import vn.vericlue.app.capture.av.PCM_CLOCK_MAX_DEVIATION_US
 
 private class ProbeFailure(val code: String) : Exception(code)
 
@@ -49,7 +50,8 @@ internal object MuxedAvProbe {
             val report = JSONObject().put("mode", "shared-av").put("probeOnly", true)
                 .put("trimPolicy", "original-decoder-format-no-manual-trim")
                 .put("videoPtsBasis", "minimum-extractor-sample-presentationTimeUs")
-                .put("pcmPtsContinuityToleranceFrames", 2)
+                .put("pcmClockDeviationToleranceUs", PCM_CLOCK_MAX_DEVIATION_US)
+                .put("pcmAdjacentDeviationChecked", true).put("pcmPtsStrictlyIncreasing", true)
                 .put("nativePcmValidation", "unchanged-decoder-format")
                 .put("nativePtsUnchanged", true)
                 .put("canonicalWavNormalization", "pcm16-mono16k-sinc-v1")

@@ -11,8 +11,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import vn.vericlue.app.capture.av.MUXED_PCM_CAPTURE_POLICY
 
-const val MUXED_VOICE_SOURCE = "muxed-av-pcm-v1"
+const val MUXED_VOICE_SOURCE = MUXED_PCM_CAPTURE_POLICY
 const val MUXED_VOICE_LIMIT_MS = 8000L
 
 data class MuxedVoiceDecodedAudio(val wav: ByteArray, val audioOffsetMs: Int, val source: String = MUXED_VOICE_SOURCE)

@@ -2,6 +2,9 @@ package vn.vericlue.app.capture.av
 
 import java.io.ByteArrayOutputStream
 
+const val MUXED_PCM_CAPTURE_POLICY = "muxed-av-pcm-v2-clock1ms"
+const val PCM_CLOCK_MAX_DEVIATION_US = 1_000L
+
 class MuxedVoiceAudioException(val code: String, cause: Throwable? = null) : Exception(code, cause)
 internal data class PcmFormat(val sampleRate: Int, val channels: Int, val encoding: Int)
 internal data class PcmAudio(
@@ -26,6 +29,8 @@ internal class PcmTimeline(
 
     private val pcm = ByteArrayOutputStream()
     private var firstPtsUs: Long? = null
+    private var lastPtsUs: Long? = null
+    private var lastFrames = 0L
     private var frames = 0L
 
     fun append(ptsUs: Long, bytes: ByteArray) {
@@ -35,13 +40,21 @@ internal class PcmTimeline(
         if (frames + addedFrames > maxDurationUs * format.sampleRate / 1_000_000) throw MuxedVoiceAudioException("pcm_duration_limit")
         firstPtsUs?.let { first ->
             val expectedPts = addPts(first, frames * 1_000_000 / format.sampleRate)
-            // Explicit two-sample tolerance; larger gaps are never repaired or filled with silence.
-            val toleranceUs = 2L * ((1_000_000L + format.sampleRate - 1) / format.sampleRate)
-            if (subtractPts(ptsUs, expectedPts) !in -toleranceUs..toleranceUs) throw MuxedVoiceAudioException("audio_pts_discontinuity")
+            // Bounded application clock budget, not a hardware guarantee. Never accumulate
+            // per-buffer forgiveness: every block remains anchored to the first sample.
+            if (!withinClockBudget(subtractPts(ptsUs, expectedPts))) throw MuxedVoiceAudioException("audio_pts_discontinuity")
+        }
+        lastPtsUs?.let { previous ->
+            val adjacentExpected = addPts(previous, lastFrames * 1_000_000 / format.sampleRate)
+            if (ptsUs <= previous || !withinClockBudget(subtractPts(ptsUs, adjacentExpected))) {
+                throw MuxedVoiceAudioException("audio_pts_discontinuity")
+            }
         }
         if (firstPtsUs == null) firstPtsUs = ptsUs
         pcm.write(bytes)
         frames += addedFrames
+        lastPtsUs = ptsUs
+        lastFrames = addedFrames.toLong()
     }
 
     fun finish(sawOutputEos: Boolean, videoPtsUs: Long): PcmAudio {
@@ -50,6 +63,9 @@ internal class PcmTimeline(
         val first = firstPtsUs ?: throw MuxedVoiceAudioException("empty_pcm")
         return PcmAudio(format, pcm.toByteArray(), frames, first, subtractPts(first, videoPtsUs))
     }
+
+    private fun withinClockBudget(deviationUs: Long): Boolean =
+        deviationUs in -PCM_CLOCK_MAX_DEVIATION_US..PCM_CLOCK_MAX_DEVIATION_US
 }
 
 internal fun subtractPts(left: Long, right: Long): Long = try {

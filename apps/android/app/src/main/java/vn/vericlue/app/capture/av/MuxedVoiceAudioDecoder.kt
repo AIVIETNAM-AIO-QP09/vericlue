@@ -24,7 +24,7 @@ data class MuxedVoiceAudio(
     val uploadSampleRate: Int = 16_000,
     val uploadChannels: Int = 1,
     val normalizationPolicy: String = "pcm16-mono16k-sinc-v1",
-    val source: String = "muxed-av-pcm-v1",
+    val source: String = MUXED_PCM_CAPTURE_POLICY,
 )
 
 /** Opt-in diagnostics; raw accepted PCM is delivered synchronously only to the supplied observer. */

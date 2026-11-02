@@ -1,6 +1,7 @@
 package vn.vericlue.app.flow
 
 import vn.vericlue.app.capture.CccdInfo
+import vn.vericlue.app.capture.VoiceCaptureFailure
 import vn.vericlue.app.data.api.IdCardFields
 
 /**
@@ -88,6 +89,13 @@ object Routes {
 }
 
 object FlowRules {
+    /** Only a current permission denial should show permission instructions. */
+    fun voiceCaptureFailureRoute(failure: VoiceCaptureFailure, cameraGranted: Boolean, micGranted: Boolean): String =
+        when (failure) {
+            VoiceCaptureFailure.Camera -> if (cameraGranted) Routes.ErrorDevice else Routes.ErrorCamera
+            VoiceCaptureFailure.Audio -> if (micGranted) Routes.NoVoice else Routes.ErrorMic
+        }
+
     fun closesCameraOnResult(route: String): Boolean = route in setOf(Routes.Success, Routes.Review, Routes.ManualDemoComplete)
     /** Prefer the back QR, falling back to the front on cards that print it there. */
     fun cardQr(frontQr: String?, backQr: String?): String? =
