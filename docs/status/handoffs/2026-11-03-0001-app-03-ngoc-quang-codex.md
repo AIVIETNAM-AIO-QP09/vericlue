@@ -114,3 +114,33 @@
   manifest pinned có sẵn và kiểm SHA, chỉ là ứng viên, chưa đánh giá hay cài API.
   Qwen1.7 chưa có artifact tại máy. Chọn model phải đánh giá trên
   calib_fit, khóa trước đánh giá; không chọn bằng các lượt điện thoại này.
+- APK preview `b578195bfaa1404882a0f98a56cfe124edf01c75` đã cài đè S24 FE
+  lúc 01:03 ngày 03/11 (18:03 UTC ngày 02/11). Hash APK đang cài khớp artifact,
+  giữ signer cũ, reverse8421 hoạt động; toàn bộ hàng tài khoản/khôi phục và
+  cấu hình riêng không đổi. API85c8ab4 vẫn healthz=ok, failed_modules rỗng.
+  Người dùng được mời thử lượt cuối; chưa ghi nhận nghiệm thu camera hoặc
+  khôi phục toàn luồng cho bản này. Không tự mở app/camera bằng ADB.
+
+## Lỗi chờ phản hồi sau bản preview
+
+- Người dùng báo “Chưa thể kết nối”. ADB/reverse8421 còn hoạt động và API
+  healthz=ok. Hai phiên mới đều qua đủ bảy chốt mặt, server yêu cầu giọng;
+  chưa có media giọng hay recovery binding trong hai phiên này.
+- Lượt đầu ghi PAD khoảng 50,1 giây trong nhóm song song, sau đó FACE_MATCH
+  chạy riêng khoảng 11,8 giây: riêng hai giai đoạn đã hơn 61,9 giây. Android
+  đang đặt read timeout 60 giây và gom IOException vào màn lỗi mạng. Đây là
+  thời gian xử lý thật của lượt chẩn đoán, không phải benchmark hiệu suất.
+- Server có deadline suy luận chung tối đa 90,8 giây. Bản sửa giới hạn riêng
+  phản hồi finalize/voice ở 120 giây; các endpoint thường vẫn 60 giây,
+  connect 15 giây và write 60 giây. Không đổi deadline server, chốt xác minh,
+  hợp đồng hay phát lại tự động các POST đã được tiếp nhận.
+- Không hướng dẫn bấm gửi lại finalize của phiên cũ: server đã yêu cầu giọng
+  thì POST finalize lặp lại trả 409, API hiện không có endpoint đọc lại kết
+  quả bước giọng đang chờ. Phiên mất phản hồi này chưa được coi là khôi phục.
+- RED riêng HTTP: 4 ca, 3 lỗi đúng mục tiêu; ca endpoint thường hết thời gian
+  vẫn đạt. GREEN toàn Android: **430 ca / 0 failure / 0 error / 1 export skip**
+  trong 87 lớp; lint **0 lỗi / 44 cảnh báo / 5 thông tin**, hai APK build đạt.
+  Test dùng phản hồi thật chậm 250ms so với cửa sổ thường 100ms, không đợi
+  60 giây trong test. Plan check **0 lỗi / 10 cảnh báo**. Review độc lập không
+  có blocker. Cơ chế retry OkHttp hiện hữu không đổi; không tuyên bố mọi POST
+  đều được transport đảm bảo gửi đúng một lần.

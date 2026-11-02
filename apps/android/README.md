@@ -4,6 +4,13 @@
 
 ## Trạng thái
 
+**03/11 — chờ phản hồi AI:** finalize và gửi giọng dùng read timeout 120 giây,
+vì deadline suy luận server tối đa 90,8 giây có thể vượt mức chờ 60 giây trước
+đó. Các endpoint thường giữ 60 giây; connect/write vẫn 15/60 giây. Không bổ sung
+cơ chế gửi lại POST, sửa chốt AI hay chuyển lỗi thành đạt. Lượt S24 FE phát hiện lỗi
+đã qua phần mặt nhưng app mất phản hồi trước màn giọng; chưa nghiệm thu
+khôi phục trên bản sửa này.
+
 **03/11 — sửa preview màn đọc:** khung camera nhỏ được ánh xạ FIT từ toàn bộ
 viewport, tránh nhìn như bị zoom vào một phần khuôn mặt. Chỉ đổi lớp hiển thị;
 giữ nguyên kích thước/vòng đời native preview và dữ liệu ghi hình. Lượt thử
