@@ -7,6 +7,11 @@ import org.junit.Rule
 import org.junit.Test
 import vn.vericlue.app.ui.screens.FaceReadyScreen
 import vn.vericlue.app.ui.screens.ManualDemoCompleteScreen
+import vn.vericlue.app.ui.screens.SuccessScreen
+import vn.vericlue.app.ui.screens.BankOpenedScreen
+import vn.vericlue.app.ui.screens.BankStartScreen
+import vn.vericlue.app.ui.screens.AuthScreen
+import vn.vericlue.app.flow.Purpose
 import vn.vericlue.app.ui.theme.VcTheme
 
 abstract class ManualDemoSnapshots(device: DeviceConfig) {
@@ -18,6 +23,27 @@ abstract class ManualDemoSnapshots(device: DeviceConfig) {
             } }
             paparazzi.snapshot("complete_$dark") { VcTheme(dark = dark, motionEnabled = false) {
                 ManualDemoCompleteScreen({})
+            } }
+        }
+    }
+    @Test fun accountCompletionAndRestoredEntryKeepTheDemoLabel() {
+        for (dark in listOf(false, true)) {
+            for (purpose in Purpose.entries) {
+                paparazzi.snapshot("account_${purpose}_$dark") { VcTheme(dark = dark, motionEnabled = false) {
+                    SuccessScreen(purpose, {}, manualFullDemo = true, accountReady = true)
+                } }
+            }
+            paparazzi.snapshot("bank_complete_$dark") { VcTheme(dark = dark, motionEnabled = false) {
+                BankOpenedScreen({}, manualFullDemo = true)
+            } }
+            paparazzi.snapshot("restored_bank_$dark") { VcTheme(dark = dark, motionEnabled = false) {
+                BankStartScreen({}, {}, manualFullDemo = true)
+            } }
+            paparazzi.snapshot("restored_auth_$dark") { VcTheme(dark = dark, motionEnabled = false) {
+                AuthScreen({}, {}, {}, manualFullDemo = true)
+            } }
+            paparazzi.snapshot("offline_preview_$dark") { VcTheme(dark = dark, motionEnabled = false) {
+                SuccessScreen(Purpose.Onboarding, {}, preview = true)
             } }
         }
     }

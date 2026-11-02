@@ -30,6 +30,19 @@ class FakeBackend:
         return np.asarray(self.outputs[min(len(self.inputs) - 1, len(self.outputs) - 1)])
 
 
+def test_successful_raw_backend_can_feed_bound_manual_demo(decoded):
+    from vericlue_ml.common.manual_demo import ManualDemoThresholds
+
+    decoded(np.ones(80000, dtype=np.float32))
+    model = anti.AntiDeepfakeDetector(backend=FakeBackend(outputs=[[0.0, 1.0]]))
+    policy = ManualDemoThresholds()
+    raw = model.predict(DetectorInput(audio=Path("synthetic.wav")))
+    result = policy.apply_voice(raw)
+    assert policy.accepts_voice_spoof(result)
+    assert result.evidence == raw.evidence
+    assert result.prob_attack is None
+
+
 @pytest.fixture
 def decoded(monkeypatch):
     def configure(waveform, trim=None):

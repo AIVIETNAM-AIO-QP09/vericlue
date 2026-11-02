@@ -231,8 +231,17 @@ class AccountStore:
                 or result.error_code is not None
             ):
                 raise not_eligible()
-            if s.manual_full_demo and module == Module.VOICE_SPOOF and policy is not None:
-                if not policy.accepts_voice_spoof(result):
+            if (
+                s.manual_full_demo
+                and module in {Module.VOICE_SPOOF, Module.LIPSYNC}
+                and policy is not None
+            ):
+                accepts = (
+                    policy.accepts_voice_spoof
+                    if module == Module.VOICE_SPOOF
+                    else policy.accepts_lipsync
+                )
+                if not accepts(result):
                     raise not_eligible()
                 continue
             if s.manual_full_demo and module in {Module.FACE_PAD, Module.FACE_DEEPFAKE}:

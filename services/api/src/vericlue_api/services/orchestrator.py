@@ -94,6 +94,17 @@ class Orchestrator:
                     Path(self.settings.models_dir),
                     Path(self.settings.media_dir),
                     timeout=self.settings.session_model_timeout_seconds,
+                    **(
+                        {
+                            "manual_demo": self.settings.manual_demo_policy,
+                            "warmup_kinds": ("spoof",)
+                            if group == "spoof"
+                            else ("content", "timing", "lipsync"),
+                            "startup_timeout": self.settings.voice_worker_startup_timeout_seconds,
+                        }
+                        if self.settings.manual_full_demo
+                        else {}
+                    ),
                 )
             return SessionVoiceDetector(
                 self._voice_clients[group],

@@ -1,14 +1,30 @@
 # Chạy demo VeriClue: một app, một server
 
-**Cập nhật vận hành 01/11:** source đang ở worktree
-`C:/Users/Admin/.codex/worktrees/android-merged-review/vericlue`, launcher hiện
-tại `D:/vericlue/tmp/full-demo-setup/VeriClue.cmd`. Đã nâng migration0011 và bật
-OTP mô phỏng trong synthetic. Kiểm lại18:44: server8421 dừng,ADB chưa thấy máy;
-runtime mới đã smoke trên bản sao DB/media riêng,không dọn dữ liệu gốc. APK
-debug mới cùng khóa laptop đã sẵn sàng trong `tmp/publish-review-2026-11-01/ready-apk`
-ở ổ D:/vericlue, chưa cài; bản SEC09 trước đây đã cài trên SamsungA04. Ba luồng
-AI thật chưa nghiệm thu. Các đường dẫn/lượt ký
-29/10 bên dưới là lịch sử. [Trạng thái mới](real-ekyc-next-steps.md).
+**Gói thử sáng 02/11:** dùng `D:/vericlue/tmp/phone-demo-2026-11-02/`, source
+`7904d7092baaa338f06351688286c1f4dc440ea0`, API localhost:8421. Gói có DB/media/khóa
+demo riêng; không khởi động launcher cũ trên dữ liệu gốc. Các helper của gói:
+`START-DEMO.cmd`, `STATUS-DEMO.cmd`, `STOP-DEMO.cmd`, `CONNECT-PHONE.cmd`.
+Đọc checklist/build-info của gói trước khi chạy/cài đè; giữ dữ liệu và Keystore.
+
+APK 0.3.0: `signedMedia=true`, `liveByDefault=true`, `presenceTrace=false`;
+API thật mặc định, không scripted success khi server lỗi. Cùng signer debug
+laptop SHA-256 `822e5e44be42ce365f186a6c73af5bf36eb262c3cc65011b4269363adc695c75`,
+APK v2=true/v3=false. Khóa này khác quy trình khóa phát hành lịch sử bên dưới.
+Kiểm signer bản đã cài trước `adb install -r`, không uninstall/clear.
+Workflow APK GitHub mới cũng bật/kiểm API mặc định và ghi metadata tương ứng;
+artifact vẫn cần ký trên laptop. Gói local7904d70 giữ nguyên provenance riêng.
+
+`MANUAL_FULL_DEMO` dùng raw AntiDeepfake/SyncNet và policy manual v2, không giả
+calibrator hoặc nâng trạng thái NES diagnostic. OTP ngẫu nhiên hiển thị qua
+`simulated_sms`, không cố định `123456`. Smoke suy luận AntiDeepfake/Qwen/CTC
+trên một mẫu `calib_fit` chọn sẵn và API/DB0011 đã qua. SyncNet mới kiểm forward
+tensor, chưa video mặt–giọng thực. Ba luồng trên điện thoại
+chưa chạy. [Policy và giới hạn](manual-face-demo.md),
+[trạng thái nghiệm thu](real-ekyc-next-steps.md).
+
+**Phần dưới ghi cấu hình/lượt giao 29/10–01/11 trước gói mới.** Các đường dẫn
+`D:/Projects/Data4Life/tmp/vericlue-server` và `full-demo-setup` không phải
+launcher của gói ngày 02/11.
 
 Theo yêu cầu ngày 29/10, demo dùng một app **VeriClue** (`vn.vericlue.app`) và
 một tiến trình API tại cổng **8421**. QR/chân dung chạy trực tiếp trong API,

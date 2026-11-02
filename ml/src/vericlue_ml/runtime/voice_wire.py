@@ -17,9 +17,15 @@ KINDS = {
 }
 
 
-def expected_version(kind: str) -> str:
+def expected_version(kind: str, manual_demo=None) -> str:
     if kind not in KINDS:
         raise ValueError("Unknown voice worker kind")
+    if manual_demo is not None and kind in {"spoof", "lipsync"}:
+        from vericlue_ml.voice.antispoof import AntiDeepfakeDetector
+        from vericlue_ml.voice.syncnet import SyncNetDetector
+
+        raw = AntiDeepfakeDetector().version if kind == "spoof" else SyncNetDetector().version
+        return raw + manual_demo.version_suffix
     if kind == "content":
         from vericlue_ml.voice.qwen_asr import VERSION
     elif kind == "timing":
@@ -63,3 +69,21 @@ def source_hashes(inp: DetectorInput, root: Path, kind: str) -> dict[str, str]:
                 handle.seek(0)
             result[role] = hashlib.file_digest(handle, "sha256").hexdigest()
     return result
+
+
+def worker_scope(manual_demo=None) -> dict:
+    """Private protocol binding; standard framing stays backward compatible."""
+    return (
+        {"mode": "manual_full_demo", "policy_id": manual_demo.policy_id}
+        if manual_demo is not None
+        else {}
+    )
+
+
+def worker_hello(manual_demo=None, warmup_kinds=()) -> dict:
+    hello = {"protocol": PROTOCOL, "ready": True, **worker_scope(manual_demo)}
+    if manual_demo is not None:
+        hello["loaded_versions"] = {
+            kind: expected_version(kind, manual_demo) for kind in warmup_kinds
+        }
+    return hello

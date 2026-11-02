@@ -159,7 +159,7 @@ def test_manual_voice_spoof_rejects_degraded_error_unmeasured_and_diagnostic_res
         evidence=[Evidence(type="segments", name="nes2net_windows", value=[ok_window])],
         latency_ms=10.0,
     )
-    assert policy.accepts_voice_spoof(valid_timeline)
+    assert not policy.accepts_voice_spoof(valid_timeline)
 
     # Degraded outer status (current uncalibrated NES2Net diagnostic output) must be rejected.
     assert not policy.accepts_voice_spoof(

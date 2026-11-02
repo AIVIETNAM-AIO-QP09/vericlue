@@ -1,91 +1,58 @@
-# Trình diễn AI khuôn mặt với ngưỡng thủ công
+# Trình diễn AI thật với ngưỡng thủ công
 
-APP-01/FLOW-04, theo yêu cầu người dùng ngày31/10: một cấu hình thử nghiệm để
-quay video nộp bài trong khi chưa có artifact hiệu chỉnh. Chỉ hỗ trợ onboarding
-phần mặt, dùng các model thật; OTP vẫn mô phỏng. Không mở sinh trắc tài khoản,
-đăng nhập lại/khôi phục, continuity giọng, chứng nhận hay kết quả ký cho bên tích hợp.
+## Bản chuẩn bị thử điện thoại ngày 02/11/2026
 
-## Ngưỡng và ý nghĩa
+APP-01/FLOW-04/SEC-09: source `7904d7092baaa338f06351688286c1f4dc440ea0`
+hoàn thiện `MANUAL_FULL_DEMO` cho đăng ký, đăng nhập lại và khôi phục tài khoản
+thử nghiệm. Phần triển khai trước khi có điện thoại đã sẵn sàng; **chưa nghiệm
+thu ba luồng trên thiết bị thật**. Không phải cấu hình sản phẩm đã hiệu chỉnh.
 
-| Cấu hình | Khởi đầu | So sánh |
+Gói riêng trên laptop: `D:/vericlue/tmp/phone-demo-2026-11-02/`. Gói dùng DB,
+media và khóa demo riêng; không khởi động launcher cũ trên DB/media gốc.
+Các helper của gói là `START-DEMO.cmd`, `STATUS-DEMO.cmd`, `STOP-DEMO.cmd` và
+`CONNECT-PHONE.cmd`; đọc checklist/build-info đi kèm trước khi chạy. API ở
+`http://127.0.0.1:8421`, điện thoại nối bằng `adb reverse tcp:8421 tcp:8421`.
+Không uninstall hoặc clear dữ liệu để đổi bản cài.
+
+APK 0.3.0 của gói dùng `signedMedia=true`, `liveByDefault=true`,
+`presenceTrace=false`, cùng khóa debug laptop. Fingerprint chứng chỉ SHA-256:
+`822e5e44be42ce365f186a6c73af5bf36eb262c3cc65011b4269363adc695c75`;
+chữ ký APK v2=true, v3=false. Đây không phải khóa phát hành được pin trong repo.
+Đối chiếu signer bản đã cài trước khi dùng `adb install -r`.
+
+Bằng chứng tại thời điểm cập nhật: preload native AntiDeepfake, Qwen, CTC và
+SyncNet đã qua; full Python trên source trên đạt 4998 test, bỏ qua 100 test.
+Smoke frozen-source đã chạy AntiDeepfake/Qwen/CTC trên một mẫu `calib_fit`
+chọn sẵn, không fit hoặc chọn ngưỡng; CTC vẫn `degraded/unclear` diagnostic.
+SyncNet forward tensor audio/video cho embedding hữu hạn, chưa phải video
+nói thật. API/DB0011 khỏe, phiên đúng mode/hash, thiếu consent bị chặn và không
+cấp receipt. Xem [bằng chứng smoke](../status/results/APP-01-phone-demo-preflight-2026-11-01.json).
+CCCD/mặt/giọng/Keystore và ba luồng trên
+điện thoại đều `not_run` cho gói mới. Không suy accuracy từ các test phần mềm.
+
+## Policy `manual-full-demo-v2`
+
+| Cấu hình | Mặc định | So sánh |
 |---|---:|---|
-| MANUAL_DEMO_PAD_MAX | 0.50 | Điểm thô FS-VFM không vượt mức này |
-| MANUAL_DEMO_GEND_MAX | 0.50 | Điểm thô GenD không vượt mức này |
-| MANUAL_DEMO_MATCH_MIN | 0.30 | Cosine tham chiếu–chính diện tối thiểu |
-| MANUAL_DEMO_CONSISTENCY_MIN | 0.30 | Cosine thấp nhất giữa ba góc tối thiểu |
+| `MANUAL_DEMO_PAD_MAX` | 0.50 | Điểm thô FS-VFM không vượt mức này |
+| `MANUAL_DEMO_GEND_MAX` | 0.50 | Điểm thô GenD chính diện không vượt mức này |
+| `MANUAL_DEMO_MATCH_MIN` | 0.30 | Cosine tham chiếu–chính diện tối thiểu |
+| `MANUAL_DEMO_CONSISTENCY_MIN` | 0.30 | Cosine thấp nhất giữa ba góc tối thiểu |
+| `MANUAL_DEMO_SPOOF_MAX` | 0.50 | Điểm thô AntiDeepfake không vượt mức này |
+| `MANUAL_DEMO_LIPSYNC_MAX` | 0.50 | Điểm thô SyncNet không vượt mức này |
 
-Hai mức0.50 là điểm cắt thử nghiệm trên đầu ra phân loại nhị phân, không phải
-xác suất đã hiệu chỉnh. Cosine dùng thang đo khác. Các giá trị do người dùng
-chọn cách làm thủ công, chưa được đo/chọn trên dữ liệu có nhãn và không chứng
-minh độ chính xác, FAR/FRR hay chống tấn công. Không sửa thresholds.yaml, không
-tạo artifact có provenance/dataset/số mẫu giả. Không tự nới theo lượt người thử.
+Đây là các mốc minh họa thủ công, không fit/chọn trên VIVOS, DNU hoặc tập test,
+không chứng minh FAR/FRR hay chất lượng chống giả mạo. Không tự nới theo lượt
+người thử. Mọi tham số nằm trong hash policy v2; với giá trị mặc định, hash là
+`2f7e8becee1dff4d23831acd791adc449af3e12c2e0f314501930b1109b25ca8`.
+Không sửa `thresholds.yaml` hoặc tạo artifact/provenance giả để mở chốt.
 
-## Điều kiện cấu hình
+Kết quả manual giữ `prob_attack=null`, `calibrated=false`, marker
+`manual_demo=true`, `demo_policy_id` và hậu tố version
+`+manual-demo-<policy_id[:16]>`. Policy v2 làm thay đổi hash so với bản demo cũ;
+phiên/tài khoản khác mode hoặc policy bị từ chối, không chuyển đổi ngầm.
 
-MANUAL_FACE_DEMO mặc định false. Khi bật phải đồng thời có:
-
-```dotenv
-MANUAL_FACE_DEMO=true
-SECURITY_PROFILE=synthetic
-PRODUCT_MODE=ekyc
-USE_MOCK_MODELS=true
-ROUTER_PROFILE=mvp
-SESSION_FACE_MODELS=true
-SESSION_FACE_CHECKS=true
-IDENTITY_CARD_ENABLED=true
-IDENTITY_FACE_FROM_VIDEO=true
-IDENTITY_CONSISTENCY_REQUIRED=true
-IDENTITY_VOICE_CONTINUITY=false
-ACCOUNT_ENROLLMENT=false
-PRIVATE_CREDENTIALS=false
-RESULT_SIGNING_KEY_FILE=
-```
-
-USE_MOCK_MODELS ở đây giữ nền OTP mô phỏng. Orchestrator vẫn chọn SCRFD,
-CamProbe, gaze/head, FS-VFM, GenD và LVFace thật qua các opt-in nêu trên; lỗi
-không fallback sang mock. Profile full có ChromaPulse chưa đủ điều kiện nên
-không được bật cùng manual demo. Sản phẩm protected không cho dùng cấu hình này.
-
-SessionAttackDetector/FaceMatchDetector nhận policy riêng: chỉ tính gate thủ
-công sau khi suy luận hợp lệ; prob_attack vẫn null, calibrated=false và version
-có hậu tố policy riêng. Mất mặt/nhiều mặt, decode/timeout/integrity/error/degraded
-vẫn không đủ điều kiện. Giữ lịch server, kiểm mắt/quay đầu, ký media và chọn/
-kiểm lại đúng pixel video. Chính sách manual không thay các kiểm tra đó.
-
-## Phản hồi và màn hình
-
-Phiên ghi evaluation_mode=manual_demo và SHA256 demo_policy_id của bốn ngưỡng.
-Đổi cấu hình/bật tắt mode phải bắt đầu phiên mới; phiên cũ bị chặn. Response
-chuẩn giữ nguyên dạng cũ khi không bật manual.
-
-Chỉ khi tất cả model bắt buộc ok/pass, cùng policy và CCCD đã xác nhận, API mới
-trả demo_complete=true. Status API vẫn review, không phải pass. Bộ marker bổ
-sung là hợp đồng riêng cho trình diễn; client cũ vẫn xử lý là chưa xác minh.
-Không cấp account receipt, khóa tài khoản, chứng nhận hay signed result.
-
-Android kiểm mode/hash giữa tạo phiên và finalize, hiển thị thông báo trước
-ghi hình. Theo yêu cầu người dùng, màn cuối có tiêu đề **“Xác minh thành công”**,
-nhãn rõ **“Demo · Ngưỡng chưa hiệu chỉnh”** và giải thích không dùng kết quả để
-mở tài khoản/xác minh thực tế. Đây là route riêng, không đi qua lưu tài khoản
-thật. Camera được unbind trước khi mở màn. Không hiện điểm số cho người dân.
-
-## Laptop hiện tại
-
-Launcher: D:\vericlue\tmp\full-demo-setup\VeriClue.cmd.
-Helper local configure_manual_face_demo.py nằm cùng thư mục launcher:
---check kiểm cấu hình mà chưa áp dụng; --apply ghi cấu hình; --restore phục hồi
-các trường đã đổi. Helper chỉ sao lưu giá trị cấu hình không bí mật, giữ khóa/DB
-và cập nhật .env nguyên tử, không in bí mật. Stop server trước khi apply/restore,
-sau đó start và kiểm /healthz. Helper/data/mode backup không commit.
-
-APK giao tại D:\vericlue\tmp\full-demo-setup\apk\VeriClue-demo-debug.apk;
-cài đè -r, không gỡ/xóa dữ liệu. Điện thoại mới Samsung A04 đã pair; cổng kết nối
-Wi-Fi có thể đổi sau này, không dùng lại mã pairing cũ. Sau reconnect dùng
-adb reverse tcp:8421 tcp:8421 trên đúng serial của máy mới.
-
-## Chế độ mở rộng `MANUAL_FULL_DEMO` (3 luồng tài khoản thử nghiệm)
-
-Khi cần kiểm thử luồng tài khoản thử nghiệm (`onboarding`, `reauth`, `recovery`) với ngưỡng thủ công, `MANUAL_FULL_DEMO=true` yêu cầu cấu hình cô lập trong môi trường `synthetic`:
+## Cấu hình full demo
 
 ```dotenv
 MANUAL_FULL_DEMO=true
@@ -93,6 +60,7 @@ MANUAL_FACE_DEMO=false
 SECURITY_PROFILE=synthetic
 PRODUCT_MODE=ekyc
 USE_MOCK_MODELS=true
+SIMULATED_OTP=true
 ROUTER_PROFILE=mvp
 SESSION_FACE_MODELS=true
 SESSION_FACE_CHECKS=true
@@ -104,23 +72,79 @@ IDENTITY_VOICE_CONTINUITY=true
 ACCOUNT_ENROLLMENT=true
 PRIVATE_CREDENTIALS=false
 RESULT_SIGNING_KEY_FILE=
+VOICE_WORKER_STARTUP_TIMEOUT_SECONDS=180
 ```
 
-Các ràng buộc an toàn của `MANUAL_FULL_DEMO`:
+Bổ sung đường dẫn model/runtime và khóa riêng qua cấu hình private của gói,
+không chép bí mật vào repo. `VOICE_SPOOF_PYTHON` cần runtime tương thích
+AntiDeepfake; `VOICE_RUNTIME_PYTHON` phục vụ Qwen/CTC/SyncNet. Startup timeout
+riêng mặc định 180 giây (tối đa 600); `SESSION_MODEL_TIMEOUT_SECONDS` vẫn là
+hạn inference hiện có, không dùng preload để báo sẵn sàng giả.
 
-1. **Khóa chính sách theo phiên (`policy_id`):** Khi tạo phiên, `Session.created_model_mode="manual_full_demo"` và `Session.manual_demo_policy_id=policy.policy_id` được gắn chặt với phiên. Đổi bất kỳ ngưỡng nào (`MANUAL_DEMO_PAD_MAX`, `MANUAL_DEMO_GEND_MAX`, `MANUAL_DEMO_MATCH_MIN`, `MANUAL_DEMO_CONSISTENCY_MIN`) hoặc bật/tắt chế độ giữa phiên sẽ trả `409 session_expired`, buộc tạo phiên mới. Mọi `ModuleResult` của `face_pad`, `face_deepfake`, `face_match` (kể cả `reauth`/`recovery`) và `face_continuity` phải mang hậu tố `+manual-demo-<policy_id[:16]>` và `quality.demo_policy_id == policy.policy_id`. Bản ghi `DecisionRow.thresholds` và `AccountRow.encrypted_payload` lưu rõ `evaluation_mode="manual_full_demo"`, `demo_policy_id`, `manual_thresholds` và `calibrated=false`.
-2. **Không chấp nhận `voice_spoof` ở trạng thái `degraded`/`error`:** `accepts_voice_spoof` chỉ chấp nhận kết quả khi `status="ok"`, `error_code=None`, `diagnostic_only!=True`, không phải `mock`, và (nếu có `nes2net_windows`) toàn bộ cửa sổ âm thanh đều đã đo (`all_source_samples_measured=True`, `error_windows=0`, `low_quality_windows=0`, mọi cửa sổ `status="ok"` và `score <= 2.0`). Vì `NES2Net` hiện mới phát đầu ra chẩn đoán (`status="degraded", gate="unclear", diagnostic_only=True`) do còn chờ hoàn tất đối chiếu frontend Fairseq↔Transformers và hiệu chỉnh tiếng Việt, bước giọng nói với `NES2Net` thật sẽ giữ trạng thái `review` (chưa đạt) thay vì ép `pass`.
-3. **Chốt `lipsync` bắt buộc trong `recovery` và cấp tài khoản có bước giọng nói:** Ở các phiên MVP thông thường không gắn tài khoản, `lipsync` là tín hiệu tham khảo (`advisory`). Tuy nhiên, trong luồng `recovery` và khi cấp/khôi phục tài khoản có bước giọng nói (`AccountStore.create` / `AccountStore.recover` / `SessionFlow.voice`), `lipsync` bắt buộc phải đạt `status="ok"`, `gate="pass"`, `error_code=None` (và không có `splice_flags > 0`).
-4. **Bảo vệ tài khoản hiện hữu và cô lập tài khoản thử nghiệm:** Một lượt `onboarding` trùng CCCD (`id_number_hmac`) sẽ bị từ chối (`409 enrollment_not_available`) và **không bao giờ tự động hủy** tài khoản đang hoạt động. Tài khoản tạo trong `MANUAL_FULL_DEMO` được đóng dấu `evaluation_mode="manual_full_demo"` + `demo_policy_id` trong payload mã hóa và hoàn toàn cô lập khỏi `AccountStore` chế độ chuẩn (`standard`). Khi cần đặt lại tài khoản thử nghiệm, dùng hàm quản trị có phạm vi rõ ràng `AccountStore.destroy_manual_demo_account(...)` (chỉ hoạt động trong `synthetic` + `manual_full_demo`, không chạm vào tài khoản `standard`).
+`USE_MOCK_MODELS=true` ở đây giữ nền OTP mô phỏng; các opt-in chọn model thật,
+lỗi không fallback thành mock pass. OTP là mã ngẫu nhiên của lượt gửi được
+hiển thị từ `simulated_sms`, **không mặc định `123456`**. Profile protected,
+credential và signed result cho bên tích hợp không được mở bởi chế độ này.
 
-## Quay video và hoàn thiện tiếp
+## Giọng nói và chốt tài khoản
 
-Nói rõ trong video: “Model chạy thật, OTP mô phỏng, ngưỡng thử nghiệm chưa hiệu
-chỉnh”. Giữ nhãn demo trong khung hình. Màn thành công chỉ xuất hiện khi chấm
-đủ điều kiện; không có bảo đảm mọi người/lượt quay sẽ được chấp nhận.
+- Worker manual dùng raw **AntiDeepfake** (`voice01-v1-vad1-ln-win4-hop1-tail-meanlogits`)
+  và raw **SyncNet** (`voice05-v2`), giữ revision backend đầy đủ trước hậu tố
+  policy. NES2Net ở đường tiêu chuẩn vẫn là diagnostic; không đổi
+  `degraded/error` thành `ok/pass`, không dùng cửa sổ NES hoặc probability chung
+  làm bằng chứng đạt cho manual full demo.
+- Client/worker đóng băng policy khi tạo, handshake/request/reply gắn mode và
+  hash. Worker manual chỉ báo ready sau khi preload đúng backend; metadata từ
+  request người dân không chọn mode hoặc ngưỡng.
+- Chỉ raw `status=ok`, đúng module/version, điểm hữu hạn và bằng chứng hợp lệ mới
+  được chấm ngưỡng. AntiDeepfake cần đủ cửa sổ, logits/score và coverage hợp lệ.
+  SyncNet cần `splice_flags=0` đúng kiểu, offset/confidence hợp lệ; giữ
+  `hardware_clock_verified=false`. Thiếu bằng chứng, mock, diagnostic, lỗi,
+  timeout hoặc version/policy sai không được đạt.
+- Khớp môi bắt buộc cho recovery và onboarding có bước giọng khi ghi danh.
+  SessionFlow và AccountStore kiểm riêng spoof/lipsync đúng policy trước pass
+  hoặc receipt. Continuity dùng policy manual thay artifact cũ được cấu hình;
+  đường chuẩn vẫn yêu cầu calibrator đúng protocol.
+- Phiên và tài khoản lưu mode/hash; onboarding trùng CCCD bị từ chối, không tự
+  hủy tài khoản hiện hữu. Consent xử lý phiên và consent lưu mẫu mã hóa 24 giờ
+  là hai lựa chọn chủ động riêng. Không đủ receipt/consent thì không ghi danh.
+  Android giữ receipt/khóa cũ khi lỗi hoặc mode/policy không khớp; metadata cũ
+  chưa biết không được đoán thành standard/manual.
 
-Hoàn thiện chế độ chuẩn cần dữ liệu có nhãn/chia theo người, artifact PAD/GenD
-đúng protocol, ngưỡng match/consistency/continuity phù hợp, quyền lưu mẫu SEC-09,
-tích hợp tài khoản và nghiệm thu cả mẫu đạt/lỗi/không hợp lệ. Xem
-[hiệu chỉnh phiên](session-face-calibration.md). Không gọi số liệu test tổng
-hợp hoặc một vài lượt dùng thử là accuracy thực tế.
+Android mở API thật mặc định trong APK giao, không rơi sang kết quả dựng sẵn
+khi API lỗi. Nhãn **“Demo · Ngưỡng chưa hiệu chỉnh”** được giữ ở màn kết quả,
+mở tài khoản và tài khoản khôi phục từ lưu trữ. Gallery offline là bản xem trước.
+Không hiện điểm số cho người dân. Màn thành công chỉ xuất hiện khi đủ điều kiện;
+không bảo đảm mọi người/lượt quay đều được chấp nhận.
+
+## Lịch sử: `MANUAL_FACE_DEMO` ngày 31/10
+
+Đây là chế độ chỉ trình diễn onboarding phần mặt, khác `MANUAL_FULL_DEMO` ở
+trên. Cấu hình dùng `MANUAL_FACE_DEMO=true`, `MANUAL_FULL_DEMO=false`,
+`IDENTITY_VOICE_CONTINUITY=false`, `ACCOUNT_ENROLLMENT=false`; vẫn yêu cầu
+synthetic+mvp+ekyc, model mặt thật và OTP mô phỏng. Không mở đăng nhập lại,
+khôi phục, receipt tài khoản, credential hoặc signed result.
+
+Phiên mang `evaluation_mode=manual_demo`. Khi mọi cổng mặt đạt cùng policy và
+CCCD đã xác nhận, API giữ `status=review` và thêm `demo_complete=true` để app
+mở route trình diễn có nhãn. Tiêu đề “Xác minh thành công” ở route đó không
+phải cấp tài khoản. Hash hiện tại được tính từ đối tượng policy v2 chung;
+không tái sử dụng phiên/hash của bản cũ.
+
+Launcher `D:/vericlue/tmp/full-demo-setup/VeriClue.cmd` và APK tại
+`full-demo-setup/apk/` là cấu hình/lượt giao lịch sử, không phải gói thử ngày
+02/11. Giữ nguyên dữ liệu/khóa cũ; không gọi helper apply/restore cũ để thay
+cấu hình gói cô lập mới.
+
+## Nghiệm thu còn lại
+
+Smoke suy luận/API và dừng/mở lại server đã qua. Tiếp theo thử đăng ký → đăng
+nhập lại → khôi phục trên điện thoại; ghi cả lượt bị từ chối, đổi policy, sai câu/không khớp
+môi, mất mạng và restart. Chỉ ghi luồng thực sự đã chạy; các bước chưa chạy
+đánh dấu `not_run`. Giữ tài khoản/khóa cũ khi thao tác lỗi.
+
+Khi quay video, nói rõ “Model chạy thật, OTP mô phỏng, ngưỡng thử nghiệm chưa
+hiệu chỉnh” và giữ nhãn demo trong khung hình. Chế độ chuẩn vẫn cần dữ liệu
+có quyền sử dụng, chia theo người, artifact đúng protocol và đánh giá riêng;
+xem [hiệu chỉnh phiên](session-face-calibration.md) và
+[nghiệm thu tiếp theo](real-ekyc-next-steps.md).

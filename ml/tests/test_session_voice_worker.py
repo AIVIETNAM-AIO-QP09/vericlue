@@ -199,6 +199,185 @@ def test_transport_timeout_is_sticky_until_restart(tmp_path, monkeypatch):
     assert client._failed and client._closed
 
 
+@pytest.mark.parametrize("kind", ["spoof", "lipsync"])
+def test_manual_worker_preloads_raw_backend_and_binds_policy(tmp_path, kind):
+    from test_manual_voice import raw_voice
+
+    from vericlue_ml.common.manual_demo import ManualDemoThresholds
+
+    policy = ManualDemoThresholds()
+    inp, body = request(tmp_path, "spoof")
+    if kind == "lipsync":
+        inp.video = tmp_path / "synthetic.mp4"
+        inp.video.write_bytes(b"\0\0\0\x18ftypisom")
+    body.update(
+        kind=kind,
+        input=inp.model_dump(mode="json"),
+        sources=source_hashes(inp, tmp_path, kind),
+        mode="manual_full_demo",
+        policy_id=policy.policy_id,
+    )
+    loaded = []
+    models = SimpleNamespace(
+        preload=lambda kinds: loaded.extend(kinds),
+        detector=lambda _: SimpleNamespace(predict=lambda _: raw_voice(kind)),
+    )
+    target = io.BytesIO()
+    serve(
+        io.BytesIO(canonical(body) + b"\n"),
+        target,
+        models,
+        tmp_path,
+        manual_demo=policy,
+        warmup_kinds=(kind,),
+    )
+    hello, reply = [json.loads(line) for line in target.getvalue().splitlines()]
+    assert loaded == [kind]
+    assert hello["policy_id"] == reply["policy_id"] == policy.policy_id
+    assert hello["mode"] == reply["mode"] == "manual_full_demo"
+    result = ModuleResult.model_validate(reply["result"])
+    assert result.status == "ok" and result.gate == "pass"
+    assert result.prob_attack is None
+
+
+def test_manual_failed_preload_never_emits_ready(tmp_path):
+    from vericlue_ml.common.manual_demo import ManualDemoThresholds
+
+    def fail(_):
+        raise RuntimeError("unavailable weights")
+
+    target = io.BytesIO()
+    with pytest.raises(RuntimeError):
+        serve(
+            io.BytesIO(),
+            target,
+            SimpleNamespace(preload=fail),
+            tmp_path,
+            manual_demo=ManualDemoThresholds(),
+            warmup_kinds=("spoof",),
+        )
+    assert target.getvalue() == b""
+
+
+@pytest.mark.parametrize("fault", ["mode", "policy", "kind"])
+def test_manual_worker_rejects_cross_policy_and_unloaded_kind(tmp_path, fault):
+    from vericlue_ml.common.manual_demo import ManualDemoThresholds
+
+    policy = ManualDemoThresholds()
+    _, body = request(tmp_path, "spoof")
+    body.update(mode="manual_full_demo", policy_id=policy.policy_id)
+    body[{"mode": "mode", "policy": "policy_id", "kind": "kind"}[fault]] = {
+        "mode": "standard",
+        "policy": "a" * 64,
+        "kind": "content",
+    }[fault]
+    with pytest.raises(ValueError):
+        serve(
+            io.BytesIO(canonical(body) + b"\n"),
+            io.BytesIO(),
+            SimpleNamespace(preload=lambda _: None),
+            tmp_path,
+            manual_demo=policy,
+            warmup_kinds=("spoof",),
+        )
+
+
+def test_manual_client_preload_starts_worker_and_requires_exact_hello(tmp_path, monkeypatch):
+    from vericlue_ml.common.manual_demo import ManualDemoThresholds
+
+    policy = ManualDemoThresholds()
+    client = VoiceWorkerClient(
+        Path(sys.executable), tmp_path, tmp_path, manual_demo=policy, warmup_kinds=("spoof",)
+    )
+    # An old/lazy worker hello must not be sufficient to report model readiness.
+    process = SimpleNamespace(
+        stdout=io.BytesIO(canonical({"protocol": PROTOCOL, "ready": True}) + b"\n")
+    )
+    monkeypatch.setattr(
+        "vericlue_ml.runtime.voice_client.subprocess.Popen", lambda *a, **k: process
+    )
+    monkeypatch.setattr(client, "_dispose", lambda _: None)
+    with pytest.raises(ValueError):
+        client.preload()
+    assert client._failed and client._closed
+
+
+@pytest.mark.parametrize("wrong_version", [False, True])
+def test_manual_models_preload_real_backend_before_ready(tmp_path, monkeypatch, wrong_version):
+    from vericlue_ml.common.manual_demo import ManualDemoThresholds
+    from vericlue_ml.runtime.voice_worker import VoiceModels
+    from vericlue_ml.voice.antispoof import AntiDeepfakeDetector
+
+    policy = ManualDemoThresholds()
+    models = VoiceModels(tmp_path, manual_demo=policy)
+    detector = models.detector("spoof")
+    assert isinstance(detector, AntiDeepfakeDetector)
+    loaded = []
+    monkeypatch.setattr(detector._backend, "preload", lambda **kw: loaded.append(kw))
+    if wrong_version:
+        detector.version = "other-model"
+    target = io.BytesIO()
+    if wrong_version:
+        with pytest.raises(ValueError):
+            serve(
+                io.BytesIO(), target, models, tmp_path, manual_demo=policy, warmup_kinds=("spoof",)
+            )
+        assert target.getvalue() == b""
+    else:
+        serve(io.BytesIO(), target, models, tmp_path, manual_demo=policy, warmup_kinds=("spoof",))
+        assert loaded == [{"models_dir": tmp_path, "device": "cpu"}]
+        assert json.loads(target.getvalue())["ready"] is True
+
+
+@pytest.mark.parametrize("fault", [None, "policy", "mode", "version", "evidence", "degraded_pass"])
+def test_manual_client_checks_bound_reply(tmp_path, monkeypatch, fault):
+    from test_manual_voice import raw_voice
+
+    from vericlue_ml.common.manual_demo import ManualDemoThresholds
+    from vericlue_ml.runtime.voice_wire import worker_scope
+
+    policy = ManualDemoThresholds()
+    client = VoiceWorkerClient(
+        Path(sys.executable), tmp_path, tmp_path, manual_demo=policy, warmup_kinds=("spoof",)
+    )
+    inp, _ = request(tmp_path, "spoof")
+    outgoing = []
+
+    def reply(_):
+        raw = outgoing[-1].rstrip(b"\n")
+        sent = json.loads(raw)
+        assert sent["policy_id"] == policy.policy_id
+        result = policy.apply_voice(raw_voice()).to_contract()
+        body = {
+            "protocol": PROTOCOL,
+            **worker_scope(policy),
+            "request_id": sent["request_id"],
+            "request_sha256": hashlib.sha256(raw).hexdigest(),
+            "sources": sent["sources"],
+            "result": result,
+        }
+        if fault == "policy":
+            body["policy_id"] = "a" * 64
+        elif fault == "mode":
+            body["mode"] = "standard"
+        elif fault == "version":
+            result["model_version"] = expected_version("spoof")
+        elif fault == "evidence":
+            result["evidence"] = []
+        elif fault == "degraded_pass":
+            result["status"] = "degraded"
+        return canonical(body) + b"\n"
+
+    process = SimpleNamespace(
+        stdin=SimpleNamespace(write=outgoing.append, flush=lambda: None),
+        stdout=SimpleNamespace(readline=reply),
+    )
+    monkeypatch.setattr(client, "_start", lambda _: process)
+    result = client.predict("spoof", inp)
+    assert result.status == ("ok" if fault is None else "error")
+    assert (result.gate == "pass") == (fault is None)
+
+
 @pytest.mark.parametrize("change_audio", [False, True])
 def test_content_and_forced_timing_are_distinct_bound_results(tmp_path, change_audio):
     from vericlue_ml.router.config import load_config

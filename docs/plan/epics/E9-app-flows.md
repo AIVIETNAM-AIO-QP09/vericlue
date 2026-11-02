@@ -90,7 +90,18 @@ theo mẫu đăng ký/SEC-02 hoặc nghiệm thu Android. Chi tiết vận hành
 |---|---|---|---|---|
 | M1 (+M3) | 1 | S1 | P0 | CAP-06 |
 
-**31/10 — policy trình diễn thủ công:** opt-in riêng PAD/GenD/identity, model
+**01/11 — chuẩn bị thử điện thoại 02/11 (doing):** source
+`7904d7092baaa338f06351688286c1f4dc440ea0` hoàn thiện đường
+`MANUAL_FULL_DEMO`: model mặt/continuity nhận policy v2; artifact continuity
+cũ không ghi đè policy manual. Giọng dùng raw AntiDeepfake/SyncNet với version,
+hash và evidence bắt buộc, không nâng NES diagnostic thành đạt. Chế độ chuẩn
+và yêu cầu calibrator giữ nguyên. Gói riêng:
+`D:/vericlue/tmp/phone-demo-2026-11-02/`. Smoke native Anti/Qwen/CTC một mẫu
+chọn sẵn, SyncNet tensor forward và API/DB0011 đã qua; nghiệm thu ba luồng
+trên điện thoại còn chờ. Ngưỡng là
+mốc minh họa, chưa có accuracy/kiểm chứng chiều sâu; không đánh dấu toàn task xong.
+
+**31/10 — policy trình diễn thủ công (lịch sử face-only):** opt-in riêng PAD/GenD/identity, model
 thật với ngưỡng thử nghiệm, namespace và hash policy riêng; không giả artifact
 hiệu chỉnh hoặc probability. API vẫn review, marker riêng cho app hiển thị kết
 quả có nhãn demo. Không mở account/proof/credential hoặc đổi thresholds.yaml.
@@ -267,6 +278,19 @@ cứng. Xem `media-proof.md` và `account-authentication.md`.
 |---|---|---|---|---|
 | M1 | 1,5 | S1 | P0 | PLAT-04 |
 
+**01/11 — chuẩn bị thử điện thoại 02/11 (doing):** source
+`7904d7092baaa338f06351688286c1f4dc440ea0`, gói riêng
+`D:/vericlue/tmp/phone-demo-2026-11-02/`. APK 0.3.0 mở API thật mặc định
+(`liveByDefault=true`, localhost:8421), ký media bật, trace tắt; dùng cùng
+signer debug laptop, không đổi khóa ứng dụng. Mode/hash được lưu cùng receipt,
+kiểm lại khi reauth/recovery; lỗi hoặc mismatch giữ tài khoản/khóa cũ. Nhãn demo
+được giữ qua màn kết quả/mở tài khoản và khôi phục app; không fallback sang
+scripted success. Preload AntiDeepfake/Qwen/CTC/SyncNet đã qua, full Python
+4998 passed/100 skipped; smoke native giọng và API/DB0011 đã qua (SyncNet
+mới tensor forward, chưa video nói thật). Ba luồng
+CCCD/mặt/giọng/Keystore trên máy thật vẫn `not_run`; chưa nghiệm thu HTTPS
+hoặc chất lượng AI. Không đánh dấu `done` từ kết quả test phần mềm.
+
 **Mục tiêu:** dựng bộ khung app Android native cho bản demo (ADR-0014).
 
 **Đầu ra:**
@@ -287,7 +311,7 @@ cứng. Xem `media-proof.md` và `account-authentication.md`.
 - [x] Client lưu receipt cùng alias Keystore; nhận receipt sau finalize không giọng;
   đăng nhập lại mở đúng khóa đã lưu; khôi phục tạo khóa mới và chỉ xóa khóa cũ sau
   ghi bền. Test hồi quy HTTP 409/503, mất khóa, hết hạn và lỗi lưu; chưa nghiệm thu
-  tài khoản trên điện thoại thật vì server còn chặn sinh trắc account-bound (FLOW-05/SEC-02).
+  tài khoản trên điện thoại thật; chế độ chuẩn còn chặn sinh trắc account-bound (FLOW-05/SEC-02).
 
 ---
 

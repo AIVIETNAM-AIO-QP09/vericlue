@@ -197,6 +197,8 @@ class Settings(BaseSettings):
     manual_full_demo: bool = False
     manual_demo_pad_max: float = Field(default=0.50, gt=0, lt=1, allow_inf_nan=False)
     manual_demo_gend_max: float = Field(default=0.50, gt=0, lt=1, allow_inf_nan=False)
+    manual_demo_spoof_max: float = Field(default=0.50, gt=0, lt=1, allow_inf_nan=False)
+    manual_demo_lipsync_max: float = Field(default=0.50, gt=0, lt=1, allow_inf_nan=False)
     manual_demo_match_min: float = Field(default=0.30, gt=0, lt=1, allow_inf_nan=False)
     manual_demo_consistency_min: float = Field(default=0.30, gt=0, lt=1, allow_inf_nan=False)
 
@@ -207,6 +209,8 @@ class Settings(BaseSettings):
         return (
             ManualDemoThresholds(
                 pad_max=self.manual_demo_pad_max,
+                spoof_max=self.manual_demo_spoof_max,
+                lipsync_max=self.manual_demo_lipsync_max,
                 gend_max=self.manual_demo_gend_max,
                 match_min=self.manual_demo_match_min,
                 consistency_min=self.manual_demo_consistency_min,
@@ -222,6 +226,9 @@ class Settings(BaseSettings):
     session_voice_models: bool = False
     voice_runtime_python: str | None = None
     voice_spoof_python: str | None = None
+    voice_worker_startup_timeout_seconds: float = Field(
+        default=180, gt=0, le=600, allow_inf_nan=False
+    )
     session_model_timeout_seconds: float = Field(default=30, gt=0, le=90)
 
     @model_validator(mode="after")

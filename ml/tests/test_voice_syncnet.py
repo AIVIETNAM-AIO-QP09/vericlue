@@ -91,6 +91,19 @@ def input_with_video(**metadata):
     )
 
 
+def test_successful_raw_syncnet_can_feed_bound_manual_demo(pipeline):
+    from vericlue_ml.common.manual_demo import ManualDemoThresholds
+
+    detector, _, _, _ = pipeline
+    policy = ManualDemoThresholds()
+    raw = detector.predict(input_with_video())
+    result = policy.apply_voice(raw)
+    assert policy.accepts_lipsync(result)
+    assert result.evidence == raw.evidence
+    assert result.quality["hardware_clock_verified"] is False
+    assert result.prob_attack is None
+
+
 def test_measurement_uses_original_clock_confidence_and_attack_score_direction():
     visual = np.array([[1.0, 0.0], [1.0, 0.0]])
     unrelated = np.array([[0.0, 1.0], [0.0, 1.0]])

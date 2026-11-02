@@ -119,6 +119,18 @@ công cụ trên kho thật trong task này; chỉ dùng dữ liệu tổng hợ
 |---|---|---|---|---|
 | M5 | 1 | S2 | P0 | SEC-06, FLOW-06 |
 
+**01/11 — chuẩn bị thử điện thoại 02/11 (doing):** source
+`7904d7092baaa338f06351688286c1f4dc440ea0` giữ consent xử lý phiên và lưu mẫu
+mã hóa 24 giờ là hai lựa chọn chủ động, không auto-grant. Gói manual full demo
+mới tại `D:/vericlue/tmp/phone-demo-2026-11-02/` dùng DB/media/khóa riêng; lỗi
+mode/policy hoặc ghi receipt giữ tài khoản/khóa cũ, không xóa legacy account.
+Android giữ nhãn demo qua lưu/khôi phục tài khoản. Full Python 4998 passed/
+100 skipped kiểm logic phần mềm; chưa thay bằng chứng trên thiết bị. Chưa có
+điện thoại để nghiệm thu consent/withdrawal, restart, mất mạng và ba luồng;
+smoke API/DB0011 đã xác nhận chưa consent thì bị chặn, không cấp receipt.
+Smoke model không thay nghiệm thu quyền dữ liệu trên máy. Giữ task `doing`, không mở
+chốt sản phẩm chuẩn hoặc suy quyền lưu mẫu từ việc model preload thành công.
+
 **Mục tiêu:** triển khai bước tiếp theo sau khi nhóm thống nhất workflow FLOW-06.
 D1 đã chọn: đăng ký tài khoản cần lựa chọn chủ động cho lưu mẫu mã hóa; từ chối
 thì dừng tạo tài khoản. Không thêm chế độ xác minh một lần trong đợt này.
