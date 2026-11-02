@@ -40,3 +40,9 @@
 - Trên S24 FE, main+test APK cùng bản đã cài-r. Probe production-helper3/3đạt: offset0,+138666,-160000us, đúng native framecount và source tone onset; normalized WAV đều qua guard `wav_duration` thật (PCM16mono16k). Case positive giữ AAC priming nên không ép thành+160000us. Hủy sau một PCM buffer ở cả3fixtures: decoder từ chối, không xuất WAV dở dang, extractor/codec đều release.
 - APK SHA256 `af2105b18d32781952be95a19981cf3586278ac62f6e1ce8485430b467968103`; signer giữ nguyên822e5e44..., v2verified, liveDefaulttrue/signedMediatrue/tracefalse. API vẫn frozen d73dd773, healthok và ADBreverse8421; không restart server, đổi policy hoặc migration.
 - Báo cáo công khai đã lược PII: `docs/status/results/APP-03-shared-av-synthetic-2026-11-02.json`. Không media/khóa/transcript/attemptID/điểm cá nhân trong Git.
+
+## Chốt bản ứng viên và thử tiếp sau
+- Code commit `58a83e956c267ec01dacb78f6592f5f666aac782`; APK đang cài và gói demo có cùng SHA256af2105b1... (đã đọc hash base.apk trên máy để đối chiếu). Source API giữ d73dd773. Bản APK/gói metadata cũ đã backup, tài khoản/khóa không reset, media không xóa.
+- Người dùng báo tạm chưa thử được, sẽ thử sau; không yêu cầu quay thêm hoặc gọi camera/micro. Probe chỉ đọc assets tổng hợp. API healthok; ADBreverse8421 có sẵn khi kết thúc, có thể phải nối lại nếu Wi-Fi/thiết bị đổi trạng thái.
+- Khi người dùng sẵn sàng: kiểm API health và ADBreverse, họ tự mở app chọn Khôi phục, đợi “Đang ghi âm” rồi đọc nguyên câu. Đối chiếu đúng attempt mới nhất, proof/ASR/spoof/lipsync/continuity và binding; không kết luận từ màn hình riêng. Không nới gate nếu tiếp tục review.
+- Việc còn thiếu: nghiệm thu chính capture/upload/khôi phục mới; kiểm chặn trường hợp lỗi/gián đoạn trên máy; dữ liệu/calibrator/eval có quyền dùng tách theo người; OTP thật/HTTPS/protected readiness theo task liên quan. Chưa gọi toàn demo AI thật là done. Không merge main.

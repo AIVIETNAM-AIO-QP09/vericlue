@@ -3,6 +3,7 @@
   "date": "2026-11-02",
   "scope": "synthetic capture-ingestion engineering checks; no human recovery acceptance or model benchmark",
   "branch": "codex/APP-03-shared-av-probe",
+  "apk_source_commit": "58a83e956c267ec01dacb78f6592f5f666aac782",
   "capture_policy": "muxed-av-pcm-v1",
   "normalization_policy": "pcm16-mono16k-sinc-v1",
   "api_source_commit_unchanged": "d73dd773485c970aeae70f2f0c01c7fbede07ac2",
