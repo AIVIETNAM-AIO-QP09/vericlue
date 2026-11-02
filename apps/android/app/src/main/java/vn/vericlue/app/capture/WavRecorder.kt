@@ -51,7 +51,7 @@ internal interface PcmInput {
 enum class AudioCaptureState { Idle, Recording, Completed, Failed }
 
 enum class VoiceCapturePhase { Idle, Preparing, Recording, Finished, Failed }
-enum class VoiceCaptureFailure { Camera, Audio }
+enum class VoiceCaptureFailure { Camera, Audio, DurationLimit }
 
 /** Coordinates camera preparation, microphone readiness, and one submission per attempt. */
 class VoiceCapture(

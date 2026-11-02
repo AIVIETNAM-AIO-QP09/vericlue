@@ -26,16 +26,16 @@
   OpenAPI và type TypeScript được sinh lại. Tài khoản cũ giữ embedding version nền.
 
 ## Đang dở
-- Mã nguồn đã qua test/lint/build; bước triển khai máy thật ghi bổ sung sau
-  khi kiểm server và cài đè thành công.
+- Đã triển khai bản nguồn `85c8ab431520727cce115ec8c47d511944493866` cho
+  API và APK trên S24 FE. Bản sửa thu giọng tiếp theo ghi riêng trong bàn giao
+  APP-03 ngày 03/11, không suy nghiệm thu người dùng từ bước cài đặt này.
 - Chưa có nghiệm thu máy thật của UI/adaptive mới. Lượt khôi phục thật trước
   vẫn `review`: nhận dạng câu và lipsync chưa đạt; không suy diễn UI mới sẽ sửa
   hai chốt này. Xem bàn giao APP-03 22:50 cùng ngày.
 
 ## Bước tiếp theo
-1. Sao lưu SQLite và metadata, xuất source đóng băng từ commit đã kiểm.
-2. Cập nhật server cùng APK có cùng signer hiện tại; chỉ cài đè giữ dữ liệu.
-3. Người dùng tự mở app, thử căn mặt/quay đúng, quay nhầm rồi sửa, giữ giữa cuối;
+1. Hoàn tất sửa thao tác thu giọng theo yêu cầu mới; giữ chốt AI.
+2. Người dùng tự mở app, thử căn mặt/quay đúng, quay nhầm rồi sửa, giữ giữa cuối;
    theo dõi kết quả thực tế. Không tự mở camera bằng ADB.
 
 ## Quyết định, lưu ý, bẫy
@@ -71,3 +71,18 @@
   trực quan lại center/countdown và các màn đồng ý/demo/success.
 - Ruff toàn repo sạch, format17 file Python sạch, OpenAPI `--check` khớp;
   staged diff không whitespace error, không thêm media/dữ liệu/trọng số/bí mật.
+
+## Triển khai đã kiểm
+- Sao lưu SQLite online, `quick_check=ok`; giữ source/API/APK trước đó.
+- Source đóng băng và manifest khớp commit85c8ab4; cấu hình riêng/policy không đổi.
+- Server đã khởi động lại, health ok/failed_modules rỗng. Cờ health mock là
+  boolean của chế độ mixed, không phải bằng chứng mọi module là mock hoặc thật;
+  các chốt bắt buộc vẫn chịu readiness/policy đã kiểm.
+- Windows không cung cấp hàng listener để xác minh PID qua IP Helper. Dùng
+  phương pháp thay thế có bằng chứng: PID/command thuộc source mới, tạo phiên
+  tổng hợp adaptive và refresh, kiểm HMAC bearer cùng mode/policy và wirev2/
+  12000ms/ngân sách30s. Đây là phiên chẩn đoán, không phải lượt người dùng.
+- So sánh toàn bộ hàng/cột accounts và account_recoveries trước/sau: không đổi.
+- APK cài bằng `install -r`, signer cũ giữ nguyên; SHA256 của APK đang cài khớp
+  artifact, reverse8421 có mặt. Không chạy `am start`, không mở camera tự động.
+- Chưa có lượt nghiệm thu thật sau lần cập nhật này.

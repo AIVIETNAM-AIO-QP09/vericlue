@@ -24,8 +24,8 @@ class MuxedVoiceCaptureTest {
         assertTrue(muxedVoiceReady(1, audioActive = true, audioError = false))
     }
 
-    @Test fun onlyAnExplicitSharedVoiceDurationCapAcceptsItsFinalizeCode() {
-        assertTrue(voiceFinalizeAccepted(true, true, noError = false, durationLimitReached = true))
+    @Test fun nativeDurationCapIsNeverACompletedReading() {
+        assertFalse(voiceFinalizeAccepted(true, true, noError = false, durationLimitReached = true))
         assertFalse(voiceFinalizeAccepted(false, true, noError = false, durationLimitReached = true))
         assertFalse(voiceFinalizeAccepted(true, false, noError = false, durationLimitReached = true))
         assertFalse(voiceFinalizeAccepted(true, true, noError = false, durationLimitReached = false))
@@ -73,7 +73,7 @@ class MuxedVoiceCaptureTest {
         assertTrue(result.errors.isEmpty())
     }
 
-    @Test fun nativeDurationCompletionFinalizesAndDecodesOnceWithoutAManualStop() = runTest {
+    @Test fun nativeDurationCompletionWithoutExplicitFinishNeverDecodesOrPublishes() = runTest {
         val finalized = CompletableDeferred<VideoResult>()
         val result = Results()
         var decodes = 0
@@ -84,9 +84,29 @@ class MuxedVoiceCaptureTest {
         finalized.complete(VideoResult.Ready(temp.newFile("capped.mp4")))
         runCurrent()
         capture.finish()
+        assertEquals(0, decodes)
+        assertTrue(result.submissions.isEmpty())
+        assertEquals("DurationLimit", result.errors.single().name)
+        assertEquals(VoiceCapturePhase.Failed, capture.phase.value)
+        assertEquals(1, result.stops)
+    }
+
+    @Test fun explicitFinishBeforeNativeFinalizePublishesExactlyOnce() = runTest {
+        val finalized = CompletableDeferred<VideoResult>()
+        val result = Results()
+        var decodes = 0
+        val capture = MuxedVoiceCapture(backgroundScope, { true }, { true }, { finalized.await() },
+            { result.stops++ }, { decodes++; MuxedVoiceDecodedAudio(byteArrayOf(1), 139) }, result::finished, result::failed)
+        capture.start()
+        runCurrent()
+        capture.finish()
+        finalized.complete(VideoResult.Ready(temp.newFile("finished.mp4")))
+        runCurrent()
+        capture.finish()
         assertEquals(1, decodes)
         assertEquals(1, result.submissions.size)
         assertEquals(1, result.stops)
+        assertTrue(result.errors.isEmpty())
     }
 
     @Test fun cancelDuringNativePreparationCannotDecodeOrSubmitLater() = runTest {
@@ -112,11 +132,15 @@ class MuxedVoiceCaptureTest {
 
     @Test fun cancelDuringDecodeRejectsALateResultFromTheOldAttempt() = runTest {
         val decoding = CompletableDeferred<MuxedVoiceDecodedAudio>()
+        val finalized = CompletableDeferred<VideoResult>()
         val result = Results()
         val file = temp.newFile("cancel.mp4")
-        val capture = MuxedVoiceCapture(backgroundScope, { true }, { true }, { VideoResult.Ready(file) },
+        val capture = MuxedVoiceCapture(backgroundScope, { true }, { true }, { finalized.await() },
             { result.stops++ }, { withContext(NonCancellable) { decoding.await() } }, result::finished, result::failed)
         capture.start()
+        runCurrent()
+        capture.finish()
+        finalized.complete(VideoResult.Ready(file))
         runCurrent()
         assertEquals(VoiceCapturePhase.Finished, capture.phase.value)
         capture.cancel()
@@ -169,7 +193,8 @@ class MuxedVoiceCaptureTest {
     @Test fun decoderFailureOrUnrepresentableOffsetFailsClosedWithoutClamping() = runTest {
         for (mode in 0..3) {
             val result = Results()
-            val capture = MuxedVoiceCapture(backgroundScope, { true }, { true }, { VideoResult.Ready(temp.newFile()) },
+            val finalized = CompletableDeferred<VideoResult>()
+            val capture = MuxedVoiceCapture(backgroundScope, { true }, { true }, { finalized.await() },
                 { result.stops++ }, {
                     when (mode) {
                         0 -> error("Decoder rejected the track")
@@ -179,6 +204,9 @@ class MuxedVoiceCaptureTest {
                     }
                 }, result::finished, result::failed)
             capture.start()
+            runCurrent()
+            capture.finish()
+            finalized.complete(VideoResult.Ready(temp.newFile()))
             runCurrent()
             assertEquals(listOf(VoiceCaptureFailure.Audio), result.errors)
             assertEquals(VoiceCapturePhase.Failed, capture.phase.value)

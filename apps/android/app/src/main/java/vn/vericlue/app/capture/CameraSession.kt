@@ -364,6 +364,8 @@ class CameraSession(
     private var recordingGeneration = 0L
     private val _voiceLevel = MutableStateFlow(0f)
     val voiceLevel: StateFlow<Float> = _voiceLevel
+    private val _voiceRecordedDurationMs = MutableStateFlow(0L)
+    val voiceRecordedDurationMs: StateFlow<Long> = _voiceRecordedDurationMs
     var muxedVoiceFailure: VoiceCaptureFailure? = null
         private set
 
@@ -387,6 +389,7 @@ class CameraSession(
         val attempt = ++recordingGeneration
         muxedVoiceFailure = null
         _voiceLevel.value = 0f
+        _voiceRecordedDurationMs.value = 0L
         val ready = if (muxedVoice) CompletableDeferred<Boolean>() else null
         muxedReady = ready
         if (!videoEnabled) {
@@ -430,6 +433,12 @@ class CameraSession(
                     return@events
                 }
                 val audio = event.recordingStats.audioStats
+                if (muxedVoice && (event is VideoRecordEvent.Status || event is VideoRecordEvent.Finalize)) {
+                    _voiceRecordedDurationMs.value = maxOf(
+                        _voiceRecordedDurationMs.value,
+                        (event.recordingStats.recordedDurationNanos / 1_000_000L).coerceAtLeast(0L),
+                    )
+                }
                 if (muxedVoice && event !is VideoRecordEvent.Finalize) {
                     val active = audio.audioState == AudioStats.AUDIO_STATE_ACTIVE
                     val failed = audio.hasError() || audio.audioState in setOf(
@@ -459,6 +468,10 @@ class CameraSession(
                         ))) {
                         audioBroken = true
                         muxedVoiceFailure = VoiceCaptureFailure.Audio
+                    }
+                    if (muxedVoice && !audioBroken &&
+                        event.error == VideoRecordEvent.Finalize.ERROR_DURATION_LIMIT_REACHED) {
+                        muxedVoiceFailure = VoiceCaptureFailure.DurationLimit
                     }
                     begun.complete(Unit)
                     ready?.complete(false)

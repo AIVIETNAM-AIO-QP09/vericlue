@@ -1,18 +1,29 @@
 package vn.vericlue.app.screenshots
 
+import android.os.Handler
+import android.os.Looper
+import android.view.Choreographer
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Recomposer
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.AndroidUiFrameClock
 import androidx.compose.ui.platform.ComposeView
 import com.airbnb.lottie.LottieComposition
 import com.airbnb.lottie.LottieCompositionFactory
 import com.airbnb.lottie.compose.animateLottieCompositionAsState
 import com.android.resources.Density
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.android.asCoroutineDispatcher
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -76,11 +87,29 @@ class SuccessAnimationSnapshotTest {
 
     @Test fun darkMotionCompletesInOnePass() = recordMotion(dark = true)
 
-    // Each recording needs a fresh frame clock; two GIFs in one Paparazzi test reuse time.
+    @Test fun consecutiveMotionSnapshotsEachCompleteOnTheirOwnClock() {
+        recordMotion(dark = false)
+        recordMotion(dark = true)
+    }
+
     private fun recordMotion(dark: Boolean) {
         val composition = composition()
         var lastDrawnProgress = 0f
+        // Paparazzi 1.3.5 resets Layoutlib time/callbacks for every snapshot, while its
+        // default window recomposer inherits Compose's process-cached AndroidUiDispatcher clock.
+        // Own a main-thread dispatcher and real Choreographer clock for this recording so
+        // pending frame-dispatch state cannot survive into a different rendering session.
+        val dispatcher = Handler(Looper.getMainLooper())
+            .asCoroutineDispatcher("SuccessAnimationSnapshot").immediate
+        val scope = CoroutineScope(
+            SupervisorJob() + dispatcher + AndroidUiFrameClock(Choreographer.getInstance()),
+        )
+        val recomposer = Recomposer(scope.coroutineContext)
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            recomposer.runRecomposeAndApplyChanges()
+        }
         val view = ComposeView(paparazzi.context).apply {
+            setParentCompositionContext(recomposer)
             setContent {
                 VcTheme(dark = dark, motionEnabled = true) {
                     val progress by animateLottieCompositionAsState(composition, iterations = 1)
@@ -93,9 +122,9 @@ class SuccessAnimationSnapshotTest {
         try {
             paparazzi.gif(view, name = "motion_$dark", end = 1500L, fps = 30)
         } finally {
-            // Layoutlib detachment does not reliably dispose a manually created ComposeView.
-            // Release its recomposer before the next test creates a fresh frame clock.
             view.disposeComposition()
+            recomposer.cancel()
+            scope.cancel()
         }
         assertTrue("Animation did not reach its final frame: $lastDrawnProgress", lastDrawnProgress >= 0.99f)
     }

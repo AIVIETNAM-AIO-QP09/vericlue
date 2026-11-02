@@ -216,6 +216,7 @@ fun VeriClueApp() {
     // before the confirm: the server refuses a confirm or a new card once it has media (FLOW-05 runbook).
     var faceCaptured by remember { mutableStateOf(false) }
     var localFaceIssue by remember { mutableStateOf<String?>(null) }
+    var localVoiceAgain by remember { mutableStateOf(false) }
     // Why the server asked for the card again; shown on the camera until the next shot.
     var idHint by remember { mutableStateOf<String?>(null) }
     // Why the server refused the confirmed fields; shown on the edit screen.
@@ -385,10 +386,26 @@ fun VeriClueApp() {
         nav.navigate(route) { popUpTo(Routes.Uploading) { inclusive = true } }
     }
 
+    /** Retry only unsubmitted local media; retain the server's current phrase and challenge id. */
+    fun retryLocalVoice() {
+        activeMuxedCapture.get()?.cancel()
+        camera.stopRecording()
+        camera.deleteVideo()
+        recorder.stop()
+        live.pendingWav = null
+        live.audioOffsetMs = null
+        val target = FlowRules.voiceLocalRetryRoute(localVoiceAgain)
+        nav.navigate(target) {
+            popUpTo(target) { inclusive = true }
+            launchSingleTop = true
+        }
+    }
+
     @Composable
     fun VoiceRoute(again: Boolean) {
         val legacyLevel by recorder.level.collectAsState()
         val muxedLevel by camera.voiceLevel.collectAsState()
+        val nativeDurationMs by camera.voiceRecordedDurationMs.collectAsState()
         val audioState by recorder.state.collectAsState()
         val voiceScope = rememberCoroutineScope()
         val isLive = flow.live
@@ -404,6 +421,7 @@ fun VeriClueApp() {
                     nav.go(Routes.Uploading)
                 },
                 onFailure = { failure ->
+                    localVoiceAgain = again
                     nav.go(FlowRules.voiceCaptureFailureRoute(
                         failure,
                         cameraGranted = granted(context, Manifest.permission.CAMERA),
@@ -448,6 +466,7 @@ fun VeriClueApp() {
                     }
                 },
                 onFailure = { failure ->
+                    localVoiceAgain = again
                     nav.go(FlowRules.voiceCaptureFailureRoute(
                         failure,
                         cameraGranted = granted(context, Manifest.permission.CAMERA),
@@ -482,6 +501,7 @@ fun VeriClueApp() {
             }
         }
         LaunchedEffect(Unit) {
+            localVoiceAgain = again
             if (flow.live && !live.privacy.permits("voice_biometrics")) {
                 nav.go(Routes.ErrorService)
                 return@LaunchedEffect
@@ -494,6 +514,8 @@ fun VeriClueApp() {
             sentence = if (flow.live) live.voicePrompt else null,
             level = if (isLive) muxedLevel else legacyLevel,
             capturePhase = capturePhase,
+            recordedDurationMs = if (isLive) nativeDurationMs else null,
+            recordingLimitMs = if (isLive) MUXED_VOICE_LIMIT_MS else 8_000L,
             onStartRecording = {
                 if (hasMic) {
                     if (isLive) sharedCapture.start() else capture.start()
@@ -995,7 +1017,7 @@ fun VeriClueApp() {
 
         // Errors and interruptions
         composable(Routes.ErrorCamera) { Messages.CameraDenied(onRetry = { nav.go(Routes.FaceReady) }, onBack = { nav.popBackStack() }) }
-        composable(Routes.ErrorMic) { Messages.MicDenied(onRetry = { nav.go(Routes.Voice) }, onBack = { nav.popBackStack() }) }
+        composable(Routes.ErrorMic) { Messages.MicDenied(onRetry = ::retryLocalVoice, onBack = { nav.popBackStack() }) }
         composable(Routes.ErrorNetwork) {
             Messages.Network(onRetry = {
                 nav.navigate(FlowRules.afterNetworkRetry(flow.live)) { popUpTo(Routes.ErrorNetwork) { inclusive = true } }
@@ -1017,7 +1039,11 @@ fun VeriClueApp() {
             }, onStop = { nav.go(Routes.Stopped) })
         }
         composable(Routes.Interrupted) { Messages.Interrupted(onRedo = { nav.go(Routes.FaceReady) }, onStop = { nav.go(Routes.Stopped) }) }
-        composable(Routes.NoVoice) { Messages.NoVoice(onRetry = { nav.go(Routes.Voice) }, onStop = exit) }
+        composable(Routes.NoVoice) { Messages.NoVoice(onRetry = ::retryLocalVoice, onStop = exit) }
+        composable(Routes.VoiceTimeLimit) {
+            androidx.activity.compose.BackHandler(onBack = ::retryLocalVoice)
+            Messages.VoiceTimeLimit(onRetry = ::retryLocalVoice, onStop = exit)
+        }
         composable(Routes.UploadFailed) { Messages.UploadFailed(onResend = { nav.go(Routes.Uploading) }, onStop = exit) }
         composable(Routes.Slow) {
             Messages.Slow(onWait = {

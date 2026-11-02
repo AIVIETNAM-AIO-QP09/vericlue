@@ -662,6 +662,13 @@ latch là hold đạt/đổi phase/qua gate; giữ các hằng và lịch5/5/2. 
 |---|---|---|---|---|
 | M1 | 1 | S2 | P0 | APP-01 |
 
+**03/11 — doing, sửa thao tác thu giọng:** cap native 10 giây gồm chuẩn bị;
+đếm ngược theo CameraX và bắt buộc bấm “Đọc xong”. Nếu hết giờ, không decode/
+gửi, cho ghi lại cùng câu và challenge ID, không dùng lượt đọc lại phía server.
+Giữ nguồn MP4/WAV chung, PTS v3, giới hạn decoder 12 giây và chốt AI. Chưa nghiệm
+thu ASR/lipsync/khôi phục; xem
+[bàn giao](../../status/handoffs/2026-11-03-0001-app-03-ngoc-quang-codex.md).
+
 **02/11 22:50 — doing, đã nhận xác nhận đọc đúng:** người dùng xác nhận đủ câu
 và sáu số cả hai lượt. Đối chứng cùng trọng số Qwen với runtime chính thức
 cho bản đọc lại có cùng token sinh và vẫn mismatch; VAD không cắt PCM.
@@ -718,8 +725,10 @@ là ước lượng phần mềm; không phải cách lấy offset PTS của ngu
 **Mục tiêu:** làm giai đoạn C của ADR-0013 và bước leo thang L3.
 
 **Đầu ra:**
-- Luồng API: CameraX ghi video và track âm thanh trong một MP4, giới hạn 8 giây;
+- Luồng API: CameraX ghi video và track âm thanh trong một MP4, giới hạn 10 giây;
   WAV PCM 16-bit, mono, 16 kHz được giải mã/chuẩn hóa từ chính file đó, cùng offset PTS có dấu.
+- Hiện thời gian native còn lại; chỉ gửi khi người dùng bấm “Đọc xong” trước cap.
+  Hết cap cho ghi lại tại máy, giữ câu/challenge ID và giới hạn/expiry phía server.
 - Chữ ký media ràng buộc WAV, MP4 và offset như hợp đồng hiện có; gallery offline
   giữ AudioRecord. Chung PTS container chưa chứng minh đồng bộ clock phần cứng.
 

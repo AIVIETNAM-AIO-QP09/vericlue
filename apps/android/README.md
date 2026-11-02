@@ -4,6 +4,16 @@
 
 ## Trạng thái
 
+**03/11 — APP-03, bản sửa thao tác đọc câu:** luồng API dùng cap native 10 giây
+(gồm thời gian chuẩn bị), hiển thị thời gian còn lại từ CameraX và yêu cầu bấm
+“Đọc xong” trước khi gửi. Nút kết thúc nằm cố định phía dưới. Hết cap hoặc native
+tự kết thúc không được coi là đã đọc xong: app yêu cầu ghi lại cùng câu, chưa
+gửi media và chưa dùng lượt đọc lại phía server. Lỗi này khác lỗi quyền micro
+và lỗi xử lý bản ghi. Khi bắt đầu ghi, câu đọc hiện trước và cuộn về đầu;
+khung camera native vẫn gắn suốt các trạng thái. Giữ decoder PTS v3, giới hạn giải mã 12 giây, chữ ký và
+chốt AI. Đây chưa phải nghiệm thu ASR/lipsync hoặc khôi phục; xem
+[bàn giao thu giọng](../../docs/status/handoffs/2026-11-03-0001-app-03-ngoc-quang-codex.md).
+
 **02/11 tối — APP-11, tích hợp thử trên S24 FE:** ghép PR130 tại `658139f`
 với sửa giọng/quyền riêng tư tại `9291bb5` trên nhánh riêng. Giữ ghi hình–tiếng
 chung và decoder PTS v3, hai đồng ý độc lập, tài khoản và nhãn demo. Giao diện
@@ -42,7 +52,7 @@ Full Android304ca/0failure/1exportskip, native replay file bị lỗi đã giả
 thành công và qua WAV guard; fixtures/cancellation cũng đạt. Đây là kiểm chứng
 bộ đọc bản ghi, khôi phục toàn luồng vẫn chưa nghiệm thu.
 
-**02/11 — APP-03, chung nguồn hình/tiếng (doing):** luồng API thật dùng CameraX
+**Lịch sử 02/11 — APP-03, chung nguồn hình/tiếng:** luồng API thật dùng CameraX
 ghi micro và video vào một MP4, giới hạn 8 giây. Chỉ báo sẵn sàng khi có khung
 video và audio native ACTIVE. Sau finalize, MediaCodec giải mã âm thanh từ
 chính MP4 sẽ tải lên; WAV đầu ra là PCM 16-bit, mono, 16 kHz. Policy nguồn
