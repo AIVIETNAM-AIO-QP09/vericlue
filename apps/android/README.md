@@ -4,13 +4,29 @@
 
 ## Trạng thái
 
+**02/11 — APP-03, chung nguồn hình/tiếng (doing):** luồng API thật dùng CameraX
+ghi micro và video vào một MP4, giới hạn 8 giây. Chỉ báo sẵn sàng khi có khung
+video và audio native ACTIVE. Sau finalize, MediaCodec giải mã âm thanh từ
+chính MP4 sẽ tải lên; WAV đầu ra là PCM 16-bit, mono, 16 kHz. Policy nguồn
+`muxed-av-pcm-v1`; chuẩn hóa `pcm16-mono16k-sinc-v1` chạy sau kiểm tra PTS,
+không cắt VAD hoặc tự dịch thời gian. Offset có dấu lấy từ PTS PCM/video của
+cùng container, không ép về 0 và không tuyên bố đã kiểm chứng clock phần cứng.
+Luồng API không chạy AudioRecord/WAV độc lập; gallery offline giữ cách cũ.
+Hủy/lỗi không gửi kết quả muộn; `ERROR_DURATION_LIMIT_REACHED` chỉ được nhận
+ở bản ghi giọng có cap 8 giây đã cấu hình. Các lỗi finalize khác bị chặn.
+Không đổi mô hình, API, chữ ký media hay ngưỡng.
+
+Lượt khôi phục thực gần nhất trước thay đổi nguồn ghi còn `review`, chỉ SyncNet
+chưa đạt. Nguồn MP4 chung mới và khôi phục toàn luồng trên S24 FE vẫn chờ nghiệm
+thu; không suy kết quả máy thật hoặc chất lượng AI từ việc đã có mã nguồn.
+
 **02/11 — mỗi bên một lần:** sau khi thấy một lần quay đúng phía rồi về giữa
 trong cùng đoạn5giây, hướng dẫn chờ trung tính đến đoạn tiếp, không nhắc quay
 lại cùng bên khi bộ đếm giữ local chưa hoàn tất. Trạng thái chờ không xác nhận
 giữ đủ hoặc xác minh thành công; cảnh báo vẫn ưu tiên, server vẫn tự kiểm đủ
 hai hướng. Không đổi hằng góc/giữ hoặc lịch5/5/2.
 
-**02/11 — APP-03, sẵn sàng ghi âm:** màn đọc câu có trạng thái chuẩn bị riêng,
+**Lịch sử 02/11 — APP-03, trước nguồn MP4 chung:** màn đọc câu có trạng thái chuẩn bị riêng,
 chỉ báo đang ghi khi AudioRecord đã xác nhận chạy. Mốc audio offset lấy sau
 khi micro bắt đầu, vẫn là ước lượng phần mềm. Camera đã finalize không được
 coi là còn ghi; hủy/chạm lặp không mở micro muộn. Đủ8giây thì kết thúc và gửi

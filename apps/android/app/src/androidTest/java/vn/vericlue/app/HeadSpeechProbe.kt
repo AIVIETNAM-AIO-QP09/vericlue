@@ -14,11 +14,18 @@ import vn.vericlue.app.capture.HeadSpeech
 /** Opt-in native smoke runner: never opens camera, submits data or plays audible sound. */
 class HeadSpeechProbe : Instrumentation() {
     private var audible = false
+    private var probeArguments = Bundle()
     override fun onCreate(arguments: Bundle?) {
+        probeArguments = Bundle(arguments ?: Bundle())
         audible = arguments?.getString("audible") == "true"
         super.onCreate(arguments); start()
     }
     override fun onStart() {
+        if (probeArguments.getString("mode") == "shared-av") {
+            val output = MuxedAvProbe.run(this, probeArguments)
+            finish(if (output.getBoolean("passed")) Activity.RESULT_OK else Activity.RESULT_CANCELED, output)
+            return
+        }
         val ready = CountDownLatch(1)
         val done = CountDownLatch(1)
         var available = false

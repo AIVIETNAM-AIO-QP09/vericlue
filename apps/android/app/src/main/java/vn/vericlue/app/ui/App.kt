@@ -53,8 +53,15 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import java.util.concurrent.atomic.AtomicReference
 import vn.vericlue.app.BuildConfig
 import vn.vericlue.app.capture.CameraSession
+import vn.vericlue.app.capture.MuxedVoiceCapture
+import vn.vericlue.app.capture.MuxedVoiceDecodedAudio
+import vn.vericlue.app.capture.MUXED_VOICE_LIMIT_MS
+import vn.vericlue.app.capture.av.MuxedVoiceAudioDecoder
 import vn.vericlue.app.capture.CccdInfo
 import vn.vericlue.app.capture.CccdQr
 import vn.vericlue.app.capture.IdAutoCapture
@@ -177,6 +184,7 @@ fun VeriClueApp() {
     var accountEntry by remember { mutableStateOf<AccountEntry?>(null) }
     var restoredAccount by remember { mutableStateOf<vn.vericlue.app.data.StoredAccount?>(null) }
     val recorder = remember { WavRecorder() }
+    val activeMuxedCapture = remember { AtomicReference<MuxedVoiceCapture?>(null) }
     var hasCamera by remember { mutableStateOf(granted(context, Manifest.permission.CAMERA)) }
     var hasMic by remember { mutableStateOf(granted(context, Manifest.permission.RECORD_AUDIO)) }
     // Asked when first needed (short flow): the camera when it opens, the mic at the reading step.
@@ -226,6 +234,7 @@ fun VeriClueApp() {
 
     /** Every auth choice starts a fresh session, including when returning from OTP with Back. */
     fun enterAccount(requested: Purpose) = once {
+        activeMuxedCapture.get()?.cancel()
         camera.unbind()
         camera.deleteVideo()
         recorder.stop()
@@ -335,6 +344,7 @@ fun VeriClueApp() {
 
     /** Leaves the flow: camera off, session data dropped. */
     fun leave() {
+        activeMuxedCapture.get()?.cancel()
         camera.unbind()
         camera.deleteVideo()
         recorder.stop()
@@ -361,54 +371,80 @@ fun VeriClueApp() {
 
     @Composable
     fun VoiceRoute(again: Boolean) {
-        val level by recorder.level.collectAsState()
+        val legacyLevel by recorder.level.collectAsState()
+        val muxedLevel by camera.voiceLevel.collectAsState()
         val audioState by recorder.state.collectAsState()
         val voiceScope = rememberCoroutineScope()
-        val capture = remember(again) {
+        val isLive = flow.live
+        val capture = remember(again, isLive) {
             VoiceCapture(
                 scope = voiceScope,
-                prepareVideo = {
-                    live.audioOffsetMs = null
-                    if (flow.live) {
-                        if (hasCamera) {
-                            camera.startRecording(voice = true)
-                            camera.awaitRecordingStarted()
-                        }
-                        // The wait also returns on timeout/finalize; only a running video has an offset.
-                        hasCamera && camera.videoElapsedMs() != null
-                    } else true
-                },
+                prepareVideo = { !isLive },
                 startAudio = { hasMic && recorder.start(voiceScope) },
                 stopAudio = { recorder.stop() },
                 stopVideo = { camera.stopRecording() },
                 onFinished = { wav ->
-                    if (flow.live) live.pendingWav = wav
-                    else if (again) flow.outcome = DemoOutcome.Pass
+                    if (again) flow.outcome = DemoOutcome.Pass
                     nav.go(Routes.Uploading)
                 },
                 onFailure = { failure ->
                     nav.go(if (failure == VoiceCaptureFailure.Camera) Routes.ErrorCamera else Routes.ErrorMic)
                 },
-                onAudioReady = {
-                    // Software estimate after AudioRecord.startRecording and recording-state confirmation.
-                    // This is not a hardware timestamp of the first captured audio sample.
-                    live.audioOffsetMs = if (flow.live) camera.videoElapsedMs() else null
-                    !flow.live || live.audioOffsetMs != null
-                },
             )
         }
-        val capturePhase by capture.phase.collectAsState()
-        DisposableEffect(capture, lifecycleOwner) {
+        val sharedCapture = remember(again, isLive, live) {
+            MuxedVoiceCapture(
+                scope = voiceScope,
+                startRecording = {
+                    live.audioOffsetMs = null
+                    live.pendingWav = null
+                    isLive && hasCamera && hasMic && live.privacy.permits("voice_biometrics") &&
+                        !live.privacy.stopping && camera.startMuxedVoiceRecording()
+                },
+                awaitReady = { camera.awaitMuxedVoiceReady() },
+                awaitVideo = { camera.finishedVideo(MUXED_VOICE_LIMIT_MS + 5000) },
+                stopRecording = { camera.stopRecording() },
+                decode = { file ->
+                    withContext(Dispatchers.IO) {
+                        val decoding = currentCoroutineContext()
+                        val audio = MuxedVoiceAudioDecoder.decode(file, checkCancelled = { decoding.ensureActive() })
+                        MuxedVoiceDecodedAudio(audio.wav, audio.audioOffsetMs, audio.source)
+                    }
+                },
+                onFinished = { submission ->
+                    if (!camera.isCurrentVideo(submission.video) || live.privacy.stopping ||
+                        !live.privacy.permits("voice_biometrics")) {
+                        nav.go(Routes.ErrorService)
+                    } else {
+                        live.pendingWav = submission.audio.wav
+                        live.audioOffsetMs = submission.audio.audioOffsetMs
+                        nav.go(Routes.Uploading)
+                    }
+                },
+                onFailure = { failure ->
+                    nav.go(if (failure == VoiceCaptureFailure.Camera) Routes.ErrorCamera else Routes.ErrorMic)
+                },
+                failureReason = { camera.muxedVoiceFailure ?: VoiceCaptureFailure.Camera },
+            )
+        }
+        val legacyPhase by capture.phase.collectAsState()
+        val sharedPhase by sharedCapture.phase.collectAsState()
+        val capturePhase = if (isLive) sharedPhase else legacyPhase
+        DisposableEffect(capture, sharedCapture, lifecycleOwner, isLive) {
+            if (isLive) activeMuxedCapture.set(sharedCapture)
             val observer = LifecycleEventObserver { _, event ->
-                if (event == Lifecycle.Event.ON_STOP) capture.cancel()
+                if (event == Lifecycle.Event.ON_STOP) { sharedCapture.cancel(); capture.cancel() }
             }
             lifecycleOwner.lifecycle.addObserver(observer)
             onDispose {
                 lifecycleOwner.lifecycle.removeObserver(observer)
+                sharedCapture.cancel()
+                activeMuxedCapture.compareAndSet(sharedCapture, null)
                 capture.cancel()
             }
         }
-        LaunchedEffect(audioState) {
+        LaunchedEffect(audioState, isLive) {
+            if (isLive) return@LaunchedEffect
             when (audioState) {
                 AudioCaptureState.Completed -> capture.finish()
                 AudioCaptureState.Failed -> capture.fail(VoiceCaptureFailure.Audio)
@@ -423,15 +459,17 @@ fun VeriClueApp() {
             if (!hasMic) askPermissions.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
         }
         VoiceScreen(
-            onBack = { capture.cancel(); exit() },
+            onBack = { sharedCapture.cancel(); capture.cancel(); exit() },
             again = again,
             sentence = if (flow.live) live.voicePrompt else null,
-            level = level,
+            level = if (isLive) muxedLevel else legacyLevel,
             capturePhase = capturePhase,
             onStartRecording = {
-                if (hasMic) capture.start() else askPermissions.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
+                if (hasMic) {
+                    if (isLive) sharedCapture.start() else capture.start()
+                } else askPermissions.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
             },
-            onFinished = { capture.finish() },
+            onFinished = { if (isLive) sharedCapture.finish() else capture.finish() },
         )
     }
 
@@ -447,6 +485,7 @@ fun VeriClueApp() {
         val observer = LifecycleEventObserver { _, event ->
             // Act on ON_STOP itself: the activity may be recreated before it starts again.
             if (event == Lifecycle.Event.ON_STOP && FlowRules.isInterruptedBy(currentRoute)) {
+                activeMuxedCapture.get()?.cancel()
                 camera.stopRecording()
                 camera.deleteVideo()
                 recorder.stop()
@@ -778,7 +817,8 @@ fun VeriClueApp() {
                     // A retry comes back here; LiveFlow resends only what the server has not received.
                     val next = submitWithVideo(camera.finishedVideo()) { video ->
                         if (wav != null) {
-                            live.submitVoice(wav, video, live.audioOffsetMs, onAccepted = { camera.deleteVideo(preserveDiagnostics = true) })
+                            if (video == null) Next.To(Routes.UploadFailed) else
+                                live.submitVoice(wav, video, live.audioOffsetMs, onAccepted = { camera.deleteVideo(preserveDiagnostics = true) })
                         } else {
                             val probe = withContext(Dispatchers.IO) { camera.camProbe() }
                             live.submitFace(
