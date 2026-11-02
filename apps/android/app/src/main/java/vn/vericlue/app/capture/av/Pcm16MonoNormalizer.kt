@@ -4,6 +4,7 @@ import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.cos
+import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -11,22 +12,29 @@ import kotlin.math.sin
 
 internal data class NormalizedPcm(val pcm: ByteArray, val frames: Int)
 
-/** Centered offline Blackman-windowed sinc. No VAD, time shift, priming trim or gap repair. */
+/** Centered Blackman-windowed sinc on the declared clock; no VAD, initial shift or silence insertion. */
 internal object Pcm16MonoNormalizer {
     const val SAMPLE_RATE = 16_000
     const val POLICY = "pcm16-mono16k-sinc-v1"
+    const val CLOCK_POLICY = "pcm16-mono16k-pts-sinc-v2"
 
-    fun normalize(pcm: ByteArray, sourceRate: Int, channels: Int, checkCancelled: () -> Unit = {}): NormalizedPcm {
+    fun normalize(pcm: ByteArray, sourceRate: Int, channels: Int, clock: PcmPresentationClock? = null, checkCancelled: () -> Unit = {}): NormalizedPcm {
         checkCancelled()
         if (sourceRate !in 8_000..192_000 || channels !in 1..2) throw MuxedVoiceAudioException("unsupported_normalization_format")
         if (pcm.isEmpty() || pcm.size % (channels * 2) != 0) throw MuxedVoiceAudioException("unaligned_pcm")
         val inputFrames = pcm.size / (channels * 2)
         if (inputFrames > sourceRate * 12) throw MuxedVoiceAudioException("pcm_duration_limit")
-        val outputFrames = ((inputFrames.toLong() * SAMPLE_RATE + sourceRate / 2) / sourceRate).toInt()
+        if (clock != null && (clock.sampleRate != sourceRate || clock.frames != inputFrames.toLong())) throw MuxedVoiceAudioException("pcm_clock_mismatch")
+        val nominalFrames = ((inputFrames.toLong() * SAMPLE_RATE + sourceRate / 2) / sourceRate).toInt()
+        val outputFrames = clock?.outputFrames ?: nominalFrames
         if (outputFrames <= 0) throw MuxedVoiceAudioException("empty_normalized_pcm")
-        if (sourceRate == SAMPLE_RATE && channels == 1) {
+        // At most 1 us of nominal quantization may reuse v1 only if actual-duration rounding agrees.
+        val mappedClock = clock?.takeUnless { it.uniformNominal && it.outputFrames == nominalFrames }
+        if (sourceRate == SAMPLE_RATE && channels == 1 && mappedClock == null) {
             checkCancelled()
-            return NormalizedPcm(pcm.copyOf(), inputFrames)
+            val copy = pcm.copyOf()
+            checkCancelled()
+            return NormalizedPcm(copy, inputFrames)
         }
         val mono = DoubleArray(inputFrames)
         for (frame in mono.indices) {
@@ -39,16 +47,17 @@ internal object Pcm16MonoNormalizer {
             mono[frame] = sum / channels
         }
         val output = ByteArray(outputFrames * 2)
-        if (sourceRate == SAMPLE_RATE) {
+        if (sourceRate == SAMPLE_RATE && mappedClock == null) {
             for (index in 0 until outputFrames) {
                 if (index % 256 == 0) checkCancelled()
                 writeSample(output, index, mono[index])
             }
         } else {
-            val halfWidth = ceil(32 * max(1.0, sourceRate.toDouble() / SAMPLE_RATE)).toInt()
-            val phases = min(SAMPLE_RATE / gcd(sourceRate, SAMPLE_RATE), 1_024)
+            val maximumInputRate = mappedClock?.maximumInputRate ?: sourceRate.toDouble()
+            val halfWidth = ceil(32 * max(1.0, maximumInputRate / SAMPLE_RATE)).toInt()
+            val phases = if (mappedClock == null) min(SAMPLE_RATE / gcd(sourceRate, SAMPLE_RATE), 1_024) else 1_024
             // Six percent transition margin below the smaller Nyquist; taps grow with decimation.
-            val cutoff = 0.47 * min(1.0, SAMPLE_RATE.toDouble() / sourceRate)
+            val cutoff = 0.47 * min(1.0, SAMPLE_RATE / maximumInputRate)
             val kernels = Array(phases) { phase ->
                 checkCancelled()
                 val fraction = phase.toDouble() / phases
@@ -66,9 +75,11 @@ internal object Pcm16MonoNormalizer {
             }
             for (index in 0 until outputFrames) {
                 if (index % 256 == 0) checkCancelled()
-                val position = index.toLong() * sourceRate
-                var center = (position / SAMPLE_RATE).toInt()
-                var phase = (((position % SAMPLE_RATE) * phases + SAMPLE_RATE / 2) / SAMPLE_RATE).toInt()
+                val integerPosition = index.toLong() * sourceRate
+                val position = mappedClock?.sourcePositionAtOutputFrame(index)
+                var center = if (position == null) (integerPosition / SAMPLE_RATE).toInt() else floor(position).toInt()
+                var phase = if (position == null) (((integerPosition % SAMPLE_RATE) * phases + SAMPLE_RATE / 2) / SAMPLE_RATE).toInt()
+                    else ((position - center) * phases).roundToInt()
                 if (phase == phases) { phase = 0; center++ }
                 var sample = 0.0
                 val weights = kernels[phase]

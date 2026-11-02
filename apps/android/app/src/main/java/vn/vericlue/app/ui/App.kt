@@ -62,6 +62,7 @@ import vn.vericlue.app.capture.MuxedVoiceCapture
 import vn.vericlue.app.capture.MuxedVoiceDecodedAudio
 import vn.vericlue.app.capture.MUXED_VOICE_LIMIT_MS
 import vn.vericlue.app.capture.av.MuxedVoiceAudioDecoder
+import vn.vericlue.app.capture.av.MuxedVoiceAudioException
 import vn.vericlue.app.capture.CccdInfo
 import vn.vericlue.app.capture.CccdQr
 import vn.vericlue.app.capture.IdAutoCapture
@@ -411,7 +412,13 @@ fun VeriClueApp() {
                 decode = { file ->
                     withContext(Dispatchers.IO) {
                         val decoding = currentCoroutineContext()
-                        val audio = MuxedVoiceAudioDecoder.decode(file, checkCancelled = { decoding.ensureActive() })
+                        val audio = try {
+                            MuxedVoiceAudioDecoder.decode(file, checkCancelled = { decoding.ensureActive() })
+                        } catch (error: MuxedVoiceAudioException) {
+                            // Fixed technical code only; no media path, samples, transcript or identifiers.
+                            if (BuildConfig.DEBUG) Log.w("VeriClueVoiceCapture", "decode_failed code=${error.code}")
+                            throw error
+                        }
                         MuxedVoiceDecodedAudio(audio.wav, audio.audioOffsetMs, audio.source)
                     }
                 },

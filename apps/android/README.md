@@ -4,6 +4,16 @@
 
 ## Trạng thái
 
+**02/11 tối — APP-03, đang sửa ca đọc lại:** v2 đã gửi được một lượt giọng tới
+server, nhưng các lượt đọc lại vẫn bị parser từ chối bởi bước nhảy PTS. Không
+có kết luận người dùng nói nhỏ từ lỗi này. Đã kiểm chứng bộ đọc nguồn
+`muxed-av-pcm-v3-ptsgrid`: WAV16k nội suy theo timeline presentation trong MP4,
+policy `pcm16-mono16k-pts-sinc-v2`. Đây là cách biểu diễn dữ liệu theo container,
+không chứng minh clock vật lý hoặc dữ liệu chưa từng bị mất. Giữ mốc đầu,
+giới hạn thời lượng/định dạng/rate và chốt AI.320tests/0failure/1exportskip,
+5file đọc lại đều qua native decoder/WAV guard; khôi phục thật vẫn chờ thử mới.
+Lỗi xử lý bản ghi được diễn đạt riêng với thiếu quyền/độ rõ giọng.
+
 **02/11 tối — APP-03, lỗi báo thiếu quyền micro:** quyền Android đã được cấp,
 nhưng decoder từ chối timestamp của bản ghi thật vì kiểm clock quá sát từng mẫu.
 Nguồn `muxed-av-pcm-v2-clock1ms` cho phép sai số clock tối đa1ms so với mốc đầu

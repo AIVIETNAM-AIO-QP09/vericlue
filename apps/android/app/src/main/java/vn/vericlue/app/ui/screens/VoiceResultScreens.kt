@@ -421,8 +421,8 @@ object Messages {
     )
 
     @Composable fun NoVoice(onRetry: () -> Unit, onStop: () -> Unit) = MessageScreen(
-        Icons.Outlined.MicOff, "Chưa thu được giọng nói",
-        "Bản ghi chưa dùng được hoặc micro đã bị ngắt. Hãy kiểm tra micro và chọn nơi yên tĩnh trước khi chuẩn bị đọc lại.",
+        Icons.Outlined.MicOff, "Chưa xử lý được bản ghi",
+        "Bản ghi chưa thể xử lý. Bạn có thể chuẩn bị đọc lại hoặc dừng xác minh để thử sau.",
         "Chuẩn bị đọc lại" to onRetry, "Dừng xác minh" to onStop, onBack = onRetry,
     )
 }

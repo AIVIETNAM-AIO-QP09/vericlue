@@ -40,6 +40,14 @@
   "api_source_commit_unchanged": "d73dd773485c970aeae70f2f0c01c7fbede07ac2",
   "models_thresholds_contracts_and_server_gates_changed": false,
   "human_recovery_after_fix": "pending",
+  "post_fix_human_observation": {
+    "first_voice_upload_reached_real_models": true,
+    "content_reread_requested": true,
+    "reread_local_decoder_still_rejected": true,
+    "new_local_presentation_timestamp_step_observed": true,
+    "recovery_accepted": false,
+    "interpretation": "v2 fixes the initial parser case but is insufficient for the reread; ongoing presentation-time mapping work is not yet accepted"
+  },
   "otp": "simulated",
   "thresholds": "temporary",
   "privacy": "Original media, WAV, transcripts, sample hashes, identifiers and detailed raw traces remain private outside Git. No model performance claim."

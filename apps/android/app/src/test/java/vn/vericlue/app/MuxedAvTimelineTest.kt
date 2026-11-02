@@ -27,46 +27,46 @@ class MuxedAvTimelineTest {
         }
     }
 
-    @Test fun oneMillisecondClockBudgetHasAnInclusiveBoundary() {
+    @Test fun smallPresentationStepsAreRetainedInTheDeclaredClockMap() {
         for (deviation in listOf(-1_000L, 1_000L)) {
             val timeline = PcmTimeline(PcmFormat(48_000, 1, 2))
             timeline.append(0, ByteArray(1_920))
             assertTrue(runCatching { timeline.append(20_000 + deviation, ByteArray(1_920)) }.isSuccess)
-            assertEquals(1_920L, timeline.finish(true, 0).frames)
+            val result = timeline.finish(true, 0)
+            assertEquals(1_920L, result.frames)
+            assertEquals(40_000.0 + deviation, result.clock.durationUs, 0.001)
         }
     }
 
-    @Test fun clockBudgetDoesNotAdmitLargerGapsOrOverlaps() {
-        for (deviation in listOf(-2_000L, -1_001L, 1_001L, 2_000L)) {
+    @Test fun unrepresentablePresentationRatesDoNotReturnUsableAudio() {
+        for (nextPts in listOf(10_000L, 40_000L)) {
             val timeline = PcmTimeline(PcmFormat(48_000, 1, 2))
             timeline.append(0, ByteArray(1_920))
-            assertEquals("audio_pts_discontinuity", assertThrows(MuxedVoiceAudioException::class.java) {
-                timeline.append(20_000 + deviation, ByteArray(1_920))
-            }.code)
+            timeline.append(nextPts, ByteArray(1_920))
+            assertThrows(MuxedVoiceAudioException::class.java) { timeline.finish(true, 0) }
         }
     }
 
-    @Test fun smallLocalDriftCannotAccumulateBeyondTheTotalClockBudget() {
+    @Test fun cumulativeDriftIsRetainedInsteadOfConcatenatingOnANominalClock() {
         for (step in listOf(19_900L, 20_100L)) {
             val timeline = PcmTimeline(PcmFormat(48_000, 1, 2))
             repeat(11) { index ->
                 assertTrue(runCatching { timeline.append(index * step, ByteArray(1_920)) }.isSuccess)
             }
-            assertEquals("audio_pts_discontinuity", assertThrows(MuxedVoiceAudioException::class.java) {
-                timeline.append(11 * step, ByteArray(1_920))
-            }.code)
+            val result = timeline.finish(true, 0)
+            assertEquals(10 * step + 20_000.0, result.clock.durationUs, 0.001)
         }
     }
 
-    @Test fun oppositeAnchorResidualsCannotHideALargeAdjacentGap() {
+    @Test fun oppositeClockResidualsRemainVisibleInThePresentationMap() {
         for (direction in listOf(-1, 1)) {
             val timeline = PcmTimeline(PcmFormat(48_000, 1, 2))
             timeline.append(0, ByteArray(1_920))
             assertTrue(runCatching { timeline.append(20_000L - direction * 900, ByteArray(1_920)) }.isSuccess)
-            // Both anchors are within1ms, but the adjacent gap/overlap is1.8ms.
-            assertEquals("audio_pts_discontinuity", assertThrows(MuxedVoiceAudioException::class.java) {
-                timeline.append(40_000L + direction * 900, ByteArray(1_920))
-            }.code)
+            timeline.append(40_000L + direction * 900, ByteArray(1_920))
+            val result = timeline.finish(true, 0)
+            assertEquals(60_000.0 + direction * 900, result.clock.durationUs, 0.001)
+            assertTrue(result.anchors.map { it.ptsUs } == listOf(0L, 20_000L - direction * 900, 40_000L + direction * 900))
         }
     }
 
@@ -100,12 +100,12 @@ class MuxedAvTimelineTest {
         assertEquals(500_000L, result.offsetUs)
     }
 
-    @Test fun gapOrOverlapIsRejectedInsteadOfConcatenatingOrAddingSilence() {
-        for (secondPts in listOf(25_000L, 15_000L)) {
+    @Test fun wholeBlockTimingLossOrCompressionCannotBecomeUsableAudio() {
+        for (secondPts in listOf(40_000L, 10_000L)) {
             val timeline = PcmTimeline(PcmFormat(48_000, 1, 2))
             timeline.append(0, ByteArray(1_920)) // exactly 20 ms
-            val error = assertThrows(MuxedVoiceAudioException::class.java) { timeline.append(secondPts, ByteArray(1_920)) }
-            assertEquals("audio_pts_discontinuity", error.code)
+            timeline.append(secondPts, ByteArray(1_920))
+            assertThrows(MuxedVoiceAudioException::class.java) { timeline.finish(true, 0) }
         }
     }
 
@@ -133,10 +133,11 @@ class MuxedAvTimelineTest {
 
     @Test fun negativeOffsetIsReportedWithoutClampingOrContentBasedCorrection() {
         val timeline = PcmTimeline(PcmFormat(48_000, 1, 2))
-        timeline.append(-21_333, byteArrayOf(0, 8))
+        val pcm = byteArrayOf(0, 8, 0, 0, 0, 0) // Three native frames can represent one16k output sample.
+        timeline.append(-21_333, pcm)
         val result = timeline.finish(true, 0)
         assertEquals(-21_333L, result.offsetUs)
-        assertTrue(result.pcm.contentEquals(byteArrayOf(0, 8)))
+        assertTrue(result.pcm.contentEquals(pcm))
     }
 
     @Test fun sharedLargeClockOriginDoesNotChangeRelativeOffset() {
@@ -149,7 +150,7 @@ class MuxedAvTimelineTest {
 
     @Test fun overflowingTimestampArithmeticCannotReturnAnOffset() {
         val timeline = PcmTimeline(PcmFormat(48_000, 1, 2))
-        timeline.append(Long.MAX_VALUE - 10, byteArrayOf(0, 0))
+        timeline.append(Long.MAX_VALUE - 10, ByteArray(6))
         assertEquals("pts_arithmetic_overflow", assertThrows(MuxedVoiceAudioException::class.java) { timeline.finish(true, Long.MIN_VALUE + 10) }.code)
     }
 }

@@ -23,8 +23,12 @@ data class MuxedVoiceAudio(
     val uploadFrames: Int,
     val uploadSampleRate: Int = 16_000,
     val uploadChannels: Int = 1,
-    val normalizationPolicy: String = "pcm16-mono16k-sinc-v1",
+    val normalizationPolicy: String = Pcm16MonoNormalizer.CLOCK_POLICY,
     val source: String = MUXED_PCM_CAPTURE_POLICY,
+    val mappedDurationUs: Double,
+    val clockAnchorCount: Int,
+    val maximumInputRate: Double,
+    val minimumInputRate: Double,
 )
 
 /** Opt-in diagnostics; raw accepted PCM is delivered synchronously only to the supplied observer. */
@@ -56,7 +60,8 @@ object MuxedVoiceAudioDecoder {
             detail("firstVideoPtsUs", firstVideoPts)
             val audio = decodeAudio(file, firstVideoPts, checkCancelled, ::detail, ::emit)
             checkCancelled()
-            val canonical = Pcm16MonoNormalizer.normalize(audio.pcm, audio.format.sampleRate, audio.format.channels, checkCancelled)
+            val canonical = Pcm16MonoNormalizer.normalize(audio.pcm, audio.format.sampleRate, audio.format.channels,
+                clock = audio.clock, checkCancelled = checkCancelled)
             val offsetMs = audio.offsetUs / 1_000
             if (offsetMs !in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong()) throw MuxedVoiceAudioException("audio_offset_range_limit")
             return MuxedVoiceAudio(
@@ -69,6 +74,10 @@ object MuxedVoiceAudioDecoder {
                 firstPcmPtsUs = audio.firstPcmPtsUs,
                 firstVideoPtsUs = firstVideoPts,
                 uploadFrames = canonical.frames,
+                mappedDurationUs = audio.clock.durationUs,
+                clockAnchorCount = audio.anchors.size,
+                maximumInputRate = audio.clock.maximumInputRate,
+                minimumInputRate = audio.clock.minimumInputRate,
             )
         } catch (error: CancellationException) {
             throw error

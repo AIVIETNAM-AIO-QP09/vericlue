@@ -510,7 +510,13 @@ latch là hold đạt/đổi phase/qua gate; giữ các hằng và lịch5/5/2. 
 |---|---|---|---|---|
 | M1 | 1 | S2 | P0 | APP-01 |
 
-**02/11 tối — doing, sửa lỗi micro:** Android đã cấp quyền nhưng decoder từ
+**02/11 tối — doing, sửa tiếp ca đọc lại:** v2 đã đưa giọng tới API, nhưng ca
+đọc lại vẫn bị từ chối bởi bước nhảy timestamp. V3 đã kiểm chứng nội suy WAV
+theo timeline presentation và normalizer version riêng; không dùng kết quả AI
+để dịch media/chọn ngưỡng.320test và5native replays đạt; chưa nghiệm thu toàn
+luồng hoặc clock vật lý.
+
+**Lịch sử 02/11 tối — sửa lỗi micro:** Android đã cấp quyền nhưng decoder từ
 chối PTS của file thực; callback báo nhầm thiếu quyền. Policy nguồn mới
 `muxed-av-pcm-v2-clock1ms` kiểm sai số tối đa1ms cả theo mốc đầu và đoạn kế cận,
 PTS phải tăng, không sửa PCM/offset. Lỗi capture khi đã có quyền chuyển màn

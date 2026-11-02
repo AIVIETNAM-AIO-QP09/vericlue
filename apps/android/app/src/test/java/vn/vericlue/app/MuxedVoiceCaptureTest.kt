@@ -68,7 +68,7 @@ class MuxedVoiceCaptureTest {
         assertSame(file, result.submissions.single().video)
         assertSame(wav, result.submissions.single().audio.wav)
         assertEquals(-160, result.submissions.single().audio.audioOffsetMs)
-        assertEquals("muxed-av-pcm-v2-clock1ms", result.submissions.single().audio.source)
+        assertEquals("muxed-av-pcm-v3-ptsgrid", result.submissions.single().audio.source)
         assertArrayEquals(byteArrayOf(1, 2, 3), file.readBytes())
         assertTrue(result.errors.isEmpty())
     }

@@ -15,7 +15,6 @@ import vn.vericlue.app.capture.av.MuxedDecodeEvent
 import vn.vericlue.app.capture.av.MuxedVoiceAudio
 import vn.vericlue.app.capture.av.MuxedVoiceAudioDecoder
 import vn.vericlue.app.capture.av.MuxedVoiceAudioException
-import vn.vericlue.app.capture.av.PCM_CLOCK_MAX_DEVIATION_US
 
 private class ProbeFailure(val code: String) : Exception(code)
 
@@ -50,11 +49,12 @@ internal object MuxedAvProbe {
             val report = JSONObject().put("mode", "shared-av").put("probeOnly", true)
                 .put("trimPolicy", "original-decoder-format-no-manual-trim")
                 .put("videoPtsBasis", "minimum-extractor-sample-presentationTimeUs")
-                .put("pcmClockDeviationToleranceUs", PCM_CLOCK_MAX_DEVIATION_US)
-                .put("pcmAdjacentDeviationChecked", true).put("pcmPtsStrictlyIncreasing", true)
+                .put("pcmClockMap", "piecewise-pts-with-nominal-tail-v1")
+                .put("pcmLocalRateRatioOpenRange", JSONArray(listOf(0.5, 2.0)))
+                .put("pcmPtsStrictlyIncreasing", true)
                 .put("nativePcmValidation", "unchanged-decoder-format")
                 .put("nativePtsUnchanged", true)
-                .put("canonicalWavNormalization", "pcm16-mono16k-sinc-v1")
+                .put("canonicalWavNormalization", "pcm16-mono16k-pts-sinc-v2")
                 .put("hardwareClockVerified", false)
             val results = JSONArray()
             val summary = JSONArray()
@@ -112,6 +112,9 @@ internal object MuxedAvProbe {
                         .put("pcmSha256", hex(nativePcmHash.digest()))
                         .put("uploadSampleRate", decoded.uploadSampleRate).put("uploadChannels", decoded.uploadChannels)
                         .put("uploadFrames", decoded.uploadFrames).put("normalizationPolicy", decoded.normalizationPolicy)
+                        .put("mappedDurationUs", decoded.mappedDurationUs).put("clockAnchorCount", decoded.clockAnchorCount)
+                        .put("maximumInputRate", decoded.maximumInputRate)
+                        .put("minimumInputRate", decoded.minimumInputRate)
                     val failures = validate(fixture, decoded, nativeTonePts, details)
                     details.put("validationFailures", failures)
                     // Unique run directories retain diagnostics; failed fixtures never write a WAV.
@@ -168,8 +171,8 @@ internal object MuxedAvProbe {
         if (actual.wav.size < 44 || header.getInt(24) != 16_000 || header.getShort(22).toInt() != 1 ||
             header.getShort(34).toInt() != 16 || header.getInt(40) != actual.wav.size - 44 ||
             actual.uploadFrames * 2 != actual.wav.size - 44 || actual.uploadSampleRate != 16_000 || actual.uploadChannels != 1 ||
-            actual.normalizationPolicy != "pcm16-mono16k-sinc-v1") failures.put("canonical_wav_format_mismatch")
-        if (abs(actual.uploadFrames / 16_000.0 - actual.decodedFrames / actual.sampleRate.toDouble()) > 1.0 / 16_000) failures.put("canonical_duration_mismatch")
+            actual.normalizationPolicy != "pcm16-mono16k-pts-sinc-v2") failures.put("canonical_wav_format_mismatch")
+        if (abs(actual.uploadFrames / 16_000.0 - actual.mappedDurationUs / 1_000_000.0) > 1.0 / 16_000) failures.put("canonical_duration_mismatch")
         return failures
     }
 

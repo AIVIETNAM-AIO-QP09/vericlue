@@ -10,7 +10,6 @@ import vn.vericlue.app.capture.av.MuxedDecodeEvent
 import vn.vericlue.app.capture.av.MuxedVoiceAudioDecoder
 import vn.vericlue.app.capture.av.MuxedVoiceAudioException
 import vn.vericlue.app.capture.av.MUXED_PCM_CAPTURE_POLICY
-import vn.vericlue.app.capture.av.PCM_CLOCK_MAX_DEVIATION_US
 
 /** Explicit local replay of one app-owned recording; never captures, uploads, plays or deletes. */
 internal object CachedVoiceDecodeProbe {
@@ -18,7 +17,8 @@ internal object CachedVoiceDecodeProbe {
         val output = Bundle()
         val report = JSONObject().put("mode", "cached-voice-decode").put("decoded", false)
             .put("sourcePolicy", MUXED_PCM_CAPTURE_POLICY)
-            .put("pcmClockMaxDeviationUs", PCM_CLOCK_MAX_DEVIATION_US)
+            .put("pcmClockMap", "piecewise-pts-with-nominal-tail-v1")
+            .put("pcmLocalRateRatioOpenRange", JSONArray(listOf(0.5, 2.0)))
         val blocks = JSONArray().also { report.put("pcmBlocks", it) }
         var directory: File? = null
         try {
@@ -45,6 +45,9 @@ internal object CachedVoiceDecodeProbe {
                 .put("nativeFrames", decoded.decodedFrames).put("nativeRate", decoded.sampleRate)
                 .put("nativeChannels", decoded.channels).put("uploadFrames", decoded.uploadFrames)
                 .put("normalizationPolicy", decoded.normalizationPolicy).put("audioOffsetMs", decoded.audioOffsetMs)
+                .put("mappedDurationUs", decoded.mappedDurationUs).put("clockAnchorCount", decoded.clockAnchorCount)
+                .put("maximumInputRate", decoded.maximumInputRate)
+                .put("minimumInputRate", decoded.minimumInputRate)
             val wav = File(target, "decoded.wav").also { it.writeBytes(decoded.wav) }
             report.put("wavPath", wav.absolutePath)
         } catch (error: Exception) {
