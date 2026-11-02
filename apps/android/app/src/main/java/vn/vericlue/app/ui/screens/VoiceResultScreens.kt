@@ -66,10 +66,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.toSize
 import kotlinx.coroutines.delay
 import vn.vericlue.app.capture.VoiceCapturePhase
 import vn.vericlue.app.flow.Purpose
@@ -78,6 +83,8 @@ import vn.vericlue.app.ui.components.ActionPanel
 import vn.vericlue.app.ui.components.JourneyHeader
 import vn.vericlue.app.ui.components.SystemBarIcons
 import vn.vericlue.app.ui.components.StableCameraScene
+import vn.vericlue.app.ui.components.CameraPresentation
+import vn.vericlue.app.ui.components.fittedCameraPresentation
 import vn.vericlue.app.ui.components.TopBar
 import vn.vericlue.app.ui.components.ChecklistCard
 import vn.vericlue.app.ui.components.CompletionHaptic
@@ -104,10 +111,12 @@ import vn.vericlue.app.ui.theme.VcType
 // ── Voice (stage C) ──────────────────────────────────────────────────────────
 
 @Composable
-private fun CameraStillOn() {
+private fun CameraStillOn(onThumbnailPosition: (Rect) -> Unit) {
     val c = Vc.colors
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(width = 52.dp, height = 64.dp).clip(RoundedCornerShape(10.dp))) { CameraFeed() }
+        Box(Modifier.size(width = 52.dp, height = 64.dp).clip(RoundedCornerShape(10.dp))
+            .testTag("voice-preview-thumbnail")
+            .onGloballyPositioned { onThumbnailPosition(Rect(it.positionInRoot(), it.size.toSize())) }) { CameraFeed() }
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Box(Modifier.size(6.dp).clip(CircleShape).background(c.ok))
@@ -160,6 +169,11 @@ fun VoiceScreen(
     val processing = capturePhase == VoiceCapturePhase.Finished
     val readingActive = preparing || recording
     val largeText = LocalDensity.current.fontScale >= 1.5f
+    var viewportBounds by remember { mutableStateOf<Rect?>(null) }
+    var thumbnailBounds by remember { mutableStateOf<Rect?>(null) }
+    val presentation = viewportBounds?.let { viewport ->
+        thumbnailBounds?.let { thumbnail -> fittedCameraPresentation(viewport, thumbnail) }
+    } ?: CameraPresentation()
     val readingScroll = rememberScrollState()
     LaunchedEffect(readingActive) {
         if (readingActive) readingScroll.scrollTo(0)
@@ -170,14 +184,17 @@ fun VoiceScreen(
     androidx.activity.compose.BackHandler(onBack = onBack)
     SystemBarIcons(c.background)
     // The phrase scrolls independently. Finish/countdown stay reachable at 200% text.
-    StableCameraScene {
+    Box(Modifier.fillMaxSize().onGloballyPositioned {
+        viewportBounds = Rect(it.positionInRoot(), it.size.toSize())
+    }) {
+     StableCameraScene(presentation = presentation) {
       Column(Modifier.fillMaxSize().background(c.background).statusBarsPadding()) {
         TopBar(onBack)
         if (!readingActive) JourneyHeader(3)
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(readingScroll).padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
             if (!readingActive) {
-                CameraStillOn()
+                CameraStillOn { thumbnailBounds = it }
                 Text(if (again) "Đọc lại câu xác nhận" else "Đọc câu xác nhận", style = VcType.cameraTitle, color = c.ink)
                 Text("Mỗi bản ghi tối đa $maximumSeconds giây, kể cả thời gian chuẩn bị. Đọc trước câu bên dưới; đọc hết rồi bấm Đọc xong.",
                     style = VcType.caption, color = c.muted)
@@ -219,6 +236,7 @@ fun VoiceScreen(
             }
         }
       }
+     }
     }
 }
 

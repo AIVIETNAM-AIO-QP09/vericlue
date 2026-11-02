@@ -28,8 +28,8 @@
   đã đọc đủ/đúng; chưa có bản ghi mới trên bản sửa 10 giây để kiểm chứng.
 - APK `1840ede720a4c3edaf3e518957b1bd6312dc57e2` đã cài đè S24 FE lúc 00:29
   ngày 03/11, hash/signer/reverse8421 khớp. API vẫn source85c8ab4, cấu hình
-  riêng và toàn bộ hàng tài khoản/khôi phục không đổi sau cài. Người dùng đã
-  bắt đầu thử lượt mới; kết quả thực tế chưa được nghiệm thu.
+  riêng và toàn bộ hàng tài khoản/khôi phục không đổi sau cài. Kết quả người
+  dùng sau đó ghi ở mục nghiệm thu bên dưới; khôi phục vẫn chưa đạt.
 
 ## Bước tiếp theo
 1. Người dùng tự mở app thử khôi phục: chờ “Đang ghi âm”, đọc đủ câu, bấm
@@ -78,3 +78,39 @@
   tắt, APK đang cài có SHA256 khớp artifact; dữ liệu app giữ nguyên và không
   gọi ADB mở app/camera. Đây không phải bằng chứng các chốt AI đã đạt.
 - Log riêng: `D:/vericlue/tmp/phone-demo-2026-11-02/diagnostics/voice-deadline-*.log`.
+
+## Lượt thật sau cài APK1840ede và sửa preview tiếp theo
+
+- Lượt đầu có retry local vì hết ngân sách quay đầu, chưa gửi server. Sau
+  retry, head_turn đạt nhưng gaze_tracking degraded/E_LOW_QUALITY với lý do
+  `head_not_still`; API review trước giọng. Đây là kết quả ước lượng tư thế,
+  không kết luận người dùng thao tác sai. Không thay thời gian/ngưỡng để qua.
+- Lượt khôi phục tiếp theo đã qua bảy chốt mặt/mắt/quay đầu, gửi được giọng
+  khi bấm kết thúc. Voice spoof và continuity đạt; voice_challenge báo
+  E_CHALLENGE_MISMATCH, lipsync không đạt, API review và không ghi recovery binding.
+  Tài khoản còn nguyên. Nội dung vẫn khớp đúng challenge hiện tại, không có
+  dạng chuỗi chữ số gộp trong ASR để giải thích bằng lỗi chuẩn hóa số.
+- Người dùng báo ô camera màn đọc như bị zoom, không thấy mặt. Root cause:
+  host full-window được giữ ổn định nhưng thumbnail chỉ là cửa sổ cắt, chưa
+  ánh xạ lớp vẽ. Sửa bằng FIT đồng dạng theo hai khung đo trong cùng tọa độ
+  gốc, trừ origin của scene; dùng size đầy đủ, không dùng bounds bị clip khi
+  cuộn. Native host vẫn gắn/kích thước cố định, không đổi zoom/capture/AI.
+- RED preview: 4 ca, 3 lỗi đúng mục tiêu (2 phép ánh xạ, 1 pixel marker giữa
+  viewport không xuất hiện trong thumbnail). Lần đầu fixture không compile
+  vì Android bootclasspath không có AWT; đó không tính là RED hành vi. Fixture
+  đọc RGB qua reflection từ ảnh renderer rồi giữ assert nội dung thật.
+- GREEN cuối preview: **426 ca / 0 failure / 0 error / 1 export skip / 86 lớp**;
+  lint **0 lỗi / 44 cảnh báo / 5 thông tin**, hai APK build thành công. Plan check
+  **0 lỗi / 10 cảnh báo**. Hai fixture GIF mới cần sở hữu frame clock/recomposer
+  riêng: từng test không đổi đều đạt khi chạy riêng nhưng lỗi khi chạy chung.
+  Giữ nguyên thời lượng, assertion scroll/host và RGB, không bỏ kiểm tra.
+- Đối chứng âm thanh riêng, cùng cặp MP4/WAV của lượt này: giải mã AAC độc lập,
+  resample và ánh xạ PTS cho dạng sóng gần trùng ở độ trễ 0. Chưa có bằng chứng
+  Android chuẩn hóa làm hỏng đáng kể bản thu này. Không phải kiểm định clock
+  vật lý, chất lượng âm học hay độ chính xác AI. Không đổi PCM/offset theo điểm
+  AI; report và media lease chỉ nằm riêng, không đưa dữ liệu sinh trắc vào Git.
+- Kiểm tra khả năng so sánh ASR tiếp: DNU đã có WAV kèm nhãn và split theo người;
+  chưa có dữ liệu A/V tương ứng cho khớp môi. PhoWhisper-small đã tải riêng theo
+  manifest pinned có sẵn và kiểm SHA, chỉ là ứng viên, chưa đánh giá hay cài API.
+  Qwen1.7 chưa có artifact tại máy. Chọn model phải đánh giá trên
+  calib_fit, khóa trước đánh giá; không chọn bằng các lượt điện thoại này.

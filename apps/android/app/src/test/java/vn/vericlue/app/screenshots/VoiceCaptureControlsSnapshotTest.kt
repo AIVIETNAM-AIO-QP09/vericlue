@@ -1,5 +1,8 @@
 package vn.vericlue.app.screenshots
 
+import android.os.Handler
+import android.os.Looper
+import android.view.Choreographer
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
 import androidx.compose.foundation.layout.Box
@@ -7,12 +10,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Recomposer
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.node.RootForTest
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.AndroidUiFrameClock
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.SemanticsActions
@@ -24,6 +29,12 @@ import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.android.asCoroutineDispatcher
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import vn.vericlue.app.capture.VoiceCapturePhase
 import vn.vericlue.app.ui.screens.Messages
 import vn.vericlue.app.ui.screens.VoiceScreen
@@ -109,7 +120,22 @@ class LargeTextVoiceCaptureControlsSnapshotTest : VoiceCaptureControlsSnapshots(
         var idleScrolled = false
         var recordingScroll = -1f
         var clockAdvanced = false
-        val view = ComposeView(paparazzi.context).apply { setContent {
+        var scrollRequested = false
+        var idleMaximum = -1f
+        // ScrollBy is animated. Its frames must belong to this Paparazzi session,
+        // rather than Compose's process-cached window-recomposer frame clock.
+        val dispatcher = Handler(Looper.getMainLooper())
+            .asCoroutineDispatcher("VoiceCaptureTransitionSnapshot").immediate
+        val scope = CoroutineScope(
+            SupervisorJob() + dispatcher + AndroidUiFrameClock(Choreographer.getInstance()),
+        )
+        val recomposer = Recomposer(scope.coroutineContext)
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            recomposer.runRecomposeAndApplyChanges()
+        }
+        val view = ComposeView(paparazzi.context).apply {
+            setParentCompositionContext(recomposer)
+            setContent {
             val root = LocalView.current as RootForTest
             VcTheme(motionEnabled = false) {
                 CompositionLocalProvider(LocalCameraFeed provides { modifier ->
@@ -118,7 +144,7 @@ class LargeTextVoiceCaptureControlsSnapshotTest : VoiceCaptureControlsSnapshots(
                 }) {
                     LaunchedEffect(Unit) {
                         delay(50)
-                        requestScroll?.invoke()
+                        requestScroll?.let { scrollRequested = true; it() }
                         delay(100)
                         idleScrolled = (readScroll?.invoke() ?: 0f) > 0f
                         phase.value = VoiceCapturePhase.Preparing
@@ -135,6 +161,7 @@ class LargeTextVoiceCaptureControlsSnapshotTest : VoiceCaptureControlsSnapshots(
                         val scroll = root.semanticsOwner.getAllSemanticsNodes(mergingEnabled = false)
                             .firstOrNull { it.config.getOrNull(SemanticsActions.ScrollBy) != null }
                         val range = scroll?.config?.getOrNull(SemanticsProperties.VerticalScrollAxisRange)
+                        if (phase.value == VoiceCapturePhase.Idle) idleMaximum = range?.maxValue?.invoke() ?: -1f
                         readScroll = range?.let { { it.value() } }
                         val action = scroll?.config?.getOrNull(SemanticsActions.ScrollBy)?.action
                         requestScroll = action?.let { { it(0f, 1000f); Unit } }
@@ -144,11 +171,18 @@ class LargeTextVoiceCaptureControlsSnapshotTest : VoiceCaptureControlsSnapshots(
                     }
                 }
             }
-        } }
+            }
+        }
         try { paparazzi.gif(view, "reading_transition", end = 500L, fps = 20) }
-        finally { view.disposeComposition() }
+        finally {
+            view.disposeComposition()
+            recomposer.cancel()
+            scope.cancel()
+        }
         assertTrue("The fixture must advance through every capture phase", clockAdvanced)
-        assertTrue("The fixture must actually scroll the idle reading", idleScrolled)
+        assertTrue("The fixture must expose a scroll action", scrollRequested)
+        assertTrue("The idle reading must overflow its viewport: $idleMaximum", idleMaximum > 0f)
+        assertTrue("The fixture must actually scroll the idle reading (maximum=$idleMaximum)", idleScrolled)
         assertEquals("Starting recording must not detach the native preview", 0, preparingDisposals)
         assertEquals("One native preview must survive every capture phase", 1, mounts)
         assertEquals("Only final fixture teardown may dispose the preview", 1, disposals)

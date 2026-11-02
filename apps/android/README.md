@@ -4,6 +4,12 @@
 
 ## Trạng thái
 
+**03/11 — sửa preview màn đọc:** khung camera nhỏ được ánh xạ FIT từ toàn bộ
+viewport, tránh nhìn như bị zoom vào một phần khuôn mặt. Chỉ đổi lớp hiển thị;
+giữ nguyên kích thước/vòng đời native preview và dữ liệu ghi hình. Lượt thử
+trên APK1840ede đã qua toàn bộ mặt và gửi được giọng, nhưng nhận dạng câu và
+lipsync vẫn không đạt; bản sửa preview không được coi là đã sửa hai chốt AI.
+
 **03/11 — APP-03, bản sửa thao tác đọc câu:** luồng API dùng cap native 10 giây
 (gồm thời gian chuẩn bị), hiển thị thời gian còn lại từ CameraX và yêu cầu bấm
 “Đọc xong” trước khi gửi. Nút kết thúc nằm cố định phía dưới. Hết cap hoặc native
