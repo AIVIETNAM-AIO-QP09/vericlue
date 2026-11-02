@@ -50,3 +50,8 @@
 - Người dùng xác nhận lời nhắc rõ/kịp nhưng đổi bước nhanh. Chỉnh nhịp Android v2 từ4/4/4 sang5/5/2giây để dành thêm thời gian hai bên; tổng12giây, voiceoffset/headend/version/schema/model/threshold không đổi. Audit độc lập xác nhận server chỉ kiểm thứ tự/hold trong toàn cửa sổ, không ép ba đoạn bằng nhau. v1/passive/những timeline khác giữ nguyên.
 - Cần cài đè và thử lại bản nhịp mới; các nghiệm thu đăng ký/reauth bên trên thuộc APK1367c2e, không tự áp kết quả đó cho APK mới.
 - Kiểm tra bản nhịp mới: FaceTimeline RED11test/2lỗi trước sửa; GREEN11/11. FullAndroid233test/0failure/error/skip; lint0errors/44warnings; assembleDebug thành công. Cập nhật ca frame giao trễ qua ranh giới5giây để giữ đúng mục tiêu kiểm thử. Review độc lập không có finding; không tự suy nghiệm thu từ APK cũ sang nhịp mới.
+
+## Cài nhịp5/5/2 và chờ thử khôi phục lại
+- APK69d41d38c009734a825fabb14dea3217e800f5de, SHA-25692667cfb8c25f0cbbc60bdfdeea5919bdb8d4da30bb43a159d17335944c10a32, cùng signer822e…/v2verified. Cài-r thành công10:17:00, dữ liệu/khóa giữ nguyên. API vẫn6f3171e, healthok/failed_modules[], reverse8421 đã kiểm.
+- Metadata private ghi head-ui-5-5-2-v1 và[5000,5000,2000] để phân biệt hướng dẫn với APK4/4/4 trước. Modelversion/calibration không được suy chất lượng hoặc nghiệm thu từ nhóm hướng dẫn cũ sang mới.
+- Người dùng tự mở app và thử lại từ phiên khôi phục mới; không tự gọi mở app qua đường khác sau lệnh ADB bị bộ duyệt chặn trước đó. Chờ kết quả thật, chưa đánh dấu khôi phục/giọng đạt.
