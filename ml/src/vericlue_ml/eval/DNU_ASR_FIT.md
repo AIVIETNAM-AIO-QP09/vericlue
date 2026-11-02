@@ -23,13 +23,18 @@ $fitProtocolSha = (Get-Content 'D:/vericlue/tmp/asr-comparison-2026-11-03/protoc
 D:/vericlue/.venv/Scripts/python.exe -m vericlue_ml.eval.dnu_asr_fit --protocol $fitProtocol --protocol-sha256 $fitProtocolSha --check-only
 ```
 
-Hai candidate chạy tuần tự, trong runtime riêng: Qwen hiện tại dùng Transformers
-5.13.0; PhoWhisper dùng 4.57.6, cùng CPU FP32 và VAD1. Không nâng runtime server.
+Các candidate chạy tuần tự, trong runtime riêng: Qwen 0.6B và ứng viên 1.7B dùng
+Transformers 5.13.0; PhoWhisper dùng 4.57.6, cùng CPU FP32 và VAD1. Không nâng
+runtime server. 1.7B dùng pin bất biến riêng trong `eval/qwen17_asr.py`, cùng
+implementation suy luận/VAD/prompt/budget của 0.6B, không đọc override cấu hình
+runtime. Chỉ config kiến trúc/trọng số khác; năm file tokenizer/processor/
+template/generation đã kiểm giống byte. Mặc định API vẫn 0.6B.
 Ví dụ đường dẫn runtime/model/output bên dưới thuộc vùng riêng, không commit:
 
 ```powershell
 D:/vericlue/tmp/av-lab-cpu/Scripts/python.exe -m vericlue_ml.eval.dnu_asr_fit --protocol $fitProtocol --protocol-sha256 $fitProtocolSha --backend qwen --models-dir D:/vericlue/models/selected-2026-10-24 --output D:/vericlue/tmp/asr-comparison-2026-11-03/qwen-fit18.json
 D:/vericlue/tmp/asr-comparison-2026-11-03/phowhisper-runtime/Scripts/python.exe -m vericlue_ml.eval.dnu_asr_fit --protocol $fitProtocol --protocol-sha256 $fitProtocolSha --backend phowhisper --models-dir D:/vericlue/tmp/asr-comparison-2026-11-03/models --output D:/vericlue/tmp/asr-comparison-2026-11-03/phowhisper-fit18.json
+D:/vericlue/tmp/av-lab-cpu/Scripts/python.exe -m vericlue_ml.eval.dnu_asr_fit --protocol $fitProtocol --protocol-sha256 $fitProtocolSha --backend qwen17 --models-dir D:/vericlue/tmp/asr-comparison-2026-11-03/qwen17-candidate --output D:/vericlue/tmp/asr-comparison-2026-11-03/qwen17-fit18.json
 ```
 
 Mỗi file output phải mới. JSON/stdout không có transcript, đường dẫn media hoặc

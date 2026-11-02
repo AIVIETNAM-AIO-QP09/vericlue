@@ -48,3 +48,24 @@
 - Protocol thật `--check-only`: 18 mẫu/18 người, `inference_performed=false`.
 - Android mới nhất: 441 ca, 0 failure, 0 error, 1 export skip; lint 0 lỗi,
   44 cảnh báo/5 thông tin; hai APK build đạt. Plan check 0 lỗi/10 cảnh báo.
+
+## Cập nhật trong đêm
+
+- APK03b4abc đã cài lúc 01:28 ngày 03/11; hash/signer/reverse8421 khớp,
+  toàn bộ hàng tài khoản/khôi phục và cấu hình riêng không đổi. Không mở app
+  bằng ADB. Sau khi người dùng đi ngủ đã dừng đúng cây tiến trình API để đo
+  offline, giữ DB/khóa/media. Lần mở máy sau chạy `START-DEMO.cmd` trong bundle.
+- Hai phép đo đầu đã chạy cùng protocol/implementation/source-config hash:
+  Qwen0.6 có macro WER 0,08384734, 1/18 câu không đạt; PhoWhisper 0,34766955,
+  4/18 không đạt. Cả hai 18/18 status ok, không thiếu WER, không lỗi nạp.
+  Nguồn `d81d2564f96a02a614c131957c9782c9d0188eda-dirty`; hậu tố dirty do
+  phát triển frontend song song, các file nguồn/cấu hình đo được hash và
+  kiểm không đổi trong từng lần, khớp giữa hai báo cáo. Đây là fit diagnostic,
+  không phải số test/hệ thống hay kết quả nghiệm thu. Không đổi sang PhoWhisper.
+- Đã tải ứng viên Qwen1.7B từ repo gốc tại revision
+  `bcd2b5b7f32b480ab5790554cfa8347f246a14f3`, kiểm Git blob/LFS và safetensor
+  header trước suy luận. Có adapter offline riêng; 0.6 vẫn giữ nguyên pin,
+  cấu hình mặc định và đường API. Chưa có số đo 1.7 tại commit adapter.
+- Root chạy nhóm hồi quy Qwen/DNU/PAD/notebook: **204 đạt, 1 bỏ qua, 0 lỗi**.
+  Root chạy landmark/frontend/resize/PTS trên runtime có Torch: **125 đạt**.
+  Kiểm thử này chưa thay smoke mô hình thật hoặc xác minh khớp môi.

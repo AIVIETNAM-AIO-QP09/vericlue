@@ -36,8 +36,10 @@ REVISION = "33b2a469901cb71b243403254d3cfef25170526c"
 DATASET = "DNU-ViSpeech-bonafide-only-v1"
 PHOWHISPER_REVISION = "a86b604c346caf7148c37512eafe783a16420adb"
 QWEN_REVISION = "7f1569a48a89f3e3f4dc3a5c9d28bddd903bc76c"
+QWEN17_REVISION = "bcd2b5b7f32b480ab5790554cfa8347f246a14f3"
 VERSIONS = {
     "qwen": f"qwen3-asr-06b@{QWEN_REVISION}+cpu-fp32-content-v2-assistant-prefix",
+    "qwen17": f"qwen3-asr-17b@{QWEN17_REVISION}+cpu-fp32-content-v2-assistant-prefix",
     "phowhisper": f"phowhisper-small@{PHOWHISPER_REVISION}+voice04-v2",
 }
 ROOT = Path(__file__).resolve().parents[4]
@@ -181,6 +183,12 @@ def phowhisper_manifest_entry() -> dict:
 
 def verify_models(backend: str, models_dir: Path) -> dict:
     """Hash the candidate weights before loading; no Torch/model imports for verification."""
+    if backend == "qwen17":
+        from vericlue_ml.eval.qwen17_asr import Qwen17ASR
+
+        asr = Qwen17ASR(models_dir)
+        asr._verify()
+        return {"verified": True, "revision": QWEN17_REVISION, "file_sha256": asr.model_hashes}
     if backend == "qwen":
         from vericlue_ml.voice.qwen_asr import QwenASR
 
@@ -209,6 +217,11 @@ def verify_models(backend: str, models_dir: Path) -> dict:
 
 
 def _detector(backend: str, models_dir: Path):
+    if backend == "qwen17":
+        from vericlue_ml.eval.qwen17_asr import Qwen17ASR
+        from vericlue_ml.voice.qwen_asr import QwenVoiceChallengeDetector
+
+        return QwenVoiceChallengeDetector(Qwen17ASR(models_dir))
     if backend == "qwen":
         from vericlue_ml.voice.qwen_asr import QwenASR, QwenVoiceChallengeDetector
 
@@ -256,6 +269,7 @@ def _source_provenance() -> dict[str, str]:
         "ml/src/vericlue_ml/voice/asr.py",
         "ml/src/vericlue_ml/voice/challenge.py",
         "ml/src/vericlue_ml/voice/qwen_asr.py",
+        "ml/src/vericlue_ml/eval/qwen17_asr.py",
         "ml/src/vericlue_ml/eval/voice_challenge.py",
     )
     return {name: _sha(ROOT / name) for name in files}

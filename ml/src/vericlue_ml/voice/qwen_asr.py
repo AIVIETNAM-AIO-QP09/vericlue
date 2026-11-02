@@ -19,7 +19,9 @@ import math
 import os
 import re
 import threading
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import yaml
@@ -74,13 +76,18 @@ class QwenASR:
     """Bounded local audio, verified files, one model load, serialized generation."""
 
     version = VERSION
+    _revision = REVISION
+
+    def _read_config(self, repo: Path) -> Mapping[str, Any]:
+        """Keep the default runtime pinned to its existing 0.6B configuration."""
+        config_path = Path(os.getenv("QWEN_ASR_CONFIG", repo / "ml/configs/qwen3_asr.yaml"))
+        return yaml.safe_load(config_path.read_text(encoding="utf-8"))
 
     def __init__(self, models_dir: Path | None = None) -> None:
         repo = Path(__file__).resolve().parents[4]
-        config_path = Path(os.getenv("QWEN_ASR_CONFIG", repo / "ml/configs/qwen3_asr.yaml"))
-        self.config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        self.config = self._read_config(repo)
         if (
-            self.config["revision"] != REVISION
+            self.config["revision"] != self._revision
             or set(self.config["sha256"]) != RUNTIME_FILES
             or type(self.config["cpu_threads"]) is not int
             or not 1 <= self.config["cpu_threads"] <= 16
