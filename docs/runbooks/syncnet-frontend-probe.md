@@ -101,4 +101,25 @@ biên này cho byte đúng bằng cách truncate trực tiếp; sai lệch0,002 
 hoặc NaN/Inf vẫn lỗi. Không đổi ma trận, dtype warp, đồng hồ, ngưỡng AI.
 Đây không phải chứng minh biên sai số phổ quát của Kornia hoặc parity FP16.
 RED 4 ca lỗi đúng chỗ; root chạy frontend + file/RAM probe: **115 ca đạt**.
-Phải chạy native lại với commit mới; lượt lỗi đầu vẫn được giữ trong vùng riêng.
+Lượt lỗi đầu vẫn được giữ trong vùng riêng.
+
+## Native sau sửa biên FP32
+
+Đã chạy trên commit `fb8c2bf2ad13c45461caeb4d58c85024b66e0e8c`, CPU với
+NumPy2.5.4, Torch2.14.1+cpu, Kornia0.8.0, OpenCV4.14.0 và ONNX Runtime1.31.0.
+Một bản ghi cũ được chọn bằng khoảng cài APK đã khóa trước khi chạy; không
+lọc theo điểm/chọn lại clip. Child hoàn tất84,661 giây:4 cửa sổ,232 khung căn,
+64 khung chọn,123.652 mẫu audio. Hai phía dùng cùng aligner/window starts,
+audio/mel/PTS và trọng số; media nguồn cùng cấu hình/file đã dùng không đổi.
+
+Đối chứng thay đồng thời detector512/landmark106/cănFP32, không cô lập nguyên
+nhân vào từng thành phần. Visual input và phản hồi mô hình thay đổi; offset
+ưu tiên không đổi và khác biệt với clock gốc vẫn còn. Vì vậy **chưa chứng
+minh decoder/PTS có lỗi mới hoặc lipsync đã đạt**, không đưa frontend này vào
+API, không chọn offset/crop/dtype/ngưỡng từ clip. Cần kiểm recipe/parity và
+bằng chứng A/V có thời gian tham chiếu, sau đó hiệu chỉnh đúng phiên bản.
+
+Báo cáo riêng `native-file-probe-private-v2/result-private.json` nằm dưới
+`D:/vericlue/tmp/syncnet-frontend-2026-11-03`; giữ điểm/offset/ID/media ở vùng
+riêng. Xem [bàn giao cuối](../status/handoffs/2026-11-03-0257-app-03-ngoc-quang-codex.md)
+về triển khai và phần nghiệm thu còn mở.

@@ -3,6 +3,10 @@
 **Nhánh:** `codex/APP-11-s24fe-integration`
 **Trạng thái:** `doing` — khôi phục/giọng thật chưa nghiệm thu.
 
+**Cập nhật cuối đợt:** xem [bàn giao02:57](2026-11-03-0257-app-03-ngoc-quang-codex.md).
+Các mục đang chờ dưới đây ghi lịch sử tại02:23; bản cuối đã qua test/native,
+triển khai server và cài APK, vẫn chưa có nghiệm thu người thật.
+
 ## Đã xong
 
 - APK03b4abc đã cài giữ dữ liệu; server85c8ab4 đã dừng để đo offline khi người

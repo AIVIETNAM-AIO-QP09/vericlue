@@ -137,7 +137,7 @@
 | SEC-02 ★ | Ký media, L0 khóa ghi danh; service khôi phục/thu hồi, chờ nghiệm thu máy thật | M2 (+M1) | Codex | 1 | S2 | P0 | APP-01, PLAT-06 | doing |
 | APP-01 ★ | Đang thử S24 FE; sửa binding trích template, chờ thử lại/HTTPS/nghiệm thu 3 luồng | M1 | Ngọc Quang+Claude+Codex+Gemini | 1,5 | S1 | P0 | PLAT-04 | doing |
 | APP-02 ★ | S24 FE: một lượt CCCD/mặt đạt sau sửa lời nhắc; chờ review và nhánh giọng | M1 | Ngọc Quang+Claude | 2 | S1–S2 | P0 | APP-01 | doing |
-| APP-03 | APK sửa chờ AI đã cài; đối chứng DNU ASR và frontend lipsync offline, chưa nghiệm thu khôi phục S24 FE | M1 | Ngọc Quang+Claude | 1 | S2 | P0 | APP-01 | doing |
+| APP-03 | Đã cài APK mới và API Qwen1.7B manual-only; test/CI/native xanh, chưa nghiệm thu khôi phục S24 FE | M1 | Ngọc Quang+Claude | 1 | S2 | P0 | APP-01 | doing |
 | APP-04 | Sửa thông báo hết tự chụp CCCD; bổ sung chẩn đoán QR, chờ thử lại S24 FE | M2 (+M1) | Ngọc Quang+Claude | 1,5 | S1–S2 | P0 | APP-01 | doing |
 | APP-05 | Đóng gói Android test từ xa qua mạng riêng | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | review |
 | APP-06 | Android localhost qua USB/Wi-Fi TLS, cấu hình test ảnh CCCD | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | review |

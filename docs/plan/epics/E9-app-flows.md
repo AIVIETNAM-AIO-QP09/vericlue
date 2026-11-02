@@ -658,16 +658,23 @@ latch là hold đạt/đổi phase/qua gate; giữ các hằng và lịch5/5/2. 
 
 ### APP-03 · App: ghi âm đọc câu (WAV 16 kHz)
 
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M1 | 1 | S2 | P0 | APP-01 |
+
+**03/11 02:57 — đã triển khai, chưa nghiệm thu:** APIfb8c2bf với Qwen1.7B
+manual-only đã preload đủ11 mô-đun và khởi động thực; APKc646868 cài giữ dữ
+liệu lênS24 FE. Python5329 đạt, Android445 ca không lỗi, CI10/10 xanh trên
+fb8c2bf. Frontend SyncNet mới vẫnoffline; khôi phục/ASR/lipsync cần lượt người
+thật. Giữdoing và DraftPR135; xem
+[bàn giao cuối](../../status/handoffs/2026-11-03-0257-app-03-ngoc-quang-codex.md).
+
 **03/11 — tiếp tục điều tra:** APK03b4abc đã cài giữ dữ liệu; sửa thời hạn chờ
 AI và kiểm phản hồi trước giải phóng bản thu. Đối chứng ASR cố định trên
 18 mẫu/18 người DNU calib_fit, không dùng điện thoại/test/VIVOS parity để chọn.
 Frontend landmark106 có version và probe file/RAM riêng, chưa bật trong API;
 xem [runbook](../../runbooks/syncnet-frontend-probe.md). Khôi phục vẫn chưa đạt
 nghiệm thu, không nới chốt hoặc đổi ngưỡng để lấy kết quả pass.
-
-| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
-|---|---|---|---|---|
-| M1 | 1 | S2 | P0 | APP-01 |
 
 **03/11 — doing, sửa thao tác thu giọng:** cap native 10 giây gồm chuẩn bị;
 đếm ngược theo CameraX và bắt buộc bấm “Đọc xong”. Nếu hết giờ, không decode/
