@@ -69,6 +69,11 @@ Kho output riêng, không ghi đè artifact đang dùng. Kiểm nguồn dữ li�
 split, loại trừ và đánh giá độc lập trước khi sử dụng thực tế. JSON local
 không tự chứng minh provenance; không sửa metadata để hợp thức hóa số đo.
 
+Collect ghi diagnostic report mới ngoài kho config/model/data/calibrator của
+repo và MODELS_DIR/DATA_DIR/CALIBRATORS_DIR; target được kiểm trước nạp backend
+và ngay trước ghi. Lệnh fit có output_dir rõ để xuất fitted calibrator theo
+chủ ý, không bị áp chính sách diagnostic; vẫn không ghi đè artifact có sẵn.
+
 ## Nối API và giới hạn
 
 Cấu hình `CALIBRATORS_DIR=<output-calibrators>` rồi restart. Store tìm đúng

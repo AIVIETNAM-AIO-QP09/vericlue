@@ -22,6 +22,7 @@ from sklearn.model_selection import GroupKFold
 
 from vericlue_ml.common.calibration import MIN_ISOTONIC_CLASS, CalibFit, fit
 from vericlue_ml.common.result import ModuleResult
+from vericlue_ml.eval.diagnostic_output import check_diagnostic_output
 from vericlue_ml.eval.report import git_revision
 from vericlue_ml.voice.nes2net import Nes2NetDetector
 from vericlue_ml.voice.nes2net_parity import (
@@ -303,15 +304,9 @@ def audit(
 def _write(
     output: Path, payload: dict, *, protected: list[Path], models_dir: Path | None = None
 ) -> None:
-    target = output.resolve()
-    if (
-        target.exists()
-        or target in {p.resolve() for p in protected}
-        or (models_dir is not None and target.is_relative_to(models_dir.resolve()))
-    ):
-        raise ValueError("Output must be new and outside input/model storage")
-    output.parent.mkdir(parents=True, exist_ok=True)
-    with output.open("x", encoding="utf-8") as stream:
+    target = check_diagnostic_output(output, protected=protected, models_dir=models_dir)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with target.open("x", encoding="utf-8") as stream:
         stream.write(json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False) + "\n")
 
 
@@ -319,6 +314,7 @@ def collect(
     manifest: Path, data_root: Path, models_dir: Path, output: Path, *, detector=None
 ) -> dict:
     """Run the fixed protocol on every declared sample; preserve partial and failed takes."""
+    check_diagnostic_output(output, protected=[manifest], models_dir=models_dir)
     source_hash = _sha(manifest)
     info, checks = load_manifest(manifest, data_root)
     commit = git_revision()
@@ -432,6 +428,7 @@ def readiness_report(
     report: Path, output: Path, *, expected_attack_types: Sequence[str] = ()
 ) -> dict:
     """Audit validated measurements and exclusions; never fit or upgrade module results."""
+    check_diagnostic_output(output, protected=[report])
     header, checksum, measured = _validated_measurement(report)
     audit_commit = git_revision()
     if re.fullmatch(r"[0-9a-f]{40}", audit_commit) is None:
@@ -482,6 +479,7 @@ def readiness_report(
 
 def fit_report(report: Path, output: Path) -> dict:
     """Fit the existing Calibrator on complete calib_fit rows only; never install it."""
+    check_diagnostic_output(output, protected=[report])
     header, checksum, measured = _validated_measurement(report)
     fit_commit = git_revision()
     if re.fullmatch(r"[0-9a-f]{40}", fit_commit) is None:
@@ -538,6 +536,7 @@ def main(argv: list[str] | None = None) -> int:
     readiness.add_argument("--expected-attack-type", action="append", default=[])
     args = parser.parse_args(argv)
     if args.command == "prepare":
+        check_diagnostic_output(args.output, protected=[args.manifest])
         manifest, checks = load_manifest(args.manifest, args.data_root)
         _write(
             args.output,

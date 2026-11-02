@@ -270,6 +270,14 @@ Giữ nhóm liên kết từ manifest đầy đủ, không tách lại nhóm khi
 Loại tấn công cần có do người dùng khai báo, không suy từ test. Đây chỉ kiểm
 cấu trúc, luôn chưa sẵn sàng hiệu chỉnh/triển khai; không fit hoặc chọn LTT.
 
+**Bảo vệ output/coverage (cuối 01/11):** diagnostic prepare/collect/readiness/
+fit-wrapper không ghi vào kho runtime config/model/data/calibrator, kể cả các
+kho env ngoài repo; kiểm trước xử lý và trước ghi. Dev dependencies nhẹ bật
+18 fixture WAV và oracle JiWER/RapidFuzz từng skip; fake backend có runtime
+synthetic riêng, không import Torch thật. Bộ test liên quan354 đạt/0skip;
+full Python4907 đạt/100skip, review độc lập chấp thuận,15CLI sai kho bị chặn.
+CI riêng ghi trên Draft PR; không dùng kết quả này làm accuracy.
+
 ---
 
 ### VOICE-10 · Ghép NES2Net vào công cụ thử microphone

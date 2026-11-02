@@ -68,6 +68,17 @@ và chỉ lấy mẫu đủ điểm trong calib_fit. Mẫu thiếu/lỗi có s�
 Collect chưa có resume hoặc checkpoint; chỉ ghi report mới khi hoàn tất toàn bộ
 lượt đo. Không dùng file đầu ra đã tồn tại cho một lượt collect mới.
 
+Prepare/collect/readiness/fit-wrapper chỉ ghi diagnostic report mới ngoài kho
+config/model/data/calibrator của repo và các biến MODELS_DIR/DATA_DIR/
+CALIBRATORS_DIR. Collect kiểm target trước nạp model và kiểm lại trước ghi;
+target sai không chạy inference/fit. Chọn thư mục báo cáo riêng ngoài các kho
+runtime; không đưa wrapper candidate vào chỗ calibrator đang dùng.
+
+Dev dependencies có SoundFile/JiWER/RapidFuzz để chạy fixture WAV/hash/split và
+oracle so khớp câu trong CI mà không cài Torch hay trọng số. Runtime trong
+fixture backend giả được ghi synthetic; native collect vẫn đọc runtime thật,
+không fallback metadata hoặc nâng kết quả degraded.
+
 ## Kiểm tra cấu trúc trước khi fit
 
 `prepare` giữ các trường audit cũ và bổ sung số nhóm, số mẫu theo loại tấn công
