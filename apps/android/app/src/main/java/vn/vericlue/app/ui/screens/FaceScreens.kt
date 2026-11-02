@@ -89,6 +89,7 @@ import vn.vericlue.app.ui.components.Tone
 import vn.vericlue.app.ui.components.TopBar
 import vn.vericlue.app.ui.components.VcScreen
 import vn.vericlue.app.ui.components.stepLabel
+import vn.vericlue.app.ui.components.HelpButton
 import vn.vericlue.app.ui.theme.LightColors
 import vn.vericlue.app.ui.theme.LocalVcColors
 import vn.vericlue.app.ui.theme.Palette
@@ -115,7 +116,7 @@ fun FaceReadyScreen(onBack: () -> Unit, onReady: () -> Unit, onSkipFlash: () -> 
             LinkButton("Tôi không thể tiếp tục", onSkipFlash)
         },
     ) {
-        TitleBlock("Sẵn sàng\nxác minh khuôn mặt", "Chọn nơi đủ sáng và giữ điện thoại ngang tầm mắt.")
+        TitleBlock("Sẵn sàng\nxác minh khuôn mặt", "Chọn nơi đủ sáng và giữ điện thoại ngang tầm mắt.", eyebrow = "CHUẨN BỊ TRƯỚC CAMERA")
         ContentCard {
             FeatureRow(Icons.Outlined.PhoneAndroid, "Giữ đầu thẳng", "Nhìn thẳng khi màn hình đổi màu.")
             FeatureRow(Icons.Outlined.Visibility, "Đưa mắt theo chấm sáng", "Giữ đầu yên, chỉ di chuyển mắt.")
@@ -127,6 +128,7 @@ fun FaceReadyScreen(onBack: () -> Unit, onReady: () -> Unit, onSkipFlash: () -> 
                 tone = Tone.Warn,
             )
         }
+        HelpButton(step = 2)
     }
 }
 

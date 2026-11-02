@@ -69,6 +69,10 @@ import vn.vericlue.app.flow.Purpose
 import vn.vericlue.app.ui.components.ChecklistCard
 import vn.vericlue.app.ui.components.CompletionHaptic
 import vn.vericlue.app.ui.components.SuccessBadge
+import vn.vericlue.app.ui.components.ContentCard
+import vn.vericlue.app.ui.components.FeatureRow
+import vn.vericlue.app.ui.components.NextStepCard
+import vn.vericlue.app.ui.components.ProcessingPanel
 import vn.vericlue.app.ui.components.SampleAccount
 import vn.vericlue.app.ui.components.CameraFeed
 import vn.vericlue.app.ui.components.PrimaryButton
@@ -198,8 +202,9 @@ fun CheckingScreen(purpose: Purpose, onDone: () -> Unit, auto: Boolean = true) {
         if (auto) { delay(2500); onDone() }
     }
     VcScreen(centered = true) {
-        StatusBadge(null, spinning = true)
-        TitleBlock("Đang xác minh", "Giữ ứng dụng mở đến khi có kết quả.", centered = true)
+        StatusBadge(Icons.Outlined.HourglassEmpty)
+        TitleBlock("Đang xác minh", "Bạn đã gửi yêu cầu. Vui lòng chờ phản hồi.", centered = true)
+        ProcessingPanel("Đang xử lý yêu cầu", "Giữ ứng dụng mở và duy trì kết nối mạng. Kết quả sẽ xuất hiện khi hệ thống xử lý xong.")
     }
 }
 
@@ -210,9 +215,15 @@ fun SuccessScreen(purpose: Purpose, onContinue: () -> Unit, auto: Boolean = fals
     CompletionHaptic(true)
     LaunchedEffect(auto) { if (auto) { delay(2600); onContinue() } }
     VcScreen(centered = true, actions = { PrimaryButton("Hoàn tất", onContinue) }) {
-        SuccessBadge()
-        TitleBlock("Xác minh thành công", centered = true)
-        if (!checked.isNullOrEmpty()) ChecklistCard(null, checked.map { Triple(null, it, RowState.Done) })
+        ContentCard {
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                Text("ĐÃ HOÀN TẤT", style = VcType.labelSmall, color = Vc.colors.ok)
+                SuccessBadge()
+                TitleBlock("Xác minh thành công", "Bạn có thể tiếp tục với dịch vụ.", centered = true)
+            }
+            if (!checked.isNullOrEmpty()) ChecklistCard("Nội dung đã xác minh", checked.map { Triple(null, it, RowState.Done) })
+        }
     }
 }
 
@@ -220,17 +231,19 @@ fun SuccessScreen(purpose: Purpose, onContinue: () -> Unit, auto: Boolean = fals
 fun ReviewScreen(onBackToBank: () -> Unit) {
     VcScreen(centered = true, actions = { PrimaryButton("Về màn hình chính", onBackToBank) }) {
         StatusBadge(Icons.Outlined.Info, tone = Tone.Warn)
-        TitleBlock("Chưa hoàn tất xác minh", "Thông tin hiện tại chưa đủ để hoàn tất yêu cầu. Bạn có thể bắt đầu lại.", centered = true)
+        TitleBlock("Chưa hoàn tất xác minh", centered = true)
+        NextStepCard("Bạn có thể làm gì?", "Thông tin hiện tại chưa đủ để hoàn tất yêu cầu. Quay về màn hình chính để bắt đầu lại khi sẵn sàng.")
     }
 }
 
 @Composable
 fun RetryQualityScreen(onBack: () -> Unit, onRetake: () -> Unit, hint: String? = null, attemptsLeft: Int? = 1, hintCode: String? = null) {
     val audio = hintCode == "QUIET_PLACE"
-    VcScreen(onBack = onBack, step = 2, centered = true, actions = { PrimaryButton(if (audio) "Thử lại" else "Chụp lại", onRetake) }) {
+    VcScreen(onBack = onBack, step = if (audio) 3 else 2, centered = true, actions = { PrimaryButton(if (audio) "Thử lại" else "Chụp lại", onRetake) }) {
         StatusBadge(retryHintIcon(hintCode), Tone.Warn)
-        TitleBlock(if (audio) "Chưa thu rõ giọng nói" else "Chưa thu rõ khuôn mặt", hint ?: "Hãy ra chỗ sáng hơn và giữ điện thoại ngang tầm mặt.", centered = true)
-        if (attemptsLeft != null) Text("Còn $attemptsLeft lần chụp lại", style = VcType.caption, color = Vc.colors.muted)
+        TitleBlock(if (audio) "Chưa thu rõ giọng nói" else "Chưa thu rõ khuôn mặt", centered = true)
+        NextStepCard("Trước khi thử lại", hint ?: if (audio) "Chọn nơi yên tĩnh và đọc rõ từng từ." else "Hãy ra chỗ sáng hơn và giữ điện thoại ngang tầm mặt.")
+        if (attemptsLeft != null) Text(if (audio) "Còn $attemptsLeft lần đọc lại" else "Còn $attemptsLeft lần chụp lại", style = VcType.caption, color = Vc.colors.muted)
     }
 }
 
@@ -249,7 +262,11 @@ fun retryHintIcon(code: String?): ImageVector = when (code) {
 fun RetryChallengeScreen(onBack: () -> Unit, onRetry: () -> Unit, attemptsLeft: Int? = 1) {
     VcScreen(onBack = onBack, step = 2, centered = true, actions = { PrimaryButton("Thử lại", onRetry) }) {
         StatusBadge(Icons.Outlined.Refresh)
-        TitleBlock("Thực hiện lại thử thách", "Giữ đầu yên, chỉ đưa mắt theo chấm sáng. Khi quay đầu, quay chậm rồi quay lại nhìn thẳng.", centered = true)
+        TitleBlock("Thực hiện lại thử thách", centered = true)
+        ContentCard {
+            FeatureRow(Icons.Outlined.CenterFocusWeak, "Đưa mắt theo chấm sáng", "Giữ đầu yên, chỉ di chuyển mắt.")
+            FeatureRow(Icons.Outlined.Refresh, "Quay đầu chậm", "Làm theo mũi tên rồi quay lại nhìn thẳng.")
+        }
         if (attemptsLeft != null) Text("Còn $attemptsLeft lần thử", style = VcType.caption, color = Vc.colors.muted)
     }
 }
@@ -276,7 +293,8 @@ fun MessageScreen(
         },
     ) {
         StatusBadge(icon, tone)
-        TitleBlock(title, body, centered = true)
+        TitleBlock(title, centered = true)
+        NextStepCard("Hướng dẫn cho bạn", body)
     }
 }
 
@@ -329,11 +347,11 @@ object Messages {
                 onDone()
             }
         }
-        MessageScreen(
-            Icons.Outlined.CloudUpload, "Đang gửi dữ liệu",
-            "Đang gửi ảnh, video hoặc bản ghi của bước vừa thực hiện. Vui lòng giữ kết nối mạng.",
-            null, "Dừng xác minh" to onStop,
-        )
+        VcScreen(centered = true, actions = { SecondaryButton("Dừng xác minh", onStop) }) {
+            StatusBadge(Icons.Outlined.CloudUpload)
+            TitleBlock("Đang gửi dữ liệu", "Bước vừa thực hiện đang được gửi đi.", centered = true)
+            ProcessingPanel("Đang gửi, vui lòng chờ", "Giữ kết nối mạng trong khi ứng dụng gửi ảnh, video hoặc bản ghi. Bạn có thể dừng phiên bằng nút bên dưới.")
+        }
     }
 
     /** The MP4 is still being written on the phone; network errors use ErrorNetwork instead. */

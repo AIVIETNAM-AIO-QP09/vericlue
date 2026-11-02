@@ -77,6 +77,11 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.material.icons.outlined.HourglassEmpty
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -196,7 +201,7 @@ fun VcScreen(
         val bodyAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start
         Column(Modifier.widthIn(max = 600.dp).fillMaxWidth().fillMaxHeight()) {
             TopBar(onBack, showLogo)
-            if (step != null) StepProgress(step, stepLabel(step))
+            if (step != null) JourneyHeader(step)
             if (scrollActions) {
                 Column(Modifier.weight(1f).verticalScroll(scrollState)) {
                     Column(
@@ -266,6 +271,7 @@ fun PrimaryButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     container: Color = Vc.colors.primary,
+    loading: Boolean = false,
 ) {
     val c = Vc.colors
     val motion = Vc.motion
@@ -280,8 +286,9 @@ fun PrimaryButton(
     val fg = c.buttonForeground(bg)
     Button(
         onClick = onClick,
-        enabled = enabled,
-        modifier = modifier.fillMaxWidth().heightIn(min = 56.dp).scale(if (motion.enabled) scale else 1f),
+        enabled = enabled && !loading,
+        modifier = modifier.fillMaxWidth().heightIn(min = 56.dp).scale(if (motion.enabled) scale else 1f)
+            .semantics { if (loading) { stateDescription = "Đang xử lý"; liveRegion = LiveRegionMode.Polite } },
         interactionSource = interactions,
         shape = CircleShape,
         colors = ButtonDefaults.buttonColors(
@@ -290,7 +297,14 @@ fun PrimaryButton(
             disabledContainerColor = bg,
             disabledContentColor = fg,
         ),
-    ) { Text(text, style = VcType.button) }
+    ) {
+        if (loading) {
+            if (motion.enabled) CircularProgressIndicator(Modifier.size(20.dp).clearAndSetSemantics {}, color = fg, strokeWidth = 2.dp)
+            else Icon(Icons.Outlined.HourglassEmpty, null, tint = fg, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(10.dp))
+        }
+        Text(text, style = VcType.button)
+    }
 }
 
 @Composable
@@ -450,7 +464,7 @@ private fun StateIcon(state: RowState) {
 
 /** Android-style number pad. Digits only: phone and OTP screens. */
 @Composable
-fun NumericKeypad(onDigit: (Char) -> Unit, onBackspace: () -> Unit, onDone: () -> Unit) {
+fun NumericKeypad(onDigit: (Char) -> Unit, onBackspace: () -> Unit, onDone: () -> Unit, enabled: Boolean = true, doneEnabled: Boolean = true) {
     val c = Vc.colors
     val rows = listOf("123", "456", "789")
     Column(
@@ -459,30 +473,30 @@ fun NumericKeypad(onDigit: (Char) -> Unit, onBackspace: () -> Unit, onDone: () -
     ) {
         rows.forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                row.forEach { d -> Key(Modifier.weight(1f), c.key, { onDigit(d) }) { DigitLabel(d) } }
+                row.forEach { d -> Key(Modifier.weight(1f), c.key, { onDigit(d) }, enabled) { DigitLabel(d) } }
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Key(Modifier.weight(1f), c.border, onBackspace) {
+            Key(Modifier.weight(1f), c.border, onBackspace, enabled) {
                 Icon(Icons.AutoMirrored.Outlined.Backspace, contentDescription = "Xóa", tint = c.ink)
             }
-            Key(Modifier.weight(1f), c.key, { onDigit('0') }) { DigitLabel('0') }
-            Key(Modifier.weight(1f), c.primary, onDone) {
-                Icon(Icons.Outlined.Check, contentDescription = "Xong", tint = c.onPrimary)
+            Key(Modifier.weight(1f), c.key, { onDigit('0') }, enabled) { DigitLabel('0') }
+            Key(Modifier.weight(1f), if (enabled && doneEnabled) c.primary else c.disabled, onDone, enabled && doneEnabled) {
+                Icon(Icons.Outlined.Check, contentDescription = "Xong", tint = if (enabled && doneEnabled) c.onPrimary else c.onDisabled)
             }
         }
     }
 }
 
 @Composable
-private fun Key(modifier: Modifier, color: Color, onClick: () -> Unit, content: @Composable () -> Unit) {
+private fun Key(modifier: Modifier, color: Color, onClick: () -> Unit, enabled: Boolean = true, content: @Composable () -> Unit) {
     val motion = Vc.motion
     val interactions = remember { MutableInteractionSource() }
     val pressed by interactions.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.97f else 1f, motion.tween(110), label = "key-press")
     Box(
         modifier.heightIn(min = 50.dp).scale(if (motion.enabled) scale else 1f).clip(RoundedCornerShape(8.dp)).background(color)
-            .clickable(interactionSource = interactions, indication = LocalIndication.current, role = Role.Button, onClick = onClick),
+            .clickable(enabled = enabled, interactionSource = interactions, indication = LocalIndication.current, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { content() }
 }

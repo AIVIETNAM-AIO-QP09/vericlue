@@ -88,6 +88,9 @@ import vn.vericlue.app.R
 import vn.vericlue.app.flow.Agreement
 import vn.vericlue.app.ui.components.ChecklistCard
 import vn.vericlue.app.ui.components.ContentCard
+import vn.vericlue.app.ui.components.WelcomePanel
+import vn.vericlue.app.ui.components.JourneyOverview
+import vn.vericlue.app.ui.components.HelpButton
 import vn.vericlue.app.ui.components.FeatureRow
 import vn.vericlue.app.ui.components.LinkButton
 import vn.vericlue.app.ui.components.PrimaryButton
@@ -195,31 +198,16 @@ fun SplashScreen(onDone: () -> Unit) {
 @Composable
 fun AuthScreen(onRegister: () -> Unit, onLogin: () -> Unit, onRecover: () -> Unit) {
     val c = Vc.colors
-    val phase = if (Vc.motion.enabled) {
-        val float = rememberInfiniteTransition(label = "float")
-        val value by float.animateFloat(
-            initialValue = -1f, targetValue = 1f,
-            animationSpec = infiniteRepeatable(tween(2400, easing = LinearEasing), RepeatMode.Reverse), label = "phase",
-        )
-        value
-    } else 0f
     VcScreen(actions = {
         PrimaryButton("Bắt đầu đăng ký", onRegister)
         SecondaryButton("Đăng nhập", onLogin)
         LinkButton("Khôi phục tài khoản", onRecover)
     }) {
-        TitleBlock(
-            "Xác minh danh tính",
-            "Chuẩn bị thẻ căn cước. VeriClue sẽ hướng dẫn bạn từng bước.",
-            eyebrow = "ĐỊNH DANH ĐIỆN TỬ",
-        )
-        IdentityIllustration(Modifier.height(140.dp), phase)
+        WelcomePanel()
         ContentCard {
-            FeatureRow(Icons.Outlined.Badge, "Quét thẻ căn cước")
-            HorizontalDivider(color = c.border)
-            FeatureRow(Icons.Outlined.Face, "Xác minh khuôn mặt")
-            HorizontalDivider(color = c.border)
-            FeatureRow(Icons.Outlined.Mic, "Đọc một câu", "Chỉ khi cần xác minh bổ sung.")
+            Text("Hành trình xác minh", style = VcType.section, color = c.ink)
+            JourneyOverview()
+            HelpButton()
         }
     }
 }

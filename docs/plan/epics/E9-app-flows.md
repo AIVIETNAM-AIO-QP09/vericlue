@@ -427,6 +427,20 @@ build APK debug chưa ký thành công. Lottie có 10 ảnh và 2 APNG kiểm
 frame cuối, preview local `tmp/app11-ui/lottie/index.html`. Chưa thử
 lifecycle/chuyển động trên thiết bị thật; task giữ `review`.
 
+Yêu cầu mở rộng 02/11: khai thác thêm danh mục UI để nâng cấp toàn trải nghiệm.
+Tiếp tục trên nhánh/PR APP-11 theo yêu cầu trực tiếp, giữ hợp đồng và lịch camera.
+
+- [x] Màn bắt đầu, tiến trình, nhập số/OTP, chờ/kết quả có bố cục đồng bộ và rõ hơn.
+- [x] Trợ giúp theo ngữ cảnh, FAQ mở rộng; dán dữ liệu theo thao tác chủ động,
+      phản hồi busy/validation và bộ đếm gửi lại OTP hoạt động nhiều lượt.
+- [x] Ghi rõ thư viện dùng trực tiếp và mẫu tham khảo triển khai bằng Compose;
+      test logic/render, kiểm 375dp/chữ 200%/ngang/tối, lint/build và preview trước/sau.
+
+Lượt mở rộng: 168 test đạt, lint 0 lỗi/12 cảnh báo/1 thông tin có sẵn,
+APK debug chưa ký build thành công. Preview `tmp/app11-ui/upgrade/index.html`
+có 194 ảnh hành trình và 42 ảnh form/trợ giúp so với bản `4698f2a`.
+Chưa nghiệm thu modal/TalkBack/clipboard trên điện thoại; giữ `review`.
+
 ---
 
 ### APP-02 ★ · App: chụp mặt, quay 3 giây, quay đầu ngẫu nhiên

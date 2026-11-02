@@ -58,7 +58,7 @@ abstract class OnboardingJourneySnapshots(device: DeviceConfig, private val comp
             shot("02_auth", dark) { AuthScreen(n, n, n) }
             shot("03_terms", dark) { TermsScreen(n, n) }
             shot("03b_terms_selected", dark) { TermsScreen(n, n, initialAccepted = true) }
-            shot("04_phone", dark) { PhoneScreen(n) {} }
+            shot("04_phone", dark) { PhoneScreen(n, onSend = {}) }
             shot("05_otp", dark) { OtpScreen(n, n, sms = "Mã dùng thử: 482910.") }
             shot("06_card_front", dark) { IdScanScreen(false, null, n, n, n) }
             if (complete) shot("07_card_processing", dark) { IdProcessingScreen(n, n) }

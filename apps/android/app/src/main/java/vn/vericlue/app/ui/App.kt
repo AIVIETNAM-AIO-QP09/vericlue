@@ -467,7 +467,7 @@ fun VeriClueApp() {
 
         // Stage A: identity
         composable(Routes.Phone) {
-            PhoneScreen(onBack = { nav.popBackStack() }, onSend = { number ->
+            PhoneScreen(onBack = { nav.popBackStack() }, busy = busy, onSend = { number ->
                 phone = number
                 otpError = null
                 if (!flow.live) {
@@ -489,6 +489,7 @@ fun VeriClueApp() {
                     onBack = { nav.popBackStack() },
                     onVerified = {},
                     autoCode = smsCode,
+                    busy = busy,
                     sms = live.otpSms,
                     serverError = otpError,
                     onCode = { code ->

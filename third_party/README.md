@@ -177,3 +177,9 @@ Giấy phép upstream nguyên bản tại `third_party/licenses/lottie-android-A
 đóng gói cùng APK ở `app/src/main/assets/licenses/lottie-android.txt`.
 `res/raw/vericlue_success.json` là vector tự tạo cho VeriClue, không lấy
 animation hoặc ảnh từ LottieFiles/danh mục. Không có ảnh, font, URL ngoài trong asset.
+
+Lượt mở rộng APP-11 tham khảo thêm mẫu từ ComposeCookBook, BottomSheet,
+material-dialogs, ExpandableLayout, Material Code Input và circular-progress-button.
+Chỉ tham khảo cách tổ chức/tương tác; không chép mã hoặc asset, không thêm
+dependency của các thư viện này. Thành phần tự viết dùng Compose/Material 3
+hiện có. Bảng nguồn → thành phần ở `apps/android/docs/ui-libraries.md`.

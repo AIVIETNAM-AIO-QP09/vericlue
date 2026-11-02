@@ -4,6 +4,15 @@
 
 ## Trạng thái
 
+APP-11 mở rộng: màn đầu có thẻ navy và hành trình đánh số; màn số điện
+thoại/OTP có dán chủ động, phản hồi lỗi và trạng thái đang gửi/kiểm mã.
+Trợ giúp theo ngữ cảnh mở bằng bottom sheet, FAQ mở rộng từng câu; đọc
+hướng dẫn không gửi dữ liệu hoặc chuyển bước. Màn chờ, kết quả và làm lại
+có thẻ nội dung thống nhất. Bộ đếm gửi lại OTP chạy lại ở mỗi lượt và chặn
+chạm lặp. Các mẫu được chọn từ awesome-android-ui, tự triển khai bằng
+Compose/Material 3; bảng nguồn và cách thử tại [UI libraries](docs/ui-libraries.md).
+Preview so với bản vừa có Lottie: `tmp/app11-ui/upgrade/index.html` từ repo root.
+
 APP-11 bổ sung: đã chọn Lottie Compose 6.6.2 từ danh mục
 `wasabeef/awesome-android-ui`, dùng cho vòng viền động quanh huy hiệu thành công.
 Asset vector tự tạo được đóng gói trong APK; chạy một lần, tạm dừng khi app

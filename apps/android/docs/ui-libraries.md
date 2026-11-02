@@ -22,8 +22,33 @@ Nguồn kiểm tra:
 - [POM chính thức](https://repo.maven.apache.org/maven2/com/airbnb/android/lottie-compose/6.6.2/lottie-compose-6.6.2.pom).
 - [Giấy phép upstream](https://github.com/airbnb/lottie-android/blob/v6.6.2/LICENSE).
 
-Các thư viện khác trong danh mục chưa được cài. Ở lượt này, app không có nhu
-cầu thêm trình tải ảnh mạng, menu hay hệ navigation khác.
+## Khai thác thêm các mẫu UI (lượt mở rộng APP-11)
+
+Danh mục còn được dùng để chọn sáu nhóm mẫu cho các màn ngoài camera.
+Lottie là dependency trực tiếp; các mẫu dưới đây được tự triển khai bằng
+Compose/Material 3 đã có, không chép source, tài nguyên hoặc thêm AAR của
+những thư viện View/XML vào app Compose.
+
+| Tham khảo từ danh mục | Áp dụng trong VeriClue | Triển khai |
+|---|---|---|
+| [ComposeCookBook](https://github.com/Gurupreet/ComposeCookBook) | Thẻ mở đầu navy, hành trình đánh số, bố cục theo theme | `WelcomePanel`, `JourneyOverview`, `JourneyHeader` |
+| [BottomSheet](https://github.com/Flipboard/bottomsheet), [material-dialogs](https://github.com/afollestad/material-dialogs) | Trợ giúp theo ngữ cảnh, đóng bằng nút hoặc thao tác hệ thống | `ModalBottomSheet` của Material 3, `HelpButton`/`HelpSheetContent` |
+| [ExpandableLayout](https://github.com/skydoves/ExpandableLayout) | FAQ mở rộng từng câu, trạng thái mở/đóng cho trợ năng | `ExpandableAnswer`, `AnimatedVisibility` và cài đặt giảm chuyển động |
+| [Material Code Input](https://github.com/glomadrian/material-code-input) | Mã 6 ô, số ký tự đã nhập, dán mã chủ động, giải thích lỗi | `OtpScreen`, giữ `OtpBoxes`, thêm `InputAssist` |
+| [circular-progress-button](https://github.com/dmytrodanylyk/circular-progress-button) | Nút gửi/xác nhận báo bận trong lúc API xử lý | `PrimaryButton(loading)` nối với `busy` thật, khóa keypad và gửi lặp |
+| Nhóm Progress trong danh mục | Thẻ chờ phản hồi/gửi dữ liệu và trạng thái tĩnh khi giảm chuyển động | `ProcessingPanel`, không tự tăng tiến độ hay dựng kết quả |
+
+API bottom sheet đối chiếu [tài liệu Android chính thức](https://developer.android.com/develop/ui/compose/components/bottom-sheets).
+Không thay navigation của các luồng, lịch camera/nháy màu hoặc hợp đồng API.
+Màn kết quả/làm lại có thẻ hướng dẫn tiếp theo; số lần thử và nội dung đã
+xác minh vẫn lấy từ dữ liệu hiện có. Màn âm thanh làm lại dùng đúng nhãn
+đọc lại và bước bổ sung.
+
+Clipboard chỉ được đọc khi người dùng bấm **Dán**, không tự đọc lúc mở
+màn. Số `+84` được chuyển sang dạng `0`; nội dung không hợp lệ bị từ chối
+nguyên vẹn, không cắt chuỗi để biến thành số/mã hợp lệ. Dán không tự gửi.
+Trợ giúp hoạt động local; mở hoặc đóng không đồng ý điều khoản, gửi dữ liệu
+hay bỏ qua bước. Có nút đóng rõ ràng để không phụ thuộc thao tác kéo.
 
 ## Setup
 
@@ -63,6 +88,11 @@ git -C tmp/ui-references/awesome-android-ui checkout --detach FETCH_HEAD
 Xem trên app debug: **Xem tất cả màn → Kết quả → Thành công**. Đây là
 gallery mô phỏng để review UI, không phải bằng chứng xác minh thật.
 
+Để xem phần nâng cấp hành trình, mở các nhóm **Bắt đầu → Đăng nhập / Đăng ký**,
+**Danh tính → Số điện thoại / OTP** và **Kết quả** trong gallery. Chọn
+**Các bước & trợ giúp** hoặc **Cần trợ giúp?** để mở bảng hướng dẫn.
+Preview so với bản có Lottie: `tmp/app11-ui/upgrade/index.html`.
+
 ## Kiểm tra
 
 ```powershell
@@ -79,3 +109,11 @@ PNG ở `app/src/test/snapshots/images/`, animation APNG 46 frame ở
 Trang xem thử tại máy: `tmp/app11-ui/lottie/index.html` từ repo root.
 Kiểm thêm trên điện thoại: vào/ra nền giữa animation, tắt chuyển động,
 thử theme tối, bấm Hoàn tất ngay mà không đợi vòng vẽ xong.
+
+Lượt mở rộng có `InputAssistTest` (định dạng, độ dài, giữ số 0 đầu,
+không cắt/dò chuỗi không hợp lệ), `OtpCooldownTest` (nhiều lượt gửi lại,
+chặn chạm lặp, hủy ticker khi rời màn), `BusyActionSnapshotTest` (nút và
+12 phím khai báo disabled qua semantics). `ExperienceSnapshotTest` render
+42 trạng thái form/trợ giúp ở 375dp, chữ 200%, ngang và cả hai theme.
+Ảnh trợ giúp kiểm phần nội dung sheet; động tác mở/đóng, focus TalkBack,
+clipboard thật và thao tác trên điện thoại vẫn cần nghiệm thu thiết bị.
