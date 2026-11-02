@@ -1,0 +1,71 @@
+{
+  "task": "APP-03",
+  "date": "2026-11-02",
+  "scope": "upstream input-format corrections and controlled engineering checks, not accuracy evaluation",
+  "implementation_commit": "95c9789878e54fd5368b8ce8a892a81ba66ce965",
+  "baseline_api_commit": "d73dd773485c970aeae70f2f0c01c7fbede07ac2",
+  "apk_commit_unchanged": "8049d6bbccfb51e22e28e1f47739b3fcf250e305",
+  "runtime": {"transformers": "5.13.0", "device": "cpu", "dtype": "float32"},
+  "qwen": {
+    "revision": "7f1569a48a89f3e3f4dc3a5c9d28bddd903bc76c",
+    "implementation": "cpu-fp32-content-v2-assistant-prefix",
+    "change": "official assistant language prefill instead of the installed system-language helper",
+    "expected_phrase_in_model_context": false,
+    "generated_control_tokens_checked_before_decode": true,
+    "eos_budget_empty_output_guards_retained": true,
+    "language_is_forced_not_independently_classified": true
+  },
+  "lipsync": {
+    "implementation": "voice05-v3-u8resize",
+    "change": "restore uint8 rounding after bicubic antialias resize before upstream normalization",
+    "stale_v2_calibrator_accepted": false,
+    "spatial_recipe": "SCRFD square bounding box; still differs from upstream 106-landmark alignment",
+    "upstream_alignment_code_copied": false
+  },
+  "verification": {
+    "final_targeted_ml_passed": 121,
+    "final_targeted_api_passed": 66,
+    "real_processor_test_uses_weights_or_inference": false,
+    "ruff_check": "passed",
+    "ruff_format": "passed",
+    "plan_check_errors": 0,
+    "plan_check_existing_warnings": 10,
+    "ci_all_checks_passed_on_implementation_commit": true
+  },
+  "controlled_native_observations": {
+    "protocol": "fixed model/waveform/VAD/greedy for Qwen; fixed model/alignment/clock for SyncNet; only corrected preprocessing varies",
+    "retained_phone_reread": {
+      "sample_count": 1,
+      "independent_transcript_label": "pending user confirmation",
+      "qwen_before": "content_mismatch",
+      "qwen_after": "content_mismatch",
+      "lipsync_before": "ok/fail",
+      "lipsync_after": "ok/fail"
+    },
+    "dnu_control": {
+      "sample_count": 1,
+      "split": "calib_fit",
+      "selection": "first existing prepared-manifest calib_fit row, fixed before inference",
+      "qwen_before": "matched",
+      "qwen_after": "matched"
+    },
+    "fit_model_selection_or_threshold_tuning": false,
+    "vivos_parity_used": false,
+    "biometric_scores_transcripts_media_identifiers": "private, excluded from Git"
+  },
+  "deployment": {
+    "frozen_source_matches_implementation_commit": true,
+    "ready": true,
+    "health": "ok",
+    "failed_modules": [],
+    "sqlite_backup_and_quick_check": "passed",
+    "account_payload_key_and_binding_unchanged": true,
+    "prior_recovery_still_review": true,
+    "recovery_binding_committed": false,
+    "new_human_recovery_accepted": false,
+    "apk_profile_models_thresholds_contracts_unchanged": true
+  },
+  "completion": "APP-03 and recovery remain unaccepted; wrapper corrections do not resolve the retained recording's gates",
+  "otp": "simulated",
+  "thresholds": "temporary manual demo"
+}
