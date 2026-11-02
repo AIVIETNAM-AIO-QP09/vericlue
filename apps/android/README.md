@@ -4,6 +4,13 @@
 
 ## Trạng thái
 
+APP-11 bổ sung: đã chọn Lottie Compose 6.6.2 từ danh mục
+`wasabeef/awesome-android-ui`, dùng cho vòng viền động quanh huy hiệu thành công.
+Asset vector tự tạo được đóng gói trong APK; chạy một lần, tạm dừng khi app
+không ở foreground, hiện trạng thái cuối khi tắt chuyển động. Logo/dấu xác
+nhận tĩnh luôn hiện kể cả khi parse asset lỗi; animation không điều khiển kết
+quả hoặc nút tiếp tục. Setup và cách xem: [UI libraries](docs/ui-libraries.md).
+
 APP-11 (02/11): làm mới màn bắt đầu, đồng ý, xác nhận thông tin và chuẩn bị
 khuôn mặt bằng `ContentCard`/`FeatureRow`, giữ nền ngà, navy và Be Vietnam Pro.
 Ô đồng ý nằm cạnh nút tiếp tục, không chọn sẵn; chi tiết xử lý dữ liệu mở

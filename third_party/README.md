@@ -165,3 +165,15 @@ Dùng nguyên bản qua Gradle, không chép mã.
 | ML Kit Face Detection 16.1, Barcode Scanning 17.3 (bản đóng gói trong app) | Điều khoản dịch vụ Google APIs / ML Kit (miễn phí, không phải mã nguồn mở); không phải GPL | `apps/android/.../capture/CameraSession.kt` (hướng dẫn căn mặt, góc quay đầu, đọc QR CCCD; không ra phán quyết) | APP-02, APP-04 |
 | OkHttp 4.12 (+ MockWebServer khi test) | Apache-2.0 | `apps/android/.../data/api/Api.kt` | APP-01 |
 | kotlinx.serialization 1.7, kotlinx.coroutines 1.9 | Apache-2.0 | `apps/android` | APP-01 |
+
+## APP-11 (danh mục UI và Lottie Compose)
+
+| Nguồn | Giấy phép | Dùng ở đâu | Cách dùng |
+|---|---|---|---|
+| [wasabeef/awesome-android-ui](https://github.com/wasabeef/awesome-android-ui) @ `312f9be3c50b3ea33ff3ba7eb9aa1c21b52de8b2` | MIT, Copyright (c) 2019 wasabeef | `tmp/ui-references/awesome-android-ui` (không commit/đóng gói) | Danh mục tham khảo để chọn thư viện, không chép code/ảnh demo |
+| [Airbnb Lottie Android / Compose 6.6.2](https://github.com/airbnb/lottie-android/tree/v6.6.2) | Apache-2.0 | `apps/android/.../ui/components/SuccessAnimation.kt` | Dependency Maven `com.airbnb.android:lottie-compose:6.6.2`, không chép source implementation |
+
+Giấy phép upstream nguyên bản tại `third_party/licenses/lottie-android-Apache-2.0.txt`,
+đóng gói cùng APK ở `app/src/main/assets/licenses/lottie-android.txt`.
+`res/raw/vericlue_success.json` là vector tự tạo cho VeriClue, không lấy
+animation hoặc ảnh từ LottieFiles/danh mục. Không có ảnh, font, URL ngoài trong asset.

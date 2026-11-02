@@ -412,6 +412,21 @@ nguyên có sẵn), `assembleDebug` thành công. Bộ onboarding có 194 ảnh,
 tablet 800dp. Đã xem ảnh đại diện sáng/tối, màn nhỏ, chữ lớn và ngang;
 chưa nghiệm thu trên điện thoại thật. Xem bàn giao APP-11 ngày 02/11.
 
+Yêu cầu tiếp 02/11: setup và dùng `wasabeef/awesome-android-ui`. Mở lại
+APP-11 trên cùng nhánh/PR theo yêu cầu người dùng. Repo là danh mục tham
+khảo; chọn Lottie Compose (Apache-2.0) để thử animation thành công.
+
+- [x] Clone danh mục tham khảo local, ghi commit/nguồn và hướng dẫn setup.
+- [x] Ghim Lottie Compose, dùng asset vector tự tạo trong app, có fallback
+      tĩnh và tôn trọng giảm chuyển động/vòng đời; không nối vào camera.
+- [x] Test parse/render asset thật, reduced motion/fallback, unit/lint/build;
+      ghi giấy phép và ảnh xem thử.
+
+Lượt bổ sung: 158 test đạt; lint 0 lỗi/12 cảnh báo/1 thông tin có sẵn;
+build APK debug chưa ký thành công. Lottie có 10 ảnh và 2 APNG kiểm
+frame cuối, preview local `tmp/app11-ui/lottie/index.html`. Chưa thử
+lifecycle/chuyển động trên thiết bị thật; task giữ `review`.
+
 ---
 
 ### APP-02 ★ · App: chụp mặt, quay 3 giây, quay đầu ngẫu nhiên
