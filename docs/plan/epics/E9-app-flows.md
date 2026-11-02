@@ -506,24 +506,40 @@ latch là hold đạt/đổi phase/qua gate; giữ các hằng và lịch5/5/2. 
 
 ### APP-03 · App: ghi âm đọc câu (WAV 16 kHz)
 
-**02/11 — doing, sửa sau thử máy:** recovery đã chạy thật đến Qwen/AntiDeepfake/
-CTC/SyncNet và continuity; chưa đạt nhận dạng câu/khớp môi. Sửa trạng thái chuẩn
-bị micro, tự dừng đúng8giây, mốc offset sau audio start và quyền đọc lại bị bỏ
-qua bởi mã `E_CHALLENGE_MISMATCH` hợp lệ. Không coi đây là sửa chất lượng model;
-không đổi ngưỡng hoặc xác nhận hardware clock. Chờ thử lại bản API/APK mới.
-
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
 |---|---|---|---|---|
 | M1 | 1 | S2 | P0 | APP-01 |
 
+**02/11 — doing, nguồn ghi chung:** CameraX ghi micro/video vào một MP4 có
+cap 8 giây; chuẩn bị chỉ kết thúc khi có video và audio native ACTIVE. Sau
+finalize, giải mã chính file sẽ tải lên thành WAV PCM 16-bit, mono, 16 kHz, giữ offset
+PTS PCM/video có dấu. Policy nguồn `muxed-av-pcm-v1`, chuẩn hóa
+`pcm16-mono16k-sinc-v1`; kiểm PTS trước chuẩn hóa, không dùng VAD hoặc tự dịch
+thời gian. Luồng API không thu AudioRecord/WAV riêng; gallery offline giữ cách
+cũ. Hủy/lỗi/finalize không hợp lệ chặn gửi, không nhận kết quả đến muộn.
+Không đổi mô hình, API, chữ ký media hoặc ngưỡng; chưa xác nhận clock phần cứng.
+
+Lượt khôi phục thực gần nhất trước thay đổi nguồn ghi chỉ còn SyncNet không
+đạt. Nguồn chung mới và khôi phục toàn luồng trên S24 FE vẫn chờ nghiệm thu;
+không đánh dấu `done` từ mã nguồn hoặc thử nghiệm tổng hợp.
+
+**Lịch sử 02/11 — trước nguồn MP4 chung:** recovery đã chạy thật đến Qwen/
+AntiDeepfake/CTC/SyncNet và continuity; lượt đầu chưa đạt nhận dạng câu/khớp môi.
+Đã sửa trạng thái chuẩn bị micro, tự dừng 8 giây, mốc offset sau AudioRecord start
+và quyền đọc lại bị bỏ qua bởi mã `E_CHALLENGE_MISMATCH` hợp lệ. Mốc offset đó
+là ước lượng phần mềm; không phải cách lấy offset PTS của nguồn chung mới.
+
 **Mục tiêu:** làm giai đoạn C của ADR-0013 và bước leo thang L3.
 
 **Đầu ra:**
-- AudioRecord PCM 16-bit, mono, 16 kHz, ghi ra WAV. Tối đa khoảng 8 giây.
-- Quay video kèm track âm thanh trong cùng một bản ghi (MediaRecorder) để khớp môi có chung đồng hồ (ADR-0012 mục 6).
+- Luồng API: CameraX ghi video và track âm thanh trong một MP4, giới hạn 8 giây;
+  WAV PCM 16-bit, mono, 16 kHz được giải mã/chuẩn hóa từ chính file đó, cùng offset PTS có dấu.
+- Chữ ký media ràng buộc WAV, MP4 và offset như hợp đồng hiện có; gallery offline
+  giữ AudioRecord. Chung PTS container chưa chứng minh đồng bộ clock phần cứng.
 
 **Tiêu chí hoàn thành:**
-- [ ] Server đọc được WAV, chấm PhoWhisper và AntiDeepfake trên điện thoại thật.
+- [ ] Server đọc được WAV và chấm nội dung câu/AntiDeepfake/khớp môi theo policy
+  hiện có; nghiệm thu khôi phục toàn luồng trên điện thoại thật.
 
 ---
 

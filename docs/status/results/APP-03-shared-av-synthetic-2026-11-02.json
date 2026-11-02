@@ -1,0 +1,79 @@
+{
+  "task": "APP-03",
+  "date": "2026-11-02",
+  "scope": "synthetic capture-ingestion engineering checks; no human recovery acceptance or model benchmark",
+  "branch": "codex/APP-03-shared-av-probe",
+  "capture_policy": "muxed-av-pcm-v1",
+  "normalization_policy": "pcm16-mono16k-sinc-v1",
+  "api_source_commit_unchanged": "d73dd773485c970aeae70f2f0c01c7fbede07ac2",
+  "candidate_apk_sha256": "af2105b18d32781952be95a19981cf3586278ac62f6e1ce8485430b467968103",
+  "python_full_suite": "100 percent, exit0 with conditionally skipped cases; explicit PYTHONPATH selects this worktree",
+  "ruff": "check passed, 885 files formatted",
+  "plan_check": {"errors": 0, "existing_warnings": 10},
+  "android": {
+    "tests": 294,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "export_test_enabled_for_this_run": true,
+    "lint_errors": 0,
+    "lint_warnings": 44,
+    "paparazzi_record_then_verify": "passed; current-code baseline, not historical comparison",
+    "assemble_main_and_android_test": "passed",
+    "signer_unchanged": true,
+    "v2_signature_verified": true,
+    "live_api_default": true,
+    "signed_media": true,
+    "presence_trace": false
+  },
+  "independent_dsp_review": {
+    "synthetic_fixtures": 11,
+    "jvm_export": "PcmNormalizerExportTest calls production normalizer; default CI run skips private export",
+    "reference": "SciPy resample_poly with Kaiser8.6; spectral, phase, duration and impulse checks, not byte parity",
+    "source_formats": ["44100Hz stereo", "48000Hz stereo", "16000Hz mono identity"],
+    "signals": ["DC", "1kHz tone", "12kHz rejection tone", "200Hz-to-14kHz chirp", "impulse"],
+    "all_passed": true,
+    "tone_and_passband_chirp_reference_lag_samples": 0,
+    "impulse_peak_matches_reference": true,
+    "canonical_mono_identity_byte_exact": true
+  },
+  "native_production_decoder": {
+    "device": "Samsung Galaxy S24 FE SM-S721B, Android16",
+    "probe_calls_production_helper": true,
+    "human_media": false,
+    "camera_or_microphone_used": false,
+    "fixture_generation": "Synthetic RGB video and sine/silence audio encoded by PyAV; host decoded PTS/frame counts and known source tone onset checked independently",
+    "fixtures": [
+      {"case": "zero origin", "observed_offset_us": 0, "passed": true},
+      {"case": "audio source delayed160ms; decoder keeps AAC priming", "observed_offset_us": 138666, "passed": true},
+      {"case": "video delayed160ms", "observed_offset_us": -160000, "passed": true}
+    ],
+    "native_source_frame_counts_and_tone_onsets_match_manifest": true,
+    "all_output_wavs_pcm16_mono_16000": true,
+    "all_output_wavs_accepted_by_real_continuity_wav_duration_guard": true,
+    "cancellation_cases": 3,
+    "cancellation_rejected_without_partial_wav": true,
+    "native_resources_released_success_and_cancel": true,
+    "hardware_sensor_clock_verified": false,
+    "full_camerax_recording_path_physically_accepted": false
+  },
+  "api_contract_regression": {
+    "tests": 7,
+    "passed": 7,
+    "native_models_in_transport_test": false,
+    "mp4_in_transport_test": "opaque bytes; actual AAC/MP4 decoder tested separately on device",
+    "signed_positive_and_negative_offsets_accepted": true,
+    "one_ms_offset_tamper_rejected_without_consuming_proof": true,
+    "http_offset_bounds_unchanged_ms": [-5000, 5000],
+    "canonical_continuity_wav_guard_unchanged": true
+  },
+  "acceptance": {
+    "recovery": "pending human retry; user temporarily unavailable",
+    "last_human_recovery": "all required modules passed except lipsync; old account retained",
+    "calibrated_thresholds": false,
+    "otp": "simulated",
+    "syncnet_quality_fix_proven": false,
+    "degraded_or_error_never_passes": true
+  },
+  "privacy": "No citizen media, transcript, challenge code, identifiers, raw traces, embeddings, credentials or personal detector scores. Synthetic binaries and detailed reports remain outside Git."
+}

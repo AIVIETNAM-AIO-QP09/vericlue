@@ -78,6 +78,9 @@ android {
         compose = true
         buildConfig = true
     }
+    (project.findProperty("vericlue.probeAssetsDir") as String?)?.let {
+        sourceSets.getByName("androidTest").assets.srcDir(it)
+    }
 }
 
 dependencies {

@@ -138,6 +138,7 @@ fun VoiceScreen(
     val c = Vc.colors
     val recording = capturePhase == VoiceCapturePhase.Recording
     val preparing = capturePhase == VoiceCapturePhase.Preparing
+    val processing = capturePhase == VoiceCapturePhase.Finished
     VcScreen(onBack = onBack, step = 3, actions = {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(
@@ -152,8 +153,8 @@ fun VoiceScreen(
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    if (preparing) Icons.Outlined.HourglassEmpty else if (recording) Icons.Outlined.Stop else Icons.Outlined.Mic,
-                    contentDescription = if (preparing) "Đang chuẩn bị ghi âm" else if (recording) "Dừng ghi âm" else "Bắt đầu ghi âm",
+                    if (preparing || processing) Icons.Outlined.HourglassEmpty else if (recording) Icons.Outlined.Stop else Icons.Outlined.Mic,
+                    contentDescription = if (preparing) "Đang chuẩn bị ghi âm" else if (processing) "Đang xử lý bản ghi" else if (recording) "Dừng ghi âm" else "Bắt đầu ghi âm",
                     tint = if (recording) Color.White else c.onPrimary,
                     modifier = Modifier.size(34.dp),
                 )
@@ -163,7 +164,7 @@ fun VoiceScreen(
                 when (capturePhase) {
                     VoiceCapturePhase.Preparing -> "Đang chuẩn bị · Chờ thông báo rồi bắt đầu đọc"
                     VoiceCapturePhase.Recording -> "Đang ghi âm · Đọc câu rồi chạm để kết thúc"
-                    VoiceCapturePhase.Finished -> "Đã kết thúc ghi âm"
+                    VoiceCapturePhase.Finished -> "Đang xử lý bản ghi"
                     VoiceCapturePhase.Failed -> "Chưa thể bắt đầu ghi âm"
                     VoiceCapturePhase.Idle -> "Chạm và chờ sẵn sàng rồi bắt đầu đọc"
                 },

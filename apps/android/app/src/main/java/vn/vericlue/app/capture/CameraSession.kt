@@ -20,6 +20,7 @@ import androidx.camera.core.resolutionselector.AspectRatioStrategy
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.video.FileOutputOptions
+import androidx.camera.video.AudioStats
 import androidx.camera.video.Recording
 import androidx.camera.video.VideoRecordEvent
 import androidx.camera.view.CameraController
@@ -318,6 +319,12 @@ class CameraSession(
     }
 
     private var finalized: CompletableDeferred<Boolean>? = null
+    private var muxedReady: CompletableDeferred<Boolean>? = null
+    private var recordingGeneration = 0L
+    private val _voiceLevel = MutableStateFlow(0f)
+    val voiceLevel: StateFlow<Float> = _voiceLevel
+    var muxedVoiceFailure: VoiceCaptureFailure? = null
+        private set
 
     /**
      * Starts an MP4 recording, audio off. [voice] = false: the colour flash, sent as `video` in
@@ -326,11 +333,27 @@ class CameraSession(
      */
     @SuppressLint("MissingPermission")
     fun startRecording(voice: Boolean = false) {
-        if (recording != null) return
+        beginRecording(voice = voice, muxedVoice = false)
+    }
+
+    /** The live voice source: CameraX records its microphone and video into one capped MP4. */
+    @SuppressLint("MissingPermission")
+    fun startMuxedVoiceRecording(): Boolean = beginRecording(voice = true, muxedVoice = true)
+
+    @SuppressLint("MissingPermission")
+    private fun beginRecording(voice: Boolean, muxedVoice: Boolean): Boolean {
+        if (recording != null) return false
+        val attempt = ++recordingGeneration
+        muxedVoiceFailure = null
+        _voiceLevel.value = 0f
+        val ready = if (muxedVoice) CompletableDeferred<Boolean>() else null
+        muxedReady = ready
         if (!videoEnabled) {
             videoFile = null
             finalized = null
-            return
+            muxedVoiceFailure = VoiceCaptureFailure.Camera
+            ready?.complete(false)
+            return false
         }
         val prefix = if (voice) "voice_" else "face_"
         val file = File(context.cacheDir, "$prefix${System.currentTimeMillis()}.mp4").also { videoFile = it }
@@ -345,20 +368,65 @@ class CameraSession(
         val done = CompletableDeferred<Boolean>().also { finalized = it }
         val begun = CompletableDeferred<Unit>().also { started = it }
         recordedAt = null
+        var audioBroken = false
+        var readySeen = false
         recording = runCatching {
+            val output = FileOutputOptions.Builder(file).apply {
+                if (muxedVoice) setDurationLimitMillis(MUXED_VOICE_LIMIT_MS)
+            }.build()
             controller.startRecording(
-                FileOutputOptions.Builder(file).build(),
-                AudioConfig.AUDIO_DISABLED,
+                output,
+                if (muxedVoice) AudioConfig.create(true) else AudioConfig.AUDIO_DISABLED,
                 ContextCompat.getMainExecutor(context),
-            ) { event ->
+            ) events@{ event ->
+                if (attempt != recordingGeneration) {
+                    if (event is VideoRecordEvent.Finalize) {
+                        begun.complete(Unit)
+                        ready?.complete(false)
+                        done.complete(false)
+                    }
+                    return@events
+                }
+                val audio = event.recordingStats.audioStats
+                if (muxedVoice && event !is VideoRecordEvent.Finalize) {
+                    val active = audio.audioState == AudioStats.AUDIO_STATE_ACTIVE
+                    val failed = audio.hasError() || audio.audioState in setOf(
+                        AudioStats.AUDIO_STATE_SOURCE_SILENCED, AudioStats.AUDIO_STATE_MUTED,
+                    ) || (readySeen && !active)
+                    if (failed) {
+                        audioBroken = true
+                        muxedVoiceFailure = VoiceCaptureFailure.Audio
+                        ready?.complete(false)
+                        stopRecording()
+                    } else if (muxedVoiceReady(event.recordingStats.recordedDurationNanos, active, audio.hasError())) {
+                        readySeen = true
+                        ready?.complete(true)
+                    }
+                    val amplitude = audio.audioAmplitude
+                    _voiceLevel.value = if (active && amplitude.isFinite()) amplitude.toFloat().coerceIn(0f, 1f) else 0f
+                }
                 // Start arrives before any frame; the first frame shows as recorded time > 0.
                 if (event is VideoRecordEvent.Status && event.recordingStats.recordedDurationNanos > 0) {
                     recordedAt = event.recordingStats.recordedDurationNanos to SystemClock.elapsedRealtimeNanos()
                     begun.complete(Unit)
                 }
                 if (event is VideoRecordEvent.Finalize) {
+                    if (muxedVoice && (audio.hasError() || audio.audioState in setOf(
+                            AudioStats.AUDIO_STATE_SOURCE_SILENCED, AudioStats.AUDIO_STATE_MUTED,
+                        ))) {
+                        audioBroken = true
+                        muxedVoiceFailure = VoiceCaptureFailure.Audio
+                    }
                     begun.complete(Unit)
-                    done.complete(!event.hasError())
+                    ready?.complete(false)
+                    _voiceLevel.value = 0f
+                    done.complete(voiceFinalizeAccepted(
+                        muxedVoice = muxedVoice,
+                        controlledDurationCap = muxedVoice && output.durationLimitMillis == MUXED_VOICE_LIMIT_MS,
+                        noError = !event.hasError(),
+                        durationLimitReached = event.error == VideoRecordEvent.Finalize.ERROR_DURATION_LIMIT_REACHED,
+                        audioFault = audioBroken,
+                    ))
                 }
             }
         }.getOrNull()
@@ -366,7 +434,19 @@ class CameraSession(
             videoFile = null
             done.complete(false)
             begun.complete(Unit)
+            ready?.complete(false)
+            muxedVoiceFailure = VoiceCaptureFailure.Camera
         }
+        return recording != null
+    }
+
+    /** A native Start event alone is insufficient: require a video frame and active audio. */
+    suspend fun awaitMuxedVoiceReady(timeoutMs: Long = 3000): Boolean {
+        val ready = muxedReady ?: return false
+        val result = withTimeoutOrNull(timeoutMs) { ready.await() } == true
+        if (!result && muxedVoiceFailure == null) muxedVoiceFailure =
+            if (recordedAt == null) VoiceCaptureFailure.Camera else VoiceCaptureFailure.Audio
+        return result && recording != null && finalized?.isActive == true
     }
 
     private var started: CompletableDeferred<Unit>? = null
@@ -406,13 +486,18 @@ class CameraSession(
 
     fun stopRecording() {
         recordingFrames = false
-        recording?.stop()
+        val running = recording
         recording = null
+        running?.stop()
+        _voiceLevel.value = 0f
     }
 
     /** A file is ready only after CameraX successfully closes that recording. */
     suspend fun finishedVideo(timeoutMs: Long = 3000): VideoResult =
         awaitVideoFile(videoFile, finalized, timeoutMs)
+
+    /** A decoded payload may only be paired with the same attempt's unchanged MP4. */
+    fun isCurrentVideo(file: File): Boolean = videoFile == file
 
     /** Deletes every recorded video in the cache: once the server has it, or when the attempt is dropped. */
     fun deleteVideo(preserveDiagnostics: Boolean = false) {
