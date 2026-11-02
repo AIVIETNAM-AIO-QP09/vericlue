@@ -116,3 +116,11 @@ PASS chỉ là đối chiếu số học trên các input/runtime đã ghi, khô
 độ chính xác chống giả giọng hoặc cho phép đổi trạng thái detector thành đạt.
 Đổi Torch/thiết bị/recipe cần kiểm chứng lại; không suy từ kết quả WSL sang
 runtime Windows khác phiên bản.
+
+Report canonical `docs/status/results/VOICE-09-parity-2026-11-01.json` là bằng
+chứng gắn theo byte. Các phép đo native đã bind SHA-256
+`669bf62e4db134a46e8a0dd8f3d5b6a72bba90a984c3a7901fa8e866e8f21a48` của bản CRLF
+đã sử dụng. `.gitattributes` giữ nguyên byte của riêng artifact này khi checkout;
+không tự định dạng hoặc đổi xuống dòng rồi coi hash khác là cùng binding.
+Test kiểm cả hash cố định và `verify_parity`. Nếu thay dữ liệu bằng chứng,
+cần report/binding mới được review; không tắt kiểm SHA để dùng lại cache cũ.
