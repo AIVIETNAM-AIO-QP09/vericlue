@@ -41,9 +41,10 @@ class EnrollmentService:
                 session_id=session.session_id,
                 **prepared,
                 metadata={
+                    "challenge_id": session.challenge.challenge_id,
                     "expected_challenge": session.challenge.model_dump(
                         mode="json", exclude_none=True
-                    )
+                    ),
                 },
             )
             template = self.extract_template(
