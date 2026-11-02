@@ -136,3 +136,9 @@ coi category hiện có là đã bao gồm lưu mẫu dài hạn. Không mở gu
 
 Điểm nối cụ thể và ca cần nghiệm thu:
 [`mobile-privacy-integration.md`](../../architecture/mobile-privacy-integration.md).
+
+**Bổ sung 01/11, kiểm trước nghiệm thu:** có regression riêng cho PostgreSQL
+migration 0011: grant đồng thời/idempotency, trigger cấm UPDATE/DELETE ledger,
+FK tài khoản–biên nhận và rollback. Local chưa có DB test nên ca PostgreSQL
+được skip đúng điều kiện; cần CI PostgreSQL xác nhận. 333 test API liên quan
+đạt trên dữ liệu mô phỏng; chưa thay nghiệm thu thiết bị, task vẫn `doing`.

@@ -3,8 +3,9 @@
 import base64
 import secrets
 from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
 from pathlib import Path
-from threading import Event
+from threading import Barrier, Event
 
 import pytest
 from conftest import start_session
@@ -16,7 +17,14 @@ from test_db_postgres import postgres as postgres
 from test_upload_image_safety import card
 
 from vericlue_api.core.config import get_settings
-from vericlue_api.db.models import PrivacyEventRow, SessionKeyRow, SessionRow, utcnow
+from vericlue_api.db.models import (
+    AccountRow,
+    AccountTemplateConsentRow,
+    PrivacyEventRow,
+    SessionKeyRow,
+    SessionRow,
+    utcnow,
+)
 from vericlue_api.main import create_app
 from vericlue_api.services import identity_steps
 from vericlue_api.services.privacy_consent import PrivacyService
@@ -55,6 +63,85 @@ def granted(client):
 
 def withdraw(client, sid, auth):
     return client.post(f"/v1/sessions/{sid}/privacy/withdraw", headers=auth, json={"confirm": True})
+
+
+def test_postgres_account_template_consent_race_immutable_ledger_and_account_fk(
+    postgres, secured_client
+):
+    client = secured_client
+    created = client.post(
+        "/v1/sessions", json={"purpose": "onboarding", "nonce": secrets.token_hex(16)}
+    )
+    assert created.status_code == 200, created.text
+    sid = created.json()["session_id"]
+    auth = {"Authorization": "Bearer " + created.json()["token"]}
+    response = client.post(
+        f"/v1/sessions/{sid}/privacy/consent",
+        headers=auth,
+        json={
+            "policy_version": POLICY,
+            "categories": ["contact", "id_document", "face_biometrics", "voice_biometrics"],
+            "consent": True,
+        },
+    )
+    assert response.status_code == 200, response.text
+    ready = Barrier(2)
+
+    def grant_template(_):
+        ready.wait(timeout=10)
+        return client.post(
+            f"/v1/sessions/{sid}/privacy/account-template/consent",
+            headers=auth,
+            json={
+                "policy_version": client.app.state.vericlue.settings.account_template_policy_version,
+                "purpose": "account_template",
+                "consent": True,
+            },
+        )
+
+    with ThreadPoolExecutor(2) as pool:
+        responses = list(pool.map(grant_template, range(2)))
+    for response in responses:
+        assert response.status_code == 200, response.text
+    receipt = responses[0].json()["consent_receipt_id"]
+    assert responses[0].json() == responses[1].json()
+    account_id = "pg_consent_" + secrets.token_hex(12)
+    with postgres.sessions.begin() as db:
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(AccountTemplateConsentRow)
+                .where(AccountTemplateConsentRow.session_id == sid)
+            )
+            == 1
+        )
+        original_policy = db.get(AccountTemplateConsentRow, receipt).policy_version
+        db.add(
+            AccountRow(
+                account_id=account_id,
+                source_session_id=sid,
+                consent_receipt_id=receipt,
+                device_id="pg_device_" + secrets.token_hex(12),
+                expires_at=utcnow() + timedelta(days=1),
+            )
+        )
+    for statement in (
+        "UPDATE account_template_consents SET policy_version = 'tampered' WHERE receipt_id = :receipt",
+        "DELETE FROM account_template_consents WHERE receipt_id = :receipt",
+    ):
+        with pytest.raises(DBAPIError) as error, postgres.sessions.begin() as db:
+            db.execute(text(statement), {"receipt": receipt})
+        assert error.value.orig.sqlstate == "P0001"
+    with pytest.raises(DBAPIError) as error, postgres.sessions.begin() as db:
+        db.execute(
+            text("UPDATE accounts SET consent_receipt_id = :missing WHERE account_id = :account"),
+            {"missing": "prv_" + secrets.token_hex(16), "account": account_id},
+        )
+    assert error.value.orig.sqlstate == "23503"
+    assert error.value.orig.diag.constraint_name == "fk_accounts_consent_receipt_id"
+    with postgres.sessions() as db:
+        assert db.get(AccountTemplateConsentRow, receipt).policy_version == original_policy
+        assert db.get(AccountRow, account_id).consent_receipt_id == receipt
 
 
 def test_postgres_privacy_migration_blocks_ledger_mutation_and_duplicate_withdrawal(
