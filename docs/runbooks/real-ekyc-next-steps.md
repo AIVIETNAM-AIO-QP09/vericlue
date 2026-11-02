@@ -3,10 +3,45 @@
 Phạm vi Android, API và mô hình; OTP vẫn mô phỏng. Không coi test phần mềm,
 parity số học hoặc màn thành công là số liệu chống giả mạo.
 
-## Trạng thái triển khai 01/11, sau lượt tiếp quản
+## Trạng thái mới nhất · 18:44 ngày 01/11
+
+- Ba Draft PR nối tiếp đã xuất bản: [118 Android/API/SEC09](https://github.com/AIVIETNAM-AIO-QP09/vericlue/pull/118),
+  [119 parity/toàn câu](https://github.com/AIVIETNAM-AIO-QP09/vericlue/pull/119),
+  [120 chuẩn bị DNU](https://github.com/AIVIETNAM-AIO-QP09/vericlue/pull/120).
+  Head4b1cd8f/ae8c077/bf6af52 có lần checks mới nhất10/10,8/8,8/8 đạt;
+  chưa merge hoặc nghiệm thu AI thật. Xem checks đúng head khi tiếp tục.
+- Code integration0998247 đã chạy full console pytest4695passed/118skip,
+  2warning. Android206test, build/snapshot/lint đạt; lint còn43warning/3info.
+  Web build GitHub đạt; lần local SecurityFatalError trước đó giữ nguyên log,
+  không đổi dependency hoặc diễn giải lỗi local thành CI đỏ.
+- Server8421 hiện dừng; ADB không thấy thiết bị. Không tự gọi launcher trên DB
+  đang dùng vì lifespan có tác vụ dọn media, trong khi người dùng cấm xóa media.
+  Đã smoke runtime thật trên SQLite backup và thư mục media riêng, không chạy
+  lifespan/cleanup: nạp mô hình31,681s,healthok,failed_modules=[]. DB gốc không đổi,
+  integrity_check=ok,foreign_key_check0,migration0011.
+- Smoke synthetic: onboarding mang mode/policy đúng và dynamicv2/12000ms;
+  đồng ý xử lý/lưu mẫu đều chưa cấp mặc định, finalize thiếu consent trả409.
+  Chưa thu sinh trắc hoặc tạo tài khoản. Standard onboarding/reauth/recovery
+  đều503 đúng chốt: cả5artifact identity/continuity chưa có, policy provisional.
+- APK debug mới cùng signer đang dùng trên điện thoại, source0998247 và tree
+  Android khớp PR118, signed_media=true,trace=false,localhost8421. File ngoài Git:
+  `D:/vericlue/tmp/publish-review-2026-11-01/ready-apk/VeriClue-review-debug.apk`,
+  SHA256 `4e7bb62c6f5adda786b4688e91a0fbb6a6eead92dc8209c8ef4b90ac840583f5`.
+  Đây là bản debug ký bằng khóa laptop để cài đè, không phải khóa phát hành
+  được pin trong repo. Chưa cài; khi máy nối lại cần kiểm signer bản thực cài
+  trước `adb install -r`, không uninstall/clear. Bản máy trước đây vẫn sourcea542a47.
+- Report/log/backup/build-info ở `D:/vericlue/tmp/publish-review-2026-11-01/`.
+  DNU520WAV/26người đã kiểm nhưng chỉ lớp thật; thiếu tấn công/quyền/nhóm nguồn,
+  calibration_ready=false. VIVOS32parity ngoài fit, chưa có LTT/test cuối.
+- Sau smoke runtime, đã chạy collect toàn câu native trên3mẫu DNU/3người chọn
+  cố định từ calib_fit. Có raw score cả3,giữdegraded/unclear/không xác suất;
+  không chấm calib_ltt/test hoặc fit. Nguồn6b75896,model/runtime và report SHA
+  trong [research](../research/2026-11-01-voice-calibration-prep.md).
+
+## Lịch sử triển khai 01/11, trước review
 
 - DB đã backup/kiểm integrity rồi nâng lên `0011_account_template_consent`.
-  API hiện chạy bằng launcher `D:/vericlue/tmp/full-demo-setup/VeriClue.cmd`,
+  API lúc đó chạy bằng launcher `D:/vericlue/tmp/full-demo-setup/VeriClue.cmd`,
   runtime `D:/vericlue/tmp/full-demo-setup/server`; health ok, failed_modules rỗng.
   Profile hiện có synthetic/manual_full_demo, mock_models=true; không suy thành
   toàn mô hình đã hiệu chỉnh. Bật lại SIMULATED_OTP=true, không SMS thật.
@@ -19,7 +54,7 @@ parity số học hoặc màn thành công là số liệu chống giả mạo.
   và serializer Pydantic);
   audio runtime149 đạt/1 bỏ qua. Những kết quả này không thay nghiệm thu sinh trắc.
 
-Log/JSON/backup ở `D:/vericlue/tmp/finish-2026-11-01/`; bàn giao mới nhất
+Log/JSON/backup lịch sử ở `D:/vericlue/tmp/finish-2026-11-01/`; bàn giao lượt đó
 `docs/status/handoffs/2026-11-01-1115-voice-09-ngoc-quang-codex.md`.
 
 ## Đã có trên máy

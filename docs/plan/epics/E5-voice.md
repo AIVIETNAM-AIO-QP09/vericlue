@@ -245,8 +245,21 @@ dùng parity, không hiệu chỉnh. Review và smoke thật được ghi trong 
 **Toàn câu (01/11):** thêm công cụ offline prepare/collect/fit và max raw margin
 có version `timeline4s-tail-maxmargin-v1`; chỉ đủ điểm khi mọi cửa sổ đã đo.
 Giữ lỗi/thiếu, kiểm người/nguồn cho split và CV, chỉ fit calib_fit. Chưa có dữ
-liệu/artifact thật và chưa dùng phép gộp mới trong API. Xem runbook
+liệu đủ hai lớp/artifact thật và chưa dùng phép gộp mới trong API. Xem runbook
 `docs/runbooks/nes2net-utterance-calibration.md`.
+
+**Chuẩn bị cloud (01/11):** có downloader DNU revision cố định và notebook sinh
+từ script đã test cho Colab CPU; giữ người/split publisher, kiểm SHA/WAV/PCM,
+resume không ghi đè và xuất bundle allowlist. Đây chỉ lớp thật, luôn báo thiếu
+tấn công/chưa sẵn sàng fit. Đã chạy Colab CPU, nhận và kiểm độc lập bundle
+520 WAV/26người, chia360/80/80 mẫu theo18/4/4người, không inference/fit.
+SHA và báo cáo: `docs/research/2026-11-01-voice-calibration-prep.md`.
+Hướng dẫn `ml/notebooks/README-voice-data.md`.
+
+**Smoke DNU toàn câu (01/11):**3mẫu/3người chọn cố định từ calib_fit trước đo,
+native checkpoint/binding runtime thật trả raw score cả3; giữdegraded/unclear,
+khôngprobability. Không chấm calib_ltt/test,không fit/accuracy/deploy; nguồn
+code/model/report SHA ở ghi chú research trên. Đây chưa phải hiệu chỉnh hai lớp.
 
 **Chưa nghiệm thu:** EER tiếng Việt,
 calibration, chất lượng phép gộp toàn câu, ghép GUI/API hoặc quyết định eKYC.
