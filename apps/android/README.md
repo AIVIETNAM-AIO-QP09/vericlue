@@ -4,6 +4,18 @@
 
 ## Trạng thái
 
+APP-11 (02/11): làm mới màn bắt đầu, đồng ý, xác nhận thông tin và chuẩn bị
+khuôn mặt bằng `ContentCard`/`FeatureRow`, giữ nền ngà, navy và Be Vietnam Pro.
+Ô đồng ý nằm cạnh nút tiếp tục, không chọn sẵn; chi tiết xử lý dữ liệu mở
+trong cùng vùng cuộn. Các hướng dẫn trước camera tách riêng giữ đầu thẳng,
+đưa mắt theo chấm và quay đầu; vẫn giữ cảnh báo nhạy cảm ánh sáng.
+`VcScreen` giới hạn vùng đọc 600dp, lề 24dp, tránh bàn phím hệ thống và cho
+cả nội dung/nút/bàn phím số cuộn khi vùng hiển thị thấp hơn 560dp hoặc chữ
+từ 150%. Các màn còn lại giữ nút dưới cùng. Liên kết có vùng bấm tối thiểu
+48dp, tiêu đề có semantics heading. Không thay lịch màu/chấm/quay đầu,
+camera, API hay kết quả xác minh. Bộ ảnh onboarding có thêm tablet và
+`AdaptiveScreenSnapshotTest` kiểm tra cuộn tới toàn bộ nút tiếp tục.
+
 APP-10: quét thẻ yêu cầu ảnh phân tích tối đa 1920×1440, fallback theo khả năng
 CameraX/thiết bị; camera trước dùng cấu hình cũ. Bước lấy QR không chạy thêm
 face detector. ML Kit trả cả vùng nghi là QR và có thể đề nghị zoom; chỉ bước

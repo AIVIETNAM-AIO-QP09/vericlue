@@ -12,6 +12,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,11 +30,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -69,8 +72,11 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -177,41 +183,62 @@ fun VcScreen(
     background: Color = Vc.colors.background,
     actions: (@Composable ColumnScope.() -> Unit)? = null,
     bottom: (@Composable () -> Unit)? = null,
+    scrollState: ScrollState = rememberScrollState(),
     content: @Composable ColumnScope.() -> Unit,
 ) {
     SystemBarIcons(background)
-    Column(Modifier.fillMaxSize().background(background).statusBarsPadding()) {
-        TopBar(onBack, showLogo)
-        if (step != null) StepProgress(step, stepLabel(step))
-        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-            val minimumHeight = if (centered) (maxHeight - 48.dp).coerceAtLeast(0.dp) else 0.dp
-            Column(
-                Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 24.dp).heightIn(min = minimumHeight),
-                verticalArrangement = if (centered) {
-                    Arrangement.spacedBy(24.dp, Alignment.CenterVertically)
-                } else {
-                    Arrangement.spacedBy(24.dp)
-                },
-                horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start,
-                content = content,
-            )
+    BoxWithConstraints(
+        Modifier.fillMaxSize().background(background).statusBarsPadding().imePadding(),
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        // A fixed footer/keypad must never consume the entire reading viewport.
+        val scrollActions = maxHeight < 560.dp || LocalDensity.current.fontScale >= 1.5f
+        val bodyAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start
+        Column(Modifier.widthIn(max = 600.dp).fillMaxWidth().fillMaxHeight()) {
+            TopBar(onBack, showLogo)
+            if (step != null) StepProgress(step, stepLabel(step))
+            if (scrollActions) {
+                Column(Modifier.weight(1f).verticalScroll(scrollState)) {
+                    Column(
+                        Modifier.fillMaxWidth().padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(24.dp),
+                        horizontalAlignment = bodyAlignment,
+                        content = content,
+                    )
+                    if (actions != null) ActionPanel(navigationInset = bottom == null, content = actions)
+                    if (bottom != null) bottom()
+                    if (bottom != null || actions == null) Spacer(Modifier.navigationBarsPadding())
+                }
+            } else {
+                BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+                    val minimumHeight = if (centered) (maxHeight - 48.dp).coerceAtLeast(0.dp) else 0.dp
+                    Column(
+                        Modifier.fillMaxWidth().verticalScroll(scrollState)
+                            .padding(24.dp).heightIn(min = minimumHeight),
+                        verticalArrangement = if (centered) {
+                            Arrangement.spacedBy(24.dp, Alignment.CenterVertically)
+                        } else {
+                            Arrangement.spacedBy(24.dp)
+                        },
+                        horizontalAlignment = bodyAlignment,
+                        content = content,
+                    )
+                }
+                if (actions != null) ActionPanel(navigationInset = bottom == null, content = actions)
+                if (bottom != null) bottom()
+                if (bottom != null || actions == null) Spacer(Modifier.navigationBarsPadding())
+            }
         }
-        if (actions != null) {
-            ActionPanel(navigationInset = bottom == null, content = actions)
-        }
-        if (bottom != null) bottom()
-        if (bottom != null || actions == null) Spacer(Modifier.navigationBarsPadding())
     }
 }
 
 /** A quiet, fixed action area shared by the warm screens. */
 @Composable
 fun ActionPanel(navigationInset: Boolean = true, content: @Composable ColumnScope.() -> Unit) {
-    Surface(color = Vc.colors.surface, shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp), shadowElevation = 4.dp) {
+    Surface(color = Vc.colors.surface, shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp), shadowElevation = 2.dp) {
         Column(
             Modifier.fillMaxWidth().then(if (navigationInset) Modifier.navigationBarsPadding() else Modifier)
-                .padding(horizontal = 20.dp, vertical = 16.dp),
+                .padding(horizontal = 24.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp), content = content,
         )
     }
@@ -227,7 +254,7 @@ fun TitleBlock(title: String, body: String? = null, eyebrow: String? = null, cen
         horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start,
     ) {
         if (eyebrow != null) Text(eyebrow, style = VcType.labelXs, color = c.accent)
-        Text(title, style = titleStyle, color = c.ink, textAlign = align)
+        Text(title, style = titleStyle, color = c.ink, textAlign = align, modifier = Modifier.semantics { heading() })
         if (body != null) Text(body, style = VcType.body, color = c.muted, textAlign = align)
     }
 }
@@ -288,7 +315,7 @@ fun LinkButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier)
     val interactions = remember { MutableInteractionSource() }
     val pressed by interactions.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.97f else 1f, motion.tween(110), label = "link-press")
-    TextButton(onClick = onClick, modifier = modifier.fillMaxWidth().scale(if (motion.enabled) scale else 1f), interactionSource = interactions) {
+    TextButton(onClick = onClick, modifier = modifier.fillMaxWidth().heightIn(min = 48.dp).scale(if (motion.enabled) scale else 1f), interactionSource = interactions) {
         Text(text, style = VcType.label, color = Vc.colors.accent, textAlign = TextAlign.Center)
     }
 }

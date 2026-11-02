@@ -37,6 +37,8 @@ import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.OpenInFull
 import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material.icons.outlined.WbSunny
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -71,6 +73,8 @@ import vn.vericlue.app.capture.FaceTimeline
 import vn.vericlue.app.ui.components.CameraFeed
 import androidx.compose.runtime.withFrameNanos
 import vn.vericlue.app.ui.components.Banner
+import vn.vericlue.app.ui.components.ContentCard
+import vn.vericlue.app.ui.components.FeatureRow
 import vn.vericlue.app.ui.components.CameraArea
 import vn.vericlue.app.ui.components.FullCamera
 import vn.vericlue.app.ui.components.GuidanceChip
@@ -107,19 +111,22 @@ fun FaceReadyScreen(onBack: () -> Unit, onReady: () -> Unit, onSkipFlash: () -> 
         onBack = onBack,
         step = 2,
         actions = {
-            PrimaryButton("Bắt đầu", onReady)
+            PrimaryButton("Tôi đã sẵn sàng", onReady)
             LinkButton("Tôi không thể tiếp tục", onSkipFlash)
         },
     ) {
-        TitleBlock("Xác minh khuôn mặt", "Đặt điện thoại ngang tầm mắt, tại nơi đủ sáng.")
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            NumberedRow(1, "1 · Giữ đầu thẳng".substringAfter(" · "), "Nhìn thẳng khi màn hình đổi màu, sau đó đưa mắt theo chấm sáng.")
-            NumberedRow(2, "2 · Quay đầu theo hướng dẫn".substringAfter(" · "), "Làm theo mũi tên.", last = true)
+        TitleBlock("Sẵn sàng\nxác minh khuôn mặt", "Chọn nơi đủ sáng và giữ điện thoại ngang tầm mắt.")
+        ContentCard {
+            FeatureRow(Icons.Outlined.PhoneAndroid, "Giữ đầu thẳng", "Nhìn thẳng khi màn hình đổi màu.")
+            FeatureRow(Icons.Outlined.Visibility, "Đưa mắt theo chấm sáng", "Giữ đầu yên, chỉ di chuyển mắt.")
+            FeatureRow(Icons.Outlined.SwapHoriz, "Quay đầu theo mũi tên", "Quay chậm, sau đó nhìn thẳng trở lại.")
         }
-        Banner(
-            "Màn hình sẽ đổi màu trong lúc xác minh. Nếu nhạy cảm với ánh sáng nhấp nháy, hãy dừng tại đây.",
-            tone = Tone.Warn,
-        )
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.warnBg).padding(16.dp)) {
+            Banner(
+                "Màn hình sẽ đổi màu trong lúc xác minh. Nếu nhạy cảm với ánh sáng nhấp nháy, hãy dừng tại đây.",
+                tone = Tone.Warn,
+            )
+        }
     }
 }
 

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -71,6 +72,7 @@ import androidx.compose.ui.layout.ContentScale
 import vn.vericlue.app.flow.PhoneRules
 import vn.vericlue.app.flow.FlowRules
 import vn.vericlue.app.ui.components.Banner
+import vn.vericlue.app.ui.components.ContentCard
 import vn.vericlue.app.ui.components.LinkButton
 import vn.vericlue.app.ui.components.NumericKeypad
 import vn.vericlue.app.ui.components.OtpBoxes
@@ -109,9 +111,9 @@ fun PhoneScreen(onBack: () -> Unit, onSend: (String) -> Unit) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Số điện thoại", style = VcType.label, color = c.ink)
             Row(
-                Modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(12.dp)).background(c.surface)
-                    .border(if (phone.isNotEmpty()) 2.dp else 1.dp, if (phone.isNotEmpty()) c.accent else c.border, RoundedCornerShape(12.dp))
-                    .padding(horizontal = 16.dp),
+                Modifier.fillMaxWidth().heightIn(min = 60.dp).clip(RoundedCornerShape(16.dp)).background(c.surface)
+                    .border(if (phone.isNotEmpty()) 2.dp else 1.dp, if (phone.isNotEmpty()) c.accent else c.muted, RoundedCornerShape(16.dp))
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -466,10 +468,7 @@ fun ConfirmInfoScreen(
     ) {
         if (afterFace) Banner("Kiểm tra thông tin trước khi tiếp tục.", tone = Tone.Ok)
         TitleBlock("Kiểm tra thông tin", "Đối chiếu với thông tin trên thẻ trước khi xác nhận.")
-        Column(
-            Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
+        ContentCard {
             if (fields === sampleIdFields) {
                 Text(
                     "Thông tin minh họa",

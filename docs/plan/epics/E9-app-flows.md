@@ -388,6 +388,32 @@ không dùng ảnh căn cước/người dùng thật, không cài điện tho�
 
 ---
 
+### APP-11 · Hoàn thiện giao diện Android
+
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M1 | 1 | S2 | P0 | PLAT-04 |
+
+Yêu cầu 02/11: làm đẹp UI/UX app Android. Giữ nhận diện nền ngà/navy và
+Be Vietnam Pro; cải thiện phân cấp nội dung, thẻ thông tin, điều khoản và
+hướng dẫn trước camera. Không thay hợp đồng, lịch thử thách hoặc luật xác minh.
+Task được mở từ yêu cầu trực tiếp; PLAT-04 đã `done`.
+
+- [x] Màn bắt đầu, đồng ý, xác nhận thông tin và chuẩn bị khuôn mặt có phân cấp
+      rõ, dùng chung thành phần và màu theo theme.
+- [x] Nút/chữ không bị che ở màn nhỏ, chữ lớn; giữ đồng ý chủ động, trạng thái
+      lỗi và các cảnh báo cần thiết. Camera không thêm hiệu ứng trang trí.
+- [x] Render Compose sáng/tối, 375dp, chữ 200%, ngang; kiểm tra trực quan và
+      chạy unit test/lint/build Android.
+- [x] README, bàn giao và backlog cập nhật; `plan_check.py` không lỗi.
+
+Kiểm tra 02/11: 154 test đạt, `lintDebug` không lỗi (12 cảnh báo ở mã/tài
+nguyên có sẵn), `assembleDebug` thành công. Bộ onboarding có 194 ảnh, gồm
+tablet 800dp. Đã xem ảnh đại diện sáng/tối, màn nhỏ, chữ lớn và ngang;
+chưa nghiệm thu trên điện thoại thật. Xem bàn giao APP-11 ngày 02/11.
+
+---
+
 ### APP-02 ★ · App: chụp mặt, quay 3 giây, quay đầu ngẫu nhiên
 
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
