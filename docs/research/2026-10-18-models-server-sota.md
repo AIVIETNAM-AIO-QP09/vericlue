@@ -1,5 +1,9 @@
 # Nghiên cứu mô hình SOTA cho VeriClue (server) — 18/10/2026
 
+> Tài liệu lịch sử lựa chọn mô hình. Khi trích báo cáo cho pipeline hiện tại,
+> dùng [đối chiếu paper02/11](2026-11-02-model-paper-evidence.md): phân biệt
+> GenD theo bảng/seeds, AntiDeepfake paper với model card và Qwen0.6B với1.7B.
+
 Phạm vi: chọn mô hình cho từng module, chạy ở server (RTX 4050 Laptop 6 GB, đang dùng ~4,4 GB → còn ~1,6 GB), mỗi bước ~4 giây, tinh chỉnh trên Kaggle, phải xong trước 06/11/2026.
 
 Ký hiệu: **[XM]** = số đã kiểm ở nguồn (link ở cuối). **[SĐ]** = suy đoán/ước tính của người nghiên cứu, chưa chạy thử.

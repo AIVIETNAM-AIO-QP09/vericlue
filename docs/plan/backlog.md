@@ -120,7 +120,7 @@
 | EVAL-03 | Đánh giá chế độ giám định theo đoạn (R7) | M4 | | 1 | S3 | P1 | FOR-01, DATA-04, EVAL-01 | todo |
 | DEMO-01 ★ | Kịch bản demo 7 tình huống | M2 | | 1 | S3 | P0 | PLAT-09, CAP-07, REV-02, FOR-02, FOR-04, VOICE-06, PRES-04 | todo |
 | DEMO-02 ★ | Video demo + dự phòng | M1 (+cả nhóm) | | 0,5 | S3 | P0 | DEMO-01 | todo |
-| DEMO-03 ★ | Báo cáo nộp vòng 2 | M2 (+cả nhóm) | | 1 | S3 | P0 | ROUT-05, EVAL-02, FACE-04, VOICE-03, PRES-04 | todo |
+| DEMO-03 ★ | Báo cáo vòng 2: đã chuẩn bị bảng paper có nguồn, chờ số thực nghiệm/nghiệm thu | M2 (+cả nhóm) | | 1 | S3 | P0 | ROUT-05, EVAL-02, FACE-04, VOICE-03, PRES-04 | todo |
 | DEMO-04 ★ | Kiểm tra cuối, đóng gói nộp | M5 | | 0,5 | DP | P0 | DEMO-02, DEMO-03 | todo |
 
 ## E9 — App Android, ba luồng eKYC, riêng tư · `epics/E9-app-flows.md`
