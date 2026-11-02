@@ -26,13 +26,13 @@
 ## Đang dở
 - Lượt thật trước vẫn không đạt nội dung câu và lipsync. Người dùng xác nhận
   đã đọc đủ/đúng; chưa có bản ghi mới trên bản sửa 10 giây để kiểm chứng.
-- APK đã build sau kiểm tra toàn Android; triển khai và lượt người dùng ghi
-  tiếp sau commit. Chưa coi kết quả kiểm thử là nghiệm thu máy thật.
+- APK `1840ede720a4c3edaf3e518957b1bd6312dc57e2` đã cài đè S24 FE lúc 00:29
+  ngày 03/11, hash/signer/reverse8421 khớp. API vẫn source85c8ab4, cấu hình
+  riêng và toàn bộ hàng tài khoản/khôi phục không đổi sau cài. Người dùng đã
+  bắt đầu thử lượt mới; kết quả thực tế chưa được nghiệm thu.
 
 ## Bước tiếp theo
-1. Cài APK bằng `install -r`, kiểm signer/hash/flags/reverse8421. Giữ API
-   source85c8ab4; cập nhật `apk_source_commit` riêng trong metadata bundle.
-2. Người dùng tự mở app thử khôi phục: chờ “Đang ghi âm”, đọc đủ câu, bấm
+1. Người dùng tự mở app thử khôi phục: chờ “Đang ghi âm”, đọc đủ câu, bấm
    “Đọc xong” trước khi hết giờ. Đối chiếu lượt mới với server; chỉ đánh dấu
    nghiệm thu khi toàn luồng và ghi liên kết tài khoản thực sự thành công.
 
@@ -67,10 +67,14 @@
 - GREEN toàn Android: `recordPaparazziDebug lintDebug assembleDebug assembleDebugAndroidTest`
   thành công, **422 ca / 0 failure / 0 error / 1 export skip / 84 lớp**.
   Lint **0 lỗi / 44 cảnh báo / 5 thông tin**. Plan check **0 lỗi / 10 cảnh báo**.
-- Review PNG thấy một ảnh chữ 200% sau full suite bị dịch phần đầu câu;
-  chạy riêng đúng test, source không đổi, ảnh hiển thị đủ câu và assertion đạt.
-  Còn nghi ngờ trạng thái render/scroll trong fixture khi chạy chung; không
-  suy rằng mọi ảnh full suite đạt trực quan. Cần kiểm màn thật khi nghiệm thu.
-  Không thay layout/ngưỡng chỉ để sửa ảnh kiểm thử; phần này được ghi rõ thay
-  vì coi ảnh đơn lẻ là bằng chứng toàn luồng.
+- Công cụ xem PNG từng hiển thị phần đầu câu bị che không nhất quán. Kiểm
+  metadata cho thấy ảnh từ lượt chung/riêng khớp; đọc pixel trực tiếp bản sao
+  đường dẫn ngắn xác nhận thẻ câu nằm dưới top bar (375×812, màu thẻ ở x30 bắt
+  đầu y84). Reviewer rút lại nhận định clipping; chưa có bằng chứng lỗi render
+  sản phẩm. Không sửa layout/compositing theo ảnh hiển thị sai lệch. Đường dẫn
+  snapshot dài hơn 260 ký tự làm Python trên máy này báo không tồn tại; sao
+  chép bằng PowerShell sang đường dẫn ngắn rồi kiểm, không xóa file gốc.
+- Triển khai: giữ signer cũ/v2, signed media/live mặc định bật, presence trace
+  tắt, APK đang cài có SHA256 khớp artifact; dữ liệu app giữ nguyên và không
+  gọi ADB mở app/camera. Đây không phải bằng chứng các chốt AI đã đạt.
 - Log riêng: `D:/vericlue/tmp/phone-demo-2026-11-02/diagnostics/voice-deadline-*.log`.
