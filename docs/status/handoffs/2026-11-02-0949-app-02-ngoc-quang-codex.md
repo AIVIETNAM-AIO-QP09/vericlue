@@ -27,3 +27,10 @@
 - Không thay hợp đồng, server schedule, model, calibration, dữ liệu hoặc OTP mô phỏng.
 - Review nêu cạnh cũ chưa có bằng chứng trên lượt này: khi face=null do timestamp không dùng được, TurnHeadContent liveAssist=false có thể không dispatch hủy lời nhắc cũ; faces=0 vẫn phát FindFace. Cần kiểm riêng nếu log cho thấy mất timestamp; không coi đây là nguyên nhân đã chứng minh.
 - Tính trơn của giọng và khả năng thao tác vẫn cần người dùng xác nhận trên máy; probe im lặng chỉ kiểm engine/callback.
+
+## Triển khai trên S24 FE sau kiểm tra
+- APK source1367c2e8953e7e5ee11049e90de7e05884d84f04, SHA-256 ea19a8959e57117061f433cd9f7abac7726a0e2b20bbb9c326dcd40e88b12a98. Signer822e5e44… giữ nguyên, v2verified; cài đè-r thành công09:54:48, không uninstall/clear. APK cũ/metadata đã giữ riêng.
+- API vẫn source6f3171e, không restart hoặc đổi profile/DB/model. Healthok/failed_modules=[], ADBreverse8421 hợp lệ.
+- HeadSpeechProbe im lặng trên máy: initialized=true,vietnamese_available=true,offline_vietnamese=true,network_required=false,silent_utterance_callback=true,closed=true. Chỉ xác nhận engine/callback, chưa xác nhận người dùng nghe mượt hoặc hoàn tất xác minh.
+- Bộ duyệt tự động chặn lệnh mở lại MainActivity qua ADB, chỉ trả blocked by policy. Đã báo người dùng tự mở app; không đổi cách gọi để vượt chặn. Các thao tác cài-r và probe trước đó đã thành công.
+- Draft PR129 theo sau PR128; PR128 kiểm CI8/8SUCCESS. PR129 đang chờ CI/nghiệm thu bản mới.
