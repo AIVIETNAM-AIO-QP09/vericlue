@@ -19,9 +19,21 @@ cổng mở. `STOP-DEMO.cmd` dừng đúng tiến trình của gói kể cả kh
 Source và APK được kiểm hash trước khi chạy; DB/media/khóa mới riêng, không
 khởi động launcher cũ. Không gửi `.env`, CCCD, video mặt hoặc giọng lên GitHub.
 
-## Phiếu thử thực tế — chưa điền kết quả
+## Quan sát thử máy thật ngày 02/11
 
-Tất cả mục dưới đây hiện là **not_run**, không được đánh dấu từ unit test.
+Đã cài APK 0.3.0 trên Galaxy S24 FE, nối ADB Wi-Fi và reverse cổng8421.
+API `/healthz` trả `ok`, không có module preload lỗi. Lượt đăng ký đầu bị
+`review` vì gaze không khớp quỹ đạo; không đổi ngưỡng để cho qua. Một lượt
+sau chạy xong bảy module nhưng chưa commit kết quả/tài khoản. Điều tra phát
+hiện bước trích template thiếu `metadata.challenge_id`, khiến validator
+production chặn và enrollment trả503. Bản sửa bổ sung mã challenge phía
+server, giữ nguyên toàn bộ kiểm tra integrity và rollback. Cần thử lại sau
+khi triển khai; chưa kết luận lượt thứ hai chắc chắn gặp503 nếu chưa thu được
+response của lượt đó.
+
+## Phiếu nghiệm thu thực tế
+
+Các tiêu chí dưới đây **chưa được nghiệm thu**, không đánh dấu từ unit test.
 Dùng người tham gia đã đồng ý và CCCD của họ.
 
 - [ ] Đăng ký: hai lựa chọn đồng ý chủ động, OTP, QR/chân dung, xác nhận thông

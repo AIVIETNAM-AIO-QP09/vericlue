@@ -24,6 +24,7 @@ from vericlue_ml.common.result import Module
 from vericlue_ml.face.template import FaceTemplate
 from vericlue_ml.face.video_match import VIDEO_MATCH_VERSION, VideoFaceMatchDetector
 from vericlue_ml.mock.detectors import MockDetector
+from vericlue_ml.presence.challenge import expected_dynamic
 
 
 def template():
@@ -246,6 +247,8 @@ def test_coordinator_decrypts_server_sources_and_stores_only_encrypted_template(
             assert (
                 inp.metadata["expected_challenge"]["challenge_id"] == session.challenge.challenge_id
             )
+            # Run the real detector's binding check before any native template work.
+            assert expected_dynamic(inp)["session_id"] == session.session_id
             assert approved is session.results[Module.FACE_MATCH] and media_lease is not None
             assert deadline == 123
             return value

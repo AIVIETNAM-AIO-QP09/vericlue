@@ -274,6 +274,11 @@ cứng. Xem `media-proof.md` và `account-authentication.md`.
 
 ### APP-01 ★ · App Kotlin: khung, API qua HTTPS, điều hướng 3 luồng
 
+**02/11 — đang thử S24 FE:** APK0.3.0 đã cài và API/ADB hoạt động. Chưa nghiệm
+thu đăng ký: lượt đầu `review` ở gaze; phát hiện và sửa thiếu challenge binding
+trong bước trích template enrollment, có regression dùng validator production.
+Không nới ngưỡng; tiếp tục thử lại và nghiệm thu ba luồng sau triển khai.
+
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
 |---|---|---|---|---|
 | M1 | 1,5 | S1 | P0 | PLAT-04 |
