@@ -501,6 +501,12 @@ khóa/tài khoản và năm module ok/pass (tổng hợp APP-01-s24fe-physical-a
 
 ### APP-03 · App: ghi âm đọc câu (WAV 16 kHz)
 
+**02/11 — doing, sửa sau thử máy:** recovery đã chạy thật đến Qwen/AntiDeepfake/
+CTC/SyncNet và continuity; chưa đạt nhận dạng câu/khớp môi. Sửa trạng thái chuẩn
+bị micro, tự dừng đúng8giây, mốc offset sau audio start và quyền đọc lại bị bỏ
+qua bởi mã `E_CHALLENGE_MISMATCH` hợp lệ. Không coi đây là sửa chất lượng model;
+không đổi ngưỡng hoặc xác nhận hardware clock. Chờ thử lại bản API/APK mới.
+
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
 |---|---|---|---|---|
 | M1 | 1 | S2 | P0 | APP-01 |

@@ -385,6 +385,136 @@ def test_full_manual_voice_requires_both_bound_raw_gates(purpose, fault):
     assert outcome.config_version.startswith("manual-full-demo-v2-")
 
 
+@pytest.mark.parametrize("purpose", ["onboarding", "recovery"])
+@pytest.mark.parametrize("rereads_used,expected", [(0, "voice_challenge"), (1, "review")])
+def test_manual_real_phrase_mismatch_grants_only_one_reread(purpose, rereads_used, expected):
+    from types import SimpleNamespace
+
+    from vericlue_api.services.session_flow import SessionFlow
+    from vericlue_ml.router.policy import TrustRouter
+    from vericlue_ml.voice.qwen_asr import VERSION
+
+    flow = object.__new__(SessionFlow)
+    flow.settings = full_config()
+    flow.router = TrustRouter(profile="mvp")
+    session = SimpleNamespace(
+        purpose=purpose,
+        manual_demo_policy_id=flow.settings.manual_demo_policy.policy_id,
+        created_model_mode="manual_full_demo",
+        voice_rereads_used=rereads_used,
+    )
+    mismatch = ModuleResult(
+        module="voice_challenge",
+        model_version=VERSION,
+        status="ok",
+        gate="fail",
+        error_code="E_CHALLENGE_MISMATCH",
+        latency_ms=0,
+    )
+    outcome = flow._manual_full_demo_voice(
+        session, {Module.VOICE_CHALLENGE: mismatch}, session_valid=True
+    )
+    assert outcome.status == expected
+    assert outcome.reason == "phrase mismatch"
+
+
+@pytest.mark.parametrize(
+    "status,gate,error",
+    [
+        ("error", "fail", "E_CHALLENGE_MISMATCH"),
+        ("degraded", "fail", "E_CHALLENGE_MISMATCH"),
+        ("ok", "pass", "E_CHALLENGE_MISMATCH"),
+        ("ok", "unclear", "E_CHALLENGE_MISMATCH"),
+        ("ok", "fail", "E_INTERNAL"),
+        ("ok", "fail", "E_DECODE"),
+    ],
+)
+def test_manual_voice_does_not_grant_rereads_for_failed_or_invalid_content(status, gate, error):
+    from types import SimpleNamespace
+
+    from vericlue_api.services.session_flow import SessionFlow
+    from vericlue_ml.router.policy import TrustRouter
+
+    flow = object.__new__(SessionFlow)
+    flow.settings = full_config()
+    flow.router = TrustRouter(profile="mvp")
+    session = SimpleNamespace(
+        purpose="recovery",
+        manual_demo_policy_id=flow.settings.manual_demo_policy.policy_id,
+        created_model_mode="manual_full_demo",
+        voice_rereads_used=0,
+    )
+    result = ModuleResult(
+        module="voice_challenge",
+        model_version="real-asr",
+        status=status,
+        gate=gate,
+        error_code=error,
+        latency_ms=0,
+    )
+    outcome = flow._manual_full_demo_voice(
+        session, {Module.VOICE_CHALLENGE: result}, session_valid=True
+    )
+    assert outcome.status == "review"
+
+
+def test_manual_phrase_reread_rotates_prompt_and_requires_a_new_voice_proof(client):
+    from datetime import timedelta
+
+    from test_accounts import prepared
+
+    from vericlue_api.core.errors import ApiError
+    from vericlue_api.db.models import SessionRow, utcnow
+    from vericlue_ml.voice.qwen_asr import VERSION
+
+    with client.app.state.vericlue.transaction() as state:
+        session, _, continuity = prepared(state)
+        state.flow.settings = full_config()
+        policy = state.flow.settings.manual_demo_policy
+        session.created_model_mode = "manual_full_demo"
+        session.manual_demo_policy_id = policy.policy_id
+        session.completed = False
+        session.voice_requested = session.voice_owed = True
+        session.voice_expires_at = utcnow() + timedelta(seconds=30)
+        session.accepted_steps.remove("voice")
+        state.db.get(SessionRow, session.session_id).status = "incomplete"
+        match = session.results[Module.FACE_MATCH]
+        match.model_version += policy.version_suffix
+        match.quality.update(manual_demo=True, demo_policy_id=policy.policy_id)
+        continuity.model_version += policy.version_suffix
+        continuity.quality.update(manual_demo=True, demo_policy_id=policy.policy_id)
+        results = {
+            Module.VOICE_CHALLENGE: ModuleResult(
+                module="voice_challenge",
+                model_version=VERSION,
+                status="ok",
+                gate="fail",
+                error_code="E_CHALLENGE_MISMATCH",
+                latency_ms=0,
+            ),
+            Module.VOICE_SPOOF: manual_voice_result(policy, Module.VOICE_SPOOF),
+            Module.LIPSYNC: manual_voice_result(policy, Module.LIPSYNC),
+            Module.FACE_CONTINUITY: continuity,
+        }
+        # A phrase reread precedes the lipsync decision; it never becomes a pass.
+        results[Module.LIPSYNC].gate = "fail"
+        state.flow._run = lambda modules, **kwargs: results
+        previous_prompt, previous_id = session.voice_prompt, session.voice_challenge_id
+        response = state.flow.voice(session)
+        assert response.status == "voice_challenge" and response.attempts_left == 0
+        assert response.voice_prompt != previous_prompt
+        assert response.voice_challenge_id != previous_id
+        assert session.voice_rereads_used == 1
+        assert session.voice_requested and session.voice_owed and not session.completed
+        assert "voice" not in session.accepted_steps
+        with pytest.raises(ApiError) as old_id:
+            state.flow.ensure_binding(session, previous_id, voice=True)
+        assert old_id.value.error_code == "challenge_mismatch"
+        with pytest.raises(ApiError) as old_proof:
+            state.flow.voice(session)
+        assert old_proof.value.error_code == "media_not_accepted"
+
+
 @pytest.mark.parametrize(
     "changes",
     [

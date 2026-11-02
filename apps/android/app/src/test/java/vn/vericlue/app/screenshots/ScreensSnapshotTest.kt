@@ -101,6 +101,7 @@ class ScreensSnapshotTest {
 
     @Test fun voiceAndResults() {
         shot("30_voice") { VoiceScreen(n, n) }
+        shot("30_voice_preparing") { VoiceScreen(n, n, capturePhase = vn.vericlue.app.capture.VoiceCapturePhase.Preparing) }
         shot("30_voice_recording") { VoiceScreen(n, n, startRecording = true) }
         shot("31_voice_again") { VoiceScreen(n, n, again = true) }
         shot("40_uploading") { Messages.Uploading(n, n, auto = false) }

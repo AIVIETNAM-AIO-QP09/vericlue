@@ -126,23 +126,34 @@ def compare_private_video(
     """Keep the temporary lease bounded even if reader construction/loading fails."""
     dynamic = payload["challenge"]["dynamic"]
     paths, lease = privacy.prepare(payload["session_id"], {"video": Path(payload["video"])})
+    try:
+        return _compare_prepared_video(settings, paths["video"], dynamic, trace, reader_factory)
+    finally:
+        if lease:
+            lease.release()
+
+
+def _compare_prepared_video(
+    settings: Settings,
+    video: Path,
+    dynamic: dict,
+    trace: dict,
+    reader_factory=FaceObservationReader,
+) -> dict:
+    """Run native work on detached media; no database or privacy service is needed."""
     reader = None
     try:
         reader = reader_factory()
         reader.preload(models_dir=Path(settings.models_dir))
         rows = reader.extract(
-            paths["video"],
+            video,
             start_ms=dynamic["gaze_points"][0]["at_ms"],
             end_ms=dynamic["head_start_at_ms"] + dynamic["head_duration_ms"],
         )
         return compare_observations(trace, rows, dynamic)
     finally:
-        try:
-            if reader is not None:
-                reader.close()
-        finally:
-            if lease:
-                lease.release()
+        if reader is not None:
+            reader.close()
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -162,6 +173,7 @@ def main(argv: list[str] | None = None) -> int:
         raise ValueError("Invalid diagnostic schema")
     previous = Path.cwd()
     database = None
+    lease = None
     try:
         os.chdir(args.server_dir)
         settings = Settings()
@@ -178,11 +190,20 @@ def main(argv: list[str] | None = None) -> int:
                     continue  # Expired/erased sessions cannot be reconstructed.
                 candidates.append(payload)
             payload = match_attempt(trace, candidates)
-            report = compare_private_video(settings, privacy, payload, trace)
+            paths, lease = privacy.prepare(payload["session_id"], {"video": Path(payload["video"])})
+        report = _compare_prepared_video(
+            settings, paths["video"], payload["challenge"]["dynamic"], trace
+        )
     finally:
-        if database is not None:
-            database.dispose()
-        os.chdir(previous)
+        try:
+            if lease:
+                lease.release()
+        finally:
+            try:
+                if database is not None:
+                    database.dispose()
+            finally:
+                os.chdir(previous)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     provenance = {
         "source_commit": subprocess.check_output(

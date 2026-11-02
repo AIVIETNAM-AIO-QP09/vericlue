@@ -64,6 +64,9 @@ import vn.vericlue.app.capture.CaptureClock
 import vn.vericlue.app.capture.ColorSchedule
 import vn.vericlue.app.capture.QualityGate
 import vn.vericlue.app.capture.WavRecorder
+import vn.vericlue.app.capture.AudioCaptureState
+import vn.vericlue.app.capture.VoiceCapture
+import vn.vericlue.app.capture.VoiceCaptureFailure
 import vn.vericlue.app.data.AccountStore
 import vn.vericlue.app.data.PrefsStore
 import vn.vericlue.app.flow.AccountEntry
@@ -187,7 +190,6 @@ fun VeriClueApp() {
     var idFront by remember { mutableStateOf<Pair<ByteArray, IdQuality>?>(null) }
     var idBack by remember { mutableStateOf<Pair<ByteArray, IdQuality>?>(null) }
     var cccd by remember { mutableStateOf<CccdInfo?>(null) }
-    val voiceStart = remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var phone by remember { mutableStateOf("") }
     var otpError by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -360,6 +362,59 @@ fun VeriClueApp() {
     @Composable
     fun VoiceRoute(again: Boolean) {
         val level by recorder.level.collectAsState()
+        val audioState by recorder.state.collectAsState()
+        val voiceScope = rememberCoroutineScope()
+        val capture = remember(again) {
+            VoiceCapture(
+                scope = voiceScope,
+                prepareVideo = {
+                    live.audioOffsetMs = null
+                    if (flow.live) {
+                        if (hasCamera) {
+                            camera.startRecording(voice = true)
+                            camera.awaitRecordingStarted()
+                        }
+                        // The wait also returns on timeout/finalize; only a running video has an offset.
+                        hasCamera && camera.videoElapsedMs() != null
+                    } else true
+                },
+                startAudio = { hasMic && recorder.start(voiceScope) },
+                stopAudio = { recorder.stop() },
+                stopVideo = { camera.stopRecording() },
+                onFinished = { wav ->
+                    if (flow.live) live.pendingWav = wav
+                    else if (again) flow.outcome = DemoOutcome.Pass
+                    nav.go(Routes.Uploading)
+                },
+                onFailure = { failure ->
+                    nav.go(if (failure == VoiceCaptureFailure.Camera) Routes.ErrorCamera else Routes.ErrorMic)
+                },
+                onAudioReady = {
+                    // Software estimate after AudioRecord.startRecording and recording-state confirmation.
+                    // This is not a hardware timestamp of the first captured audio sample.
+                    live.audioOffsetMs = if (flow.live) camera.videoElapsedMs() else null
+                    !flow.live || live.audioOffsetMs != null
+                },
+            )
+        }
+        val capturePhase by capture.phase.collectAsState()
+        DisposableEffect(capture, lifecycleOwner) {
+            val observer = LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_STOP) capture.cancel()
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose {
+                lifecycleOwner.lifecycle.removeObserver(observer)
+                capture.cancel()
+            }
+        }
+        LaunchedEffect(audioState) {
+            when (audioState) {
+                AudioCaptureState.Completed -> capture.finish()
+                AudioCaptureState.Failed -> capture.fail(VoiceCaptureFailure.Audio)
+                else -> Unit
+            }
+        }
         LaunchedEffect(Unit) {
             if (flow.live && !live.privacy.permits("voice_biometrics")) {
                 nav.go(Routes.ErrorService)
@@ -368,39 +423,15 @@ fun VeriClueApp() {
             if (!hasMic) askPermissions.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
         }
         VoiceScreen(
-            onBack = exit,
+            onBack = { capture.cancel(); exit() },
             again = again,
             sentence = if (flow.live) live.voicePrompt else null,
             level = level,
+            capturePhase = capturePhase,
             onStartRecording = {
-                if (hasMic) {
-                    // Video and WAV start together so the server can line up lips and voice (VOICE-05):
-                    // the WAV waits for the camera, which is the slower one to start.
-                    voiceStart.value = scope.launch {
-                        live.audioOffsetMs = null
-                        if (flow.live && hasCamera) {
-                            camera.startRecording(voice = true)
-                            camera.awaitRecordingStarted()
-                        }
-                        live.audioOffsetMs = camera.videoElapsedMs()
-                        recorder.start(scope)
-                    }
-                }
+                if (hasMic) capture.start() else askPermissions.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
             },
-            onFinished = {
-                voiceStart.value?.cancel() // finished before the mic even started: nothing recorded
-                val wav = recorder.stop()
-                camera.stopRecording()
-                if (flow.live) {
-                    if (!hasMic) nav.go(Routes.ErrorMic) else {
-                        live.pendingWav = wav
-                        nav.go(Routes.Uploading)
-                    }
-                } else {
-                    if (again) flow.outcome = DemoOutcome.Pass
-                    nav.go(Routes.Uploading)
-                }
-            },
+            onFinished = { capture.finish() },
         )
     }
 
@@ -872,7 +903,6 @@ fun VeriClueApp() {
                         requested = true
                         sending = true
                         camera.clearPresenceDebugTrace()
-                        voiceStart.value?.cancel()
                         camera.unbind()
                         recorder.stop()
                         scope.launch {

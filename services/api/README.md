@@ -1,5 +1,11 @@
 # services/api — Máy chủ API (FastAPI)
 
+**APP-03 (02/11):** manual full demo cho phép kết quả nội dung
+`ok/fail/E_CHALLENGE_MISMATCH` dùng lượt đọc lại hiện có, tối đa một lần;
+không kết thúc sớm chỉ vì mã lỗi diễn giải nội dung. Câu/ID lượt mới và media
+proof mới vẫn bắt buộc; lỗi bất thường, error/degraded hoặc hết lượt vẫn review.
+Không đổi kiểm tra giọng/khớp môi/đối chiếu, policy, ngưỡng hoặc mode chuẩn.
+
 **APP-01/SEC-09 (01/11):** migration `0011_account_template_consent` bổ sung sổ
 biên nhận append-only cho lưu mẫu tài khoản mã hóa 24 giờ. Android ghi lựa chọn
 qua `GET .../privacy/account-template` và `POST .../privacy/account-template/consent`;

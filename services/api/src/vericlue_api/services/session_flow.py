@@ -1257,7 +1257,13 @@ class SessionFlow:
         if (
             challenge is None
             or challenge.status != Status.OK
-            or challenge.error_code is not None
+            or (
+                challenge.error_code is not None
+                and not (
+                    challenge.gate == Gate.FAIL
+                    and challenge.error_code == ErrorCode.E_CHALLENGE_MISMATCH
+                )
+            )
             or "mock" in challenge.model_version.lower()
         ):
             return Outcome("review", reason="voice challenge missing/error/degraded", **base)
