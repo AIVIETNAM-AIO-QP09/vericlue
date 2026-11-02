@@ -483,6 +483,11 @@ khóa/tài khoản và năm module ok/pass (tổng hợp APP-01-s24fe-physical-a
 |---|---|---|---|---|
 | M1 | 2 | S1–S2 | P0 | APP-01 |
 
+**02/11 — sửa nhắc lặp:** người dùng xác nhận bị nhắc cùng bên; local hold chưa
+hoàn tất có thể nhắc quay ra lại sau khi đã về giữa. Thêm latch hướng dẫn riêng
+từng đoạn: một excursion đúng phía rồi về giữa thì chờ hướng tiếp. Không coi
+latch là hold đạt/đổi phase/qua gate; giữ các hằng và lịch5/5/2. Cần thử bản mới.
+
 **Mục tiêu:** làm giai đoạn B của ADR-0013 trên app.
 
 **Đầu ra:**

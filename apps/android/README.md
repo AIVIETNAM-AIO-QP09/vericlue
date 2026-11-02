@@ -4,6 +4,12 @@
 
 ## Trạng thái
 
+**02/11 — mỗi bên một lần:** sau khi thấy một lần quay đúng phía rồi về giữa
+trong cùng đoạn5giây, hướng dẫn chờ trung tính đến đoạn tiếp, không nhắc quay
+lại cùng bên khi bộ đếm giữ local chưa hoàn tất. Trạng thái chờ không xác nhận
+giữ đủ hoặc xác minh thành công; cảnh báo vẫn ưu tiên, server vẫn tự kiểm đủ
+hai hướng. Không đổi hằng góc/giữ hoặc lịch5/5/2.
+
 **02/11 — APP-03, sẵn sàng ghi âm:** màn đọc câu có trạng thái chuẩn bị riêng,
 chỉ báo đang ghi khi AudioRecord đã xác nhận chạy. Mốc audio offset lấy sau
 khi micro bắt đầu, vẫn là ước lượng phần mềm. Camera đã finalize không được
