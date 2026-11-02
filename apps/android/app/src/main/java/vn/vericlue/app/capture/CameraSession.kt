@@ -680,6 +680,7 @@ class CameraSession(
                     _face.value = signal
                     val request = jpegRequest
                     if (request != null && request.result.isActive && signal.observedAtMs >= request.afterMs &&
+                        QualityGate.isFresh(signal, SystemClock.elapsedRealtime(), capturedAfterMs = request.afterMs) &&
                         QualityGate.evaluate(signal, SystemClock.elapsedRealtime()) == vn.vericlue.app.flow.FramingState.Good) {
                         runCatching { toJpeg(proxy, rotation) }.fold(request.result::complete, request.result::completeExceptionally)
                         synchronized(this) { if (jpegRequest === request) jpegRequest = null }

@@ -4,6 +4,11 @@
 
 ## Trạng thái
 
+**03/11 — khung chụp và trace adaptive:** yêu cầu JPEG chỉ nhận khung được
+camera chụp sau thời điểm yêu cầu, kể cả khi analyzer giao khung cũ muộn.
+Trace quay đầu dùng mốc đổi hướng thực tế tại thời điểm chụp, không suy từ
+lịch timed khi chạy adaptive. Giữ hướng dẫn timed và bộ kiểm adaptive hiện có.
+
 **03/11 — kiểm phản hồi trước khi giải phóng bản thu:** HTTP 200 chỉ được coi
 là tiếp nhận media/signals khi `received=true` và đúng tên bước. Phản hồi
 đọc lại phải có câu và mã thử thách hợp lệ trước khi app bỏ bản thu cũ;

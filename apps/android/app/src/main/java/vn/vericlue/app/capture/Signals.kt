@@ -89,9 +89,10 @@ object QualityGate {
     const val MAX_FRONTAL_PITCH = 15f
     const val MAX_ROLL = 15f
 
-    fun isFresh(s: FaceSignal?, nowMs: Long): Boolean = s != null && s.observedAtMs >= 0 &&
+    fun isFresh(s: FaceSignal?, nowMs: Long, capturedAfterMs: Long = 0L): Boolean = s != null && s.observedAtMs >= 0 &&
         s.timestampNs > 0L && nowMs - s.observedAtMs in 0..MAX_FRAME_AGE_MS &&
-        nowMs - s.timestampNs / 1_000_000L in 0..MAX_FRAME_AGE_MS
+        nowMs - s.timestampNs / 1_000_000L in 0..MAX_FRAME_AGE_MS &&
+        s.timestampNs / 1_000_000L >= capturedAfterMs
 
     private fun geometryValid(s: FaceSignal): Boolean =
         s.imageWidth > 0 && s.imageHeight > 0 &&
