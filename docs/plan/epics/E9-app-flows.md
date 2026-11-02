@@ -658,6 +658,13 @@ latch là hold đạt/đổi phase/qua gate; giữ các hằng và lịch5/5/2. 
 
 ### APP-03 · App: ghi âm đọc câu (WAV 16 kHz)
 
+**03/11 — tiếp tục điều tra:** APK03b4abc đã cài giữ dữ liệu; sửa thời hạn chờ
+AI và kiểm phản hồi trước giải phóng bản thu. Đối chứng ASR cố định trên
+18 mẫu/18 người DNU calib_fit, không dùng điện thoại/test/VIVOS parity để chọn.
+Frontend landmark106 có version và probe file/RAM riêng, chưa bật trong API;
+xem [runbook](../../runbooks/syncnet-frontend-probe.md). Khôi phục vẫn chưa đạt
+nghiệm thu, không nới chốt hoặc đổi ngưỡng để lấy kết quả pass.
+
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
 |---|---|---|---|---|
 | M1 | 1 | S2 | P0 | APP-01 |

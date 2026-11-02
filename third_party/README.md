@@ -34,6 +34,20 @@ Mọi đoạn code **chép** từ dự án khác phải được ghi vào bảng
 
 Văn bản giấy phép gốc lưu trong `third_party/licenses/<tên-dự-án>.txt`.
 
+## APP-03 — Landmark 106 cho đối chứng frontend khớp môi
+
+| Nguồn | Giấy phép | Dùng ở đâu | Điều chỉnh | Task |
+|---|---|---|---|---|
+| [InsightFace landmark.py](https://github.com/deepinsight/insightface/blob/3e6486942a1be2da0e5b475fac375ea73264bd21/python-package/insightface/model_zoo/landmark.py) và [face_align.py](https://github.com/deepinsight/insightface/blob/3e6486942a1be2da0e5b475fac375ea73264bd21/python-package/insightface/utils/face_align.py), revision `3e6486942a1be2da0e5b475fac375ea73264bd21` | MIT; Copyright (c) 2022 Jiankang Deng and Jia Guo | `ml/src/vericlue_ml/voice/landmarks106.py` | Adapter crop không xoay, đảo kênh và ánh xạ ngược; pin byte trọng số, một CPU ORT session và kiểm dữ liệu lỗi. Không chọn mặt/ra quyết định xác minh. | APP-03 |
+
+Giữ toàn bộ thông báo MIT trong module và `licenses/insightface-MIT.txt`.
+Trọng số `2d106det.onnx` từ bản phát hành chính thức `buffalo_l` v0.7 chịu
+điều khoản nghiên cứu phi thương mại của InsightFace, không phải giấy phép
+MIT của mã nguồn. Không phân phối trọng số trong Git. Adapter mới dành cho
+đối chứng offline, chưa được bật trong API hoặc nhận tương thích calibrator.
+Phép căn hình trong `eval/syncnet_frontend.py` được viết độc lập từ toán học
+và các tham số nguồn được dẫn riêng; không chép mã StyleSync không có giấy phép.
+
 ## VOICE-09 — NES2Net-X
 
 | Nguồn | Giấy phép | Chép vào đâu | Đã sửa gì | Task |

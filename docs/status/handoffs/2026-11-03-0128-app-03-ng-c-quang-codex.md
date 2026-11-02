@@ -69,3 +69,39 @@
 - Root chạy nhóm hồi quy Qwen/DNU/PAD/notebook: **204 đạt, 1 bỏ qua, 0 lỗi**.
   Root chạy landmark/frontend/resize/PTS trên runtime có Torch: **125 đạt**.
   Kiểm thử này chưa thay smoke mô hình thật hoặc xác minh khớp môi.
+
+## Đối chứng ASR đã chạy đủ ba ứng viên
+
+Protocol `app03-dnu-asr-fit-v1`, SHA-256
+`a2043267208e2203779b60a4b941fc8a97757591c5b96c44991f45ff6836b386`;
+DNU revision `33b2a469901cb71b243403254d3cfef25170526c`.
+18 mẫu/18 người, tổng 163,121 giây; cả ba đều 18 status ok, không thiếu WER.
+Các số dưới đây là chẩn đoán **calib_fit**, không phải accuracy tập test/điện thoại.
+
+| Mô hình (revision) | Macro WER âm tiết | Không đạt matcher cố định | Tổng suy luận CPU |
+|---|---:|---:|---:|
+| Qwen0.6B (`7f1569a48a89f3e3f4dc3a5c9d28bddd903bc76c`) | 0,08384734 | 1/18 | 61,393 giây |
+| PhoWhisper-small (`a86b604c346caf7148c37512eafe783a16420adb`) | 0,34766955 | 4/18 | 67,295 giây |
+| Qwen1.7B (`bcd2b5b7f32b480ab5790554cfa8347f246a14f3`) | 0,03851427 | 0/18 | 153,201 giây |
+
+Qwen dùng wrapper `cpu-fp32-content-v2-assistant-prefix`, Transformers5.13.0;
+Pho dùng `voice04-v2`, Transformers4.57.6; cùng Torch2.14.1+cpu.
+Nguồn hai dòng đầu `d81d2564f96a02a614c131957c9782c9d0188eda-dirty`;
+dòng cuối `7593ce77c77b69c7b4068b54e69a64d55c8d8a35-dirty`. Báo cáo có hash
+nguồn/config trước–sau; dirty do phát triển frontend song song. Dữ liệu LTT/test
+không được đọc. Không đưa nhãn vào context ASR, không đổi matcher/ngưỡng.
+
+Báo cáo riêng: `D:/vericlue/tmp/asr-comparison-2026-11-03/`:
+`qwen-fit18.json`, `phowhisper-fit18.json`, `qwen17-fit18.json`.
+1.7B là ứng viên tốt hơn trên phép đo này, nhưng chậm hơn khoảng 2,5 lần và
+trọng số FP32 khoảng 8,15 GB. Chưa chứng minh preload chung toàn stack đủ RAM,
+ngân sách worker hoặc tương thích ràng buộc tài khoản. API vẫn dùng 0.6B.
+
+## Frontend khớp môi ngoại tuyến
+
+Đã thêm provider landmark106 có pin/giấy phép và triển khai hình học độc lập;
+probe file giữ pixel/PTS gốc, probe RAM có provenance riêng. Không chép mã
+StyleSync không có giấy phép. Runbook ghi oracle tổng hợp, sai lệch float32
+và giới hạn CPU FP16, không tuyên bố bit-parity upstream GPU.
+Review độc lập không còn blocker; root chạy **196 test đạt, 0 bỏ qua** cho
+file/RAM/frontend/landmark/PTS/A-V. Native smoke còn phải ghi riêng sau commit.

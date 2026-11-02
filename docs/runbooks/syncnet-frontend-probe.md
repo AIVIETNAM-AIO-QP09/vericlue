@@ -1,0 +1,89 @@
+# Đối chứng tiền xử lý hình SyncNet (APP-03)
+
+Đây là công cụ ngoại tuyến để kiểm tra khác biệt recipe căn mặt. Chưa nối API,
+không có calibrator tương thích, không chứng minh khớp môi đạt hay độ chính xác.
+Không chọn crop, dtype, offset hoặc ngưỡng bằng kết quả bản ghi điện thoại.
+
+## Nguồn và phiên bản
+
+- Caller tham chiếu: ByteDance/LatentSync
+  `a229c3948406bc2cf6eaf4873e662e70c6a04746`,
+  `latentsync/utils/image_processor.py`, `face_detector.py` (Apache-2.0).
+- `voice.landmarks106.Landmark106Provider`: recipe crop/đảo kênh/ánh xạ ngược
+  từ InsightFace MIT `3e6486942a1be2da0e5b475fac375ea73264bd21`.
+  [Giấy phép và nguồn](../../third_party/README.md#app-03--landmark-106-cho-đối-chứng-frontend-khớp-môi).
+- Trọng số gốc `buffalo_l` v0.7 / `2d106det.onnx`: 5.030.888 byte,
+  SHA-256 `f001b856447c413801ef5c42091ed0cd516fcd21f2d6b79635b1e733a7109dbf`.
+  Pin quan sát từ bản tải chính thức, không phải checksum do nhà phát hành
+  công bố. Trọng số chỉ cho nghiên cứu phi thương mại, không commit.
+- `eval.syncnet_frontend` là triển khai độc lập từ đặc tả toán học;
+  không chép/biên dịch mã StyleSync không có giấy phép.
+  Phiên bản CPU dùng ở probe:
+  `syncnet-spatial-independent-v1-r256-numpy-float32+kornia-float32`.
+
+Mô hình landmark đã chứa phép trừ 127,5 và chia 128. Input ngoài là float
+pixel 0…255, không chuẩn hóa lần hai. `color_order="rgb"` mô tả input caller;
+adapter đảo kênh đúng một lần như caller upstream, không tự sửa thành RGB.
+Nạp byte đã kiểm hash vào một ONNX Runtime CPU session duy nhất.
+
+## Cách ghép
+
+```python
+from vericlue_ml.face.pad import ScrfdFaceFinder
+from vericlue_ml.voice.landmarks106 import Landmark106Provider
+from vericlue_ml.eval.syncnet_frontend import SyncNetFrontendCandidate
+from vericlue_ml.eval.syncnet_file_frontend_probe import prepare_file_frontend_probe
+
+finder = ScrfdFaceFinder(verified_scrfd_session, input_size=512, scale=128, swap_rb=True)
+landmarks = Landmark106Provider(landmark_path, color_order="rgb")
+frontend = SyncNetFrontendCandidate(warp_dtype="float32", device="cpu")
+probe = prepare_file_frontend_probe(
+    video_path,
+    fixed_starts,
+    audio_offset_s=original_audio_offset_s,
+    finder=finder,
+    landmark_provider=landmarks,
+    frontend=frontend,
+)
+```
+
+Caller phải kiểm pin SCRFD, lưu phiên bản/source/runtime và tạo `fixed_starts`
+từ cùng ForcedAligner + `_window_starts` của baseline. Dùng lại đúng audio,
+mel, offset PTS và trọng số SyncNet. Không đưa câu mong đợi vào ASR.
+
+API hiện dùng file video, vì vậy đối chứng phải dùng
+`syncnet_file_frontend_probe` (`original-file-opencv-pts-v1`): đọc pixel gốc
+bằng OpenCV, không JPEG, resize trước landmark, seek theo FPS hoặc dịch audio.
+Giữ cách chọn nearest PTS/tie sớm hơn/EOF và giới hạn sai số 40 ms của
+`voice.syncnet._read_windows`. Căn mọi khung theo thứ tự, kể cả đuôi không
+được chọn, để giữ lịch sử bias. Lỗi ở đuôi cũng làm probe thất bại.
+
+Giới hạn: 21 giây, 1.200 khung, 1.920×1.080 pixel/khung, tối đa 4 cửa sổ,
+64 crop được giữ cộng khung làm việc hiện tại/trước đó. Thiếu mặt, nhiều mặt,
+PTS sai, quá giới hạn hoặc số không hữu hạn đều dừng; không trả score giả.
+`probe.windows` chỉ ở RAM; báo cáo chung chỉ chứa counts/provenance.
+
+`syncnet_frontend_probe.prepare_frontend_probe` dành riêng cho `AVRecording`
+RAM/JPEG của lab. Không dùng nó để tuyên bố parity pipeline file của API.
+`ScrfdFaceFinder` vẫn mặc định 640; 512 là tham số riêng cho probe này.
+
+## Bằng chứng và giới hạn ngày 03/11
+
+- Oracle dùng session giả và mã InsightFace MIT độc lập: 166/166 trường hợp
+  landmark khớp chính xác tensor và tọa độ; SCRFD512 48/48 trường hợp khớp
+  tensor, box, điểm, landmark5 và thứ tự NMS. Đây chưa phải native smoke.
+- Đối chứng hình học tổng hợp: 8 khung và 3 phép fit; điểm mốc khớp, sai lệch
+  ma trận tối đa 3,0517578125e-5. Cùng ma trận thì warp/Lanczos byte khớp;
+  ma trận tính độc lập gây sai lệch tối đa 1 mức byte ở 1.087 phần tử.
+  Chưa cô lập khác biệt vào riêng SVD; có khác thứ tự tính/giảm float32.
+- CPU FP16 cho phần tử không hữu hạn ở phép warp không đồng nhất; probe
+  dùng FP32 được khai báo trước. Không suy ra parity GPU FP16/Torch 2.5.1.
+- Runtime oracle: NumPy 2.5.4, OpenCV 4.14, Torch 2.14.1+cpu, Kornia 0.8.0.
+  Không suy rộng bit-parity sang runtime khác.
+- Root: 196 test cho file/RAM/frontend/landmark/PTS/A-V đạt, không bỏ qua.
+  Báo cáo native riêng phải ghi commit, model/runtime và số đầu vào trước
+  khi diễn giải; không lấy số tổng hợp này thay phép đo mô hình thật.
+
+Sau khi có kết quả vẫn cần review phiên bản, ngân sách CPU/RAM và chốt
+tương thích trước mọi đề xuất đưa vào server. Calibrator cũ không tự tương
+thích khi thay tiền xử lý. Thiếu bằng chứng thì giữ trạng thái chưa nghiệm thu.
