@@ -10,7 +10,7 @@ class FaceActionGateTest {
     private fun frame(at: Long = 0L, yaw: Float = 0f, identity: Int? = 7) = FaceSignal(
         faces = 1, widthFraction = 0.46f, heightFraction = 0.60f,
         centerX = 0.5f, centerY = 0.48f, yaw = yaw, pitch = 0f, roll = 0f,
-        luma = 120f, timestampNs = at * 1_000_000, observedAtMs = at,
+        luma = 120f, timestampNs = (at * 1_000_000).coerceAtLeast(1L), observedAtMs = at,
         imageWidth = 480, imageHeight = 640, landmarksComplete = true,
         landmarksVisible = true, trackingId = identity,
     )
@@ -37,6 +37,37 @@ class FaceActionGateTest {
         assertEquals(FramingState.NoFace, QualityGate.evaluate(frame(), 501))
         assertEquals(FramingState.NoFace, QualityGate.evaluate(frame(at = 200), 100))
         assertFalse(QualityGate.hasCompleteFace(frame(), 501))
+    }
+
+    @Test fun delayedSensorFramesCannotBecomeFreshAtAnalyzerReceipt() {
+        val delayed = frame(1000).copy(observedAtMs = 2000)
+        assertFalse(QualityGate.isFresh(delayed, 2000))
+        assertEquals(FramingState.NoFace, QualityGate.evaluate(delayed, 2000))
+        val gate = HeadActionGate(TurnDir.Left)
+        for (at in 2000L..3000L step 100) {
+            assertFalse(gate.update(frame(at - 1000, 26f).copy(observedAtMs = at), at))
+        }
+        assertFalse(gate.complete)
+        for (stamp in listOf(0L, -1L)) {
+            assertFalse(QualityGate.isFresh(frame(2000).copy(timestampNs = stamp), 2000))
+        }
+    }
+
+    @Test fun analyzerDeliveryJitterCannotInflateTheMeasuredPoseHold() {
+        val gate = HeadActionGate(TurnDir.Left, holdMs = 350)
+        // Delivery spans 400ms, but the camera only observed the pose for 200ms.
+        assertFalse(gate.update(frame(1000, 26f), 1000))
+        assertFalse(gate.update(frame(1100, 26f).copy(observedAtMs = 1200), 1200))
+        assertFalse(gate.update(frame(1200, 26f).copy(observedAtMs = 1400), 1400))
+        assertTrue(gate.progress < 1f)
+        assertTrue(gate.update(frame(1350, 26f).copy(observedAtMs = 1500), 1500))
+    }
+
+    @Test fun queuedFrameFromBeforeJpegRequestDoesNotCountAsNewCapture() {
+        val queued = frame(1000).copy(observedAtMs = 1100)
+        assertTrue(QualityGate.isFresh(queued, 1200))
+        assertFalse(QualityGate.isFresh(queued, 1200, capturedAfterMs = 1050))
+        assertTrue(QualityGate.isFresh(frame(1100), 1200, capturedAfterMs = 1050))
     }
 
     @Test fun readinessNeedsASecondOfDistinctFramesInsideGuide() {
@@ -67,7 +98,7 @@ class FaceActionGateTest {
     }
 
     @Test fun leftAndRightRequireTheRequestedSignedYaw() {
-        for ((direction, correct) in listOf(TurnDir.Left to 30f, TurnDir.Right to -30f)) {
+        for ((direction, correct) in listOf(TurnDir.Left to 26f, TurnDir.Right to -26f)) {
             val gate = HeadActionGate(direction)
             for (t in 0L..700L step 175) assertFalse(gate.update(frame(t, -correct), t))
             assertFalse(gate.update(frame(800, correct), 800))
@@ -83,7 +114,7 @@ class FaceActionGateTest {
     @Test fun stillHeadAndSingleTurnSampleCannotCompleteTurn() {
         val gate = HeadActionGate(TurnDir.Left)
         for (t in 0L..1000L step 100) assertFalse(gate.update(frame(t), t))
-        val oneTurn = frame(1100, 30f)
+        val oneTurn = frame(1100, 26f)
         for (t in 1100L..1700L step 50) assertFalse(gate.update(oneTurn, t))
         assertFalse(gate.complete)
     }
@@ -98,12 +129,12 @@ class FaceActionGateTest {
 
     @Test fun occlusionDuringTurnResetsButFarEyeMayDisappearInSidePose() {
         val gate = HeadActionGate(TurnDir.Left)
-        gate.update(frame(0, 35f), 0)
-        gate.update(frame(175, 35f), 175)
-        assertFalse(gate.update(frame(350, 35f).copy(landmarksVisible = false), 350))
-        assertFalse(gate.update(frame(500, 40f).copy(landmarksComplete = false), 500))
-        assertFalse(gate.update(frame(675, 40f).copy(landmarksComplete = false), 675))
-        assertTrue(gate.update(frame(850, 40f).copy(landmarksComplete = false), 850))
+        gate.update(frame(0, 26f), 0)
+        gate.update(frame(175, 26f), 175)
+        assertFalse(gate.update(frame(350, 26f).copy(landmarksVisible = false), 350))
+        assertFalse(gate.update(frame(500, 28f).copy(landmarksComplete = false), 500))
+        assertFalse(gate.update(frame(675, 28f).copy(landmarksComplete = false), 675))
+        assertTrue(gate.update(frame(850, 28f).copy(landmarksComplete = false), 850))
     }
 
     @Test fun legacyTrackerAlsoRejectsTheOppositeDirection() {

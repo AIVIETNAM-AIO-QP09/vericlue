@@ -21,6 +21,37 @@
 
 ## Quy ước bắt buộc
 
+ROUT-03 (01/11): core LTT offline dùng MAPIE 1.4.1 HB/max-p/Holm trên lưới
+khai báo trước, kiểm quan sát độc lập theo người/nguồn. Kết quả ứng viên luôn
+provisional và không đủ điều kiện runtime; không cài ngưỡng vào API.
+[Phương pháp và giới hạn](../docs/runbooks/offline-ltt.md).
+
+ROUT-03 bổ sung `eval.face_candidate`: ghép PAD/GenD đúng report/calibrator
+đã khóa trên calib_fit, giữ lỗi và chỉ tính max khi cả hai module đủ điểm.
+Chưa chọn ngưỡng mặt; runtime/source crosswalk/gate chưa được kiểm chứng.
+[Runbook](../docs/runbooks/face-candidate-scoring.md).
+
+VOICE-09/APP-01 (01/11): công cụ offline `eval.nes2net_utterance` gộp max margin
+toàn câu có version riêng; chỉ có score khi mọi cửa sổ đo được. Prepare/collect/
+fit kiểm provenance/split theo người và nguồn, không cài artifact hoặc đổi API.
+[Runbook](../docs/runbooks/nes2net-utterance-calibration.md).
+
+APP-01/FLOW-04 (31/10): manual demo là policy opt-in riêng cho các adapter phiên,
+không phải calibrator. Kết quả hợp lệ giữ điểm thô/prob_attack=null, marker và
+version policy riêng; mặc định đường hiệu chỉnh chuẩn không đổi. Lỗi/degraded
+không được nâng thành đạt. [Runbook](../docs/runbooks/manual-face-demo.md).
+
+FLOW-04 (31/10) head rules0.2 loại yaw quá góc thoáng qua khỏi bằng chứng giữ
+thay vì phủ quyết cả video; vẫn kiểm coverage/gap/biên, baseline/thứ tự và
+tilt. Quá góc kéo dài/giữ thiếu vẫn không đạt. Không đổi ngưỡng, không chứng
+minh 3D hay accuracy; xem [thiết kế](../docs/architecture/head-and-match.md).
+
+FLOW-04 (30/10) có công cụ `eval.session_calibration collect|fit` đo đúng video/
+lịch bằng session_views, giữ mẫu lỗi và kiểm nhóm không giao split trước fit.
+SessionAttackDetector chỉ nhận fitted non-provisional calibrator đúng full
+session version; thiếu/sai vẫn degraded, không mở guard. Chưa có artifact thực
+trên laptop. Xem [hướng dẫn](../docs/runbooks/session-face-calibration.md).
+
 PRES-05 thêm `eval.presence_lab`: một lượt ánh sáng → mắt → quay đầu, cùng
 camera/reader/đồng hồ, giữ các số đo độc lập và chỉ chấm ba ảnh khi motion đủ.
 Không kết luận xác minh/API; xem [hướng dẫn](../docs/architecture/presence-lab.md).
@@ -46,8 +77,9 @@ có timeout/hủy/đóng, chưa đưa điểm vào quyết định eKYC. Xem
 [`qwen-asr-diagnostic.md`](../docs/architecture/qwen-asr-diagnostic.md).
 
 VOICE-09 thêm NES2Net-X CPU diagnostic opt-in cho `voice_spoof`, checkpoint đầy
-đủ XLS-R/head. Chỉ chấm 4 giây đầu, luôn degraded/unclear, chưa parity frontend
-hoặc calibration tiếng Việt; không thay backend API. Xem
+đủ XLS-R/head. Chỉ chấm 4 giây đầu, luôn degraded/unclear. Parity số học có báo cáo
+và binding opt-in theo checkpoint/runtime/config/mã số học (01/11); chưa calibration
+tiếng Việt, không thay backend API. Xem
 [`nes2net-diagnostic.md`](../docs/architecture/nes2net-diagnostic.md).
 
 VOICE-07 thêm backend Qwen3-ASR-0.6B để kiểm nội dung câu đọc qua factory/CLI

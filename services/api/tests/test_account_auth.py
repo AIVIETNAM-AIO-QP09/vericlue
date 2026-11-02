@@ -25,7 +25,7 @@ from vericlue_api.services.account_auth import AccountAuth, message
 from vericlue_api.services.accounts import AccountStore
 from vericlue_api.services.identity_steps import _digest
 from vericlue_ml.common.result import Evidence, Module
-from vericlue_ml.face.enrolled import RECOVERY_MATCH_VERSION
+from vericlue_ml.face.enrolled import recovery_match_version
 
 
 def new_key():
@@ -228,7 +228,7 @@ def recovery_ready(state, receipt, key):
     session.id_confirmed = False  # Recovery compares the enrolled face, not a fresh card.
     session.results[Module.FACE_CONTINUITY] = continuity
     match = session.results[Module.FACE_MATCH]
-    match.model_version = RECOVERY_MATCH_VERSION
+    match.model_version = recovery_match_version(session.challenge.dynamic.version)
     match.quality["enrolled_reference"] = True
     match.evidence.append(
         Evidence(type="text", name="reference_account_id", value=receipt.account_id)
@@ -296,7 +296,8 @@ def test_recovery_reseals_original_template_revokes_old_sessions_and_keeps_ttl(p
 
 
 @pytest.mark.parametrize(
-    "fault", ["otp", "phone", "match", "scope", "continuity", "old_device", "mixed", "expired"]
+    "fault",
+    ["otp", "phone", "match", "scope", "continuity", "old_device", "mixed", "expired", "protocol"],
 )
 def test_recovery_rejects_incomplete_evidence_and_does_not_replace_key(private_client, fault):
     key, receipt, _, _ = seeded(private_client)
@@ -309,6 +310,11 @@ def test_recovery_rejects_incomplete_evidence_and_does_not_replace_key(private_c
             session.phone_hmac = "0" * 64
         elif fault == "match":
             session.results[Module.FACE_MATCH].status = "degraded"
+        elif fault == "protocol":
+            wrong_protocol = 1 if session.challenge.dynamic.version == 2 else 2
+            session.results[Module.FACE_MATCH].model_version = recovery_match_version(
+                wrong_protocol
+            )
         elif fault == "scope":
             session.results[Module.FACE_MATCH].evidence.pop()
         elif fault == "continuity":
@@ -374,3 +380,30 @@ def test_recovery_transaction_failure_preserves_old_key(private_client):
         store = AccountStore(real_settings(state), state.db)
         assert store.get(receipt.account_id).public_key_spki == spki(key)
         assert state.db.scalar(select(func.count()).select_from(AccountRecoveryRow)) == 0
+
+
+@pytest.mark.parametrize("match_mode", ["adaptive-v2", "timed-v2", "adaptive-v1"])
+def test_adaptive_recovery_keeps_original_template_and_requires_exact_match_sampling(
+    private_client, match_mode
+):
+    _, receipt, _, _ = seeded(private_client)
+    key = new_key()
+    with private_client.app.state.vericlue.transaction() as state:
+        session = recovery_ready(state, receipt, key)
+        dynamic = session.challenge.dynamic
+        dynamic.head_mode = "adaptive"
+        dynamic.head_timeout_ms = 30000 - dynamic.head_start_at_ms
+        session.results[Module.FACE_MATCH].model_version = recovery_match_version(
+            1 if match_mode == "adaptive-v1" else 2, adaptive=match_mode != "timed-v2"
+        )
+        store = AccountStore(real_settings(state), state.db)
+        before = store.get(receipt.account_id)
+        if match_mode == "adaptive-v2":
+            recovered = store.recover(session)
+            after = store.get(recovered.account_id)
+            assert after.template == before.template
+            assert after.public_key_spki == spki(key)
+        else:
+            with pytest.raises(ApiError):
+                store.recover(session)
+            assert store.get(receipt.account_id).public_key_spki == before.public_key_spki

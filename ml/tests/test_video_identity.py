@@ -219,7 +219,11 @@ def test_pipeline_owns_view_roles_rechecks_pixels_and_keeps_missing_threshold_un
     assert result.face_match.status == Status.DEGRADED and result.face_match.gate == Gate.UNCLEAR
     assert len(matcher.calls) == 1 and len(reader.observed) == 3
     assert set(matcher.calls[0][1]) == {"front", "left", "right"}
-    assert selections[0][1] == {"front": 1000, "left": 13200, "right": 15200}
+    # Equal-quality poses select the first measured frame in each completed hold,
+    # not a fixed offset after the command. Both fake holds start at +/-28 degrees.
+    assert selections[0][1] == {"front": 1000, "left": 12500, "right": 14500}
+    selected_by_head = next(e.value for e in result.head_turn.evidence if e.name == "view_times_ms")
+    assert selections[0][1] == selected_by_head
     assert matcher.preloads == [{"models_dir": Path("model-root"), "device": "cpu"}]
     assert result.face_match.quality["views_from_video"] is True
     assert result.face_match.quality["depth_verified"] is False

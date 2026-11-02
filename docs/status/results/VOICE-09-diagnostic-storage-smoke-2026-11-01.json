@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "source_commit": "501c9e59fbcef3bad10c69be9726094de29a3027",
+  "dataset": "DNU-ViSpeech-bonafide-only-v1",
+  "model_version": "nes2net-x@c9fe1177f44040f002cb40def928332d2e261f1e+hf4576-cpu-fp32-timeline4s-tail-maxmargin-v1",
+  "measurement_report_sha256": "30c94ca655d172f1b950181579293a4af5e9303ec7242aec29663daeb4918504",
+  "measurement_commit": "38ebb367695c161e8a3ffb5ac02ecb85b5fcb94e",
+  "weights_loaded": false,
+  "new_inference_run": false,
+  "forbidden_cli_attempts": 15,
+  "all_forbidden_attempts_refused_before_input_or_model": true,
+  "configured_stores": [
+    "MODELS_DIR",
+    "DATA_DIR",
+    "CALIBRATORS_DIR"
+  ],
+  "existing_measurement_rows": 360,
+  "usable_rows": 356,
+  "excluded_rows": 4,
+  "existing_measurement_unchanged": true,
+  "calibration_ready": false,
+  "calibration_fitted": false,
+  "deployed": false,
+  "real_accuracy_or_r4_claim": false
+}

@@ -1,5 +1,22 @@
 # Khung đánh giá chung (EVAL-01)
 
+VOICE-09/APP-01 (01/11): `eval.nes2net_utterance prepare|collect|readiness|fit` đo toàn câu,
+gộp max raw margin có version riêng, giữ lỗi/thiếu, kiểm người/nguồn cho split
+và CV. Chỉ fit calib_fit, không cài artifact hoặc mở chốt API.
+[Runbook](../../../../docs/runbooks/nes2net-utterance-calibration.md).
+
+`readiness --report <measurements.json> --output <readiness-moi.json>` chỉ kiểm
+report, không đọc audio, nạp trọng số hay fit. Báo cáo phân biệt mẫu khai báo,
+mẫu có score và mẫu bị loại theo split; giữ nhóm liên kết của toàn manifest.
+Audit bổ sung số nhóm, loại tấn công và tính khả thi của các fold calib_fit.
+Tùy chọn lặp `--expected-attack-type tts --expected-attack-type vc` khai báo
+loại cần có; không tự suy từ test. Không khai báo thì không chứng minh phủ đủ
+loại tấn công. `structural_only=true`, `calibration_ready=false`: đủ cấu trúc
+CV chưa chứng nhận calibrator, accuracy hay triển khai. Mốc 100 mẫu mỗi lớp
+chỉ áp dụng cho điều kiện số mẫu của isotonic; Platt vẫn cần hai lớp và fold
+theo nhóm hợp lệ. LTT thuộc ROUT-03; không đổi degraded thành ok để dùng khung
+đánh giá xác suất chung. Collect chưa có resume, chỉ ghi report mới khi xong.
+
 Đọc/sinh kết quả R1–R4 qua `vericlue_ml.eval`, không tự viết lại công thức ở
 notebook hay script mô hình. `metrics.py` nhập **ECE/Brier** từ
 `vericlue_ml.common.calibration`; `report.py` đọc CSV, bootstrap và sinh Markdown.

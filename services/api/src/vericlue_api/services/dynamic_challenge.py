@@ -18,7 +18,7 @@ VOICE_PROMPTS = (
 )
 GAZE_DURATION_MS = 7000
 GAZE_INTERVAL_MS = 1000
-HEAD_DURATION_MS = 6000
+HEAD_DURATION_MS = 12000
 MIN_GAZE_AXIS_SPAN = 0.30
 PROMPT_WORDS = (
     "mây",
@@ -88,21 +88,28 @@ def generate_dynamic_challenge(
         for offset in range(GAZE_INTERVAL_MS, GAZE_DURATION_MS + 1, GAZE_INTERVAL_MS):
             previous = points[-1]
             while True:
-                x, y = rng.randint(20, 80) / 100, rng.randint(20, 80) / 100
-                if (x - previous.x) ** 2 + (y - previous.y) ** 2 >= 0.04:
+                x, y = rng.randint(20, 80) / 100, rng.randint(26, 74) / 100
+                step_sq = (x - previous.x) ** 2 + (y - previous.y) ** 2
+                if 0.04 <= step_sq <= 0.18:
                     break
             points.append(GazePoint(x=x, y=y, at_ms=gaze_start + offset))
-        # A near-vertical/horizontal path cannot independently test both gaze axes.
-        if all(
+        # A near-vertical/horizontal or diagonally locked path cannot cleanly test both gaze axes.
+        spans_ok = all(
             max(getattr(p, axis) for p in points) - min(getattr(p, axis) for p in points)
             >= MIN_GAZE_AXIS_SPAN
             for axis in ("x", "y")
-        ):
+        )
+        two_step_ok = all(
+            abs(points[i + 2].x - points[i + 1].x) + abs(points[i + 1].x - points[i].x) >= 0.18
+            and abs(points[i + 2].y - points[i + 1].y) + abs(points[i + 1].y - points[i].y) >= 0.16
+            for i in range(len(points) - 2)
+        )
+        if spans_ok and two_step_ok:
             break
     turns = ["left", "right"] if secrets.randbelow(2) == 0 else ["right", "left"]
     head_start = gaze_start + GAZE_DURATION_MS
     challenge.dynamic = DynamicChallenge(
-        version=1,
+        version=2,
         session_id=session_id,
         nonce=nonce,
         gaze_points=points,

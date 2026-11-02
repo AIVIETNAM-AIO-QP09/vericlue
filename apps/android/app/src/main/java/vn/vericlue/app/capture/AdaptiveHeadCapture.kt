@@ -26,7 +26,7 @@ class AdaptiveHeadCapture(private val order: List<TurnDir?>, private val deadlin
     init { require(order.isNotEmpty() && deadlineMs.isFinite() && deadlineMs > 0) }
 
     private fun newGate() = HeadActionGate(
-        direction = order.getOrNull(segment), straightDeg = 8f, holdMs = 650L,
+        direction = order.getOrNull(segment), straightDeg = HeadTurnGuide.CENTER_MAX_DEG, holdMs = 650L,
     )
 
     fun update(signal: FaceSignal?, nowMs: Long, videoMs: Double): HeadCaptureState {
@@ -43,7 +43,7 @@ class AdaptiveHeadCapture(private val order: List<TurnDir?>, private val deadlin
         // starts with a fresh gate, so the same frame cannot satisfy two commands.
         if (completeAt != null) {
             if (!QualityGate.hasCompleteFace(signal, nowMs) ||
-                (segment == order.lastIndex && (signal == null || abs(signal.yaw) > 8f))) {
+                (segment == order.lastIndex && (signal == null || abs(signal.yaw) > HeadTurnGuide.CENTER_MAX_DEG))) {
                 completeAt = null
                 gate.reset()
             } else if (nowMs - completeAt!! >= 250L) {
@@ -61,13 +61,13 @@ class AdaptiveHeadCapture(private val order: List<TurnDir?>, private val deadlin
             signal == null || !QualityGate.isFresh(signal, nowMs) || signal.faces == 0 -> HeadFeedback.FaceMissing
             signal.faces > 1 -> HeadFeedback.MultipleFaces
             !signal.pitch.isFinite() || !signal.roll.isFinite() ||
-                abs(signal.pitch) > 15f || abs(signal.roll) > 15f -> HeadFeedback.Level
+                abs(signal.pitch) > HeadTurnGuide.MAX_TILT_DEG || abs(signal.roll) > HeadTurnGuide.MAX_TILT_DEG -> HeadFeedback.Level
             !QualityGate.hasCompleteFace(signal, nowMs) -> HeadFeedback.FaceMissing
-            abs(signal.yaw) > 45f -> HeadFeedback.EaseBack
+            abs(signal.yaw) > HeadTurnGuide.TURN_MAX_SAFE_DEG -> HeadFeedback.EaseBack
             order[segment] == TurnDir.Left && signal.yaw < -10f ||
                 order[segment] == TurnDir.Right && signal.yaw > 10f -> HeadFeedback.WrongDirection
-            order[segment] == null && abs(signal.yaw) > 8f -> HeadFeedback.Turn
-            order[segment] != null && abs(signal.yaw) < 25f -> HeadFeedback.Further
+            order[segment] == null && abs(signal.yaw) > HeadTurnGuide.CENTER_MAX_DEG -> HeadFeedback.Turn
+            order[segment] != null && abs(signal.yaw) < HeadTurnGuide.TURN_MIN_DEG -> HeadFeedback.Further
             else -> HeadFeedback.Hold
         }
         // Invalid/over-rotated poses reset the current hold but keep the requested direction.

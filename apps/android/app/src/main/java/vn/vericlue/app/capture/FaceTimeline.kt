@@ -40,13 +40,26 @@ class FaceTimeline(
     val baselineEndMs: Int = slotEnds.firstOrNull() ?: 0
     val endMs: Int = headStartMs + headDurationMs
     private val segmentMs = if (headTurns.isEmpty()) headDurationMs else headDurationMs / headTurns.size
+    private val headSegmentEndsMs = (
+        if (headDurationMs == 12000 && headTurns in listOf(
+                listOf(TurnDir.Left, TurnDir.Right, null),
+                listOf(TurnDir.Right, TurnDir.Left, null),
+            )) listOf(5000, 10000, 12000)
+        else List(headTurns.size.coerceAtLeast(1)) { (it + 1) * segmentMs }
+        ).map { headStartMs + it }
+
+    /** Scheduled start of an existing UI cue, on the recording's time axis. */
+    fun headSegmentStartMs(index: Int): Int {
+        require(index in headTurns.indices)
+        return if (index == 0) headStartMs else headSegmentEndsMs[index - 1]
+    }
 
     fun phaseAt(t: Double): Phase = when {
         t < coloursEndMs -> Phase.Colour(slotEnds.indexOfFirst { t < it })
         gaze.isNotEmpty() && t < gaze.first().atMs -> Phase.Gap
         gaze.isNotEmpty() && t < gaze.last().atMs -> gazeAt(t)
         t < headStartMs -> gaze.lastOrNull()?.let { Phase.Gaze(it.x, it.y) } ?: Phase.Gap
-        t < endMs -> ((t - headStartMs) / segmentMs).toInt().coerceIn(0, headTurns.lastIndex.coerceAtLeast(0))
+        t < endMs -> headSegmentEndsMs.indexOfFirst { t < it }.let { if (it >= 0) it else headSegmentEndsMs.lastIndex }
             .let { Phase.Head(it, headTurns.getOrNull(it)) }
         else -> Phase.Done
     }
@@ -60,6 +73,18 @@ class FaceTimeline(
         return Phase.Gaze(a.x + (b.x - a.x) * f, a.y + (b.y - a.y) * f)
     }
 
+    fun headRemainingSeconds(t: Double): Int? {
+        if (!t.isFinite()) return null
+        val head = phaseAt(t) as? Phase.Head ?: return null
+        return kotlin.math.ceil((headSegmentEndsMs[head.segment] - t) / 1000.0).toInt().coerceAtLeast(1)
+    }
+
+    fun nextHeadDirection(t: Double): TurnDir? {
+        if (!t.isFinite()) return null
+        val head = phaseAt(t) as? Phase.Head ?: return null
+        return headTurns.getOrNull(head.segment + 1)
+    }
+
     companion object {
         /** Offline preview only. Never used to replace a missing/invalid server challenge. */
         fun demo(order: List<TurnDir>): FaceTimeline {
@@ -70,7 +95,7 @@ class FaceTimeline(
                 GazeMark(random.nextDouble(0.15, 0.85), random.nextDouble(0.3, 0.7), start + i * 850)
             }
             return FaceTimeline(slots, 500, marks, order + listOf(null),
-                marks.last().atMs, (order.size + 1) * 2000, 30000 - marks.last().atMs)
+                marks.last().atMs, (order.size + 1) * 4000, 30000 - marks.last().atMs)
         }
 
         /**
@@ -93,6 +118,10 @@ class FaceTimeline(
             if (d.headMode == "adaptive" && (d.headTimeoutMs == null || d.headTimeoutMs < 6000 ||
                     d.headStartAtMs.toLong() + d.headTimeoutMs != 30000L)) return null
             if (d.headMode == null && d.headTimeoutMs != null) return null
+            if ((d.version to d.headDurationMs) !in setOf(1 to 6000, 2 to 12000) ||
+                d.headStartAtMs < 500 || d.headStartAtMs.toLong() + d.headDurationMs > 30000 ||
+                d.voiceStartAtMs.toLong() != d.headStartAtMs.toLong() + d.headDurationMs ||
+                d.headTurns !in listOf(listOf("left", "right", "center"), listOf("right", "left", "center"))) return null
             val turns = d.headTurns.map {
                 when (it) {
                     "left" -> TurnDir.Left

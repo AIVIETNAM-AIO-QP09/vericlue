@@ -1,0 +1,107 @@
+{
+  "purpose": "Numerical implementation parity only; not spoof detection accuracy or an authorization artifact",
+  "source_commit": "52cebaf8890479d89638b0423a802af85c8cc0c6",
+  "script_sha256": "a449c9a3e523328c2a4fb671a5059937bfe52bbc512ab034d9e32fe3aaff6e32",
+  "model_version": "nes2net-x@c9fe1177f44040f002cb40def928332d2e261f1e+hf4576-cpu-fp32-first4s-v1",
+  "checkpoint_sha256": "3158d10c6fc3c58e452a33981b409f5a65ecf91d548931b4ffbd675462799685",
+  "input_dataset": "AILAB-VNUHCM/vivos",
+  "input_dataset_revision": "3cbfb2502e5e84776b4b778b020a09759f723f52",
+  "input_usage": "diagnostic only; excluded from fitting and threshold selection",
+  "samples": 32,
+  "speakers": 9,
+  "independent_pcm_windows": 32,
+  "reference_runtime": {
+    "python_version": "3.10.22",
+    "torch_version": "2.2.2+cpu",
+    "fairseq_version": "0.12.2",
+    "cpu_threads": 4
+  },
+  "wsl_converted_runtime": {
+    "python_version": "3.12.3",
+    "torch_version": "2.2.2+cpu",
+    "transformers_version": "4.57.6",
+    "numpy_version": "1.26.4",
+    "cpu_threads": 4
+  },
+  "wsl_comparison": {
+    "status": "PASS",
+    "window_count": 32,
+    "independent_sample_count": 32,
+    "synthetic": false,
+    "min_required_clips": 32,
+    "max_abs_logit_diff": 1.3470649719238281e-05,
+    "mean_abs_logit_diff": 2.0526349544525146e-06,
+    "max_abs_margin_diff": 2.47955322265625e-05,
+    "mean_abs_margin_diff": 3.807246685028076e-06,
+    "sign_agreement": 1.0,
+    "tolerances": {
+      "max_abs_logit_diff": 0.0001,
+      "max_abs_margin_diff": 0.0001,
+      "sign_agreement": 1.0
+    },
+    "diversity": {
+      "total_records": 32,
+      "unique_window_count": 32,
+      "unique_source_count": 32,
+      "unique_audio_file_count": 32,
+      "duplicate_window_count": 0,
+      "duplicate_source_count": 0,
+      "independent_sample_count": 32,
+      "all_unique": true
+    }
+  },
+  "windows_runtime": {
+    "python": "3.12.15 (main, Oct  3 2026, 01:05:37) [MSC v.1944 64 bit (AMD64)]",
+    "torch": "2.14.1+cpu",
+    "transformers": "4.57.6",
+    "numpy": "2.5.4",
+    "cpu_threads": 4
+  },
+  "windows_comparison": {
+    "status": "PASS",
+    "window_count": 32,
+    "independent_sample_count": 32,
+    "synthetic": false,
+    "min_required_clips": 32,
+    "max_abs_logit_diff": 4.839897155761719e-05,
+    "mean_abs_logit_diff": 5.990266799926758e-06,
+    "max_abs_margin_diff": 7.271766662597656e-05,
+    "mean_abs_margin_diff": 1.1742115020751953e-05,
+    "sign_agreement": 1.0,
+    "tolerances": {
+      "max_abs_logit_diff": 0.0001,
+      "max_abs_margin_diff": 0.0001,
+      "sign_agreement": 1.0
+    },
+    "diversity": {
+      "total_records": 32,
+      "unique_window_count": 32,
+      "unique_source_count": 32,
+      "unique_audio_file_count": 32,
+      "duplicate_window_count": 0,
+      "duplicate_source_count": 0,
+      "independent_sample_count": 32,
+      "all_unique": true
+    }
+  },
+  "local_report_sha256": {
+    "nes2net-parity-matched-runtime.json": "9409d9ab4dcf51ab6c3c097f517e0643ef99386341be89c2b9887b05fe7273b0",
+    "nes2net-parity-windows.json": "21c8edafe7e11be84aa2d1ed7886b5c95d7911bf761eb64a6c1984c50a229c51"
+  },
+  "prior_failed_comparisons_retained": true,
+  "limitations": [
+    "Only these inputs and runtimes were measured; not population performance",
+    "Both classes, subject-disjoint calibration/evaluation, aggregation policy and decision artifacts remain required",
+    "Detector acceptance/status and thresholds were not changed"
+  ],
+  "implementation_binding": {
+    "fingerprint_version": "numerical-ast-v1",
+    "config_sha256": "681770d5efcae41a7cd4aa0dd3faebc90a9156230653cf8045406fe707337625",
+    "code_sha256": {
+      "nes2net.py": "cbd29162cb6754b05debdc53b87694ef10c84a2ff4ca9682e49695e5029f6cb7",
+      "_nes2net_arch.py": "54d6eeb19a1d9833061b24e5b9e7fa4c328cf0aa088f29865e545405643e8757",
+      "antispoof.py": "adb05c9f077abfb46f619c4f441049479aed672f72ceccb5df9343908f5a2917"
+    },
+    "recipe": "first_64000_samples_repeat_if_short_no_normalization_no_trim"
+  }
+}

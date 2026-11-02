@@ -12,7 +12,7 @@ class FramingAlignmentTest {
     private fun frame(at: Long = 0L, width: Float = .28f) = FaceSignal(
         faces = 1, widthFraction = width, heightFraction = .36f,
         centerX = .5f, centerY = .48f, yaw = 0f, pitch = 0f, roll = 0f,
-        luma = 120f, timestampNs = at * 1_000_000, observedAtMs = at,
+        luma = 120f, timestampNs = (at * 1_000_000).coerceAtLeast(1L), observedAtMs = at,
         imageWidth = 480, imageHeight = 640, landmarksComplete = true,
         landmarksVisible = true, trackingId = 7,
     )

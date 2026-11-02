@@ -20,6 +20,7 @@ from vericlue_ml.face.match import MatchThreshold
 from vericlue_ml.face.template import FaceTemplate
 from vericlue_ml.face.video_match import VIDEO_MATCH_VERSION, VideoFaceMatchDetector
 from vericlue_ml.presence.challenge import expected_dynamic
+from vericlue_ml.presence.head_protocol import head_protocol_version, head_sampling_suffix
 from vericlue_ml.presence.head_turn import CENTER_MAX_DEG, MAX_PITCH_ROLL_DEG
 from vericlue_ml.presence.landmarks import LandmarkError
 from vericlue_ml.presence.session_views import session_views
@@ -27,6 +28,13 @@ from vericlue_ml.presence.views import select_frontal_frame, video_sha256
 
 REAUTH_MATCH_VERSION = VIDEO_MATCH_VERSION + "+enrolled-reauth-v1"
 RECOVERY_MATCH_VERSION = VIDEO_MATCH_VERSION + "+enrolled-recovery-v1"
+
+
+def recovery_match_version(protocol: int, *, adaptive: bool = False) -> str:
+    """Bind enrolled recovery to the exact server capture protocol."""
+    if type(protocol) is not int or protocol not in (1, 2):
+        raise ValueError("Unknown recovery head protocol")
+    return RECOVERY_MATCH_VERSION + head_sampling_suffix(protocol, adaptive=adaptive)
 
 
 def match_enrolled(
@@ -42,6 +50,11 @@ def match_enrolled(
     try:
         if inp.metadata.get("purpose") not in {"reauth", "recovery"}:
             raise LandmarkError(ErrorCode.E_CHALLENGE_MISMATCH)
+        protocol = head_protocol_version(inp) if recovery else None
+        if recovery:
+            version = recovery_match_version(
+                protocol, adaptive=expected_dynamic(inp).get("head_mode") == "adaptive"
+            )
         template = FaceTemplate.model_validate_json(template.model_dump_json())
         if template.model_version != VIDEO_MATCH_VERSION or inp.video is None:
             raise LandmarkError(ErrorCode.E_INTEGRITY)
@@ -79,34 +92,70 @@ def match_enrolled(
             for a, b in combinations(sorted(vectors), 2)
         ]
         artifact = None
-        if calibration_path is not None:
+        if calibration_path is not None and matcher.manual_demo is None:
             artifact = MatchThreshold.model_validate_json(
                 calibration_path.read_text(encoding="utf-8")
             )
             if artifact.model_version != version:
                 raise LandmarkError(ErrorCode.E_INTEGRITY)
         consistency = matcher._consistency_threshold
+        if recovery and matcher.manual_demo is None and consistency is not None:
+            expected_consistency = (
+                VIDEO_MATCH_VERSION
+                + head_sampling_suffix(
+                    protocol, adaptive=expected_dynamic(inp).get("head_mode") == "adaptive"
+                )
+                + "+view-consistency-v1"
+            )
+            if consistency.model_version != expected_consistency:
+                raise LandmarkError(ErrorCode.E_INTEGRITY)
+        threshold_value = (
+            matcher.manual_demo.match_min
+            if matcher.manual_demo is not None
+            else artifact.threshold
+            if artifact is not None
+            else None
+        )
+        consistency_value = (
+            matcher.manual_demo.consistency_min
+            if matcher.manual_demo is not None
+            else consistency.threshold
+            if consistency is not None
+            else None
+        )
         consistent = bool(
             recovery
             and len(view_cosines) == 3
-            and consistency is not None
-            and min(view_cosines) >= consistency.threshold
+            and consistency_value is not None
+            and min(view_cosines) >= consistency_value
         )
-        available = artifact is not None and (not recovery or consistency is not None)
-        passed = available and cosine >= artifact.threshold and (not recovery or consistent)
+        available = threshold_value is not None and (not recovery or consistency_value is not None)
+        passed = available and cosine >= threshold_value and (not recovery or consistent)
+        effective_version = version + (
+            matcher.manual_demo.version_suffix if matcher.manual_demo is not None else ""
+        )
         return ModuleResult(
             module=Module.FACE_MATCH,
-            model_version=version,
+            model_version=effective_version,
             status=Status.OK if available else Status.DEGRADED,
             gate=(Gate.PASS if passed else Gate.FAIL) if available else Gate.UNCLEAR,
             score=1 - cosine,
             quality={
                 "threshold_available": available,
-                "threshold_cosine": artifact.threshold if artifact else None,
+                "threshold_cosine": threshold_value,
                 "consistency_verified": consistent,
                 "depth_verified": False,
                 "enrolled_reference": True,
                 "frontal_pose_checked": True,
+                **(
+                    {
+                        "manual_demo": True,
+                        "calibrated": False,
+                        "demo_policy_id": matcher.manual_demo.policy_id,
+                    }
+                    if matcher.manual_demo is not None
+                    else {}
+                ),
             },
             evidence=[
                 Evidence(type="text", name="source_video_sha256", value=checksum),

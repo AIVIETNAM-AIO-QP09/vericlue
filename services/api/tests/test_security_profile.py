@@ -30,6 +30,7 @@ def protected(**updates) -> Settings:
         "session_privacy": True,
         "require_media_proof": True,
         "use_mock_models": False,
+        "simulated_otp": False,
         "session_master_key": base64.b64encode(secrets.token_bytes(32)).decode(),
         "id_hmac_key": secrets.token_urlsafe(32),
         "session_signing_secret": secrets.token_urlsafe(32),
@@ -62,6 +63,7 @@ def test_valid_independent_protected_configuration_is_accepted():
         {"session_signing_secret": "short"},
         {"use_mock_models": True},
         {"use_mock_models": "mixed"},
+        {"simulated_otp": True},
     ],
 )
 def test_protected_profile_rejects_missing_or_unsafe_components(changes):
@@ -103,30 +105,48 @@ def test_protected_failure_precedes_application_state_creation(monkeypatch):
     assert caught.value.error_code == "security_profile_unavailable"
 
 
-def test_synthetic_labs_remain_explicitly_synthetic():
-    settings = Settings(_env_file=None, security_profile="synthetic", use_mock_models=True)
+@pytest.mark.parametrize("mode", [False, "mixed", True])
+def test_synthetic_labs_remain_explicitly_synthetic(mode):
+    settings = Settings(
+        _env_file=None,
+        security_profile="synthetic",
+        use_mock_models=mode,
+        simulated_otp=True,
+    )
     validate_security_profile(settings)
     ensure_otp_available(settings)
 
 
 @pytest.mark.parametrize("mode", [False, "mixed", True])
-def test_simulated_sms_unavailable_in_protected_profile(mode):
+@pytest.mark.parametrize("simulated_otp", [False, True])
+def test_simulated_sms_unavailable_in_protected_profile(mode, simulated_otp):
     with pytest.raises(ApiError) as caught:
-        ensure_otp_available(protected(use_mock_models=mode))
+        ensure_otp_available(protected(use_mock_models=mode, simulated_otp=simulated_otp))
     assert caught.value.error_code == "otp_unavailable"
 
 
-@pytest.mark.parametrize("mode", [False, "mixed"])
-def test_simulated_sms_cannot_be_used_in_real_or_mixed_labs(mode):
+@pytest.mark.parametrize("mode", [False, "mixed", True])
+def test_simulated_sms_cannot_be_used_in_real_or_mixed_labs(monkeypatch, mode):
+    monkeypatch.delenv("SIMULATED_OTP", raising=False)
+    default_settings = Settings(_env_file=None, use_mock_models=mode)
+    assert default_settings.simulated_otp is False
     with pytest.raises(ApiError) as caught:
-        ensure_otp_available(Settings(_env_file=None, use_mock_models=mode))
+        ensure_otp_available(default_settings)
     assert caught.value.error_code == "otp_unavailable"
 
 
 @pytest.mark.parametrize(
-    "mode,profile", [(False, "synthetic"), ("mixed", "synthetic"), (True, "protected")]
+    "mode,profile,simulated_otp",
+    [
+        (False, "synthetic", False),
+        ("mixed", "synthetic", False),
+        (True, "protected", False),
+        (False, "protected", True),
+    ],
 )
-def test_existing_simulated_otp_cannot_be_verified_after_mode_switch(client, mode, profile):
+def test_existing_simulated_otp_cannot_be_verified_after_mode_switch(
+    client, mode, profile, simulated_otp
+):
     from conftest import start_session
 
     session, auth = start_session(client)
@@ -136,7 +156,11 @@ def test_existing_simulated_otp_cannot_be_verified_after_mode_switch(client, mod
     code = re.search(r"\b(\d{6})\b", sent.json()["simulated_sms"]).group(1)
     root = client.app.state.vericlue
     root.settings = root.settings.model_copy(
-        update={"use_mock_models": mode, "security_profile": profile}
+        update={
+            "use_mock_models": mode,
+            "security_profile": profile,
+            "simulated_otp": simulated_otp,
+        }
     )
     denied = client.post(f"/v1/sessions/{sid}/otp/verify", headers=auth, json={"code": code})
     assert denied.status_code == 503 and denied.json()["error_code"] == "otp_unavailable"
@@ -147,12 +171,14 @@ def test_existing_simulated_otp_cannot_be_verified_after_mode_switch(client, mod
         assert stored.otp_attempts_left == 5
 
 
-@pytest.mark.parametrize("mode", [False, "mixed"])
+@pytest.mark.parametrize("mode", [False, "mixed", True])
 def test_real_mode_legacy_otp_never_returns_a_simulated_sms(client, mode):
     from conftest import start_session
 
     root = client.app.state.vericlue
-    root.settings = root.settings.model_copy(update={"use_mock_models": mode})
+    root.settings = root.settings.model_copy(
+        update={"use_mock_models": mode, "simulated_otp": False}
+    )
     session, auth = start_session(client)
     sid = session["session_id"]
     denied = client.post(f"/v1/sessions/{sid}/otp", headers=auth, json={"phone": "0900000000"})
@@ -172,6 +198,7 @@ def test_preflight_outputs_metadata_without_secrets_or_db_access(tmp_path, monke
     monkeypatch.setenv("SESSION_PRIVACY", "true")
     monkeypatch.setenv("REQUIRE_MEDIA_PROOF", "true")
     monkeypatch.setenv("USE_MOCK_MODELS", "false")
+    monkeypatch.delenv("SIMULATED_OTP", raising=False)
     monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://not-a-real-host/profile")
     for field, name in [
         ("session_master_key", "SESSION_MASTER_KEY"),

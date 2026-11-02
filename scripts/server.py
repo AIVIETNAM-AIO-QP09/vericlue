@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import ctypes
 import json
+import math
 import os
 import socket
 import subprocess
@@ -157,6 +158,12 @@ def _start(runtime: Path) -> None:
     if port_active():
         raise SystemExit("Cổng 8421 đang hoạt động; không mở thêm server.")
     load_profile(runtime)
+    try:
+        startup_timeout = float(os.environ.get("VERICLUE_STARTUP_TIMEOUT_SECONDS", "120"))
+    except ValueError:
+        raise SystemExit("VERICLUE_STARTUP_TIMEOUT_SECONDS phải là số từ 30 đến 600.") from None
+    if not math.isfinite(startup_timeout) or not 30 <= startup_timeout <= 600:
+        raise SystemExit("VERICLUE_STARTUP_TIMEOUT_SECONDS phải là số từ 30 đến 600.")
     require_memory()
     with (
         (runtime / "server.out.log").open("a") as out,
@@ -178,7 +185,7 @@ def _start(runtime: Path) -> None:
             creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
             start_new_session=os.name != "nt",
         )
-    deadline = time.monotonic() + 120
+    deadline = time.monotonic() + startup_timeout
     while child.poll() is None and time.monotonic() < deadline:
         try:
             with urllib.request.urlopen(f"http://127.0.0.1:{PORT}/healthz", timeout=2) as response:

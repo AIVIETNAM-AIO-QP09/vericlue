@@ -43,6 +43,40 @@
         "account_data_erased": {"type": "boolean", "const": false},
         "credential_revocation": {"type": "string", "const": "not_performed"}
       }
+    },
+    "AccountTemplateConsentRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy_version", "purpose", "consent"],
+      "properties": {
+        "policy_version": {"type": "string", "pattern": "^[A-Za-z0-9._-]{1,64}$"},
+        "purpose": {"type": "string", "const": "account_template"},
+        "consent": {"type": "boolean", "const": true}
+      }
+    },
+    "AccountTemplatePrivacyState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_id",
+        "scope",
+        "purpose",
+        "policy_version",
+        "status",
+        "consent_receipt_id",
+        "consented_at",
+        "retention_seconds"
+      ],
+      "properties": {
+        "session_id": {"type": "string", "pattern": "^ses_[A-Za-z0-9_-]{1,120}$"},
+        "scope": {"type": "string", "const": "account_template"},
+        "purpose": {"type": "string", "const": "account_template"},
+        "policy_version": {"type": "string", "pattern": "^[A-Za-z0-9._-]{1,64}$"},
+        "status": {"type": "string", "enum": ["not_granted", "granted", "withdrawn"]},
+        "consent_receipt_id": {"anyOf": [{"type": "string", "pattern": "^prv_[0-9a-f]{32}$"}, {"type": "null"}]},
+        "consented_at": {"anyOf": [{"type": "string", "format": "date-time"}, {"type": "null"}]},
+        "retention_seconds": {"type": "integer", "const": 86400}
+      }
     }
   }
 }

@@ -30,6 +30,7 @@ import vn.vericlue.app.ui.screens.ReviewScreen
 import vn.vericlue.app.ui.screens.SplashScreen
 import vn.vericlue.app.ui.screens.SuccessScreen
 import vn.vericlue.app.ui.screens.TermsScreen
+import vn.vericlue.app.ui.screens.PrivacyStopScreen
 import vn.vericlue.app.ui.screens.VoiceScreen
 import vn.vericlue.app.ui.theme.VcTheme
 
@@ -80,6 +81,10 @@ abstract class OnboardingJourneySnapshots(device: DeviceConfig, private val comp
 
     @Test fun conditionalAndErrorStates() {
         for (dark in listOf(false, true)) {
+            shot("p01_reauth_consent", dark) { TermsScreen(n, n, purpose = Purpose.Reauth) }
+            shot("p02_withdraw", dark) { PrivacyStopScreen(false, false, false, n, n, n) }
+            shot("p03_withdraw_unconfirmed", dark) { PrivacyStopScreen(false, true, true, n, n, n) }
+            shot("p04_session_only_success", dark) { SuccessScreen(Purpose.Onboarding, n, checked = FlowRules.checkedByServer(false), accountReady = false) }
             shot("b01_terms_details", dark) { TermsScreen(n, n, initialAccepted = true, initialDetailsOpen = true) }
             shot("b02_card_back", dark) { IdScanScreen(true, null, n, n, n) }
             shot("b03_voice", dark) { VoiceScreen(n, n, sentence = "Tôi xác nhận danh tính, mã số tám ba năm một.") }

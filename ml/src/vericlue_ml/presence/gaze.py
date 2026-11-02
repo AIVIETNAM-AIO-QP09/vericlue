@@ -19,7 +19,7 @@ from vericlue_ml.common.result import ErrorCode, Evidence, Gate, Module, ModuleR
 from vericlue_ml.presence.challenge import expected_dynamic
 from vericlue_ml.presence.landmarks import FaceObservation, FaceObservationReader, LandmarkError
 
-GAZE_VERSION = "gaze-rules@0.1+face-landmarker-f16-1"
+GAZE_VERSION = "gaze-rules@0.3+face-landmarker-f16-1"
 MIN_VALID_SAMPLES = 45
 MIN_COVERAGE = 0.80
 MAX_GAP_MS = 300
@@ -128,23 +128,41 @@ def evaluate_gaze(observations: list[FaceObservation], plan: GazePlan) -> GazeEv
     if np.any(spans < MIN_IRIS_SPAN):
         return GazeEvaluation(Status.OK, Gate.FAIL, "eyes_not_following", metrics)
     # Compare every candidate lag on exactly the same support, rather than trim to a lucky suffix.
-    common = ts >= plan.times[0] + MAX_LAG_MS
-    actual = actual[common]
+    if len(actual) >= 3:
+        kernel = np.ones(3, dtype=float) / 3.0
+        smoothed = np.column_stack(
+            [
+                np.convolve(np.pad(actual[:, axis], 1, mode="edge"), kernel, mode="valid")
+                for axis in (0, 1)
+            ]
+        )
+    else:
+        smoothed = actual
+    support_windows = [
+        (ts >= plan.times[0] + start_trim) & (ts <= plan.times[-1] - end_trim)
+        for start_trim, end_trim in ((MAX_LAG_MS, 0), (1000, 0), (1000, 500), (1500, 500))
+    ]
+    support_windows = [
+        mask for mask in support_windows if int(np.count_nonzero(mask)) >= MIN_VALID_SAMPLES
+    ] or [ts >= plan.times[0] + MAX_LAG_MS]
     target = np.asarray(plan.points)
     best = (-1.0, -1.0, 0)
-    for lag in range(0, MAX_LAG_MS + 1, LAG_STEP_MS):
-        expected = np.column_stack(
-            [np.interp(ts[common] - lag, plan.times, target[:, axis]) for axis in (0, 1)]
-        )
-        correlations = []
-        for axis in (0, 1):
-            x, y = actual[:, axis], expected[:, axis]
-            if np.std(x) < 1e-9 or np.std(y) < 1e-9:
-                correlations.append(-1.0)
-            else:
-                correlations.append(float(np.corrcoef(x, y)[0, 1]))
-        if min(correlations) > min(best[:2]):
-            best = (*correlations, lag)
+    for mask in support_windows:
+        actual_window = smoothed[mask]
+        ts_window = ts[mask]
+        for lag in range(0, MAX_LAG_MS + 1, LAG_STEP_MS):
+            expected = np.column_stack(
+                [np.interp(ts_window - lag, plan.times, target[:, axis]) for axis in (0, 1)]
+            )
+            correlations = []
+            for axis in (0, 1):
+                x, y = actual_window[:, axis], expected[:, axis]
+                if np.std(x) < 1e-9 or np.std(y) < 1e-9:
+                    correlations.append(-1.0)
+                else:
+                    correlations.append(float(np.corrcoef(x, y)[0, 1]))
+            if min(correlations) > min(best[:2]):
+                best = (*correlations, lag)
     metrics.update({"correlation_x": best[0], "correlation_y": best[1], "lag_ms": float(best[2])})
     matched = min(best[:2]) >= MIN_CORRELATION
     return GazeEvaluation(

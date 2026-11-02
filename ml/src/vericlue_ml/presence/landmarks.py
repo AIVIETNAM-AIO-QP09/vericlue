@@ -69,6 +69,18 @@ def pose_angles(matrix: np.ndarray) -> tuple[float, float, float] | None:
     return tuple(math.degrees(angle) for angle in (yaw, pitch, roll))
 
 
+def _cluster_anchor(
+    xy: np.ndarray, base_idx: int, support_indices: tuple[int, ...], max_radius: float
+) -> np.ndarray:
+    base = xy[base_idx]
+    members = [base]
+    for idx in support_indices:
+        candidate = xy[idx]
+        if float(np.linalg.norm(candidate - base)) <= max_radius:
+            members.append(candidate)
+    return np.mean(members, axis=0)
+
+
 def eye_position(points: np.ndarray, width: int, height: int) -> tuple[float, float] | None:
     """Eye-relative iris motion proxy for unmirrored front-camera video, not screen gaze."""
     points = np.asarray(points, dtype=float)
@@ -76,11 +88,17 @@ def eye_position(points: np.ndarray, width: int, height: int) -> tuple[float, fl
         return None
     xy = points[:, :2] * [width, height]
     estimates = []
-    for corners, lids, ring in (
-        ((33, 133), (159, 145), (469, 470, 471, 472)),
-        ((362, 263), (386, 374), (474, 475, 476, 477)),
+    for corners, support, lids, center_idx, ring in (
+        ((33, 133), ((130, 226), (243, 244)), (159, 145), 468, (469, 470, 471, 472)),
+        ((362, 263), ((463, 464), (359, 446)), (386, 374), 473, (474, 475, 476, 477)),
     ):
-        left, right = sorted((xy[corners[0]], xy[corners[1]]), key=lambda p: p[0])
+        raw_width = float(np.linalg.norm(xy[corners[1]] - xy[corners[0]]))
+        if raw_width < MIN_EYE_WIDTH_PX:
+            return None
+        max_radius = 0.45 * raw_width
+        c0 = _cluster_anchor(xy, corners[0], support[0], max_radius)
+        c1 = _cluster_anchor(xy, corners[1], support[1], max_radius)
+        left, right = sorted((c0, c1), key=lambda p: p[0])
         axis = right - left
         eye_width = float(np.linalg.norm(axis))
         if eye_width < MIN_EYE_WIDTH_PX:
@@ -90,9 +108,12 @@ def eye_position(points: np.ndarray, width: int, height: int) -> tuple[float, fl
         opening = abs(float((xy[lids[1]] - xy[lids[0]]) @ vertical)) / eye_width
         if opening < MIN_EYE_OPEN_RATIO:
             return None
-        iris = xy[list(ring)].mean(axis=0)
+        ring_pts = [xy[idx] for idx in ring]
+        if float(np.linalg.norm(xy[center_idx] - np.mean(ring_pts, axis=0))) <= max_radius:
+            ring_pts.append(xy[center_idx])
+        iris = np.mean(ring_pts, axis=0)
         horizontal = float((iris - left) @ axis) / eye_width
-        center_y = (xy[lids[0]] + xy[lids[1]]) / 2
+        center_y = (c0 + c1) / 2
         y = float((iris - center_y) @ vertical) / eye_width
         if not 0 <= horizontal <= 1 or abs(y) > 0.5:
             return None

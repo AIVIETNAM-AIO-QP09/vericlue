@@ -23,6 +23,9 @@ màn hình và thời gian do server cấp; viền navy/tâm sáng giúp nhìn r
   gồm crop/xoay/phản chiếu. Chưa có transform thì chưa bắt đầu.
 - `StableFaceGate` yêu cầu nằm trong oval qua nhiều frame khác nhau, mới và
   liên tục trong một giây. Poll UI hoặc một frame Good bị treo không đủ.
+  Sau tích hợp timestamp từ main, kiểm cả tuổi frame cảm biến đã chuẩn hóa và
+  thời điểm vào analyzer; thời gian giữ tính theo capture, không theo độ trễ xử lý.
+  JPEG phải được chụp sau yêu cầu, không dùng frame cũ đang chờ trong hàng đợi.
 - Căn mặt chấp nhận từ 24% chiều rộng ảnh nhưng ít nhất 100×100 pixel; giữ
   nguyên kiểm tra mặt trọn trong ảnh và đủ landmarks. Oval có dung sai 6%,
   tăng tối đa 10% khi đã căn ổn định để tránh rung mép làm mất tiến độ.
@@ -54,6 +57,17 @@ Nguồn: [ML Kit về landmarks/pose](https://developers.google.com/ml-kit/visio
 Kích thước ảnh mặt tham khảo: [ML Kit Android](https://developers.google.com/ml-kit/vision/face-detection/android).
 
 ## Chuyển động
+
+Sau khi tích hợp main, hướng dẫn chữ/giọng và bộ giữ tư thế adaptive dùng chung
+dải hướng dẫn local: quay 16–29°, chính diện tối đa 8°, nghiêng tối đa 12°.
+Đây là điều kiện thu hình phía app; server vẫn tự kiểm video bằng các luật hiện có.
+Lịch cũ v1 vẫn 2/2/2 giây, v2 là 5/5/2 giây. Adaptive có ngân sách riêng và
+không dùng các ô thời gian đó để tự chuyển bước. Diagnostic adaptive ghi hướng
+thực đang được yêu cầu tại thời điểm chụp frame, kể cả frame được giao trễ.
+
+Các artifact hiệu chỉnh phụ thuộc cách chọn góc quay phải có danh tính phiên
+bản adaptive riêng (`+head-adaptive-v1`); không lấy artifact của lịch cố định
+để kết luận đạt cho luồng mới. Không thay giá trị ngưỡng mô hình trong lượt tích hợp.
 
 `HeadMotionGuide` minh họa đầu xoay, mũi tên cong, rồi giữ tư thế; đổi về giữa
 thì hình quay lại chính diện. Đây là hướng dẫn native nhẹ, không tạo WebView

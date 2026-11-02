@@ -11,6 +11,18 @@ sealed interface VideoResult {
     data object Timeout : VideoResult
 }
 
+/** Running video offset from the latest CameraX Status event; finalized files are not live. */
+internal fun runningVideoElapsedMs(
+    recordingActive: Boolean,
+    recordedAt: Pair<Long, Long>?,
+    finalized: Deferred<Boolean>?,
+    nowNs: Long,
+): Int? {
+    if (!recordingActive || finalized?.isActive != true) return null
+    val (lengthNs, atNs) = recordedAt ?: return null
+    return ((lengthNs + nowNs - atNs) / 1_000_000).toInt()
+}
+
 /** Waits for CameraX's completion result, not the server's finalize endpoint. */
 internal suspend fun awaitVideoFile(
     file: File?,

@@ -1,0 +1,10 @@
+{
+  "status": "pass",
+  "evaluation_mode": "manual_full_demo",
+  "demo_policy_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "account": {
+    "account_id": "acct_11111111111111111111111111111111",
+    "device_id": "dev_22222222222222222222222222222222",
+    "expires_at": "2026-10-31T08:35:00Z"
+  }
+}

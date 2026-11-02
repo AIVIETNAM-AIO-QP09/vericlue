@@ -237,8 +237,46 @@ vụ VOICE-01/03 hoặc kết quả benchmark AntiDeepfake.
 - [x] CLI xuất provenance, logit/margin và giới hạn; chặn thay input/ghi đè model.
 - [x] Unit không cần model/Torch, native synthetic smoke, tài liệu/bàn giao/lint/plan_check.
 
-**Chưa nghiệm thu:** parity frontend Fairseq ↔ Transformers, EER tiếng Việt,
-calibration, xử lý toàn câu dài hơn 4 giây, ghép GUI/API hoặc quyết định eKYC.
+**Bổ sung 01/11:** đã đo parity Fairseq ↔ Transformers trên 32 PCM/9 speaker
+VIVOS, đúng các runtime trong báo cáo VOICE-09. Binding opt-in kiểm checkpoint,
+runtime, graph config và fingerprint mã số học; không mở chốt đạt. Các mẫu chỉ
+dùng parity, không hiệu chỉnh. Review và smoke thật được ghi trong bàn giao.
+
+**Toàn câu (01/11):** thêm công cụ offline prepare/collect/fit và max raw margin
+có version `timeline4s-tail-maxmargin-v1`; chỉ đủ điểm khi mọi cửa sổ đã đo.
+Giữ lỗi/thiếu, kiểm người/nguồn cho split và CV, chỉ fit calib_fit. Chưa có dữ
+liệu đủ hai lớp/artifact thật và chưa dùng phép gộp mới trong API. Xem runbook
+`docs/runbooks/nes2net-utterance-calibration.md`.
+
+**Chuẩn bị cloud (01/11):** có downloader DNU revision cố định và notebook sinh
+từ script đã test cho Colab CPU; giữ người/split publisher, kiểm SHA/WAV/PCM,
+resume không ghi đè và xuất bundle allowlist. Đây chỉ lớp thật, luôn báo thiếu
+tấn công/chưa sẵn sàng fit. Đã chạy Colab CPU, nhận và kiểm độc lập bundle
+520 WAV/26người, chia360/80/80 mẫu theo18/4/4người, không inference/fit.
+SHA và báo cáo: `docs/research/2026-11-01-voice-calibration-prep.md`.
+Hướng dẫn `ml/notebooks/README-voice-data.md`.
+
+**Smoke DNU toàn câu (01/11):**3mẫu/3người chọn cố định từ calib_fit trước đo,
+native checkpoint/binding runtime thật trả raw score cả3; giữdegraded/unclear,
+khôngprobability. Không chấm calib_ltt/test,không fit/accuracy/deploy; nguồn
+code/model/report SHA ở ghi chú research trên. Đây chưa phải hiệu chỉnh hai lớp.
+
+**Chưa nghiệm thu:** EER tiếng Việt,
+calibration, chất lượng phép gộp toàn câu, ghép GUI/API hoặc quyết định eKYC.
+
+**Báo cáo cấu trúc (01/11):** `prepare` bổ sung số nhóm/loại tấn công theo tập;
+`readiness` kiểm report đã đo, thống kê mẫu bị loại và CV trên mẫu còn điểm.
+Giữ nhóm liên kết từ manifest đầy đủ, không tách lại nhóm khi mẫu nối bị lỗi.
+Loại tấn công cần có do người dùng khai báo, không suy từ test. Đây chỉ kiểm
+cấu trúc, luôn chưa sẵn sàng hiệu chỉnh/triển khai; không fit hoặc chọn LTT.
+
+**Bảo vệ output/coverage (cuối 01/11):** diagnostic prepare/collect/readiness/
+fit-wrapper không ghi vào kho runtime config/model/data/calibrator, kể cả các
+kho env ngoài repo; kiểm trước xử lý và trước ghi. Dev dependencies nhẹ bật
+18 fixture WAV và oracle JiWER/RapidFuzz từng skip; fake backend có runtime
+synthetic riêng, không import Torch thật. Bộ test liên quan354 đạt/0skip;
+full Python4907 đạt/100skip, review độc lập chấp thuận,15CLI sai kho bị chặn.
+CI riêng ghi trên Draft PR; không dùng kết quả này làm accuracy.
 
 ---
 

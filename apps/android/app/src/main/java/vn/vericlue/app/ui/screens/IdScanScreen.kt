@@ -31,7 +31,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import vn.vericlue.app.capture.CccdQr
 import vn.vericlue.app.capture.IdQuality
-import vn.vericlue.app.capture.idScanHint
+import vn.vericlue.app.capture.idScanDisplayHint
 import vn.vericlue.app.ui.components.Banner
 import vn.vericlue.app.ui.components.CameraFeed
 import vn.vericlue.app.ui.components.LinkButton
@@ -61,7 +61,7 @@ fun IdScanScreen(
                         CircularProgressIndicator(color = c.accent)
                     }
                 }
-                Text(if (taking) "Đang chụp ảnh" else hint ?: idScanHint(quality, back), style = VcType.bodyStrong, color = c.ink)
+                Text(if (taking) "Đang chụp ảnh" else idScanDisplayHint(quality, back, timedOut, hint), style = VcType.bodyStrong, color = c.ink)
                 ScanCheck("Đã đọc mã QR", "Đang tìm mã QR", CccdQr.parse(quality?.qr) != null || quality?.qrRecentlySeen == true)
                 if (!back) ScanCheck("Đã tìm thấy ảnh chân dung", "Đang tìm ảnh chân dung", quality?.portraitPresent == true)
                 if (timedOut) Banner("Đặt đủ bốn góc thẻ trong khung và tránh ánh sáng phản chiếu. Bạn có thể chụp ảnh để thử lại.")

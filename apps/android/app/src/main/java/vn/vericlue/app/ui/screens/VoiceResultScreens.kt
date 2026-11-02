@@ -50,6 +50,7 @@ import androidx.compose.material.icons.outlined.Dns
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import vn.vericlue.app.ui.components.Banner
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -65,6 +66,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import vn.vericlue.app.capture.VoiceCapturePhase
 import vn.vericlue.app.flow.Purpose
 import vn.vericlue.app.ui.components.ChecklistCard
 import vn.vericlue.app.ui.components.CompletionHaptic
@@ -137,33 +139,42 @@ fun VoiceScreen(
     sentence: String? = null,
     level: Float? = null,
     onStartRecording: () -> Unit = {},
+    capturePhase: VoiceCapturePhase = if (startRecording) VoiceCapturePhase.Recording else VoiceCapturePhase.Idle,
 ) {
     val c = Vc.colors
-    var recording by remember { mutableStateOf(startRecording) }
+    val recording = capturePhase == VoiceCapturePhase.Recording
+    val preparing = capturePhase == VoiceCapturePhase.Preparing
+    val processing = capturePhase == VoiceCapturePhase.Finished
     VcScreen(onBack = onBack, step = 3, actions = {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(
                 Modifier.size(76.dp).clip(CircleShape).background(if (recording) Palette.LogoNavy else c.primary)
-                    .clickable(role = Role.Button) {
+                    .clickable(enabled = capturePhase in setOf(VoiceCapturePhase.Idle, VoiceCapturePhase.Recording), role = Role.Button) {
                         if (recording) {
                             onFinished()
                         } else {
-                            recording = true
                             onStartRecording()
                         }
                     },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    if (recording) Icons.Outlined.Stop else Icons.Outlined.Mic,
-                    contentDescription = if (recording) "Dừng ghi âm" else "Bắt đầu ghi âm",
+                    if (preparing || processing) Icons.Outlined.HourglassEmpty else if (recording) Icons.Outlined.Stop else Icons.Outlined.Mic,
+                    contentDescription = if (preparing) "Đang chuẩn bị ghi âm" else if (processing) "Đang xử lý bản ghi" else if (recording) "Dừng ghi âm" else "Bắt đầu ghi âm",
                     tint = if (recording) Color.White else c.onPrimary,
                     modifier = Modifier.size(34.dp),
                 )
             }
             if (recording) Waveform(level)
             Text(
-                if (recording) "Đang ghi âm · Chạm để kết thúc" else "Chạm để bắt đầu đọc",
+                when (capturePhase) {
+                    VoiceCapturePhase.Preparing -> "Đang chuẩn bị · Chờ thông báo rồi bắt đầu đọc"
+                    VoiceCapturePhase.Recording -> "Đang ghi âm · Đọc câu rồi chạm để kết thúc"
+                    VoiceCapturePhase.Finished -> "Đang xử lý bản ghi"
+                    VoiceCapturePhase.Failed -> "Chưa thể bắt đầu ghi âm"
+                    VoiceCapturePhase.Idle -> "Chạm và chờ sẵn sàng rồi bắt đầu đọc"
+                },
+                textAlign = TextAlign.Center,
                 style = VcType.caption,
                 color = c.muted,
             )
@@ -213,17 +224,39 @@ fun CheckingScreen(purpose: Purpose, onDone: () -> Unit, auto: Boolean = true) {
 // ── Results ──────────────────────────────────────────────────────────────────
 
 @Composable
-fun SuccessScreen(purpose: Purpose, onContinue: () -> Unit, auto: Boolean = false, checked: List<String>? = null) {
+fun ManualDemoCompleteScreen(onDone: () -> Unit) {
+    VcScreen(centered = true, actions = { PrimaryButton("Về màn hình chính", onDone) }) {
+        SuccessBadge()
+        TitleBlock("Xác minh thành công", "Các bước AI đã thỏa ngưỡng thử nghiệm của bản demo.", centered = true)
+        Banner("Demo · Ngưỡng chưa hiệu chỉnh", tone = Tone.Warn)
+        Text("Kết quả phục vụ trình diễn, chưa dùng để mở tài khoản hoặc xác minh danh tính thực tế.", style = VcType.body, color = Vc.colors.ink)
+    }
+}
+
+@Composable
+fun SuccessScreen(
+    purpose: Purpose,
+    onContinue: () -> Unit,
+    auto: Boolean = false,
+    checked: List<String>? = null,
+    accountReady: Boolean? = null,
+    manualFullDemo: Boolean = false,
+    preview: Boolean = false,
+) {
     CompletionHaptic(true)
     LaunchedEffect(auto) { if (auto) { delay(2600); onContinue() } }
     VcScreen(centered = true, actions = { PrimaryButton("Hoàn tất", onContinue) }) {
         ContentCard {
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                Text("ĐÃ HOÀN TẤT", style = VcType.labelSmall, color = Vc.colors.ok)
+                Text(if (preview) "XEM TRƯỚC" else "ĐÃ HOÀN TẤT", style = VcType.labelSmall, color = Vc.colors.ok)
                 IdentityScene3D(Modifier.fillMaxWidth().height(168.dp), IllustrationScene.Success)
-                TitleBlock("Xác minh thành công", "Bạn có thể tiếp tục với dịch vụ.", centered = true)
+                TitleBlock(if (preview) "Xem trước màn thành công" else "Xác minh thành công",
+                    if (preview || accountReady == false) null else "Bạn có thể tiếp tục với dịch vụ.", centered = true)
             }
+            if (manualFullDemo) Banner("Demo · Ngưỡng chưa hiệu chỉnh", tone = Tone.Warn)
+            if (preview) Banner("Xem trước giao diện · Không chạy AI", tone = Tone.Warn)
+            if (accountReady == false) Text("Phiên xác minh đã hoàn tất. Tài khoản chưa được lưu trên thiết bị; bạn chưa thể dùng đăng nhập lại.", style = VcType.body, color = Vc.colors.ink)
             if (!checked.isNullOrEmpty()) ChecklistCard("Nội dung đã xác minh", checked.map { Triple(null, it, RowState.Done) })
         }
     }

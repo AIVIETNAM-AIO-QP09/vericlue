@@ -15,7 +15,7 @@ def expected_dynamic(inp: DetectorInput) -> dict:
         or not inp.metadata.get("challenge_id")
         or inp.metadata["challenge_id"] != challenge.get("challenge_id")
         or type(dynamic.get("version")) is not int
-        or dynamic["version"] != 1
+        or dynamic["version"] not in (1, 2)
     ):
         raise LandmarkError(ErrorCode.E_CHALLENGE_MISMATCH)
     return dynamic

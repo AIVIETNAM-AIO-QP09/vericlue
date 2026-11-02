@@ -4,7 +4,7 @@ Upstream Liu-Tianchi/Nes2Net_ASVspoof_ITW@c9fe1177f44040f002cb40def928332d2e261f
 easy_inference_demo.py (raw mono 16 kHz, repeat/crop FIRST 64000 samples);
 data_utils_SSL.py genSpoof_list (0=spoof, 1=bonafide). Head attribution in
 _nes2net_arch.py. Full trained checkpoint already includes the XLS-R backbone.
-Transformers graph replaces Fairseq; full frontend parity remains unverified.
+Transformers graph replaces Fairseq; optional measured parity is runtime-bound.
 Always degraded/unclear, raw spoof-minus-bonafide logit, NEVER prob_attack.
 """
 
@@ -106,6 +106,25 @@ class Nes2NetBackend:
         self._lock = threading.RLock()
         self.model_hashes: dict[str, str] = {}
         self.load_report: dict = {}
+        report = os.getenv("NES2NET_PARITY_REPORT", "")
+        self._parity_expected = os.getenv("NES2NET_PARITY_SHA256", "")
+        if bool(report) != bool(self._parity_expected):
+            raise ValueError("Both parity report and SHA256 must be provided")
+        self._parity_report = Path(report).expanduser().resolve() if report else None
+        self.parity_sha256: str | None = None
+
+    def _verify_parity(self) -> None:
+        if self._parity_report is not None:
+            from vericlue_ml.voice.nes2net_parity import runtime_identity, verify_parity
+
+            self.parity_sha256 = None
+            self.parity_sha256 = verify_parity(
+                self._parity_report,
+                self._parity_expected,
+                self.config["sha256"],
+                runtime_identity(),
+                config=self.config,
+            )
 
     def _checkpoint(self) -> Path:
         path = (self.models_dir / self.config["model_subdir"] / self.config["checkpoint"]).resolve()
@@ -147,7 +166,8 @@ class Nes2NetBackend:
         config = Wav2Vec2Config(**self.config["backbone"])
         config._attn_implementation = "eager"
         model = Network(config)
-        state = torch.load(path, map_location="cpu", weights_only=True, mmap=True)
+        # Torch 2.2's mmap loader requires str rather than a Path object.
+        state = torch.load(str(path), map_location="cpu", weights_only=True, mmap=True)
         if (
             not isinstance(state, dict)
             or not state
@@ -178,12 +198,14 @@ class Nes2NetBackend:
             if self._model is not None:
                 if selected != self.models_dir:
                     raise ModelLoadError("Construct a new backend to change loaded model roots")
+                self._verify_parity()
                 return
             try:
                 self.models_dir = selected
                 path = self._checkpoint()
                 model = self._load_native(path)
                 self._checkpoint()
+                self._verify_parity()
                 self._model = model
             except Exception as exc:
                 self._failed = True
@@ -263,7 +285,12 @@ class Nes2NetDetector:
                 score=score,
                 quality={
                     "diagnostic_only": True,
-                    "frontend_parity_verified": False,
+                    "frontend_parity_verified": bool(getattr(self.backend, "parity_sha256", None)),
+                    **(
+                        {"parity_report_sha256": self.backend.parity_sha256}
+                        if getattr(self.backend, "parity_sha256", None)
+                        else {}
+                    ),
                     "calibrated": False,
                     "input_seconds": len(samples) / SAMPLE_RATE,
                     "scored_seconds": 4.0,

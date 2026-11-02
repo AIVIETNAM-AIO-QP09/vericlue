@@ -119,6 +119,18 @@ công cụ trên kho thật trong task này; chỉ dùng dữ liệu tổng hợ
 |---|---|---|---|---|
 | M5 | 1 | S2 | P0 | SEC-06, FLOW-06 |
 
+**01/11 — chuẩn bị thử điện thoại 02/11 (doing):** source
+`7904d7092baaa338f06351688286c1f4dc440ea0` giữ consent xử lý phiên và lưu mẫu
+mã hóa 24 giờ là hai lựa chọn chủ động, không auto-grant. Gói manual full demo
+mới tại `D:/vericlue/tmp/phone-demo-2026-11-02/` dùng DB/media/khóa riêng; lỗi
+mode/policy hoặc ghi receipt giữ tài khoản/khóa cũ, không xóa legacy account.
+Android giữ nhãn demo qua lưu/khôi phục tài khoản. Full Python 4998 passed/
+100 skipped kiểm logic phần mềm; chưa thay bằng chứng trên thiết bị. Chưa có
+điện thoại để nghiệm thu consent/withdrawal, restart, mất mạng và ba luồng;
+smoke API/DB0011 đã xác nhận chưa consent thì bị chặn, không cấp receipt.
+Smoke model không thay nghiệm thu quyền dữ liệu trên máy. Giữ task `doing`, không mở
+chốt sản phẩm chuẩn hoặc suy quyền lưu mẫu từ việc model preload thành công.
+
 **Mục tiêu:** triển khai bước tiếp theo sau khi nhóm thống nhất workflow FLOW-06.
 D1 đã chọn: đăng ký tài khoản cần lựa chọn chủ động cho lưu mẫu mã hóa; từ chối
 thì dừng tạo tài khoản. Không thêm chế độ xác minh một lần trong đợt này.
@@ -129,10 +141,17 @@ client Android; iOS nhận cùng hợp đồng khi các nhánh được tích h�
 quyền xử lý trong phiên với dữ liệu tài khoản và phạm vi rút lại/xóa, không tự
 coi category hiện có là đã bao gồm lưu mẫu dài hạn. Không mở guard sinh trắc.
 
-- [ ] Server chỉ ghi danh khi có lựa chọn lưu mẫu đúng phiên bản/phạm vi; không dùng cờ cấu hình thay biên nhận.
-- [ ] Client có model/method privacy, lựa chọn theo phiên và logic ghi trước thu dữ liệu, refresh bearer, policy đổi và từ chối; không auto-grant.
-- [ ] Rút lại dừng capture/upload mới, giữ trạng thái chưa xác nhận khi lỗi mạng và tôn trọng receipt/phạm vi xóa.
-- [ ] Có test contract/server/client và checklist nối UI/máy thật; không lặng lẽ triển khai thay đổi điều hướng D2/D3 chưa thống nhất.
+- [x] Server chỉ ghi danh khi có lựa chọn lưu mẫu đúng phiên bản/phạm vi; không dùng cờ cấu hình thay biên nhận.
+- [x] Android có model/method privacy, lựa chọn xử lý theo phiên + lựa chọn lưu mẫu tài khoản tách biệt (D1) và logic ghi trước thu dữ liệu, refresh bearer, policy đổi và từ chối; không auto-grant. iOS chưa tích hợp.
+- [x] Android rút lại dừng capture/upload mới, giữ trạng thái chưa xác nhận khi lỗi mạng và tôn trọng receipt/phạm vi xóa; có thoát khi không xác nhận được, không khôi phục camera từ back stack cũ. Chưa nghiệm thu điện thoại.
+- [x] Có test contract/server/client và checklist nối UI/máy thật; không lặng lẽ triển khai thay đổi điều hướng D2/D3 chưa thống nhất.
 
 Điểm nối cụ thể và ca cần nghiệm thu:
 [`mobile-privacy-integration.md`](../../architecture/mobile-privacy-integration.md).
+
+**Bổ sung 01/11, kiểm trước nghiệm thu:** có regression riêng cho PostgreSQL
+migration 0011: grant đồng thời/idempotency, trigger cấm UPDATE/DELETE ledger,
+FK tài khoản–biên nhận và rollback. Local chưa có DB test nên ca PostgreSQL
+được skip đúng điều kiện; **CI PR122/47f3209 đạt 8/8**, job Python dùng
+PostgreSQL16 đạt 4749 test, 78 skip. 333 test API liên quan đạt local trên dữ
+liệu mô phỏng; chưa thay nghiệm thu thiết bị, task vẫn `doing`.

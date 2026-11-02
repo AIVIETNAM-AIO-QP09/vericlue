@@ -1,8 +1,44 @@
 # services/api — Máy chủ API (FastAPI)
 
+**APP-03 (02/11):** manual full demo cho phép kết quả nội dung
+`ok/fail/E_CHALLENGE_MISMATCH` dùng lượt đọc lại hiện có, tối đa một lần;
+không kết thúc sớm chỉ vì mã lỗi diễn giải nội dung. Câu/ID lượt mới và media
+proof mới vẫn bắt buộc; lỗi bất thường, error/degraded hoặc hết lượt vẫn review.
+Không đổi kiểm tra giọng/khớp môi/đối chiếu, policy, ngưỡng hoặc mode chuẩn.
+
+**APP-01/SEC-09 (01/11):** migration `0011_account_template_consent` bổ sung sổ
+biên nhận append-only cho lưu mẫu tài khoản mã hóa 24 giờ. Android ghi lựa chọn
+qua `GET .../privacy/account-template` và `POST .../privacy/account-template/consent`;
+thiếu biên nhận đúng scope/version thì server không trích mẫu hoặc ghi danh.
+`manual_full_demo` truyền mode/policy rõ trên create/finalize/voice và chỉ chạy
+trong synthetic; chưa phải đường đã hiệu chỉnh. Reauth có thể nạp/chạy matcher
+video độc lập bộ quét CCCD. [Chi tiết](../../docs/architecture/mobile-privacy-integration.md).
+
+**Review trước PR (01/11):** đường chuẩn từ chối policy ngưỡng còn provisional.
+Luồng tài khoản chuẩn yêu cầu profile có ChromaPulse như bước ghi danh/ký kết
+quả, nên MVP thiếu mô-đun này bị chặn sớm. Recovery ràng buộc cả ngưỡng đối chiếu,
+nhất quán ba góc và kết quả tham chiếu với đúng head protocol; v2 dùng version
+recovery có hậu tố `+head12s-v2`. Không đổi thresholds.yaml hoặc mở chốt demo.
+
+**APP-01/FLOW-04 (31/10, manual demo):** opt-in MANUAL_FACE_DEMO dùng điểm thô
+AI thật và ngưỡng thủ công riêng, không giả artifact/probability. Chỉ onboarding
+synthetic+mvp+ekyc, không enrollment/credentials/signing. API vẫn review, thêm
+marker demo_complete để Android mở kết quả thử nghiệm có nhãn. Phiên gắn hash
+policy, không chuyển đổi ngầm giữa mode. [Runbook](../../docs/runbooks/manual-face-demo.md).
+
+**APP-01/FLOW-04 (31/10):** opt-in session face checks có retry chất lượng góc
+tối đa một lần bằng hint `HOLD_STILL` hiện có, challenge/nonce mới và dọn bằng
+chứng cũ. Chỉ nhận lý do `pose_out_of_range` với các kiểm tra độc lập phù hợp;
+giữ nguyên lỗi hiệu chỉnh sau router, kết quả không đạt và luồng reauth. Retry
+không quyết định pass. Không đổi schema/ngưỡng/quyền lưu mẫu.
+
 **APP-08 (29/10):** Một app VeriClue, một server API cổng 8421. Bộ đọc QR/chân dung
 chạy trong tiến trình API và dùng chung SCRFD; không cần identity HTTP bridge.
 Hướng dẫn hiện tại: [demo một bản](../../docs/runbooks/vericlue-demo.md).
+
+**APP-01 (30/10):** opt-in `SESSION_FACE_MODELS=true` cũng chọn Quality SCRFD và
+CamProbe rules thật khi nền vẫn mock để dùng OTP mô phỏng; không fallback mock
+nếu mô-đun thật lỗi. Không đổi schema, policy/ngưỡng hoặc mở guard sinh trắc.
 
 SEC-06 bổ sung API consent/rút lại theo phiên (migration `0010_privacy_receipts`)
 và retention hữu hạn khi `PRODUCT_MODE=ekyc`. Mode này không đăng ký route
@@ -13,8 +49,9 @@ phải pass. Thao tác rút lại không xóa tài khoản hoặc thu hồi BBS 
 
 SEC-05 có profile `synthetic|protected` kiểm trước khi nhận request, khóa nền
 độc lập, bắt buộc privacy/ký media trong protected và preflight chỉ xuất trạng
-thái an toàn. Kênh OTP hiện chỉ mô phỏng; real/mixed/protected chưa có SMS thật
-phải đóng. Xem [profile bảo vệ dữ liệu](../../docs/runbooks/protected-profile.md).
+thái an toàn. Kênh OTP hiện chỉ mô phỏng, opt-in `SIMULATED_OTP=true` trong
+synthetic độc lập AI real/mixed/mock; protected vẫn từ chối. Xem
+[profile bảo vệ dữ liệu](../../docs/runbooks/protected-profile.md).
 
 Image API bổ sung runtime BBS/Node, holder bundle và CLI preflight; kích hoạt qua
 overlay riêng, khóa host mount read-only. Hướng dẫn và giới hạn nghiệm thu:

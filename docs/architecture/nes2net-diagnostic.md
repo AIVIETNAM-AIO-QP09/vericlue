@@ -2,7 +2,28 @@
 
 Backend riêng cho checkpoint đã tải, không thay AntiDeepfake của API và không
 coi điểm thô là xác suất. **Luôn `degraded/unclear`, `prob_attack=None`** vì còn
-thiếu parity frontend Fairseq ↔ Transformers và đánh giá/calibration tiếng Việt.
+thiếu đánh giá/calibration tiếng Việt. Parity số học đã đo trên đúng runtime/mẫu
+ghi trong [báo cáo](../status/results/VOICE-09-parity-2026-11-01.json); không phải accuracy.
+
+## Nối bằng chứng parity (01/11)
+
+Opt-in `NES2NET_PARITY_REPORT` trỏ báo cáo trên và `NES2NET_PARITY_SHA256` là
+SHA256 byte của bản đã review. Phải đặt cả hai hoặc bỏ cả hai. Không tự lấy hash
+từ file bất kỳ rồi coi đó là bằng chứng đã review. Report thay đổi thì triển
+khai lại pin sau review; mặc định không có marker parity.
+
+Kiểm checkpoint, model version, nguồn/script phép đo đã biết, số mẫu/duplicate,
+giới hạn 1e-4 và đúng Python/Torch/Transformers/NumPy/threads/platform đã đo.
+`implementation_binding` được bổ sung từ source commit `52cebaf`: AST của graph,
+mapping, recipe và tính margin cùng cấu hình graph phải giống mã đang chạy.
+Phần quality ghi marker được loại khỏi fingerprint số học. Đây là bổ sung truy
+vết source, không phải phép đo accuracy mới; các số parity gốc giữ nguyên.
+
+Model cache vẫn kiểm lại binding trước mỗi inference. Sai report/runtime/config/
+mã số học thì không trả điểm hợp lệ. Marker chỉ truyền qua timeline khi mọi
+cửa sổ có cùng binding; IPC từ chối boolean/số/hash sai kiểu hoặc claim mâu thuẫn.
+`frontend_parity_verified=true` vẫn **degraded/unclear, prob_attack=null**.
+Không áp calibrator first4s cho timeline và không dùng 32 mẫu VIVOS để fit/ngưỡng.
 
 ## Nguồn và checkpoint
 

@@ -37,6 +37,7 @@ object Routes {
     const val Auth = "auth"
     /** Terms and per-item consent on one screen (short flow, 24/10). */
     const val Terms = "terms"
+    const val PrivacyStop = "privacy_stop"
 
     const val Phone = "phone"
     const val Otp = "otp"
@@ -63,6 +64,7 @@ object Routes {
     const val Checking = "checking"
     const val Slow = "slow"
     const val Success = "success"
+    const val ManualDemoComplete = "manual_demo_complete"
     const val Review = "review"
     const val RetryQuality = "retry_quality"
     const val RetryChallenge = "retry_challenge"
@@ -86,6 +88,7 @@ object Routes {
 }
 
 object FlowRules {
+    fun closesCameraOnResult(route: String): Boolean = route in setOf(Routes.Success, Routes.Review, Routes.ManualDemoComplete)
     /** Prefer the back QR, falling back to the front on cards that print it there. */
     fun cardQr(frontQr: String?, backQr: String?): String? =
         backQr?.takeIf(String::isNotBlank) ?: frontQr?.takeIf(String::isNotBlank)
@@ -94,8 +97,10 @@ object FlowRules {
     fun needsCardBack(hint: String?, hasBack: Boolean): Boolean = hint == "QR_UNREADABLE" && !hasBack
 
     /** After OTP: re-auth skips the ID card (ADR-0013). */
-    fun afterOtp(purpose: Purpose): String =
-        if (purpose == Purpose.Reauth) Routes.FaceReady else Routes.IdFront
+    fun afterConsent(purpose: Purpose): String = if (purpose == Purpose.Reauth) Routes.FaceReady else Routes.Phone
+
+    fun afterOtp(purpose: Purpose, accountBound: Boolean = false): String =
+        if (purpose == Purpose.Reauth || purpose == Purpose.Recovery && accountBound) Routes.FaceReady else Routes.IdFront
 
     /** After the head turn: re-auth has no voice step unless escalated (ADR-0013, L3). */
     fun afterTurnHead(purpose: Purpose): String =
@@ -111,8 +116,8 @@ object FlowRules {
      * After the face recording. The confirm screen comes here, not in stage A, so the user reads the
      * card while the video uploads. Re-auth has no card; a retry skips what was already confirmed.
      */
-    fun afterFace(purpose: Purpose, idConfirmed: Boolean, live: Boolean): String = when {
-        purpose != Purpose.Reauth && !idConfirmed -> Routes.Confirm
+    fun afterFace(purpose: Purpose, idConfirmed: Boolean, live: Boolean, accountBound: Boolean = false): String = when {
+        purpose != Purpose.Reauth && !(purpose == Purpose.Recovery && accountBound) && !idConfirmed -> Routes.Confirm
         live -> Routes.Uploading
         else -> afterTurnHead(purpose)
     }
@@ -291,7 +296,12 @@ object OtpRules {
 }
 
 /** Explicit UI consent; reading or scrolling alone never enables continuing. */
-data class Agreement(val accepted: Boolean = false) {
+data class Agreement(
+    val accepted: Boolean = false,
+    val accountTemplateAccepted: Boolean = false,
+    val requiresAccountTemplate: Boolean = false,
+) {
     fun toggle(): Agreement = copy(accepted = !accepted)
-    val canContinue: Boolean get() = accepted
+    fun toggleAccountTemplate(): Agreement = copy(accountTemplateAccepted = !accountTemplateAccepted)
+    val canContinue: Boolean get() = accepted && (!requiresAccountTemplate || accountTemplateAccepted)
 }

@@ -1,4 +1,4 @@
-# Chuẩn hóa xuống dòng: repo luôn lưu LF, Windows/macOS/Linux đều không bị lệch.
+# Mã nguồn dùng LF; ngoại lệ script Windows và bằng chứng cố định nằm bên dưới.
 * text=auto eol=lf
 *.ps1 text eol=crlf
 *.bat text eol=crlf
@@ -13,3 +13,6 @@
 *.pt binary
 *.wav binary
 *.mp4 binary
+
+# Immutable evidence: native measurement reports bind the exact published bytes.
+docs/status/results/VOICE-09-parity-2026-11-01.json -text whitespace=cr-at-eol

@@ -10,7 +10,10 @@ import org.junit.Test
 import vn.vericlue.app.capture.ColorSchedule
 import vn.vericlue.app.capture.ColorSlot
 import vn.vericlue.app.capture.FaceSignal
+import vn.vericlue.app.capture.HeadTurnGuide
 import vn.vericlue.app.capture.QualityGate
+import vn.vericlue.app.capture.SegmentHoldTracker
+import vn.vericlue.app.capture.TurnPoseState
 import vn.vericlue.app.capture.TurnTracker
 import vn.vericlue.app.capture.Wav
 import vn.vericlue.app.data.api.Challenge
@@ -18,12 +21,226 @@ import vn.vericlue.app.data.api.ColorStep
 import vn.vericlue.app.flow.FlowRules
 import vn.vericlue.app.flow.FramingState
 import vn.vericlue.app.flow.Routes
+import vn.vericlue.app.flow.TurnDir
 
 class CaptureTest {
-    private fun face(width: Float = 0.45f, x: Float = 0.5f, y: Float = 0.45f, luma: Float = 120f, faces: Int = 1) =
-        FaceSignal(faces, width, x, y, 0f, luma, 0L, heightFraction = 0.6f,
+    @Test
+    fun invalidSensorStampsNeverBecomeFreshFrames() {
+        val clock = vn.vericlue.app.capture.CaptureClock
+        for (stamp in listOf(0L, -1L, 1_000_000_000L, 90_100_000_000L)) {
+            val normalized = clock.sensorTimestampToElapsedNanos(stamp, false, 100_000_000_000L, 90_000_000_000L)
+            assertTrue("Invalid or unknown timestamp must not be presented as current", normalized <= 0L)
+        }
+        assertEquals(0L, clock.sensorTimestampToElapsedNanos(89_958_000_000L, true, 100_000_000_000L, 90_000_000_000L))
+        val first = clock.sensorTimestampToElapsedNanos(89_958_000_000L, false, 100_000_000_000L, 90_000_000_000L)
+        val repeated = clock.sensorTimestampToElapsedNanos(89_958_000_000L, false, 100_100_000_000L, 90_100_000_000L)
+        assertEquals(first, repeated)
+    }
+
+    @Test
+    fun missingCaptureStampCannotShowFreshFaceOrCompleteHold() {
+        for (stamp in listOf(0L, -1L)) {
+            val missing = face(yaw = 26f).copy(timestampNs = stamp)
+            assertNull(HeadTurnGuide.freshFace(missing, 1000L, 900L))
+            val tracker = SegmentHoldTracker(segmentStartMs = 1000L)
+            for (now in 1000L..2000L step 100L) tracker.update(TurnDir.Left, missing, now)
+            assertFalse(tracker.completed)
+        }
+    }
+
+    private fun face(width: Float = 0.45f, x: Float = 0.5f, y: Float = 0.45f, luma: Float = 120f, faces: Int = 1, yaw: Float = 0f) =
+        FaceSignal(faces, width, x, y, yaw, luma, 1L, heightFraction = 0.6f,
             imageWidth = 480, imageHeight = 640, pitch = 0f, roll = 0f,
             landmarksComplete = true, landmarksVisible = true, observedAtMs = 0)
+
+    @Test fun guideDiscardsOldFutureAndPreviousSegmentFrames() {
+        val current = face(yaw = 26f).copy(timestampNs = 2_000_000_000L)
+        assertEquals(current, HeadTurnGuide.freshFace(current, 2100, 1000))
+        assertNull(HeadTurnGuide.freshFace(current, 2400, 1000))
+        assertNull(HeadTurnGuide.freshFace(current, 1900, 1000))
+        assertNull(HeadTurnGuide.freshFace(current, 2100, 2050))
+    }
+
+    @Test
+    fun delayedAnalyzerFramesCannotCompleteAHold() {
+        val tracker = SegmentHoldTracker(segmentStartMs = 1000L)
+        val old = face(yaw = 26f).copy(timestampNs = 1100_000_000L)
+        for (offset in 0L..900L step 100L) {
+            assertFalse(tracker.update(TurnDir.Left, old.copy(timestampNs = (1100L + offset) * 1_000_000L), 4000L + offset))
+        }
+        assertFalse(tracker.completed)
+    }
+
+    @Test
+    fun analyzerGapsOrReversedTimeCannotCompleteAHold() {
+        val good = face(yaw = 26f)
+        for (badTime in listOf(2000L, 900L, 1000L)) {
+            val tracker = SegmentHoldTracker()
+            assertFalse(tracker.update(TurnDir.Left, good.copy(timestampNs = 1000_000_000L), 1000))
+            assertFalse(tracker.update(TurnDir.Left, good.copy(timestampNs = badTime * 1_000_000L), badTime))
+            assertFalse(tracker.completed)
+        }
+        val tracker = SegmentHoldTracker()
+        assertFalse(tracker.update(TurnDir.Left, good.copy(timestampNs = 1000_000_000L), 1000))
+        assertFalse(tracker.update(TurnDir.Left, good.copy(timestampNs = 1200_000_000L), 1200))
+        assertFalse(tracker.update(TurnDir.Left, good.copy(roll = 18f, timestampNs = 1300_000_000L), 1300))
+        for (time in 1400L..2200L step 100L) assertFalse(tracker.update(TurnDir.Left, good.copy(timestampNs = time * 1_000_000L), time))
+        assertTrue(tracker.update(TurnDir.Left, good.copy(timestampNs = 2300_000_000L), 2300))
+    }
+
+    @Test
+    fun tiltedHeadCannotShowGreenOrCompleteTheHold() {
+        for (pose in listOf(face(yaw = 26f).copy(pitch = 16f), face(yaw = 26f).copy(roll = -16f))) {
+            assertEquals(TurnPoseState.Warn, HeadTurnGuide.evaluatePose(TurnDir.Left, pose))
+            assertEquals(TurnPoseState.Warn, HeadTurnGuide.evaluatePose(null, pose.copy(yaw = 0f)))
+            assertEquals(TurnPoseState.Warn, HeadTurnGuide.evaluatePose(TurnDir.Left, pose, segmentCompleted = true))
+            assertEquals("Giữ đầu thẳng, tránh nghiêng hoặc cúi/ngẩng", HeadTurnGuide.guidanceText(TurnDir.Left, pose))
+            val tracker = SegmentHoldTracker()
+            assertFalse(tracker.update(TurnDir.Left, pose, 0))
+            assertFalse(tracker.update(TurnDir.Left, pose, 1000))
+            assertFalse(tracker.completed)
+        }
+        assertEquals(TurnPoseState.Hold, HeadTurnGuide.evaluatePose(TurnDir.Left, face(yaw = 26f).copy(pitch = 5f, roll = 5f)))
+    }
+
+    @Test
+    fun invalidAngleNeverShowsGreenOrCompletesHold() {
+        val invalid = face(yaw = Float.NaN)
+        assertEquals(TurnPoseState.Warn, HeadTurnGuide.evaluatePose(TurnDir.Left, invalid))
+        val tracker = SegmentHoldTracker()
+        assertFalse(tracker.update(TurnDir.Left, invalid, 0))
+        assertFalse(tracker.update(TurnDir.Left, invalid, 1000))
+        assertFalse(tracker.completed)
+    }
+
+    @Test
+    fun headTurnGuideHelpsHoldOrCorrectWithoutDecidingPass() {
+        // Missing FaceSignal: always neutral instruction, never confirms holding a pose.
+        assertEquals(
+            "Quay chậm theo hướng mũi tên",
+            HeadTurnGuide.guidanceText(TurnDir.Left, null, remainingSeconds = 4),
+        )
+        assertEquals(
+            "Quay chậm theo hướng mũi tên",
+            HeadTurnGuide.guidanceText(TurnDir.Right, null, remainingSeconds = 4),
+        )
+        assertEquals(
+            "Giữ yên, nhìn thẳng vào camera",
+            HeadTurnGuide.guidanceText(null, null, remainingSeconds = 4),
+        )
+        // Missing or multiple faces.
+        assertEquals(
+            "Đưa khuôn mặt vào khung",
+            HeadTurnGuide.guidanceText(TurnDir.Left, face(faces = 0), remainingSeconds = 3),
+        )
+        assertEquals(
+            "Chỉ để một khuôn mặt trong khung",
+            HeadTurnGuide.guidanceText(TurnDir.Right, face(faces = 2), remainingSeconds = 3),
+        )
+        // Not turned far enough yet.
+        assertEquals(
+            "Quay chậm theo hướng mũi tên",
+            HeadTurnGuide.guidanceText(TurnDir.Left, face(yaw = 5f), remainingSeconds = 4),
+        )
+        assertEquals(
+            "Quay chậm theo hướng mũi tên",
+            HeadTurnGuide.guidanceText(TurnDir.Right, face(yaw = -5f), remainingSeconds = 4),
+        )
+        // Correct direction in target range (ML Kit on unmirrored front frame: Left > 0, Right < 0).
+        assertEquals(
+            "Giữ hướng này đến khi đổi hướng dẫn",
+            HeadTurnGuide.guidanceText(TurnDir.Left, face(yaw = 26f), remainingSeconds = 3),
+        )
+        assertEquals(
+            "Giữ hướng này đến khi đổi hướng dẫn",
+            HeadTurnGuide.guidanceText(TurnDir.Right, face(yaw = -26f), remainingSeconds = 3),
+        )
+        // Opposite direction must never confirm holding the pose.
+        assertEquals(
+            "Quay chậm theo hướng mũi tên",
+            HeadTurnGuide.guidanceText(TurnDir.Left, face(yaw = -26f), remainingSeconds = 3),
+        )
+        assertEquals(
+            "Quay chậm theo hướng mũi tên",
+            HeadTurnGuide.guidanceText(TurnDir.Right, face(yaw = 26f), remainingSeconds = 3),
+        )
+        // Turned too far or drifted near the frame edge in the target direction.
+        assertEquals(
+            "Quay vừa phải, giữ mặt trong khung",
+            HeadTurnGuide.guidanceText(TurnDir.Left, face(yaw = 46f), remainingSeconds = 2),
+        )
+        assertEquals(
+            "Quay vừa phải, giữ mặt trong khung",
+            HeadTurnGuide.guidanceText(TurnDir.Right, face(yaw = -46f), remainingSeconds = 2),
+        )
+        assertEquals(
+            "Quay vừa phải, giữ mặt trong khung",
+            HeadTurnGuide.guidanceText(TurnDir.Left, face(x = 0.78f, yaw = 28f), remainingSeconds = 2),
+        )
+        // Center segment.
+        assertEquals(
+            "Đưa khuôn mặt vào giữa khung hình",
+            HeadTurnGuide.guidanceText(null, face(x = 0.78f, yaw = 4f), remainingSeconds = 2),
+        )
+        assertEquals(
+            "Quay về giữa, nhìn thẳng vào camera",
+            HeadTurnGuide.guidanceText(null, face(yaw = -24f), remainingSeconds = 4),
+        )
+        assertEquals(
+            "Giữ yên, nhìn thẳng vào camera",
+            HeadTurnGuide.guidanceText(null, face(yaw = 3f), remainingSeconds = 2),
+        )
+        // Once the segment hold completes, cue the user to return to center and wait for the next step.
+        assertEquals(
+            "Tạm giữ đủ góc, nhìn thẳng",
+            HeadTurnGuide.guidanceText(TurnDir.Right, face(yaw = -26f), remainingSeconds = 2, segmentCompleted = true),
+        )
+        assertEquals(
+            "Giữ yên, nhìn thẳng chờ bước tiếp",
+            HeadTurnGuide.guidanceText(TurnDir.Right, face(yaw = -3f), remainingSeconds = 2, segmentCompleted = true),
+        )
+    }
+
+    @Test
+    fun staleFrameCannotCompleteNewSegmentHold() {
+        val tracker = SegmentHoldTracker(requiredHoldMs = 850L, segmentStartMs = 4_000L)
+        val stale = FaceSignal(
+            faces = 1,
+            widthFraction = 0.4f,
+            centerX = 0.5f,
+            centerY = 0.45f,
+            yaw = 26f,
+            pitch = 0f,
+            roll = 0f,
+            luma = 120f,
+            timestampNs = 3_900_000_000L,
+        )
+        assertFalse(tracker.update(TurnDir.Left, stale, nowMs = 3_900L))
+        assertFalse(tracker.update(TurnDir.Left, stale, nowMs = 4_900L))
+        assertFalse(tracker.completed)
+    }
+
+    @Test
+    fun segmentHoldTrackerCompletesAfterSustainedTargetAngle() {
+        val tracker = SegmentHoldTracker(requiredHoldMs = 850L)
+        assertEquals(TurnPoseState.TurnMore, HeadTurnGuide.evaluatePose(TurnDir.Right, null))
+        assertEquals(TurnPoseState.TurnMore, HeadTurnGuide.evaluatePose(TurnDir.Right, face(yaw = -10f)))
+        assertEquals(TurnPoseState.Hold, HeadTurnGuide.evaluatePose(TurnDir.Right, face(yaw = -26f)))
+        assertEquals(TurnPoseState.Warn, HeadTurnGuide.evaluatePose(TurnDir.Right, face(yaw = -42f)))
+
+        assertFalse(tracker.update(TurnDir.Right, face(yaw = -12f).copy(timestampNs = 1000_000_000L), 1000L))
+        assertFalse(tracker.update(TurnDir.Right, face(yaw = -26f).copy(timestampNs = 1100_000_000L), 1100L))
+        assertFalse(tracker.update(TurnDir.Right, face(yaw = -28f).copy(timestampNs = 1300_000_000L), 1300L))
+        assertFalse(tracker.update(TurnDir.Right, face(yaw = -28f).copy(timestampNs = 1500_000_000L), 1500L))
+        assertFalse(tracker.update(TurnDir.Right, face(yaw = -28f).copy(timestampNs = 1700_000_000L), 1700L))
+        assertTrue(tracker.update(TurnDir.Right, face(yaw = -27f).copy(timestampNs = 1950_000_000L), 1950L))
+        assertTrue(tracker.completed)
+        assertFalse(tracker.update(TurnDir.Right, face(yaw = -27f).copy(timestampNs = 2100_000_000L), 2100L))
+        assertEquals(
+            TurnPoseState.Completed,
+            HeadTurnGuide.evaluatePose(TurnDir.Right, face(yaw = -2f), segmentCompleted = tracker.completed),
+        )
+    }
 
     @Test
     fun qualityGateGivesOneHintAtATime() {
@@ -100,5 +317,18 @@ class CaptureTest {
         assertEquals(Routes.VoiceAgain, FlowRules.routeForStatus("voice_challenge", null, true))
         assertNull(FlowRules.routeForStatus("error", null, false))
         assertNull(FlowRules.routeForStatus("degraded", null, false))
+        val elapsedNs = 1_043_137_988_000_000L
+        val nanoNs = 86_150_520_000_000L
+        val monotonicSensorNs = 86_150_478_000_000L
+        val normalizedNs = vn.vericlue.app.capture.CaptureClock.sensorTimestampToElapsedNanos(
+            sensorTimestampNs = monotonicSensorNs,
+            realtimeSource = false,
+            elapsedRealtimeNs = elapsedNs,
+            nanoTimeNs = nanoNs,
+        )
+        assertEquals(elapsedNs - 42_000_000L, normalizedNs)
+        val face = FaceSignal(1, 0.4f, 0.5f, 0.45f, 26f, 120f, normalizedNs)
+        assertEquals(face, HeadTurnGuide.freshFace(face, nowMs = elapsedNs / 1_000_000L, segmentStartMs = elapsedNs / 1_000_000L - 500L))
+        assertEquals(elapsedNs - 35_000_000L, vn.vericlue.app.capture.CaptureClock.sensorTimestampToElapsedNanos(elapsedNs - 35_000_000L, true, elapsedNs, nanoNs))
     }
 }

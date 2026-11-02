@@ -90,6 +90,29 @@ theo mẫu đăng ký/SEC-02 hoặc nghiệm thu Android. Chi tiết vận hành
 |---|---|---|---|---|
 | M1 (+M3) | 1 | S1 | P0 | CAP-06 |
 
+**01/11 — chuẩn bị thử điện thoại 02/11 (doing):** source
+`7904d7092baaa338f06351688286c1f4dc440ea0` hoàn thiện đường
+`MANUAL_FULL_DEMO`: model mặt/continuity nhận policy v2; artifact continuity
+cũ không ghi đè policy manual. Giọng dùng raw AntiDeepfake/SyncNet với version,
+hash và evidence bắt buộc, không nâng NES diagnostic thành đạt. Chế độ chuẩn
+và yêu cầu calibrator giữ nguyên. Gói riêng:
+`D:/vericlue/tmp/phone-demo-2026-11-02/`. Smoke native Anti/Qwen/CTC một mẫu
+chọn sẵn, SyncNet tensor forward và API/DB0011 đã qua; nghiệm thu ba luồng
+trên điện thoại còn chờ. Ngưỡng là
+mốc minh họa, chưa có accuracy/kiểm chứng chiều sâu; không đánh dấu toàn task xong.
+
+**31/10 — policy trình diễn thủ công (lịch sử face-only):** opt-in riêng PAD/GenD/identity, model
+thật với ngưỡng thử nghiệm, namespace và hash policy riêng; không giả artifact
+hiệu chỉnh hoặc probability. API vẫn review, marker riêng cho app hiển thị kết
+quả có nhãn demo. Không mở account/proof/credential hoặc đổi thresholds.yaml.
+Không là nghiệm thu toàn task. Xem [runbook](../../runbooks/manual-face-demo.md).
+
+**31/10 — sửa góc thoáng qua:** head rules0.2 không phủ quyết video chỉ vì
+một mẫu yaw vượt50°. Mẫu đó không cung cấp bằng chứng giữ; vẫn kiểm coverage,
+gap/biên, baseline/thứ tự và chốt tilt. API chỉ cho retry chất lượng một lần
+khi các chốt khác phù hợp; giữ error hiệu chỉnh và mọi quyết định không đạt.
+Test tổng hợp, chưa nghiệm thu toàn luồng; không đổi ngưỡng hay kết luận 3D.
+
 **Mục tiêu:** làm bước B3 và ADR-0013 mục 6.
 
 **Đầu ra:**
@@ -103,11 +126,14 @@ theo mẫu đăng ký/SEC-02 hoặc nghiệm thu Android. Chi tiết vận hành
 - [x] Chọn ba khung từ video theo timestamp server, kiểm lại tư thế trên đúng pixel, so mặt trong RAM; lỗi/thiếu/trùng khung không được đạt.
 - [x] Đưa đúng ba khung đã chọn vào GenD trong RAM; trả điểm deepfake riêng, version lấy mẫu riêng, không dùng nhầm calibrator video cũ.
 - [x] Tùy chọn FS-VFM-L FAS trên cùng khung RAM; nạp checkpoint gốc có kiểm SHA, điểm PAD thô riêng, không dùng ngưỡng cũ hay thay MiniFASNet của API.
+- [x] Công cụ đo/fit đúng protocol phiên, kiểm provenance/chia người và giữ mẫu lỗi; adapter nhận calibrator fitted đúng full version, từ chối identity/provisional/sai version. Chỉ test tổng hợp; chưa có artifact thực và chưa mở guard.
 - [ ] Test mặt phẳng (biến đổi homography) và kiểm chứng chiều sâu vật lý.
 
 **Lát cắt backend 24/10 (Codex, doing):** `head_turn` dùng reader MediaPipe,
 chỉ kiểm chuyển động/thứ tự/thời gian từ video với lịch server gắn phiên/lượt.
-Lịch hiện hành 6 giây theo LIVE-01; các hằng góc/giữ tư thế là thử nghiệm.
+Lượt mới dùng lịch v2 tổng12giây từ30/10; Android từ02/11 dành5giây mỗi bên,
+2giây nhìn thẳng cuối lượt. Server không chia cứng ba khoảng; vẫn nhận v1 6giây.
+Các hằng góc/giữ tư thế là thử nghiệm và không đổi trong lần kéo dài lịch.
 Đã có chuỗi offline lấy ảnh chính diện/nghiêng trong RAM cho LVFace và GenD
 (bật tùy chọn), và PAD FS-VFM-L FAS FP32. PAD dùng SCRFD thay MTCNN, chưa có
 kiểm chứng tương đương/hiệu chỉnh trên dữ liệu thật. Chưa kiểm 3D, chưa nối quyết định API/retry hay sửa UI. Gate pass của module
@@ -249,9 +275,27 @@ cứng. Xem `media-proof.md` và `account-authentication.md`.
 
 ### APP-01 ★ · App Kotlin: khung, API qua HTTPS, điều hướng 3 luồng
 
+**02/11 — đang thử S24 FE:** APK0.3.0 đã cài và API/ADB hoạt động. Chưa nghiệm
+thu đăng ký: lượt đầu `review` ở gaze; phát hiện và sửa thiếu challenge binding
+trong bước trích template enrollment, có regression dùng validator production.
+Không nới ngưỡng; tiếp tục thử lại và nghiệm thu ba luồng sau triển khai.
+
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
 |---|---|---|---|---|
 | M1 | 1,5 | S1 | P0 | PLAT-04 |
+
+**01/11 — chuẩn bị thử điện thoại 02/11 (doing):** source
+`7904d7092baaa338f06351688286c1f4dc440ea0`, gói riêng
+`D:/vericlue/tmp/phone-demo-2026-11-02/`. APK 0.3.0 mở API thật mặc định
+(`liveByDefault=true`, localhost:8421), ký media bật, trace tắt; dùng cùng
+signer debug laptop, không đổi khóa ứng dụng. Mode/hash được lưu cùng receipt,
+kiểm lại khi reauth/recovery; lỗi hoặc mismatch giữ tài khoản/khóa cũ. Nhãn demo
+được giữ qua màn kết quả/mở tài khoản và khôi phục app; không fallback sang
+scripted success. Preload AntiDeepfake/Qwen/CTC/SyncNet đã qua, full Python
+4998 passed/100 skipped; smoke native giọng và API/DB0011 đã qua (SyncNet
+mới tensor forward, chưa video nói thật). Ba luồng
+CCCD/mặt/giọng/Keystore trên máy thật vẫn `not_run`; chưa nghiệm thu HTTPS
+hoặc chất lượng AI. Không đánh dấu `done` từ kết quả test phần mềm.
 
 **Mục tiêu:** dựng bộ khung app Android native cho bản demo (ADR-0014).
 
@@ -273,9 +317,45 @@ cứng. Xem `media-proof.md` và `account-authentication.md`.
 - [x] Client lưu receipt cùng alias Keystore; nhận receipt sau finalize không giọng;
   đăng nhập lại mở đúng khóa đã lưu; khôi phục tạo khóa mới và chỉ xóa khóa cũ sau
   ghi bền. Test hồi quy HTTP 409/503, mất khóa, hết hạn và lỗi lưu; chưa nghiệm thu
-  tài khoản trên điện thoại thật vì server còn chặn sinh trắc account-bound (FLOW-05/SEC-02).
+  tài khoản trên điện thoại thật; chế độ chuẩn còn chặn sinh trắc account-bound (FLOW-05/SEC-02).
 
 ---
+
+**Cập nhật 31/10 — tập và giọng hướng dẫn:** thêm phần tập local tùy chọn trước
+chuẩn bị challenge, không ghi hình/API; bỏ qua chỉ bỏ phần tập. Giọng Việt đọc
+câu cố định, ưu tiên offline, bíp dự phòng nhỏ và khác nhau giữa quay/giữ/nhìn
+thẳng; dừng âm cũ khi đổi trạng thái hoặc ra nền. Oval mảnh, mũi tên chỉ hiện
+khi còn cần quay. Không đổi ngưỡng/lịch/guard server; chờ nghiệm thu người thật.
+Xem [runbook](../../runbooks/head-turn-coaching.md).
+
+**Phản hồi sáng31/10:** bỏ phần tập khỏi điều hướng theo yêu cầu người dùng.
+Giọng TTS thêm trace opt-in và probe phát câu thật; người dùng đang bận điện
+thoại nên nghe trực tiếp/chạy lượt mới còn chờ, không ghi đã khắc phục âm thanh.
+
+**Tiếp tục 31/10 — ngưỡng demo:** người dùng duyệt ngưỡng thủ công để quay video,
+model thật và yêu cầu tiêu đề “Xác minh thành công”. App chỉ dùng tiêu đề đó ở
+route riêng có nhãn “Demo · Ngưỡng chưa hiệu chỉnh”, không lưu tài khoản thật;
+mode/hash phải khớp từ tạo phiên tới finalize, camera tắt khi vào kết quả.
+Điện thoại đổi sang Samsung A04; chờ lượt nghiệm thu thật trên máy mới.
+
+**Cập nhật 30/10 — hướng dẫn quay đầu:** thêm nhắc nghiêng/cúi/ngẩng từ ML Kit
+trước khi báo xanh; oval riêng bước quay đầu rộng hơn, giữ vừa màn chữ lớn.
+Âm báo nhỏ/ngắn, bỏ âm cảnh báo và chống rung lặp cùng trạng thái trong đoạn.
+Không đổi quyết định server, timeline hoặc điều kiện hoàn thành toàn task;
+chờ người dùng nghiệm thu bản APK mới và dữ liệu hiệu chỉnh toàn luồng.
+
+
+**Rà soát 30/10 tối:** vẫn chưa nghiệm thu mắt/quay đầu; artifact video v2 còn
+thiếu. Kế hoạch giao Gemini:
+[ổn định presence](../../superpowers/plans/2026-10-30-presence-demo-stabilization-gemini.md).
+Đây là kế hoạch sửa và nghiệm thu, không phải xác nhận toàn luồng đã đạt.
+
+**Tiếp tục 30/10, 23:25 — Codex:** trace đã nối và có freshness guard;
+182 test Android và4544 test Python qua (80 skip). Lượt thật mới mắt đạt,
+đầu không mất mặt nhưng roll16,2° vượt giới hạn15°, chưa hoàn tất xác minh.
+Đã sửa cleanup trace qua media ACK sau khi mất trace lượt đầu; chờ paired
+trial khi người dùng sẵn sàng. Không đổi ngưỡng hoặc đánh dấu toàn luồng đạt.
+Xem [runbook](../../runbooks/presence-phone-diagnostics.md).
 
 ### APP-07 · Đồng bộ UI phần mặt giữa Giả lập và API
 
@@ -530,13 +610,33 @@ APK build thành công. Backend/ML có hai lượt 193 và 122 test đạt (ch�
 quá hai dòng ở chữ 200%. Schema/OpenAPI/SDK đồng bộ; mock không chứng minh
 liveness thật. Bàn giao 22:10 ghi cách kiểm và giới hạn tổng thu 30 giây.
 
+Tích hợp main vào PR #130 theo yêu cầu xử lý conflict: giữ UI/adaptive cùng
+consent và nguồn AV chung của APP-01…03; thống nhất dải hướng dẫn local,
+timestamp capture và diagnostic của bước thực. Artifact hiệu chỉnh timed/adaptive
+tách riêng; enrollment/recovery kiểm đúng protocol. Bàn giao
+`2026-11-02-2337-app-11-codex.md` ghi kiểm tra tích hợp và giới hạn nghiệm thu.
+
 ---
 
 ### APP-02 ★ · App: chụp mặt, quay 3 giây, quay đầu ngẫu nhiên
 
+**02/11 — doing, thử S24 FE:** lượt mới đã qua CCCD/gaze nhưng quay hướng đầu
+vượt vùng nhận, các đoạn giữ không đủ liên tục; server trả `wrong_order`, các
+model cần ba tư thế giữ `degraded`. Sửa ổn định lời nhắc để giảm cắt giọng khi
+góc dao động, giữ cảnh báo ưu tiên và lịch challenge12s. Sau cập nhật, người
+dùng xác nhận dễ theo và hoàn tất; server xác nhận một lượt CCCD/mặt đạt,
+bảy module ok/pass và tài khoản/consent receipt đã commit. Chưa nghiệm thu
+nhánh giọng hoặc khôi phục. Đăng nhập lại sau đóng/mở app sau đó đã đạt, đúng
+khóa/tài khoản và năm module ok/pass (tổng hợp APP-01-s24fe-physical-acceptance).
+
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
 |---|---|---|---|---|
 | M1 | 2 | S1–S2 | P0 | APP-01 |
+
+**02/11 — sửa nhắc lặp:** người dùng xác nhận bị nhắc cùng bên; local hold chưa
+hoàn tất có thể nhắc quay ra lại sau khi đã về giữa. Thêm latch hướng dẫn riêng
+từng đoạn: một excursion đúng phía rồi về giữa thì chờ hướng tiếp. Không coi
+latch là hold đạt/đổi phase/qua gate; giữ các hằng và lịch5/5/2. Cần thử bản mới.
 
 **Mục tiêu:** làm giai đoạn B của ADR-0013 trên app.
 
@@ -548,7 +648,9 @@ liveness thật. Bàn giao 22:10 ghi cách kiểm và giới hạn tổng thu 30
 - Camera không tắt cho tới bước đọc câu.
 
 **Tiêu chí hoàn thành:**
-- [ ] Đi hết giai đoạn B trên điện thoại thật; server chấm bằng mô hình thật.
+- [x] Đi hết giai đoạn B trên điện thoại thật; server chấm bằng mô hình thật.
+      (02/11, S24 FE, một lượt đăng ký CCCD/mặt, APK1367c2e/API6f3171e;
+      kết quả `APP-02-s24fe-onboarding-2026-11-02.json`, chưa nghiệm thu giọng.)
 
 ---
 
@@ -558,18 +660,45 @@ liveness thật. Bàn giao 22:10 ghi cách kiểm và giới hạn tổng thu 30
 |---|---|---|---|---|
 | M1 | 1 | S2 | P0 | APP-01 |
 
+**02/11 — doing, nguồn ghi chung:** CameraX ghi micro/video vào một MP4 có
+cap 8 giây; chuẩn bị chỉ kết thúc khi có video và audio native ACTIVE. Sau
+finalize, giải mã chính file sẽ tải lên thành WAV PCM 16-bit, mono, 16 kHz, giữ offset
+PTS PCM/video có dấu. Policy nguồn `muxed-av-pcm-v1`, chuẩn hóa
+`pcm16-mono16k-sinc-v1`; kiểm PTS trước chuẩn hóa, không dùng VAD hoặc tự dịch
+thời gian. Luồng API không thu AudioRecord/WAV riêng; gallery offline giữ cách
+cũ. Hủy/lỗi/finalize không hợp lệ chặn gửi, không nhận kết quả đến muộn.
+Không đổi mô hình, API, chữ ký media hoặc ngưỡng; chưa xác nhận clock phần cứng.
+
+Lượt khôi phục thực gần nhất trước thay đổi nguồn ghi chỉ còn SyncNet không
+đạt. Nguồn chung mới và khôi phục toàn luồng trên S24 FE vẫn chờ nghiệm thu;
+không đánh dấu `done` từ mã nguồn hoặc thử nghiệm tổng hợp.
+
+**Lịch sử 02/11 — trước nguồn MP4 chung:** recovery đã chạy thật đến Qwen/
+AntiDeepfake/CTC/SyncNet và continuity; lượt đầu chưa đạt nhận dạng câu/khớp môi.
+Đã sửa trạng thái chuẩn bị micro, tự dừng 8 giây, mốc offset sau AudioRecord start
+và quyền đọc lại bị bỏ qua bởi mã `E_CHALLENGE_MISMATCH` hợp lệ. Mốc offset đó
+là ước lượng phần mềm; không phải cách lấy offset PTS của nguồn chung mới.
+
 **Mục tiêu:** làm giai đoạn C của ADR-0013 và bước leo thang L3.
 
 **Đầu ra:**
-- AudioRecord PCM 16-bit, mono, 16 kHz, ghi ra WAV. Tối đa khoảng 8 giây.
-- Quay video kèm track âm thanh trong cùng một bản ghi (MediaRecorder) để khớp môi có chung đồng hồ (ADR-0012 mục 6).
+- Luồng API: CameraX ghi video và track âm thanh trong một MP4, giới hạn 8 giây;
+  WAV PCM 16-bit, mono, 16 kHz được giải mã/chuẩn hóa từ chính file đó, cùng offset PTS có dấu.
+- Chữ ký media ràng buộc WAV, MP4 và offset như hợp đồng hiện có; gallery offline
+  giữ AudioRecord. Chung PTS container chưa chứng minh đồng bộ clock phần cứng.
 
 **Tiêu chí hoàn thành:**
-- [ ] Server đọc được WAV, chấm PhoWhisper và AntiDeepfake trên điện thoại thật.
+- [ ] Server đọc được WAV và chấm nội dung câu/AntiDeepfake/khớp môi theo policy
+  hiện có; nghiệm thu khôi phục toàn luồng trên điện thoại thật.
 
 ---
 
 ### APP-04 · App: OTP, chụp CCCD, xác nhận thông tin
+
+**02/11 — thử lại S24 FE:** bản đang dùng đã có cải thiện QR từ PR115. Có
+khung đọc được mã nhưng chưa qua lọc định dạng/ROI; bổ sung log cờ kỹ thuật để
+tách hai nguyên nhân, không công khai nội dung mã. Sửa thông báo hết20s tự
+chụp để hướng dẫn bấm nút thủ công và giữ lý do chụp lại. Không bỏ chốt QR.
 
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
 |---|---|---|---|---|
@@ -882,6 +1011,7 @@ Không gộp receipt binding/device proof/media signing (SEC-02). Xem
 **Tiêu chí hoàn thành:**
 - [x] Test: hai phiên có gói/mã khác nhau; gửi lại cùng bước hoặc mã lượt cũ bị từ chối (409).
 - [x] Hợp đồng, API và type web khớp nhau (`gen_openapi --check`).
+- [x] Lịch mới v2/12000 ms đồng bộ API–ML–Android, chặn cặp chéo và tách version hiệu chỉnh; giữ v1/6000. Android có đếm ngược/hướng tiếp theo. Chưa nâng cấp iOS hoặc nghiệm thu đạt toàn luồng thật.
 
 **Cập nhật 24/10 — nền backend (`doing`):** Gói có 8 màu an toàn dùng chung,
 đường chấm sáng 7 giây, thứ tự quay trái/phải rồi về giữa, câu đọc và mã lần đọc;

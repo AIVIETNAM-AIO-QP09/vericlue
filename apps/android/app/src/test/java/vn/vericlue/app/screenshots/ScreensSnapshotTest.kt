@@ -3,6 +3,7 @@ package vn.vericlue.app.screenshots
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.ComposeView
 import org.junit.Rule
 import org.junit.Test
 import vn.vericlue.app.flow.Purpose
@@ -40,9 +41,14 @@ class ScreensSnapshotTest {
     @get:Rule
     val paparazzi = Paparazzi(deviceConfig = DeviceConfig.PIXEL_5, maxPercentDifference = 0.1)
 
-    private fun shot(name: String, dark: Boolean = false, content: @Composable () -> Unit) {
-        paparazzi.snapshot(name) { VcTheme(dark = dark, motionEnabled = false) { content() } }
-        if (!dark) paparazzi.snapshot(name + "_dark") { VcTheme(dark = true, motionEnabled = false) { content() } }
+    private fun shot(name: String, dark: Boolean = false, offsetMillis: Long = 0L, content: @Composable () -> Unit) {
+        fun render(snapshotName: String, darkTheme: Boolean) {
+            val view = ComposeView(paparazzi.context)
+            view.setContent { VcTheme(dark = darkTheme, motionEnabled = false) { content() } }
+            paparazzi.snapshot(view, snapshotName, offsetMillis = offsetMillis)
+        }
+        render(name, dark)
+        if (!dark) render(name + "_dark", true)
     }
 
     private val n: () -> Unit = {}
@@ -69,7 +75,8 @@ class ScreensSnapshotTest {
         shot("12_phone") { PhoneScreen(n, onSend = {}) }
         shot("13_otp") { OtpScreen(n, n) }
         shot("13_otp_error") { OtpScreen(n, n, startWithError = true) }
-        shot("13_otp_filled") { OtpScreen(n, n, sms = "Mã xác nhận VeriClue của bạn là 482910.", autoCode = "482910") }
+        // Allow autofill and its button colour to settle before comparing the filled state.
+        shot("13_otp_filled", offsetMillis = 100L) { OtpScreen(n, n, sms = "Mã xác nhận VeriClue của bạn là 482910.", autoCode = "482910") }
         shot("14_id_front") { IdCaptureScreen(back = false, glare = false, onBack = n, onCapture = n) }
         shot("14_id_glare") { IdCaptureScreen(back = false, glare = true, onBack = n, onCapture = n) }
         shot("14_id_front_captured") { IdCaptureScreen(back = false, glare = false, onBack = n, onCapture = n, captured = true) }
@@ -94,6 +101,7 @@ class ScreensSnapshotTest {
 
     @Test fun voiceAndResults() {
         shot("30_voice") { VoiceScreen(n, n) }
+        shot("30_voice_preparing") { VoiceScreen(n, n, capturePhase = vn.vericlue.app.capture.VoiceCapturePhase.Preparing) }
         shot("30_voice_recording") { VoiceScreen(n, n, startRecording = true) }
         shot("31_voice_again") { VoiceScreen(n, n, again = true) }
         shot("40_uploading") { Messages.Uploading(n, n, auto = false) }

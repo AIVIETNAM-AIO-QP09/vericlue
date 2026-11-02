@@ -6,6 +6,56 @@ import pytest
 from contract_utils import validate
 from jsonschema import ValidationError
 
+
+def head_plan(version=2, duration=12000, **patch):
+    import json
+
+    from contract_utils import EXAMPLES_DIR
+
+    value = json.loads((EXAMPLES_DIR / "session.CreateSessionResponse.dynamic.json").read_text())[
+        "challenge"
+    ]["dynamic"]
+    value.update(version=version, head_duration_ms=duration)
+    value["voice_start_at_ms"] = value["head_start_at_ms"] + duration
+    return {**value, **patch}
+
+
+@pytest.mark.parametrize("version,duration", [(1, 6000), (2, 12000)])
+def test_head_protocol_contract_accepts_exact_pairs(version, duration):
+    from vericlue_api.schemas.session import DynamicChallenge
+
+    value = head_plan(version, duration)
+    validate(value, "session", "DynamicChallenge")
+    assert DynamicChallenge.model_validate(value).head_duration_ms == duration
+
+
+@pytest.mark.parametrize(
+    "version,duration", [(1, 12000), (2, 6000), (3, 12000), (True, 6000), (2, 8000)]
+)
+def test_head_protocol_contract_rejects_crossed_pairs(version, duration):
+    from pydantic import ValidationError as ModelError
+
+    from vericlue_api.schemas.session import DynamicChallenge
+
+    value = head_plan(version, duration)
+    with pytest.raises(ValidationError):
+        validate(value, "session", "DynamicChallenge")
+    with pytest.raises(ModelError):
+        DynamicChallenge.model_validate(value)
+
+
+@pytest.mark.parametrize(
+    "patch", [{"head_start_at_ms": 19000, "voice_start_at_ms": 31000}, {"voice_start_at_ms": 1}]
+)
+def test_head_protocol_model_rejects_invalid_end(patch):
+    from pydantic import ValidationError as ModelError
+
+    from vericlue_api.schemas.session import DynamicChallenge
+
+    with pytest.raises(ModelError):
+        DynamicChallenge.model_validate(head_plan(**patch))
+
+
 STEP = {"rgb": "#ffcc73", "hold_ms": 500, "transition_ms": 150}
 
 

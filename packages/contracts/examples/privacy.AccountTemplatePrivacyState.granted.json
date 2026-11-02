@@ -1,0 +1,10 @@
+{
+  "session_id": "ses_example",
+  "scope": "account_template",
+  "purpose": "account_template",
+  "policy_version": "account-template-v1",
+  "status": "granted",
+  "consent_receipt_id": "prv_00000000000000000000000000000003",
+  "consented_at": "2026-10-30T12:00:00Z",
+  "retention_seconds": 86400
+}

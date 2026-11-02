@@ -38,9 +38,21 @@ Gate mắt/đầu chỉ nói chuyển động phù hợp quy tắc, không chứ
 
 `SESSION_FACE_MODELS=true` thay PAD bằng FS-VFM-L và GenD bằng nhánh ba góc từ
 video, đồng thời đo ChromaPulse thật từ cùng video. Cả ba dùng task MediaPipe
-chung với mắt/đầu. Sampling mới có version riêng, luôn raw/degraded/unclear;
-không áp calibrator MiniFASNet/GenD cũ. Ánh sáng hiện chỉ là phép đo, chưa chứng
+chung với mắt/đầu. Sampling mới có version riêng; mặc định raw/degraded/unclear
+khi chưa có fitted artifact đúng full session version. Adapter chỉ nhận
+Calibrator non-provisional qua CALIBRATORS_DIR, không dùng identity hoặc
+calibrator MiniFASNet/GenD cũ. Ánh sáng hiện chỉ là phép đo, chưa chứng
 minh phát hiện tấn công. Bật chế độ này chưa thể tự đạt khi chưa hiệu chỉnh.
+
+Công cụ đo/fit đúng video phiên: [hướng dẫn](../runbooks/session-face-calibration.md).
+Code hỗ trợ artifact không có nghĩa đã có dữ liệu/ngưỡng được kiểm chứng;
+guard thật vẫn giữ. Lỗi/degraded không được hiệu chỉnh thành đạt.
+
+Từ 30/10, cờ này cũng chọn Quality SCRFD và CamProbe rules thật, kể cả khi
+`USE_MOCK_MODELS=true` để giữ OTP demo. Thiếu dependency/model của Quality là
+lỗi, không fallback mock. CamProbe vẫn là luật trên tín hiệu nhận được, không
+chứng minh nguồn camera hoặc chống mọi cách chèn hình. Không mở chốt sinh trắc
+hoặc thay ngưỡng/quyết định của các mô-đun diagnostic.
 
 `IDENTITY_CONSISTENCY_REQUIRED=true` yêu cầu thêm ba cosine front–left,
 front–right, left–right cùng vượt ngưỡng riêng. Cần `IDENTITY_FACE_FROM_VIDEO=true`

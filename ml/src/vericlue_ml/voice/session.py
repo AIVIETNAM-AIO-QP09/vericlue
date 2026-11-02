@@ -16,7 +16,10 @@ class SessionVoiceDetector:
         self, client: VoiceWorkerClient, kind: str, *, match_config: VoiceConfig | None = None
     ) -> None:
         self.client, self.kind = client, kind
-        self.name, self.version = KINDS[kind], expected_version(kind)
+        self.name, self.version = (
+            KINDS[kind],
+            expected_version(kind, getattr(client, "manual_demo", None)),
+        )
         self.match_config = match_config
 
     def preload(self) -> None:

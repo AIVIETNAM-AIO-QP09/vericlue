@@ -4,6 +4,12 @@
 
 ## Trạng thái
 
+**Tích hợp PR #130 với main:** app giữ UI APP-11 và chế độ quay đầu thích ứng
+(opt-in `head_mode=adaptive`), đồng thời giữ sửa lỗi nguồn ghi hình/tiếng chung,
+consent và chế độ API của APP-01…03. Mô tả lịch 5/5/2 bên dưới áp dụng cho
+challenge v2 theo thời gian; adaptive chờ đủ bằng chứng từng hướng trong
+ngân sách video, không đổi bước chỉ vì hết một đoạn thời gian.
+
 APP-11 / lượt trau chuốt chuyển động và chốt capture: màn danh tính chỉ giữ ba
 nhãn hành trình, bỏ mô tả và câu chuẩn bị thừa; native xuất hiện tuần tự, cảnh
 Three.js ghép lớp/xoay rồi ổn định trong 3 giây. Quay đầu có hình hướng dẫn chuyển
@@ -69,6 +75,162 @@ từ 150%. Các màn còn lại giữ nút dưới cùng. Liên kết có vùng 
 48dp, tiêu đề có semantics heading. Không thay lịch màu/chấm/quay đầu,
 camera, API hay kết quả xác minh. Bộ ảnh onboarding có thêm tablet và
 `AdaptiveScreenSnapshotTest` kiểm tra cuộn tới toàn bộ nút tiếp tục.
+
+**02/11 — APP-03, chung nguồn hình/tiếng (doing):** luồng API thật dùng CameraX
+ghi micro và video vào một MP4, giới hạn 8 giây. Chỉ báo sẵn sàng khi có khung
+video và audio native ACTIVE. Sau finalize, MediaCodec giải mã âm thanh từ
+chính MP4 sẽ tải lên; WAV đầu ra là PCM 16-bit, mono, 16 kHz. Policy nguồn
+`muxed-av-pcm-v1`; chuẩn hóa `pcm16-mono16k-sinc-v1` chạy sau kiểm tra PTS,
+không cắt VAD hoặc tự dịch thời gian. Offset có dấu lấy từ PTS PCM/video của
+cùng container, không ép về 0 và không tuyên bố đã kiểm chứng clock phần cứng.
+Luồng API không chạy AudioRecord/WAV độc lập; gallery offline giữ cách cũ.
+Hủy/lỗi không gửi kết quả muộn; `ERROR_DURATION_LIMIT_REACHED` chỉ được nhận
+ở bản ghi giọng có cap 8 giây đã cấu hình. Các lỗi finalize khác bị chặn.
+Không đổi mô hình, API, chữ ký media hay ngưỡng.
+
+Lượt khôi phục thực gần nhất trước thay đổi nguồn ghi còn `review`, chỉ SyncNet
+chưa đạt. Nguồn MP4 chung mới và khôi phục toàn luồng trên S24 FE vẫn chờ nghiệm
+thu; không suy kết quả máy thật hoặc chất lượng AI từ việc đã có mã nguồn.
+
+**02/11 — mỗi bên một lần:** sau khi thấy một lần quay đúng phía rồi về giữa
+trong cùng đoạn5giây, hướng dẫn chờ trung tính đến đoạn tiếp, không nhắc quay
+lại cùng bên khi bộ đếm giữ local chưa hoàn tất. Trạng thái chờ không xác nhận
+giữ đủ hoặc xác minh thành công; cảnh báo vẫn ưu tiên, server vẫn tự kiểm đủ
+hai hướng. Không đổi hằng góc/giữ hoặc lịch5/5/2.
+
+**Lịch sử 02/11 — APP-03, trước nguồn MP4 chung:** màn đọc câu có trạng thái chuẩn bị riêng,
+chỉ báo đang ghi khi AudioRecord đã xác nhận chạy. Mốc audio offset lấy sau
+khi micro bắt đầu, vẫn là ước lượng phần mềm. Camera đã finalize không được
+coi là còn ghi; hủy/chạm lặp không mở micro muộn. Đủ8giây thì kết thúc và gửi
+một lần, không tiếp tục báo ghi khi WAV đã dừng nhận mẫu. Không đổi thời lượng,
+ngưỡng hoặc khẳng định đồng bộ hardware. Cần thử lại trên S24 FE sau triển khai.
+
+**02/11 — sửa hướng dẫn sau thử S24 FE:** lời nhắc quay đầu dùng câu ngắn
+“Quay chậm…” và “Dừng xoay, giữ yên”; các dao động ngắn không liên tục cắt/phát
+lại giọng. Cảnh báo tư thế và đổi bước vẫn được ưu tiên. Không kéo dài hoặc
+đổi lịch challenge12s phía server, không đổi ngưỡng hay coi hướng dẫn local là
+kết quả xác minh. Nhịp UI mới dành5giây mỗi bên và2giây nhìn thẳng, tổng vẫn
+12giây; v1 giữ2/2/2giây. Sau20s tự chụp CCCD dừng, màn hình yêu cầu bấm “Chụp ảnh thẻ”
+và vẫn giữ lý do cần chụp lại nếu có. Log debug QR chỉ bổ sung cờ định dạng hợp
+lệ, góc xoay và cropRect để phân biệt lỗi đọc với mã nằm ngoài khung; không log
+nội dung QR/thông tin thẻ. Sau cập nhật APK1367c2e/API6f3171e, người dùng xác
+nhận một lượt đăng ký dễ theo và hoàn tất; server ghi đủ bảy module ok/pass,
+tài khoản mã hóa và consent receipt. Người dùng tiếp tục đóng/mở app và đăng
+nhập lại thành công; server xác nhận khóa/tài khoản và năm module ok/pass.
+Hai lượt không yêu cầu đọc câu; khôi phục và nhánh giọng vẫn chưa nghiệm thu.
+
+**Chuẩn bị thử sáng 02/11 — source 7904d70:** triển khai trước khi có điện thoại
+đã hoàn tất; ba luồng AI thật trên máy vẫn chưa nghiệm thu. Gói cô lập tại
+`D:/vericlue/tmp/phone-demo-2026-11-02/`, source đầy đủ
+`7904d7092baaa338f06351688286c1f4dc440ea0`. APK 0.3.0 dùng localhost:8421,
+`-Pvericlue.signedMedia=true -Pvericlue.liveByDefault=true -Pvericlue.presenceTrace=false`.
+Cờ `LIVE_API_DEFAULT` mở API thật từ đầu; debug mặc định vẫn cho gallery khi
+không truyền option, release luôn bật API. API lỗi không tự rơi sang kết quả
+đạt dựng sẵn; gallery offline được ghi rõ là xem trước.
+Workflow xuất APK GitHub cũng truyền `liveByDefault=true`, kiểm cờ trong
+BuildConfig trước xuất và ghi `live_by_default=true` vào metadata unsigned.
+
+Tài khoản lưu thêm `evaluationMode`/`demoPolicyId` từ phiên đã đối chiếu;
+reauth/recovery kiểm metadata với phiên mới, giữ receipt/alias/khóa cũ khi lỗi
+hoặc không khớp. Bản lưu cũ chưa biết mode không được đoán thành standard/manual
+và không tự bị xóa. Nhãn “Demo · Ngưỡng chưa hiệu chỉnh” còn ở Success,
+BankOpened và tài khoản demo được khôi phục từ lưu trữ.
+
+APK gói mới dùng cùng signer debug laptop SHA-256
+`822e5e44be42ce365f186a6c73af5bf36eb262c3cc65011b4269363adc695c75`;
+v2=true/v3=false, không phải khóa phát hành repo. Kiểm signer máy trước
+`adb install -r`, không uninstall/clear. Nối API qua `adb reverse tcp:8421 tcp:8421`
+hoặc helper `CONNECT-PHONE.cmd` của gói. OTP là mã ngẫu nhiên hiển thị từ
+`simulated_sms`, không mặc định `123456`.
+
+Server manual full demo dùng raw AntiDeepfake + SyncNet, policy v2 và ngưỡng
+minh họa chưa hiệu chỉnh. Native AntiDeepfake/Qwen/CTC đã suy luận một mẫu
+`calib_fit` chọn trước; SyncNet forward tensor hữu hạn, chưa nghiệm thu video
+nói thật. Smoke API/DB0011 và chốt thiếu consent đã qua. CCCD/mặt/giọng/Keystore và đăng ký/reauth/recovery trên
+điện thoại cho gói này đều `not_run`. Những đoạn ngày 30–31/10 dưới đây ghi
+lịch sử face-only/guard chuẩn, không phải phạm vi full demo mới. Xem
+[runbook manual](../../docs/runbooks/manual-face-demo.md) và
+[checklist nghiệm thu](../../docs/runbooks/real-ekyc-next-steps.md).
+
+**Review timestamp trước PR (01/11):** không suy thời gian chụp từ lúc giao frame.
+Camera chỉ chuyển đổi hai miền đồng hồ đã nhận diện và giữ tuổi khung; timestamp
+không hợp lệ/bất định bị bỏ trước phân tích hoặc ghi frame_times. Hướng dẫn quay
+đầu không đếm giữ hướng từ timestamp thiếu, tương lai hoặc khung quá cũ. Có test
+đồng hồ REALTIME/UNKNOWN và khung lặp; vẫn cần nghiệm thu thực trên thiết bị.
+
+**APP-01 / SEC-09 (01/11):** đồng ý lưu mẫu tài khoản mã hóa được ghi riêng với
+biên nhận, thời hạn 24 giờ; checkbox mặc định bỏ chọn. API kiểm trước trích mẫu và
+ghi danh. Android đối chiếu mode/policy cả finalize và voice, hiển thị nhãn
+“Demo · Ngưỡng chưa hiệu chỉnh” cho `manual_full_demo`. Có test và snapshot sáng/tối,
+font200%; chưa nghiệm thu đầy đủ trên điện thoại. Reauth chỉ đòi hỏi thành phần
+giọng khi thực sự chuyển sang bước giọng. Xem [bàn giao](../../docs/status/handoffs/2026-11-01-1015-app-01-ngoc-quang-codex.md).
+
+**APP-01 (31/10, ngưỡng demo):** Android nhận marker manual_demo/policy từ API,
+chỉ mở route riêng khi demo_complete và mode/hash khớp. Tiêu đề theo yêu cầu
+người dùng là “Xác minh thành công”, luôn kèm “Demo · Ngưỡng chưa hiệu chỉnh”
+và không đi qua tạo/lưu tài khoản thật. Camera tắt khi vào kết quả. Mặc định
+server không bật manual; xem [runbook](../../docs/runbooks/manual-face-demo.md).
+
+**APP-01 (31/10, sửa kiểm góc):** bỏ phần tập tự hiện trước xác minh theo phản hồi
+người dùng; chuẩn bị challenge và kiểm chất lượng như luồng trước khi thêm tập.
+API cho làm lại riêng phần mặt một lần với hint hiện có khi chỉ vướng chất lượng
+góc, giữ các chốt còn lại. Chưa phải nghiệm thu xác minh toàn luồng.
+Mũi tên dừng khi giữ đúng góc; oval mảnh và nền nhẹ hơn. Giọng Việt chỉ đọc các
+câu hướng dẫn cố định trong bước tập/quay đầu, ưu tiên giọng offline có sẵn,
+không tự tải gói giọng hay đổi cài đặt máy. Nếu chỉ có giọng cần mạng thì engine
+có thể gửi câu hướng dẫn cố định; không gửi ảnh/âm thanh hay thông tin người dùng.
+Tiếng báo nhỏ phân biệt quay/giữ/nhìn thẳng vẫn dự phòng khi TTS lỗi; dừng âm
+khi đổi hướng, thoát màn hoặc app về nền. Trace opt-in bổ sung sự kiện khởi tạo/
+nhận/phát xong câu TTS cố định để phân biệt lỗi phát trong luồng với test engine.
+Không đổi lịch ghi hình/ngưỡng server; nghe giọng trên máy vẫn chờ người dùng thử.
+Xem [hướng dẫn thử](../../docs/runbooks/head-turn-coaching.md).
+
+**APP-01 (30/10 tối, chẩn đoán góc mặt):** kết quả analyzer trễ hơn 300ms không
+được dùng đếm giữ hoặc giữ khung xanh; màn hướng dẫn tự kiểm tuổi kết quả mỗi
+100ms. Trace opt-in đã nối camera–timeline–hướng dẫn–chấm được vẽ, gắn digest
+đúng attempt, tắt mặc định/release. Bản kiểm tra dùng
+`-Pvericlue.presenceTrace=true`; dữ liệu số lưu private, giữ qua media ACK,
+xóa khi bỏ lượt/rút đồng ý/lượt mới và dọn theo hạn 15 phút. Không đổi thuật
+toán mắt/ngưỡng server. Hướng dẫn: [chẩn đoán điện thoại](../../docs/runbooks/presence-phone-diagnostics.md).
+
+**APP-01 (30/10, hướng dẫn quay đầu):** oval riêng bước quay đầu rộng hơn,
+co theo chiều cao khi chữ lớn; không đổi video ghi. Gợi ý ML Kit kiểm cả yaw,
+pitch/roll (biên nhắc nhở 12°), không báo xanh khi góc không hữu hạn hoặc đầu
+nghiêng/cúi quá mức. Bộ đếm giữ bắt đầu lại khi nhịp đo gián đoạn trên 300 ms
+hoặc thời gian không tăng. Âm báo chuyển bước/giữ đủ ngắn ở mức 35/100, không phát
+âm cảnh báo; mỗi trạng thái chỉ rung một lần trong đoạn. Tín hiệu giữ đủ là
+hướng dẫn local, không phải kết quả API. Không đổi ngưỡng server; hai bộ ước
+lượng góc khác nhau và chưa có bằng chứng nghiệm thu toàn luồng.
+
+**APP-01 / LIVE-01 (30/10, quay đầu chậm hơn):** backend phát dynamic v2,
+12000 ms cho ba hướng, ban đầu4giây/hướng; từ02/11 Android dùng5/5/2giây
+trong cùng cửa sổ12giây. App kiểm cặp version/duration, giới
+hạn 30 giây và offset giọng; vẫn nhận v1/6000 ms. Hiện đếm ngược và hướng tiếp
+theo, giữ một video liên tục và cùng gốc thời gian. Không thêm thời gian chờ
+vào lịch, hiệu ứng camera hoặc TTS. Bắt đầu phiên mới sau cập nhật để thử v2.
+Không đổi ngưỡng xác minh; lượt vẫn có thể review do dữ liệu/hiệu chỉnh chưa đủ.
+Phiên bản này chưa cập nhật iOS.
+
+**APP-01 / SEC-09 (30/10):** màn đồng ý tạo phiên đúng purpose/khóa, đọc version
+privacy và ghi lựa chọn theo nhóm trước OTP/CCCD/camera/micro. Chỉ chấp nhận
+receipt đúng phiên/phạm vi/version; policy đổi không tự grant. Thông báo đóng
+gói hiện là `demo-v1`. Đăng nhập lại có binding đi từ đồng ý tới L0/mặt, không
+OTP; khôi phục có binding bỏ CCCD sau OTP và dùng mẫu tài khoản theo API hiện có.
+Guard sinh trắc account-bound vẫn giữ 503, chưa phải nghiệm thu đăng nhập thật.
+
+Chọn dừng ở phiên API có thêm thao tác rút đồng ý. Camera/micro dừng, các bước
+upload mới bị chặn; refresh token đang chạy được nhận đầy đủ trước withdrawal.
+Lỗi giữ ngữ cảnh để retry; có thể về màn đầu với thông báo chưa xác nhận xóa.
+Receipt thành công dọn dữ liệu local và bỏ back stack cũ. Không hứa xóa mẫu tài
+khoản/backup/chứng nhận. Màn thành công chỉ dẫn tới mở tài khoản khi receipt/alias
+đã lưu bền; thiếu receipt hoặc lỗi lưu chỉ xác nhận hoàn tất phiên.
+
+Đoạn cập nhật 30/10 ở trên mô tả consent **xử lý theo phiên**. Từ 01/11 có thêm
+hợp đồng lưu mẫu tài khoản riêng; không suy diễn quyền đó từ `face_biometrics`.
+OTP vẫn mô phỏng với `SIMULATED_OTP=true` trong `synthetic`, độc lập chế độ AI.
+Khi SESSION_FACE_MODELS bật, Quality SCRFD/CamProbe rules cũng chạy thật dù OTP vẫn demo. Môi trường/model nạp được không chứng minh chất lượng AI. Artifact hiệu chỉnh
+đúng protocol video và nghiệm thu máy thật còn thiếu; không mở guard hoặc dùng
+calibrator tạm của pipeline cũ để ép đạt.
 
 APP-10: quét thẻ yêu cầu ảnh phân tích tối đa 1920×1440, fallback theo khả năng
 CameraX/thiết bị; camera trước dùng cấu hình cũ. Bước lấy QR không chạy thêm
@@ -277,6 +439,7 @@ app/src/main/java/vn/vericlue/app/
 - Hiệu ứng trang trí dùng `Vc.motion` (`ui/theme/Motion.kt`). Theme theo dõi `Settings.Global.ANIMATOR_DURATION_SCALE`; bằng 0 thì hiện trạng thái cuối ngay, kể cả khi đổi cài đặt lúc app đang mở. Chuyển màn tắt ở cả hai chiều khi đi vào/ra camera. Không dùng thời lượng này cho lịch màu/chấm sáng do server cấp.
 - Rung nhẹ sau khi chụp CCCD và khi thành công dùng phản hồi hệ thống (`CONTEXT_CLICK`), tôn trọng cài đặt rung của máy, không xin thêm quyền.
 - Ảnh Paparazzi đặt `motionEnabled = false` để so bố cục ở trạng thái tĩnh. Chạy `recordPaparazziDebug --tests '*ScreensSnapshotTest*'` trước/sau khi sửa; không commit ảnh trong `app/src/test/snapshots/`.
+- Các task test Gradle chạy từng lớp trong JVM riêng (`forkEvery = 1`, tuần tự) để đồng hồ Compose/Layoutlib của lớp snapshot trước không làm chuyển động ở lớp sau đứng tại frame đầu. Cấu hình này áp dụng cả `testDebugUnitTest` và `recordPaparazziDebug` trên local/CI; vẫn giữ assertion hoạt ảnh phải chạy tới frame cuối. Đổi lại, bộ test tốn thêm thời gian khởi động JVM.
 - Chưa dùng lại code từ `AIVIETNAM-AIO-QP09/eKYC-system`; khi chép Keystore từ đó (SEC-02) phải giữ dòng giấy phép MIT và ghi vào `third_party/README.md`.
 
 Kiểm tra giảm chuyển động trên máy ảo: khi app đang ở màn đăng ký/đăng nhập, chạy `adb shell settings put global animator_duration_scale 0`, kiểm tra các thẻ đứng yên và nút/OTP đổi ngay. Đặt lại giá trị ban đầu sau khi thử (thường là `1`; nếu ban đầu chưa có giá trị thì dùng `adb shell settings delete global animator_duration_scale`). Vẫn phải thử cảm giác rung trên điện thoại thật.

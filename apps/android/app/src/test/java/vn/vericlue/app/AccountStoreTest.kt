@@ -14,6 +14,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import vn.vericlue.app.data.AccountStore
 import vn.vericlue.app.data.KeyValueStore
+import vn.vericlue.app.data.StoredAccount
 import vn.vericlue.app.data.api.AccountReceipt
 import vn.vericlue.app.data.api.SessionApi
 import vn.vericlue.app.flow.LiveFlow
@@ -54,15 +55,15 @@ class AccountStoreTest {
     }
 
     @Test
-    fun expiredOrBrokenReceiptCountsAsNoAccount() {
+    fun expiredOrBrokenReceiptIsUnavailableButPreserved() {
         val map = MapStore()
         AccountStore(map) { now }.save(receipt, "vericlue.media.test")
         val store = AccountStore(map) { Instant.parse("2026-11-28T00:00:00Z") }
         assertNull(store.load())
-        assertTrue(map.map.isEmpty())
+        assertTrue(map.map.isNotEmpty())
         map.put("account_binding.v2", "{not json")
         assertNull(store.load())
-        assertTrue(map.map.isEmpty())
+        assertEquals("{not json", map.map["account_binding.v2"])
     }
 
     @Test
@@ -91,7 +92,7 @@ class AccountStoreTest {
         val server = MockWebServer().apply { start() }
         try {
             val flow = LiveFlow(SessionApi(server.url("/").toString()), Signer())
-            flow.boundAccount = receipt
+            flow.bindAccount(StoredAccount(receipt, "vericlue.media.test", "standard"))
             server.enqueue(MockResponse().setBody(
                 """{"session_id":"ses_1","token":"tok_1","expires_at":"x","purpose":"recovery",
                    "challenge":{"challenge_id":"ch_1","color_sequence":[],"media_nonce":"${"0".repeat(64)}"}}"""))

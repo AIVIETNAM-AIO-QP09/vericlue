@@ -28,6 +28,106 @@
         "title": "AccountReceipt",
         "type": "object"
       },
+      "AccountTemplateConsentRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "consent": {
+            "const": true,
+            "title": "Consent",
+            "type": "boolean"
+          },
+          "policy_version": {
+            "pattern": "^[A-Za-z0-9._-]{1,64}$",
+            "title": "Policy Version",
+            "type": "string"
+          },
+          "purpose": {
+            "const": "account_template",
+            "title": "Purpose",
+            "type": "string"
+          }
+        },
+        "required": [
+          "policy_version",
+          "purpose",
+          "consent"
+        ],
+        "title": "AccountTemplateConsentRequest",
+        "type": "object"
+      },
+      "AccountTemplatePrivacyState": {
+        "additionalProperties": false,
+        "properties": {
+          "consent_receipt_id": {
+            "anyOf": [
+              {
+                "pattern": "^prv_[0-9a-f]{32}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent Receipt Id"
+          },
+          "consented_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consented At"
+          },
+          "policy_version": {
+            "pattern": "^[A-Za-z0-9._-]{1,64}$",
+            "title": "Policy Version",
+            "type": "string"
+          },
+          "purpose": {
+            "const": "account_template",
+            "default": "account_template",
+            "title": "Purpose",
+            "type": "string"
+          },
+          "retention_seconds": {
+            "const": 86400,
+            "default": 86400,
+            "title": "Retention Seconds",
+            "type": "integer"
+          },
+          "scope": {
+            "const": "account_template",
+            "default": "account_template",
+            "title": "Scope",
+            "type": "string"
+          },
+          "session_id": {
+            "pattern": "^ses_[A-Za-z0-9_-]{1,120}$",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "not_granted",
+              "granted",
+              "withdrawn"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "policy_version",
+          "status"
+        ],
+        "title": "AccountTemplatePrivacyState",
+        "type": "object"
+      },
       "AuditVerification": {
         "properties": {
           "bad_index": {
@@ -548,6 +648,18 @@
           "challenge": {
             "$ref": "#/components/schemas/Challenge"
           },
+          "demo_policy_id": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demo Policy Id"
+          },
           "device_challenge": {
             "anyOf": [
               {
@@ -557,6 +669,16 @@
                 "type": "null"
               }
             ]
+          },
+          "evaluation_mode": {
+            "default": "standard",
+            "enum": [
+              "standard",
+              "manual_demo",
+              "manual_full_demo"
+            ],
+            "title": "Evaluation Mode",
+            "type": "string"
           },
           "expires_at": {
             "description": "Hạn của token (~5 phút)",
@@ -825,7 +947,10 @@
             "type": "array"
           },
           "head_duration_ms": {
-            "const": 6000,
+            "enum": [
+              6000,
+              12000
+            ],
             "title": "Head Duration Ms",
             "type": "integer"
           },
@@ -882,7 +1007,10 @@
             "type": "string"
           },
           "version": {
-            "const": 1,
+            "enum": [
+              1,
+              2
+            ],
             "title": "Version",
             "type": "integer"
           },
@@ -1006,6 +1134,33 @@
               }
             ],
             "description": "Chỉ có khi status = retry"
+          },
+          "demo_complete": {
+            "default": false,
+            "title": "Demo Complete",
+            "type": "boolean"
+          },
+          "demo_policy_id": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demo Policy Id"
+          },
+          "evaluation_mode": {
+            "default": "standard",
+            "enum": [
+              "standard",
+              "manual_demo",
+              "manual_full_demo"
+            ],
+            "title": "Evaluation Mode",
+            "type": "string"
           },
           "retry_hint": {
             "anyOf": [
@@ -3226,6 +3381,28 @@
               }
             ],
             "title": "Attempts Left"
+          },
+          "demo_policy_id": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demo Policy Id"
+          },
+          "evaluation_mode": {
+            "default": "standard",
+            "enum": [
+              "standard",
+              "manual_demo",
+              "manual_full_demo"
+            ],
+            "title": "Evaluation Mode",
+            "type": "string"
           },
           "status": {
             "enum": [
@@ -6029,6 +6206,230 @@
           }
         ],
         "summary": "Get Privacy",
+        "tags": [
+          "privacy"
+        ]
+      }
+    },
+    "/v1/sessions/{session_id}/privacy/account-template": {
+      "get": {
+        "operationId": "get_account_template_privacy_v1_sessions__session_id__privacy_account_template_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountTemplatePrivacyState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Account Template Privacy",
+        "tags": [
+          "privacy"
+        ]
+      }
+    },
+    "/v1/sessions/{session_id}/privacy/account-template/consent": {
+      "post": {
+        "operationId": "grant_account_template_consent_v1_sessions__session_id__privacy_account_template_consent_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountTemplateConsentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountTemplatePrivacyState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Grant Account Template Consent",
         "tags": [
           "privacy"
         ]

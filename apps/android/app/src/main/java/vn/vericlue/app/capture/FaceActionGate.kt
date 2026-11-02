@@ -6,7 +6,7 @@ import kotlin.math.abs
 
 /** Consecutive distinct analysis frames, never repeated UI polls or elapsed time alone. */
 private class StableFrameHold(private val holdMs: Long, private val minimumFrames: Int) {
-    private var firstObservedMs: Long? = null
+    private var firstCapturedMs: Long? = null
     private var lastObservedMs: Long? = null
     private var lastFrameNs: Long? = null
     private var trackingId: Int? = null
@@ -15,7 +15,7 @@ private class StableFrameHold(private val holdMs: Long, private val minimumFrame
         private set
 
     fun reset() {
-        firstObservedMs = null
+        firstCapturedMs = null
         lastObservedMs = null
         lastFrameNs = null
         trackingId = null
@@ -25,18 +25,20 @@ private class StableFrameHold(private val holdMs: Long, private val minimumFrame
 
     fun update(s: FaceSignal?, nowMs: Long, valid: Boolean): Boolean {
         if (!valid || s == null || !QualityGate.isFresh(s, nowMs)) { reset(); return false }
+        val capturedMs = s.timestampNs / 1_000_000L
         val previous = lastObservedMs
         if (previous != null && (s.observedAtMs < previous || s.observedAtMs - previous > QualityGate.MAX_FRAME_AGE_MS ||
                 (trackingId != null && trackingId != s.trackingId))) reset()
+        if (lastFrameNs != null && capturedMs - lastFrameNs!! / 1_000_000L > QualityGate.MAX_FRAME_AGE_MS) reset()
         if (lastFrameNs == s.timestampNs) return false
         if (lastFrameNs != null && s.timestampNs < lastFrameNs!!) { reset(); return false }
         if (lastObservedMs != null && s.observedAtMs <= lastObservedMs!!) return false
-        firstObservedMs = firstObservedMs ?: s.observedAtMs
+        firstCapturedMs = firstCapturedMs ?: capturedMs
         lastObservedMs = s.observedAtMs
         lastFrameNs = s.timestampNs
         trackingId = s.trackingId
         frames++
-        val duration = s.observedAtMs - firstObservedMs!!
+        val duration = capturedMs - firstCapturedMs!!
         progress = minOf(duration.toFloat() / holdMs, frames.toFloat() / minimumFrames).coerceIn(0f, 1f)
         return duration >= holdMs && frames >= minimumFrames
     }
@@ -59,8 +61,8 @@ class StableFaceGate {
  */
 class HeadActionGate(
     val direction: TurnDir?,
-    private val thresholdDeg: Float = 25f,
-    private val straightDeg: Float = 10f,
+    private val thresholdDeg: Float = HeadTurnGuide.TURN_MIN_DEG,
+    private val straightDeg: Float = HeadTurnGuide.CENTER_MAX_DEG,
     holdMs: Long = 350L,
 ) {
     private val hold = StableFrameHold(holdMs, minimumFrames = 3)
@@ -72,7 +74,9 @@ class HeadActionGate(
 
     fun update(s: FaceSignal?, nowMs: Long): Boolean {
         if (complete) return true
-        val poseMatches = s != null && when (direction) {
+        val poseMatches = s != null &&
+            abs(s.pitch) <= HeadTurnGuide.MAX_TILT_DEG && abs(s.roll) <= HeadTurnGuide.MAX_TILT_DEG &&
+            abs(s.yaw) <= HeadTurnGuide.TURN_MAX_SAFE_DEG && when (direction) {
             TurnDir.Left -> s.yaw >= thresholdDeg
             TurnDir.Right -> s.yaw <= -thresholdDeg
             null -> abs(s.yaw) <= straightDeg

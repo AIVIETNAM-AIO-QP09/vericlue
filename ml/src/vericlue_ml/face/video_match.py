@@ -13,6 +13,7 @@ from vericlue_ml.face.match import MATCH_VERSION, FaceMatchDetector, MatchError
 from vericlue_ml.face.pad import PadError
 from vericlue_ml.face.template import FaceTemplate
 from vericlue_ml.presence.challenge import expected_dynamic
+from vericlue_ml.presence.head_protocol import head_protocol_version, head_sampling_suffix
 from vericlue_ml.presence.head_turn import CENTER_MAX_DEG, MAX_PITCH_ROLL_DEG
 from vericlue_ml.presence.landmarks import FaceObservationReader, LandmarkError
 from vericlue_ml.presence.session_views import session_views
@@ -37,6 +38,17 @@ class VideoFaceMatchDetector(FaceMatchDetector):
         self.reader = reader if reader is not None else FaceObservationReader()
         self.with_consistency = with_consistency
 
+    def _supported_versions(self) -> tuple[str, ...]:
+        return (
+            tuple(
+                self.version + head_sampling_suffix(protocol, adaptive=adaptive)
+                for protocol in (1, 2)
+                for adaptive in (False, True)
+            )
+            if self.with_consistency
+            else (self.version,)
+        )
+
     def preload(self, *, models_dir: Path | str | None = None, device: str | None = None) -> None:
         super().preload(models_dir=models_dir, device=device)
         self.reader.preload(models_dir=Path(models_dir) if models_dir is not None else None)
@@ -49,16 +61,26 @@ class VideoFaceMatchDetector(FaceMatchDetector):
         This artifact alone does not authorize account enrollment.
         """
         with self._lock:
+            suffix = self.manual_demo.version_suffix if self.manual_demo else ""
+            allowed_versions = (
+                *self._supported_versions(),
+                *(v + suffix for v in self._supported_versions()),
+            )
             if (
                 approved.module != Module.FACE_MATCH
-                or approved.model_version != self.version
+                or approved.model_version not in allowed_versions
                 or approved.status != Status.OK
                 or approved.error_code is not None
                 or approved.gate != Gate.PASS
             ):
                 raise MatchError(ErrorCode.E_INTEGRITY)
             fresh = self.predict(inp)
-            if fresh.status != Status.OK or fresh.gate != Gate.PASS or fresh.error_code is not None:
+            if (
+                fresh.status != Status.OK
+                or fresh.gate != Gate.PASS
+                or fresh.error_code is not None
+                or fresh.model_version != approved.model_version
+            ):
                 raise MatchError(ErrorCode.E_INTEGRITY)
 
             def provenance(result):
@@ -93,8 +115,13 @@ class VideoFaceMatchDetector(FaceMatchDetector):
 
     def predict(self, inp: DetectorInput) -> ModuleResult:
         started = perf_counter()
+        version = self.version
         try:
             dynamic = expected_dynamic(inp)
+            if self.with_consistency:
+                version += head_sampling_suffix(
+                    head_protocol_version(inp), adaptive=dynamic.get("head_mode") == "adaptive"
+                )
             target = dynamic.get("frontal_capture_at_ms")
             baseline = inp.metadata["expected_challenge"].get("baseline_ms")
             if (
@@ -130,7 +157,11 @@ class VideoFaceMatchDetector(FaceMatchDetector):
                 frames, view_checksum = session_views(inp, self.reader)
                 if view_checksum != checksum or not (frames["front"] == frame.bgr).all():
                     raise LandmarkError(ErrorCode.E_INTEGRITY)
-            result = self.predict_frames(inp, frames)
+            result = (
+                self.predict_frames(inp, frames, result_version=version)
+                if version != self.version
+                else self.predict_frames(inp, frames)
+            )
             if video_sha256(inp.video) != checksum:
                 raise LandmarkError(ErrorCode.E_INTEGRITY)
             result.quality.update(
@@ -158,7 +189,7 @@ class VideoFaceMatchDetector(FaceMatchDetector):
         except Exception as exc:
             return ModuleResult(
                 module=Module.FACE_MATCH,
-                model_version=self.version,
+                model_version=version,
                 status=exc.status if isinstance(exc, (LandmarkError, MatchError)) else Status.ERROR,
                 error_code=exc.code
                 if isinstance(exc, (LandmarkError, PadError))

@@ -12,6 +12,7 @@ from pathlib import Path
 from time import monotonic
 
 from vericlue_ml.common.detector import DetectorInput
+from vericlue_ml.common.manual_demo import ManualDemoThresholds
 from vericlue_ml.common.result import ModuleResult
 from vericlue_ml.runtime.voice_wire import (
     KINDS,
@@ -21,6 +22,8 @@ from vericlue_ml.runtime.voice_wire import (
     canonical,
     expected_version,
     source_hashes,
+    worker_hello,
+    worker_scope,
 )
 
 
@@ -28,7 +31,15 @@ class VoiceWorkerClient:
     """Serialize exchanges and permanently fail closed after timeout or broken framing."""
 
     def __init__(
-        self, python: Path, models_dir: Path, media_root: Path, *, timeout: float = 30
+        self,
+        python: Path,
+        models_dir: Path,
+        media_root: Path,
+        *,
+        timeout: float = 30,
+        manual_demo: ManualDemoThresholds | None = None,
+        warmup_kinds: tuple[str, ...] = (),
+        startup_timeout: float = 180,
     ) -> None:
         self.python, self.models_dir, self.media_root = (
             python.resolve(),
@@ -36,13 +47,35 @@ class VoiceWorkerClient:
             media_root.resolve(),
         )
         self.timeout = timeout
+        if not math.isfinite(startup_timeout) or not 0 < startup_timeout <= 600:
+            raise ValueError("Invalid worker startup timeout")
+        if manual_demo is not None and (not warmup_kinds or not set(warmup_kinds) <= KINDS.keys()):
+            raise ValueError("Manual worker requires preload scope")
+        self._manual_demo = manual_demo
+        self.warmup_kinds = tuple(warmup_kinds)
+        self.startup_timeout = startup_timeout
         self._process = None
         self._lock = threading.RLock()
         self._state_lock = threading.Lock()
         self._failed = self._closed = False
 
+    @property
+    def manual_demo(self):
+        return self._manual_demo
+
     def preload(self) -> None:
-        """Validate local runtime configuration; model weights load lazily inside the child."""
+        """Manual readiness requires successful backend loading in the private worker."""
+        self._validate_python()
+        if self.manual_demo is not None:
+            with self._lock:
+                try:
+                    self._start(monotonic() + self.startup_timeout)
+                except Exception:
+                    self._failed = True
+                    self.close()
+                    raise
+
+    def _validate_python(self) -> None:
         if not self.python.is_file() or self.python.suffix.lower() in {".cmd", ".bat", ".ps1"}:
             raise ValueError("Expected a local Python executable")
 
@@ -65,7 +98,7 @@ class VoiceWorkerClient:
         if self._closed or self._failed:
             raise RuntimeError("Worker not available")
         if self._process is None:
-            self.preload()
+            self._validate_python()
             repo = Path(__file__).resolve().parents[4]
             env = {
                 **os.environ,
@@ -85,6 +118,16 @@ class VoiceWorkerClient:
                     str(self.models_dir),
                     "--media-root",
                     str(self.media_root),
+                    *(
+                        [
+                            "--manual-policy-json",
+                            self.manual_demo.model_dump_json(),
+                            "--warmup-kinds",
+                            ",".join(self.warmup_kinds),
+                        ]
+                        if self.manual_demo
+                        else []
+                    ),
                 ],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
@@ -102,7 +145,9 @@ class VoiceWorkerClient:
                 self._dispose(process)
                 raise RuntimeError("Closed while spawning worker")
             ready = self._line(lambda: process.stdout.readline(MAX_REPLY + 1), deadline)
-            if len(ready) > MAX_REPLY or json.loads(ready) != {"protocol": PROTOCOL, "ready": True}:
+            if len(ready) > MAX_REPLY or json.loads(ready) != worker_hello(
+                self.manual_demo, self.warmup_kinds
+            ):
                 raise ValueError("Invalid worker hello")
         return self._process
 
@@ -152,7 +197,7 @@ class VoiceWorkerClient:
     def predict(
         self, kind: str, inp: DetectorInput, *, timeout: float | None = None
     ) -> ModuleResult:
-        if kind not in KINDS:
+        if kind not in KINDS or (self.manual_demo is not None and kind not in self.warmup_kinds):
             raise ValueError("Unknown voice worker kind")
         deadline = monotonic() + (self.timeout if timeout is None else min(self.timeout, timeout))
         # Queueing behind another kind is part of this request's budget. A busy
@@ -160,7 +205,7 @@ class VoiceWorkerClient:
         if not self._lock.acquire(timeout=max(0.0, deadline - monotonic())):
             return ModuleResult(
                 module=KINDS[kind],
-                model_version=expected_version(kind),
+                model_version=expected_version(kind, self.manual_demo),
                 status="error",
                 gate="unclear",
                 error_code="E_TIMEOUT",
@@ -178,7 +223,7 @@ class VoiceWorkerClient:
             # Invalid input must not poison a shared worker for later sessions.
             return ModuleResult(
                 module=KINDS[kind],
-                model_version=expected_version(kind),
+                model_version=expected_version(kind, self.manual_demo),
                 status="error",
                 gate="unclear",
                 error_code="E_DECODE",
@@ -194,6 +239,7 @@ class VoiceWorkerClient:
             )
             request = {
                 "protocol": PROTOCOL,
+                **worker_scope(self.manual_demo),
                 "request_id": uuid.uuid4().hex,
                 "kind": kind,
                 "input": selected.model_dump(mode="json"),
@@ -215,6 +261,7 @@ class VoiceWorkerClient:
             body = json.loads(response)
             if (
                 body.get("protocol") != PROTOCOL
+                or any(body.get(k) != v for k, v in worker_scope(self.manual_demo).items())
                 or body.get("request_id") != request["request_id"]
                 or body.get("request_sha256") != hashlib.sha256(raw).hexdigest()
                 or body.get("sources") != sources
@@ -226,9 +273,13 @@ class VoiceWorkerClient:
                 result.module != KINDS[kind]
                 or not math.isfinite(result.latency_ms)
                 or (result.score is not None and not math.isfinite(result.score))
-                or (result.status != "error" and result.model_version != expected_version(kind))
+                or (
+                    result.status != "error"
+                    and result.model_version != expected_version(kind, self.manual_demo)
+                )
                 or (
                     kind != "content"
+                    and not (self.manual_demo is not None and kind in {"spoof", "lipsync"})
                     and (
                         result.gate != "unclear"
                         or result.prob_attack is not None
@@ -237,6 +288,16 @@ class VoiceWorkerClient:
                 )
             ):
                 raise ValueError("Wrong result scope")
+            if self.manual_demo is not None and kind in {"spoof", "lipsync"}:
+                accepts = (
+                    self.manual_demo.accepts_voice_spoof
+                    if kind == "spoof"
+                    else self.manual_demo.accepts_lipsync
+                )
+                if result.prob_attack is not None or (
+                    result.gate == "pass" and not accepts(result)
+                ):
+                    raise ValueError("Invalid manual result policy")
             from vericlue_ml.common.result import Evidence
 
             result.evidence.append(

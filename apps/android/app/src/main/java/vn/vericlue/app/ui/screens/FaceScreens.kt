@@ -35,7 +35,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -46,11 +48,12 @@ import vn.vericlue.app.flow.FramingState
 import vn.vericlue.app.capture.CaptureClock
 import vn.vericlue.app.capture.ColorSchedule
 import vn.vericlue.app.capture.ColorSlot
+import vn.vericlue.app.capture.FaceSignal
+import vn.vericlue.app.capture.HeadTurnGuide
 import vn.vericlue.app.capture.TurnTracker
 import vn.vericlue.app.capture.FaceTimeline
 import vn.vericlue.app.capture.FaceAttemptGuard
 import vn.vericlue.app.capture.FaceAttemptIssue
-import vn.vericlue.app.capture.FaceSignal
 import vn.vericlue.app.capture.AdaptiveHeadCapture
 import vn.vericlue.app.capture.HeadCaptureState
 import vn.vericlue.app.capture.HeadFeedback
@@ -61,6 +64,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.runtime.withFrameNanos
 import vn.vericlue.app.ui.components.ContentCard
+import vn.vericlue.app.ui.components.Banner
 import vn.vericlue.app.ui.components.FaceCaptureSurface
 import vn.vericlue.app.ui.components.IdentityScene3D
 import vn.vericlue.app.ui.components.IllustrationScene
@@ -82,7 +86,8 @@ import vn.vericlue.app.ui.theme.VcType
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun FaceReadyScreen(onBack: () -> Unit, onReady: () -> Unit, onSkipFlash: () -> Unit, usesLightChallenge: Boolean = true) {
+fun FaceReadyScreen(onBack: () -> Unit, onReady: () -> Unit, onSkipFlash: () -> Unit,
+    usesLightChallenge: Boolean = true, manualDemo: Boolean = false) {
     val c = Vc.colors
     var lightHelp by remember { mutableStateOf(false) }
     VcScreen(
@@ -93,6 +98,7 @@ fun FaceReadyScreen(onBack: () -> Unit, onReady: () -> Unit, onSkipFlash: () -> 
         },
     ) {
         TitleBlock("Xác minh khuôn mặt", "Giữ điện thoại ngang tầm mắt.")
+        if (manualDemo) Banner("Demo · Ngưỡng chưa hiệu chỉnh", tone = Tone.Warn)
         IdentityScene3D(Modifier.fillMaxWidth().height(132.dp), IllustrationScene.Face)
         ContentCard {
             FeatureRow(Icons.Outlined.WbSunny, "Chọn nơi đủ sáng")
@@ -314,11 +320,104 @@ fun TurnHeadScreen(
 /** The latest demo's camera layout, shared with each server-scheduled head segment. */
 @Composable
 private fun TurnHeadContent(
-    dir: TurnDir?, onExit: () -> Unit,
+    dir: TurnDir?, onExit: () -> Unit, index: Int = 0, total: Int = 1,
+    onDebugSkip: (() -> Unit)? = null,
+    returnToCenter: Boolean = false,
+    remainingSeconds: Int? = null,
+    nextInstruction: String? = null,
+    face: FaceSignal? = null,
+    debugTrace: vn.vericlue.app.capture.PresenceDebugTrace? = null,
+    recordingOriginMs: Double? = null,
+    speech: vn.vericlue.app.capture.HeadSpeech? = null,
 ) {
+    val view = androidx.compose.ui.platform.LocalView.current
+    val liveAssist = face != null
+    val segmentStartMs = remember(index, dir) { android.os.SystemClock.elapsedRealtime() }
+    var guideClockMs by remember { mutableStateOf(android.os.SystemClock.elapsedRealtime()) }
+    LaunchedEffect(liveAssist) {
+        if (liveAssist) while (true) {
+            guideClockMs = android.os.SystemClock.elapsedRealtime()
+            delay(100)
+        }
+    }
+    val nowMs = maxOf(guideClockMs, android.os.SystemClock.elapsedRealtime())
+    val activeFace = HeadTurnGuide.freshFace(face, nowMs, segmentStartMs)
+    val staleFace = face != null && activeFace == null
+    val holdTracker = remember(index, dir) {
+        vn.vericlue.app.capture.SegmentHoldTracker(segmentStartMs = segmentStartMs)
+    }
+    val returnTracker = remember(index, dir) {
+        vn.vericlue.app.capture.SegmentReturnTracker(segmentStartMs = segmentStartMs)
+    }
+    var waitingForNext by remember(index, dir) { mutableStateOf(false) }
+    var segmentCompleted by remember(index, dir) { mutableStateOf(false) }
+    LaunchedEffect(activeFace, index, dir) {
+        returnTracker.update(dir, activeFace, android.os.SystemClock.elapsedRealtime())
+        waitingForNext = returnTracker.waitingForNext
+        val current = activeFace ?: return@LaunchedEffect
+        if (holdTracker.update(dir, current, android.os.SystemClock.elapsedRealtime())) {
+            segmentCompleted = true
+        }
+    }
+    val measuredPoseState = if (staleFace || (waitingForNext && activeFace == null)) vn.vericlue.app.capture.TurnPoseState.Warn
+        else HeadTurnGuide.evaluatePose(dir, activeFace, segmentCompleted)
+    // Waiting is neutral coaching, separate from a successfully measured hold.
+    val poseState = if (waitingForNext && !segmentCompleted && measuredPoseState != vn.vericlue.app.capture.TurnPoseState.Warn)
+        vn.vericlue.app.capture.TurnPoseState.TurnMore else measuredPoseState
+    LaunchedEffect(guideClockMs, poseState, segmentCompleted) {
+        recordingOriginMs?.let { origin -> debugTrace?.recordGuidance(
+            (nowMs - origin).toLong(), index, poseState.name, segmentCompleted,
+            activeFace?.timestampNs?.takeIf { it > 0L }?.let { (it / 1e6 - origin).toLong() },
+        ) }
+    }
+    // Each hint vibrates at most once per segment, even if the estimated angle oscillates.
+    val notifiedStates = remember(index, dir) { mutableSetOf<vn.vericlue.app.capture.TurnPoseState>() }
+    LaunchedEffect(index, dir, liveAssist) {
+        if (!liveAssist) return@LaunchedEffect
+        runCatching {
+            view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+        }
+    }
+    LaunchedEffect(poseState, index, liveAssist) {
+        if (!liveAssist || !notifiedStates.add(poseState)) return@LaunchedEffect
+        runCatching {
+            when (poseState) {
+                vn.vericlue.app.capture.TurnPoseState.Hold -> {
+                    view.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+                }
+                vn.vericlue.app.capture.TurnPoseState.Completed -> {
+                    view.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
+                }
+                vn.vericlue.app.capture.TurnPoseState.Warn -> {
+                    view.performHapticFeedback(android.view.HapticFeedbackConstants.REJECT)
+                }
+                vn.vericlue.app.capture.TurnPoseState.TurnMore -> Unit
+            }
+        }
+    }
+    val cue = vn.vericlue.app.capture.headCue(dir, activeFace, segmentCompleted, waitingForNext)
+    val cuePolicy = remember { vn.vericlue.app.capture.HeadCuePolicy() }
+    LaunchedEffect(cue, guideClockMs, index, speech) {
+        val waitingForFirstFrame = staleFace && nowMs - segmentStartMs <= HeadTurnGuide.MAX_FRAME_AGE_MS
+        if ((liveAssist || waitingForNext) && !waitingForFirstFrame) cuePolicy.dispatch(index, cue, nowMs,
+            stop = { speech?.stop() }, say = { speech?.say(it) })
+    }
+    androidx.compose.runtime.DisposableEffect(index, speech) {
+        onDispose { speech?.stop() }
+    }
     FaceCaptureSurface(
-        title = when (dir) { TurnDir.Left -> "Quay sang trái"; TurnDir.Right -> "Quay sang phải"; null -> "Nhìn thẳng" },
-        hint = "Giữ nguyên vị trí điện thoại", onStop = onExit, direction = dir, headGuidance = true,
+        title = if (liveAssist || waitingForNext) cue.text else when (dir) {
+            TurnDir.Left -> "Quay sang trái"; TurnDir.Right -> "Quay sang phải"; null -> "Nhìn thẳng"
+        },
+        hint = "Giữ nguyên vị trí điện thoại", onStop = onExit, direction = if (waitingForNext || segmentCompleted) null else dir, headGuidance = true,
+        feedback = if (liveAssist || waitingForNext) cue.text else null,
+        actionProgress = if (segmentCompleted) 1f else null,
+        feedbackTone = when (poseState) {
+            vn.vericlue.app.capture.TurnPoseState.Hold,
+            vn.vericlue.app.capture.TurnPoseState.Completed -> Tone.Ok
+            vn.vericlue.app.capture.TurnPoseState.Warn -> Tone.Warn
+            else -> Tone.Info
+        },
     )
 }
 
@@ -345,10 +444,17 @@ fun FaceTimelineScreen(
     onNoRecording: () -> Unit,
     faceSignal: () -> FaceSignal?,
     onIncomplete: (FaceAttemptIssue) -> Unit,
+    debugTrace: vn.vericlue.app.capture.PresenceDebugTrace? = null,
 ) {
+    val speech = if (timeline.headTurns.isNotEmpty()) vn.vericlue.app.ui.components.rememberHeadSpeech() else null
     var phase by remember { mutableStateOf<FaceTimeline.Phase>(FaceTimeline.Phase.Colour(0)) }
     var actionProgress by remember { mutableStateOf(0f) }
     var headFeedback by remember { mutableStateOf<HeadCaptureState?>(null) }
+    var recordingOriginMs by remember { mutableStateOf<Double?>(null) }
+    var observedFace by remember { mutableStateOf<FaceSignal?>(null) }
+    val cuePolicy = remember { vn.vericlue.app.capture.HeadCuePolicy() }
+    val currentSpeech by rememberUpdatedState(speech)
+    androidx.compose.runtime.DisposableEffect(speech) { onDispose { speech?.stop() } }
     val currentSignal by rememberUpdatedState(faceSignal)
     val incomplete by rememberUpdatedState(onIncomplete)
     LaunchedEffect(Unit) {
@@ -362,7 +468,9 @@ fun FaceTimelineScreen(
             }
         }
         val start = t0 ?: return@LaunchedEffect onNoRecording()
+        recordingOriginMs = start
         var lastSlot = -1
+        var lastHeadSegment = -1
         var frontalDone = false
         var baselineDone = false
         var coloursDone = false
@@ -372,6 +480,7 @@ fun FaceTimelineScreen(
             val nowMs = withFrameNanos { CaptureClock.frameNanosToMs(it) }
             val t = nowMs - start
             val signal = currentSignal()
+            observedFace = signal
             val observedNow = android.os.SystemClock.elapsedRealtime()
             val headState = if (adaptive != null && t >= timeline.headStartMs) adaptive.update(signal, observedNow, t) else null
             headState?.issue?.let {
@@ -390,6 +499,24 @@ fun FaceTimelineScreen(
             actionProgress = headState?.progress ?: guard.actionProgress
             headFeedback = headState
             phase = p
+            if (headState != null) {
+                val cue = adaptiveHeadCue(headState)
+                cuePolicy.dispatch(headState.segment, cue, observedNow,
+                    stop = { currentSpeech?.stop() }, say = { currentSpeech?.say(it) })
+                debugTrace?.recordGuidance(t.toLong(), headState.segment, headState.feedback.name,
+                    headState.feedback == HeadFeedback.Complete,
+                    signal?.timestampNs?.takeIf { it > 0L }?.let { (it / 1e6 - start).toLong() })
+            }
+            if (p is FaceTimeline.Phase.Head && p.segment != lastHeadSegment) {
+                lastHeadSegment = p.segment
+                debugTrace?.recordPhaseBoundary(
+                    recordingRelMs = t.toLong(),
+                    phase = "head",
+                    segmentIndex = p.segment,
+                    direction = p.dir,
+                )
+            }
+            debugTrace?.recordAnalyzerFrame(signal, timeline, start, nowMs)
             if (p is FaceTimeline.Phase.Colour && p.slot != lastSlot) {
                 lastSlot = p.slot
                 onPainted(timeline.slots[p.slot], nowMs)
@@ -414,20 +541,51 @@ fun FaceTimelineScreen(
     }
     BackHandler(onBack = onStop)
     FullBrightness(enabled = true)
-    FaceChallengeContent(timeline, phase, actionProgress, onStop, headFeedback)
+    FaceChallengeContent(timeline, phase, actionProgress, onStop, headFeedback,
+        observedFace, debugTrace, recordingOriginMs, speech)
 }
+
+/** Speech follows the same observed hold as the visual prompt, never a separate timer. */
+internal fun adaptiveHeadCue(state: HeadCaptureState): vn.vericlue.app.capture.HeadCue =
+    when (state.feedback) {
+        HeadFeedback.FaceMissing, HeadFeedback.MultipleFaces -> vn.vericlue.app.capture.HeadCue.FindFace
+        HeadFeedback.Level -> vn.vericlue.app.capture.HeadCue.Straighten
+        HeadFeedback.EaseBack -> vn.vericlue.app.capture.HeadCue.EaseBack
+        HeadFeedback.Hold, HeadFeedback.Complete -> vn.vericlue.app.capture.HeadCue.Hold
+        else -> when (state.direction) {
+            TurnDir.Left -> vn.vericlue.app.capture.HeadCue.Left
+            TurnDir.Right -> vn.vericlue.app.capture.HeadCue.Right
+            null -> vn.vericlue.app.capture.HeadCue.Center
+        }
+    }
 
 /** Shared presentation, independently snapshot-tested without opening a camera or starting work. */
 @Composable
 fun FaceChallengeContent(timeline: FaceTimeline, phase: FaceTimeline.Phase, onStop: () -> Unit) =
     FaceChallengeContent(timeline, phase, 0f, onStop)
 
+/** Compatibility entry point for timed guidance and its existing preview snapshots. */
+@Composable
+fun FaceChallengeContent(
+    timeline: FaceTimeline, phase: FaceTimeline.Phase, remainingSeconds: Int?, face: FaceSignal? = null,
+    debugTrace: vn.vericlue.app.capture.PresenceDebugTrace? = null,
+    recordingOriginMs: Double? = null, speech: vn.vericlue.app.capture.HeadSpeech? = null,
+    onStop: () -> Unit,
+) = FaceChallengeContent(timeline, phase, 0f, onStop, null, face, debugTrace, recordingOriginMs, speech)
+
 @Composable
 fun FaceChallengeContent(timeline: FaceTimeline, phase: FaceTimeline.Phase, actionProgress: Float, onStop: () -> Unit,
-    headFeedback: HeadCaptureState? = null) {
+    headFeedback: HeadCaptureState? = null, face: FaceSignal? = null,
+    debugTrace: vn.vericlue.app.capture.PresenceDebugTrace? = null,
+    recordingOriginMs: Double? = null, speech: vn.vericlue.app.capture.HeadSpeech? = null) {
     val colour = (phase as? FaceTimeline.Phase.Colour)?.let { timeline.slots[it.slot] }
     val gaze = phase as? FaceTimeline.Phase.Gaze
     val head = phase as? FaceTimeline.Phase.Head
+    if (head != null && headFeedback == null) {
+        TurnHeadContent(head.dir, onStop, index = head.segment, total = timeline.headTurns.size,
+            face = face, debugTrace = debugTrace, recordingOriginMs = recordingOriginMs, speech = speech)
+        return
+    }
     val light = colour != null || phase == FaceTimeline.Phase.Gap || gaze != null
     FaceCaptureSurface(
         title = when {
@@ -444,5 +602,14 @@ fun FaceChallengeContent(timeline: FaceTimeline, phase: FaceTimeline.Phase, acti
         headGuidance = head != null, actionProgress = actionProgress.takeIf { head != null },
         feedback = headFeedback?.hint(),
         feedbackTone = if (headFeedback?.feedback in setOf(HeadFeedback.Hold, HeadFeedback.Complete)) Tone.Ok else Tone.Info,
+        extraOverlay = {
+            if (gaze != null && recordingOriginMs != null && debugTrace != null) {
+                Box(Modifier.fillMaxSize().drawWithContent {
+                    drawContent()
+                    debugTrace.recordGazeTarget((CaptureClock.nowMs() - recordingOriginMs).toLong(),
+                        gaze.x.toFloat(), gaze.y.toFloat())
+                })
+            }
+        },
     )
 }

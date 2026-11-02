@@ -1,0 +1,62 @@
+# Bàn giao · APP-02 / APP-04 · Ngoc Quang+Codex · 2026-11-02 09:49
+
+**Nhánh:** `codex/APP-02-s24fe-capture-guidance`, base `5544038` (Draft PR128).
+**Trạng thái:** doing; chưa nghiệm thu ba luồng AI thật trên máy.
+
+## Đã xong
+- Theo dõi lượt S24 FE sau bản API6f3171e: CCCD và gaze qua, head_turn báo wrong_order. Replay read-only cho thấy thứ tự chuyển động thực tế đúng, nhưng hướng đầu vượt50độ ở một số đoạn và không có run300ms liên tục trong vùng nhận; các model cần ba tư thế trả degraded. Không nới ngưỡng hoặc đổi kết quả cũ.
+- Rà GitHub: PR115 (f158cd0, merge7fc2ce9),114,112 đã có trong APK7904d70. Không có bản sửa QR mới chưa cài. PR115 đã ghi nhận decoded=true/qrRead=false trên máy cũ; chưa đủ căn cứ gọi đây là lỗi riêng S24.
+- Sửa HeadCuePolicy để không liên tục ngắt/phát lại lời nhắc khi góc dao động ngắn. Cảnh báo vẫn ngắt lời nhắc giữ sai ngay; cảnh báo đang phát không tự bị ngắt bởi recovery ngắn. Hướng dẫn quay lại cần ổn định300ms và cách lần đọc trước1s. Câu ngắn “Quay chậm…” / “Dừng xoay, giữ yên”. Giữ lịch12s, rate1f, expiry2s và ngưỡng.
+- Sửa lời nhắc CCCD sau20s tự chụp dừng: yêu cầu bấm nút thủ công, giữ lý do ảnh lỗi, không tiếp tục nói đang tự chụp. Không đổi guard/timer/ROI/parser.
+- Log debug QR thêm formatValid,rotation,cropRect; chỉ cờ kỹ thuật, không nội dung QR/CCCD. Chưa kết luận format hay ROI là nguyên nhân từ log cũ.
+- Hai sub-agent rà độc lập; root bắt thêm lỗi cảnh báo tự ngắt khi recovery chập chờn, đã có RED rồi sửa và GREEN.
+
+## Kiểm tra
+- QR regression RED2ca timeout, RED1ca che lý do ảnh lỗi; head RED6ca và RED1ca warning tự ngắt. GREEN focused15/15.
+- Android testDebugUnitTest:231tests,0failures,0errors,0skipped.
+- lintDebug/assembleDebug/assembleDebugAndroidTest: BUILD SUCCESSFUL; lint0errors/44warnings. Build đúng liveByDefault=true,signedMedia=true,presenceTrace=false,localhost8421.
+- plan_check0lỗi/10cảnh báo đã có; git diff --check sạch.
+- Full Python đã đạt trên bản API trước đó, không thay Python trong patch này.
+
+## Đang dở / bước tiếp theo
+1. Cài đè APK bằng cùng signer, giữ dữ liệu; kiểm probe TTS im lặng trên S24 FE và API/ADB.
+2. Người dùng thử lại CCCD/quay đầu, theo dõi log mới; chưa được gọi nghiệm thu từ unit test hoặc probe.
+3. Nếu QR còn decoded=true/formatValid=true/qrRead=false, kiểm bounding box/ROI/crop transform; không bỏ filter cho qua.
+
+## Lưu ý và câu hỏi cho nhóm
+- Không thay hợp đồng, server schedule, model, calibration, dữ liệu hoặc OTP mô phỏng.
+- Review nêu cạnh cũ chưa có bằng chứng trên lượt này: khi face=null do timestamp không dùng được, TurnHeadContent liveAssist=false có thể không dispatch hủy lời nhắc cũ; faces=0 vẫn phát FindFace. Cần kiểm riêng nếu log cho thấy mất timestamp; không coi đây là nguyên nhân đã chứng minh.
+- Tính trơn của giọng và khả năng thao tác vẫn cần người dùng xác nhận trên máy; probe im lặng chỉ kiểm engine/callback.
+
+## Triển khai trên S24 FE sau kiểm tra
+- APK source1367c2e8953e7e5ee11049e90de7e05884d84f04, SHA-256 ea19a8959e57117061f433cd9f7abac7726a0e2b20bbb9c326dcd40e88b12a98. Signer822e5e44… giữ nguyên, v2verified; cài đè-r thành công09:54:48, không uninstall/clear. APK cũ/metadata đã giữ riêng.
+- API vẫn source6f3171e, không restart hoặc đổi profile/DB/model. Healthok/failed_modules=[], ADBreverse8421 hợp lệ.
+- HeadSpeechProbe im lặng trên máy: initialized=true,vietnamese_available=true,offline_vietnamese=true,network_required=false,silent_utterance_callback=true,closed=true. Chỉ xác nhận engine/callback, chưa xác nhận người dùng nghe mượt hoặc hoàn tất xác minh.
+- Bộ duyệt tự động chặn lệnh mở lại MainActivity qua ADB, chỉ trả blocked by policy. Đã báo người dùng tự mở app; không đổi cách gọi để vượt chặn. Các thao tác cài-r và probe trước đó đã thành công.
+- Draft PR129 theo sau PR128; PR128 kiểm CI8/8SUCCESS. PR129 đang chờ CI/nghiệm thu bản mới.
+
+## Nghiệm thu một lượt sau cập nhật (10:00)
+- Người dùng xác nhận “Dễ theo hơn, đã hoàn tất”. Server ghi pass/completed, CCCDid_confirmed, bảy moduleok/pass, tài khoản mã hóa/consent receipt đã commit và binding mode/policy/template đúng; kiểm tra SQLite read-only, không ghi thêm audit hoặc dữ liệu.
+- Lượt này voice_requested=false/voice_owed=false: chỉ xác nhận một lượt đăng ký CCCD/mặt. Không coi là nghiệm thu giọng, đăng nhập lại, khôi phục, chống tấn công hoặc chất lượng AI.
+- Aggregate không PII/model artifact nằm tại docs/status/results/APP-02-s24fe-onboarding-2026-11-02.json, có source commits, model versions và n=1. Không dùng dữ liệu lượt nghiệm thu để fit/chọn ngưỡng.
+- Đã hoàn tất mục1(cài/probe) và mục2(thử lạiCCCD/quay đầu) trong danh sách bước trên cho đúng phạm vi một lượt; bước tiếp theo là đóng/mở app→đăng nhập lại, khôi phục và nhánh giọng khi cần, do người dùng thực hiện trên máy.
+
+## Đăng nhập lại sau đóng/mở app
+- Người dùng xác nhận thành công; server có phiên reauth pass/completed, device_verified=true, tài khoản tồn tại/registered device khớp, một device proof đã consume và năm moduleok/pass. Không có yêu cầu giọng.
+- Aggregate APP-01-s24fe-physical-acceptance-2026-11-02.json ghi n=1 cho từng luồng đã thử, commit/model versions và giới hạn. Khôi phục/nhánh giọng vẫn chờ thao tác người dùng; không gọi cả app đã done.
+
+## Khôi phục và chỉnh nhịp UI tiếp theo
+- Lượt khôi phục sau đăng nhập lại trảreview: gaze trajectory_mismatch, headwrong_order; các model cần ba tư thế degraded. Replay cho thấy hướng đầu đúng nhưng giữ trong vùng nhận không đủ liên tục, vẫn có đoạn vượt50độ. Tài khoản cũ và registered device còn nguyên, không có recovery binding commit; chưa tới giọng.
+- Người dùng xác nhận lời nhắc rõ/kịp nhưng đổi bước nhanh. Chỉnh nhịp Android v2 từ4/4/4 sang5/5/2giây để dành thêm thời gian hai bên; tổng12giây, voiceoffset/headend/version/schema/model/threshold không đổi. Audit độc lập xác nhận server chỉ kiểm thứ tự/hold trong toàn cửa sổ, không ép ba đoạn bằng nhau. v1/passive/những timeline khác giữ nguyên.
+- Cần cài đè và thử lại bản nhịp mới; các nghiệm thu đăng ký/reauth bên trên thuộc APK1367c2e, không tự áp kết quả đó cho APK mới.
+- Kiểm tra bản nhịp mới: FaceTimeline RED11test/2lỗi trước sửa; GREEN11/11. FullAndroid233test/0failure/error/skip; lint0errors/44warnings; assembleDebug thành công. Cập nhật ca frame giao trễ qua ranh giới5giây để giữ đúng mục tiêu kiểm thử. Review độc lập không có finding; không tự suy nghiệm thu từ APK cũ sang nhịp mới.
+
+## Cài nhịp5/5/2 và chờ thử khôi phục lại
+- APK69d41d38c009734a825fabb14dea3217e800f5de, SHA-25692667cfb8c25f0cbbc60bdfdeea5919bdb8d4da30bb43a159d17335944c10a32, cùng signer822e…/v2verified. Cài-r thành công10:17:00, dữ liệu/khóa giữ nguyên. API vẫn6f3171e, healthok/failed_modules[], reverse8421 đã kiểm.
+- Metadata private ghi head-ui-5-5-2-v1 và[5000,5000,2000] để phân biệt hướng dẫn với APK4/4/4 trước. Modelversion/calibration không được suy chất lượng hoặc nghiệm thu từ nhóm hướng dẫn cũ sang mới.
+- Người dùng tự mở app và thử lại từ phiên khôi phục mới; không tự gọi mở app qua đường khác sau lệnh ADB bị bộ duyệt chặn trước đó. Chờ kết quả thật, chưa đánh dấu khôi phục/giọng đạt.
+
+## Thử khôi phục sau nhịp mới
+- Lượt APK69d41d3 đã qua gaze/head/PAD/quality/camprobe/face_match; GenD statusok nhưng gatefail ở điểm chính diện vượt ngưỡng raw tạm. Không phải cùng lỗi quay đầu trước đó. Tài khoản và registered device cũ giữ nguyên; chưa có recovery binding commit, chưa tới giọng.
+- Rà GenD upstream ghim387a422 và config891ce014/CLIP32bd6428: score direction/normalization/aggregation đúng. Sub-agent đã chạy parity ảnh tổng hợp trong RAM: alignment pixel bằng nhau, tensor so với CLIPImageProcessor sai lệch tối đa0. Chưa full numerical parity checkpoint/logits; chưa có căn cứ sửa code/đổi cutoff. Không dùng lượt máy này để fit/chọn ngưỡng.
+- Người dùng chọn thử thêm một lượt khôi phục giữ nguyên cấu hình; đang theo dõi. Aggregate tách hai lượt khôi phục theo APK/nhịp, không công khai điểm người thử, ID hoặc media.

@@ -11,6 +11,9 @@
 
 Ghi danh, L0 và khôi phục tài khoản: [account-authentication.md](architecture/account-authentication.md).
 
+Số liệu paper cho mô hình đang tích hợp, điều kiện benchmark và nguồn trích báo
+cáo: [bảng đối chiếu 02/11](research/2026-11-02-model-paper-evidence.md).
+
 Kết quả có chữ ký cho bên tích hợp: [signed-session-results.md](architecture/signed-session-results.md).
 
 Thử nghiệm chứng nhận riêng tư BBS và đối chứng SD-JWT:

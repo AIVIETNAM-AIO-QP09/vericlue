@@ -152,6 +152,34 @@ def test_every_sample_must_meet_own_threshold(monkeypatch, tmp_path, similaritie
     assert result.score == pytest.approx(1 - min(similarities))
 
 
+@pytest.mark.parametrize("approved_protocol", [1, 2])
+@pytest.mark.parametrize(
+    "adaptive,approved_adaptive", [(False, False), (True, False), (True, True)]
+)
+def test_recovery_continuity_requires_same_head_protocol(
+    monkeypatch, tmp_path, approved_protocol, adaptive, approved_adaptive
+):
+    from vericlue_ml.face.enrolled import recovery_match_version
+
+    model, inp, _, _ = fixture(monkeypatch, tmp_path, threshold=0.5)
+    inp.metadata.update(purpose="recovery", account_id="acct_" + "a" * 32)
+    inp.metadata["expected_challenge"]["dynamic"].update(
+        version=2, head_start_at_ms=1000, head_duration_ms=12000
+    )
+    if adaptive:
+        inp.metadata["expected_challenge"]["dynamic"].update(
+            head_mode="adaptive", head_timeout_ms=29000
+        )
+    inp.metadata["face_reference_result"]["model_version"] = recovery_match_version(
+        approved_protocol, adaptive=approved_adaptive
+    )
+    result = model.predict(inp)
+    if approved_protocol == 2 and adaptive == approved_adaptive:
+        assert result.status == "ok" and result.gate == "pass"
+    else:
+        assert result.status == "error" and result.gate == "unclear"
+
+
 @pytest.mark.parametrize(
     "fault",
     [
@@ -282,3 +310,39 @@ def test_bad_wav_never_uses_header_duration_alone(tmp_path, fault):
     with pytest.raises(LandmarkError) as error:
         wav_duration(path)
     assert error.value.code == "E_DECODE"
+
+
+def test_manual_demo_continuity_binds_policy_and_rejects_mismatched_reference(
+    monkeypatch, tmp_path
+):
+    from vericlue_ml.common.manual_demo import ManualDemoThresholds
+
+    policy = ManualDemoThresholds(consistency_min=0.45)
+    model, inp, _, _ = fixture(monkeypatch, tmp_path, threshold=None)
+    model.matcher.manual_demo = policy
+
+    # Reference without manual_demo suffix/policy_id must be rejected with E_INTEGRITY.
+    unmarked = model.predict(inp)
+    assert unmarked.status == "error" and unmarked.error_code == "E_INTEGRITY"
+
+    # Reference with matching suffix and policy_id succeeds and stamps version_suffix + policy_id.
+    inp.metadata["face_reference_result"]["model_version"] = (
+        VIDEO_MATCH_VERSION + policy.version_suffix
+    )
+    inp.metadata["face_reference_result"]["quality"] = {
+        "manual_demo": True,
+        "calibrated": False,
+        "demo_policy_id": policy.policy_id,
+    }
+    res = model.predict(inp)
+    assert res.status == "ok" and res.gate == "pass"
+    assert res.model_version == FACE_VOICE_VERSION + policy.version_suffix
+    assert res.quality["manual_demo"] is True
+    assert res.quality["calibrated"] is False
+    assert res.quality["demo_policy_id"] == policy.policy_id
+
+    # Changing policy_id on reference must fail closed.
+    other = ManualDemoThresholds(consistency_min=0.55)
+    inp.metadata["face_reference_result"]["quality"]["demo_policy_id"] = other.policy_id
+    mismatch = model.predict(inp)
+    assert mismatch.status == "error" and mismatch.error_code == "E_INTEGRITY"

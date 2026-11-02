@@ -11,6 +11,8 @@ plugins {
 val apiBaseUrl = (project.findProperty("vericlue.apiBaseUrl") as String?) ?: "http://localhost:8421/"
 val signedMedia = (project.findProperty("vericlue.signedMedia") as String?)?.toBooleanStrict() ?: true
 val deferSigning = (project.findProperty("vericlue.deferSigning") as String?)?.toBooleanStrict() ?: false
+val presenceTrace = (project.findProperty("vericlue.presenceTrace") as String?)?.toBooleanStrict() ?: false
+val liveByDefault = (project.findProperty("vericlue.liveByDefault") as String?)?.toBooleanStrict() ?: false
 // A release build only talks HTTPS: stop it when the address is not https:// (debug may use http).
 val checkReleaseApiUrl by tasks.registering {
     val url = apiBaseUrl
@@ -22,6 +24,15 @@ val checkReleaseApiUrl by tasks.registering {
 }
 tasks.matching { it.name == "preReleaseBuild" }.configureEach { dependsOn(checkReleaseApiUrl) }
 
+// Layoutlib/Compose keeps a process-wide frame clock across Paparazzi classes.
+// Reusing it can leave later motion snapshots at progress 0 despite fresh rules/views.
+// Isolate classes in the standard AGP tasks so both unit-test and snapshot CI keep
+// running the real animation assertions. Sequential workers also bound Layoutlib memory.
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    forkEvery = 1
+    maxParallelForks = 1
+}
+
 android {
     namespace = "vn.vericlue.app"
     compileSdk = 35
@@ -32,17 +43,22 @@ android {
         targetSdk = 35
         versionCode = 2
         versionName = "0.3.0"
+        testInstrumentationRunner = "vn.vericlue.app.HeadSpeechProbe"
         manifestPlaceholders["appLabel"] = "@string/app_name"
 
         buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
         buildConfigField("boolean", "SIGNED_MEDIA", signedMedia.toString())
+        buildConfigField("boolean", "PRESENCE_TRACE_ENABLED", "false")
     }
 
     buildTypes {
         debug {
+            buildConfigField("boolean", "LIVE_API_DEFAULT", liveByDefault.toString())
+            buildConfigField("boolean", "PRESENCE_TRACE_ENABLED", presenceTrace.toString())
             if (deferSigning) signingConfig = null
         }
         release {
+            buildConfigField("boolean", "LIVE_API_DEFAULT", "true")
             // R8 removes unused code (most of material-icons-extended) and resources.
             isMinifyEnabled = true
             isShrinkResources = true
@@ -70,6 +86,9 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+    (project.findProperty("vericlue.probeAssetsDir") as String?)?.let {
+        sourceSets.getByName("androidTest").assets.srcDir(it)
     }
 }
 

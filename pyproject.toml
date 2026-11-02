@@ -19,6 +19,10 @@ dev = [
   "httpx>=0.27",
   # Chỉ để test logic tiền xử lý GenD (to_tensor) chạy được ở CI mà không cần torch (extra `gend`).
   "pillow>=10,<13",
+  # Native WAV integrity and real WER/LCS oracles use fixtures, not model weights.
+  "soundfile>=0.13,<1",
+  "jiwer>=4,<5",
+  "rapidfuzz>=3,<4",
 ]
 
 # DATA-01: nhóm tùy chọn, không thuộc dependency chính API/ml.
@@ -76,5 +80,7 @@ quote-style = "double"
 # ── Pytest ────────────────────────────────────────────────────
 [tool.pytest.ini_options]
 testpaths = ["scripts/tests", "services/api/tests", "ml/tests"]
+# Console pytest and python -m pytest must both resolve repository script helpers.
+pythonpath = ["."]
 addopts = "-q"
 markers = ["slow: requires local model weights and audio; skips when unavailable"]

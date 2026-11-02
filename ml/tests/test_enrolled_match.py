@@ -82,6 +82,8 @@ def setup(monkeypatch, tmp_path, *, recovery=False):
                     "version": 1,
                     "session_id": "ses_current",
                     "frontal_capture_at_ms": 250,
+                    "head_start_at_ms": 1000,
+                    "head_duration_ms": 6000,
                 },
             },
         },
@@ -124,6 +126,39 @@ def test_missing_calibrator_cannot_pass_even_with_identical_vectors(
     matcher, inp, template, _, _, _ = setup(monkeypatch, tmp_path, recovery=recovery)
     result = match_enrolled(matcher, inp, template, None)
     assert result.status == "degraded" and result.gate == "unclear"
+
+
+@pytest.mark.parametrize("protocol", [1, 2])
+@pytest.mark.parametrize("match_protocol", [1, 2])
+@pytest.mark.parametrize("consistency_protocol", [1, 2])
+def test_recovery_requires_exact_capture_protocol_for_both_thresholds(
+    monkeypatch, tmp_path, protocol, match_protocol, consistency_protocol
+):
+    matcher, inp, template, artifact, _, _ = setup(monkeypatch, tmp_path, recovery=True)
+    inp.metadata["expected_challenge"]["dynamic"].update(
+        version=protocol, head_duration_ms=6000 * protocol
+    )
+    match_version = RECOVERY_MATCH_VERSION + ("+head12s-v2" if match_protocol == 2 else "")
+    consistency_version = (
+        VIDEO_MATCH_VERSION
+        + ("+head12s-v2" if consistency_protocol == 2 else "")
+        + "+view-consistency-v1"
+    )
+    artifact.write_text(json.dumps(threshold(match_version)))
+    matcher._consistency_threshold = MatchThreshold(**threshold(consistency_version))
+    result = match_enrolled(matcher, inp, template, artifact)
+    if protocol == match_protocol == consistency_protocol:
+        assert result.status == "ok" and result.gate == "pass"
+        assert result.model_version == match_version
+    else:
+        assert result.status != "ok" and result.gate == "unclear"
+
+
+def test_recovery_rejects_head_protocol_duration_mismatch(monkeypatch, tmp_path):
+    matcher, inp, template, artifact, _, _ = setup(monkeypatch, tmp_path, recovery=True)
+    inp.metadata["expected_challenge"]["dynamic"]["head_duration_ms"] = 12000
+    result = match_enrolled(matcher, inp, template, artifact)
+    assert result.status != "ok" and result.gate == "unclear"
 
 
 @pytest.mark.parametrize(
@@ -171,3 +206,30 @@ def test_wrong_protocol_or_untrusted_evidence_never_passes(monkeypatch, tmp_path
         monkeypatch.setattr(enrolled, "session_views", corrupted)
     result = match_enrolled(matcher, inp, template, artifact)
     assert result.gate != "pass" and result.status != "ok"
+
+
+@pytest.mark.parametrize("match_adaptive", [False, True])
+@pytest.mark.parametrize("consistency_adaptive", [False, True])
+def test_adaptive_recovery_requires_matching_sampling_for_both_artifacts(
+    monkeypatch, tmp_path, match_adaptive, consistency_adaptive
+):
+    from vericlue_ml.face.enrolled import recovery_match_version
+    from vericlue_ml.presence.head_protocol import head_sampling_suffix
+
+    matcher, inp, template, artifact, _, _ = setup(monkeypatch, tmp_path, recovery=True)
+    inp.metadata["expected_challenge"]["dynamic"].update(
+        version=2, head_duration_ms=12000, head_mode="adaptive", head_timeout_ms=29000
+    )
+    artifact.write_text(json.dumps(threshold(recovery_match_version(2, adaptive=match_adaptive))))
+    matcher._consistency_threshold = MatchThreshold(
+        **threshold(
+            VIDEO_MATCH_VERSION
+            + head_sampling_suffix(2, adaptive=consistency_adaptive)
+            + "+view-consistency-v1"
+        )
+    )
+    result = match_enrolled(matcher, inp, template, artifact)
+    if match_adaptive and consistency_adaptive:
+        assert result.status == "ok" and result.gate == "pass"
+    else:
+        assert result.status != "ok" and result.gate == "unclear"

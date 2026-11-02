@@ -81,7 +81,7 @@
 | VOICE-06 | Gộp bước giọng nói vào luồng | M4 | | 0,5 | S2 | P0 | VOICE-03, VOICE-04, VOICE-05, ROUT-02 | todo |
 | VOICE-07 | Qwen3-ASR: backend + CLI kiểm câu đọc, diagnostic CPU riêng | M4 | Codex | 1 | S2 | P0 | PLAT-03, VOICE-04 | review |
 | VOICE-08 | Thử câu đọc bằng microphone, RAM-only và runtime Qwen riêng | M4 | Codex | 0,5 | S2 | P0 | VOICE-07 | review |
-| VOICE-09 | NES2Net-X: backend + CLI raw diagnostic CPU riêng | M4 | Codex | 1 | S2 | P0 | PLAT-03 | review |
+| VOICE-09 | NES2Net-X: parity/toàn câu/DNU, chốt output và fixture audio CI; chờ lớp tấn công/artifact | M4 | Codex | 1 | S2 | P0 | PLAT-03 | review |
 | VOICE-10 | Ghép NES2Net vào công cụ micro qua worker RAM riêng | M4 | Codex | 1 | S2 | P0 | VOICE-08, VOICE-09 | done |
 | VOICE-11 | Nhịp đọc/CTC trong lab micro, mốc âm tiết RAM và CLI | M4 | Codex | 1 | S2 | P0 | VOICE-10 | done |
 | VOICE-12 | Lab thu A/V một nguồn và khớp môi SyncNet trong RAM | M4 | Codex | 1,5 | S2 | P0 | VOICE-11 | done |
@@ -94,7 +94,7 @@
 |---|---|---|---|---|---|---|---|---|
 | ROUT-01 | Hiệu chỉnh xác suất + identity MVP | M5 | Codex | 1 | S1 | P0 | PLAT-03 | review |
 | ROUT-02 ★ | Bộ chính sách quyết định | M5 | Codex | 1,5 | S1 | P0 | ROUT-01, PLAT-08 | done |
-| ROUT-03 ★ | Chọn ngưỡng bằng Learn-then-Test (MAPIE) | M5 | | 1,5 | S2 | P0 | ROUT-02, FACE-04, VOICE-03 | todo |
+| ROUT-03 ★ | LTT giọng và ghép điểm mặt offline có chốt; chờ dữ liệu/artifact/ngưỡng thật | M5 | Ngoc Quang+Codex | 1,5 | S2 | P0 | ROUT-02, FACE-04, VOICE-03 | doing |
 | ROUT-04 | Cổng ngoài phạm vi | M5 | | 1 | S2 | P1 | FACE-02 | todo |
 | ROUT-05 ★ | Đánh giá R4 | M5 | | 1 | S3 | P0 | ROUT-03 | todo |
 
@@ -120,7 +120,7 @@
 | EVAL-03 | Đánh giá chế độ giám định theo đoạn (R7) | M4 | | 1 | S3 | P1 | FOR-01, DATA-04, EVAL-01 | todo |
 | DEMO-01 ★ | Kịch bản demo 7 tình huống | M2 | | 1 | S3 | P0 | PLAT-09, CAP-07, REV-02, FOR-02, FOR-04, VOICE-06, PRES-04 | todo |
 | DEMO-02 ★ | Video demo + dự phòng | M1 (+cả nhóm) | | 0,5 | S3 | P0 | DEMO-01 | todo |
-| DEMO-03 ★ | Báo cáo nộp vòng 2 | M2 (+cả nhóm) | | 1 | S3 | P0 | ROUT-05, EVAL-02, FACE-04, VOICE-03, PRES-04 | todo |
+| DEMO-03 ★ | Báo cáo vòng 2: đã chuẩn bị bảng paper có nguồn, chờ số thực nghiệm/nghiệm thu | M2 (+cả nhóm) | | 1 | S3 | P0 | ROUT-05, EVAL-02, FACE-04, VOICE-03, PRES-04 | todo |
 | DEMO-04 ★ | Kiểm tra cuối, đóng gói nộp | M5 | | 0,5 | DP | P0 | DEMO-02, DEMO-03 | todo |
 
 ## E9 — App Android, ba luồng eKYC, riêng tư · `epics/E9-app-flows.md`
@@ -130,22 +130,22 @@
 | FLOW-01 | Purpose/luật theo luồng; kết quả Ed25519 opt-in, chờ nghiệm thu thật | M5 | Codex | 1 | S1 | P0 | ROUT-02, PLAT-08 | doing |
 | FLOW-02 | OTP mô phỏng | M2 | Ngọc Quang+Claude | 0,5 | S1 | P0 | PLAT-05 | doing |
 | FLOW-03 | Chụp CCCD, QR, chân dung, kiểm đã đăng ký; bảo toàn ảnh khi lỗi | M1 | Ngọc Quang+Claude | 1,5 | S1 | P0 | PLAT-05, FACE-01 | doing |
-| FLOW-04 | Quay đầu, chọn khung RAM, GenD và FS-VFM-L PAD — diagnostic | M1 (+M3) | Codex | 1 | S1 | P0 | CAP-06 | doing |
+| FLOW-04 | Quay đầu/RAM và manual policy v2 sẵn sàng trước thử máy; chờ dữ liệu, nghiệm thu 3 luồng | M1 (+M3) | Codex | 1 | S1 | P0 | CAP-06 | doing |
 | FLOW-05 | LVFace-B/mặt–giọng; ghi danh, receipt, so mẫu đã lưu; giữ chốt luồng thật | M3 | Codex | 1 | S1 | P0 | FLOW-03, FACE-01 | doing |
 | FLOW-06 | Rà workflow mobile và bàn giao tích hợp riêng tư | M5 | Codex | 0,5 | S2 | P0 | PLAT-05 | review |
 | SEC-01 | Khóa theo phiên, che dữ liệu, nhật ký truy cập | M2 | Codex | 1,5 | S1 | P0 | REV-01, PLAT-05 | review |
 | SEC-02 ★ | Ký media, L0 khóa ghi danh; service khôi phục/thu hồi, chờ nghiệm thu máy thật | M2 (+M1) | Codex | 1 | S2 | P0 | APP-01, PLAT-06 | doing |
-| APP-01 ★ | App Kotlin: UI A, receipt/alias và 3 luồng; chờ HTTPS và nghiệm thu tài khoản thật | M1 | Ngọc Quang+Claude+Codex | 1,5 | S1 | P0 | PLAT-04 | doing |
-| APP-02 ★ | App: chụp mặt, quay 3 s, quay đầu ngẫu nhiên | M1 | Ngọc Quang+Claude | 2 | S1–S2 | P0 | APP-01 | doing |
-| APP-03 | App: ghi âm đọc câu (WAV 16 kHz) | M1 | Ngọc Quang+Claude | 1 | S2 | P0 | APP-01 | doing |
-| APP-04 | App: OTP, chụp CCCD, xác nhận thông tin | M2 (+M1) | Ngọc Quang+Claude | 1,5 | S1–S2 | P0 | APP-01 | doing |
+| APP-01 ★ | Đang thử S24 FE; sửa binding trích template, chờ thử lại/HTTPS/nghiệm thu 3 luồng | M1 | Ngọc Quang+Claude+Codex+Gemini | 1,5 | S1 | P0 | PLAT-04 | doing |
+| APP-02 ★ | S24 FE: một lượt CCCD/mặt đạt sau sửa lời nhắc; chờ review và nhánh giọng | M1 | Ngọc Quang+Claude | 2 | S1–S2 | P0 | APP-01 | doing |
+| APP-03 | MP4 chung → WAV 16k mono/offset PTS; khôi phục còn vướng SyncNet, chờ thử S24 FE | M1 | Ngọc Quang+Claude | 1 | S2 | P0 | APP-01 | doing |
+| APP-04 | Sửa thông báo hết tự chụp CCCD; bổ sung chẩn đoán QR, chờ thử lại S24 FE | M2 (+M1) | Ngọc Quang+Claude | 1,5 | S1–S2 | P0 | APP-01 | doing |
 | APP-05 | Đóng gói Android test từ xa qua mạng riêng | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | review |
 | APP-06 | Android localhost qua USB/Wi-Fi TLS, cấu hình test ảnh CCCD | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | review |
 | APP-07 | Đồng bộ UI phần mặt Giả lập/API, chờ nghiệm thu video trên máy thật | M1 | Codex | 0,5 | S2 | P0 | PLAT-04 | review |
 | APP-08 | Một app/server, quét CCCD QR/chân dung, bỏ OCR | M1 | Codex | 1 | S2 | P0 | PLAT-04 | review |
 | APP-09 | Gọn luồng đăng ký, điều khoản, ngôn từ và ảnh UI Android | M1 | Codex | 1,5 | S2 | P0 | PLAT-04 | review |
 | APP-10 | Tăng độ nhạy quét QR và kiểm chứng trên Android | M1 | Codex | 1 | S2 | P0 | PLAT-04 | review |
-| APP-11 | Hoàn thiện UI/UX Android và ảnh kiểm tra luồng đăng ký | M1 | Codex | 1 | S2 | P0 | PLAT-04 | review |
+| APP-11 | Hoàn thiện UI/UX Android, ảnh kiểm tra và tích hợp main (PR #130) | M1 | Codex | 1 | S2 | P0 | PLAT-04 | review |
 | IOS-01 | App iOS: SwiftUI, theme ấm, điều hướng 3 luồng; đã nghiệm thu iPhone, chờ review PR | M1 | Lý Anh Quân | 2 | S2 | P1 | APP-01 | review |
 | IOS-02 | App iOS: API, LiveFlow, binding và ký media; chờ chốt test và backend tài khoản thật | M1 | Lý Anh Quân | 1,5 | S2 | P1 | FLOW-01 | doing |
 | IOS-03 | App iOS: OTP, CCCD auto/manual, review hai mặt, xác nhận sau quay mặt; chờ review PR | M1 | Lý Anh Quân | 1,5 | S2 | P1 | IOS-01, IOS-02, FLOW-02, FLOW-03 | review |
@@ -153,8 +153,8 @@
 | IOS-05 | App iOS: đọc câu, WAV 16 kHz, MP4 và audio_offset_ms | M1 | Lý Anh Quân | 1 | S2 | P1 | IOS-04 | review |
 | IOS-06 | App iOS: xử lý gián đoạn, retry theo acknowledgment và dọn file tạm | M1 | Lý Anh Quân | 1 | S2 | P1 | IOS-04 | doing |
 | IOS-07 | App iOS: đóng gói Release HTTPS, README và bàn giao; chờ domain và số đo iPhone | M1 | Lý Anh Quân | 1 | S2 | P1 | IOS-03, IOS-05, IOS-06 | doing |
-| LIVE-01 | Gói thử thách động theo phiên (màu, chấm sáng, quay đầu, câu) [contract] | M5 | Codex | 1 | S2 | P0 | FLOW-01 | doing |
-| LIVE-02 | Dò mắt, chuỗi kiểm mặt và webcam lab — diagnostic | M3 (+M1) | Codex | 1,5 | S2 | P0 | LIVE-01 | doing |
+| LIVE-01 | Gói thử thách động theo phiên v2, quay đầu 4 giây/hướng [contract] | M5 | Codex | 1 | S2 | P0 | FLOW-01 | doing |
+| LIVE-02 | Dò mắt, chuỗi kiểm mặt và webcam lab — diagnostic | M3 (+M1) | Codex+Gemini | 1,5 | S2 | P0 | LIVE-01 | doing |
 | LIVE-03 | Ký media theo phiên trên web (WebAuthn), chặn phát lại | M2 (+M1) | | 1 | S2 | P0 | LIVE-01 | todo |
 | LIVE-04 | Kháng lượng tử: đường truyền ML-KEM, ký kết quả ML-DSA | M2 | | 1 | S2 | P0 | FLOW-01 | todo |
 | LIVE-05 | BBS API/SDK/HTTP/runtime; bàn giao app sau thống nhất workflow, còn nghiệm thu thật | M5 | Codex | 2,5 | S3 | P1 | PLAT-03 | doing |
@@ -171,7 +171,7 @@
 | SEC-06 | Retention và thao tác riêng tư [contract] | M5 | Codex | 1 | S2 | P0 | PLAT-05 | done |
 | SEC-07 | Vá dependency web và kiểm chứng tích hợp | M2 | Codex | 0,5 | S2 | P0 | PLAT-02, PLAT-05 | doing |
 | SEC-08 | Vòng đời khóa và file tạm cho demo | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | done |
-| SEC-09 | Consent lưu mẫu và logic riêng tư app [contract] | M5 | | 1 | S2 | P0 | SEC-06, FLOW-06 | todo |
+| SEC-09 | Consent lưu mẫu đã nối, giữ tài khoản khi lỗi; chuẩn bị 02/11, chờ nghiệm thu thiết bị [contract] | M5 | Ngoc Quang+Codex | 1 | S2 | P0 | SEC-06, FLOW-06 | doing |
 
 ## Tổng hợp tải (chạy `plan_check.py` để có số mới nhất)
 

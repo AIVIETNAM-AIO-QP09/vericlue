@@ -14,13 +14,13 @@ class FaceAttemptGuardTest {
 
     private fun frame(at: Long, yaw: Float = 0f, id: Int? = 7) = FaceSignal(
         faces = 1, widthFraction = .46f, heightFraction = .60f, centerX = .5f, centerY = .48f,
-        yaw = yaw, pitch = 0f, roll = 0f, luma = 120f, timestampNs = at * 1_000_000,
+        yaw = yaw, pitch = 0f, roll = 0f, luma = 120f, timestampNs = (at * 1_000_000).coerceAtLeast(1L),
         observedAtMs = at, imageWidth = 480, imageHeight = 640,
         landmarksComplete = true, landmarksVisible = true, trackingId = id,
     )
 
     private fun complete(guard: FaceAttemptGuard, segment: Int, direction: TurnDir?, start: Long) {
-        val yaw = when (direction) { TurnDir.Left -> 30f; TurnDir.Right -> -30f; null -> 0f }
+        val yaw = when (direction) { TurnDir.Left -> 26f; TurnDir.Right -> -26f; null -> 0f }
         for (at in listOf(start, start + 175, start + 350)) {
             assertNull(guard.update(FaceTimeline.Phase.Head(segment, direction), frame(at, yaw), at))
         }
@@ -44,16 +44,16 @@ class FaceAttemptGuardTest {
         assertEquals(FaceAttemptIssue.ActionIncomplete,
             guard.update(FaceTimeline.Phase.Head(1, TurnDir.Right), frame(3000), 3000))
         assertEquals(FaceAttemptIssue.ActionIncomplete,
-            guard.update(FaceTimeline.Phase.Head(0, TurnDir.Left), frame(3200, 30f), 3200))
+            guard.update(FaceTimeline.Phase.Head(0, TurnDir.Left), frame(3200, 26f), 3200))
     }
 
     @Test fun oppositeDirectionDoesNotSatisfyTheCurrentInstruction() {
         val guard = FaceAttemptGuard(timeline())
         for (at in 1000L..2800L step 200) {
-            assertNull(guard.update(FaceTimeline.Phase.Head(0, TurnDir.Left), frame(at, -30f), at))
+            assertNull(guard.update(FaceTimeline.Phase.Head(0, TurnDir.Left), frame(at, -26f), at))
         }
         assertEquals(FaceAttemptIssue.ActionIncomplete,
-            guard.update(FaceTimeline.Phase.Head(1, TurnDir.Right), frame(3000, -30f), 3000))
+            guard.update(FaceTimeline.Phase.Head(1, TurnDir.Right), frame(3000, -26f), 3000))
     }
 
     @Test fun missingCenterIsNotAnAutomaticallyCompletedFinalStep() {
@@ -61,7 +61,7 @@ class FaceAttemptGuardTest {
         complete(guard, 0, TurnDir.Left, 1000)
         complete(guard, 1, TurnDir.Right, 3000)
         for (at in 5000L..6800L step 200) {
-            assertNull(guard.update(FaceTimeline.Phase.Head(2, null), frame(at, -30f), at))
+            assertNull(guard.update(FaceTimeline.Phase.Head(2, null), frame(at, -26f), at))
         }
         assertEquals(FaceAttemptIssue.ActionIncomplete, guard.update(FaceTimeline.Phase.Done, frame(7000), 7000))
     }
@@ -139,9 +139,9 @@ class FaceAttemptGuardTest {
         var done = false
         for (at in 1000L..10000L step 100) {
             val yaw = when {
-                at < 5000 -> -30f // wrong first direction for several former timed slots
-                at < 6100 -> 30f
-                at < 7300 -> -30f
+                at < 5000 -> -26f // wrong first direction for several former timed slots
+                at < 6100 -> 26f
+                at < 7300 -> -26f
                 else -> 0f
             }
             val signal = frame(at, yaw)
@@ -163,6 +163,6 @@ class FaceAttemptGuardTest {
         }
         complete(guard, 0, TurnDir.Left, 3100)
         assertEquals(FaceAttemptIssue.FaceLost,
-            guard.update(FaceTimeline.Phase.Head(0, TurnDir.Left), frame(3500, 30f, id = 8), 3500))
+            guard.update(FaceTimeline.Phase.Head(0, TurnDir.Left), frame(3500, 26f, id = 8), 3500))
     }
 }

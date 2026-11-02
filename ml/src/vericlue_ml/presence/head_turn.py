@@ -11,6 +11,7 @@ import numpy as np
 from vericlue_ml.common.detector import DetectorInput
 from vericlue_ml.common.result import ErrorCode, Evidence, Gate, Module, ModuleResult, Status
 from vericlue_ml.presence.challenge import expected_dynamic
+from vericlue_ml.presence.head_protocol import head_protocol_version
 from vericlue_ml.presence.landmarks import (
     MAX_VIDEO_MS,
     FaceObservation,
@@ -22,6 +23,8 @@ HEAD_VERSION = "head-turn-rules@0.2+face-landmarker-f16-1"
 # Provisional motion/quality constants, not calibrated attack thresholds.
 TURN_MIN_DEG = 20
 TURN_MAX_DEG = 50
+MAX_USABLE_YAW_DEG = 58
+TARGET_TURN_DEG = 28.0
 CENTER_MAX_DEG = 8
 MAX_PITCH_ROLL_DEG = 15
 MIN_HOLD_MS = 300
@@ -42,6 +45,7 @@ class HeadPlan:
 
 
 def parse_head_plan(inp: DetectorInput) -> HeadPlan:
+    head_protocol_version(inp)
     dynamic = expected_dynamic(inp)
     start, duration = dynamic.get("head_start_at_ms"), dynamic.get("head_duration_ms")
     frontal = dynamic.get("frontal_capture_at_ms")
@@ -51,7 +55,6 @@ def parse_head_plan(inp: DetectorInput) -> HeadPlan:
         type(start) is not int
         or not BASELINE_MS <= start <= 24_000
         or type(duration) is not int
-        or duration != 6000
         or type(frontal) is not int
         or not 0 <= frontal < start - BASELINE_MS
         or order not in (["left", "right", "center"], ["right", "left", "center"])
@@ -125,12 +128,22 @@ def evaluate_head_turn(rows: list[FaceObservation], plan: HeadPlan) -> HeadEvalu
     ):
         return result(Status.DEGRADED, Gate.UNCLEAR, "incomplete_time_window")
     if not plan.adaptive and any(
-        abs(row.pitch_deg) > MAX_PITCH_ROLL_DEG
-        or abs(row.roll_deg) > MAX_PITCH_ROLL_DEG
-        or abs(row.yaw_deg) > TURN_MAX_DEG
+        abs(row.pitch_deg) > MAX_PITCH_ROLL_DEG or abs(row.roll_deg) > MAX_PITCH_ROLL_DEG
         for row in valid
     ):
         return result(Status.DEGRADED, Gate.UNCLEAR, "pose_out_of_range")
+    if not plan.adaptive:
+        # A transient yaw overshoot is unusable evidence, not an automatic whole-video veto.
+        # Keep the same coverage/gap/edge limits; prolonged overshoot still fails closed.
+        usable = [row for row in valid if abs(row.yaw_deg) <= MAX_USABLE_YAW_DEG]
+        usable_times = np.asarray([row.at_ms for row in usable])
+        if (
+            len(usable) / expected < MIN_COVERAGE
+            or usable_times[0] > plan.start_ms - BASELINE_MS + EDGE_TOLERANCE_MS
+            or usable_times[-1] < plan.end_ms - EDGE_TOLERANCE_MS
+            or np.diff(usable_times).max() > MAX_GAP_MS
+        ):
+            return result(Status.DEGRADED, Gate.UNCLEAR, "pose_out_of_range")
     baseline = [row for row in valid if row.at_ms < plan.start_ms]
     if (
         not baseline
@@ -141,18 +154,34 @@ def evaluate_head_turn(rows: list[FaceObservation], plan: HeadPlan) -> HeadEvalu
         return result(Status.DEGRADED, Gate.UNCLEAR, "neutral_baseline_missing")
     if plan.adaptive:
         return evaluate_adaptive_holds(window, plan)
-    # Only a sustained pose counts. Brief spikes and passage through center are not commands.
+    # Iterate all measured poses: out-of-range yaw maps to None and breaks a hold,
+    # so filtering cannot join brief valid fragments into a sustained command.
     runs: list[tuple[str, float]] = []
-    current, first, last = None, 0.0, 0.0
+    current: str | None = None
+    run_rows: list[FaceObservation] = []
+
+    def _pick_run_time(label: str, items: list[FaceObservation]) -> float:
+        target = 0.0 if label == "center" else TARGET_TURN_DEG
+        best = min(
+            items,
+            key=lambda r: (
+                abs(abs(float(r.yaw_deg)) - target),
+                abs(float(r.pitch_deg)) + abs(float(r.roll_deg)),
+            ),
+        )
+        return float(best.at_ms)
+
     for row in [r for r in valid if r.at_ms >= plan.start_ms]:
         label = direction(row)
-        if label != current or row.at_ms - last > MAX_GAP_MS:
-            if current is not None and last - first >= MIN_HOLD_MS:
-                runs.append((current, (first + last) / 2))
-            current, first = label, row.at_ms
-        last = row.at_ms
-    if current is not None and last - first >= MIN_HOLD_MS:
-        runs.append((current, (first + last) / 2))
+        if label != current or (run_rows and row.at_ms - run_rows[-1].at_ms > MAX_GAP_MS):
+            if current is not None and run_rows[-1].at_ms - run_rows[0].at_ms >= MIN_HOLD_MS:
+                runs.append((current, _pick_run_time(current, run_rows)))
+            current = label
+            run_rows = [row] if label is not None else []
+        elif label is not None:
+            run_rows.append(row)
+    if current is not None and run_rows and run_rows[-1].at_ms - run_rows[0].at_ms >= MIN_HOLD_MS:
+        runs.append((current, _pick_run_time(current, run_rows)))
     stage = 0
     view_times = {"front": plan.frontal_capture_at_ms}
     for label, at_ms in runs:

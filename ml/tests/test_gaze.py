@@ -8,7 +8,13 @@ import pytest
 
 from vericlue_ml.common.detector import DetectorInput
 from vericlue_ml.common.result import Gate, Status
-from vericlue_ml.presence.gaze import GazeDetector, evaluate_gaze, parse_plan
+from vericlue_ml.presence.gaze import (
+    GAZE_VERSION,
+    GazeDetector,
+    GazePlan,
+    evaluate_gaze,
+    parse_plan,
+)
 from vericlue_ml.presence.landmarks import FaceObservation, LandmarkError, eye_position, pose_angles
 
 TARGET = [
@@ -189,6 +195,7 @@ def test_detector_reads_video_and_ignores_client_claimed_measurements():
     inp = inputs()
     inp.signals = {"gaze": {"gate": "fail", "correlation": -1}}
     result = GazeDetector(reader).predict(inp)
+    assert result.model_version == GAZE_VERSION == "gaze-rules@0.3+face-landmarker-f16-1"
     assert result.gate == Gate.PASS and result.prob_attack is None
     assert result.quality["provisional"] is True
     assert reader.calls == [(inp.video, {"start_ms": 5000.0, "end_ms": 12000.0})]
@@ -230,6 +237,11 @@ def test_iris_geometry_normalizes_face_translation_and_rejects_closed_eyes():
     assert eye_position(shifted, 640, 480) == pytest.approx((0.5, 0.0))
     points[list(range(469, 473)) + list(range(474, 478)), 0] += 0.02
     assert eye_position(points, 640, 480)[0] < 0.5
+    upward = mesh()
+    upward[list(range(469, 473)) + list(range(474, 478)), 1] -= 0.01
+    # Eyelids naturally follow vertical iris motion; vertical offset must stay anchored to eye corners.
+    upward[[159, 145, 386, 374], 1] -= 0.01
+    assert eye_position(upward, 640, 480)[1] == pytest.approx(-0.01 * 480 / 64)
     points[159] = points[145]
     assert eye_position(points, 640, 480) is None
 
@@ -247,3 +259,63 @@ def test_pose_transform_yaw_is_only_an_estimate_and_rejects_bad_matrices():
     assert pose_angles(matrix) == pytest.approx((25, 0, 0))
     assert pose_angles(np.zeros((4, 4))) is None
     assert pose_angles(np.full((4, 4), np.nan)) is None
+
+
+def test_gaze_preserves_both_axes_and_known_response_lag():
+    plan = GazePlan(
+        times=(0.0, 1000.0, 2000.0, 3000.0, 4000.0, 5000.0, 6000.0, 7000.0),
+        points=(
+            (0.50, 0.50),
+            (0.30, 0.30),
+            (0.55, 0.30),
+            (0.55, 0.75),
+            (0.70, 0.45),
+            (0.28, 0.65),
+            (0.60, 0.62),
+            (0.36, 0.68),
+        ),
+    )
+    observations = []
+    for i, at_ms in enumerate(range(0, 7001, 100)):
+        lagged_ms = max(0.0, float(at_ms - 150))
+        x = float(np.interp(lagged_ms, plan.times, [p[0] for p in plan.points]))
+        y = float(np.interp(lagged_ms, plan.times, [p[1] for p in plan.points]))
+        # Include stateless IMAGE-mode frame-to-frame quantization jitter on the narrower X span.
+        jitter_x = 0.014 * (1 if i % 2 == 0 else -1)
+        observations.append(
+            FaceObservation(
+                at_ms=float(at_ms),
+                face_count=1,
+                gaze_x=0.50 + (x - 0.50) * 0.08 + jitter_x,
+                gaze_y=(y - 0.50) * 0.08,
+                yaw_deg=0.0,
+                pitch_deg=0.0,
+                roll_deg=0.0,
+            )
+        )
+    ev = evaluate_gaze(observations, plan)
+    assert ev.gate == Gate.PASS
+    assert ev.metrics["correlation_x"] >= 0.60
+    assert ev.metrics["correlation_y"] >= 0.60
+
+
+def test_orbital_canthus_cluster_resists_palpebral_commissure_drag():
+    points = mesh()
+    for _base, support, x in [
+        (33, (130, 226), 0.3),
+        (133, (243, 244), 0.4),
+        (362, (463, 464), 0.6),
+        (263, (359, 446), 0.7),
+    ]:
+        for idx in support:
+            points[idx, :2] = (x, 0.45)
+    points[468, :2] = (0.35, 0.45)
+    points[473, :2] = (0.65, 0.45)
+    # Shift iris right in image (+0.015), and drag deformable commissures (33,133,362,263) with it (+0.015)
+    # while orbital rim support points (130,226,243,244,463,464,359,446) stay anchored to the eye socket.
+    dragged = points.copy()
+    iris_indices = [468, *range(469, 473), 473, *range(474, 478)]
+    dragged[iris_indices, 0] += 0.015
+    dragged[[33, 133, 362, 263], 0] += 0.015
+    gx, _ = eye_position(dragged, 640, 480)
+    assert gx < 0.44

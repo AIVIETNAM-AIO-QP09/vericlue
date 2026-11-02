@@ -58,8 +58,15 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import java.util.concurrent.atomic.AtomicReference
 import vn.vericlue.app.BuildConfig
 import vn.vericlue.app.capture.CameraSession
+import vn.vericlue.app.capture.MuxedVoiceCapture
+import vn.vericlue.app.capture.MuxedVoiceDecodedAudio
+import vn.vericlue.app.capture.MUXED_VOICE_LIMIT_MS
+import vn.vericlue.app.capture.av.MuxedVoiceAudioDecoder
 import vn.vericlue.app.capture.CccdInfo
 import vn.vericlue.app.capture.CccdQr
 import vn.vericlue.app.capture.IdAutoCapture
@@ -68,6 +75,9 @@ import vn.vericlue.app.ui.screens.idFields
 import vn.vericlue.app.capture.CaptureClock
 import vn.vericlue.app.capture.ColorSchedule
 import vn.vericlue.app.capture.WavRecorder
+import vn.vericlue.app.capture.AudioCaptureState
+import vn.vericlue.app.capture.VoiceCapture
+import vn.vericlue.app.capture.VoiceCaptureFailure
 import vn.vericlue.app.data.AccountStore
 import vn.vericlue.app.data.PrefsStore
 import vn.vericlue.app.flow.AccountEntry
@@ -115,6 +125,8 @@ import vn.vericlue.app.ui.screens.ReviewScreen
 import vn.vericlue.app.ui.screens.SplashScreen
 import vn.vericlue.app.ui.screens.SuccessScreen
 import vn.vericlue.app.ui.screens.TermsScreen
+import vn.vericlue.app.ui.screens.PrivacyStopScreen
+import vn.vericlue.app.flow.PrivacyNotice
 import vn.vericlue.app.ui.screens.TurnHeadScreen
 import vn.vericlue.app.ui.screens.VoiceScreen
 import vn.vericlue.app.ui.theme.Vc
@@ -128,10 +140,9 @@ class FlowState {
         private set
 
     /**
-     * Real API or offline demo. Release builds always use the API; debug builds start in demo
-     * mode and switch in "Xem tất cả màn".
+     * Release always uses API. Debug may opt in at build time; gallery remains an explicit preview.
      */
-    var live by mutableStateOf(!BuildConfig.DEBUG)
+    var live by mutableStateOf(BuildConfig.LIVE_API_DEFAULT)
 
     /** Mock scenario sent as X-Mock-Scenario when the API runs with USE_MOCK_MODELS=true. */
     var mockScenario by mutableStateOf("genuine")
@@ -166,7 +177,7 @@ fun VeriClueApp() {
     val scope = rememberCoroutineScope()
     val camera = remember { CameraSession(context.applicationContext) }
     val api = remember { SessionApi(BuildConfig.API_BASE_URL) }
-    var live by remember { mutableStateOf(LiveFlow(api)) }
+    var live by remember { mutableStateOf(LiveFlow(api, enforcePrivacy = true)) }
     val accounts = remember {
         AccountStore(PrefsStore(context.applicationContext.getSharedPreferences("vericlue.account", Context.MODE_PRIVATE)))
     }
@@ -175,7 +186,9 @@ fun VeriClueApp() {
             warn = { Log.w("VeriClue", it) })
     }
     var accountEntry by remember { mutableStateOf<AccountEntry?>(null) }
+    var restoredAccount by remember { mutableStateOf<vn.vericlue.app.data.StoredAccount?>(null) }
     val recorder = remember { WavRecorder() }
+    val activeMuxedCapture = remember { AtomicReference<MuxedVoiceCapture?>(null) }
     var hasCamera by remember { mutableStateOf(granted(context, Manifest.permission.CAMERA)) }
     var hasMic by remember { mutableStateOf(granted(context, Manifest.permission.RECORD_AUDIO)) }
     // Asked when first needed (short flow): the camera when it opens, the mic at the reading step.
@@ -194,7 +207,6 @@ fun VeriClueApp() {
     var idFront by remember { mutableStateOf<Pair<ByteArray, IdQuality>?>(null) }
     var idBack by remember { mutableStateOf<Pair<ByteArray, IdQuality>?>(null) }
     var cccd by remember { mutableStateOf<CccdInfo?>(null) }
-    val voiceStart = remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var phone by remember { mutableStateOf("") }
     var otpError by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -232,6 +244,7 @@ fun VeriClueApp() {
 
     /** Every auth choice starts a fresh session, including when returning from OTP with Back. */
     fun enterAccount(requested: Purpose) = once {
+        activeMuxedCapture.get()?.cancel()
         camera.unbind()
         camera.deleteVideo()
         recorder.stop()
@@ -252,7 +265,7 @@ fun VeriClueApp() {
             return@once
         }
         flow.purpose = entry?.purpose ?: requested
-        live = LiveFlow(api, mediaSigner = entry?.signer).apply { boundAccount = entry?.account }
+        live = LiveFlow(api, mediaSigner = entry?.signer, enforcePrivacy = true).apply { bindAccount(entry?.previous) }
         accountEntry = entry
         entry?.hint?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
         nav.go(entry?.route ?: if (requested == Purpose.Onboarding) Routes.Terms else Routes.Phone)
@@ -346,6 +359,7 @@ fun VeriClueApp() {
 
     /** Leaves the flow: camera off, session data dropped. */
     fun leave() {
+        activeMuxedCapture.get()?.cancel()
         camera.unbind()
         camera.deleteVideo()
         recorder.stop()
@@ -360,64 +374,133 @@ fun VeriClueApp() {
     }
 
     fun follow(next: Next) {
+        if (live.privacy.stopping) return
+        if (flow.live && live.session == null) return
         val route = when (next) {
             is Next.To -> next.route
             is Next.Fail -> errorRoute(next.error)
         }
-        if (route == Routes.Success || route == Routes.Review) camera.unbind()
+        if (FlowRules.closesCameraOnResult(route)) camera.unbind()
         nav.navigate(route) { popUpTo(Routes.Uploading) { inclusive = true } }
     }
 
     @Composable
     fun VoiceRoute(again: Boolean) {
-        val level by recorder.level.collectAsState()
+        val legacyLevel by recorder.level.collectAsState()
+        val muxedLevel by camera.voiceLevel.collectAsState()
+        val audioState by recorder.state.collectAsState()
+        val voiceScope = rememberCoroutineScope()
+        val isLive = flow.live
+        val capture = remember(again, isLive) {
+            VoiceCapture(
+                scope = voiceScope,
+                prepareVideo = { !isLive },
+                startAudio = { hasMic && recorder.start(voiceScope) },
+                stopAudio = { recorder.stop() },
+                stopVideo = { camera.stopRecording() },
+                onFinished = { wav ->
+                    if (again) flow.outcome = DemoOutcome.Pass
+                    nav.go(Routes.Uploading)
+                },
+                onFailure = { failure ->
+                    nav.go(if (failure == VoiceCaptureFailure.Camera) Routes.ErrorCamera else Routes.ErrorMic)
+                },
+            )
+        }
+        val sharedCapture = remember(again, isLive, live) {
+            MuxedVoiceCapture(
+                scope = voiceScope,
+                startRecording = {
+                    live.audioOffsetMs = null
+                    live.pendingWav = null
+                    isLive && hasCamera && hasMic && live.privacy.permits("voice_biometrics") &&
+                        !live.privacy.stopping && camera.startMuxedVoiceRecording()
+                },
+                awaitReady = { camera.awaitMuxedVoiceReady() },
+                awaitVideo = { camera.finishedVideo(MUXED_VOICE_LIMIT_MS + 5000) },
+                stopRecording = { camera.stopRecording() },
+                decode = { file ->
+                    withContext(Dispatchers.IO) {
+                        val decoding = currentCoroutineContext()
+                        val audio = MuxedVoiceAudioDecoder.decode(file, checkCancelled = { decoding.ensureActive() })
+                        MuxedVoiceDecodedAudio(audio.wav, audio.audioOffsetMs, audio.source)
+                    }
+                },
+                onFinished = { submission ->
+                    if (!camera.isCurrentVideo(submission.video) || live.privacy.stopping ||
+                        !live.privacy.permits("voice_biometrics")) {
+                        nav.go(Routes.ErrorService)
+                    } else {
+                        live.pendingWav = submission.audio.wav
+                        live.audioOffsetMs = submission.audio.audioOffsetMs
+                        nav.go(Routes.Uploading)
+                    }
+                },
+                onFailure = { failure ->
+                    nav.go(if (failure == VoiceCaptureFailure.Camera) Routes.ErrorCamera else Routes.ErrorMic)
+                },
+                failureReason = { camera.muxedVoiceFailure ?: VoiceCaptureFailure.Camera },
+            )
+        }
+        val legacyPhase by capture.phase.collectAsState()
+        val sharedPhase by sharedCapture.phase.collectAsState()
+        val capturePhase = if (isLive) sharedPhase else legacyPhase
+        DisposableEffect(capture, sharedCapture, lifecycleOwner, isLive) {
+            if (isLive) activeMuxedCapture.set(sharedCapture)
+            val observer = LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_STOP) { sharedCapture.cancel(); capture.cancel() }
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose {
+                lifecycleOwner.lifecycle.removeObserver(observer)
+                sharedCapture.cancel()
+                activeMuxedCapture.compareAndSet(sharedCapture, null)
+                capture.cancel()
+            }
+        }
+        LaunchedEffect(audioState, isLive) {
+            if (isLive) return@LaunchedEffect
+            when (audioState) {
+                AudioCaptureState.Completed -> capture.finish()
+                AudioCaptureState.Failed -> capture.fail(VoiceCaptureFailure.Audio)
+                else -> Unit
+            }
+        }
         LaunchedEffect(Unit) {
+            if (flow.live && !live.privacy.permits("voice_biometrics")) {
+                nav.go(Routes.ErrorService)
+                return@LaunchedEffect
+            }
             if (!hasMic) askPermissions.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
         }
         VoiceScreen(
-            onBack = exit,
+            onBack = { sharedCapture.cancel(); capture.cancel(); exit() },
             again = again,
             sentence = if (flow.live) live.voicePrompt else null,
-            level = level,
+            level = if (isLive) muxedLevel else legacyLevel,
+            capturePhase = capturePhase,
             onStartRecording = {
                 if (hasMic) {
-                    // Video and WAV start together so the server can line up lips and voice (VOICE-05):
-                    // the WAV waits for the camera, which is the slower one to start.
-                    voiceStart.value = scope.launch {
-                        live.audioOffsetMs = null
-                        if (flow.live && hasCamera) {
-                            camera.startRecording(voice = true)
-                            camera.awaitRecordingStarted()
-                        }
-                        live.audioOffsetMs = camera.videoElapsedMs()
-                        recorder.start(scope)
-                    }
-                }
+                    if (isLive) sharedCapture.start() else capture.start()
+                } else askPermissions.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
             },
-            onFinished = {
-                voiceStart.value?.cancel() // finished before the mic even started: nothing recorded
-                val wav = recorder.stop()
-                camera.stopRecording()
-                if (flow.live) {
-                    if (!hasMic) nav.go(Routes.ErrorMic) else {
-                        live.pendingWav = wav
-                        nav.go(Routes.Uploading)
-                    }
-                } else {
-                    if (again) flow.outcome = DemoOutcome.Pass
-                    nav.go(Routes.Uploading)
-                }
-            },
+            onFinished = { if (isLive) sharedCapture.finish() else capture.finish() },
         )
     }
 
     // ADR-0017 §2: going to the background while the camera or mic runs interrupts the attempt.
     val backStack by nav.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
+    LaunchedEffect(currentRoute) {
+        if (currentRoute in setOf(Routes.BankStart, Routes.Auth)) {
+            restoredAccount = withContext(Dispatchers.IO) { accounts.load() }
+        }
+    }
     DisposableEffect(lifecycleOwner, currentRoute) {
         val observer = LifecycleEventObserver { _, event ->
             // Act on ON_STOP itself: the activity may be recreated before it starts again.
             if (event == Lifecycle.Event.ON_STOP && FlowRules.isInterruptedBy(currentRoute)) {
+                activeMuxedCapture.get()?.cancel()
                 camera.stopRecording()
                 camera.deleteVideo()
                 recorder.stop()
@@ -459,9 +542,13 @@ fun VeriClueApp() {
         },
     ) {
         composable(Routes.BankStart) {
-            BankStartScreen(onOpenAccount = { nav.go(Routes.Splash) }, onGallery = { nav.go(Routes.Gallery) })
+            BankStartScreen(onOpenAccount = { nav.go(Routes.Splash) }, onGallery = { nav.go(Routes.Gallery) },
+                manualFullDemo = restoredAccount?.manualFullDemo == true, preview = !flow.live)
         }
-        composable(Routes.BankOpened) { BankOpenedScreen(onDone = { leave() }) }
+        composable(Routes.BankOpened) {
+            BankOpenedScreen(onDone = { leave() }, manualFullDemo = flow.live && live.manualFullDemo,
+                preview = !flow.live || live.session == null)
+        }
         composable(Routes.Gallery) { GalleryScreen(nav, flow) }
 
         // Start
@@ -475,10 +562,24 @@ fun VeriClueApp() {
                 onRegister = { enterAccount(Purpose.Onboarding) },
                 onLogin = { enterAccount(Purpose.Reauth) },
                 onRecover = { enterAccount(Purpose.Recovery) },
+                manualFullDemo = restoredAccount?.manualFullDemo == true,
+                preview = !flow.live,
             )
         }
         // Terms and consent on one screen; no intro or permission screen (short flow, 24/10).
-        composable(Routes.Terms) { TermsScreen(onBack = { nav.popBackStack() }, onAccept = { nav.go(Routes.Phone) }) }
+        composable(Routes.Terms) {
+            var consentError by remember { mutableStateOf<String?>(null) }
+            TermsScreen(onBack = { if (!busy) nav.popBackStack() }, purpose = flow.purpose, busy = busy, error = consentError, onAccept = {
+                if (!flow.live) nav.go(FlowRules.afterConsent(flow.purpose)) else once {
+                    consentError = null
+                    val error = live.ensureSession(flow.mockScenario, FlowRules.purposeCode(flow.purpose))
+                        ?: live.privacy.grant(flow.purpose, PrivacyNotice.VERSION)
+                    if (error != null) {
+                        consentError = "Chưa ghi nhận được đồng ý. Hãy kiểm tra kết nối hoặc cập nhật ứng dụng rồi thử lại."
+                    } else nav.go(FlowRules.afterConsent(flow.purpose))
+                }
+            })
+        }
 
         // Stage A: identity
         composable(Routes.Phone) {
@@ -510,7 +611,7 @@ fun VeriClueApp() {
                     onCode = { code ->
                         once {
                             when (val r = live.verifyOtp(code)) {
-                                LiveFlow.OtpResult.Pass -> nav.go(FlowRules.afterOtp(flow.purpose))
+                                LiveFlow.OtpResult.Pass -> nav.go(FlowRules.afterOtp(flow.purpose, accountBound = live.boundAccount != null))
                                 is LiveFlow.OtpResult.Wrong -> otpError = FlowRules.otpWrongText(r.attemptsLeft)
                                 is LiveFlow.OtpResult.Fail -> FlowRules.otpErrorText(r.code)?.let { otpError = it } ?: nav.go(errorRoute(r.error))
                             }
@@ -632,6 +733,7 @@ fun VeriClueApp() {
             // Skipping the flash must not skip the face part: stop here. Nothing reaches the server yet,
             // so the screen promises no review (question 14 in docs/can-chot.md).
             FaceReadyScreen(onBack = { nav.popBackStack() }, onReady = ::startFace,
+                manualDemo = flow.live && (live.manualDemo || live.manualFullDemo),
                 usesLightChallenge = flow.purpose != Purpose.Reauth, onSkipFlash = {
                 camera.unbind()
                 nav.go(Routes.FlashSkipped)
@@ -752,6 +854,7 @@ fun VeriClueApp() {
                     onStart = {
                         live.colorEvents.clear()
                         if (hasCamera) camera.startRecording() else if (!flow.live) demoStart = CaptureClock.nowMs()
+                        camera.debugTrace.bindAttempt(challenge?.challengeId)
                     },
                     recordingStartMs = { if (hasCamera || flow.live) camera.recordingStartMs() else demoStart },
                     onPainted = { slot, t -> slot.index?.let { live.colorEvents += ColorEvent(it, slot.rgb, t) } },
@@ -772,9 +875,10 @@ fun VeriClueApp() {
                             return@done
                         }
                         terminal = true
+                        camera.savePresenceDebugTrace()
                         camera.stopRecording()
                         faceCaptured = true
-                        val next = FlowRules.afterFace(flow.purpose, idConfirmed, live = flow.live)
+                        val next = FlowRules.afterFace(flow.purpose, idConfirmed, live = flow.live, accountBound = live.boundAccount != null)
                         nav.navigate(next) { if (next == Routes.Confirm) popUpTo(Routes.FaceReady) { inclusive = true } }
                     },
                     onNoRecording = noRecording@ {
@@ -786,6 +890,7 @@ fun VeriClueApp() {
                     },
                     faceSignal = { camera.face.value },
                     onIncomplete = ::rejectAttempt,
+                    debugTrace = camera.debugTrace,
                 )
             }
         }
@@ -812,7 +917,8 @@ fun VeriClueApp() {
                     // A retry comes back here; LiveFlow resends only what the server has not received.
                     val next = submitWithVideo(camera.finishedVideo()) { video ->
                         if (wav != null) {
-                            live.submitVoice(wav, video, live.audioOffsetMs, onAccepted = camera::deleteVideo)
+                            if (video == null) Next.To(Routes.UploadFailed) else
+                                live.submitVoice(wav, video, live.audioOffsetMs, onAccepted = { camera.deleteVideo(preserveDiagnostics = true) })
                         } else {
                             val probe = withContext(Dispatchers.IO) { camera.camProbe() }
                             live.submitFace(
@@ -821,7 +927,7 @@ fun VeriClueApp() {
                                 camera.clientQuality(video),
                                 probe,
                                 camera.regionMeans().ifEmpty { null },
-                                onMediaAcked = camera::deleteVideo,
+                                onMediaAcked = { camera.deleteVideo(preserveDiagnostics = true) },
                             )
                         }
                     }
@@ -842,9 +948,15 @@ fun VeriClueApp() {
         composable(Routes.Success) {
             SuccessScreen(
                 flow.purpose,
-                onContinue = { if (flow.purpose == Purpose.Onboarding) nav.go(Routes.BankOpened) else leave() },
+                onContinue = { if (flow.purpose == Purpose.Onboarding && (!flow.live || accountFlow.accountSaved)) nav.go(Routes.BankOpened) else leave() },
                 checked = if (flow.live) FlowRules.checkedByServer(live.voiceChecked) else null,
+                accountReady = if (flow.live && flow.purpose != Purpose.Reauth) accountFlow.accountSaved else null,
+                manualFullDemo = flow.live && live.manualFullDemo,
+                preview = !flow.live || live.session == null,
             )
+        }
+        composable(Routes.ManualDemoComplete) {
+            vn.vericlue.app.ui.screens.ManualDemoCompleteScreen(onDone = { leave() })
         }
         composable(Routes.Review) { ReviewScreen(onBackToBank = { leave() }) }
         composable(Routes.RetryQuality) {
@@ -916,11 +1028,46 @@ fun VeriClueApp() {
                     camera.stopRecording()
                     camera.deleteVideo()
                     recorder.stop()
-                    nav.go(Routes.Stopped)
+                    nav.go(if (flow.live && live.session != null) Routes.PrivacyStop else Routes.Stopped)
                 },
             )
         }
-        composable(Routes.Stopped) { Messages.Stopped(onBank = { leave() }) }
+        composable(Routes.PrivacyStop) {
+            var requested by remember { mutableStateOf(false) }
+            var sending by remember { mutableStateOf(false) }
+            var failure by remember { mutableStateOf(false) }
+            BackHandler(enabled = requested) { }
+            PrivacyStopScreen(sending, requested, failure,
+                onResume = { nav.popBackStack() },
+                onWithdraw = {
+                    if (!sending) {
+                        requested = true
+                        sending = true
+                        camera.clearPresenceDebugTrace()
+                        camera.unbind()
+                        recorder.stop()
+                        scope.launch {
+                            try {
+                                failure = live.privacy.withdraw() != null
+                                if (!failure) {
+                                    camera.deleteVideo()
+                                    live.reset()
+                                    idFront = null; idBack = null; cccd = null
+                                    idConfirmed = false; faceCaptured = false
+                                    nav.navigate(Routes.Stopped) {
+                                        popUpTo(Routes.BankStart) { inclusive = false }
+                                        launchSingleTop = true
+                                    }
+                                }
+                            } finally { sending = false }
+                        }
+                    }
+                }, onLeaveUnconfirmed = { leave() })
+        }
+        composable(Routes.Stopped) {
+            BackHandler { leave() }
+            Messages.Stopped(onBank = { leave() })
+        }
         composable(Routes.FlashSkipped) { Messages.FlashSkipped(onBank = { leave() }) }
         composable(Routes.Deny) { Messages.Denied(onBank = { leave() }) }
         composable(Routes.RecoveryRequired) { Messages.RecoveryRequired(onBank = { leave() }) }
@@ -968,7 +1115,7 @@ private fun GalleryScreen(nav: NavHostController, flow: FlowState) {
         }
         Text("Nguồn kết quả", style = VcType.label, color = c.muted)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = !flow.live, onClick = { flow.live = false }, label = { Text("Giả lập trên máy") })
+            FilterChip(selected = !flow.live, onClick = { flow.live = false }, label = { Text("Xem trước · Không chạy AI") })
             FilterChip(selected = flow.live, onClick = { flow.live = true }, label = { Text("API thật") })
         }
         if (flow.live) {

@@ -1,5 +1,15 @@
 # API luồng xác minh và gói thử thách — FLOW-01 / LIVE-01
 
+**Cập nhật 02/11:** lượt mới dùng dynamic v2, quay đầu tổng12giây. Android
+dành5giây cho mỗi bên và2giây nhìn thẳng cuối lượt; server kiểm thứ tự/giữ
+tư thế trong toàn bộ cửa sổ12giây, không quy định ba khoảng bằng nhau.
+V1/6000 ms vẫn được nhận cho lượt cũ; không nhận cặp version/duration chéo.
+`voice_start_at_ms` bằng head start cộng head duration, head end không vượt
+30000 ms. Android dùng mốc server, có đếm ngược và hướng tiếp theo. iOS hiện
+chỉ nhận v1, chưa được nâng cấp trong đợt này. Không đổi màu/nhịp nháy hoặc
+ngưỡng chuyển động; OTP/guard sinh trắc giữ nguyên. Cập nhật này không biến
+trạng thái diagnostic thành ghi danh thật.
+
 ## Trạng thái
 
 Backend đã có gói thử thách, ràng buộc mã lượt, luật quyết định theo `purpose` và
@@ -57,7 +67,7 @@ Client bắt đầu ghi sau khi đã căn khung; dùng đồng hồ đơn điệ
 | Nền xám | Chụp chính diện tại `frontal_capture_at_ms`, trước khi đổi màu |
 | Ánh sáng | `baseline_ms`, `color_sequence`, `capture_at_ms` của challenge |
 | Ánh mắt | 8 `gaze_points` chuẩn hóa theo kích thước vùng hiển thị; nội suy tuyến tính giữa các điểm, tổng 7 giây |
-| Quay đầu | `head_start_at_ms`, `head_duration_ms=6000`, trái/phải ngẫu nhiên rồi về giữa |
+| Quay đầu | `head_start_at_ms`, `head_duration_ms=12000` ở v2 (v1: 6000), trái/phải ngẫu nhiên rồi về giữa |
 | Đọc câu | `voice_start_at_ms`, `voice_prompt`, `voice_challenge_id` đã có ngay từ lúc tạo phiên |
 
 Chuỗi màu giữ nguyên 8 bước và cấu hình an toàn dùng chung. Tổng thời gian là tổng

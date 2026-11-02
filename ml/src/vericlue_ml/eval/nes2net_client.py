@@ -60,13 +60,24 @@ def validate_reply(
         or body.get("request_id") != request_id
         or body.get("pcm_float32_sha256") != checksum
         or body.get("model_version") != expected_version
-        or body.get("frontend_parity_verified") is not False
+        or type(body.get("frontend_parity_verified")) is not bool
         or body.get("calibrated") is not False
     ):
         raise ValueError("Unexpected worker/take")
     result = ModuleResult.model_validate(body["result"])
+    from vericlue_ml.voice.nes2net_parity import validate_parity_claim
+
+    validate_parity_claim(result)
     if (
-        result.module != "voice_spoof"
+        body["frontend_parity_verified"] != result.quality.get("frontend_parity_verified", False)
+        or (
+            body["frontend_parity_verified"]
+            and (
+                not isinstance(result.quality.get("parity_report_sha256"), str)
+                or len(result.quality["parity_report_sha256"]) != 64
+            )
+        )
+        or result.module != "voice_spoof"
         or result.model_version != expected_version
         or result.gate != "unclear"
         or result.prob_attack is not None

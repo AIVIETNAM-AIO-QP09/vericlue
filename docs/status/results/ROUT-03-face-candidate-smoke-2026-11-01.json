@@ -1,0 +1,32 @@
+{
+  "source_commit": "a47151e31311aee646855627853eb8979eb9dfa7",
+  "dataset": "synthetic-session",
+  "synthetic_only": true,
+  "weights_loaded": false,
+  "split": "calib_fit",
+  "sample_count": 10,
+  "complete_candidates": 8,
+  "incomplete_rows_preserved": 2,
+  "wrong_calibrator_refused_without_output": true,
+  "input_overwrite_refused_unchanged": true,
+  "configured_calibrator_storage_refused_without_output": true,
+  "runtime_eligible": false,
+  "ltt_ready": false,
+  "command_count": 4,
+  "expected_successes": 1,
+  "expected_refusals": 3,
+  "schema_version": 1,
+  "task": "ROUT-03",
+  "model_versions": {
+    "face_pad": "face_pad@123+session-video-v2",
+    "face_deepfake": "face_deepfake@123+session-video-v2"
+  },
+  "fusion_policy": "max",
+  "smoke_summary_sha256": "1a139d52afcb7406f87440ac01ae5b9e89e6fbd76de8e01a2304c7896b6a9682",
+  "real_accuracy_or_r4_claim": false,
+  "diagnostic_only": true,
+  "deployed": false,
+  "runtime_binding_verified": false,
+  "source_crosswalk_verified": false,
+  "prior_gates_measured": false
+}
