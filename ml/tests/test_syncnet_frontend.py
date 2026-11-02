@@ -199,6 +199,32 @@ def test_resize_truncates_to_uint8_before_lanczos() -> None:
     assert actual.dtype == np.uint8
 
 
+def test_resize_accepts_small_roundoff_without_changing_direct_byte_cast() -> None:
+    cv2 = pytest.importorskip("cv2")
+    frontend = _frontend()
+    pixels = np.array(
+        [
+            [[-0.0009, 127.9, 255.0009], [255.00003, -0.000015, 43.9]],
+            [[12.9, 255.000015, -0.00001], [250.9, 0.9, 100.9]],
+        ],
+        dtype=np.float32,
+    )
+    # Tiny negative values truncate to zero; 255+epsilon truncates to 255.
+    expected = cv2.resize(pixels.astype(np.uint8), (256, 256), interpolation=cv2.INTER_LANCZOS4)
+    np.testing.assert_array_equal(frontend.resize_aligned_to_square(pixels), expected)
+
+
+@pytest.mark.parametrize(
+    "value", [-0.002, 255.002, -0.01, 255.01, -1, 256, np.nan, np.inf, -np.inf]
+)
+def test_resize_still_rejects_nonfinite_and_material_range_excursions(value: float) -> None:
+    frontend = _frontend()
+    pixels = np.full((2, 2, 3), 100, dtype=np.float32)
+    pixels[0, 0, 0] = value
+    with pytest.raises(frontend.SyncNetFrontendError):
+        frontend.resize_aligned_to_square(pixels)
+
+
 def test_packing_preserves_rgb_and_frame_major_order_and_discards_upper_half() -> None:
     frontend = _frontend()
     frames = np.zeros((16, 256, 256, 3), dtype=np.uint8)
@@ -299,6 +325,27 @@ def test_fractional_warp_of_saturated_rgb_can_be_resized(kornia_runtime, offset)
     assert resized.shape == (256, 256, 3)
     assert resized.dtype == np.uint8
     np.testing.assert_allclose(resized[128, 128], [0, 127, 255], atol=1)
+
+
+@pytest.mark.parametrize(
+    "value,matrix",
+    [
+        (255, [[1, 0, 0.5], [0, 1, 0.25]]),
+        (255, [[0.860674262, -0.263134509, 3.2], [0.263134509, 0.860674262, 1.7]]),
+        (0, [[1.740106821, 4.08402414e-8, 17.9946594], [-4.08402414e-8, 1.740106821, 16.6631088]]),
+    ],
+)
+def test_kornia_float32_roundoff_matches_direct_byte_cast(kornia_runtime, value, matrix) -> None:
+    cv2 = pytest.importorskip("cv2")
+    frontend = _frontend()
+    # Fixed mathematical translation, rotation, and neutral three-point fit;
+    # 128² saturation exposes roundoff absent from the smaller 8x9 oracle.
+    pixels = np.full((128, 128, 3), value, dtype=np.uint8)
+    warped = frontend.warp_rgb_kornia(
+        pixels, np.array(matrix, dtype=np.float32), size_wh=(210, 280)
+    )
+    expected = cv2.resize(warped.astype(np.uint8), (256, 256), interpolation=cv2.INTER_LANCZOS4)
+    np.testing.assert_array_equal(frontend.resize_aligned_to_square(warped), expected)
 
 
 def test_candidate_aligns_at_intermediate_aspect_then_returns_rgb_square(kornia_runtime) -> None:

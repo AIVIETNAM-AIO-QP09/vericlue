@@ -29,6 +29,14 @@ from numpy.typing import NDArray
 FloatArray = NDArray[np.float32]
 WarpDtype = Literal["float16", "float32"]
 FRONTEND_VERSION = "syncnet-spatial-independent-v1-r256-numpy-float32"
+# Engineering allowance for the FP32 bilinear sum and 127 * (1 - mask) fill:
+# gamma_32 times the absolute byte/fill term budget, less than 0.001 byte.
+# This conservative final-blend budget is NOT a universal Kornia error bound
+# or an FP16/parity claim. It only permits excursions with identical uint8 cast.
+_FP32_UNIT_ROUNDOFF = float(np.finfo(np.float32).eps) / 2
+_BYTE_ROUNDOFF_BUDGET = (32 * _FP32_UNIT_ROUNDOFF / (1 - 32 * _FP32_UNIT_ROUNDOFF)) * (
+    255 + 2 * 127
+)
 
 
 class SyncNetFrontendError(ValueError):
@@ -269,7 +277,7 @@ def warp_rgb_kornia(
 
 
 def resize_aligned_to_square(aligned_rgb: np.ndarray) -> NDArray[np.uint8]:
-    """Truncate aligned RGB pixels to bytes before OpenCV Lanczos4 at 256²."""
+    """Allow tiny blend roundoff, then truncate bytes before Lanczos4 at 256²."""
     pixels = np.asarray(aligned_rgb)
     if (
         pixels.ndim != 3
@@ -277,10 +285,15 @@ def resize_aligned_to_square(aligned_rgb: np.ndarray) -> NDArray[np.uint8]:
         or min(pixels.shape[:2]) < 1
         or not np.issubdtype(pixels.dtype, np.number)
         or not np.isfinite(pixels).all()
-        or pixels.min() < 0
-        or pixels.max() > 255
     ):
         raise SyncNetFrontendError("Aligned RGB must contain finite pixels in [0, 255]")
+    minimum, maximum = float(pixels.min()), float(pixels.max())
+    if minimum < -_BYTE_ROUNDOFF_BUDGET or maximum > 255 + _BYTE_ROUNDOFF_BUDGET:
+        raise SyncNetFrontendError("Aligned RGB exceeds the byte-range roundoff budget")
+    if minimum < 0 or maximum > 255:
+        # These excursions are much smaller than one byte: clipping has exactly
+        # the same uint8 result as direct truncation toward zero at either edge.
+        pixels = np.clip(pixels, 0, 255)
     try:
         import cv2
     except ImportError as exc:

@@ -87,3 +87,18 @@ RAM/JPEG của lab. Không dùng nó để tuyên bố parity pipeline file củ
 Sau khi có kết quả vẫn cần review phiên bản, ngân sách CPU/RAM và chốt
 tương thích trước mọi đề xuất đưa vào server. Calibrator cũ không tự tương
 thích khi thay tiền xử lý. Thiếu bằng chứng thì giữ trạng thái chưa nghiệm thu.
+
+## Sửa biên số học khi đổi sang byte
+
+Lượt native đầu dừng ở kiểm miền pixel trước Lanczos. Đối chứng tổng hợp
+riêng (không model/media) tái hiện 4/9 trường hợp Kornia FP32: ảnh trắng có
+pixel 255,00001525878906 hoặc 255,00003051757812; ảnh đen có -0,00001513958.
+Đó là sai số làm tròn phép blend/fill, không phải bằng chứng lệch hình học.
+
+Chỉ tại bước đổi byte, cho phép một biên số học kỹ thuật nhỏ hơn0,001 mức
+byte, tính từ gamma32 và tổng trị tuyệt đối các hạng pixel/fill. Clip trong
+biên này cho byte đúng bằng cách truncate trực tiếp; sai lệch0,002 trở lên
+hoặc NaN/Inf vẫn lỗi. Không đổi ma trận, dtype warp, đồng hồ, ngưỡng AI.
+Đây không phải chứng minh biên sai số phổ quát của Kornia hoặc parity FP16.
+RED 4 ca lỗi đúng chỗ; root chạy frontend + file/RAM probe: **115 ca đạt**.
+Phải chạy native lại với commit mới; lượt lỗi đầu vẫn được giữ trong vùng riêng.

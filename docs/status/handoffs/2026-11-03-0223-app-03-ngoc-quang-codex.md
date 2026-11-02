@@ -77,6 +77,11 @@
 
 ## Câu hỏi cho nhóm và giới hạn nghiệm thu
 
+Native frontend lượt đầu dừng ở guard miền pixel. Đã tái hiện bằng ảnh tổng
+hợp trắng/đen với phép warp cố định, sửa riêng sai số FP32 dưới0,001 byte
+trước cast (byte đầu ra không đổi); không sửa crop/clock/dtype/ngưỡng.
+RED4 lỗi đúng guard, root GREEN115 ca. Lượt native lại vẫn cần ghi riêng.
+
 - Còn cần người dùng thử recovery đến kết quả trên S24 FE và xác nhận preview
   thấy đủ mặt. Đăng ký/đăng nhập lại từng có lượt đạt trước; không dùng chúng
   thay nghiệm thu APK mới hoặc toàn bộ giọng.
