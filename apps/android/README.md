@@ -4,6 +4,14 @@
 
 ## Trạng thái
 
+**03/11 — mốc ghi hình trước hàng đợi UI:** timestamp của CameraX Status được
+chụp lúc gửi callback vào executor, trước khi chờ luồng giao diện. Callback và
+trạng thái vẫn chạy trên main thread, mỗi lượt ghi có đồng hồ riêng. Thay đổi
+này loại phần trễ hàng đợi khỏi ước lượng mốc video; chưa đo được trễ encoder
+và chưa chứng minh ánh mắt đã đạt trên máy thật. Không đổi lịch/ngưỡng ánh mắt,
+GenD hoặc chốt xác minh. Xem
+[bàn giao](../../docs/status/handoffs/2026-11-03-1210-app-03-ngoc-quang-codex.md).
+
 **03/11 — khung chụp và trace adaptive:** yêu cầu JPEG chỉ nhận khung được
 camera chụp sau thời điểm yêu cầu, kể cả khi analyzer giao khung cũ muộn.
 Trace quay đầu dùng mốc đổi hướng thực tế tại thời điểm chụp, không suy từ

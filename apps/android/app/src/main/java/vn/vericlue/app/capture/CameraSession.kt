@@ -412,6 +412,9 @@ class CameraSession(
         val done = CompletableDeferred<Boolean>().also { finalized = it }
         val begun = CompletableDeferred<Unit>().also { started = it }
         recordedAt = null
+        val eventClock = RecordingEventClock(
+            ContextCompat.getMainExecutor(context), SystemClock::elapsedRealtimeNanos,
+        )
         var audioBroken = false
         var readySeen = false
         recording = runCatching {
@@ -421,7 +424,7 @@ class CameraSession(
             controller.startRecording(
                 output,
                 if (muxedVoice) AudioConfig.create(true) else AudioConfig.AUDIO_DISABLED,
-                ContextCompat.getMainExecutor(context),
+                eventClock,
             ) events@{ event ->
                 if (attempt != recordingGeneration) {
                     if (event is VideoRecordEvent.Finalize) {
@@ -459,7 +462,7 @@ class CameraSession(
                 // Start arrives before any frame; the first frame shows as recorded time > 0.
                 if (event is VideoRecordEvent.Status && recording != null &&
                     event.recordingStats.recordedDurationNanos > 0) {
-                    recordedAt = event.recordingStats.recordedDurationNanos to SystemClock.elapsedRealtimeNanos()
+                    recordedAt = event.recordingStats.recordedDurationNanos to eventClock.dispatchTimeNanos()
                     begun.complete(Unit)
                 }
                 if (event is VideoRecordEvent.Finalize) {
@@ -509,7 +512,7 @@ class CameraSession(
 
     private var started: CompletableDeferred<Unit>? = null
 
-    /** Last Status event: recorded video length (ns) and when it arrived (elapsedRealtime ns). */
+    /** Last Status event: video length and dispatch time before the main queue (elapsedRealtime ns). */
     @Volatile private var recordedAt: Pair<Long, Long>? = null
 
     /**
@@ -517,9 +520,9 @@ class CameraSession(
      * length plus the time since that report. Sent as `audio_offset_ms` when the WAV starts.
      */
     /**
-     * The first frame of the running recording's file, on the capture clock (ms); null until CameraX
-     * reports one. This is t = 0 of the server's schedule (FLOW-01). It is not the first analysed
-     * frame: the encoder starts 0.1–0.9 s after analysis does.
+     * Estimated file origin on the capture clock (ms); null until CameraX reports video data.
+     * Used as t = 0 of the server's schedule (FLOW-01). Main-queue delay is excluded, but encoder
+     * latency remains unmeasured. This is not the first analysed frame.
      */
     fun recordingStartMs(): Double? {
         if (recording == null) return null

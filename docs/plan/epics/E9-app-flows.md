@@ -662,6 +662,25 @@ latch là hold đạt/đổi phase/qua gate; giữ các hằng và lịch5/5/2. 
 |---|---|---|---|---|
 | M1 | 1 | S2 | P0 | APP-01 |
 
+**03/11 trưa — tiếp tục sửa, chưa nghiệm thu:** đăng ký và đăng nhập mới đã
+đạt trên demo 0.90. Khôi phục 11:15 bị chặn ở lipsync; lượt 11:50 bị chặn trước
+giọng ở GenD và ánh mắt. Sửa timestamp CameraX trước hàng đợi main để loại
+lỗi trễ callback khỏi mốc video ước lượng, giữ lịch và mọi ngưỡng/chốt.
+Không kết luận đã sửa GenD hoặc đồng hồ encoder. Xem
+[bàn giao](../../status/handoffs/2026-11-03-1210-app-03-ngoc-quang-codex.md).
+
+**03/11, sau lượt 10:57:** người dùng yêu cầu ngưỡng demo GenD **0.90** sau
+khi 0.70 vẫn chặn. Profile riêng đã đổi với policy mới; không coi các lượt
+demo dùng để điều chỉnh ngưỡng là đánh giá độc lập. GenD chưa hiệu chỉnh và
+khôi phục chưa nghiệm thu; mục 0.70 bên dưới là lịch sử.
+
+**03/11 10:54 — cấu hình demo theo yêu cầu mới:** ngưỡng GenD riêng của máy
+demo đổi từ 0.50 sang 0.70, policy có mã mới; server đã xác nhận qua HTTP.
+Đây là lựa chọn thủ công chưa hiệu chỉnh, có thể tăng bỏ lọt deepfake, không
+phải bằng chứng mô hình đã sửa. Không đổi mặc định repo hoặc chốt error/degraded.
+Chưa có lượt điện thoại trên policy mới; xem
+[bàn giao](../../status/handoffs/2026-11-03-1042-app-03-ngoc-quang-codex.md).
+
 **03/11 sáng — sửa GenD:** lượt07:39 qua sáu mô-đun mặt nhưng GenD chặn
 trước giọng. Đối chứng gốc phát hiện lỗi căn mặt NumPy; sửa và version riêng,
 không đổi ngưỡng. Mã gốc cũng từ chối front của lượt này ở cutoff hiện có,

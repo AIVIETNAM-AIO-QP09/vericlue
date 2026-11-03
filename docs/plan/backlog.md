@@ -137,7 +137,7 @@
 | SEC-02 ★ | Ký media, L0 khóa ghi danh; service khôi phục/thu hồi, chờ nghiệm thu máy thật | M2 (+M1) | Codex | 1 | S2 | P0 | APP-01, PLAT-06 | doing |
 | APP-01 ★ | Đang thử S24 FE; sửa binding trích template, chờ thử lại/HTTPS/nghiệm thu 3 luồng | M1 | Ngọc Quang+Claude+Codex+Gemini | 1,5 | S1 | P0 | PLAT-04 | doing |
 | APP-02 ★ | S24 FE: một lượt CCCD/mặt đạt sau sửa lời nhắc; chờ review và nhánh giọng | M1 | Ngọc Quang+Claude | 2 | S1–S2 | P0 | APP-01 | doing |
-| APP-03 | GenD đã đối chứng mã gốc; triển khai sửa mã lỗi bị che, đo CPU đầy đủ không tái hiện timeout; khôi phục S24 FE chưa nghiệm thu | M1 | Ngọc Quang+Claude | 1 | S2 | P0 | APP-01 | doing |
+| APP-03 | Sửa mốc ghi hình trước hàng đợi UI; GenD demo 0.90 chưa hiệu chỉnh, đăng ký/đăng nhập đã qua nhưng khôi phục còn chặn; chờ thử lại S24 FE | M1 | Ngọc Quang+Claude | 1 | S2 | P0 | APP-01 | doing |
 | APP-04 | Sửa thông báo hết tự chụp CCCD; bổ sung chẩn đoán QR, chờ thử lại S24 FE | M2 (+M1) | Ngọc Quang+Claude | 1,5 | S1–S2 | P0 | APP-01 | doing |
 | APP-05 | Đóng gói Android test từ xa qua mạng riêng | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | review |
 | APP-06 | Android localhost qua USB/Wi-Fi TLS, cấu hình test ảnh CCCD | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | review |
