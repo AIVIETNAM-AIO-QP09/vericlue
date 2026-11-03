@@ -106,3 +106,31 @@
 - Máy/server giữ bật cho người dùng. Không tiếp tục lệnh tắt máy qua đêm cũ.
 - Khôi phục vẫn **chưa nghiệm thu**: parity đã sửa đúng, nhưng original/fixed
   cùng từ chối video cố định ở ngưỡng hiện có. Cần hiệu chỉnh độc lập đúng version.
+
+## Lượt người dùng sau triển khai: mặt đạt nhưng hết hạn
+
+- Lượt khôi phục 08:21 có cả 7 mô-đun mặt `ok/pass`, gồm GenD đúng version
+  mới. Kết quả cuối vẫn `review`, chưa yêu cầu giọng, tài khoản giữ nguyên.
+- Đối chiếu thời điểm: quyết định lúc 08:23:15,416, thử thách hết hạn lúc
+  08:23:11,111; xử lý vượt deadline khoảng 4,305 giây. Token vẫn còn khoảng
+  175,695 giây. Dựng lại các gate từ snapshot chỉ đọc với đúng profile `mvp`:
+  nếu còn hạn, manual gate đạt và route/identity đều trả `voice_challenge`.
+  Đây là lỗi thiếu thời gian của cấu hình demo CPU, không phải lượt GenD fail.
+- Chỉ profile demo riêng được đổi `CHALLENGE_TTL_SECONDS=180` thay mặc định
+  120; không đổi mặc định trong repo. Áp dụng cho thử thách mặt và giọng/reread
+  được phát hành sau đó; token300/max900, giới hạn bản thu và sáu ngưỡng giữ
+  nguyên. Giữ mọi kiểm tra hết hạn trước/sau suy luận. Lượt cũ vẫn đóng,
+  không sửa quyết định hoặc gia hạn challenge đã phát hành.
+- Helper riêng được review trước chạy; kiểm đúng một trường Settings thay
+  đổi, backup `.env`/build-info tại
+  `revision-backups/before-cpu-demo-ttl180-20261103`. Sau kích hoạt, mọi hàng
+  SQLite, khóa/media, nguồn API và APK giữ nguyên; cập nhật hash profile.
+- Thêm 7 ca hồi quy: hết hạn trong nhóm mặt hoặc face-match dù cả7 đạt;
+  cùng thời gian xử lý với challenge mới180 chuyển sang giọng; profile mới
+  không hồi sinh challenge120 đã hết hạn; token vẫn là giới hạn độc lập.
+  Bốn file liên quan **703 đạt**, 1 cảnh báo Starlette/httpx có sẵn; Ruff sạch,
+  review độc lập không có blocker. Đây là test logic với detector tổng hợp,
+  không phải nghiệm thu điện thoại. Không cần chạy lại native parity vì mã
+  suy luận/model không đổi.
+- Commit GenD `f3305b2` và commit bàn giao `68637fa` đều có toàn bộ CI thành
+  công; riêng HEAD `68637fa` đã kiểm đủ10/10. PR135 tiếp tục draft, chưa merge.
