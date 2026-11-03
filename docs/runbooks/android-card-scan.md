@@ -4,7 +4,33 @@ APP-04/APP-10, cập nhật 03/11/2026. Luồng hiện tại chụp một mặt 
 QR và chân dung. Các bước QR riêng/auto-zoom của bản 29/10 đã được thay thế;
 không dùng hướng dẫn cũ để nghiệm thu bản một màn.
 
-## Những điểm được sửa
+## Mặc định mới: bộ quét tài liệu
+
+Người dùng chọn ML Kit Document Scanner sau khi camera cũ trên S24 FE có
+nhiều frame đủ nét/sáng, thấy chân dung nhưng `qrRead=false`. Đây là quan sát
+log kỹ thuật, không phải số đo tỷ lệ thành công.
+
+- Bước CCCD trong luồng API mở giao diện SDK: nhận mép thẻ, tự chụp, xem lại
+  ảnh; một trang JPEG, tắt gallery import, chế độ BASE (không filter/clean).
+- Giữ nguyên bytes JPEG/EXIF của kết quả, tối đa 10 MiB/16 triệu pixel; server
+  đọc cả QR/chân dung cùng ảnh. Không chờ ML Kit QR/face ở preview cũ nữa.
+- SDK lần đầu tải mô-đun qua Play services; tối đa 45 giây chờ chuẩn bị rồi
+  hiện retry/camera cũ dự phòng. Hủy scanner quay về màn chờ, không tự mở lại.
+- Rời màn vô hiệu hóa callback cũ. Một kết quả chỉ gửi một lần; app không
+  lưu bản sao JPEG, dọn URI ảnh chụp tạm khi xử lý xong theo quyền provider.
+- Google quản lý màn camera/xem lại của SDK; màu/bố cục màn đó ít tùy biến
+  hơn UI Compose. Chưa có benchmark chứng minh độ nhạy thẻ thật tăng.
+
+Kiểm SDK sẵn sàng bằng instrumentation đã cài, không mở camera:
+
+```powershell
+adb shell am instrument -w -e mode document-scanner-readiness vn.vericlue.app.test/vn.vericlue.app.HeadSpeechProbe
+```
+
+Probe kiểm SDK và đọc/dọn JPEG tổng hợp có EXIF trong cache; không bấm đồng ý,
+không gửi ảnh hoặc nhận dạng danh tính. Việc quét thẻ thật vẫn do người dùng.
+
+## Camera cũ dự phòng và xử lý server
 
 - Yêu cầu ảnh phân tích lớn hơn cho camera quét thẻ, ưu tiên tỉ lệ 4:3 và
   giới hạn 1920×1440; fallback cấu hình mặc định nếu không bind được. Camera
@@ -35,10 +61,13 @@ Chưa có benchmark điện thoại chứng minh mức tăng độ nhạy.
 1. Dùng cùng APK/package/khóa ký, giữ ADB Wi-Fi, reverse 8421 tới server.
 2. Chọn API thật và bắt đầu phiên mới. Người dùng tự đồng ý và cung cấp ảnh;
    không điền/tick hộ hoặc ghi hình CCCD thật vào repo/log.
-3. Khi mở camera thẻ, xem stream YUV trong `dumpsys media.camera` để xác nhận
-   kích thước thực. Selector là yêu cầu, không đảm bảo mọi máy chọn cùng size.
-4. Logcat chỉ lọc `VeriClueCardScan`: xem kích thước, `qrRead`, `portrait`,
-   `sharp`, `glareClear`, `bright`, `elapsedMs`. Không log payload/ảnh.
+3. Mặc định phải mở bộ quét tài liệu, tìm mép thẻ và cho kiểm tra ảnh trước
+   khi gửi. Thử hủy rồi quét lại; hủy không được mở lại camera ngay. Khi SDK
+   chưa sẵn sàng, thử nút camera dự phòng. Kiểm tra cả lần đầu tải mô-đun.
+4. Riêng camera dự phòng: xem stream YUV trong `dumpsys media.camera` để
+   xác nhận kích thước thực. Logcat chỉ lọc `VeriClueCardScan`: kích thước,
+   `qrRead`, `portrait`, `sharp`, `glareClear`, `bright`, `elapsedMs`.
+   SDK không phát các log preview này; không log payload/ảnh CCCD.
 5. Test thẻ có QR cùng mặt chân dung. Che QR, che chân dung, đưa hai thẻ:
    không được sang xác nhận thiếu bằng chứng. Đổi thẻ/retake không dùng lại
    dữ liệu cũ. QR ở mặt khác chưa thuộc luồng một ảnh này.

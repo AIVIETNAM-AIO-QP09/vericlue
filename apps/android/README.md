@@ -4,6 +4,16 @@
 
 ## Trạng thái
 
+**03/11 — APP-04, bộ quét tài liệu tự chụp:** mặc định luồng API dùng Google
+ML Kit Document Scanner 16.0.0 để nhận mép, tự chụp và xem lại ảnh thẻ trước
+khi đọc dữ liệu. Một trang JPEG, tắt nhập thư viện, `SCANNER_MODE_BASE` để giữ
+màu và chi tiết chân dung. App gửi nguyên JPEG bộ quét trả về; không phải đợi
+QR/face detector ở preview. Server vẫn cần QR và chân dung cùng ảnh.
+Lần đầu có thể cần tải mô-đun qua Google Play services; lỗi tải/cancel có
+thử lại và camera cũ dự phòng. Gallery/offline vẫn dùng camera cũ.
+Không đổi đồng ý, OTP, API hoặc ngưỡng sinh trắc. Xem
+[runbook](../../docs/runbooks/android-card-scan.md); cần nghiệm thu thẻ thật.
+
 **03/11 — APP-04, đọc lại từ ảnh tĩnh:** vùng QR ở preview có thể kích hoạt
 chụp dù chưa thấy chân dung. Ảnh tĩnh dùng ML Kit `ACCURATE`; ảnh rõ có ít nhất
 một dấu hiệu QR/chân dung được gửi API để đọc lại phần còn thiếu. Đây chỉ là

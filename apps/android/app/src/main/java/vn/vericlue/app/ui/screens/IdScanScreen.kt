@@ -29,6 +29,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import vn.vericlue.app.capture.CccdQr
 import vn.vericlue.app.capture.IdQuality
 import vn.vericlue.app.capture.idScanDisplayHint
@@ -39,6 +42,46 @@ import vn.vericlue.app.ui.components.VcScreen
 import vn.vericlue.app.ui.theme.Vc
 import vn.vericlue.app.ui.theme.VcTheme
 import vn.vericlue.app.ui.theme.VcType
+
+enum class DocumentScanStage { Preparing, Scanning, Reading, Ready, Failed }
+
+@Composable
+fun DocumentCardScreen(
+    stage: DocumentScanStage, message: String? = null,
+    onBack: () -> Unit, onStop: () -> Unit, onRetry: () -> Unit, onFallback: () -> Unit,
+) {
+    VcTheme(dark = true) {
+        val c = Vc.colors
+        val busy = stage in setOf(DocumentScanStage.Preparing, DocumentScanStage.Scanning, DocumentScanStage.Reading)
+        VcScreen(onBack = onBack, step = 1, actions = {
+            if (!busy) PrimaryButton("Quét lại thẻ", onRetry)
+            if (stage == DocumentScanStage.Failed) LinkButton("Dùng camera của ứng dụng", onFallback)
+            LinkButton("Dừng xác minh", onStop)
+        }) {
+            Text("Quét thẻ căn cước", style = VcType.titleLarge, color = c.ink)
+            Box(Modifier.fillMaxWidth().aspectRatio(1.586f).clip(RoundedCornerShape(16.dp))) {
+                CardGuide(false)
+                if (busy) Box(Modifier.fillMaxSize().background(c.background.copy(alpha = 0.65f)),
+                    contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = c.accent, modifier = Modifier.size(40.dp))
+                }
+            }
+            Text(message ?: when (stage) {
+                DocumentScanStage.Preparing -> "Đang chuẩn bị bộ quét"
+                DocumentScanStage.Scanning -> "Căn thẻ trong khung để tự chụp"
+                DocumentScanStage.Reading -> "Đang đọc thông tin và chân dung"
+                DocumentScanStage.Ready -> "Sẵn sàng quét lại thẻ"
+                DocumentScanStage.Failed -> "Chưa mở được bộ quét"
+            }, style = VcType.bodyStrong, color = c.ink,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+            Text(when (stage) {
+                DocumentScanStage.Preparing -> "Lần đầu sử dụng có thể cần tải bộ quét."
+                DocumentScanStage.Reading -> "Vui lòng chờ trong giây lát."
+                else -> "Đặt thẻ trên nền phẳng, giữ đủ bốn góc trong khung. Kiểm tra ảnh sau khi chụp."
+            }, style = VcType.body, color = c.muted)
+        }
+    }
+}
 
 @Composable
 fun IdScanScreen(

@@ -21,6 +21,11 @@ class HeadSpeechProbe : Instrumentation() {
         super.onCreate(arguments); start()
     }
     override fun onStart() {
+        if (probeArguments.getString("mode") == "document-scanner-readiness") {
+            val output = DocumentScannerProbe.run(this)
+            finish(if (output.getBoolean("scanner_ready") && output.getBoolean("image_reader_passed")) Activity.RESULT_OK else Activity.RESULT_CANCELED, output)
+            return
+        }
         if (probeArguments.getString("mode") == "cached-voice-decode") {
             val output = CachedVoiceDecodeProbe.run(this, probeArguments)
             finish(if (output.getBoolean("decoded")) Activity.RESULT_OK else Activity.RESULT_CANCELED, output)
