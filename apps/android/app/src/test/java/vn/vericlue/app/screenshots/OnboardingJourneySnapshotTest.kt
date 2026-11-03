@@ -61,7 +61,7 @@ abstract class OnboardingJourneySnapshots(device: DeviceConfig, private val comp
             shot("03b_terms_selected", dark) { TermsScreen(n, n, initialAccepted = true) }
             shot("04_phone", dark) { PhoneScreen(n, onSend = {}) }
             shot("05_otp", dark) { OtpScreen(n, n, sms = "Mã dùng thử: 482910.") }
-            shot("06_card_front", dark) { IdScanScreen(false, null, n, n, n) }
+            shot("06_card_front", dark) { IdScanScreen(false, null, n, n) }
             if (complete) shot("07_card_processing", dark) { IdProcessingScreen(n, n) }
             shot("08_confirm", dark) { ConfirmInfoScreen(n, n, n, fields = fields) }
             shot("09_face_ready", dark) { FaceReadyScreen(n, n, n) }
@@ -86,20 +86,20 @@ abstract class OnboardingJourneySnapshots(device: DeviceConfig, private val comp
             shot("p03_withdraw_unconfirmed", dark) { PrivacyStopScreen(false, true, true, n, n, n) }
             shot("p04_session_only_success", dark) { SuccessScreen(Purpose.Onboarding, n, checked = FlowRules.checkedByServer(false), accountReady = false) }
             if (complete) shot("b01_terms_details", dark) { TermsScreen(n, n, initialAccepted = true, initialDetailsOpen = true) }
-            shot("b02_card_back", dark) { IdScanScreen(true, null, n, n, n) }
+            shot("b02_card_back", dark) { IdScanScreen(false, null, n, n) }
             shot("b03_voice", dark) { VoiceScreen(n, n, sentence = "Tôi xác nhận danh tính, mã số tám ba năm một.") }
             if (complete) {
                 shot("b04_voice_recording", dark) { VoiceScreen(n, n, startRecording = true, sentence = "Tôi xác nhận danh tính, mã số tám ba năm một.") }
                 shot("b05_edit", dark) { EditInfoScreen(n, {}, n, fields = fields) }
                 shot("b06_card_ready", dark) { IdScanScreen(false, IdQuality(500.0, 0.0,
                     "000000000000||NGUOI DUNG MINH HOA|01011995|Nam|Dia chi minh hoa|01012023",
-                    portraitPresent = true), n, n, n) }
+                    portraitPresent = true), n, n) }
                 shot("b07_success_voice", dark) { SuccessScreen(Purpose.Onboarding, n, auto = false, checked = FlowRules.checkedByServer(true)) }
                 shot("e01_otp_error", dark) { OtpScreen(n, n, startWithError = true) }
-                shot("e06_card_glare", dark) { IdScanScreen(false, IdQuality(500.0, 0.5, null), n, n, n) }
+                shot("e06_card_glare", dark) { IdScanScreen(false, IdQuality(500.0, 0.5, null), n, n) }
             }
-            shot("e02_card_timeout", dark) { IdScanScreen(false, null, n, n, n, timedOut = true) }
-            shot("e03_card_retry", dark) { IdProcessingScreen(n, n, error = "Chưa đọc được mã QR. Đưa mặt có mã QR vào khung rồi thử lại.") }
+            shot("e02_card_timeout", dark) { IdScanScreen(false, null, n, n, hint = "Giữ đủ thẻ trong khung, ứng dụng sẽ tự thử lại.") }
+            shot("e03_card_retry", dark) { IdScanScreen(false, null, n, n, hint = "Chưa đọc được mã QR. Đưa thẻ gần hơn, tránh lóa rồi giữ yên.") }
             shot("e04_review", dark) { ReviewScreen(n) }
             shot("e05_network", dark) { Messages.Network(n, n) }
         }

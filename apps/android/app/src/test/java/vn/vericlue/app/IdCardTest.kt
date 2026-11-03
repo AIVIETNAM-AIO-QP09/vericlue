@@ -33,6 +33,9 @@ class IdCardTest {
         assertNull(CccdQr.parse(null))
         assertNull(CccdQr.parse("https://example.com"))
         assertNull(CccdQr.parse("12345|a|b|c|d|e"))
+        assertNull(CccdQr.parse(qr.replace("Nguyễn Văn A", "")))
+        assertNull(CccdQr.parse(qr.replace("01011995", "31021995")))
+        assertNull(CccdQr.parse(qr.replace("|Nam|", "|Unknown|")))
     }
 
     @Test

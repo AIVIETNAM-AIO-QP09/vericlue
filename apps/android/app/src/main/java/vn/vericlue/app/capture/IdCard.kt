@@ -49,8 +49,8 @@ object CardText {
 }
 
 /**
- * Requests a still photo after [needed] fresh frames show the portrait/QR with usable quality.
- * The captured still is checked again before upload; timeout/manual controls belong to the UI.
+ * Requests a still after [needed] portrait/QR observations, or a longer clear-portrait probe.
+ * Preview heuristics only decide when to try; the fresh still must pass every upload check.
  */
 @Suppress("UNUSED_PARAMETER") // Legacy preview callers still pass a side; capture is always unified.
 class IdAutoCapture(private val needed: Int = 2, back: Boolean = false) {
@@ -64,8 +64,8 @@ class IdAutoCapture(private val needed: Int = 2, back: Boolean = false) {
         if (q.frameTimeNs > 0 && q.frameTimeNs <= lastFrame) return false
         lastFrame = q.frameTimeNs
         val expired = q.frameTimeNs > 0 && lastReadNs > 0 && q.frameTimeNs - lastReadNs > QR_HOLD_NS
-        val readyForStill = q.good && q.brightness >= 45 && q.portraitPresent && !q.tilted &&
-            (CccdQr.parse(q.qr) != null || q.qrCandidatePresent)
+        val qrEvidence = CccdQr.parse(q.qr) != null || q.qrCandidatePresent
+        val readyForStill = q.portraitPresent && (qrEvidence || (q.good && q.brightness >= 45))
         if (!readyForStill) {
             good = 0
             lastQr = null
@@ -74,7 +74,7 @@ class IdAutoCapture(private val needed: Int = 2, back: Boolean = false) {
         good = if (!expired && lastQr == q.qr) good + 1 else 1
         lastQr = q.qr
         lastReadNs = q.frameTimeNs
-        return good >= needed
+        return good >= (if (qrEvidence) needed else maxOf(4, needed))
     }
 
     fun reset() {
@@ -89,7 +89,7 @@ class IdAutoCapture(private val needed: Int = 2, back: Boolean = false) {
         const val START_DELAY_MS = 1500L
         const val SAMPLE_MS = 500L
 
-        /** The photo stays on screen this long before the next side (one beat to look at it). */
+        /** Legacy presentation timing; retry scheduling is owned by IdAutoCaptureScheduler. */
         const val PAUSE_MS = 1500L
         const val QR_HOLD_NS = 1_500_000_000L
     }
@@ -101,8 +101,9 @@ fun idScanHint(q: IdQuality?, back: Boolean): String = when {
     q == null -> "Đưa mặt có ảnh chân dung và mã QR vào khung"
     q.brightness < 45 -> "Đưa thẻ đến nơi sáng hơn"
     !q.noGlare -> "Nghiêng nhẹ thẻ để tránh lóa"
-    q.tilted -> "Giữ thẻ thẳng và song song với camera"
     !q.sharp -> "Giữ yên thẻ và điện thoại để lấy nét"
+    q.portraitPresent && CccdQr.parse(q.qr) != null -> "Giữ yên, ứng dụng đang tự chụp"
+    q.tilted -> "Giữ thẻ thẳng và song song với camera"
     !q.portraitPresent -> "Đặt đủ bốn góc thẻ trong khung để thấy rõ chân dung"
     CccdQr.parse(q.qr) == null -> "Đưa thẻ gần hơn để mã QR rõ, giữ đủ bốn góc trong khung"
     else -> "Giữ yên, ứng dụng đang tự chụp"
@@ -113,13 +114,10 @@ fun idScanHint(q: IdQuality?, back: Boolean): String = when {
 fun idCaptureUsable(q: IdQuality, back: Boolean, manual: Boolean): Boolean =
     q.good && q.brightness >= 45 && q.portraitPresent && CccdQr.parse(q.qr) != null
 
-/** Once auto-capture stops, direct the user to the manual action that remains available. */
-fun idScanDisplayHint(q: IdQuality?, back: Boolean, timedOut: Boolean, hint: String? = null): String {
-    if (!timedOut) return hint ?: idScanHint(q, back)
-    val manualHint = "Tự chụp đã dừng. Bấm “Chụp ảnh thẻ” để tiếp tục."
-    val captureProblem = hint?.takeUnless { it == "Giữ yên, ứng dụng đang tự chụp" }
-    return captureProblem?.let { "$it. $manualHint" } ?: manualHint
-}
+/** Elapsed time never changes the scan into a manual shutter step. */
+@Suppress("UNUSED_PARAMETER")
+fun idScanDisplayHint(q: IdQuality?, back: Boolean, timedOut: Boolean = false, hint: String? = null): String =
+    hint ?: idScanHint(q, back)
 
 fun idScanErrorText(hint: String?): String = when (hint) {
     "PORTRAIT_UNREADABLE" -> "Chưa thấy rõ chân dung trên thẻ. Hãy quét lại mặt có ảnh chân dung."
@@ -195,14 +193,27 @@ object CccdQr {
         if (f.size < 6) return null
         val id = f[0].trim()
         if (id.length != 12 || !id.all { it.isDigit() }) return null
+        val name = f[2].trim()
+        val birth = f[3].trim()
+        val gender = f[4].trim()
+        if (name.isEmpty() || !validDate(birth) || gender !in setOf("Nam", "Nữ")) return null
         return CccdInfo(
             idNumber = id,
-            fullName = f[2].trim(),
-            dateOfBirth = formatDate(f[3].trim()),
-            gender = f[4].trim(),
+            fullName = name,
+            dateOfBirth = formatDate(birth),
+            gender = gender,
             address = f[5].trim(),
-            issueDate = f.getOrNull(6)?.trim()?.takeIf { it.isNotEmpty() }?.let(::formatDate),
+            issueDate = f.getOrNull(6)?.trim()?.takeIf(::validDate)?.let(::formatDate),
         )
+    }
+
+    private fun validDate(value: String): Boolean {
+        if (value.length != 8 || !value.all { it in '0'..'9' }) return false
+        return runCatching {
+            val year = value.substring(4).toInt()
+            require(year > 0)
+            java.time.LocalDate.of(year, value.substring(2, 4).toInt(), value.substring(0, 2).toInt())
+        }.isSuccess
     }
 
     /** "01011995" → "01/01/1995"; anything else is returned unchanged. */

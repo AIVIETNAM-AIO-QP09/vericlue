@@ -133,8 +133,9 @@ ngưỡng hoặc khẳng định đồng bộ hardware. Cần thử lại trên 
 lại giọng. Cảnh báo tư thế và đổi bước vẫn được ưu tiên. Không kéo dài hoặc
 đổi lịch challenge12s phía server, không đổi ngưỡng hay coi hướng dẫn local là
 kết quả xác minh. Nhịp UI mới dành5giây mỗi bên và2giây nhìn thẳng, tổng vẫn
-12giây; v1 giữ2/2/2giây. Sau20s tự chụp CCCD dừng, màn hình yêu cầu bấm “Chụp ảnh thẻ”
-và vẫn giữ lý do cần chụp lại nếu có. Log debug QR chỉ bổ sung cờ định dạng hợp
+12giây; v1 giữ2/2/2giây. Bản 02/11 từng dừng tự chụp CCCD sau20s và yêu cầu
+bấm chụp; yêu cầu mới 03/11 bên dưới thay hành vi đó bằng tự chụp liên tục.
+Log debug QR chỉ bổ sung cờ định dạng hợp
 lệ, góc xoay và cropRect để phân biệt lỗi đọc với mã nằm ngoài khung; không log
 nội dung QR/thông tin thẻ. Sau cập nhật APK1367c2e/API6f3171e, người dùng xác
 nhận một lượt đăng ký dễ theo và hoàn tất; server ghi đủ bảy module ok/pass,
@@ -324,7 +325,7 @@ APP-10/APP-04: quét thẻ yêu cầu ảnh phân tích tối đa 1920×1440, fa
 CameraX/thiết bị. Một pipeline nhận QR và chân dung trên cùng vùng thẻ. Vùng
 nghi QR có thể kích hoạt ảnh chụp rõ hơn; chỉ QR giải mã được trên ảnh đó mới
 đủ để gửi. Không zoom riêng QR làm mất chân dung. Dấu QR lưu ngắn hạn không
-được dùng để hoàn tất ảnh mới, kể cả chụp thủ công. QR phải đọc được, chân dung
+được dùng để hoàn tất ảnh mới. QR phải đọc được, chân dung
 phải rõ; nền trắng ngoài vùng chân dung không quyết định độ lóa của chân dung.
 Không nới điều kiện kiểm danh tính/đọc lại QR của server. Log debug tag
 `VeriClueCardScan` chỉ gồm kích thước, thời gian và cờ boolean, không có ảnh,
@@ -354,8 +355,14 @@ kiểm lại trên chính bitmap rồi gửi JPEG. Không dùng frame phân tíc
 ảnh chính. Chỉ ảnh mới có cả QR và chân dung mới được gửi; thiếu phần nào
 thì hướng dẫn chỉnh và chụp lại cùng màn. Server đọc
 lại QR và kiểm chân dung, không OCR. Tự gửi, xác nhận thông tin trước quay mặt.
-20 giây hoặc ba lần chụp chưa đủ thì hiện chụp thủ công/dừng; không vòng lặp gửi
-server tự động. Chỉ một package **vn.vericlue.app**, nhãn **VeriClue**;
+Tự chụp tiếp trong phiên còn hiệu lực, không dừng sau 20 giây/ba lần thử và
+không có nút chụp thủ công. Các lần thử có khoảng nghỉ và phải có quan sát mới;
+retry phía server nghỉ lâu hơn, vẫn giữ giới hạn lượt/dung lượng/TTL của server.
+Hướng dẫn lỗi ngắn hạn nhường lại cho trạng thái camera hiện tại. Ảnh xem trước
+chỉ kích hoạt thử ảnh chụp rõ hơn, không thay chốt chất lượng ảnh cuối. Nếu toàn
+khung chưa thấy QR, thử tối đa hai vùng chồng lấp trên cùng bitmap; không zoom
+camera, ghép QR từ ảnh cũ hoặc coi vùng nghi QR là đã đọc được.
+Chỉ một package **vn.vericlue.app**, nhãn **VeriClue**;
 bỏ các profile USB/QR/remote riêng. Workflow `Android VeriClue APK` xuất
 bản chưa ký để ký trên laptop bằng khóa demo ổn định; file cài cuối là
 `VeriClue.apk`. Không cần đưa khóa/mật khẩu lên GitHub.
@@ -412,7 +419,7 @@ Không có màn hình mới. Xem
 | Quay đầu | Theo `challenge.dynamic.head_turns` (trái/phải rồi nhìn thẳng, mỗi đoạn 2 giây), cùng một bản ghi với màu và chấm | Chiều dấu `yaw` phải kiểm trên máy thật |
 | Chấm sáng | Theo 8 `gaze_points` của `challenge.dynamic`, chạy trên toàn màn hình, mốc `at_ms` tính từ khung đầu của video | Server đo ánh mắt trên video (LIVE-02) |
 | Ghi âm | `AudioRecord` 16 kHz mono → WAV, câu đọc từ `voice_prompt`; quay MP4 cùng lúc (API thật) và gửi kèm ở `/voice` cho khớp môi (VOICE-05) | Video bắt đầu trước WAV khoảng 0,6 s; app gửi độ lệch ở `audio_offset_ms` (PR #47), server mới chuyển cho mô-đun, SyncNet chưa dùng |
-| CCCD | Một màn camera, tự chụp ảnh có QR/chân dung; thiếu thì chỉnh ngay tại màn, vẫn có nút chụp sau giới hạn tự động | Gửi một ảnh mới có QR + chân dung; server đọc lại và cung cấp thông tin để xác nhận |
+| CCCD | Một màn camera, tự chụp và thử lại có khoảng nghỉ; thiếu thì hướng dẫn chỉnh ngay tại màn, không có nút chụp thủ công | Gửi một ảnh mới có QR + chân dung; server đọc lại và cung cấp thông tin để xác nhận |
 | OTP | Gửi/kiểm mã qua server; tự điền từ `simulated_sms` hoặc SMS thật (SMS User Consent, không cần quyền SMS); bàn phím vẫn gõ tay được | SMS thật chưa có (kênh mô phỏng) |
 | Gián đoạn | Xuống nền giữa lúc quay → bỏ lượt, màn "Xác minh bị gián đoạn" | Gia hạn phiên (LIVE-06) |
 | Keystore, ký media | P-256/SHA-256 opt-in; receipt gắn alias; L0 reauth; đổi khóa khôi phục, xóa khóa cũ sau ghi bền | Chưa nghiệm thu Keystore/khôi phục trên điện thoại thật; sinh trắc tài khoản bị chặn ở server |

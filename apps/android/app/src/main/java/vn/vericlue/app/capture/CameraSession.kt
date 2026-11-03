@@ -276,8 +276,8 @@ class CameraSession(
                         req.completeExceptionally(IllegalStateException("Card capture unavailable")); image.close(); return
                     }
                     image.close()
-                    val qrTask = scanCardQr(bitmap)
-                    val faceTask = cardFaceDetector.process(InputImage.fromBitmap(bitmap, 0))
+                    val qrTask = cardScanTask { scanCardQr(bitmap) }
+                    val faceTask = cardScanTask { cardFaceDetector.process(InputImage.fromBitmap(bitmap, 0)) }
                     Tasks.whenAllComplete(qrTask, faceTask).addOnCompleteListener(analysisExecutor) {
                         try {
                             if (generation != qrState.generation() || !req.isActive) { req.cancel(); return@addOnCompleteListener }
@@ -723,8 +723,8 @@ class CameraSession(
             proxy.close()
             return
         }
-        val qrTask = scanCardQr(bitmap)
-        val faceTask = cardFaceDetector.process(InputImage.fromBitmap(bitmap, 0))
+        val qrTask = cardScanTask { scanCardQr(bitmap) }
+        val faceTask = cardScanTask { cardFaceDetector.process(InputImage.fromBitmap(bitmap, 0)) }
         Tasks.whenAllComplete(qrTask, faceTask).addOnCompleteListener(analysisExecutor) {
             try {
                 if (generation != qrState.generation() || !backMode) return@addOnCompleteListener
@@ -763,34 +763,43 @@ class CameraSession(
             .also { if (it !== crop) crop.recycle() }
     }
 
-    /** Retry detected dense QR regions without zooming the camera or losing the card portrait. */
-    private data class CardQrRead(val raw: String?, val candidatePresent: Boolean)
+    /** Keep cleanup behind whenAllComplete even if one detector rejects submission synchronously. */
+    private fun <T> cardScanTask(start: () -> Task<T>): Task<T> = try {
+        start()
+    } catch (error: Exception) {
+        Tasks.forException(error)
+    }
 
+    private data class CardQrRead(val raw: String?, val candidatePresent: Boolean)
+    private data class CardQrCandidates(val values: List<String>, val candidatePresent: Boolean)
+
+    /** Bounded same-image QR retries; the original full-card bitmap still supplies portrait and upload. */
     private fun scanCardQr(bitmap: Bitmap): Task<CardQrRead> =
         qrScanner.process(InputImage.fromBitmap(bitmap, 0)).continueWithTask(analysisExecutor) { task ->
             if (!task.isSuccessful) throw task.exception ?: IllegalStateException("QR unavailable")
             val values = task.result.mapNotNull { it.rawValue }
             val candidatePresent = task.result.any { it.boundingBox != null }
             val candidates = task.result.filter { it.rawValue == null }.mapNotNull { it.boundingBox }
-                .sortedByDescending { it.width() * it.height() }.take(2)
-            if (candidates.isEmpty()) return@continueWithTask Tasks.forResult(CardQrRead(uniqueCardQr(values), candidatePresent))
-            val retries = candidates.map { box ->
-                val margin = maxOf(12, maxOf(box.width(), box.height()) / 5)
-                val left = (box.left - margin).coerceIn(0, bitmap.width - 1)
-                val top = (box.top - margin).coerceIn(0, bitmap.height - 1)
-                val right = (box.right + margin).coerceIn(left + 1, bitmap.width)
-                val bottom = (box.bottom + margin).coerceIn(top + 1, bitmap.height)
-                val region = Bitmap.createBitmap(bitmap, left, top, right - left, bottom - top)
-                qrScanner.process(InputImage.fromBitmap(region, 0)).continueWith(analysisExecutor) { retry ->
-                    try {
-                        if (!retry.isSuccessful) throw retry.exception ?: IllegalStateException("QR unavailable")
-                        retry.result.mapNotNull { it.rawValue }
-                    } finally { if (region !== bitmap) region.recycle() }
+                .map { CardFrameRect(it.left, it.top, it.right, it.bottom) }
+            // A decoded card does not hide other undecoded candidates. Conflicting reads stay rejected.
+            val regions = if (candidates.isNotEmpty() || values.none { CccdQr.parse(it) != null })
+                cardQrRetryRegions(bitmap.width, bitmap.height, candidates) else emptyList()
+            if (regions.isEmpty()) return@continueWithTask Tasks.forResult(CardQrRead(uniqueCardQr(values), candidatePresent))
+            val retries = regions.map { box ->
+                cardScanTask {
+                    val region = Bitmap.createBitmap(bitmap, box.left, box.top, box.width, box.height)
+                    cardScanTask { qrScanner.process(InputImage.fromBitmap(region, 0)) }.continueWith(analysisExecutor) { retry ->
+                        try {
+                            if (!retry.isSuccessful) throw retry.exception ?: IllegalStateException("QR unavailable")
+                            CardQrCandidates(retry.result.mapNotNull { it.rawValue }, retry.result.any { it.boundingBox != null })
+                        } finally { if (region !== bitmap) region.recycle() }
+                    }
                 }
             }
-            Tasks.whenAllSuccess<List<String>>(retries).continueWith(analysisExecutor) { completed ->
+            Tasks.whenAllSuccess<CardQrCandidates>(retries).continueWith(analysisExecutor) { completed ->
                 if (!completed.isSuccessful) throw completed.exception ?: IllegalStateException("QR unavailable")
-                CardQrRead(uniqueCardQr(values + completed.result.flatten()), candidatePresent)
+                CardQrRead(uniqueCardQr(values + completed.result.flatMap { it.values }),
+                    candidatePresent || completed.result.any { it.candidatePresent })
             }
         }
 

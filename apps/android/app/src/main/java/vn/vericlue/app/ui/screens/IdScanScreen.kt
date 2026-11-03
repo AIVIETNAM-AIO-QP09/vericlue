@@ -32,7 +32,6 @@ import androidx.compose.ui.unit.dp
 import vn.vericlue.app.capture.CccdQr
 import vn.vericlue.app.capture.IdQuality
 import vn.vericlue.app.capture.idScanDisplayHint
-import vn.vericlue.app.ui.components.Banner
 import vn.vericlue.app.ui.components.CameraFeed
 import vn.vericlue.app.ui.components.LinkButton
 import vn.vericlue.app.ui.components.PrimaryButton
@@ -44,13 +43,12 @@ import vn.vericlue.app.ui.theme.VcType
 @Composable
 fun IdScanScreen(
     back: Boolean, quality: IdQuality?, onBack: () -> Unit, onStop: () -> Unit,
-    onManual: () -> Unit, timedOut: Boolean = false, taking: Boolean = false,
+    taking: Boolean = false,
     hint: String? = null, extracted: IdQuality? = null,
 ) {
     VcTheme(dark = true) {
         val c = Vc.colors
         VcScreen(onBack = onBack, step = 1, actions = {
-            if (timedOut) PrimaryButton("Chụp ảnh thẻ", onManual, enabled = !taking)
             LinkButton("Dừng xác minh", onStop)
         }) {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -63,10 +61,10 @@ fun IdScanScreen(
                 }
                 Text(if (taking) {
                     if (extracted != null) "Đang kiểm tra thông tin thẻ" else "Giữ yên thẻ trong khung"
-                } else idScanDisplayHint(quality, false, timedOut, hint), style = VcType.bodyStrong, color = c.ink)
+                } else idScanDisplayHint(quality, false, hint = hint), style = VcType.bodyStrong, color = c.ink)
                 ScanCheck("Đã trích xuất thông tin", "Đang trích xuất thông tin", CccdQr.parse(extracted?.qr) != null)
                 ScanCheck("Đã trích xuất chân dung", "Đang trích xuất chân dung", extracted?.portraitPresent == true)
-                if (timedOut) Banner("Đặt đủ bốn góc thẻ trong khung và tránh ánh sáng phản chiếu. Bạn có thể chụp ảnh để thử lại.")
+                Text("Ứng dụng tự chụp và tiếp tục thử khi bạn chỉnh lại thẻ.", style = VcType.bodySmall, color = c.muted)
             }
         }
     }

@@ -57,4 +57,36 @@ class IdSingleCaptureTest {
         assertFalse(idCaptureUsable(candidate, back = false, manual = false))
         assertFalse(idCaptureUsable(candidate, back = false, manual = true))
     }
+
+    @Test fun readableTiltedPreviewCanRequestAStillWithoutAnAngleVeto() {
+        val tilted = full.copy(tilted = true)
+        val auto = IdAutoCapture()
+        assertFalse(auto.offer(tilted))
+        assertTrue(auto.offer(tilted.copy(frameTimeNs = 2)))
+        assertTrue(idCaptureUsable(tilted, back = false, manual = false))
+    }
+
+    @Test fun coarsePreviewQualityCannotPreventCheckingAHigherResolutionStill() {
+        val preview = full.copy(sharpness = 10.0, glareFraction = 0.5, brightness = 30.0)
+        val auto = IdAutoCapture()
+        assertFalse(auto.offer(preview))
+        assertTrue(auto.offer(preview.copy(frameTimeNs = 2)))
+        assertFalse(idCaptureUsable(preview, back = false, manual = false))
+    }
+
+    @Test fun fourStableClearPortraitFramesCanProbeAStillWhenQrHasNoCandidate() {
+        val portraitOnly = full.copy(qr = null)
+        val auto = IdAutoCapture()
+        assertFalse(auto.offer(portraitOnly))
+        assertFalse(auto.offer(portraitOnly.copy(frameTimeNs = 250_000_001)))
+        assertFalse(auto.offer(portraitOnly.copy(frameTimeNs = 500_000_001)))
+        assertTrue(auto.offer(portraitOnly.copy(frameTimeNs = 750_000_001)))
+        assertFalse(idCaptureUsable(portraitOnly, back = false, manual = false))
+    }
+
+    @Test fun exploratoryStillRequiresClearPortraitWhenThereIsNoQrEvidence() {
+        val blurred = full.copy(qr = null, sharpness = 1.0)
+        val auto = IdAutoCapture()
+        repeat(6) { assertFalse(auto.offer(blurred.copy(frameTimeNs = it * 250_000_000L + 1))) }
+    }
 }

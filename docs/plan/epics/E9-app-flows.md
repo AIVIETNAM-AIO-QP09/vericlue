@@ -800,14 +800,17 @@ chụp để hướng dẫn bấm nút thủ công và giữ lý do chụp lại
 
 **Yêu cầu mới 03/11 — doing:** một màn quét, QR và chân dung cùng ảnh mới;
 thiếu thì hướng dẫn chỉnh tại chỗ, bỏ điều hướng QR-only. Sửa crop/đo chất
-lượng vùng thẻ, giữ xác nhận thông tin và kiểm server. Preset ngưỡng demo
-`phone-demo-fixed-v1` chuẩn bị riêng nhưng chưa bật; người dùng chọn giữ tài
-khoản hiện tại đến hết hạn. Xem
+lượng vùng thẻ, giữ xác nhận thông tin và kiểm server. Yêu cầu tiếp theo:
+tự chụp tiếp có khoảng nghỉ, bỏ nút chụp thủ công và giới hạn dừng 20s/ba lần;
+thử vùng QR chồng lấp cùng bitmap khi toàn khung chưa đọc được. Không bỏ
+kiểm ảnh cuối hoặc quota/TTL của server. Preset đầy đủ `phone-demo-fixed-v1`
+chưa bật; sau đó người dùng cho phép reset riêng tài khoản test và chỉ bật
+GenD 0.95 (bàn giao 13:47). Xem
 [bàn giao](../../status/handoffs/2026-11-03-1300-app-04-ngoc-quang-codex.md).
 
 **Đầu ra:**
 - Màn hình số điện thoại và OTP, có khung "SMS mô phỏng".
-- Một màn camera sau quét mặt thẻ có QR và chân dung; chỉ gửi ảnh mới đủ cả hai, thiếu thì hướng dẫn chỉnh cùng màn, không mở bước QR riêng.
+- Một màn camera sau tự chụp mặt thẻ có QR và chân dung; không bắt bấm chụp, chỉ gửi ảnh mới đủ cả hai, thiếu thì hướng dẫn chỉnh cùng màn, không mở bước QR riêng.
 - Màn hình xác nhận thông tin.
 
 **Tiêu chí hoàn thành:**

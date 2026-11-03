@@ -138,7 +138,7 @@
 | APP-01 ★ | Đang thử S24 FE; sửa binding trích template, chờ thử lại/HTTPS/nghiệm thu 3 luồng | M1 | Ngọc Quang+Claude+Codex+Gemini | 1,5 | S1 | P0 | PLAT-04 | doing |
 | APP-02 ★ | Oval gọn đồng bộ preview/giọng, hướng dẫn mặt lấp khung và sửa gián đoạn tracking; chờ nghiệm thu lại S24 FE | M1 | Ngọc Quang+Claude | 2 | S1–S2 | P0 | APP-01 | doing |
 | APP-03 | Sửa mốc ghi hình trước hàng đợi UI; GenD demo 0.90 chưa hiệu chỉnh, đăng ký/đăng nhập đã qua nhưng khôi phục còn chặn; chờ thử lại S24 FE | M1 | Ngọc Quang+Claude | 1 | S2 | P0 | APP-01 | doing |
-| APP-04 | Quét CCCD một màn, QR/chân dung cùng ảnh mới, sửa ROI và hướng dẫn tại chỗ; chờ thử thật | M2 (+M1) | Ngọc Quang+Claude | 1,5 | S1–S2 | P0 | APP-01 | doing |
+| APP-04 | CCCD tự chụp liên tục có khoảng nghỉ, QR/chân dung cùng ảnh mới, thử ROI và hướng dẫn tại chỗ; chờ thử thật | M2 (+M1) | Ngọc Quang+Claude | 1,5 | S1–S2 | P0 | APP-01 | doing |
 | APP-05 | Đóng gói Android test từ xa qua mạng riêng | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | review |
 | APP-06 | Android localhost qua USB/Wi-Fi TLS, cấu hình test ảnh CCCD | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | review |
 | APP-07 | Đồng bộ UI phần mặt Giả lập/API, chờ nghiệm thu video trên máy thật | M1 | Codex | 0,5 | S2 | P0 | PLAT-04 | review |
