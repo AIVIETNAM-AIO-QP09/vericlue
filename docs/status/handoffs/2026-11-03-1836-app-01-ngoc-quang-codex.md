@@ -60,3 +60,18 @@ uv run --no-sync pytest services/api/tests/test_account_access.py services/api/t
 Ruff API/migration/tests: PASS. OpenAPI --check: PASS.
 plan_check.py: 0 lỗi, 10 cảnh báo tải công việc/phụ thuộc có sẵn.
 ```
+
+## Triển khai local và PR
+
+- PR #137 (ready for review), base PR #136; không tự merge.
+- APK từ commit `18904b8da941f6ef616ef3c8678074725171246e` đã ký bằng khóa demo
+  hiện có và cài đè S24 FE thành công; giữ dữ liệu/Keystore. SHA-256 trên thiết bị
+  khớp `fee1bae140d479517a73b9d58af8b3d702718135e4fb696abf97fe1607560a66`.
+- Đã thấy màn đăng nhập khuôn mặt/Three.js mới trên điện thoại. Người dùng
+  đang thử; chưa có bằng chứng hoàn tất cả hai cách đăng nhập trên thiết bị.
+- Server 8421 đã nạp model xong, migrate 0012 và bật account access. Smoke
+  giai đoạn A đạt, giữ đúng `phone-demo-fixed-v1`; phiên tổng hợp được rút đồng ý.
+  API password sai và `/me` thiếu bearer đều trả 401, không mở hồ sơ.
+- CI đầu tiên phát hiện Web thiếu type sinh lại. Đã chạy `npm.cmd run gen:api`,
+  cập nhật `apps/web/src/lib/api/schema.d.ts`; `typecheck` và `lint` đạt.
+  Bản sửa này chỉ thay type Web và bàn giao, không thay code APK đã cài.
