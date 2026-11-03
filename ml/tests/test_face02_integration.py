@@ -260,7 +260,8 @@ def test_model_version_names_all_revisions_and_the_aggregation(monkeypatch, tmp_
     detector = FaceDeepfakeDetector(models_dir=tmp_path)
     detector.preload(device="cpu")
     assert detector.version == (
-        "gend-clip-l14@891ce014+clip@32bd6428+scrfd-10g@bfcc7d48+agg-maxmeantop25-v1"
+        "gend-clip-l14@891ce014+clip@32bd6428+scrfd-10g@bfcc7d48"
+        "+align-upstream-numpy-v2+agg-maxmeantop25-v1"
     )
 
 

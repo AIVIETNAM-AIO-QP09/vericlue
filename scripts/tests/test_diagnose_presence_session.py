@@ -21,6 +21,10 @@ from vericlue_api.services.session_privacy import SessionPrivacy  # noqa: E402
 from vericlue_ml.common.calibration import CalibrationStore, identity  # noqa: E402
 
 
+def test_readiness_targets_corrected_gend_preprocessing() -> None:
+    assert "+align-upstream-numpy-v2+" in diag.DEEPFAKE_VIDEO_V2_VERSION
+
+
 def _make_settings(tmp_path: Path) -> Settings:
     master_key = base64.b64encode(secrets.token_bytes(32)).decode("ascii")
     media_dir = tmp_path / "media"

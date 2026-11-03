@@ -94,7 +94,7 @@ def test_stale_lipsync_identity_cannot_calibrate_new_resize_version() -> None:
         CalibrationStore().load("lipsync", detector.version)
 
 
-def test_tracked_gend_identity_matches_actual_preload_version_without_weights(
+def test_corrected_gend_preload_rejects_legacy_calibrator_without_weights(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     revisions = {
@@ -135,11 +135,10 @@ def test_tracked_gend_identity_matches_actual_preload_version_without_weights(
         f"gend-clip-l14@{revisions['gend'][:8]}",
         f"clip@{revisions['clip'][:8]}",
         f"scrfd-10g@{revisions['scrfd'][:8]}",
+        "align-upstream-numpy-v2",
         "agg-maxmeantop25-v1",
     ]
-    artifact = CalibrationStore().load("face_deepfake", detector.version)
-    assert isinstance(artifact, IdentityCalibrator)
-    assert artifact.method == "identity"
-    assert artifact.provisional is True
-    assert artifact.n_pos == artifact.n_neg == 0
-    assert artifact.note == "MVP — không dùng cho báo cáo"
+    # A preprocessing correction invalidates the legacy calibration artifact.
+    # The new pipeline stays unavailable until a matching artifact is supplied.
+    with pytest.raises(CalibrationError, match="Không nạp được calibrator"):
+        CalibrationStore().load("face_deepfake", detector.version)

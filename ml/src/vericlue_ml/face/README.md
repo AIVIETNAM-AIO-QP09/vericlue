@@ -82,7 +82,7 @@ Mã **không gọi mạng**: thiếu file hoặc sai SHA-256 là `error`.
 | Đọc video | tuần tự bằng `cv2` (`frames.py`), đếm khung thật bằng `grab()` — không tin số khung trong webm |
 | Trọng số | `MODELS_DIR/gend-clip-l14/{config.json,model.safetensors}`, `MODELS_DIR/clip-vit-large-patch14/{config.json,preprocessor_config.json}`, `MODELS_DIR/scrfd-10g/det_10g.onnx`; kiểm SHA-256 theo manifest; không gọi mạng |
 | Phụ thuộc | Extra `gend` (torch, transformers, safetensors, pillow) — KHÔNG nằm trong `face` để CI không kéo torch. Máy chạy GenD: `uv sync --all-packages --extra face --extra gend` (torch CPU từ PyPI) hoặc `--extra cuda` (GPU, xem dưới). Thiếu torch thì `face_deepfake` ra `error`, không bao giờ là đạt |
-| Phiên bản mô hình | `gend-clip-l14@<rev>+clip@<rev>+scrfd-10g@<rev>+agg-maxmeantop25-v1` — hậu tố `agg-…` là cách gộp điểm khung; đổi cách gộp thì đổi hậu tố (calibrator khóa theo version). Số khung (8/32) nằm ở evidence |
+| Phiên bản mô hình | `gend-clip-l14@<rev>+clip@<rev>+scrfd-10g@<rev>+align-upstream-numpy-v2+agg-maxmeantop25-v1` — `align-…` khóa cách căn mặt, `agg-…` khóa cách gộp điểm; calibrator phải khớp toàn bộ version. Số khung (8/32) nằm ở evidence |
 | Hiệu chỉnh | CHƯA. `score` là điểm thô; calibrator `face_deepfake` thuộc ROUT-01 |
 
 | Tình huống | `status` | `error_code` |

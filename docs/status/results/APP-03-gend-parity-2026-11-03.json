@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "task": "APP-03/FACE-02",
+  "date": "2026-11-03",
+  "scope": "GenD upstream numerical parity; not accuracy, calibration or phone acceptance",
+  "source": {
+    "commit": "8c40fd0f5fdba65ec55f24d3f7070da5a198866d",
+    "dirty": true,
+    "gend_sha256": "072f731bb6741d7c17178b0e4cc5da74b8fd1ffbb50dc0fb04f7f1cc0c481395",
+    "parity_script_sha256": "b9de9c6a85fa6e829af9fbf9a4b7fecb2b876aadb06c9480917e66ae1fd0d638",
+    "upstream_commit": "387a42266dd385fbe8f7626c5d3aa03eea3bfaab"
+  },
+  "runtime": {
+    "python": "3.12.15",
+    "torch": "2.14.1+cpu",
+    "transformers": "4.57.6",
+    "safetensors": "0.8.0",
+    "numpy": "2.5.4",
+    "pillow": "12.3.0",
+    "device": "cpu",
+    "dtype": "float32",
+    "threads": 4,
+    "autocast": false,
+    "deterministic_algorithms": true
+  },
+  "models": [
+    {
+      "file": "gend-clip-l14/config.json",
+      "sha256": "7f2761e13678191774a152121f1630d19baa33a74216dd264d54445d96b16229",
+      "revision": "891ce014a0308386c4d7d25b3dcf436a22db5504"
+    },
+    {
+      "file": "gend-clip-l14/model.safetensors",
+      "sha256": "d76f0bdfd74a29fe1b1c1b84a80ac92486993e426878e8c7a3944281fbb96833",
+      "revision": "891ce014a0308386c4d7d25b3dcf436a22db5504"
+    },
+    {
+      "file": "clip-vit-large-patch14/config.json",
+      "sha256": "8a09b467700c58138c29d53c605b34ebc69beaadd13274a8a2af8ad2c2f4032a",
+      "revision": "32bd64288804d66eefd0ccbe215aa642df71cc41"
+    },
+    {
+      "file": "clip-vit-large-patch14/preprocessor_config.json",
+      "sha256": "910e70b3956ac9879ebc90b22fb3bc8a75b6a0677814500101a4c072bd7857bd",
+      "revision": "32bd64288804d66eefd0ccbe215aa642df71cc41"
+    },
+    {
+      "file": "clip-vit-large-patch14/model.safetensors",
+      "sha256": "a2bf730a0c7debf160f7a6b50b3aaf3703e7e88ac73de7a314903141db026dcb",
+      "revision": "32bd64288804d66eefd0ccbe215aa642df71cc41"
+    },
+    {
+      "file": "clip-vit-large-patch14/tokenizer.json",
+      "sha256": "a83e0809aa4c3af7208b2df632a7a69668c6d48775b3c3fe4e1b1199d1f8b8f4",
+      "revision": "32bd64288804d66eefd0ccbe215aa642df71cc41"
+    },
+    {
+      "file": "clip-vit-large-patch14/tokenizer_config.json",
+      "sha256": "deef455e52fa5e8151e339add0582e4235f066009601360999d3a9cda83b1129",
+      "revision": "32bd64288804d66eefd0ccbe215aa642df71cc41"
+    },
+    {
+      "file": "clip-vit-large-patch14/special_tokens_map.json",
+      "sha256": "f8c0d6c39aee3f8431078ef6646567b0aba7f2246e9c54b8b99d55c22b707cbf",
+      "revision": "32bd64288804d66eefd0ccbe215aa642df71cc41"
+    },
+    {
+      "file": "clip-vit-large-patch14/vocab.json",
+      "sha256": "3f0c4f7d2086b61b38487075278ea9ed04edb53a03cbb045b86c27190fa8fb69",
+      "revision": "32bd64288804d66eefd0ccbe215aa642df71cc41"
+    },
+    {
+      "file": "clip-vit-large-patch14/merges.txt",
+      "sha256": "9fd691f7c8039210e0fced15865466c65820d09b63988b0174bfe25de299051a",
+      "revision": "32bd64288804d66eefd0ccbe215aa642df71cc41"
+    }
+  ],
+  "before_alignment": {
+    "cases": 6,
+    "mismatched": 4,
+    "max_pixel_error": 8
+  },
+  "after_synthetic": {
+    "status": "PASS",
+    "alignment_cases": 6,
+    "alignment_exact": true,
+    "processor_cases": 6,
+    "processor_max_error": 0.0,
+    "classifier_unique_inputs": 9,
+    "forward_inputs_per_backend": 12,
+    "batches": [
+      1,
+      2,
+      9
+    ],
+    "metric_checks": 15,
+    "max_absolute_error": 5.960464477539063e-08,
+    "atol": 1e-05,
+    "rtol": 1e-05,
+    "provenance_matches": true
+  },
+  "fixed_phone_diagnostic": {
+    "recordings": 1,
+    "views": 3,
+    "exact_boxes_landmarks_crops_tensors": true,
+    "same_input_logits_close": true,
+    "end_to_end_logits_close": true,
+    "inputs_unchanged": true,
+    "lease_released": true,
+    "human_acceptance": false
+  },
+  "thresholds_changed": false,
+  "limitations": [
+    "CPU FP32 only; actual runtime versions recorded",
+    "Synthetic parity does not measure discrimination",
+    "Fixed stored video replay does not authenticate a new session",
+    "Calibration and real recovery acceptance remain open"
+  ]
+}

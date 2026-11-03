@@ -662,6 +662,12 @@ latch là hold đạt/đổi phase/qua gate; giữ các hằng và lịch5/5/2. 
 |---|---|---|---|---|
 | M1 | 1 | S2 | P0 | APP-01 |
 
+**03/11 sáng — sửa GenD:** lượt07:39 qua sáu mô-đun mặt nhưng GenD chặn
+trước giọng. Đối chứng gốc phát hiện lỗi căn mặt NumPy; sửa và version riêng,
+không đổi ngưỡng. Mã gốc cũng từ chối front của lượt này ở cutoff hiện có,
+nên chưa coi khôi phục đã sửa xong. Xem
+[bàn giao](../../status/handoffs/2026-11-03-0757-app-03-ngoc-quang-codex.md).
+
 **03/11 02:57 — đã triển khai, chưa nghiệm thu:** APIfb8c2bf với Qwen1.7B
 manual-only đã preload đủ11 mô-đun và khởi động thực; APKc646868 cài giữ dữ
 liệu lênS24 FE. Python5329 đạt, Android445 ca không lỗi, CI10/10 xanh trên

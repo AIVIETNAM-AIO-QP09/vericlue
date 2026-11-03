@@ -36,7 +36,8 @@ from vericlue_ml.finetune.data04 import (
 CALIB_SPLITS = ("calib_fit", "calib_ltt", "test")
 CALIB_RATIOS = (0.4, 0.3, 0.3)
 EXPECTED_MODEL_VERSION = (
-    "gend-clip-l14@891ce014+clip@32bd6428+scrfd-10g@bfcc7d48+agg-maxmeantop25-v1"
+    "gend-clip-l14@891ce014+clip@32bd6428+scrfd-10g@bfcc7d48"
+    "+align-upstream-numpy-v2+agg-maxmeantop25-v1"
 )
 # Ngưỡng tạm của thresholds.yaml (face.b, face.a) — chỉ để BÁO CÁO, không chọn ngưỡng ở đây.
 REPORT_THRESHOLDS = {"B": 0.15, "A": 0.60}

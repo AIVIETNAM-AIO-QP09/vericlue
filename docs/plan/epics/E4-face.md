@@ -34,6 +34,13 @@
 | M3 | 1,5 | S1 | P0 | PLAT-03, DATA-02, DATA-03, EVAL-01 |
 
 **Mục tiêu:** detector `face_deepfake` dùng GenD cho video.
+
+**03/11:** đối chứng mã gốc tìm được lỗi scalar promotion khi căn mặt trên
+NumPy2. Bản sửa giữ kiểu số gốc và thêm `align-upstream-numpy-v2`, không dùng
+calibrator cũ. Công cụ `ml/scripts/parity_gend.py` kiểm số học với trọng số thật,
+không thay benchmark/AUC hoặc hiệu chỉnh. Xem
+[bàn giao](../../status/handoffs/2026-11-03-0757-app-03-ngoc-quang-codex.md).
+
 **Đọc trước:** `external/GenD`: `detector.py`, `align_face`, `app/run.py`.
 
 **Đầu ra:** `ml/src/vericlue_ml/face/gend.py` và `aggregate.py`.
