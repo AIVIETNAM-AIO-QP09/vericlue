@@ -25,6 +25,12 @@ def session_views(
         raise LandmarkError(ErrorCode.E_DECODE, Status.DEGRADED)
     checksum = video_sha256(inp.video)
     head = HeadTurnDetector(reader).predict(inp)
+    if head.error_code is not None:
+        raise LandmarkError(
+            head.error_code, head.status if head.status != Status.OK else Status.ERROR
+        )
+    if head.status == Status.ERROR:
+        raise LandmarkError(ErrorCode.E_INTERNAL)
     if head.status != Status.OK or head.gate != Gate.PASS:
         raise LandmarkError(ErrorCode.E_LOW_QUALITY, Status.DEGRADED)
     evidence = [e.value for e in head.evidence if e.name == "view_times_ms"]
