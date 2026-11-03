@@ -13,6 +13,10 @@ class AccountPasswordRequest(BaseModel):
 
 
 class AccountAccessSetupRequest(AccountPasswordRequest):
+    username: str = Field(
+        pattern=r"^0[0-9]{9}$",
+        description="Số điện thoại đã xác thực OTP, được server đối chiếu với tài khoản.",
+    )
     profile_consent: Literal[True]
     policy_version: Literal["account-profile-v1"]
 

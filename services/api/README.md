@@ -15,13 +15,18 @@ Bật riêng `ACCOUNT_ACCESS_ENABLED=true` cùng `ACCOUNT_ENROLLMENT=true`,
 | `GET /v1/account-access/me` | Bearer `vca_…`; trả hồ sơ tối thiểu |
 | `POST /v1/account-access/logout` | Thu hồi bearer đăng nhập hiện tại |
 
-Tên đăng nhập gồm 3–32 ký tự thường `a-z`, `0-9`, `.`, `_`, `-` và bắt đầu
-bằng chữ/số; mật khẩu 12–128 ký tự, không tự trim. Mật khẩu băm PBKDF2-SHA256
+Thiết lập mới dùng SĐT 10 chữ số `0xxxxxxxxx` đã qua OTP làm `username`; server
+đối chiếu HMAC với SĐT gắn tài khoản. Onboarding/recovery còn yêu cầu OTP của
+đúng phiên. Tài khoản demo cũ tiếp tục đăng nhập bằng username cũ 3–32 ký tự
+`a-z`, `0-9`, `.`, `_`, `-`, không tự chuyển sang tài khoản khác.
+Mật khẩu 12–128 ký tự, không tự trim. Mật khẩu băm PBKDF2-SHA256
 600.000 vòng với salt ngẫu nhiên; tên tra cứu bằng HMAC. Hồ sơ và verifier
 mật khẩu mã hóa AES-GCM bằng DEK riêng cho tài khoản, bọc bởi master key.
 Chỉ giữ tên được xác nhận từ giấy tờ, CCCD che 8 ký tự, tên đăng nhập, mã/timestamp
-tài khoản và marker mode/policy; trường chưa có nguồn trả `null`. Không có dữ
-liệu điện thoại thô để suy ra số điện thoại. Xóa/TTL tài khoản hủy DEK hồ sơ và
+tài khoản và marker mode/policy; trường chưa có nguồn trả `null`. Username mới
+là SĐT nằm trong payload mã hóa; tra cứu vẫn bằng HMAC, không có cột SĐT rõ.
+Họ tên gốc có dấu giữ nguyên, Android chỉ đổi cách hiển thị thành in hoa không dấu.
+Xóa/TTL tài khoản hủy DEK hồ sơ và
 thu hồi token; recovery đổi thiết bị vô hiệu hóa thông tin đăng nhập cũ.
 
 Token ngẫu nhiên chỉ lưu hash, có hạn 15 phút và không vượt TTL tài khoản

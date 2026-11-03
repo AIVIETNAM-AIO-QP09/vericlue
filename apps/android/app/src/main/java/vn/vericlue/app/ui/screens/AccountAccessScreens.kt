@@ -160,6 +160,7 @@ fun LoginScreen(
     error: String? = null,
     notice: String? = null,
     rememberedUsername: String? = null,
+    rememberedFullName: String? = null,
     faceAvailable: Boolean = true,
     manualFullDemo: Boolean = false,
 ) {
@@ -205,7 +206,8 @@ fun LoginScreen(
                                             if (greeting != null) {
                                                 Text("Xin chào,", style = VcType.body, color = VcStage.muted)
                                                 // Usernames have no spaces to wrap on, so keep one line rather than split mid-word.
-                                                Text(greeting, style = VcType.titleMedium, color = VcStage.ink, maxLines = 1,
+                                                Text(vn.vericlue.app.flow.AccountAccessRules.displayName(rememberedFullName) ?: greeting,
+                                                    style = VcType.titleMedium, color = VcStage.ink, maxLines = 2,
                                                     overflow = TextOverflow.Ellipsis, modifier = Modifier.semantics { heading() })
                                             } else {
                                                 Text("Chào mừng đến với VeriClue", style = VcType.titleLarge, color = VcStage.ink,
@@ -223,7 +225,7 @@ fun LoginScreen(
                                 Reveal(3) {
                                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                         if (greeting == null) {
-                                            StageField(username, onUsernameChange, "Tên đăng nhập", enabled = !busy, imeAction = ImeAction.Next)
+                                            StageField(username, onUsernameChange, "Số điện thoại / Tên đăng nhập cũ", enabled = !busy, imeAction = ImeAction.Next)
                                         }
                                         StageField(password, onPasswordChange, "Mật khẩu", enabled = !busy, password = true,
                                             onDone = { if (canSubmit && !busy) submit() })
@@ -460,29 +462,37 @@ fun CredentialSetupScreen(
     busy: Boolean = false,
     error: String? = null,
     manualFullDemo: Boolean = false,
+    fullName: String? = null,
+    phoneLocked: Boolean = true,
+    recovery: Boolean = false,
 ) {
     val focus = LocalFocusManager.current
-    val canSave = username.isNotBlank() && password.isNotEmpty() && confirmation.isNotEmpty() && profileConsent
+    val canSave = Regex("0[0-9]{9}").matches(username) && password.isNotEmpty() && confirmation.isNotEmpty() && profileConsent
     AccessPage {
         AccessTopBar("Thiết lập đăng nhập", onBack, enabled = !busy)
         Column(Modifier.padding(horizontal = 24.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             AccessStatus("Danh tính đã được xác minh")
-            AccessHeading("Một bước cuối để bắt đầu", large = true)
-            Text("Tạo thông tin đăng nhập để truy cập hồ sơ mà không cần đăng ký lại.", style = VcType.body, color = Vc.colors.muted)
+            AccessHeading(if (recovery) "Đặt lại mật khẩu" else "Một bước cuối để bắt đầu", large = true)
+            Text(if (recovery) "Đặt mật khẩu mới cho tài khoản đã xác minh."
+                else "Sử dụng số điện thoại đã xác minh và tự đặt mật khẩu để hoàn tất đăng ký.",
+                style = VcType.body, color = Vc.colors.muted)
         }
         AccessPanel {
             if (manualFullDemo) DemoAccessLabel()
             if (error != null) AccessNotice(error, error = true)
-            AccessTextField(username, onUsernameChange, "Tên đăng nhập", Icons.Outlined.PersonOutline,
-                enabled = !busy, imeAction = ImeAction.Next,
-                helper = "3–32 ký tự: chữ thường, số, dấu chấm, gạch dưới hoặc gạch ngang.")
+            ProfileValue("Họ và tên theo CCCD", vn.vericlue.app.flow.AccountAccessRules.displayName(fullName) ?: "Chưa có thông tin")
+            if (phoneLocked) ProfileValue("Số điện thoại đăng nhập", username)
+            else AccessTextField(username, onUsernameChange, "Số điện thoại đăng nhập", Icons.Outlined.PersonOutline,
+                enabled = !busy, imeAction = ImeAction.Next, keyboardType = KeyboardType.Phone,
+                helper = "Nhập số điện thoại đã xác minh khi đăng ký tài khoản này.")
             AccessPasswordField(password, onPasswordChange, "Mật khẩu", enabled = !busy,
-                imeAction = ImeAction.Next, helper = "Từ 12 đến 128 ký tự. Nên dùng một cụm từ dễ nhớ.")
+                imeAction = ImeAction.Next, helper = "Mật khẩu từ 12 đến 128 ký tự.")
             AccessPasswordField(confirmation, onConfirmationChange, "Nhập lại mật khẩu", enabled = !busy,
                 onDone = { if (canSave && !busy) { focus.clearFocus(); onSave() } })
             ConsentRow(profileConsent, onProfileConsentChange, enabled = !busy,
-                text = "Tôi đồng ý lưu tên đăng nhập và hồ sơ gồm họ tên, thông tin định danh đã che bớt cùng thời hạn tài khoản, tối đa 24 giờ trong bản demo.")
-            PrimaryButton("Lưu và đến đăng nhập", { focus.clearFocus(); onSave() }, enabled = canSave, loading = busy)
+                text = "Tôi đồng ý lưu họ tên, SĐT, thông tin định danh đã che và ghi nhớ tài khoản trên thiết bị này, tối đa 24 giờ trong bản demo.")
+            PrimaryButton(if (recovery) "Hoàn tất khôi phục" else "Hoàn tất đăng ký",
+                { focus.clearFocus(); onSave() }, enabled = canSave, loading = busy)
         }
         Spacer(Modifier.height(24.dp))
     }
@@ -553,7 +563,7 @@ fun AccountHomeScreen(
                         }
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text("Xin chào,", style = VcType.bodySmall, color = Vc.colors.muted)
-                            Text(profile.fullName?.takeIf(String::isNotBlank) ?: profile.username,
+                            Text(vn.vericlue.app.flow.AccountAccessRules.displayName(profile.fullName) ?: profile.username,
                                 style = VcType.titleMedium, color = Vc.colors.ink, modifier = Modifier.semantics { heading() })
                         }
                     }
@@ -563,7 +573,7 @@ fun AccountHomeScreen(
             }
             ContentCard {
                 AccessHeading("Thông tin tài khoản")
-                ProfileValue("Tên đăng nhập", profile.username)
+                ProfileValue(if (Regex("0[0-9]{9}").matches(profile.username)) "Số điện thoại đăng nhập" else "Tên đăng nhập cũ", profile.username)
                 profile.fullName?.takeIf(String::isNotBlank)?.let { ProfileValue("Họ và tên", it) }
                 profile.maskedIdentityNumber?.takeIf(String::isNotBlank)?.let { ProfileValue("Số định danh", it) }
                 profile.maskedPhone?.takeIf(String::isNotBlank)?.let { ProfileValue("Số điện thoại", it) }
@@ -645,6 +655,7 @@ private fun AccessStatus(text: String) {
 private fun AccessTextField(
     value: String, onChange: (String) -> Unit, label: String, icon: ImageVector,
     enabled: Boolean, imeAction: ImeAction = ImeAction.Done, helper: String? = null,
+    keyboardType: KeyboardType = KeyboardType.Ascii,
 ) {
     val focus = LocalFocusManager.current
     OutlinedTextField(value = value, onValueChange = onChange, enabled = enabled,
@@ -652,7 +663,7 @@ private fun AccessTextField(
         textStyle = VcType.body, singleLine = true, shape = RoundedCornerShape(16.dp), colors = accessFieldColors(),
         leadingIcon = { Icon(icon, null) },
         supportingText = helper?.let { { Text(it, style = VcType.caption) } },
-        keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Ascii, imeAction = imeAction),
+        keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = keyboardType, imeAction = imeAction),
         keyboardActions = KeyboardActions(onNext = { focus.moveFocus(androidx.compose.ui.focus.FocusDirection.Down) }))
 }
 

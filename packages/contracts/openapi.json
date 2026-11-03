@@ -57,7 +57,8 @@
             "type": "boolean"
           },
           "username": {
-            "pattern": "^[a-z0-9][a-z0-9._-]{2,31}$",
+            "description": "Số điện thoại đã xác thực OTP, được server đối chiếu với tài khoản.",
+            "pattern": "^0[0-9]{9}$",
             "title": "Username",
             "type": "string"
           }

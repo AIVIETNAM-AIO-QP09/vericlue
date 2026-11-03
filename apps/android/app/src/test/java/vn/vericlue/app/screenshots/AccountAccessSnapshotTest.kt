@@ -116,14 +116,29 @@ abstract class AccountAccessSnapshots(private val device: DeviceConfig) {
     @Test fun setupExplainsExplicitProfileConsentWithoutClaimingItWasSaved() {
         for (dark in listOf(false, true)) {
             shot("setup", dark) {
-                CredentialSetupScreen("nguoidung.demo", "", "", edit, edit, edit,
+                CredentialSetupScreen("0901234567", "", "", edit, edit, edit,
                     profileConsent = false, onProfileConsentChange = {}, onSave = noop, onBack = noop,
-                    manualFullDemo = true)
+                    manualFullDemo = true, fullName = "Nguyễn Thị Đặng")
             }
             assertTrue(texts.any { it.contains("Tôi đồng ý lưu") && it.contains("24 giờ") })
-            assertTrue("Lưu và đến đăng nhập" in texts)
-            assertTrue("Saving requires explicit profile consent", "Lưu và đến đăng nhập" in disabledActions)
+            assertTrue("Hoàn tất đăng ký" in texts)
+            assertTrue("NGUYEN THI DANG" in texts)
+            assertTrue("0901234567" in texts)
+            assertFalse("Phone is fixed from OTP, not a user-chosen username", "Tên đăng nhập" in texts)
+            assertTrue("Saving requires explicit profile consent", "Hoàn tất đăng ký" in disabledActions)
             assertFalse("Đã lưu hồ sơ" in texts)
+        }
+    }
+
+    @Test fun rememberedGreetingUsesTheVerifiedNameInsteadOfThePhone() {
+        for (dark in listOf(false, true)) {
+            shot("login_verified_name", dark) {
+                LoginScreen("0901234567", "", edit, edit, noop, noop, noop, noop,
+                    rememberedUsername = "0901234567", rememberedFullName = "Nguyễn Thị Đặng")
+            }
+            assertTrue("NGUYEN THI DANG" in texts)
+            assertFalse("Phone is not substituted for a verified greeting name", "0901234567" in texts)
+            assertTrue("Tài khoản khác" in texts)
         }
     }
 

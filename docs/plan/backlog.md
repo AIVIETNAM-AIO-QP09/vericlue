@@ -135,7 +135,7 @@
 | FLOW-06 | Rà workflow mobile và bàn giao tích hợp riêng tư | M5 | Codex | 0,5 | S2 | P0 | PLAT-05 | review |
 | SEC-01 | Khóa theo phiên, che dữ liệu, nhật ký truy cập | M2 | Codex | 1,5 | S1 | P0 | REV-01, PLAT-05 | review |
 | SEC-02 ★ | Ký media, L0 khóa ghi danh; service khôi phục/thu hồi, chờ nghiệm thu máy thật | M2 (+M1) | Codex | 1 | S2 | P0 | APP-01, PLAT-06 | doing |
-| APP-01 ★ | Quét mặt tại Login, tắt camera khi chờ API, hồ sơ; chờ nghiệm thu tốc độ/HTTPS/3 luồng | M1 | Ngọc Quang+Claude+Codex+Gemini | 1,5 | S1 | P0 | PLAT-04 | doing |
+| APP-01 ★ | UI mới, SĐT OTP/mật khẩu sau eKYC, lời chào mã hóa; chờ nghiệm thu điện thoại/HTTPS/3 luồng | M1 | Ngọc Quang+Claude+Codex+Gemini | 1,5 | S1 | P0 | PLAT-04 | doing |
 | APP-02 ★ | Oval gọn đồng bộ preview/giọng, hướng dẫn mặt lấp khung và sửa gián đoạn tracking; chờ nghiệm thu lại S24 FE | M1 | Ngọc Quang+Claude | 2 | S1–S2 | P0 | APP-01 | doing |
 | APP-03 | Sửa mốc ghi hình trước hàng đợi UI; GenD demo 0.90 chưa hiệu chỉnh, đăng ký/đăng nhập đã qua nhưng khôi phục còn chặn; chờ thử lại S24 FE | M1 | Ngọc Quang+Claude | 1 | S2 | P0 | APP-01 | doing |
 | APP-04 | CCCD native + ZXing/WeChat, preset demo; sửa timeout cache CI PR136, còn nghiệm thu đầu cuối | M2 (+M1) | Ngọc Quang+Claude | 1,5 | S1–S2 | P0 | APP-01 | doing |

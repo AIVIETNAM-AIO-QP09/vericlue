@@ -12,6 +12,14 @@ import vn.vericlue.app.data.api.ApiResult
 import vn.vericlue.app.flow.AccountAccessRules as Rules
 
 class AccountAccessRulesTest {
+    @Test fun nameFormattingDoesNotChangeTheVerifiedOriginal() {
+        val original = "  Nguyễn   Thị Đặng  "
+        assertEquals("NGUYEN THI DANG", Rules.displayName(original))
+        assertEquals("NGUYEN THI DANG", Rules.displayName("Nguyễn Thị Đặng"))
+        assertNull(Rules.displayName(null))
+        assertNull(Rules.displayName("  "))
+        assertEquals("  Nguyễn   Thị Đặng  ", original)
+    }
     private val now = Instant.parse("2026-11-03T10:00:00Z")
     private val policy = "b".repeat(64)
     private val profile = AccountProfile("acct_" + "a".repeat(32), "synthetic.user", "Synthetic User", "********1234",
