@@ -24,7 +24,7 @@ class IdSingleCaptureTest {
         assertFalse(idCaptureUsable(qrOnly, back = true, manual = true))
         val auto = IdAutoCapture(back = true)
         assertFalse(auto.offer(qrOnly))
-        assertFalse(auto.offer(qrOnly.copy(frameTimeNs = 2)))
+        assertTrue(auto.offer(qrOnly.copy(frameTimeNs = 2))) // preview only triggers a better photo
     }
 
     @Test fun changedCardOrMissingEvidenceBreaksTheAutomaticRun() {

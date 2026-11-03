@@ -1,26 +1,34 @@
 # Kiểm tra độ nhạy quét QR trên Android
 
-APP-10 xử lý phản hồi của người dùng trên nubia Neo 2 ngày 29/10/2026. Trước
-bản sửa, stream phân tích đo qua `dumpsys media.camera` là ImageReader 640×480
-(format YUV). Đây là quan sát cấu hình, không phải số đo độ chính xác QR.
+APP-04/APP-10, cập nhật 03/11/2026. Luồng hiện tại chụp một mặt thẻ có cả
+QR và chân dung. Các bước QR riêng/auto-zoom của bản 29/10 đã được thay thế;
+không dùng hướng dẫn cũ để nghiệm thu bản một màn.
 
 ## Những điểm được sửa
 
 - Yêu cầu ảnh phân tích lớn hơn cho camera quét thẻ, ưu tiên tỉ lệ 4:3 và
   giới hạn 1920×1440; fallback cấu hình mặc định nếu không bind được. Camera
   trước/video mặt không dùng selector này. Kích thước thực do CameraX chọn.
-- Bước chỉ lấy QR không chờ thêm face detector. ML Kit hỗ trợ vùng QR tiềm
-  năng và gợi ý zoom; chỉ cho phép zoom ở bước QR, tối đa 3× và không vượt
-  giới hạn thiết bị. Bước chân dung cần giữ toàn thẻ nên không tự zoom.
-- Hai lần đọc QR khớp trong cửa sổ ngắn có thể xen khung chưa đọc được. Đổi
-  mã, quá hạn, frame cũ hoặc retake không được hoàn thành lượt trước.
-- Phản hồi đã đọc giữ 1,5 giây, độc lập với điều kiện chụp. Không lấy QR cache
-  cho ảnh mới. Ảnh tự chụp ở bước QR phải được giải mã lại trên đúng bitmap.
-- QR đã giải mã từ pixel được coi là đọc được, dù toàn ảnh có nhiều điểm trắng
-  hoặc nền mờ. Không dùng heuristic toàn khung để chặn mã đã đọc thành công.
-  Bước chân dung vẫn giữ kiểm chất lượng cũ; server giữ kiểm QR/ảnh độc lập.
+- Hai quan sát QR/candidate mới có thể kích hoạt ảnh tĩnh dù preview chưa
+  thấy chân dung; bốn quan sát chân dung rõ cũng được thử khi chưa thấy QR.
+  Frame cũ, mã đổi, khoảng cách thời gian quá lâu và retake không cộng dồn.
+- Ảnh tĩnh dùng ML Kit `ACCURATE` để tìm chân dung nhỏ, preview vẫn `FAST`.
+  Không tự zoom làm mất mép thẻ. Ảnh upload giữ crop đúng vùng nhìn thấy.
+- Ảnh tĩnh đạt chất lượng và có dấu hiệu QR/chân dung có thể gửi server đọc
+  phần còn thiếu. Không dùng QR cache; ảnh local chưa đủ cả hai không gửi QR
+  text nên server mock không thể chấp nhận bằng dữ liệu local thiếu.
+- Chưa tìm được chân dung thì không dùng tỷ lệ pixel trắng của toàn thẻ để
+  chặn ảnh gửi đọc lại: nền thẻ trắng không đồng nghĩa lóa chân dung. Vẫn
+  kiểm nét/sáng; nếu đã tìm thấy chân dung, giữ kiểm lóa trên vùng chân dung.
+- Server thật quét một mặt phải giải mã QR và thấy chân dung trên ảnh gốc.
+  Khi QR chưa đọc được, thử hai vùng chồng lấp và tối đa hai tứ giác thẻ nắn
+  phối cảnh. Không ghép ảnh, không suy đoán chữ, không bỏ QR xung đột.
+- Nắn phối cảnh chỉ giúp đọc QR; SCRFD vẫn kiểm chân dung trên ảnh gốc.
+  Offline cần đủ bằng chứng local. Không tăng quota upload hoặc bỏ TTL;
+  ảnh đọc chưa được vẫn hướng dẫn chỉnh và tự thử lại có khoảng nghỉ.
 
-Không đổi định dạng API, model, ngưỡng ML, OCR hoặc tạo app/server mới.
+Không đổi định dạng API, trọng số, ngưỡng sinh trắc hoặc thêm OCR/WeChatQRCode.
+Chưa có benchmark điện thoại chứng minh mức tăng độ nhạy.
 
 ## Nghiệm thu
 
@@ -29,17 +37,20 @@ Không đổi định dạng API, model, ngưỡng ML, OCR hoặc tạo app/serv
    không điền/tick hộ hoặc ghi hình CCCD thật vào repo/log.
 3. Khi mở camera thẻ, xem stream YUV trong `dumpsys media.camera` để xác nhận
    kích thước thực. Selector là yêu cầu, không đảm bảo mọi máy chọn cùng size.
-4. Logcat chỉ lọc `VeriClueCardScan`. `candidate` là có vùng nghi QR, `decoded`
-   là có dữ liệu giải mã, `qrRead` là qua bộ lọc QR/khung; các cờ quality giúp
-   tách chưa đọc được với đang bị chặn điều kiện chụp. Không log payload/ảnh.
-5. Test thẻ có QR cùng mặt chân dung và QR ở mặt khác. Xem lại thông tin; đổi
-   thẻ/retake không được lấy lại dấu đọc hoặc dữ liệu cũ.
+4. Logcat chỉ lọc `VeriClueCardScan`: xem kích thước, `qrRead`, `portrait`,
+   `sharp`, `glareClear`, `bright`, `elapsedMs`. Không log payload/ảnh.
+5. Test thẻ có QR cùng mặt chân dung. Che QR, che chân dung, đưa hai thẻ:
+   không được sang xác nhận thiếu bằng chứng. Đổi thẻ/retake không dùng lại
+   dữ liệu cũ. QR ở mặt khác chưa thuộc luồng một ảnh này.
 6. Giữ QR hơi xa/gần, lệch nhẹ, ánh sáng khác nhau; ghi kết quả trung thực.
    Không đặt tỷ lệ thành công hoặc thời gian cải thiện khi chưa đo.
 
 Kiểm chuyển sang camera trước và video mặt sau QR, đặc biệt zoom trở về 1×.
 Hardware acceptance cần ghi riêng trong bàn giao; unit/snapshot không thay
 thế kiểm camera hoặc đọc QR thật trên thiết bị.
+
+Triển khai API và Android cùng bản; máy chủ cũ chưa có đường nắn phối cảnh
+và có thể còn cấu hình chân dung tùy chọn. Bắt đầu phiên mới khi nghiệm thu.
 
 ## Căn cứ API
 

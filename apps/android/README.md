@@ -4,6 +4,14 @@
 
 ## Trạng thái
 
+**03/11 — APP-04, đọc lại từ ảnh tĩnh:** vùng QR ở preview có thể kích hoạt
+chụp dù chưa thấy chân dung. Ảnh tĩnh dùng ML Kit `ACCURATE`; ảnh rõ có ít nhất
+một dấu hiệu QR/chân dung được gửi API để đọc lại phần còn thiếu. Đây chỉ là
+gửi phân tích, chưa xác nhận thẻ. Ảnh thiếu bằng chứng local không gửi QR text
+để tránh được chấp nhận bởi mock dùng QR client. Offline vẫn cần đủ cả hai.
+Server thật yêu cầu QR và chân dung cho ảnh một mặt; không ghép với ảnh cũ.
+Chưa có số đo cải thiện trên điện thoại; xem [hướng dẫn quét](../../docs/runbooks/android-card-scan.md).
+
 **03/11 chiều — CCCD một màn, oval gọn và preset cố định:** camera giữ nguyên
 màn khi thiếu QR/chân dung; hướng dẫn chỉnh thẻ rồi thử ảnh mới, không mở bước
 QR riêng. Chỉ gửi một ảnh mới chứa cả hai, không nối dữ liệu cũ. Vùng crop live/

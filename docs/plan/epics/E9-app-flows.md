@@ -808,14 +808,22 @@ chưa bật; sau đó người dùng cho phép reset riêng tài khoản test v�
 GenD 0.95 (bàn giao 13:47). Xem
 [bàn giao](../../status/handoffs/2026-11-03-1300-app-04-ngoc-quang-codex.md).
 
+**Bổ sung 03/11 — độ nhạy quét:** người dùng cho phép tách điều kiện chụp/gửi
+phân tích khỏi điều kiện xác nhận. QR/candidate có thể kích hoạt ảnh tĩnh khi
+preview bỏ sót chân dung. Ảnh rõ có dấu hiệu QR hoặc chân dung được gửi server
+đọc lại, không gửi QR text nếu local chưa đủ cả hai. Server quét một mặt phải
+đọc QR hợp lệ và tìm chân dung trên cùng ảnh; offline vẫn chốt đủ bằng chứng
+local. Thử crop QR và nắn phối cảnh giới hạn, chưa thay model/trọng số.
+
 **Đầu ra:**
 - Màn hình số điện thoại và OTP, có khung "SMS mô phỏng".
-- Một màn camera sau tự chụp mặt thẻ có QR và chân dung; không bắt bấm chụp, chỉ gửi ảnh mới đủ cả hai, thiếu thì hướng dẫn chỉnh cùng màn, không mở bước QR riêng.
+- Một màn camera sau tự chụp; ảnh mới có thể gửi để server đọc phần còn thiếu, chỉ sang xác nhận khi đủ QR/chân dung cùng ảnh, thiếu thì hướng dẫn chỉnh tại chỗ, không mở bước QR riêng.
 - Màn hình xác nhận thông tin.
 
 **Tiêu chí hoàn thành:**
 - [x] Đi hết giai đoạn A trên điện thoại thật. (27/10, Galaxy S24 FE, thẻ CCCD gắn chip; bàn giao `2026-10-27-2000-app-01`)
 - [ ] Nghiệm thu lại bước quét một màn theo yêu cầu 03/11 trên S24 FE; test tự động không thay nghiệm thu này.
+- [x] Tách chụp/gửi khỏi xác nhận; không dùng QR cũ, không chấp nhận QR xung đột hoặc thiếu chân dung phía server cho ảnh một mặt.
 
 ---
 

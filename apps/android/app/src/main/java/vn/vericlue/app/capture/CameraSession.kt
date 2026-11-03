@@ -101,6 +101,11 @@ class CameraSession(
         FaceDetectorOptions.Builder().setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
             .setMinFaceSize(0.05f).build(),
     )
+    // Still photos are infrequent: spend more computation on the small printed portrait.
+    private val cardStillFaceDetector = FaceDetection.getClient(
+        FaceDetectorOptions.Builder().setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)
+            .setMinFaceSize(0.05f).build(),
+    )
     private val _idQuality = MutableStateFlow<IdQuality?>(null)
     val idQuality: StateFlow<IdQuality?> = _idQuality
     private val qrScanner = BarcodeScanning.getClient(
@@ -277,7 +282,7 @@ class CameraSession(
                     }
                     image.close()
                     val qrTask = cardScanTask { scanCardQr(bitmap) }
-                    val faceTask = cardScanTask { cardFaceDetector.process(InputImage.fromBitmap(bitmap, 0)) }
+                    val faceTask = cardScanTask { cardStillFaceDetector.process(InputImage.fromBitmap(bitmap, 0)) }
                     Tasks.whenAllComplete(qrTask, faceTask).addOnCompleteListener(analysisExecutor) {
                         try {
                             if (generation != qrState.generation() || !req.isActive) { req.cancel(); return@addOnCompleteListener }
@@ -286,7 +291,9 @@ class CameraSession(
                             val faces = faceTask.result
                             val q = bitmapQuality(bitmap, faces.singleOrNull()?.boundingBox).copy(qr = qr, portraitPresent = faces.size == 1,
                                 tilted = faces.singleOrNull()?.let { kotlin.math.abs(it.headEulerAngleZ) > 15f } ?: false,
-                                looksLikeCard = faces.size == 1 || qr != null)
+                                looksLikeCard = faces.size == 1 || qr != null,
+                                portraitCount = faces.size, qrCandidatePresent = qrTask.result.candidatePresent,
+                                qrConflicting = qrTask.result.conflicting)
                             val bytes = ByteArrayOutputStream().use { out -> bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out); out.toByteArray() }
                             req.complete(bytes to q)
                         } catch (_: Exception) {
@@ -739,7 +746,8 @@ class CameraSession(
                     tilted = faces.singleOrNull()?.let { kotlin.math.abs(it.headEulerAngleZ) > 15f } ?: false,
                     frameTimeNs = timestampNs,
                     qrRecentlySeen = qrState.recentlySeen(generation, timestampNs),
-                    qrCandidatePresent = qrTask.result.candidatePresent)
+                    qrCandidatePresent = qrTask.result.candidatePresent,
+                    portraitCount = faces.size, qrConflicting = qrTask.result.conflicting)
                 if (BuildConfig.DEBUG && started - lastCardDiagnosticMs >= 1000) {
                     lastCardDiagnosticMs = started
                     // Fixed technical flags only; never log QR contents or document fields.
@@ -770,7 +778,7 @@ class CameraSession(
         Tasks.forException(error)
     }
 
-    private data class CardQrRead(val raw: String?, val candidatePresent: Boolean)
+    private data class CardQrRead(val raw: String?, val candidatePresent: Boolean, val conflicting: Boolean)
     private data class CardQrCandidates(val values: List<String>, val candidatePresent: Boolean)
 
     /** Bounded same-image QR retries; the original full-card bitmap still supplies portrait and upload. */
@@ -784,7 +792,7 @@ class CameraSession(
             // A decoded card does not hide other undecoded candidates. Conflicting reads stay rejected.
             val regions = if (candidates.isNotEmpty() || values.none { CccdQr.parse(it) != null })
                 cardQrRetryRegions(bitmap.width, bitmap.height, candidates) else emptyList()
-            if (regions.isEmpty()) return@continueWithTask Tasks.forResult(CardQrRead(uniqueCardQr(values), candidatePresent))
+            if (regions.isEmpty()) return@continueWithTask Tasks.forResult(CardQrRead(uniqueCardQr(values), candidatePresent, conflictingCardQr(values)))
             val retries = regions.map { box ->
                 cardScanTask {
                     val region = Bitmap.createBitmap(bitmap, box.left, box.top, box.width, box.height)
@@ -798,8 +806,9 @@ class CameraSession(
             }
             Tasks.whenAllSuccess<CardQrCandidates>(retries).continueWith(analysisExecutor) { completed ->
                 if (!completed.isSuccessful) throw completed.exception ?: IllegalStateException("QR unavailable")
-                CardQrRead(uniqueCardQr(values + completed.result.flatMap { it.values }),
-                    candidatePresent || completed.result.any { it.candidatePresent })
+                val allValues = values + completed.result.flatMap { it.values }
+                CardQrRead(uniqueCardQr(allValues),
+                    candidatePresent || completed.result.any { it.candidatePresent }, conflictingCardQr(allValues))
             }
         }
 

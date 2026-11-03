@@ -31,3 +31,6 @@ fun uniqueCardQr(values: List<String>): String? {
     val valid = values.filter { CccdQr.parse(it) != null }.distinct()
     return valid.singleOrNull()
 }
+
+fun conflictingCardQr(values: List<String>): Boolean =
+    values.filter { CccdQr.parse(it) != null }.distinct().size > 1

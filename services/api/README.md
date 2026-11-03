@@ -1,5 +1,12 @@
 # services/api — Máy chủ API (FastAPI)
 
+**APP-04 (03/11):** quét một ảnh `front` luôn yêu cầu QR hợp lệ và chân dung
+phía server khi bật `IDENTITY_CARD_ENABLED`, kể cả cấu hình cũ không yêu cầu
+chân dung. Điện thoại có thể chưa đọc được một trong hai; không dùng QR client
+thay kết quả giải mã ảnh. QR khó đọc được thử lại trên hai vùng chồng lấp và
+tối đa hai vùng thẻ nắn phối cảnh, chỉ từ cùng ảnh gốc. Chân dung vẫn kiểm trên
+ảnh gốc bằng SCRFD; không bổ sung model/trọng số hoặc đổi ngưỡng sinh trắc.
+
 **APP-03 (02/11):** manual full demo cho phép kết quả nội dung
 `ok/fail/E_CHALLENGE_MISMATCH` dùng lượt đọc lại hiện có, tối đa một lần;
 không kết thúc sớm chỉ vì mã lỗi diễn giải nội dung. Câu/ID lượt mới và media

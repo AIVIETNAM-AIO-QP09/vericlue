@@ -9,6 +9,8 @@ import cv2
 import numpy as np
 from PIL import Image, ImageOps, UnidentifiedImageError
 
+from vericlue_api.services.card_views import rectified_card_views
+
 MAX_BYTES = 10 * 1024 * 1024
 MAX_PIXELS = 16_000_000
 
@@ -74,33 +76,48 @@ class CardScanner:
         except ImportError:
             zxingcpp = None
         for original in images:
-            h, w = original.shape[:2]
-            # Preserve the original pixels for dense QR. Work is bounded by decode_image.
-            image = original
-            if zxingcpp is not None:
-                for item in zxingcpp.read_barcodes(image, formats=zxingcpp.BarcodeFormat.QRCode):
-                    if getattr(item, "valid", True) and item.text:
-                        values.add(item.text)
-            # A second decoder also runs, so conflicting codes are not silently ignored.
-            for pixels in (
-                [image]
-                if max(h, w) <= 1600
-                else [cv2.resize(image, (round(w * 1600 / max(h, w)), round(h * 1600 / max(h, w))))]
-            ):
-                detector = cv2.QRCodeDetector()
-                try:
-                    ok, texts, _, _ = detector.detectAndDecodeMulti(pixels)
-                    if ok:
-                        values.update(t for t in texts if t)
-                except (cv2.error, UnicodeError):
-                    pass
-                try:
-                    text, _, _ = detector.detectAndDecode(pixels)
-                    if text:
-                        values.add(text)
-                except (cv2.error, UnicodeError):
-                    pass
+            # Always keep original decodes, including conflicts. Rectification is only a retry.
+            reads = CardScanner._decode_qr(original, zxingcpp)
+            values.update(reads)
+            if not any(valid_card_qr(value) for value in reads):
+                width = original.shape[1]
+                span = (width * 65 + 99) // 100
+                views = [original[:, :span], original[:, width - span :]]
+                views.extend(rectified_card_views(original))
+                for view in views:
+                    values.update(CardScanner._decode_qr(view, zxingcpp))
         return sorted(values)
+
+    @staticmethod
+    def _decode_qr(original, zxingcpp):
+        values = set()
+        image = original
+        h, w = image.shape[:2]
+        # Preserve the original pixels for dense QR. Work is bounded by decode_image.
+        if zxingcpp is not None:
+            for item in zxingcpp.read_barcodes(image, formats=zxingcpp.BarcodeFormat.QRCode):
+                if getattr(item, "valid", True) and item.text:
+                    values.add(item.text)
+        # A second decoder also runs, so conflicting codes are not silently ignored.
+        for pixels in (
+            [image]
+            if max(h, w) <= 1600
+            else [cv2.resize(image, (round(w * 1600 / max(h, w)), round(h * 1600 / max(h, w))))]
+        ):
+            detector = cv2.QRCodeDetector()
+            try:
+                ok, texts, _, _ = detector.detectAndDecodeMulti(pixels)
+                if ok:
+                    values.update(t for t in texts if t)
+            except (cv2.error, UnicodeError):
+                pass
+            try:
+                text, _, _ = detector.detectAndDecode(pixels)
+                if text:
+                    values.add(text)
+            except (cv2.error, UnicodeError):
+                pass
+        return values
 
     def portrait_usable(self, image):
         if self._portrait_check is not None:

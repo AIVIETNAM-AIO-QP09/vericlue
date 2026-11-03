@@ -229,7 +229,9 @@ class IdentitySteps:
             return IdCardResponse(
                 status="retry", retry_hint="QR_INVALID" if codes else "QR_UNREADABLE"
             )
-        if self.settings.identity_card_portrait_required:
+        # Unified front-only capture may deliberately defer local portrait detection to us.
+        # It must never advance on QR alone, even under a legacy optional-portrait config.
+        if self.settings.identity_card_portrait_required or back is None:
             usable = data.get("portrait_usable")
             if type(usable) is not bool:
                 raise ApiError(503, "identity_unavailable", "Dịch vụ đọc thẻ chưa sẵn sàng.")
