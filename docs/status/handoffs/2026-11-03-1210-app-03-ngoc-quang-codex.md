@@ -48,11 +48,9 @@ GenD 0.90 theo yêu cầu người dùng. Mốc giờ trong tài liệu là UTC+
 
 ## Bước tiếp theo
 <!-- Viết đủ rõ để người khác hoặc AI khác làm ngay, không cần hỏi lại -->
-1. Hoàn tất kiểm tra Android, đóng gói APK trace=false cùng signer và cài
-   `install -r` giữ dữ liệu; ghi receipt triển khai bên dưới.
-2. Một lượt khôi phục mới trên S24 FE để đối chiếu gaze/GenD; chỉ đến bước
+1. Một lượt khôi phục mới trên S24 FE để đối chiếu gaze/GenD; chỉ đến bước
    giọng khi mặt thực sự đạt. Không dùng lượt điện thoại để báo độ chính xác.
-3. Lấy gói GenD cũ hoặc dữ liệu có nguồn/quyền sử dụng, kiểm split theo người
+2. Lấy gói GenD cũ hoặc dữ liệu có nguồn/quyền sử dụng, kiểm split theo người
    trước khi fit; metadata RTFS chưa đủ. Giữ VIVOS parity ngoài hiệu chỉnh.
 
 ## Quyết định, lưu ý, bẫy
@@ -85,3 +83,16 @@ GenD 0.90 theo yêu cầu người dùng. Mốc giờ trong tài liệu là UTC+
 - Helper đóng gói ngoài repo được review độc lập: giữ backup APK/build-info,
   kiểm source Android sạch, signer/v2 signature, profile/API manifest, test và
   lint trước thay APK. Chưa có receipt cài máy tại thời điểm commit mã nguồn.
+
+## Triển khai 12:19
+- APK từ commit **`52bdbf34de273257964d103d1dbb2ce5fe09b640`**, Android tree
+  `3fa17f5b4e3c41b1bfff08de61c1a2c897566871`; SHA-256
+  `716108eb574976cc93a71c32065687bff2dff71d9b66ab82ea43a8df45fa7dc5`.
+- `adb install -r` thành công. Đọc lại hash APK đã cài trên S24 FE khớp;
+  firstInstallTime vẫn 02/11 09:01:50, lastUpdateTime 03/11 12:19:01.
+  Không uninstall/clear-data hoặc mở app thay người dùng.
+- API source `11dfc7ec6a85` và profile private giữ nguyên, bundle integrity
+  đạt; kiểm owned process và health `ok`, failed_modules rỗng. ADB reverse
+  8421 còn hoạt động. Không restart server.
+- Backup/receipt: `revision-backups/before-clock-apk-52bdbf34de27/` trong bundle.
+  Đã mời người dùng thử một lượt mới; chưa có kết quả nghiệm thu bản này.
