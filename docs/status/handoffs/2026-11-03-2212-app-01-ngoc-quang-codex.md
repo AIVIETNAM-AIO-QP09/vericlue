@@ -13,10 +13,16 @@
   không hủy HTTP hoặc làm gửi lại. Giữ các guard generation/account/API hiện có.
 - Snapshot sáng/tối, chữ 100%/200% kiểm tra camera biến mất lúc Checking, spinner
   xuất hiện, không hiện thành công; các pha thu giữ cùng vị trí preview.
+- PR #139 Ready, base #138. APK nguồn `1b35dc0` kèm bảy file UI local có sẵn
+  đã cài đè nubia Neo 2 thành công, giữ dữ liệu; đã mở app, không thấy lỗi
+  AndroidRuntime trong kiểm tra khởi động. SHA-256 APK trên máy khớp bản ký
+  `11de787c4622104ba86b09fd0989d16859c9a7b8ea9332149cb948946745d624`.
 
 ## Đang dở
 <!-- file:dòng, việc gì còn dang dở -->
 - recordPaparazziDebug, lintDebug, assembleDebug đã PASS; chưa nghiệm thu máy.
+- Server 8421 hiện tắt; ADB reverse đã nối lại. Chưa kiểm tra lượt đăng nhập
+  đầu-cuối hoặc đo thời gian trên thiết bị; cần server và người dùng tự quét.
 - Các thay đổi UI/Three.js có sẵn của người dùng không đưa vào commit task.
 
 ## Bước tiếp theo
