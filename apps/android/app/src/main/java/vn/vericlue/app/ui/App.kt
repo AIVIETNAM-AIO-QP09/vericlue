@@ -192,6 +192,10 @@ fun VeriClueApp() {
     val accounts = remember {
         AccountStore(PrefsStore(context.applicationContext.getSharedPreferences("vericlue.account", Context.MODE_PRIVATE)))
     }
+    val loginHint = remember {
+        vn.vericlue.app.data.LoginHint(PrefsStore(context.applicationContext.getSharedPreferences("vericlue.login", Context.MODE_PRIVATE)))
+    }
+    var rememberedUsername by remember { mutableStateOf<String?>(null) }
     val accountFlow = remember {
         AccountFlow(accounts, AndroidAccountKeys(), BuildConfig.SIGNED_MEDIA,
             warn = { Log.w("VeriClue", it) })
@@ -546,6 +550,8 @@ fun VeriClueApp() {
         when (result) {
             is ApiResult.Err -> accessError = AccountAccessRules.error(result)
             is ApiResult.Ok -> if (AccountAccessRules.sessionValid(result.value, "password", username)) {
+                withContext(Dispatchers.IO) { loginHint.save(username) }
+                rememberedUsername = username
                 showAccount(result.value)
             } else {
                 api.logoutAccount(result.value.accessToken)
@@ -796,6 +802,11 @@ fun VeriClueApp() {
     LaunchedEffect(currentRoute) {
         if (currentRoute in setOf(Routes.BankStart, Routes.Auth, Routes.Login, Routes.FaceLogin)) {
             restoredAccount = withContext(Dispatchers.IO) { accounts.load() }
+            val hint = withContext(Dispatchers.IO) { loginHint.load() }
+            if (hint != rememberedUsername) {
+                rememberedUsername = hint
+                if (hint != null && loginUsername.isEmpty()) loginUsername = hint
+            }
         }
     }
     LaunchedEffect(access?.accessToken) {
@@ -905,6 +916,7 @@ fun VeriClueApp() {
                 onRegister = { accessError = null; loginPassword = ""; nav.go(Routes.Auth) },
                 onRecovery = { loginPassword = ""; enterAccount(Purpose.Recovery) },
                 busy = busy, error = accessError, notice = loginNotice,
+                rememberedUsername = rememberedUsername,
                 faceAvailable = restoredAccount != null,
                 manualFullDemo = restoredAccount?.manualFullDemo == true,
             )

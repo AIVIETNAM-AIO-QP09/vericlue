@@ -4,7 +4,6 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
@@ -102,6 +101,8 @@ data class VcColors(
     val onWarmAccent: Color,
     val illustration: Color,
     val success: Color,
+    /** Decorative echo of the colour-reflection challenge; never mirrors a live challenge. */
+    val spectrum: List<Color>,
 ) {
     /** Keep pressed backgrounds opaque so the state layer cannot wash out white text. */
     fun buttonPressed(container: Color): Color =
@@ -121,65 +122,72 @@ data class VcColors(
     }
 }
 
-val LightColors = VcColors(
-    isDark = false,
-    background = Palette.Background,
-    surface = Palette.White,
-    surfaceSubtle = Palette.SurfaceSubtle,
-    surfaceInfo = Palette.SurfaceInfo,
-    border = Palette.Border,
-    ink = Palette.Ink,
-    muted = Palette.Muted,
-    primary = Palette.ButtonNavy,
-    primaryPressed = Palette.PrimaryPressed,
-    onPrimary = Palette.White,
-    accent = Palette.ButtonNavy,
-    ok = Palette.OkText,
-    onOk = Palette.White,
-    okBg = Palette.OkBg,
-    warn = Palette.Warn,
-    warnBg = Palette.WarnBg,
-    warnBorder = Palette.WarnBorder,
-    disabled = Palette.Border,
-    onDisabled = Palette.Muted,
-    keypad = Palette.SurfaceSubtle,
-    key = Palette.White,
-    bankAccent = Palette.ButtonNavy,
-    warmAccent = Palette.WarmAccent,
-    onWarmAccent = Palette.Ink,
-    illustration = Palette.SurfaceMuted,
-    success = Palette.Ok,
-)
-
-val DarkColors = VcColors(
+/**
+ * VeriClue Night: one navy brand theme for every non-camera screen, so the journey reads as one
+ * product from login to result. Camera and reflection-challenge colours stay in [Palette].
+ */
+val NightColors = VcColors(
     isDark = true,
-    background = Palette.DarkBg,
-    surface = Palette.DarkSurface,
-    surfaceSubtle = Palette.DarkSubtle,
-    surfaceInfo = Palette.DarkInfo,
-    border = Palette.DarkBorder,
+    background = Color(0xFF0E3A8C),
+    surface = Color(0xFF102E6E),
+    surfaceSubtle = Color(0xFF15387F),
+    surfaceInfo = Color(0xFF1A4290),
+    border = Color(0xFF2E5299),
     ink = Palette.White,
-    muted = Palette.DarkMuted,
-    primary = Palette.DarkPrimary,
-    primaryPressed = Palette.DarkPressed,
-    onPrimary = Palette.Ink,
+    muted = Color(0xFFCFDCF5),
+    primary = Palette.DarkAccent,
+    primaryPressed = Color(0xFF6FB3F5),
+    onPrimary = Palette.LogoNavy,
     accent = Palette.DarkAccent,
     ok = Palette.OkOnDark,
-    onOk = Palette.DarkBg,
-    okBg = Color(0xFF173A2B),
+    onOk = Palette.LogoNavy,
+    okBg = Color(0xFF123D3A),
     warn = Color(0xFFFFD27A),
-    warnBg = Color(0xFF3A2E12),
-    warnBorder = Palette.Warn,
-    disabled = Palette.DarkBorder,
-    onDisabled = Palette.DarkMuted,
-    keypad = Color(0xFF16212C),
-    key = Palette.DarkSurface,
+    warnBg = Color(0xFF3A3218),
+    warnBorder = Color(0xFFB8913A),
+    disabled = Color(0xFF2A4A86),
+    onDisabled = Color(0xFFC2D0EC),
+    keypad = Color(0xFF0C2A66),
+    key = Color(0xFF16397F),
     bankAccent = Palette.OkOnDark,
     warmAccent = Palette.WarmAccent,
     onWarmAccent = Palette.Ink,
-    illustration = Palette.DarkInfo,
+    illustration = Color(0xFF1A4290),
     success = Palette.OkOnDark,
+    spectrum = listOf(Palette.LogoLight, Palette.FlashPink, Palette.FlashYellow, Palette.FlashMint),
 )
+
+/** Kept for callers that still name a system theme; both resolve to the single brand theme. */
+val LightColors = NightColors
+val DarkColors = NightColors
+
+/** Fixed navy stage for the login screen in both themes; it always sits on the 3D backdrop. */
+object VcStage {
+    val top = Color(0xFF081634)
+    val mid = Color(0xFF0E3A8C)
+    val bottom = Color(0xFF1C5FD6)
+    /** Bottom of the everyday page gradient; darker than the login stage so links keep 4.5:1. */
+    val pageBottom = Color(0xFF15489E)
+    val slab = Color(0xFF3F7FF0)
+    val slabDeep = Color(0xFF1D4FB8)
+    val glassTop = Color(0x33FFFFFF)
+    val glassBottom = Color(0x14FFFFFF)
+    val glassBorder = Color(0x4DFFFFFF)
+    val glassFill = Color(0x26FFFFFF)
+    val cardTop = Color(0xE6143472)
+    val cardBottom = Color(0xC7102E6E)
+    val ink = Palette.White
+    val muted = Color(0xD9FFFFFF)
+    val line = Color(0x80FFFFFF)
+    val cta = Palette.DarkAccent
+    val ctaEnd = Palette.FlashMint
+    val onCta = Palette.LogoNavy
+    val warn = Color(0xFFFFD27A)
+    val warnBg = Color(0xE63A2E12)
+    val spectrum = listOf(Palette.LogoLight, Palette.FlashPink, Palette.FlashYellow, Palette.FlashMint)
+    /** Saturated ring colours matching the 3D backdrop's lit arcs. */
+    val ring = listOf(Color(0xFF3F86FF), Color(0xFFFF7CC4), Color(0xFFFFC94D), Color(0xFF3FD890))
+}
 
 val BeVietnamPro = FontFamily(
     Font(R.font.be_vietnam_pro_regular, FontWeight.Normal),
@@ -230,27 +238,20 @@ object Vc {
 
 @Composable
 fun VcTheme(dark: Boolean = isSystemInDarkTheme(), motionEnabled: Boolean? = null, content: @Composable () -> Unit) {
-    val colors = if (dark) DarkColors else LightColors
+    // `dark` stays for existing callers and snapshots; the product ships one brand theme.
+    val colors = NightColors
     val motion = motionEnabled?.let { VcMotion(it) } ?: LocalVcMotion.current ?: rememberSystemMotion()
-    val scheme = if (dark) {
-        darkColorScheme(
-            primary = colors.accent,
-            onPrimary = colors.background,
-            background = colors.background,
-            surface = colors.surface,
-            onSurface = colors.ink,
-            onBackground = colors.ink,
-        )
-    } else {
-        lightColorScheme(
-            primary = colors.primary,
-            onPrimary = colors.onPrimary,
-            background = colors.background,
-            surface = colors.surface,
-            onSurface = colors.ink,
-            onBackground = colors.ink,
-        )
-    }
+    val scheme = darkColorScheme(
+        primary = colors.accent,
+        onPrimary = colors.onPrimary,
+        background = colors.background,
+        surface = colors.surface,
+        onSurface = colors.ink,
+        onBackground = colors.ink,
+        surfaceVariant = colors.surfaceSubtle,
+        onSurfaceVariant = colors.muted,
+        outline = colors.border,
+    )
     CompositionLocalProvider(LocalVcColors provides colors, LocalVcMotion provides motion) {
         MaterialTheme(
             colorScheme = scheme,

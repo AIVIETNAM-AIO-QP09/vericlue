@@ -526,7 +526,7 @@ app/src/main/java/vn/vericlue/app/
   capture/WavRecorder.kt    ghi âm WAV 16 kHz
   capture/IdCard.kt         đo nét/lóa, đọc QR CCCD
   ui/App.kt                 NavHost, quyền, nối camera/API vào màn, màn "tất cả màn"
-  ui/theme/Theme.kt         màu (khớp biến Figma "VeriClue / Màu"), kiểu chữ, theme sáng/tối
+  ui/theme/Theme.kt         màu, kiểu chữ; một theme thương hiệu "VeriClue Night" cho mọi màn (ngoài camera)
   ui/components/            thanh trên, thanh tiến độ, nút, bàn phím số, khung camera, thẻ danh sách
   ui/screens/               Bắt đầu, Danh tính, Khuôn mặt, Giọng nói + Kết quả
 ```
@@ -554,8 +554,12 @@ app/src/main/java/vn/vericlue/app/
 Kiểm tra giảm chuyển động trên máy ảo: khi app đang ở màn đăng ký/đăng nhập, chạy `adb shell settings put global animator_duration_scale 0`, kiểm tra các thẻ đứng yên và nút/OTP đổi ngay. Đặt lại giá trị ban đầu sau khi thử (thường là `1`; nếu ban đầu chưa có giá trị thì dùng `adb shell settings delete global animator_duration_scale`). Vẫn phải thử cảm giác rung trên điện thoại thật.
 ## Đăng nhập và hồ sơ tài khoản (APP-01, 03/11)
 
-Mở ứng dụng đi qua logo VeriClue rồi đến màn đăng nhập. Chọn **Mở tài khoản**
-mới vào hành trình đăng ký hiện có. Sau khi API xác nhận đăng ký/khôi phục và
+Mở ứng dụng đi qua logo VeriClue rồi đến màn đăng nhập (bố cục thẻ kính kiểu
+ngân hàng trên nền 3D `backdrop`). Khi máy đã nhớ tên đăng nhập, thẻ chào
+"Xin chào, <tên>" và chỉ hỏi mật khẩu; nút khuôn mặt nằm trong thẻ.
+**Tài khoản khác** mở thẻ đủ tên đăng nhập + mật khẩu, có **Quay lại** tài khoản
+đã nhớ. **Tạo tài khoản** vào hành trình đăng ký hiện có, **Quên mật khẩu?**
+vào khôi phục bằng khuôn mặt như cũ. Sau khi API xác nhận đăng ký/khôi phục và
 lưu biên nhận thành công, người dùng thiết lập tên đăng nhập, mật khẩu và đồng ý
 lưu hồ sơ; nút **Vào ứng dụng** quay về đăng nhập, không tự cấp phiên truy cập.
 
@@ -568,7 +572,10 @@ lưu hồ sơ; nút **Vào ứng dụng** quay về đăng nhập, không tự c
 - Hồ sơ chỉ hiển thị dữ liệu API thực sự có: tên đăng nhập, họ tên nếu có,
   số định danh đã che, mã tài khoản và thời hạn. Không tạo số dư/số tài khoản ngân hàng.
 - Tài khoản giữ thời hạn demo hiện có (tối đa 24 giờ); phiên truy cập tối đa
-  15 phút. Mật khẩu và access token chỉ ở bộ nhớ Android; đưa app xuống nền,
+  15 phút. Mật khẩu và access token chỉ ở bộ nhớ Android. Riêng tên đăng nhập
+  của lần đăng nhập mật khẩu thành công gần nhất được lưu (`LoginHint`,
+  SharedPreferences riêng `vericlue.login`) để chào người dùng; không lưu mật
+  khẩu, token, hồ sơ hay số định danh; đưa app xuống nền,
   đăng xuất hoặc hết phiên sẽ khóa hồ sơ. Back không mở lại hồ sơ đã đăng xuất.
 - Tài khoản đã ghi danh bằng bản cũ có thể quét mặt, rồi thiết lập mật khẩu
   nếu chưa có thông tin đăng nhập. Thiếu khóa thiết bị phải đi qua khôi phục.

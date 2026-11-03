@@ -115,6 +115,10 @@ import vn.vericlue.app.ui.components.VcScreen
 import vn.vericlue.app.ui.theme.Palette
 import vn.vericlue.app.ui.theme.Vc
 import vn.vericlue.app.ui.theme.VcType
+import vn.vericlue.app.ui.components.LivenessRing
+import vn.vericlue.app.ui.components.ScanBeam
+import vn.vericlue.app.ui.theme.VcStage
+import androidx.compose.material.icons.outlined.Face
 
 // ── Voice (stage C) ──────────────────────────────────────────────────────────
 
@@ -257,9 +261,20 @@ fun CheckingScreen(purpose: Purpose, onDone: () -> Unit, auto: Boolean = true) {
         if (auto) { delay(2500); onDone() }
     }
     VcScreen(centered = true) {
-        StatusBadge(Icons.Outlined.HourglassEmpty)
+        AnalysisBadge()
         TitleBlock("Đang xác minh", "Bạn đã gửi yêu cầu. Vui lòng chờ phản hồi.", centered = true)
         ProcessingPanel("Đang xử lý yêu cầu", "Giữ ứng dụng mở và duy trì kết nối mạng. Kết quả sẽ xuất hiện khi hệ thống xử lý xong.")
+    }
+}
+
+/** Face inside the liveness ring with a sweeping beam: the server is analysing, no progress claimed. */
+@Composable
+private fun AnalysisBadge() {
+    LivenessRing(active = true, size = 168.dp, arc = VcStage.ring, disc = Vc.colors.surfaceInfo) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Icon(Icons.Outlined.Face, contentDescription = null, tint = Vc.colors.accent, modifier = Modifier.size(56.dp))
+            ScanBeam(Modifier.fillMaxSize())
+        }
     }
 }
 

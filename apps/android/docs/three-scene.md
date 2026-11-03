@@ -3,7 +3,7 @@
 ## Cách tích hợp
 
 Three.js là JavaScript, app vẫn dùng Kotlin/Compose. `IdentityScene3D`
-nhúng WebView trang trí ở bốn màn. Theo phản hồi test thiết bị, không có
+nhúng WebView trang trí ở năm màn. Theo phản hồi test thiết bị, không có
 tab/chọn cảnh/xem lại/tạm dừng trong app. Cảnh tự
 tạo bằng hình học: thẻ, đầu mannequin, micro, khiên/khóa và huy hiệu;
 không dùng ảnh, mô hình 3D tải ngoài, dữ liệu định danh hoặc kết quả xác minh.
@@ -15,12 +15,13 @@ Không dùng 3D trên camera, gaze, nháy màu hoặc màn chờ kết quả.
 | Đồng ý dữ liệu | Khiên/khóa minh họa phần quyền chủ động; không tự đồng ý hay hứa mức bảo mật mới |
 | Chuẩn bị khuôn mặt | Khuôn mặt 3D trang trí; hướng dẫn thao tác là chữ native ngắn |
 | Thành công | Huy hiệu nổi và điểm sáng; chỉ được gọi từ màn kết quả đã có, không quyết định kết quả |
+| Đăng nhập | Cảnh `backdrop` phủ cả màn, nằm sau thẻ kính: khối bo tròn trượt vào, thẻ căn cước xoay về chính diện trong vòng bốn màu của thử thách phản chiếu. Luôn dùng nền navy cố định ở cả hai theme. Vòng chỉ trang trí, không phải thử thách thật; giảm chuyển động thì dùng bản vẽ native cùng bố cục |
 
-`illustrations.js` chứa bảy cảnh tự dựng bằng `ExtrudeGeometry`, đường cong
+`illustrations.js` chứa tám cảnh tự dựng bằng `ExtrudeGeometry`, đường cong
 `TubeGeometry`, vật liệu/ánh sáng và nhóm chuyển động. Lưới micro, dải âm và
 điểm sáng dùng `InstancedMesh`. Sóng âm là minh họa, không nối micro. Khi đổi
 cảnh, geometry/material/instance cũ được dispose; ánh sáng/camera/renderer dùng
-chung. Bộ bảy cảnh còn ở trang review cho người phát triển; app chỉ dùng bốn
+chung. Bộ tám cảnh còn ở trang review cho người phát triển; app chỉ dùng năm
 cảnh phù hợp từng màn. Các nút điều khiển trong trang review không phải UI app.
 Chuyển động hiện có nâng/xoay khối, ghép lớp thẻ và đóng khóa, sau đó ổn định
 đúng tư thế cuối ở mốc 3 giây. Reduced motion dùng cùng tư thế cuối. Hero và

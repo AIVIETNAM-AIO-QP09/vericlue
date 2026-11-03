@@ -107,9 +107,13 @@ import vn.vericlue.app.ui.components.TitleBlock
 import vn.vericlue.app.ui.components.Tone
 import vn.vericlue.app.ui.components.VcLogo
 import vn.vericlue.app.ui.components.VcScreen
+import vn.vericlue.app.ui.components.LivenessRing
+import vn.vericlue.app.ui.components.StageAmbient
+import vn.vericlue.app.ui.components.stageBackground
 import vn.vericlue.app.ui.components.StatusBadge
 import vn.vericlue.app.ui.theme.Palette
 import vn.vericlue.app.ui.theme.Vc
+import vn.vericlue.app.ui.theme.VcStage
 import vn.vericlue.app.ui.theme.VcType
 
 // ── Host bank app (mock) ──────────────────────────────────────────────────────
@@ -171,8 +175,14 @@ fun SplashScreen(onDone: () -> Unit) {
         onDone()
     }
     SystemBarIcons(c.background)
-    Box(Modifier.fillMaxSize().background(c.background), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxSize().stageBackground(), contentAlignment = Alignment.Center) {
+        StageAmbient()
         Rings(c.illustration.copy(alpha = appear.value), Modifier.fillMaxSize())
+        // The liveness ring draws itself around the mark while the app starts.
+        Box(Modifier.alpha(appear.value)) {
+            LivenessRing(active = true, size = 260.dp, arc = VcStage.ring, tick = c.border, disc = Color.Transparent,
+                glow = c.accent) {}
+        }
         Column(
             Modifier.alpha(appear.value).scale(0.92f + 0.08f * appear.value),
             horizontalAlignment = Alignment.CenterHorizontally,
