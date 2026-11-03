@@ -18,7 +18,11 @@ class IdentityRuntime:
     def _create_scanner(self):
         from vericlue_api.services.card_scanner import CardScanner
 
-        return CardScanner(models_dir=self.settings.models_dir, device=self.settings.device)
+        return CardScanner(
+            models_dir=self.settings.models_dir,
+            device=self.settings.device,
+            qr_backend=self.settings.identity_qr_backend,
+        )
 
     def preload(self) -> None:
         """Load once on demand, or explicitly before starting the demo server."""

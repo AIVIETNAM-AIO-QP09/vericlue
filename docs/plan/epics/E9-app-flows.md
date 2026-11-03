@@ -832,12 +832,23 @@ cả QR/chân dung. Giữ chốt cùng ảnh; thử bộ giải mã QR bổ sung
 ảnh tĩnh, hiển thị trạng thái preview chính xác. Không kết luận lỗi model
 hoặc so ngang Zalo khi chưa đo trên cùng điều kiện.
 
+**Yêu cầu tiếp theo 03/11 — WeChat và ngưỡng demo:** người dùng đã cho phép
+thay OpenCV QRCodeDetector bằng WeChat trên server, giữ ZXing-C++ và chốt
+QR/chân dung cùng ảnh. Tải trọng số pin revision/SHA-256, preload một lần;
+không fallback ngầm khi thiếu/sai model. Cho phép kích hoạt preset hiện có
+`phone-demo-fixed-v1` trong manual full demo; đây là ngưỡng thủ công chưa
+hiệu chỉnh, không thay artifact chuẩn. Giữ lỗi/degraded/timeout non-pass.
+Yêu cầu mới này thay giới hạn chỉ bật GenD 0.95 ở bàn giao 13:47; không cấp
+thêm quyền xóa tài khoản. Xem bàn giao `2026-11-03-1656-app-04-codex.md`.
+
 **Tiêu chí hoàn thành:**
 - [x] Đi hết giai đoạn A trên điện thoại thật. (27/10, Galaxy S24 FE, thẻ CCCD gắn chip; bàn giao `2026-10-27-2000-app-01`)
 - [ ] Nghiệm thu lại bước quét một màn theo yêu cầu 03/11 trên S24 FE; test tự động không thay nghiệm thu này.
 - [ ] Nghiệm thu camera native sau khi bỏ Document Scanner theo yêu cầu mới: tự nhận QR/chân dung, ảnh tĩnh chi tiết, ZXing bổ sung; kiểm cả chữ lớn và ảnh thiếu một thành phần.
 - [x] Tách chụp/gửi khỏi xác nhận; không dùng QR cũ, không chấp nhận QR xung đột hoặc thiếu chân dung phía server cho ảnh một mặt.
 - [x] Có smoke giai đoạn A trên API local: hai đồng ý, OTP sai/đúng, đọc QR tổng hợp và từ chối ảnh thiếu chân dung; phát hiện cấu hình thiếu OTP/lệch phiên bản trước giao bản thử.
+- [x] Tích hợp WeChat opt-in với pin trọng số; test QR xung đột/thiếu model, giữ kiểm SCRFD và preset demo hiện có.
+- [ ] Nghiệm thu lại xác minh đầu cuối trên điện thoại sau khi bật WeChat và preset full demo.
 
 ---
 

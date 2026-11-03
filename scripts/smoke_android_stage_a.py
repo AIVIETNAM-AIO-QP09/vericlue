@@ -29,7 +29,21 @@ def check_profile(values: dict[str, str | None]) -> None:
             raise ValueError(f"Local Android demo requires {name}={expected}")
 
 
-def run() -> None:
+def check_manual_session(session: dict) -> None:
+    """Check the running API's mode/hash, not just its environment file."""
+    import sys
+
+    sys.path.insert(0, str(ROOT / "ml/src"))
+    from vericlue_ml.common.manual_demo import PHONE_DEMO_FIXED_V1
+
+    if (
+        session.get("evaluation_mode") != "manual_full_demo"
+        or session.get("demo_policy_id") != PHONE_DEMO_FIXED_V1.policy_id
+    ):
+        raise ValueError("Running API does not use phone-demo-fixed-v1 manual full demo")
+
+
+def run(*, expect_manual_preset: bool = False) -> None:
     """Probe the running loopback API using only generated synthetic data."""
     import cv2
     import httpx
@@ -71,6 +85,9 @@ def run() -> None:
         path = "/v1/sessions/" + session["session_id"]
         client.headers["Authorization"] = "Bearer " + session["token"]
         try:
+            if expect_manual_preset:
+                check_manual_session(session)
+                print("PASS: running API creates manual_full_demo with phone-demo-fixed-v1 hash")
             privacy = request("GET", path + "/privacy")
             assert privacy["policy_version"] == "demo-v1"
             granted = request(
@@ -132,11 +149,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime-dir", type=Path, default=ROOT / "tmp/vericlue-server")
     parser.add_argument("--run-synthetic", action="store_true", required=True)
+    parser.add_argument("--expect-manual-preset", action="store_true")
     args = parser.parse_args()
     from dotenv import dotenv_values
 
     check_profile(dotenv_values(args.runtime_dir / ".env"))
-    run()
+    run(expect_manual_preset=args.expect_manual_preset)
 
 
 if __name__ == "__main__":

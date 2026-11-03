@@ -1,5 +1,18 @@
 # third_party — Ghi nhận mã nguồn dùng lại
 
+## APP-04 — WeChat QR trên server
+
+Adapter gọi `cv2.wechat_qrcode_WeChatQRCode` từ OpenCV contrib; không chép mã
+nguồn thuật toán. Bốn file mô hình được tải từ
+[`opencv/opencv_3rdparty`](https://github.com/opencv/opencv_3rdparty/tree/a8b69ccc738421293254aec5ddb38bd523503252),
+revision `a8b69ccc738421293254aec5ddb38bd523503252`, nhánh `wechat_qrcode_20210119`.
+SHA-256 pin trong `services/api/src/vericlue_api/services/wechat_qr.py`;
+script `scripts/download_wechat_qr.py` kiểm byte trước khi cài vào thư mục
+`MODELS_DIR/wechat-qrcode` được bỏ qua bởi Git. Không commit trọng số.
+[OpenCV Zoo](https://github.com/opencv/opencv_zoo/tree/main/models/qrcode_wechatqrcode)
+công bố Apache-2.0; giữ nguyên [giấy phép](licenses/wechat-qrcode-Apache-2.0.txt)
+khi phân phối. ZXing-C++ tiếp tục chạy, SCRFD không đổi.
+
 ## APP-04 — Bộ giải mã QR trên Android
 
 Dependency Maven `com.google.zxing:core:3.5.3`, giấy phép Apache-2.0:

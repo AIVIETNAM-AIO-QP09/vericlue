@@ -1,11 +1,21 @@
 # services/api — Máy chủ API (FastAPI)
 
+**APP-04 — WeChat QR (03/11):** `IDENTITY_QR_BACKEND=wechat` thay bộ đọc OpenCV
+thường bằng detector + super-resolution WeChat, chạy cùng ZXing-C++ trên ảnh
+được tải lên. Cả hai kết quả được giữ để phát hiện QR xung đột; chân dung vẫn
+dùng SCRFD trên ảnh gốc. Mô hình nạp một lần, kiểm SHA-256 lúc khởi động;
+thiếu/sai trọng số báo chưa sẵn sàng, không fallback ngầm. Cài extra `face`
+(OpenCV contrib), rồi chạy `python scripts/download_wechat_qr.py --models-dir
+<MODELS_DIR>`. Mặc định `opencv` giữ tương thích các môi trường cũ; server
+được chuyển sang WeChat bằng cấu hình riêng. Test tổng hợp không chứng minh
+độ nhạy trên CCCD thật. Xem [runbook](../../docs/runbooks/manual-face-demo.md).
+
 **APP-04 (03/11):** quét một ảnh `front` luôn yêu cầu QR hợp lệ và chân dung
 phía server khi bật `IDENTITY_CARD_ENABLED`, kể cả cấu hình cũ không yêu cầu
 chân dung. Điện thoại có thể chưa đọc được một trong hai; không dùng QR client
 thay kết quả giải mã ảnh. QR khó đọc được thử lại trên hai vùng chồng lấp và
 tối đa hai vùng thẻ nắn phối cảnh, chỉ từ cùng ảnh gốc. Chân dung vẫn kiểm trên
-ảnh gốc bằng SCRFD; không bổ sung model/trọng số hoặc đổi ngưỡng sinh trắc.
+ảnh gốc bằng SCRFD. Đây là cải thiện hình học trước lần tích hợp WeChat ở trên.
 
 **APP-03 (02/11):** manual full demo cho phép kết quả nội dung
 `ok/fail/E_CHALLENGE_MISMATCH` dùng lượt đọc lại hiện có, tối đa một lần;

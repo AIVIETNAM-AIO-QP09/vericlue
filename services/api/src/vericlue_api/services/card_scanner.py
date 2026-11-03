@@ -3,6 +3,7 @@
 import io
 import re
 from datetime import datetime
+from pathlib import Path
 from threading import Lock
 
 import cv2
@@ -48,19 +49,30 @@ def valid_card_qr(value):
 
 
 class CardScanner:
-    def __init__(self, portrait_check=None, *, models_dir=None, device="cpu"):
+    def __init__(self, portrait_check=None, *, models_dir=None, device="cpu", qr_backend="opencv"):
+        if qr_backend not in {"opencv", "wechat"}:
+            raise ValueError("Unknown QR backend")
         self.models_dir = models_dir
         self.device = device
         self._portrait_check = portrait_check
         self._finder = None
         self._lock = Lock()
+        self._wechat = None
+        if qr_backend == "wechat":
+            from vericlue_api.services.wechat_qr import WeChatQR
+
+            if models_dir is None:
+                raise ValueError("WeChat QR requires MODELS_DIR")
+            self._wechat = WeChatQR(Path(models_dir))
 
     def preload(self):
-        """Load only the existing SCRFD portrait finder; never load a text model."""
+        """Verify selected QR backend and load SCRFD; never load a text model."""
         import zxingcpp
 
         if not callable(zxingcpp.read_barcodes):
             raise RuntimeError("QR decoder unavailable")
+        if self._wechat is not None:
+            self._wechat.preload()
         if self._portrait_check is not None or self._finder is not None:
             return
         from vericlue_ml.face.pad import ScrfdFaceFinder, _models_root, shared_scrfd_session
@@ -68,8 +80,7 @@ class CardScanner:
         session, _ = shared_scrfd_session(_models_root(self.models_dir), self.device)
         self._finder = ScrfdFaceFinder(session, scale=128.0, swap_rb=True)
 
-    @staticmethod
-    def qr_values(images):
+    def qr_values(self, images):
         values = set()
         try:
             import zxingcpp
@@ -77,7 +88,7 @@ class CardScanner:
             zxingcpp = None
         for original in images:
             # Always keep original decodes, including conflicts. Rectification is only a retry.
-            reads = CardScanner._decode_qr(original, zxingcpp)
+            reads = self._decode_qr(original, zxingcpp)
             values.update(reads)
             if not any(valid_card_qr(value) for value in reads):
                 width = original.shape[1]
@@ -85,11 +96,10 @@ class CardScanner:
                 views = [original[:, :span], original[:, width - span :]]
                 views.extend(rectified_card_views(original))
                 for view in views:
-                    values.update(CardScanner._decode_qr(view, zxingcpp))
+                    values.update(self._decode_qr(view, zxingcpp))
         return sorted(values)
 
-    @staticmethod
-    def _decode_qr(original, zxingcpp):
+    def _decode_qr(self, original, zxingcpp):
         values = set()
         image = original
         h, w = image.shape[:2]
@@ -104,6 +114,11 @@ class CardScanner:
             if max(h, w) <= 1600
             else [cv2.resize(image, (round(w * 1600 / max(h, w)), round(h * 1600 / max(h, w))))]
         ):
+            if self._wechat is not None:
+                # Run even when ZXing succeeded, preserving conflicts from the same image.
+                # Backend errors propagate: never silently replace a requested model.
+                values.update(self._wechat.decode(pixels))
+                continue
             detector = cv2.QRCodeDetector()
             try:
                 ok, texts, _, _ = detector.detectAndDecodeMulti(pixels)

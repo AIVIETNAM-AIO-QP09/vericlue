@@ -55,7 +55,7 @@ def test_retry_reads_are_combined_and_conflicts_are_not_hidden(monkeypatch):
     monkeypatch.setattr(
         "vericlue_api.services.card_scanner.rectified_card_views", lambda _: [image.copy()]
     )
-    assert CardScanner.qr_values([image]) == sorted([QR, recovered])
+    assert CardScanner().qr_values([image]) == sorted([QR, recovered])
 
 
 def test_readable_original_avoids_extra_work_but_still_checks_second_image(monkeypatch):
@@ -66,7 +66,7 @@ def test_readable_original_avoids_extra_work_but_still_checks_second_image(monke
         raise AssertionError("Readable original must not need additional geometry work")
 
     monkeypatch.setattr("vericlue_api.services.card_scanner.rectified_card_views", forbidden)
-    assert len(CardScanner.qr_values([np.zeros((100, 160, 3), np.uint8)] * 2)) == 2
+    assert len(CardScanner().qr_values([np.zeros((100, 160, 3), np.uint8)] * 2)) == 2
 
 
 def test_recovered_qr_without_portrait_is_not_usable(monkeypatch):
