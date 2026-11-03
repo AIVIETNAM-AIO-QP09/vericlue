@@ -21,10 +21,16 @@
 - Test thêm SĐT khác/OTP thiếu, legacy username, tên client không được tin,
   encrypted store chống đổi ciphertext/khóa/storage key, hint hết hạn và
   snapshots setup/lời chào có tên ở sáng/tối, chữ thường/200%.
+- PR #140 Ready, base #139. APK nguồn `23806cb` (working tree Android sạch)
+  đã ký cùng chứng thư và cài đè nubia Neo 2 thành công, giữ dữ liệu. App mở
+  được, không thấy lỗi AndroidRuntime trong kiểm tra khởi động; SHA-256 APK
+  trên máy khớp `d66ebe7c371891d180464b6ac784e6e4a2b27a920bb592f321d742b87cf72680`.
 
 ## Đang dở
 <!-- file:dòng, việc gì còn dang dở -->
-- Android full suite và lượt kiểm tra cuối đã PASS; chờ ký/cài APK và nghiệm thu máy.
+- Android full suite và lượt kiểm tra cuối đã PASS; APK đã cài, chờ nghiệm thu luồng thực tế.
+- Server 8421 hiện tắt; ADB reverse đã nối lại. Chưa kiểm tra Android Keystore
+  trên lượt đăng nhập thật hoặc đăng ký đầu-cuối, cần server và người dùng tự xác minh.
 - Chưa nghiệm thu đăng ký mới hoặc recovery trên điện thoại; API tests dùng
   dữ liệu tổng hợp và chữ ký thật, không đo độ chính xác sinh trắc.
 
