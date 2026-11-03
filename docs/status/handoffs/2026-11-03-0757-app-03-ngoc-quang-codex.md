@@ -32,16 +32,15 @@
   gốc giữ nguyên; không công khai điểm, ID, transcript hoặc ảnh/video.
 
 ## Đang dở
-- Parity đầy đủ sau sửa và toàn bộ test Python không slow đã PASS. Mục cuối
-  của bàn giao ghi kết quả triển khai thực tế sau khi kích hoạt API.
+- Parity đầy đủ sau sửa và toàn bộ test Python không slow đã PASS. API mới
+  đã triển khai và server sẵn sàng; chi tiết bằng chứng ở mục cuối.
 - Khôi phục/giọng/lipsync trên điện thoại chưa nghiệm thu. Cần dữ liệu có
   quyền dùng, tách người/nguồn để hiệu chỉnh/đánh giá đúng phiên bản mới.
 
 ## Bước tiếp theo
-1. Hoàn tất parity sau sửa, replay cùng input cố định và kiểm hồi quy.
-2. Review, commit mã; cập nhật riêng API snapshot, giữ APK/data/key/profile.
-3. Khởi động kiểm chứng server. Không yêu cầu thử lặp lại để tìm ngưỡng đạt.
-4. Giữ DraftPR135 và trạng thái doing nếu chưa có nghiệm thu thật.
+1. Theo dõi CI đúng HEAD của Draft PR135; không merge khi nghiệm thu còn mở.
+2. Chuẩn bị dữ liệu hiệu chỉnh/đánh giá đúng version, tách người/nguồn.
+3. Nghiệm thu lại khi có căn cứ; không yêu cầu thử lặp lại để tìm ngưỡng đạt.
 
 ## Quyết định, lưu ý, bẫy
 - Hai agent độc lập dựng/review oracle; agent khác đưa công cụ vào repo,
@@ -88,3 +87,22 @@
   cutoff hiện có. Không chuyển kết quả DB cũ thành pass hoặc tuyên bố nghiệm thu.
 - [Báo cáo aggregate](../results/APP-03-gend-parity-2026-11-03.json) ghi hash
   mã đã đo, model/runtime và mẫu số; giữ điểm người thử ở vùng riêng.
+
+## Triển khai thực tế lúc 08:17 ngày 03/11
+
+- Commit mã: `f3305b2c150c062a6c5b685a81b590b18342426c`, đã push PR135.
+  API chạy từ Git archive bất biến gồm 611 file; hash mã GenD/công cụ/helper
+  khớp bằng chứng native trước commit. Commit bàn giao sau đó chỉ đổi tài liệu.
+- Chuẩn bị, kiểm tra và kích hoạt API riêng bằng helper đã review. Backup tại
+  `revision-backups/before-api-only-gend-f3305b2c150c` trong bundle riêng.
+  Toàn bộ hàng SQLite, khóa/media, APK và profile khớp trước/sau kích hoạt;
+  không migration hoặc sửa quyết định cũ. APK giữ nguồn `c646868`.
+- Server thực tế báo READY; health `ok`, `failed_modules=[]`, xác minh đúng
+  instance bằng phiên ký mới và đúng policy. Cờ health `mock_models=true`
+  phản ánh mặc định toàn API, không thay thế kiểm cấu hình/worker của phiên
+  manual demo chạy mô hình thật. Selector Qwen1.7B và sáu ngưỡng giữ nguyên.
+- S24 FE vẫn kết nối ADB; reverse cổng8421 được đặt và kiểm lại. Không cài
+  APK, tự mở app hoặc tạo lượt xác minh người thật trong bước triển khai này.
+- Máy/server giữ bật cho người dùng. Không tiếp tục lệnh tắt máy qua đêm cũ.
+- Khôi phục vẫn **chưa nghiệm thu**: parity đã sửa đúng, nhưng original/fixed
+  cùng từ chối video cố định ở ngưỡng hiện có. Cần hiệu chỉnh độc lập đúng version.
