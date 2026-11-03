@@ -820,17 +820,22 @@ local. Thử crop QR và nắn phối cảnh giới hạn, chưa thay model/tr�
 - Một màn camera sau tự chụp; ảnh mới có thể gửi để server đọc phần còn thiếu, chỉ sang xác nhận khi đủ QR/chân dung cùng ảnh, thiếu thì hướng dẫn chỉnh tại chỗ, không mở bước QR riêng.
 - Màn hình xác nhận thông tin.
 
-**Thay cách thu ảnh, 03/11 chiều:** người dùng chọn bộ quét tài liệu tự chụp
+**Lịch sử — bộ quét tài liệu đã được yêu cầu bỏ, 03/11 chiều:** người dùng chọn bộ quét tài liệu tự chụp
 thay vì tiếp tục căn QR trong camera cũ. Luồng API mặc định mở ML Kit Document
 Scanner, một trang JPEG, không nhập thư viện, chế độ BASE. SDK nhận mép/chụp
 và có màn kiểm tra ảnh; app gửi JPEG cho server đọc QR/chân dung. Lỗi tải có
 retry/camera cũ dự phòng, hủy không mở lại liên tục. Không ghi nhận thành công
 từ việc chụp được ảnh, không đổi chốt server. Luồng offline/gallery giữ cũ.
 
+**Yêu cầu tiếp theo 03/11 16h:** quay lại camera trong app, tự detect và đọc
+cả QR/chân dung. Giữ chốt cùng ảnh; thử bộ giải mã QR bổ sung, tăng chi tiết
+ảnh tĩnh, hiển thị trạng thái preview chính xác. Không kết luận lỗi model
+hoặc so ngang Zalo khi chưa đo trên cùng điều kiện.
+
 **Tiêu chí hoàn thành:**
 - [x] Đi hết giai đoạn A trên điện thoại thật. (27/10, Galaxy S24 FE, thẻ CCCD gắn chip; bàn giao `2026-10-27-2000-app-01`)
 - [ ] Nghiệm thu lại bước quét một màn theo yêu cầu 03/11 trên S24 FE; test tự động không thay nghiệm thu này.
-- [x] Luồng API mặc định dùng bộ quét tài liệu tự chụp theo lựa chọn người dùng; hủy/thử lại/dự phòng, chặn gửi trùng và giữ kiểm QR/chân dung ở server. Có test logic và màn lỗi/đang đọc với chữ lớn.
+- [ ] Nghiệm thu camera native sau khi bỏ Document Scanner theo yêu cầu mới: tự nhận QR/chân dung, ảnh tĩnh chi tiết, ZXing bổ sung; kiểm cả chữ lớn và ảnh thiếu một thành phần.
 - [x] Tách chụp/gửi khỏi xác nhận; không dùng QR cũ, không chấp nhận QR xung đột hoặc thiếu chân dung phía server cho ảnh một mặt.
 - [x] Có smoke giai đoạn A trên API local: hai đồng ý, OTP sai/đúng, đọc QR tổng hợp và từ chối ảnh thiếu chân dung; phát hiện cấu hình thiếu OTP/lệch phiên bản trước giao bản thử.
 

@@ -106,12 +106,12 @@ fun idScanHint(q: IdQuality?, back: Boolean): String = when {
     q.qrConflicting || q.portraitCount > 1 -> "Chỉ đặt một thẻ trong khung"
     q.brightness < 45 -> "Đưa thẻ đến nơi sáng hơn"
     !q.noGlare -> "Nghiêng nhẹ thẻ để tránh lóa"
-    !q.sharp -> "Giữ yên thẻ và điện thoại để lấy nét"
+    !q.sharp -> "Chạm lên thẻ để lấy nét, rồi giữ yên"
     q.portraitPresent && CccdQr.parse(q.qr) != null -> "Giữ yên, ứng dụng đang tự chụp"
     q.qrCandidatePresent || CccdQr.parse(q.qr) != null -> "Giữ đủ thẻ trong khung, ứng dụng đang lấy ảnh rõ hơn"
     q.tilted -> "Giữ thẻ thẳng và song song với camera"
     !q.portraitPresent -> "Đặt đủ bốn góc thẻ trong khung để thấy rõ chân dung"
-    CccdQr.parse(q.qr) == null -> "Đưa thẻ gần hơn để mã QR rõ, giữ đủ bốn góc trong khung"
+    CccdQr.parse(q.qr) == null -> "Giữ yên để tự chụp và đọc mã QR"
     else -> "Giữ yên, ứng dụng đang tự chụp"
 }
 
@@ -139,7 +139,7 @@ fun idScanDisplayHint(q: IdQuality?, back: Boolean, timedOut: Boolean = false, h
 fun idScanErrorText(hint: String?): String = when (hint) {
     "PORTRAIT_UNREADABLE" -> "Chưa thấy rõ chân dung trên thẻ. Hãy quét lại mặt có ảnh chân dung."
     "QR_INVALID" -> "Mã QR chưa có đủ thông tin phù hợp. Hãy quét lại đúng thẻ."
-    else -> "Chưa đọc được mã QR từ ảnh. Hãy đưa thẻ gần hơn, tránh lóa rồi quét lại."
+    else -> "Chưa đọc được mã QR. Giữ đủ thẻ trong khung, chạm lấy nét và tránh lóa."
 }
 
 object ImageChecks {

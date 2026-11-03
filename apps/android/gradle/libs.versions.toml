@@ -10,7 +10,7 @@ paparazzi = "1.3.5"
 camerax = "1.4.1"
 mlkitFace = "16.1.7"
 mlkitBarcode = "17.3.0"
-mlkitDocument = "16.0.0"
+zxing = "3.5.3"
 playAuthPhone = "18.1.0"
 okhttp = "4.12.0"
 serialization = "1.7.3"
@@ -18,7 +18,7 @@ coroutines = "1.9.0"
 lottie = "6.6.2"
 
 [libraries]
-mlkit-document-scanner = { group = "com.google.android.gms", name = "play-services-mlkit-document-scanner", version.ref = "mlkitDocument" }
+zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }

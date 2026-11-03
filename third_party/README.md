@@ -1,5 +1,12 @@
 # third_party — Ghi nhận mã nguồn dùng lại
 
+## APP-04 — Bộ giải mã QR trên Android
+
+Dependency Maven `com.google.zxing:core:3.5.3`, giấy phép Apache-2.0:
+https://github.com/zxing/zxing/tree/zxing-3.5.3 . Adapter `CardQrDecoder.kt`
+gọi API `QRCodeMultiReader`/binarizer, không chép code upstream. Chỉ đọc ảnh
+tĩnh trong bộ nhớ, không dùng dịch vụ ngoài, không thêm trọng số mô hình.
+
 ## LIVE-05 — Chứng nhận riêng tư
 
 `services/credentials` dùng nguyên bản package npm, không chép primitive mật mã:

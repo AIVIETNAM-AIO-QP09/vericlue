@@ -42,6 +42,28 @@ abstract class IdAutomaticScanSnapshots(device: DeviceConfig) {
         assertTrue("The user can still stop verification", "Dừng xác minh" in texts)
         assertFalse("Waiting must never expose a manual shutter", texts.any { "Chụp ảnh thẻ" in it })
         assertTrue("Automatic capture remains explained", texts.any { "đang tự chụp" in it })
+        assertTrue("Live QR detection is visible", "Đã nhận diện mã QR" in texts)
+        assertTrue("Live portrait detection is visible", "Đã nhận diện chân dung" in texts)
+        assertFalse("Preview must not claim a still has been read", "Đã đọc thông tin từ ảnh" in texts)
+    }
+
+    @Test fun portraitOnlyPreviewDoesNotClaimQrWasRead() {
+        var texts = emptyList<String>()
+        paparazzi.snapshot("portrait_found_qr_pending") {
+            val root = LocalView.current as RootForTest
+            VcTheme(motionEnabled = false) {
+                Box(Modifier.fillMaxSize().onGloballyPositioned {
+                    texts = root.semanticsOwner.getAllSemanticsNodes(mergingEnabled = false)
+                        .flatMap { it.config.getOrNull(SemanticsProperties.Text).orEmpty() }.map { it.text }
+                }) {
+                    IdScanScreen(false, IdQuality(500.0, 0.0, null, portraitPresent = true), {}, {})
+                }
+            }
+        }
+        assertTrue("Đã nhận diện chân dung" in texts)
+        assertTrue("Đang tìm mã QR" in texts)
+        assertFalse("Đã nhận diện mã QR" in texts)
+        assertTrue("Dừng xác minh" in texts)
     }
 }
 

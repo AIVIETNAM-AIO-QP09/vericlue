@@ -417,45 +417,6 @@ fun VeriClueApp() {
             taking = taking || captured, hint = idHint, extracted = extracted)
     }
 
-    @Composable
-    fun IdDocumentRoute() {
-        var useNativeCamera by remember { mutableStateOf(!flow.live) }
-        if (useNativeCamera) {
-            IdCaptureRoute()
-        } else {
-            LaunchedEffect(Unit) { camera.clearQr(); camera.unbind() }
-            DocumentCardRoute(
-                onBack = { nav.popBackStack() }, onStop = { exit() },
-                onFallback = { useNativeCamera = true },
-                onImage = { bytes ->
-                    val sessionId = live.session?.sessionId
-                    if (sessionId == null) {
-                        nav.go(Routes.ErrorSession)
-                        null
-                    } else {
-                        // A document capture is not an identity verdict: only the server reads it.
-                        val (hint, error) = live.sendIdCard(bytes, null, null)
-                        currentCoroutineContext().ensureActive()
-                        when {
-                            live.session?.sessionId != sessionId -> { nav.go(Routes.ErrorSession); null }
-                            error != null -> { nav.go(errorRoute(error)); null }
-                            hint != null || live.idFields == null -> idScanErrorText(hint)
-                            else -> {
-                                cccd = FlowRules.cccdFrom(live.idFields!!)
-                                idFront = null
-                                idBack = null
-                                idConfirmed = false
-                                faceCaptured = false
-                                nav.go(Routes.Confirm)
-                                null
-                            }
-                        }
-                    }
-                },
-            )
-        }
-    }
-
     fun startFace() {
         flow.newChallenge()
         camera.stopRecording()
@@ -775,7 +736,7 @@ fun VeriClueApp() {
         composable(Routes.OtpError) {
             OtpScreen(onBack = { nav.popBackStack() }, onVerified = { nav.go(FlowRules.afterOtp(flow.purpose)) }, startWithError = true)
         }
-        composable(Routes.IdFront) { IdDocumentRoute() }
+        composable(Routes.IdFront) { IdCaptureRoute() }
         composable(Routes.IdFrontGlare) { IdScanScreen(false, IdQuality(500.0, 0.5, null),
             onBack = { nav.popBackStack() }, onStop = exit) }
         // Old saved/debug routes rejoin the same scan; no QR-only fallback screen remains.
