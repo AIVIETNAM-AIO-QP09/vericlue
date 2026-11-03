@@ -38,8 +38,8 @@ contracts/thresholds.yaml/ADR, không tự xóa tài khoản hoặc nới error/
   hành vi cũ. Review độc lập không có blocker.
 
 ## Đang dở
-- Đã tích hợp, review, kiểm render, test/lint và build APK; đang đóng gói/cài
-  giữ dữ liệu. Nghiệm thu những thay đổi UI này trên S24 FE còn chờ người dùng.
+- Đã tích hợp, review, kiểm render, test/lint, build và cài APK giữ dữ liệu.
+  Nghiệm thu những thay đổi UI này trên S24 FE còn chờ người dùng.
 - Đã thêm mức lấp đầy tối thiểu hai chiều 65% khi vào / 60% khi giữ vị trí,
   vẫn giữ giới hạn tối đa/toàn mặt và kiểm server. Chưa công bố khoảng cách cm
   hoặc mức giảm cảnh báo giả khi chưa đo máy thật.
@@ -48,8 +48,8 @@ contracts/thresholds.yaml/ADR, không tự xóa tài khoản hoặc nới error/
 
 ## Bước tiếp theo
 <!-- Viết đủ rõ để người khác hoặc AI khác làm ngay, không cần hỏi lại -->
-1. Cài APK đã qua sửa/review, test và build, giữ dữ liệu, giữ API/policy
-   hiện tại theo lựa chọn người dùng. Thử CCCD, framing và preview giọng thật.
+1. Người dùng thử CCCD, framing và preview giọng thật trên APK mới; giữ
+   API/policy hiện tại. Không yêu cầu xóa tài khoản để thử đăng ký cùng CCCD.
 2. Preset mới chỉ áp dụng sau khi tài khoản cũ hết hạn: đọc lại số account còn
    hiệu lực ngay trước activation, không chỉ dựa vào mốc giờ cũ. Kiểm manifest,
    source, worker handshake/policy; không đổi receipt hoặc account để lách.
@@ -85,3 +85,19 @@ contracts/thresholds.yaml/ADR, không tự xóa tài khoản hoặc nới error/
   source/display và sai số float; không nới logic sản phẩm để làm test đạt.
 - Render face/voice cỡ chữ thường và 200% đã review; đây là ảnh tổng hợp,
   không thay nghiệm thu camera thật. `plan_check`: 0 lỗi, 10 cảnh báo có sẵn.
+
+## Biên nhận triển khai 13:30 UTC+7
+- APK nguồn `1f0fc6069765fb7234766cc9f61b2cc63b1e2e3f`, cây Android
+  `8ceac4c856eefd0e21e01ae0415371da81252c21`; SHA-256
+  `9178eb03de0713302d5201669bfbaf33f09e252a085cb544536664949ec39c87`.
+- `adb install -r` Success; hash `base.apk` trên S24 FE khớp. Version 0.3.0
+  code 2; lastUpdateTime 03/11 13:29:53, firstInstallTime vẫn 02/11 09:01:50.
+  Không uninstall/clear data/mở app hoặc camera tự động.
+- Signer/v2 và flags live/signed/trace=false đã kiểm; APK cũ + build-info được
+  sao lưu trong bundle riêng trước thay. API vẫn `11dfc7e`, profile SHA giữ
+  `c8177427f499c112d9a0290a6906f99e37f6b48c9f11f5a311b6b461be7e02a2`.
+- `demo.py check` integrity OK; status ready=true, owned_process=true,
+  failed_modules=[]; ADB reverse tcp:8421 hoạt động. Status có tạo một phiên
+  tổng hợp ký HMAC để xác nhận server, không phải lượt người dùng nghiệm thu.
+- Chưa tạo lịch tự động đổi preset; bước activation còn chờ xác nhận tài
+  khoản thực sự hết hạn và kiểm tra lại server/source/binding tại thời điểm đó.
