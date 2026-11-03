@@ -39,24 +39,6 @@ import vn.vericlue.app.ui.theme.Vc
 import vn.vericlue.app.ui.theme.VcTheme
 import vn.vericlue.app.ui.theme.VcType
 
-/** Phase-independent full-window guide. Reserve the same reading/action space in every phase. */
-fun faceGuideRect(width: Float, height: Float, density: Float, fontScale: Float, topInset: Float, bottomInset: Float): Rect {
-    val top = topInset + (128f + 64f * fontScale) * density
-    val bottom = bottomInset + (112f + 56f * fontScale) * density
-    val available = (height - top - bottom).coerceAtLeast(24f * density)
-    val h = minOf(minOf(320f * density, width * 0.82f) * 1.32f, available)
-    val w = h / 1.32f
-    val center = (height * 0.46f).coerceIn(top + h / 2, maxOf(top + h / 2, height - bottom - h / 2))
-    return Rect((width - w) / 2, center - h / 2, (width + w) / 2, center + h / 2)
-}
-
-fun faceThumbnailRect(width: Float, density: Float, topInset: Float): Rect {
-    val w = minOf(92f * density, width * 0.24f)
-    val right = width - 20f * density
-    val top = topInset + 112f * density
-    return Rect(right - w, top, right, top + w * 1.32f)
-}
-
 /** CameraX keeps one full-size host; gaze changes only its visual presentation, never capture. */
 @Composable
 fun FaceCaptureSurface(
@@ -87,6 +69,7 @@ fun FaceCaptureSurface(
             val top = WindowInsets.statusBars.getTop(density).toFloat()
             val bottom = WindowInsets.navigationBars.getBottom(density).toFloat()
             val viewport = Size(constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat())
+            val sourceGuide = faceSourceGuideRect(viewport.width, viewport.height, density.density, top, bottom)
             val oval = faceGuideRect(viewport.width, viewport.height, density.density, density.fontScale, top, bottom)
             val thumbnail = faceThumbnailRect(viewport.width, density.density, top)
             val reportGuide by rememberUpdatedState(onGuidePosition)
@@ -94,10 +77,10 @@ fun FaceCaptureSurface(
                 if (gaze != null) 1f else 0f,
                 tween(motion.duration(360), easing = FastOutSlowInEasing), label = "camera-thumbnail",
             )
-            val drawing = cameraPresentation(oval, thumbnail, compact)
+            val drawing = faceCameraPresentation(sourceGuide, oval, thumbnail, compact)
             val aperture = Rect(
-                oval.left * drawing.scale + drawing.x, oval.top * drawing.scale + drawing.y,
-                oval.right * drawing.scale + drawing.x, oval.bottom * drawing.scale + drawing.y,
+                sourceGuide.left * drawing.scale + drawing.x, sourceGuide.top * drawing.scale + drawing.y,
+                sourceGuide.right * drawing.scale + drawing.x, sourceGuide.bottom * drawing.scale + drawing.y,
             )
             val radius = CornerRadius(
                 aperture.width / 2f * (1f - compact) + 16f * density.density * compact,
@@ -125,7 +108,7 @@ fun FaceCaptureSurface(
                 }
                 Canvas(Modifier.offset(x = with(density) { aperture.left.toDp() }, y = with(density) { aperture.top.toDp() })
                     .size(with(density) { aperture.width.toDp() }, with(density) { aperture.height.toDp() })
-                    .onGloballyPositioned { reportGuide?.invoke(oval, viewport) }
+                    .onGloballyPositioned { reportGuide?.invoke(sourceGuide, viewport) }
                     .testTag(if (gaze == null) "face-guide" else "face-preview-thumbnail")) {
                     drawRoundRect(ring, cornerRadius = radius, style = Stroke(2.dp.toPx()))
                     if (gaze == null) (actionProgress ?: progress)?.let {

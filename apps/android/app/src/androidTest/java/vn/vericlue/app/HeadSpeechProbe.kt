@@ -21,6 +21,11 @@ class HeadSpeechProbe : Instrumentation() {
         super.onCreate(arguments); start()
     }
     override fun onStart() {
+        if (probeArguments.getString("mode") == "cached-voice-decode") {
+            val output = CachedVoiceDecodeProbe.run(this, probeArguments)
+            finish(if (output.getBoolean("decoded")) Activity.RESULT_OK else Activity.RESULT_CANCELED, output)
+            return
+        }
         if (probeArguments.getString("mode") == "shared-av") {
             val output = MuxedAvProbe.run(this, probeArguments)
             finish(if (output.getBoolean("passed")) Activity.RESULT_OK else Activity.RESULT_CANCELED, output)

@@ -1,0 +1,426 @@
+{
+  "schema_version": 1,
+  "task": "APP-03",
+  "date": "2026-11-03",
+  "review_status": "reviewed",
+  "status": "complete",
+  "scope": "Đo lịch chạy phần mặt trên CPU; không phải accuracy, hiệu chỉnh hoặc nghiệm thu khôi phục.",
+  "source": {
+    "api_commit": "f3305b2c150c062a6c5b685a81b590b18342426c",
+    "benchmark_helper_sha256": "7521ed59555fcc0d9cb174f160f226f16337be2997902a0f7ee175900b0239f3"
+  },
+  "sample_count": 1,
+  "sample_count_basis": "Một đầu vào cố định dùng lại trong cả ba lượt; không phải ba mẫu độc lập.",
+  "scheduling_run_count": 3,
+  "worker_sequence": [
+    9,
+    1,
+    9
+  ],
+  "runtime": {
+    "python": "3.12.15",
+    "python_executable_sha256": "c4be9de77b51260acedd0d42ca5be6d1e02953e833c91a17d66575e00a72bb6c",
+    "version_basis": "Phiên bản package lấy từ kết quả đo. Python được truy vấn sau đo từ executable có SHA-256 khớp bằng chứng đo.",
+    "packages": {
+      "torch": "2.14.1+cpu",
+      "transformers": "4.57.6",
+      "numpy": "2.5.4",
+      "onnxruntime": "1.31.0",
+      "mediapipe": "1.1.1",
+      "opencv-python": null,
+      "opencv-python-headless": null,
+      "safetensors": "0.8.0",
+      "timm": null
+    },
+    "thread_config": {
+      "torch_intraop": 4,
+      "torch_interop": 14,
+      "opencv": 14,
+      "logical_cpus": 14
+    }
+  },
+  "model_version_basis": "SHA-256 của các artifact mô hình/cấu hình được ghi trong provenance của lượt đo; không chứa hash dữ liệu người thử.",
+  "model_artifact_sha256": {
+    "clip-vit-large-patch14/config.json": "8a09b467700c58138c29d53c605b34ebc69beaadd13274a8a2af8ad2c2f4032a",
+    "clip-vit-large-patch14/preprocessor_config.json": "910e70b3956ac9879ebc90b22fb3bc8a75b6a0677814500101a4c072bd7857bd",
+    "fs-vfm-vit-l-fas/msu_vit_0_shot_checkpoint_run_0.pth.tar": "c51bb148d49742cc951e5baa8062ccf9bddada78c92b8e2c5649fa6bcadbdaf2",
+    "fs-vfm-vit-l-fas/pretrain_ds_mean_std.txt": "10ddf058cf60780f9119ba585d1f3ede19c88d8ec5b7f1fd9278a6bce6247882",
+    "gend-clip-l14/config.json": "7f2761e13678191774a152121f1630d19baa33a74216dd264d54445d96b16229",
+    "gend-clip-l14/model.safetensors": "d76f0bdfd74a29fe1b1c1b84a80ac92486993e426878e8c7a3944281fbb96833",
+    "lvface-b/LVFace-B_Glint360K.onnx": "9d834ed8e927fd35b9123b2bf97c40aad05785b1f9ecfb1c4c1f6242d38d1382",
+    "mediapipe-face-landmarker/face_landmarker.task": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff",
+    "scrfd-10g/det_10g.onnx": "5838f7fe053675b1c7a08b633df49e7af5495cee0493c7dcf6697200b85b5b91"
+  },
+  "budget_seconds": 90.8,
+  "preload_count": 1,
+  "preload_ms": 12151.314700000512,
+  "additional_warmup_runs": 0,
+  "excluded_modules": [
+    "voice_challenge",
+    "voice_spoof",
+    "lipsync",
+    "face_continuity"
+  ],
+  "rounds": [
+    {
+      "round": 1,
+      "workers": 9,
+      "face_ms": 20753.083100000367,
+      "identity_start_ms": 20753.083100000367,
+      "identity_remaining_budget_ms": 70046.9168999989,
+      "response_ms": 28192.493300000933,
+      "post_response_drain_ms": 0.4061999989062315,
+      "total_drained_ms": 28192.90870000077,
+      "process_cpu_ms": 154625.0,
+      "prior_drain_ms": 0.016400001186411828,
+      "returned_modules": {
+        "quality": {
+          "status": "ok",
+          "error": null,
+          "latency_ms": 218.82280000136234
+        },
+        "face_pad": {
+          "status": "ok",
+          "error": null,
+          "latency_ms": 20752.049100001386
+        },
+        "face_deepfake": {
+          "status": "ok",
+          "error": null,
+          "latency_ms": 20314.37240000014
+        },
+        "camprobe": {
+          "status": "ok",
+          "error": null,
+          "latency_ms": 74.57240000076126
+        },
+        "gaze_tracking": {
+          "status": "ok",
+          "error": null,
+          "latency_ms": 2574.260299999878
+        },
+        "head_turn": {
+          "status": "ok",
+          "error": null,
+          "latency_ms": 6207.508299999972
+        },
+        "face_match": {
+          "status": "ok",
+          "error": null,
+          "latency_ms": 7439.179299999523
+        }
+      }
+    },
+    {
+      "round": 2,
+      "workers": 1,
+      "face_ms": 25703.305200000614,
+      "identity_start_ms": 25703.305200000614,
+      "identity_remaining_budget_ms": 65096.69479999866,
+      "response_ms": 33503.93740000072,
+      "post_response_drain_ms": 0.16030000006139744,
+      "total_drained_ms": 33504.108000001,
+      "process_cpu_ms": 157046.875,
+      "prior_drain_ms": 0.01869999869086314,
+      "returned_modules": {
+        "quality": {
+          "status": "ok",
+          "error": null,
+          "latency_ms": 613.1378000009136
+        },
+        "face_pad": {
+          "status": "ok",
+          "error": null,
+          "latency_ms": 9671.591100001024
+        },
+        "face_deepfake": {
+          "status": "ok",
+          "error": null,
+          "latency_ms": 19892.651100000876
+        },
+        "camprobe": {
+          "status": "ok",
+          "error": null,
+          "latency_ms": 19893.40000000084
+        },
+        "gaze_tracking": {
+          "status": "ok",
+          "error": null,
+          "latency_ms": 22149.5718999995
+        },
+        "head_turn": {
+          "status": "ok",
+          "error": null,
+          "latency_ms": 25702.660099999775
+        },
+        "face_match": {
+          "status": "ok",
+          "error": null,
+          "latency_ms": 7800.317200000791
+        }
+      }
+    },
+    {
+      "round": 3,
+      "workers": 9,
+      "face_ms": 21460.517999999865,
+      "identity_start_ms": 21460.517999999865,
+      "identity_remaining_budget_ms": 69339.4819999994,
+      "response_ms": 31219.35029999986,
+      "post_response_drain_ms": 0.6399000012606848,
+      "total_drained_ms": 31220.000500001333,
+      "process_cpu_ms": 177343.75,
+      "prior_drain_ms": 0.024199998733820394,
+      "returned_modules": {
+        "quality": {
+          "status": "ok",
+          "error": null,
+          "latency_ms": 469.2674999987503
+        },
+        "face_pad": {
+          "status": "ok",
+          "error": null,
+          "latency_ms": 21220.05639999952
+        },
+        "face_deepfake": {
+          "status": "ok",
+          "error": null,
+          "latency_ms": 21459.08469999995
+        },
+        "camprobe": {
+          "status": "ok",
+          "error": null,
+          "latency_ms": 366.61719999938214
+        },
+        "gaze_tracking": {
+          "status": "ok",
+          "error": null,
+          "latency_ms": 11676.851199999874
+        },
+        "head_turn": {
+          "status": "ok",
+          "error": null,
+          "latency_ms": 16069.099399999686
+        },
+        "face_match": {
+          "status": "ok",
+          "error": null,
+          "latency_ms": 9758.505800000421
+        }
+      }
+    }
+  ],
+  "interpretation": {
+    "module_status_meaning": "status=ok/error=null chỉ mô tả thực thi; không đồng nghĩa người thử được chấp nhận.",
+    "comparison_caveat": "Thứ tự 9→1→9 cố định sau một lần preload, không warmup thêm; cache, warmup và thứ tự lượt vẫn có thể ảnh hưởng. Không có khoảng tin cậy hoặc kết luận cấu hình tối ưu.",
+    "excluded_runtime_pressure": "Voice/Qwen, lipsync và face continuity không được nạp; áp lực RAM/luồng của chúng không có trong phép đo.",
+    "excluded_overhead": "Thời gian truy vấn DB, xác thực, chuẩn bị đầu vào và nhận request không nằm trong số đo.",
+    "deployment_or_readiness_claim": false,
+    "full_preload_comparison_status": "complete",
+    "retained_worker_count": 9,
+    "worker_change_applied": false
+  },
+  "review_scope": "Root đã review phần face-only 9→1→9; phần full_preload_comparison có trạng thái review riêng.",
+  "full_preload_comparison": {
+    "review_status": "reviewed",
+    "status": "complete",
+    "scope": "Nạp đầy đủ mô-đun/worker thực, chỉ suy luận sáu mô-đun mặt và face match; không suy luận giọng hoặc kết luận chấp nhận.",
+    "source": {
+      "api_commit": "f3305b2c150c062a6c5b685a81b590b18342426c",
+      "benchmark_helper_sha256": "13859fbbc9f94e331f91a9c6fd584f546a355de8fb7e88c81d71dd3f5263483e",
+      "job_helper_sha256": "e83b574a07db31dff2cc49d1390dbe22790304d3d6fd754d2c15d5535d7873aa",
+      "support_helper_sha256": "16376e4d3180559f3e649f1a9b0d8529f8029a401239bb1368ea44f218618633"
+    },
+    "sample_count": 1,
+    "same_input_as_face_only": true,
+    "scheduling_run_count": 1,
+    "worker_sequence": [
+      9
+    ],
+    "runtime": {
+      "python": "3.12.15",
+      "python_executable_sha256": "c4be9de77b51260acedd0d42ca5be6d1e02953e833c91a17d66575e00a72bb6c",
+      "version_basis": "Phiên bản package của tiến trình API lấy từ kết quả đo; executable Python cùng SHA-256 với lần truy vấn phiên bản của báo cáo face-only.",
+      "packages": {
+        "torch": "2.14.1+cpu",
+        "transformers": "4.57.6",
+        "numpy": "2.5.4",
+        "onnxruntime": "1.31.0",
+        "mediapipe": "1.1.1",
+        "opencv-python": null,
+        "opencv-python-headless": null,
+        "safetensors": "0.8.0",
+        "timm": null
+      },
+      "thread_config": {
+        "torch_intraop": 4,
+        "torch_interop": 14,
+        "opencv": 14,
+        "logical_cpus": 14
+      },
+      "worker_runtime_file_sha256": {
+        "api": "c4be9de77b51260acedd0d42ca5be6d1e02953e833c91a17d66575e00a72bb6c",
+        "api_pyvenv": "ef107526c7064900aded2ea1225e4e792a378d4a5e1497a02e3d0dbc6730fed5",
+        "spoof": "c4be9de77b51260acedd0d42ca5be6d1e02953e833c91a17d66575e00a72bb6c",
+        "spoof_pyvenv": "ef107526c7064900aded2ea1225e4e792a378d4a5e1497a02e3d0dbc6730fed5",
+        "voice": "c4be9de77b51260acedd0d42ca5be6d1e02953e833c91a17d66575e00a72bb6c",
+        "voice_pyvenv": "ef107526c7064900aded2ea1225e4e792a378d4a5e1497a02e3d0dbc6730fed5"
+      }
+    },
+    "model_version_basis": "Version của 11 mô-đun đã nạp và SHA-256 artifact lấy trực tiếp từ kết quả full-preload; không chứa hash đầu vào hoặc dữ liệu sinh trắc.",
+    "module_readiness": {
+      "quality": {
+        "loaded": true,
+        "version": "quality-scrfd-10g@bfcc7d48"
+      },
+      "face_pad": {
+        "loaded": true,
+        "version": "fs-vfm-vit-l-fas@59f7b50a+scrfd@bfcc7d48+scrfd128-align224-rgb-v1+headturn-3views-max-v1+session-video-v1"
+      },
+      "face_deepfake": {
+        "loaded": true,
+        "version": "gend-clip-l14@891ce014+clip@32bd6428+scrfd-10g@bfcc7d48+align-upstream-numpy-v2+agg-maxmeantop25-v1+headturn-3views-v1+session-video-v1"
+      },
+      "camprobe": {
+        "loaded": true,
+        "version": "camprobe-rules@0.1"
+      },
+      "voice_challenge": {
+        "loaded": true,
+        "version": "qwen3-asr-17b@bcd2b5b7f32b480ab5790554cfa8347f246a14f3+cpu-fp32-content-v2-assistant-prefix"
+      },
+      "voice_spoof": {
+        "loaded": true,
+        "version": "mms-300m-antideepfake@7928e119e09f616b2ce698892e00ca22dbaa40bf+voice01-v1-vad1-ln-win4-hop1-tail-meanlogits+manual-demo-2f7e8becee1dff4d"
+      },
+      "lipsync": {
+        "loaded": true,
+        "version": "stable-syncnet@c42c7e6c+ctc-aligner@49402e95+scrfd-10g@bfcc7d48+voice05-v3-u8resize+manual-demo-2f7e8becee1dff4d"
+      },
+      "face_match": {
+        "loaded": true,
+        "version": "lvface-b@b12702ab1f5c7217+scrfd10g@bfcc7d48+arcface112-rgb-minus1to1-v1+front-reference-v2+video-frontal-v1"
+      },
+      "face_continuity": {
+        "loaded": true,
+        "version": "lvface-b@b12702ab1f5c7217+scrfd10g@bfcc7d48+arcface112-rgb-minus1to1-v1+front-reference-v2+video-frontal-v1+face-voice-v1"
+      },
+      "gaze_tracking": {
+        "loaded": true,
+        "version": "gaze-rules@0.3+face-landmarker-f16-1"
+      },
+      "head_turn": {
+        "loaded": true,
+        "version": "head-turn-rules@0.2+face-landmarker-f16-1"
+      }
+    },
+    "model_artifact_sha256": {
+      "antideepfake-mms300m/config.json": "be5a16e7bf332832f0a5583357ed37dd67cc4a39abd24832cf6a74a8217b046c",
+      "antideepfake-mms300m/model.safetensors": "9bd5d9785bf72f91dfca8508651354946c4b307921cb358505e1b94035102224",
+      "clip-vit-large-patch14/config.json": "8a09b467700c58138c29d53c605b34ebc69beaadd13274a8a2af8ad2c2f4032a",
+      "clip-vit-large-patch14/preprocessor_config.json": "910e70b3956ac9879ebc90b22fb3bc8a75b6a0677814500101a4c072bd7857bd",
+      "ctc-aligner/config.json": "2af7f73073d212b0ef91d3c73839355ca504c24a6b361c58a9e4e64210376ba9",
+      "ctc-aligner/model.safetensors": "9aa5229a1af4d7714285cfa14bcaab6af2a39a9e810b475722b24975d5cb1dab",
+      "ctc-aligner/preprocessor_config.json": "6334d6e0c5f2084c9a99b85ddff243cbc79dbaa4aa790bcddf8c41c496fab6fb",
+      "ctc-aligner/special_tokens_map.json": "5e4d1f5e759d74cb1c2fe1d165cfc62b5237aa904de759380cd6f43042eec723",
+      "ctc-aligner/tokenizer_config.json": "e0fe11ce3a3231f3147b4539a93b30a9aefaca0c2717fbd35881695610417497",
+      "ctc-aligner/vocab.json": "6b6f1632d08b489faf2c954eb70e71f39d0861053feb9ae40da59cfa8d0ef5bb",
+      "fs-vfm-vit-l-fas/msu_vit_0_shot_checkpoint_run_0.pth.tar": "c51bb148d49742cc951e5baa8062ccf9bddada78c92b8e2c5649fa6bcadbdaf2",
+      "fs-vfm-vit-l-fas/pretrain_ds_mean_std.txt": "10ddf058cf60780f9119ba585d1f3ede19c88d8ec5b7f1fd9278a6bce6247882",
+      "gend-clip-l14/config.json": "7f2761e13678191774a152121f1630d19baa33a74216dd264d54445d96b16229",
+      "gend-clip-l14/model.safetensors": "d76f0bdfd74a29fe1b1c1b84a80ac92486993e426878e8c7a3944281fbb96833",
+      "lvface-b/LVFace-B_Glint360K.onnx": "9d834ed8e927fd35b9123b2bf97c40aad05785b1f9ecfb1c4c1f6242d38d1382",
+      "mediapipe-face-landmarker/face_landmarker.task": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff",
+      "qwen3-asr-17b-hf/.gitattributes": "34448b82c17d60fec9b65b1f093c115ddbaadc04beb1b0140b6bfed2e012a930",
+      "qwen3-asr-17b-hf/LICENSE-Qwen3-ASR.txt": "a44a6081c73ad75f0255bb2bb5cab74ef1829565a895a24e53a4f11290ab7655",
+      "qwen3-asr-17b-hf/README.md": "427b9a6a4a32477e9df8790ef92f5cbcde790ee148ee5dd8c36f77d9556998a2",
+      "qwen3-asr-17b-hf/chat_template.jinja": "f50e6b694fbf4a683206e37869990d68333fe95d285730f084c838a34b0d98c2",
+      "qwen3-asr-17b-hf/config.json": "117ac8e63e2af7cae3665e5a632d6eb03f5f384915519ceb6403c15ec6533f63",
+      "qwen3-asr-17b-hf/generation_config.json": "9939fc9388b79bd70757f938b87381e817173d6a6158f5af6506c0b73e775c3c",
+      "qwen3-asr-17b-hf/model.safetensors": "2db53c7d81bd9b8cbc6a074e89be2c968a0d373fb4ee68bb1b1e14f7042dfee1",
+      "qwen3-asr-17b-hf/processor_config.json": "bc0b230081b44e629dd5b9045b78495615c1831b4b9f4cffe97bd37e82a6156a",
+      "qwen3-asr-17b-hf/provenance.json": "d132e6a1f326fa08abf359dd411c22b617937aa005e9877a650ee3337e144b40",
+      "qwen3-asr-17b-hf/tokenizer.json": "fe1fad59be22a41ee293363fcf95fdedbc7c93f3b49270b1d2e18bd1399a7a05",
+      "qwen3-asr-17b-hf/tokenizer_config.json": "945e980986de2ca7768f3326bfdbb4fbea3406f972b8ae0be233089f2b253c11",
+      "scrfd-10g/det_10g.onnx": "5838f7fe053675b1c7a08b633df49e7af5495cee0493c7dcf6697200b85b5b91",
+      "syncnet/stable_syncnet.pt": "77678d13861a02d6e83d0b169962175b6266be773f1f6f85fda2b0182e225118"
+    },
+    "loaded_module_count": 11,
+    "resident_voice_worker_groups": [
+      "spoof",
+      "voice"
+    ],
+    "voice_inference_performed": false,
+    "budget_seconds": 90.8,
+    "preload_count": 1,
+    "preload_ms": 51378.077700001086,
+    "rounds": [
+      {
+        "round": 1,
+        "workers": 9,
+        "face_ms": 22671.6133000009,
+        "identity_start_ms": 22671.6133000009,
+        "identity_remaining_budget_ms": 68128.38669999837,
+        "response_ms": 31558.114800000112,
+        "post_response_drain_ms": 0.3687999997055158,
+        "total_drained_ms": 31558.95530000089,
+        "process_cpu_ms": 153250.0,
+        "prior_drain_ms": 0.014600000213249587,
+        "returned_modules": {
+          "quality": {
+            "status": "ok",
+            "error": null,
+            "latency_ms": 259.7953000004054
+          },
+          "face_pad": {
+            "status": "ok",
+            "error": null,
+            "latency_ms": 17351.221900000382
+          },
+          "face_deepfake": {
+            "status": "ok",
+            "error": null,
+            "latency_ms": 22670.735499999864
+          },
+          "camprobe": {
+            "status": "ok",
+            "error": null,
+            "latency_ms": 74.26980000127514
+          },
+          "gaze_tracking": {
+            "status": "ok",
+            "error": null,
+            "latency_ms": 2723.55620000053
+          },
+          "head_turn": {
+            "status": "ok",
+            "error": null,
+            "latency_ms": 6250.024599999961
+          },
+          "face_match": {
+            "status": "ok",
+            "error": null,
+            "latency_ms": 8886.301500000627
+          }
+        }
+      }
+    ],
+    "cleanup": {
+      "lease_released": true,
+      "cleanup_error_count": 0,
+      "owned_processes_reaped": true,
+      "watchdog_all_owned_processes_reaped": true,
+      "source_and_inputs_unchanged": true
+    },
+    "interpretation": {
+      "timeout_reproduced": false,
+      "timeout_fixed_claim": false,
+      "current_condition_only": "Một lượt 9 worker trong điều kiện hiện tại không tái hiện timeout; chưa xác định nguyên nhân hoặc chứng minh sự cố cũ đã được sửa.",
+      "comparison_caveat": "Một lượt full-preload so với các lượt face-only trước đó không tách được ảnh hưởng cache, thứ tự hoặc tải nền. Không phải thử nghiệm tải đồng thời hay kết luận tối ưu worker.",
+      "voice_limit": "Hai nhóm worker giọng thực đã resident nhưng không nhận đầu vào suy luận; chưa kiểm nghiệm thời gian/độ chính xác hoặc toàn luồng giọng.",
+      "acceptance_or_accuracy_claim": false,
+      "retained_worker_count": 9,
+      "worker_change_applied": false
+    }
+  }
+}

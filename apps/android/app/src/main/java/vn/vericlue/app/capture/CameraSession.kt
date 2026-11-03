@@ -34,13 +34,13 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
-import com.google.mlkit.vision.barcode.ZoomSuggestionOptions
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
 import com.google.mlkit.vision.face.FaceLandmark
 import com.google.android.gms.tasks.Tasks
+import com.google.android.gms.tasks.Task
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.concurrent.Executors
@@ -106,13 +106,11 @@ class CameraSession(
     private val qrScanner = BarcodeScanning.getClient(
         BarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE)
             .enableAllPotentialBarcodes()
-            .setZoomSuggestionOptions(ZoomSuggestionOptions.Builder(::suggestQrZoom)
-                .setMaxSupportedZoomRatio(3f).build())
             .build(),
     )
     @Volatile private var backMode = false
-    @Volatile private var idQrOnly = false
-    private var lastQrZoomMs = 0L
+    @Volatile private var cardPreviewAspect = 1.586f
+    private var lastCardFrameNs = 0L
     private var lastCardDiagnosticMs = 0L
     private val cardResolution = ResolutionSelector.Builder()
         .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
@@ -128,7 +126,11 @@ class CameraSession(
     val qr: StateFlow<String?> = qrState.qr
 
     /** Clears a card side's QR and rejects scanner callbacks from before this reset. */
-    fun clearQr() { qrState.clear(); _idQuality.value = null }
+    fun clearQr() {
+        qrState.clear()
+        _idQuality.value = null
+        synchronized(this) { idRequest?.cancel(); idRequest = null }
+    }
 
     private val _face = MutableStateFlow<FaceSignal?>(null)
     val face: StateFlow<FaceSignal?> = _face
@@ -162,6 +164,9 @@ class CameraSession(
             scaleType = if (backMode) androidx.camera.view.PreviewView.ScaleType.FILL_CENTER
                 else androidx.camera.view.PreviewView.ScaleType.FIT_CENTER
             controller = this@CameraSession.controller
+            addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
+                if (view.width > 0 && view.height > 0) cardPreviewAspect = view.width.toFloat() / view.height
+            }
         }.also { preview = it }
     private data class JpegRequest(val result: CompletableDeferred<ByteArray>, val afterMs: Long)
     @Volatile private var jpegRequest: JpegRequest? = null
@@ -203,14 +208,13 @@ class CameraSession(
      * when the device cannot record alongside analysis, and returns false when no camera can be
      * opened, so the caller shows an error screen instead of crashing.
      */
-    suspend fun start(owner: LifecycleOwner, back: Boolean, idQrOnly: Boolean = false): Boolean {
+    suspend fun start(owner: LifecycleOwner, back: Boolean): Boolean {
         clearFaceAnalysis()
         if (!awaitInitialized()) return false
         if (backMode != back) clearQr()
         backMode = back
         preview?.scaleType = if (back) androidx.camera.view.PreviewView.ScaleType.FILL_CENTER
             else androidx.camera.view.PreviewView.ScaleType.FIT_CENTER
-        this.idQrOnly = back && idQrOnly
         val preferred = if (back) CameraSelector.DEFAULT_BACK_CAMERA else CameraSelector.DEFAULT_FRONT_CAMERA
         val other = if (back) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
         val selector = listOf(preferred, other).firstOrNull { runCatching { controller.hasCamera(it) }.getOrDefault(false) }
@@ -234,27 +238,13 @@ class CameraSession(
                 videoEnabled = useCases and CameraController.VIDEO_CAPTURE != 0
                 usedFallbackCamera = selector != preferred
                 runCatching { controller.setZoomRatio(1f) }
-                lastQrZoomMs = 0L
+                lastCardFrameNs = 0L
                 lastCardDiagnosticMs = 0L
                 analyzedFrames = 0
                 return true
             }
         }
         return false
-    }
-
-    /** ML Kit invokes this on the main thread. Never zoom the portrait or face-video step. */
-    private fun suggestQrZoom(suggestion: Float): Boolean {
-        if (!bound || !backMode || !idQrOnly) return false
-        val state = controller.zoomState.value ?: return false
-        val target = suggestion.coerceIn(1f, minOf(3f, state.maxZoomRatio))
-        val now = SystemClock.elapsedRealtime()
-        if (now - lastQrZoomMs < 700 || kotlin.math.abs(target - state.zoomRatio) < 0.1f) return false
-        return runCatching {
-            controller.setZoomRatio(target)
-            lastQrZoomMs = now
-            true
-        }.getOrDefault(false)
     }
 
     private suspend fun awaitInitialized(): Boolean = suspendCancellableCoroutine { cont ->
@@ -266,8 +256,8 @@ class CameraSession(
     }
 
     /**
-     * Photo of the card plus local quality checks, from the next analysed rear-camera frame.
-     * Callers waiting at the same time share that frame: the auto-capture loop must not swallow
+     * Fresh ImageCapture photo of the card with QR and portrait checked on that same image.
+     * Callers waiting at the same time share that request: the auto-capture loop must not swallow
      * a tap on the shutter.
      */
     suspend fun captureId(): Pair<ByteArray, IdQuality> {
@@ -276,30 +266,25 @@ class CameraSession(
             idRequest?.let { it to false } ?: (CompletableDeferred<Pair<ByteArray, IdQuality>>().also { idRequest = it } to true)
         }
         val req = pair.first
-        if (pair.second) {
+        try { if (pair.second) {
             controller.takePicture(analysisExecutor, object : ImageCapture.OnImageCapturedCallback() {
                 override fun onCaptureSuccess(image: ImageProxy) {
                     if (!req.isActive || generation != qrState.generation()) { image.close(); req.cancel(); return }
                     val bitmap = try {
-                        var b = image.toBitmap()
-                        val rotation = image.imageInfo.rotationDegrees
-                        if (rotation != 0) b = Bitmap.createBitmap(b, 0, 0, b.width, b.height, Matrix().apply { postRotate(rotation.toFloat()) }, true)
-                        // CameraController's viewport may already crop the capture; the center crop
-                        // below also bounds devices which return the full sensor image.
-                        cropCardBitmap(b)
+                        cardBitmap(image)
                     } catch (_: Exception) {
                         req.completeExceptionally(IllegalStateException("Card capture unavailable")); image.close(); return
                     }
                     image.close()
-                    val qrTask = qrScanner.process(InputImage.fromBitmap(bitmap, 0))
-                    val faceTask = if (idQrOnly) null else cardFaceDetector.process(InputImage.fromBitmap(bitmap, 0))
-                    Tasks.whenAllComplete(listOfNotNull(qrTask, faceTask)).addOnCompleteListener(analysisExecutor) {
+                    val qrTask = cardScanTask { scanCardQr(bitmap) }
+                    val faceTask = cardScanTask { cardFaceDetector.process(InputImage.fromBitmap(bitmap, 0)) }
+                    Tasks.whenAllComplete(qrTask, faceTask).addOnCompleteListener(analysisExecutor) {
                         try {
                             if (generation != qrState.generation() || !req.isActive) { req.cancel(); return@addOnCompleteListener }
-                            if (!qrTask.isSuccessful || faceTask?.isSuccessful == false) throw IllegalStateException("Card analysis unavailable")
-                            val qr = qrTask.result.firstNotNullOfOrNull { it.rawValue?.takeIf { raw -> CccdQr.parse(raw) != null } }
-                            val faces = faceTask?.result.orEmpty()
-                            val q = bitmapQuality(bitmap).copy(qr = qr, portraitPresent = faces.size == 1,
+                            if (!qrTask.isSuccessful || !faceTask.isSuccessful) throw IllegalStateException("Card analysis unavailable")
+                            val qr = qrTask.result.raw
+                            val faces = faceTask.result
+                            val q = bitmapQuality(bitmap, faces.singleOrNull()?.boundingBox).copy(qr = qr, portraitPresent = faces.size == 1,
                                 tilted = faces.singleOrNull()?.let { kotlin.math.abs(it.headEulerAngleZ) > 15f } ?: false,
                                 looksLikeCard = faces.size == 1 || qr != null)
                             val bytes = ByteArrayOutputStream().use { out -> bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out); out.toByteArray() }
@@ -314,7 +299,8 @@ class CameraSession(
                 }
             })
         }
-        try { return req.await() } finally {
+            return req.await()
+        } finally {
             if (req.isActive) req.cancel()
             synchronized(this) { if (idRequest === req) idRequest = null }
         }
@@ -322,6 +308,7 @@ class CameraSession(
 
     fun unbind() {
         clearFaceAnalysis()
+        clearQr()
         stopRecording()
         controller.unbind()
         bound = false
@@ -364,6 +351,8 @@ class CameraSession(
     private var recordingGeneration = 0L
     private val _voiceLevel = MutableStateFlow(0f)
     val voiceLevel: StateFlow<Float> = _voiceLevel
+    private val _voiceRecordedDurationMs = MutableStateFlow(0L)
+    val voiceRecordedDurationMs: StateFlow<Long> = _voiceRecordedDurationMs
     var muxedVoiceFailure: VoiceCaptureFailure? = null
         private set
 
@@ -387,6 +376,7 @@ class CameraSession(
         val attempt = ++recordingGeneration
         muxedVoiceFailure = null
         _voiceLevel.value = 0f
+        _voiceRecordedDurationMs.value = 0L
         val ready = if (muxedVoice) CompletableDeferred<Boolean>() else null
         muxedReady = ready
         if (!videoEnabled) {
@@ -409,6 +399,9 @@ class CameraSession(
         val done = CompletableDeferred<Boolean>().also { finalized = it }
         val begun = CompletableDeferred<Unit>().also { started = it }
         recordedAt = null
+        val eventClock = RecordingEventClock(
+            ContextCompat.getMainExecutor(context), SystemClock::elapsedRealtimeNanos,
+        )
         var audioBroken = false
         var readySeen = false
         recording = runCatching {
@@ -418,7 +411,7 @@ class CameraSession(
             controller.startRecording(
                 output,
                 if (muxedVoice) AudioConfig.create(true) else AudioConfig.AUDIO_DISABLED,
-                ContextCompat.getMainExecutor(context),
+                eventClock,
             ) events@{ event ->
                 if (attempt != recordingGeneration) {
                     if (event is VideoRecordEvent.Finalize) {
@@ -430,6 +423,12 @@ class CameraSession(
                     return@events
                 }
                 val audio = event.recordingStats.audioStats
+                if (muxedVoice && (event is VideoRecordEvent.Status || event is VideoRecordEvent.Finalize)) {
+                    _voiceRecordedDurationMs.value = maxOf(
+                        _voiceRecordedDurationMs.value,
+                        (event.recordingStats.recordedDurationNanos / 1_000_000L).coerceAtLeast(0L),
+                    )
+                }
                 if (muxedVoice && event !is VideoRecordEvent.Finalize) {
                     val active = audio.audioState == AudioStats.AUDIO_STATE_ACTIVE
                     val failed = audio.hasError() || audio.audioState in setOf(
@@ -450,7 +449,7 @@ class CameraSession(
                 // Start arrives before any frame; the first frame shows as recorded time > 0.
                 if (event is VideoRecordEvent.Status && recording != null &&
                     event.recordingStats.recordedDurationNanos > 0) {
-                    recordedAt = event.recordingStats.recordedDurationNanos to SystemClock.elapsedRealtimeNanos()
+                    recordedAt = event.recordingStats.recordedDurationNanos to eventClock.dispatchTimeNanos()
                     begun.complete(Unit)
                 }
                 if (event is VideoRecordEvent.Finalize) {
@@ -459,6 +458,10 @@ class CameraSession(
                         ))) {
                         audioBroken = true
                         muxedVoiceFailure = VoiceCaptureFailure.Audio
+                    }
+                    if (muxedVoice && !audioBroken &&
+                        event.error == VideoRecordEvent.Finalize.ERROR_DURATION_LIMIT_REACHED) {
+                        muxedVoiceFailure = VoiceCaptureFailure.DurationLimit
                     }
                     begun.complete(Unit)
                     ready?.complete(false)
@@ -470,7 +473,7 @@ class CameraSession(
                         durationLimitReached = event.error == VideoRecordEvent.Finalize.ERROR_DURATION_LIMIT_REACHED,
                         audioFault = audioBroken,
                     ))
-                    // A dropped or replaced attempt must not leave an orphaned MP4.
+                    // Finalize may arrive after this attempt was discarded.
                     if (videoFile != file) file.delete()
                 }
             }
@@ -496,7 +499,7 @@ class CameraSession(
 
     private var started: CompletableDeferred<Unit>? = null
 
-    /** Last Status event: recorded video length (ns) and when it arrived (elapsedRealtime ns). */
+    /** Last Status event: video length and dispatch time before the main queue (elapsedRealtime ns). */
     @Volatile private var recordedAt: Pair<Long, Long>? = null
 
     /**
@@ -504,9 +507,9 @@ class CameraSession(
      * length plus the time since that report. Sent as `audio_offset_ms` when the WAV starts.
      */
     /**
-     * The first frame of the running recording's file, on the capture clock (ms); null until CameraX
-     * reports one. This is t = 0 of the server's schedule (FLOW-01). It is not the first analysed
-     * frame: the encoder starts 0.1–0.9 s after analysis does.
+     * Estimated file origin on the capture clock (ms); null until CameraX reports video data.
+     * Used as t = 0 of the server's schedule (FLOW-01). Main-queue delay is excluded, but encoder
+     * latency remains unmeasured. This is not the first analysed frame.
      */
     fun recordingStartMs(): Double? {
         if (recording == null) return null
@@ -649,13 +652,13 @@ class CameraSession(
                             centerX = b.exactCenterX() / w,
                             centerY = b.exactCenterY() / h,
                             yaw = face.headEulerAngleY,
+                            pitch = face.headEulerAngleX,
+                            roll = face.headEulerAngleZ,
                             luma = luma,
                             timestampNs = ts,
                             heightFraction = b.height().toFloat() / h,
                             imageWidth = w,
                             imageHeight = h,
-                            pitch = face.headEulerAngleX,
-                            roll = face.headEulerAngleZ,
                             landmarksComplete = leftEye && rightEye && noseAndMouth,
                             landmarksVisible = (leftEye || rightEye) && noseAndMouth,
                             observedAtMs = observedAtMs,
@@ -711,62 +714,114 @@ class CameraSession(
     @androidx.annotation.OptIn(ExperimentalGetImage::class)
     private fun analyzeIdFrame(proxy: ImageProxy, media: android.media.Image, rotation: Int) {
         val generation = qrState.generation()
+        val timestampNs = proxy.imageInfo.timestamp
+        if (timestampNs - lastCardFrameNs < 250_000_000L) { proxy.close(); return }
+        lastCardFrameNs = timestampNs
         val started = SystemClock.elapsedRealtime()
-        val luma = meanLuma(proxy).toDouble()
-        val plane = proxy.planes[0]
-        val buf = plane.buffer.duplicate()
-        val bytes = ByteArray(buf.remaining()).also { buf.get(it) }
-        val sharp = ImageChecks.laplacianVariance(bytes, proxy.width, proxy.height, plane.rowStride)
-        val glare = ImageChecks.glareFraction(bytes, proxy.width, proxy.height, plane.rowStride)
-        val qrTask = qrScanner.process(InputImage.fromMediaImage(media, rotation))
-        val faceTask = if (idQrOnly) null else cardFaceDetector.process(InputImage.fromMediaImage(media, rotation))
-        val width = if (rotation % 180 == 0) proxy.width else proxy.height
-        val height = if (rotation % 180 == 0) proxy.height else proxy.width
-        val cardHeight = minOf(height.toFloat(), width / 1.586f)
-        val top = (height - cardHeight) / 2f
-        Tasks.whenAllComplete(listOfNotNull(qrTask, faceTask)).addOnCompleteListener(analysisExecutor) {
+        val bitmap = try { cardBitmap(proxy) } catch (_: Exception) {
+            _idQuality.value = null
+            proxy.close()
+            return
+        }
+        val qrTask = cardScanTask { scanCardQr(bitmap) }
+        val faceTask = cardScanTask { cardFaceDetector.process(InputImage.fromBitmap(bitmap, 0)) }
+        Tasks.whenAllComplete(qrTask, faceTask).addOnCompleteListener(analysisExecutor) {
             try {
                 if (generation != qrState.generation() || !backMode) return@addOnCompleteListener
-                if ((_idQuality.value?.frameTimeNs ?: 0L) >= proxy.imageInfo.timestamp) return@addOnCompleteListener
-                if (!qrTask.isSuccessful || faceTask?.isSuccessful == false) { _idQuality.value = null; return@addOnCompleteListener }
-                val qr = qrTask.result.firstNotNullOfOrNull { code ->
-                    val box = code.boundingBox
-                    code.rawValue?.takeIf { raw -> box != null && box.top >= top && box.bottom <= top + cardHeight && CccdQr.parse(raw) != null }
-                }
-                val faces = faceTask?.result.orEmpty().filter { it.boundingBox.top >= top && it.boundingBox.bottom <= top + cardHeight }
-                qrState.update(generation, qr, proxy.imageInfo.timestamp)
-                _idQuality.value = IdQuality(sharp, glare, qr, faces.size == 1 || qr != null,
-                    portraitPresent = faces.size == 1, brightness = luma,
+                if ((_idQuality.value?.frameTimeNs ?: 0L) >= timestampNs) return@addOnCompleteListener
+                if (!qrTask.isSuccessful || !faceTask.isSuccessful) { _idQuality.value = null; return@addOnCompleteListener }
+                val qr = qrTask.result.raw
+                val faces = faceTask.result
+                qrState.update(generation, qr, timestampNs)
+                val quality = bitmapQuality(bitmap, faces.singleOrNull()?.boundingBox)
+                _idQuality.value = quality.copy(qr = qr, looksLikeCard = faces.size == 1 || qr != null,
+                    portraitPresent = faces.size == 1,
                     tilted = faces.singleOrNull()?.let { kotlin.math.abs(it.headEulerAngleZ) > 15f } ?: false,
-                    frameTimeNs = proxy.imageInfo.timestamp,
-                    qrRecentlySeen = qrState.recentlySeen(generation, proxy.imageInfo.timestamp))
+                    frameTimeNs = timestampNs,
+                    qrRecentlySeen = qrState.recentlySeen(generation, timestampNs),
+                    qrCandidatePresent = qrTask.result.candidatePresent)
                 if (BuildConfig.DEBUG && started - lastCardDiagnosticMs >= 1000) {
                     lastCardDiagnosticMs = started
                     // Fixed technical flags only; never log QR contents or document fields.
-                    Log.d("VeriClueCardScan", "size=${proxy.width}x${proxy.height} rotation=$rotation crop=${proxy.cropRect} qrOnly=$idQrOnly candidate=${qrTask.result.any { it.boundingBox != null }} decoded=${qrTask.result.any { it.rawValue != null }} formatValid=${qrTask.result.any { CccdQr.parse(it.rawValue) != null }} qrRead=${qr != null} portrait=${faces.size == 1} sharp=${sharp >= IdQuality.MIN_SHARPNESS} glareClear=${glare <= IdQuality.MAX_GLARE} bright=${luma >= 45} elapsedMs=${SystemClock.elapsedRealtime() - started}")
+                    Log.d("VeriClueCardScan", "size=${proxy.width}x${proxy.height} rotation=$rotation crop=${proxy.cropRect} card=${bitmap.width}x${bitmap.height} qrRead=${qr != null} portrait=${faces.size == 1} sharp=${quality.sharp} glareClear=${quality.noGlare} bright=${quality.brightness >= 45} elapsedMs=${SystemClock.elapsedRealtime() - started}")
                 }
-            } finally { proxy.close() }
+            } finally { bitmap.recycle(); proxy.close() }
         }
     }
 
-    private fun cropCardBitmap(source: Bitmap): Bitmap {
-        val targetHeight = minOf(source.height, (source.width / 1.586f).toInt())
-        val targetWidth = minOf(source.width, (targetHeight * 1.586f).toInt())
-        val crop = Bitmap.createBitmap(source, (source.width - targetWidth) / 2, (source.height - targetHeight) / 2, targetWidth, targetHeight)
+    private fun cardBitmap(image: ImageProxy): Bitmap {
+        val source = image.toBitmap()
+        val rotation = image.imageInfo.rotationDegrees
+        val upright = if (rotation == 0) source else Bitmap.createBitmap(source, 0, 0, source.width, source.height,
+            Matrix().apply { postRotate(rotation.toFloat()) }, true).also { if (it !== source) source.recycle() }
+        val rect = image.cropRect
+        val roi = cardFrameRect(image.width, image.height, CardFrameRect(rect.left, rect.top, rect.right, rect.bottom), rotation, cardPreviewAspect)
+        val crop = Bitmap.createBitmap(upright, roi.left, roi.top, roi.width, roi.height)
+        if (crop !== upright) upright.recycle()
         val ratio = minOf(1f, 2560f / maxOf(crop.width, crop.height))
         return if (ratio == 1f) crop else Bitmap.createScaledBitmap(crop, (crop.width * ratio).toInt(), (crop.height * ratio).toInt(), true)
+            .also { if (it !== crop) crop.recycle() }
     }
 
-    private fun bitmapQuality(bitmap: Bitmap): IdQuality {
+    /** Keep cleanup behind whenAllComplete even if one detector rejects submission synchronously. */
+    private fun <T> cardScanTask(start: () -> Task<T>): Task<T> = try {
+        start()
+    } catch (error: Exception) {
+        Tasks.forException(error)
+    }
+
+    private data class CardQrRead(val raw: String?, val candidatePresent: Boolean)
+    private data class CardQrCandidates(val values: List<String>, val candidatePresent: Boolean)
+
+    /** Bounded same-image QR retries; the original full-card bitmap still supplies portrait and upload. */
+    private fun scanCardQr(bitmap: Bitmap): Task<CardQrRead> =
+        qrScanner.process(InputImage.fromBitmap(bitmap, 0)).continueWithTask(analysisExecutor) { task ->
+            if (!task.isSuccessful) throw task.exception ?: IllegalStateException("QR unavailable")
+            val values = task.result.mapNotNull { it.rawValue }
+            val candidatePresent = task.result.any { it.boundingBox != null }
+            val candidates = task.result.filter { it.rawValue == null }.mapNotNull { it.boundingBox }
+                .map { CardFrameRect(it.left, it.top, it.right, it.bottom) }
+            // A decoded card does not hide other undecoded candidates. Conflicting reads stay rejected.
+            val regions = if (candidates.isNotEmpty() || values.none { CccdQr.parse(it) != null })
+                cardQrRetryRegions(bitmap.width, bitmap.height, candidates) else emptyList()
+            if (regions.isEmpty()) return@continueWithTask Tasks.forResult(CardQrRead(uniqueCardQr(values), candidatePresent))
+            val retries = regions.map { box ->
+                cardScanTask {
+                    val region = Bitmap.createBitmap(bitmap, box.left, box.top, box.width, box.height)
+                    cardScanTask { qrScanner.process(InputImage.fromBitmap(region, 0)) }.continueWith(analysisExecutor) { retry ->
+                        try {
+                            if (!retry.isSuccessful) throw retry.exception ?: IllegalStateException("QR unavailable")
+                            CardQrCandidates(retry.result.mapNotNull { it.rawValue }, retry.result.any { it.boundingBox != null })
+                        } finally { if (region !== bitmap) region.recycle() }
+                    }
+                }
+            }
+            Tasks.whenAllSuccess<CardQrCandidates>(retries).continueWith(analysisExecutor) { completed ->
+                if (!completed.isSuccessful) throw completed.exception ?: IllegalStateException("QR unavailable")
+                CardQrRead(uniqueCardQr(values + completed.result.flatMap { it.values }),
+                    candidatePresent || completed.result.any { it.candidatePresent })
+            }
+        }
+
+    private fun bitmapQuality(bitmap: Bitmap, portrait: android.graphics.Rect? = null): IdQuality {
         val ratio = minOf(1f, 640f / maxOf(bitmap.width, bitmap.height))
-        val small = Bitmap.createScaledBitmap(bitmap, (bitmap.width * ratio).toInt(), (bitmap.height * ratio).toInt(), true)
+        val normalized = Bitmap.createScaledBitmap(bitmap, (bitmap.width * ratio).toInt(), (bitmap.height * ratio).toInt(), true)
+        // QR readability comes from decoding. Measure the portrait, not white card print/background.
+        val small = if (portrait == null) normalized else {
+            val left = (portrait.left * ratio).toInt().coerceIn(0, normalized.width - 1)
+            val top = (portrait.top * ratio).toInt().coerceIn(0, normalized.height - 1)
+            val right = (portrait.right * ratio).toInt().coerceIn(left + 1, normalized.width)
+            val bottom = (portrait.bottom * ratio).toInt().coerceIn(top + 1, normalized.height)
+            Bitmap.createBitmap(normalized, left, top, right - left, bottom - top)
+        }
         val pixels = IntArray(small.width * small.height)
         small.getPixels(pixels, 0, small.width, 0, 0, small.width, small.height)
         val luma = ByteArray(pixels.size) { i -> val c = pixels[i]; (((c shr 16 and 255) * 77 + (c shr 8 and 255) * 150 + (c and 255) * 29) shr 8).toByte() }
         val q = IdQuality(ImageChecks.laplacianVariance(luma, small.width, small.height, small.width),
             ImageChecks.glareFraction(luma, small.width, small.height, small.width), null,
             brightness = luma.sumOf { it.toInt() and 255 }.toDouble() / luma.size)
-        if (small !== bitmap) small.recycle()
+        if (small !== normalized) small.recycle()
+        if (normalized !== bitmap) normalized.recycle()
         return q
     }
 

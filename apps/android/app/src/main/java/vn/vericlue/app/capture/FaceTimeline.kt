@@ -95,7 +95,7 @@ class FaceTimeline(
                 GazeMark(random.nextDouble(0.15, 0.85), random.nextDouble(0.3, 0.7), start + i * 850)
             }
             return FaceTimeline(slots, 500, marks, order + listOf(null),
-                marks.last().atMs, (order.size + 1) * 4000, 30000 - marks.last().atMs)
+                marks.last().atMs, (order.size + 1) * 4000)
         }
 
         /**
@@ -114,14 +114,14 @@ class FaceTimeline(
         /** The live schedule, or null when the challenge has no `dynamic` pack (MVP / re-auth). */
         fun from(challenge: Challenge): FaceTimeline? {
             val d = challenge.dynamic ?: return null
-            if (d.headMode != null && d.headMode != "adaptive") return null
-            if (d.headMode == "adaptive" && (d.headTimeoutMs == null || d.headTimeoutMs < 6000 ||
-                    d.headStartAtMs.toLong() + d.headTimeoutMs != 30000L)) return null
-            if (d.headMode == null && d.headTimeoutMs != null) return null
             if ((d.version to d.headDurationMs) !in setOf(1 to 6000, 2 to 12000) ||
                 d.headStartAtMs < 500 || d.headStartAtMs.toLong() + d.headDurationMs > 30000 ||
                 d.voiceStartAtMs.toLong() != d.headStartAtMs.toLong() + d.headDurationMs ||
                 d.headTurns !in listOf(listOf("left", "right", "center"), listOf("right", "left", "center"))) return null
+            if (d.headMode != null && d.headMode != "adaptive") return null
+            if (d.headMode == "adaptive" && (d.version != 2 || d.headTimeoutMs == null ||
+                    d.headTimeoutMs < d.headDurationMs || d.headStartAtMs.toLong() + d.headTimeoutMs != 30000L)) return null
+            if (d.headMode == null && d.headTimeoutMs != null) return null
             val turns = d.headTurns.map {
                 when (it) {
                     "left" -> TurnDir.Left

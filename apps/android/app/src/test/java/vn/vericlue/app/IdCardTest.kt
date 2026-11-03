@@ -33,6 +33,9 @@ class IdCardTest {
         assertNull(CccdQr.parse(null))
         assertNull(CccdQr.parse("https://example.com"))
         assertNull(CccdQr.parse("12345|a|b|c|d|e"))
+        assertNull(CccdQr.parse(qr.replace("Nguyễn Văn A", "")))
+        assertNull(CccdQr.parse(qr.replace("01011995", "31021995")))
+        assertNull(CccdQr.parse(qr.replace("|Nam|", "|Unknown|")))
     }
 
     @Test
@@ -64,7 +67,7 @@ class IdCardTest {
 
     @Test
     fun autoCaptureNeedsTwoGoodFramesInARow() {
-        val sharp = IdQuality(500.0, 0.0, null, looksLikeCard = true, portraitPresent = true)
+        val sharp = IdQuality(500.0, 0.0, qr, looksLikeCard = true, portraitPresent = true)
         val auto = IdAutoCapture()
         assertFalse(auto.offer(sharp))
         assertFalse(auto.offer(IdQuality(10.0, 0.0, null, true))) // blurry frame breaks the run
@@ -83,7 +86,7 @@ class IdCardTest {
     @Test fun rearSideNeedsReadableQrAndDistinctFrames() {
         val auto = IdAutoCapture(back = true)
         assertFalse(auto.offer(IdQuality(500.0, 0.0, null)))
-        val first = IdQuality(500.0, 0.0, qr, frameTimeNs = 1)
+        val first = IdQuality(500.0, 0.0, qr, portraitPresent = true, frameTimeNs = 1)
         assertFalse(auto.offer(first))
         assertFalse(auto.offer(first))
         assertTrue(auto.offer(first.copy(frameTimeNs = 2)))
@@ -95,26 +98,27 @@ class IdCardTest {
         repeat(3) { assertFalse(auto.offer(IdQuality(500.0, 0.0, qr))) }
     }
 
-    @Test fun readableQrIsNotBlockedByWholeFrameQualityHeuristics() {
+    @Test fun readableQrDoesNotOverrideUnusablePortraitQuality() {
         val auto = IdAutoCapture(back = true)
         val read = IdQuality(1.0, 0.7, qr, brightness = 20.0, frameTimeNs = 1)
         assertFalse(auto.offer(read))
-        assertTrue(auto.offer(read.copy(frameTimeNs = 2)))
-        assertTrue(idCaptureUsable(read, back = true, manual = false))
+        assertFalse(auto.offer(read.copy(frameTimeNs = 2)))
+        assertFalse(idCaptureUsable(read, back = true, manual = false))
         assertFalse(idCaptureUsable(read.copy(qr = null), back = true, manual = false))
     }
 
-    @Test fun intermittentMatchingReadsCanCompleteWithinTheShortWindow() {
+    @Test fun missingEvidenceBreaksTheSameCardObservationRun() {
         val auto = IdAutoCapture(back = true)
-        val read = IdQuality(500.0, 0.0, qr, frameTimeNs = 1)
+        val read = IdQuality(500.0, 0.0, qr, portraitPresent = true, frameTimeNs = 1)
         assertFalse(auto.offer(read))
         assertFalse(auto.offer(read.copy(qr = null, frameTimeNs = 100_000_001)))
-        assertTrue(auto.offer(read.copy(frameTimeNs = 300_000_001)))
+        assertFalse(auto.offer(read.copy(frameTimeNs = 300_000_001)))
+        assertTrue(auto.offer(read.copy(frameTimeNs = 500_000_001)))
     }
 
     @Test fun expiredChangedOrResetQrCannotCompleteThePreviousRun() {
         val auto = IdAutoCapture(back = true)
-        val read = IdQuality(500.0, 0.0, qr, frameTimeNs = 1)
+        val read = IdQuality(500.0, 0.0, qr, portraitPresent = true, frameTimeNs = 1)
         assertFalse(auto.offer(read))
         val later = read.copy(frameTimeNs = IdAutoCapture.QR_HOLD_NS + 2)
         assertFalse(auto.offer(later))
@@ -127,8 +131,8 @@ class IdCardTest {
     @Test fun retainedQrFeedbackCannotApproveANewPhoto() {
         val noQr = IdQuality(500.0, 0.0, null, qrRecentlySeen = true)
         assertFalse(idCaptureUsable(noQr, back = true, manual = false))
-        // Manual fallback may send a clear photo to the server's independent decoder.
-        assertTrue(idCaptureUsable(noQr, back = true, manual = true))
+        // Manual capture still needs both extractions from this image.
+        assertFalse(idCaptureUsable(noQr, back = true, manual = true))
         assertFalse(idCaptureUsable(noQr.copy(sharpness = 1.0), back = true, manual = true))
         assertFalse(idCaptureUsable(noQr, back = false, manual = false))
     }

@@ -184,3 +184,15 @@ class ManualDemoThresholds(BaseModel):
 
 def _number(value, minimum=-math.inf, maximum=math.inf) -> bool:
     return type(value) in (int, float) and math.isfinite(value) and minimum <= value <= maximum
+
+
+# Fixed engineering choices for phone-demo-fixed-v1, not fitted operating points.
+# Keep the existing six-value policy hash and raw model/version evidence intact.
+PHONE_DEMO_FIXED_V1 = ManualDemoThresholds(
+    pad_max=0.70,
+    gend_max=0.95,
+    spoof_max=0.70,
+    lipsync_max=0.60,
+    match_min=0.30,
+    consistency_min=0.30,
+)

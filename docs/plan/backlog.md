@@ -77,7 +77,7 @@
 | VOICE-02 | Tăng cường dữ liệu, chống học vẹt | M4 | | 1 | S1 | P0 | PLAT-03, DATA-01 | todo |
 | VOICE-03 | Tinh chỉnh AntiDeepfake cho tiếng Việt | M4 | | 2 | S1–S2 | P0 | VOICE-01, VOICE-02, DATA-03, DATA-05, DATA-06 | todo |
 | VOICE-04 | Câu thử thách, nhận dạng, so khớp 2 lớp (chặn lặp token) | M4 | Codex | 1,5 | S1–S2 | P0 | PLAT-03 | done |
-| VOICE-05 | Căn chỉnh câu, cắt ghép, SyncNet (thiết bị riêng, nạp lười) | M4 | Codex | 1,5 | S2 | P0 | VOICE-04, DATA-02 | doing |
+| VOICE-05 | Căn chỉnh câu/cắt ghép/SyncNet; sửa resize uint8 v3, chưa nghiệm thu lipsync | M4 | Codex | 1,5 | S2 | P0 | VOICE-04, DATA-02 | doing |
 | VOICE-06 | Gộp bước giọng nói vào luồng | M4 | | 0,5 | S2 | P0 | VOICE-03, VOICE-04, VOICE-05, ROUT-02 | todo |
 | VOICE-07 | Qwen3-ASR: backend + CLI kiểm câu đọc, diagnostic CPU riêng | M4 | Codex | 1 | S2 | P0 | PLAT-03, VOICE-04 | review |
 | VOICE-08 | Thử câu đọc bằng microphone, RAM-only và runtime Qwen riêng | M4 | Codex | 0,5 | S2 | P0 | VOICE-07 | review |
@@ -136,16 +136,16 @@
 | SEC-01 | Khóa theo phiên, che dữ liệu, nhật ký truy cập | M2 | Codex | 1,5 | S1 | P0 | REV-01, PLAT-05 | review |
 | SEC-02 ★ | Ký media, L0 khóa ghi danh; service khôi phục/thu hồi, chờ nghiệm thu máy thật | M2 (+M1) | Codex | 1 | S2 | P0 | APP-01, PLAT-06 | doing |
 | APP-01 ★ | Đang thử S24 FE; sửa binding trích template, chờ thử lại/HTTPS/nghiệm thu 3 luồng | M1 | Ngọc Quang+Claude+Codex+Gemini | 1,5 | S1 | P0 | PLAT-04 | doing |
-| APP-02 ★ | S24 FE: một lượt CCCD/mặt đạt sau sửa lời nhắc; chờ review và nhánh giọng | M1 | Ngọc Quang+Claude | 2 | S1–S2 | P0 | APP-01 | doing |
-| APP-03 | MP4 chung → WAV 16k mono/offset PTS; khôi phục còn vướng SyncNet, chờ thử S24 FE | M1 | Ngọc Quang+Claude | 1 | S2 | P0 | APP-01 | doing |
-| APP-04 | Sửa thông báo hết tự chụp CCCD; bổ sung chẩn đoán QR, chờ thử lại S24 FE | M2 (+M1) | Ngọc Quang+Claude | 1,5 | S1–S2 | P0 | APP-01 | doing |
+| APP-02 ★ | Oval gọn đồng bộ preview/giọng, hướng dẫn mặt lấp khung và sửa gián đoạn tracking; chờ nghiệm thu lại S24 FE | M1 | Ngọc Quang+Claude | 2 | S1–S2 | P0 | APP-01 | doing |
+| APP-03 | Sửa mốc ghi hình trước hàng đợi UI; GenD demo 0.90 chưa hiệu chỉnh, đăng ký/đăng nhập đã qua nhưng khôi phục còn chặn; chờ thử lại S24 FE | M1 | Ngọc Quang+Claude | 1 | S2 | P0 | APP-01 | doing |
+| APP-04 | CCCD tự chụp liên tục có khoảng nghỉ, QR/chân dung cùng ảnh mới, thử ROI và hướng dẫn tại chỗ; chờ thử thật | M2 (+M1) | Ngọc Quang+Claude | 1,5 | S1–S2 | P0 | APP-01 | doing |
 | APP-05 | Đóng gói Android test từ xa qua mạng riêng | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | review |
 | APP-06 | Android localhost qua USB/Wi-Fi TLS, cấu hình test ảnh CCCD | M2 | Codex | 0,5 | S2 | P0 | PLAT-05 | review |
 | APP-07 | Đồng bộ UI phần mặt Giả lập/API, chờ nghiệm thu video trên máy thật | M1 | Codex | 0,5 | S2 | P0 | PLAT-04 | review |
 | APP-08 | Một app/server, quét CCCD QR/chân dung, bỏ OCR | M1 | Codex | 1 | S2 | P0 | PLAT-04 | review |
 | APP-09 | Gọn luồng đăng ký, điều khoản, ngôn từ và ảnh UI Android | M1 | Codex | 1,5 | S2 | P0 | PLAT-04 | review |
 | APP-10 | Tăng độ nhạy quét QR và kiểm chứng trên Android | M1 | Codex | 1 | S2 | P0 | PLAT-04 | review |
-| APP-11 | Hoàn thiện UI/UX Android, ảnh kiểm tra và tích hợp main (PR #130) | M1 | Codex | 1 | S2 | P0 | PLAT-04 | review |
+| APP-11 | Hoàn thiện UI/UX Android, quay đầu adaptive và tích hợp S24 FE | M1 | Codex | 1 | S2 | P0 | PLAT-04 | review |
 | IOS-01 | App iOS: SwiftUI, theme ấm, điều hướng 3 luồng; đã nghiệm thu iPhone, chờ review PR | M1 | Lý Anh Quân | 2 | S2 | P1 | APP-01 | review |
 | IOS-02 | App iOS: API, LiveFlow, binding và ký media; chờ chốt test và backend tài khoản thật | M1 | Lý Anh Quân | 1,5 | S2 | P1 | FLOW-01 | doing |
 | IOS-03 | App iOS: OTP, CCCD auto/manual, review hai mặt, xác nhận sau quay mặt; chờ review PR | M1 | Lý Anh Quân | 1,5 | S2 | P1 | IOS-01, IOS-02, FLOW-02, FLOW-03 | review |

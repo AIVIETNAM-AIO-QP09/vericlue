@@ -105,25 +105,35 @@ def test_model_change_during_load_is_detected(monkeypatch, tmp_path):
 def fake_native(monkeypatch, tmp_path, *, tokens=(20, 21, 99), raw=None):
     provider, _ = local_provider(monkeypatch, tmp_path)
     calls = []
+    prefix = [11, 12, 11528, 48477, 151704]
 
     class Inputs(dict):
         def to(self, *args):
             calls.append(("to", args))
             return self
 
-    def request(**kwargs):
+    def legacy_request(**kwargs):
+        calls.append(("legacy_request", kwargs))
+        return Inputs(input_ids=np.array([prefix], dtype=int))
+
+    def request(conversations, **kwargs):
+        calls.append(("conversations", conversations))
         calls.append(("request", kwargs))
-        return Inputs(input_ids=np.array([[11, 12]], dtype=int))
+        return Inputs(input_ids=np.array([prefix], dtype=int))
 
     def generate(**kwargs):
         calls.append(("generate", kwargs))
-        return np.array([[11, 12, *tokens]])
+        return np.array([[*prefix, *tokens]])
+
+    def decode(ids, **kwargs):
+        calls.append(("decode", (ids, kwargs)))
+        return raw if raw is not None else "tôi xác nhận"
 
     provider._processor = SimpleNamespace(
-        apply_transcription_request=request,
-        decode=lambda ids, **kwargs: (
-            raw if raw is not None else "language Vietnamese<asr_text>tôi xác nhận"
-        ),
+        apply_transcription_request=legacy_request,
+        apply_chat_template=request,
+        decode=decode,
+        tokenizer=SimpleNamespace(all_special_ids=[11, 97, 98, 99]),
     )
     provider._model = SimpleNamespace(
         generate=generate, generation_config=SimpleNamespace(eos_token_id=[99])
@@ -139,16 +149,117 @@ def fake_native(monkeypatch, tmp_path, *, tokens=(20, 21, 99), raw=None):
     return provider, calls
 
 
-def test_native_request_has_audio_and_language_but_no_expected_text(monkeypatch, tmp_path):
+def test_native_request_prefills_assistant_language_instead_of_system_context(
+    monkeypatch, tmp_path
+):
     provider, calls = fake_native(monkeypatch, tmp_path)
     audio = np.zeros(16000, np.float32)
     assert provider._infer(audio, token_budget=128) == "tôi xác nhận"
+    conversations = next(value for kind, value in calls if kind == "conversations")
+    assert len(conversations) == 1
+    user, assistant = conversations[0]
+    assert user["role"] == "user" and len(user["content"]) == 1
+    assert user["content"][0]["type"] == "audio"
+    assert user["content"][0]["audio"] is audio
+    assert assistant == {
+        "role": "assistant",
+        "content": [{"type": "text", "text": "language Vietnamese<asr_text>"}],
+    }
+    assert not any(kind == "legacy_request" for kind, _ in calls)
     request = next(value for kind, value in calls if kind == "request")
-    assert request["audio"] is audio
-    assert set(request) == {"audio", "language", "sampling_rate", "return_tensors"}
-    assert request["language"] == "Vietnamese" and request["sampling_rate"] == 16000
+    assert request == {
+        "tokenize": True,
+        "return_dict": True,
+        "continue_final_message": True,
+        "processor_kwargs": {"sampling_rate": 16000, "return_tensors": "pt"},
+    }
     generation = next(value for kind, value in calls if kind == "generate")
     assert generation["do_sample"] is False and generation["max_new_tokens"] == 128
+    assert generation["num_beams"] == 1
+    decoded_ids, decode_kwargs = next(value for kind, value in calls if kind == "decode")
+    np.testing.assert_array_equal(decoded_ids, [20, 21, 99])
+    assert decode_kwargs == {"return_format": "raw", "skip_special_tokens": True}
+
+
+def test_expected_phrase_reaches_matching_but_never_the_model(
+    monkeypatch, tmp_path, fake_match_libraries
+):
+    from vericlue_ml.voice import qwen_asr
+
+    provider, calls = fake_native(monkeypatch, tmp_path)
+    monkeypatch.setattr(qwen_asr, "trim_silence", lambda samples, **kwargs: samples)
+    result = QwenVoiceChallengeDetector(provider).predict_samples(
+        np.zeros(16000, np.float32), 16000, prompt="tôi xác nhận"
+    )
+    assert result.status == "ok" and result.gate == "pass"
+    conversations = next(value for kind, value in calls if kind == "conversations")
+    text_inputs = [
+        item["text"]
+        for message in conversations[0]
+        for item in message["content"]
+        if item["type"] == "text"
+    ]
+    assert text_inputs == ["language Vietnamese<asr_text>"]
+
+
+@pytest.mark.parametrize("raw", ["", "  "])
+def test_empty_text_only_output_is_no_speech(monkeypatch, tmp_path, raw):
+    provider, _ = fake_native(monkeypatch, tmp_path, raw=raw)
+    with pytest.raises(SpeechNotFound):
+        provider._infer(np.zeros(16000, np.float32), token_budget=128)
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "language Vietnamese<asr_text>tôi xác nhận",
+        "language English<asr_text>hello",
+        "tôi xác nhận<tool>",
+        "tôi < xác nhận",
+        "tôi xác nhận >",
+        17,
+        ["tôi xác nhận"],
+        "x" * 8001,
+    ],
+)
+def test_text_only_output_rejects_envelopes_and_control_tokens(monkeypatch, tmp_path, raw):
+    provider, _ = fake_native(monkeypatch, tmp_path, raw=raw)
+    with pytest.raises(ASRError):
+        provider._infer(np.zeros(16000, np.float32), token_budget=128)
+
+
+def test_text_only_output_preserves_repetitions(monkeypatch, tmp_path):
+    raw = "tôi xác nhận " * 25
+    provider, _ = fake_native(monkeypatch, tmp_path, raw=raw)
+    assert provider._infer(np.zeros(16000, np.float32), token_budget=128) == raw.strip()
+
+
+@pytest.mark.parametrize(
+    "tokens",
+    [(20, 97, 21, 99), (20, 98, 21, 99), (20, 99, 21, 99), (20, 99, 99)],
+    ids=["message-start", "audio-control", "interior-eos", "repeated-eos"],
+)
+def test_generated_special_tokens_are_rejected_before_lossy_decode(monkeypatch, tmp_path, tokens):
+    provider, calls = fake_native(monkeypatch, tmp_path, tokens=tokens)
+    # The fake decoder returns correct-looking text even for control IDs, as
+    # skip_special_tokens=True would after erasing those IDs in a real tokenizer.
+    with pytest.raises(ASRError):
+        provider._infer(np.zeros(16000, np.float32), token_budget=128)
+    assert not any(kind == "decode" for kind, _ in calls)
+
+
+def test_generated_asr_marker_survives_decode_and_is_rejected(monkeypatch, tmp_path):
+    # The pinned tokenizer does not mark <asr_text> as special; it reaches the
+    # text parser even with skip_special_tokens=True and must still be rejected.
+    provider, calls = fake_native(
+        monkeypatch,
+        tmp_path,
+        tokens=(20, 151704, 21, 99),
+        raw="tôi<asr_text> xác nhận",
+    )
+    with pytest.raises(ASRError):
+        provider._infer(np.zeros(16000, np.float32), token_budget=128)
+    assert any(kind == "decode" for kind, _ in calls)
 
 
 @pytest.mark.parametrize("tokens,budget", [((20, 21), 128), ((20, 99), 2), ((), 128)])

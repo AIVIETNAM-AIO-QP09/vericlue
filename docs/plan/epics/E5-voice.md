@@ -125,6 +125,13 @@ bằng kết quả. Lỗi xử lý tính riêng và không được xem là đ�
 
 ### VOICE-05 · Căn chỉnh câu, phát hiện cắt ghép, khớp môi
 
+**02/11 — doing, sửa parity pixel:** `voice05-v3-u8resize` khôi phục uint8 sau
+resize bicubic trước chuẩn hóa đúng recipe đã ghim. Test ảnh tổng hợp kiểm
+byte, thứ tự frame/RGB và lower-half; artifact v2 vẫn giữ nhãn cũ và bị từ
+chối cho version mới. Không fit hoặc đổi ngưỡng. Đối chứng trọng số thật trên
+bản ghi đã lưu vẫn không đạt lipsync; SCRFD box chưa tương đương căn 106
+landmark của upstream. Chưa chép phần affine có nguồn giấy phép chưa rõ.
+
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
 |---|---|---|---|---|
 | M4 | 1,5 | S2 | P0 | VOICE-04, DATA-02 |

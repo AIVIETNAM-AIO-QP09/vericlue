@@ -255,10 +255,7 @@ fun TermsScreen(
     var detailsOpen by remember { mutableStateOf(initialDetailsOpen) }
     VcScreen(
         onBack = onBack,
-        actions = {
-            PrimaryButton(if (busy) "Đang ghi nhận…" else "Đồng ý và tiếp tục", onAccept,
-                enabled = agreement.canContinue && !busy)
-        },
+        actions = { PrimaryButton(if (busy) "Đang ghi nhận…" else "Đồng ý và tiếp tục", onAccept, enabled = agreement.canContinue && !busy) },
     ) {
         TitleBlock("Đồng ý xác minh", "Tìm hiểu cách VeriClue sử dụng thông tin của bạn.", eyebrow = "QUYỀN RIÊNG TƯ")
         ContentCard {
@@ -266,23 +263,22 @@ fun TermsScreen(
                 Text("Thông tin cần sử dụng", style = VcType.section, color = c.ink, modifier = Modifier.weight(0.6f))
                 IdentityScene3D(Modifier.weight(0.4f).height(100.dp), IllustrationScene.Privacy)
             }
-            if (purpose != vn.vericlue.app.flow.Purpose.Reauth) FeatureRow(Icons.Outlined.Phone, "Số điện thoại")
-            if (purpose == vn.vericlue.app.flow.Purpose.Onboarding) FeatureRow(Icons.Outlined.Badge, "Thẻ căn cước", "Thông tin và chân dung trên thẻ.")
-            FeatureRow(Icons.Outlined.Face, "Khuôn mặt", if (purpose == vn.vericlue.app.flow.Purpose.Onboarding)
-                "Ảnh và video khuôn mặt." else "Video khuôn mặt và đối chiếu mẫu tài khoản.")
-            FeatureRow(Icons.Outlined.Mic, "Giọng nói", "Chỉ thu khi cần xác minh bổ sung.")
-            HorizontalDivider(color = c.border)
-            TextButton(
-                onClick = { detailsOpen = !detailsOpen },
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics {
-                    stateDescription = if (detailsOpen) "Đang mở" else "Đang thu gọn"
-                },
-            ) {
-                Text("Cách sử dụng dữ liệu", style = VcType.label, color = c.accent, modifier = Modifier.weight(1f))
-                Icon(if (detailsOpen) Icons.Outlined.KeyboardArrowUp else Icons.Outlined.KeyboardArrowDown,
-                    contentDescription = null, tint = c.accent)
-            }
-            if (detailsOpen) {
+            if (purpose != vn.vericlue.app.flow.Purpose.Reauth) DataUseRow(Icons.Outlined.Phone, "Số điện thoại")
+            if (purpose == vn.vericlue.app.flow.Purpose.Onboarding) DataUseRow(Icons.Outlined.Badge, "Thông tin và chân dung trên thẻ")
+            DataUseRow(Icons.Outlined.Face, if (purpose == vn.vericlue.app.flow.Purpose.Onboarding) "Ảnh và video khuôn mặt" else "Video khuôn mặt và đối chiếu mẫu tài khoản")
+            DataUseRow(Icons.Outlined.Mic, "Giọng nói khi cần xác minh bổ sung")
+        }
+        Text("Thông báo ${vn.vericlue.app.flow.PrivacyNotice.VERSION} · xử lý trong phiên xác minh", style = VcType.bodySmall, color = c.ink)
+        if (purpose == vn.vericlue.app.flow.Purpose.Onboarding) {
+            Text("Thông báo ${vn.vericlue.app.flow.AccountTemplateNotice.VERSION} · lưu mẫu tài khoản 24 giờ", style = VcType.bodySmall, color = c.ink)
+        }
+        error?.let { Text(it, style = VcType.body, color = c.ink) }
+        LinkButton(
+            if (detailsOpen) "Thu gọn thông tin xử lý dữ liệu" else "Xem chi tiết xử lý dữ liệu",
+            onClick = { detailsOpen = !detailsOpen },
+        )
+        if (detailsOpen) {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 dataUseDetails.forEach { (title, body) ->
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(title, style = VcType.labelSmall, color = c.ink)
@@ -291,45 +287,73 @@ fun TermsScreen(
                 }
             }
         }
-        Text("Thông báo ${vn.vericlue.app.flow.PrivacyNotice.VERSION} · xử lý trong phiên xác minh",
-            style = VcType.bodySmall, color = c.ink)
-        ConsentChoice(agreement.accepted, enabled = !busy) { agreement = agreement.toggle() }
-        if (purpose == vn.vericlue.app.flow.Purpose.Onboarding) {
-            Text("Thông báo ${vn.vericlue.app.flow.AccountTemplateNotice.VERSION} · lưu mẫu tài khoản 24 giờ",
-                style = VcType.bodySmall, color = c.ink)
-            ConsentChoice(
-                agreement.accountTemplateAccepted, enabled = !busy,
-                label = "Tôi đồng ý để VeriClue lưu mẫu khuôn mặt mã hóa trên máy chủ trong 24 giờ để đối chiếu khi đăng nhập lại hoặc khôi phục tài khoản. Dừng phiên xác minh không tự xóa tài khoản đã tạo.",
-            ) { agreement = agreement.toggleAccountTemplate() }
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                .background(if (agreement.accepted) c.surfaceInfo else c.surface)
+                .toggleable(value = agreement.accepted, role = Role.Checkbox,
+                    enabled = !busy,
+                    onValueChange = { agreement = agreement.toggle() })
+                .padding(start = 4.dp, end = 14.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Checkbox(checked = agreement.accepted, onCheckedChange = null,
+                modifier = Modifier.size(48.dp),
+                colors = CheckboxDefaults.colors(checkedColor = c.primary, checkmarkColor = c.onPrimary,
+                    uncheckedColor = c.muted))
+            Text("Tôi đồng ý để VeriClue xử lý các thông tin trên nhằm xác minh danh tính.",
+                style = VcType.body, color = c.ink)
         }
-        error?.let { Banner(it, tone = Tone.Warn) }
+        if (purpose == vn.vericlue.app.flow.Purpose.Onboarding) {
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                    .background(if (agreement.accountTemplateAccepted) c.surfaceInfo else c.surface)
+                    .toggleable(value = agreement.accountTemplateAccepted, role = Role.Checkbox,
+                        enabled = !busy,
+                        onValueChange = { agreement = agreement.toggleAccountTemplate() })
+                    .padding(start = 4.dp, end = 14.dp, top = 8.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Checkbox(checked = agreement.accountTemplateAccepted, onCheckedChange = null,
+                    modifier = Modifier.size(48.dp),
+                    colors = CheckboxDefaults.colors(checkedColor = c.primary, checkmarkColor = c.onPrimary,
+                        uncheckedColor = c.muted))
+                Text(
+                    "Tôi đồng ý để VeriClue lưu mẫu khuôn mặt mã hóa trên máy chủ trong 24 giờ để đối chiếu khi đăng nhập lại hoặc khôi phục tài khoản. Dừng phiên xác minh không tự xóa tài khoản đã tạo.",
+                    style = VcType.body,
+                    color = c.ink,
+                )
+            }
+        }
     }
 }
 
 @Composable
-private fun ConsentChoice(
-    accepted: Boolean,
-    enabled: Boolean = true,
-    label: String = "Tôi đồng ý để VeriClue xử lý các thông tin trên nhằm xác minh danh tính.",
-    onToggle: () -> Unit,
-) {
+private fun DataUseRow(icon: ImageVector, title: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, contentDescription = null, tint = Vc.colors.accent, modifier = Modifier.size(24.dp))
+        Text(title, style = VcType.body, color = Vc.colors.ink)
+    }
+}
+
+@Composable
+private fun ConsentChoice(accepted: Boolean, onToggle: () -> Unit) {
     val c = Vc.colors
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
             .background(if (accepted) c.surfaceInfo else c.surfaceSubtle)
             .border(1.dp, if (accepted) c.accent else c.border, RoundedCornerShape(20.dp))
-            .toggleable(value = accepted, enabled = enabled, role = Role.Checkbox, onValueChange = { onToggle() })
+            .toggleable(value = accepted, role = Role.Checkbox, onValueChange = { onToggle() })
             .padding(start = 4.dp, end = 14.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.Top,
     ) {
         Checkbox(
-            checked = accepted, onCheckedChange = null, enabled = enabled, modifier = Modifier.size(48.dp),
+            checked = accepted, onCheckedChange = null, modifier = Modifier.size(48.dp),
             colors = CheckboxDefaults.colors(
                 checkedColor = c.primary, checkmarkColor = c.onPrimary, uncheckedColor = c.muted,
             ),
         )
         Text(
-            label,
+            "Tôi đồng ý để VeriClue xử lý các thông tin trên nhằm xác minh danh tính.",
             style = VcType.body, color = c.ink, modifier = Modifier.weight(1f).padding(vertical = 10.dp),
         )
     }

@@ -25,14 +25,15 @@ private class StableFrameHold(private val holdMs: Long, private val minimumFrame
 
     fun update(s: FaceSignal?, nowMs: Long, valid: Boolean): Boolean {
         if (!valid || s == null || !QualityGate.isFresh(s, nowMs)) { reset(); return false }
-        val capturedMs = s.timestampNs / 1_000_000L
         val previous = lastObservedMs
         if (previous != null && (s.observedAtMs < previous || s.observedAtMs - previous > QualityGate.MAX_FRAME_AGE_MS ||
                 (trackingId != null && trackingId != s.trackingId))) reset()
-        if (lastFrameNs != null && capturedMs - lastFrameNs!! / 1_000_000L > QualityGate.MAX_FRAME_AGE_MS) reset()
         if (lastFrameNs == s.timestampNs) return false
         if (lastFrameNs != null && s.timestampNs < lastFrameNs!!) { reset(); return false }
+        if (lastFrameNs != null && s.timestampNs - lastFrameNs!! > QualityGate.MAX_FRAME_AGE_MS * 1_000_000L) reset()
         if (lastObservedMs != null && s.observedAtMs <= lastObservedMs!!) return false
+        // Delivery latency cannot supply missing time in the captured pose evidence.
+        val capturedMs = s.timestampNs / 1_000_000L
         firstCapturedMs = firstCapturedMs ?: capturedMs
         lastObservedMs = s.observedAtMs
         lastFrameNs = s.timestampNs
@@ -61,8 +62,8 @@ class StableFaceGate {
  */
 class HeadActionGate(
     val direction: TurnDir?,
-    private val thresholdDeg: Float = HeadTurnGuide.TURN_MIN_DEG,
-    private val straightDeg: Float = HeadTurnGuide.CENTER_MAX_DEG,
+    private val thresholdDeg: Float = 25f,
+    private val straightDeg: Float = 10f,
     holdMs: Long = 350L,
 ) {
     private val hold = StableFrameHold(holdMs, minimumFrames = 3)
@@ -74,9 +75,7 @@ class HeadActionGate(
 
     fun update(s: FaceSignal?, nowMs: Long): Boolean {
         if (complete) return true
-        val poseMatches = s != null &&
-            abs(s.pitch) <= HeadTurnGuide.MAX_TILT_DEG && abs(s.roll) <= HeadTurnGuide.MAX_TILT_DEG &&
-            abs(s.yaw) <= HeadTurnGuide.TURN_MAX_SAFE_DEG && when (direction) {
+        val poseMatches = s != null && when (direction) {
             TurnDir.Left -> s.yaw >= thresholdDeg
             TurnDir.Right -> s.yaw <= -thresholdDeg
             null -> abs(s.yaw) <= straightDeg

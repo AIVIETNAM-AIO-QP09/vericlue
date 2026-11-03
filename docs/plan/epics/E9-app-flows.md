@@ -610,11 +610,13 @@ APK build thành công. Backend/ML có hai lượt 193 và 122 test đạt (ch�
 quá hai dòng ở chữ 200%. Schema/OpenAPI/SDK đồng bộ; mock không chứng minh
 liveness thật. Bàn giao 22:10 ghi cách kiểm và giới hạn tổng thu 30 giây.
 
-Tích hợp main vào PR #130 theo yêu cầu xử lý conflict: giữ UI/adaptive cùng
-consent và nguồn AV chung của APP-01…03; thống nhất dải hướng dẫn local,
-timestamp capture và diagnostic của bước thực. Artifact hiệu chỉnh timed/adaptive
-tách riêng; enrollment/recovery kiểm đúng protocol. Bàn giao
-`2026-11-02-2337-app-11-codex.md` ghi kiểm tra tích hợp và giới hạn nghiệm thu.
+**02/11 23:31 — tích hợp S24 FE theo yêu cầu:** ghép PR130 `658139f` với
+nền PR134 `9291bb5`, giữ các sửa giọng, quyền riêng tư và tài khoản. Review chéo
+ba agent bổ sung kiểm sensor clock, giữ Finalize hiện tại, chống lặp lời nhắc,
+EOF thật và phiên bản phép đo adaptive riêng; không mượn artifact timed.
+Schema/OpenAPI/SDK đồng bộ. Giữ `review`, chưa nghiệm thu máy thật của bản này;
+khôi phục vẫn còn chốt nhận dạng câu/lipsync. Kết quả kiểm tra và triển khai ở
+[bàn giao tích hợp](../../status/handoffs/2026-11-02-2331-app-11-ngoc-quang-codex.md).
 
 ---
 
@@ -632,6 +634,14 @@ khóa/tài khoản và năm module ok/pass (tổng hợp APP-01-s24fe-physical-a
 | Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
 |---|---|---|---|---|
 | M1 | 2 | S1–S2 | P0 | APP-01 |
+
+**03/11 chiều — yêu cầu giao diện mới:** oval hiển thị gọn, cùng source guide
+ở framing/các thử thách/giọng; text scale không đổi vùng tối đa nhận mặt.
+Hướng dẫn lấp đầy ít nhất 65% khi vào/60% khi giữ để tránh mặt quá nhỏ trong
+oval. Thiếu tracking metadata sau khi đã có ID dùng correction/grace hiện có,
+không coi ngay là đổi người; không cộng hold từ khung đó. Chờ nghiệm thu máy
+thật, không công bố khoảng cách cm hoặc mức giảm retry. Xem
+[bàn giao](../../status/handoffs/2026-11-03-1300-app-04-ngoc-quang-codex.md).
 
 **02/11 — sửa nhắc lặp:** người dùng xác nhận bị nhắc cùng bên; local hold chưa
 hoàn tất có thể nhắc quay ra lại sau khi đã về giữa. Thêm latch hướng dẫn riêng
@@ -660,6 +670,86 @@ latch là hold đạt/đổi phase/qua gate; giữ các hằng và lịch5/5/2. 
 |---|---|---|---|---|
 | M1 | 1 | S2 | P0 | APP-01 |
 
+**03/11 trưa — tiếp tục sửa, chưa nghiệm thu:** đăng ký và đăng nhập mới đã
+đạt trên demo 0.90. Khôi phục 11:15 bị chặn ở lipsync; lượt 11:50 bị chặn trước
+giọng ở GenD và ánh mắt. Sửa timestamp CameraX trước hàng đợi main để loại
+lỗi trễ callback khỏi mốc video ước lượng, giữ lịch và mọi ngưỡng/chốt.
+Không kết luận đã sửa GenD hoặc đồng hồ encoder. Xem
+[bàn giao](../../status/handoffs/2026-11-03-1210-app-03-ngoc-quang-codex.md).
+
+**03/11, sau lượt 10:57:** người dùng yêu cầu ngưỡng demo GenD **0.90** sau
+khi 0.70 vẫn chặn. Profile riêng đã đổi với policy mới; không coi các lượt
+demo dùng để điều chỉnh ngưỡng là đánh giá độc lập. GenD chưa hiệu chỉnh và
+khôi phục chưa nghiệm thu; mục 0.70 bên dưới là lịch sử.
+
+**03/11 10:54 — cấu hình demo theo yêu cầu mới:** ngưỡng GenD riêng của máy
+demo đổi từ 0.50 sang 0.70, policy có mã mới; server đã xác nhận qua HTTP.
+Đây là lựa chọn thủ công chưa hiệu chỉnh, có thể tăng bỏ lọt deepfake, không
+phải bằng chứng mô hình đã sửa. Không đổi mặc định repo hoặc chốt error/degraded.
+Chưa có lượt điện thoại trên policy mới; xem
+[bàn giao](../../status/handoffs/2026-11-03-1042-app-03-ngoc-quang-codex.md).
+
+**03/11 sáng — sửa GenD:** lượt07:39 qua sáu mô-đun mặt nhưng GenD chặn
+trước giọng. Đối chứng gốc phát hiện lỗi căn mặt NumPy; sửa và version riêng,
+không đổi ngưỡng. Mã gốc cũng từ chối front của lượt này ở cutoff hiện có,
+nên chưa coi khôi phục đã sửa xong. Xem
+[bàn giao](../../status/handoffs/2026-11-03-0757-app-03-ngoc-quang-codex.md).
+
+**03/11 02:57 — đã triển khai, chưa nghiệm thu:** APIfb8c2bf với Qwen1.7B
+manual-only đã preload đủ11 mô-đun và khởi động thực; APKc646868 cài giữ dữ
+liệu lênS24 FE. Python5329 đạt, Android445 ca không lỗi, CI10/10 xanh trên
+fb8c2bf. Frontend SyncNet mới vẫnoffline; khôi phục/ASR/lipsync cần lượt người
+thật. Giữdoing và DraftPR135; xem
+[bàn giao cuối](../../status/handoffs/2026-11-03-0257-app-03-ngoc-quang-codex.md).
+
+**03/11 — tiếp tục điều tra:** APK03b4abc đã cài giữ dữ liệu; sửa thời hạn chờ
+AI và kiểm phản hồi trước giải phóng bản thu. Đối chứng ASR cố định trên
+18 mẫu/18 người DNU calib_fit, không dùng điện thoại/test/VIVOS parity để chọn.
+Frontend landmark106 có version và probe file/RAM riêng, chưa bật trong API;
+xem [runbook](../../runbooks/syncnet-frontend-probe.md). Khôi phục vẫn chưa đạt
+nghiệm thu, không nới chốt hoặc đổi ngưỡng để lấy kết quả pass.
+
+**03/11 — doing, sửa thao tác thu giọng:** cap native 10 giây gồm chuẩn bị;
+đếm ngược theo CameraX và bắt buộc bấm “Đọc xong”. Nếu hết giờ, không decode/
+gửi, cho ghi lại cùng câu và challenge ID, không dùng lượt đọc lại phía server.
+Giữ nguồn MP4/WAV chung, PTS v3, giới hạn decoder 12 giây và chốt AI. Chưa nghiệm
+thu ASR/lipsync/khôi phục; xem
+[bàn giao](../../status/handoffs/2026-11-03-0001-app-03-ngoc-quang-codex.md).
+
+**02/11 22:50 — doing, đã nhận xác nhận đọc đúng:** người dùng xác nhận đủ câu
+và sáu số cả hai lượt. Đối chứng cùng trọng số Qwen với runtime chính thức
+cho bản đọc lại có cùng token sinh và vẫn mismatch; VAD không cắt PCM.
+Chưa có bằng chứng cho lỗi wrapper còn lại ở bản ghi này. Lipsync còn khác recipe căn mặt,
+recovery chưa nghiệm thu; xem
+[bàn giao](../../status/handoffs/2026-11-02-2250-app-03-ngoc-quang-codex.md).
+
+**02/11 21:49 — doing, tiếp tục điều tra server:** sửa Qwen theo assistant
+language prefill gốc và SyncNet theo resize uint8 gốc, phiên bản riêng cho
+từng wrapper. Có regression/control-token guards và review chéo; trọng số,
+ngưỡng/câu thử thách/clock không đổi. Đối chứng bản ghi cũ vẫn không đạt nội
+dung và lipsync, chưa nghiệm thu recovery. Xem
+[bàn giao](../../status/handoffs/2026-11-02-2149-app-03-ngoc-quang-codex.md).
+
+**02/11 21:16 — doing, lượt người thật mới trên v3:** cả bản đọc đầu và bản
+đọc lại đã tới AI. Mặt/quay đầu, voice spoof và continuity đạt; nội dung câu
+và lipsync không đạt, kết quả `review`, chưa commit liên kết khôi phục, tài khoản
+vẫn còn nguyên. Không tái hiện lỗi parser trước gửi ở lượt này; nguyên nhân
+gốc của hai chốt AI chưa được xác định. Giữ Draft PR134 và chưa nghiệm thu.
+
+**Lịch sử 02/11 tối — sửa tiếp ca đọc lại:** v2 đã đưa giọng tới API, nhưng ca
+đọc lại vẫn bị từ chối bởi bước nhảy timestamp. V3 đã kiểm chứng nội suy WAV
+theo timeline presentation và normalizer version riêng; không dùng kết quả AI
+để dịch media/chọn ngưỡng.320test và5native replays đạt; chưa nghiệm thu toàn
+luồng hoặc clock vật lý.
+
+**Lịch sử 02/11 tối — sửa lỗi micro:** Android đã cấp quyền nhưng decoder từ
+chối PTS của file thực; callback báo nhầm thiếu quyền. Policy nguồn mới
+`muxed-av-pcm-v2-clock1ms` kiểm sai số tối đa1ms cả theo mốc đầu và đoạn kế cận,
+PTS phải tăng, không sửa PCM/offset. Lỗi capture khi đã có quyền chuyển màn
+ghi lại; chỉ quyền thực sự bị từ chối mới mở hướng dẫn quyền. Ngưỡng AI/API
+vẫn giữ nguyên. Full Android và native decoder replay đã qua; cần thử lại toàn
+luồng sau cài.
+
 **02/11 — doing, nguồn ghi chung:** CameraX ghi micro/video vào một MP4 có
 cap 8 giây; chuẩn bị chỉ kết thúc khi có video và audio native ACTIVE. Sau
 finalize, giải mã chính file sẽ tải lên thành WAV PCM 16-bit, mono, 16 kHz, giữ offset
@@ -682,8 +772,10 @@ là ước lượng phần mềm; không phải cách lấy offset PTS của ngu
 **Mục tiêu:** làm giai đoạn C của ADR-0013 và bước leo thang L3.
 
 **Đầu ra:**
-- Luồng API: CameraX ghi video và track âm thanh trong một MP4, giới hạn 8 giây;
+- Luồng API: CameraX ghi video và track âm thanh trong một MP4, giới hạn 10 giây;
   WAV PCM 16-bit, mono, 16 kHz được giải mã/chuẩn hóa từ chính file đó, cùng offset PTS có dấu.
+- Hiện thời gian native còn lại; chỉ gửi khi người dùng bấm “Đọc xong” trước cap.
+  Hết cap cho ghi lại tại máy, giữ câu/challenge ID và giới hạn/expiry phía server.
 - Chữ ký media ràng buộc WAV, MP4 và offset như hợp đồng hiện có; gallery offline
   giữ AudioRecord. Chung PTS container chưa chứng minh đồng bộ clock phần cứng.
 
@@ -706,13 +798,24 @@ chụp để hướng dẫn bấm nút thủ công và giữ lý do chụp lại
 
 **Mục tiêu:** làm giai đoạn A của ADR-0013. Phần server nằm ở FLOW-02 và FLOW-03.
 
+**Yêu cầu mới 03/11 — doing:** một màn quét, QR và chân dung cùng ảnh mới;
+thiếu thì hướng dẫn chỉnh tại chỗ, bỏ điều hướng QR-only. Sửa crop/đo chất
+lượng vùng thẻ, giữ xác nhận thông tin và kiểm server. Yêu cầu tiếp theo:
+tự chụp tiếp có khoảng nghỉ, bỏ nút chụp thủ công và giới hạn dừng 20s/ba lần;
+thử vùng QR chồng lấp cùng bitmap khi toàn khung chưa đọc được. Không bỏ
+kiểm ảnh cuối hoặc quota/TTL của server. Preset đầy đủ `phone-demo-fixed-v1`
+chưa bật; sau đó người dùng cho phép reset riêng tài khoản test và chỉ bật
+GenD 0.95 (bàn giao 13:47). Xem
+[bàn giao](../../status/handoffs/2026-11-03-1300-app-04-ngoc-quang-codex.md).
+
 **Đầu ra:**
 - Màn hình số điện thoại và OTP, có khung "SMS mô phỏng".
-- Chụp CCCD hai mặt bằng camera sau, khung 4 góc. Đọc thử QR trên máy chỉ để báo người dùng chụp lại khi không đọc được.
+- Một màn camera sau tự chụp mặt thẻ có QR và chân dung; không bắt bấm chụp, chỉ gửi ảnh mới đủ cả hai, thiếu thì hướng dẫn chỉnh cùng màn, không mở bước QR riêng.
 - Màn hình xác nhận thông tin.
 
 **Tiêu chí hoàn thành:**
 - [x] Đi hết giai đoạn A trên điện thoại thật. (27/10, Galaxy S24 FE, thẻ CCCD gắn chip; bàn giao `2026-10-27-2000-app-01`)
+- [ ] Nghiệm thu lại bước quét một màn theo yêu cầu 03/11 trên S24 FE; test tự động không thay nghiệm thu này.
 
 ---
 

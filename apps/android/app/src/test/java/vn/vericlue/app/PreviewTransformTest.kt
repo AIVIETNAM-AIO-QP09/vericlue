@@ -14,8 +14,11 @@ class PreviewTransformTest {
                 val r = faceGuideRect(375f * density, 812f * density, density, scale, 24f * density, 24f * density)
                 assertEquals(1.32f, r.height / r.width, 0.001f)
                 assertEquals(375f * density / 2, r.center.x, 0.01f)
-                assertTrue(r.top >= (24 + 128 + 64 * scale) * density)
-                assertTrue(r.bottom <= (812 - 24 - 112 - 56 * scale) * density)
+                val minimumTop = (24 + 128 + 64 * scale) * density
+                val maximumBottom = (812 - 24 - 112 - 56 * scale) * density
+                // Float32 center-minus-half can fall one ULP below the clamp boundary.
+                assertTrue("Top ${r.top} must stay above $minimumTop (font=$scale density=$density)", r.top >= minimumTop - .001f)
+                assertTrue("Bottom ${r.bottom} must stay below $maximumBottom (font=$scale density=$density)", r.bottom <= maximumBottom + .001f)
             }
         }
     }
@@ -25,10 +28,10 @@ class PreviewTransformTest {
         assertTrue(r.left >= 0 && r.right <= 812 && r.top >= 0 && r.bottom <= 375)
         assertEquals(1.32f, r.height / r.width, 0.001f)
     }
-    @Test fun normalPhoneGuideUsesMostOfTheWidthWithoutChangingCameraZoom() {
+    @Test fun normalPhoneGuideIsCompactWhileCameraAcceptanceIsKeptSeparately() {
         val r = faceGuideRect(375f, 812f, 1f, 1f, 24f, 24f)
-        assertTrue(r.width >= 375f * 0.80f)
-        assertTrue(r.width <= 375f * 0.82f + 0.01f)
+        assertTrue(r.width >= 375f * 0.60f)
+        assertTrue(r.width <= 375f * 0.70f)
     }
     @Test fun thumbnailMapsTheSameFaceAreaAndRestoresTheExactIdentityTransform() {
         val guide = faceGuideRect(375f, 812f, 1f, 1f, 24f, 24f)

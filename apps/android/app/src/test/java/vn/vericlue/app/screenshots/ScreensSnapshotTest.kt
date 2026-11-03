@@ -45,7 +45,12 @@ class ScreensSnapshotTest {
         fun render(snapshotName: String, darkTheme: Boolean) {
             val view = ComposeView(paparazzi.context)
             view.setContent { VcTheme(dark = darkTheme, motionEnabled = false) { content() } }
-            paparazzi.snapshot(view, snapshotName, offsetMillis = offsetMillis)
+            try {
+                paparazzi.snapshot(view, snapshotName, offsetMillis = offsetMillis)
+            } finally {
+                // Release effects and the recomposer owned by this manually created host.
+                view.disposeComposition()
+            }
         }
         render(name, dark)
         if (!dark) render(name + "_dark", true)

@@ -10,6 +10,17 @@ Nguồn chính thức: [model card](https://huggingface.co/Qwen/Qwen3-ASR-0.6B-h
 [processor tại v5.13.0](https://github.com/huggingface/transformers/blob/v5.13.0/src/transformers/models/qwen3_asr/processing_qwen3_asr.py).
 Chỉ dùng thư viện đã cài; không chép mã nguồn model hoặc chạy remote code.
 
+**Sửa 02/11:** version `cpu-fp32-content-v2-assistant-prefix` gọi public chat
+API với assistant continuation `language Vietnamese<asr_text>`, theo
+[Qwen gốc đã ghim](https://github.com/QwenLM/Qwen3-ASR/blob/c17a131fe028b2e428b6e80a33d30bb4fa57b8df/qwen_asr/inference/qwen3_asr.py#L445-L465).
+Helper `apply_transcription_request` của runtime 5.13.0 đặt ngôn ngữ ở system;
+[upstream sửa tại PR47111](https://github.com/huggingface/transformers/pull/47111).
+Giữ runtime/trọng số đã pin; không nâng thư viện hoặc truyền câu dự kiến làm
+context. Đầu ra sau prefill chỉ là transcript; wrapper phục hồi envelope cố
+định để kiểm parser, kiểm token điều khiển trước khi decoder có thể bỏ chúng.
+Ngôn ngữ lúc này được ép theo cấu hình; không coi envelope là bằng chứng model
+tự nhận ra tiếng Việt. Chất lượng nhận dạng trên điện thoại vẫn cần đo riêng.
+
 ## Chuẩn bị và chạy
 
 Chạy tại gốc repo bằng PowerShell; không đổi môi trường webcam/CUDA:
@@ -172,17 +183,22 @@ lần, generation tuần tự dưới khóa; root mới sau khi nạp bị từ 
 2. Processor chỉ nhận audio và ngôn ngữ Vietnamese. **Không đưa câu đề bài,
    prompt, context hoặc hotword cho ASR**. Số âm tiết chỉ giới hạn budget token.
 3. Greedy generate với budget có giới hạn; thiếu EOS hoặc chạm budget là lỗi.
-   Decode raw envelope; không dùng hậu xử lý sửa đoạn lặp của processor.
-   Sai envelope/ngôn ngữ/control token là lỗi, không âm thầm sửa thành câu khớp.
+   Kiểm token điều khiển trước decode. V2 nhận phần văn bản tiếp nối assistant,
+   tự ghép lại prefix Vietnamese cố định để kiểm định dạng đầu ra; không coi đó
+   là model tự nhận diện ngôn ngữ. Đầu ra rỗng, markup/control hoặc sai định dạng
+   bị từ chối. Không dùng hậu xử lý sửa đoạn lặp hoặc sửa thành câu dự kiến.
 4. Chuẩn hóa và so khớp hai lớp dùng `compare_transcripts` của VOICE-04 và
    cấu hình ngưỡng hiện có, không chỉnh ngưỡng. `ok/pass` **chỉ có nghĩa nội dung
-   khớp**. `ok/fail` là sai câu; lỗi không thành pass. WER là lỗi nội dung,
+   khớp**. `ok/fail` là ASR không khớp câu, chưa chứng minh người dùng đọc sai;
+   lỗi không thành pass. WER là độ lệch văn bản nhận dạng so với câu dự kiến,
    không phải xác suất tấn công; không có `prob_attack`.
 
-Version có hậu tố `+cpu-fp32-content-v1`. `registry.get_qwen_voice_challenge()`
-là factory opt-in, mock dùng mock `voice_challenge` hiện có. `get_detector`
-và API/full/MVP vẫn dùng lựa chọn PhoWhisper hiện hành; chốt dynamic real/mixed
-giữ nguyên. Backend này không phát hiện giọng AI, đo nhịp đọc hoặc khớp môi.
+Version hiện tại có hậu tố `+cpu-fp32-content-v2-assistant-prefix`.
+`registry.get_qwen_voice_challenge()` là factory opt-in, mock dùng mock
+`voice_challenge` hiện có. Registry mặc định vẫn chọn PhoWhisper; riêng
+`session_voice` opt-in và manual full demo dùng Qwen qua worker riêng theo
+`ml/configs/models.yaml`. Backend này chỉ kiểm nội dung, không phát hiện giọng
+AI, đo nhịp đọc hoặc khớp môi; các chốt đó vẫn chạy độc lập.
 
 Artifact chứa commit, version/revision, hash audio, hash model kỳ vọng/đã kiểm,
 model_loaded, runtime, nguồn câu và `sample_count=1`. Transcript/câu dự kiến

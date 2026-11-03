@@ -11,9 +11,10 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import vn.vericlue.app.capture.av.MUXED_PCM_CAPTURE_POLICY
 
-const val MUXED_VOICE_SOURCE = "muxed-av-pcm-v1"
-const val MUXED_VOICE_LIMIT_MS = 8000L
+const val MUXED_VOICE_SOURCE = MUXED_PCM_CAPTURE_POLICY
+const val MUXED_VOICE_LIMIT_MS = 10_000L
 
 data class MuxedVoiceDecodedAudio(val wav: ByteArray, val audioOffsetMs: Int, val source: String = MUXED_VOICE_SOURCE)
 data class MuxedVoiceSubmission(val video: File, val audio: MuxedVoiceDecodedAudio)
@@ -22,7 +23,7 @@ internal fun muxedVoiceReady(recordedDurationNs: Long, audioActive: Boolean, aud
     recordedDurationNs > 0 && audioActive && !audioError
 
 internal fun voiceFinalizeAccepted(muxedVoice: Boolean, controlledDurationCap: Boolean, noError: Boolean, durationLimitReached: Boolean, audioFault: Boolean = false): Boolean =
-    !audioFault && (noError || (muxedVoice && controlledDurationCap && durationLimitReached))
+    !audioFault && noError && !durationLimitReached && (!muxedVoice || controlledDurationCap)
 
 /** One native container, one finalized source, and at most one submission per capture attempt. */
 class MuxedVoiceCapture(
@@ -43,12 +44,14 @@ class MuxedVoiceCapture(
     private var active = false
     private var nativeStarted = false
     private var stopped = false
+    private var finishRequested = false
 
     fun start() {
         if (active || _phase.value != VoiceCapturePhase.Idle || !scope.isActive) return
         active = true
         nativeStarted = false
         stopped = false
+        finishRequested = false
         val attempt = ++generation
         _phase.value = VoiceCapturePhase.Preparing
         worker = scope.launch(start = CoroutineStart.LAZY) {
@@ -65,6 +68,8 @@ class MuxedVoiceCapture(
                 currentCoroutineContext().ensureActive()
                 if (!active || attempt != generation) return@launch
                 if (video !is VideoResult.Ready) { fail(failureReason()); return@launch }
+                // A safety cap or unexpected native EOF is not the user's completed reading.
+                if (!finishRequested) { fail(VoiceCaptureFailure.DurationLimit); return@launch }
                 _phase.value = VoiceCapturePhase.Finished
                 stopOnce()
                 failure = VoiceCaptureFailure.Audio
@@ -87,6 +92,7 @@ class MuxedVoiceCapture(
     fun finish() {
         if (_phase.value == VoiceCapturePhase.Preparing) { cancel(); return }
         if (!active || _phase.value != VoiceCapturePhase.Recording) return
+        finishRequested = true
         _phase.value = VoiceCapturePhase.Finished
         stopOnce()
     }

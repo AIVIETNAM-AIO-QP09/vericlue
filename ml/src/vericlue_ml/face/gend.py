@@ -70,6 +70,8 @@ FORENSIC_MODE = "forensic"  # `DetectorInput.metadata["mode"]`; không có thì 
 # Hậu tố của model_version: cách gộp điểm khung → video. Đổi cách gộp (mean/top25/max) thì ĐỔI hậu tố này,
 # vì calibrator được khóa theo model_version. Số khung (8 hay 32) KHÔNG nằm trong version, mà ở evidence.
 AGGREGATION_TAG = "agg-maxmeantop25-v1"
+# Alignment arithmetic changed: legacy calibrators must not match the corrected pipeline.
+PREPROCESSING_TAG = "align-upstream-numpy-v2"
 HEAD_VIEWS_TAG = "headturn-3views-v1"
 MAX_VIEW_PIXELS = 1920 * 1080
 MIN_VIEW_FACE_SIDE_PX = 40  # Provisional quality bound, not a calibrated security threshold.
@@ -114,7 +116,8 @@ def align_face(image: np.ndarray, landmarks: np.ndarray, scale: float = ALIGN_SC
     desired = np.linalg.norm(landmarks[:, None, :] - landmarks[None, :, :], axis=-1)
     reference = np.linalg.norm(dst[:, None, :] - dst[None, :, :], axis=-1)
     upper = np.triu_indices(len(dst), k=1)
-    side = int(np.round(np.mean(desired[upper] / reference[upper]) * scale))
+    # Keep upstream's NumPy scalar: Python int changes float32 rounding under NumPy 2.
+    side = np.round(np.mean(desired[upper] / reference[upper]) * scale).astype(int)
     if side < 1:
         raise GendError("Mốc mặt suy biến.", ErrorCode.E_NO_FACE)
     size = (side, side)
@@ -254,9 +257,9 @@ class FaceDeepfakeDetector:
         self._finder, self._classifier = finder, classifier
         self._num_frames = num_frames
         self.version = (
-            f"gend-clip-l14+scrfd-10g+{AGGREGATION_TAG}"
+            f"gend-clip-l14+scrfd-10g+{PREPROCESSING_TAG}+{AGGREGATION_TAG}"
             if finder is None
-            else f"gend-clip-l14+injected+{AGGREGATION_TAG}"
+            else f"gend-clip-l14+injected+{PREPROCESSING_TAG}+{AGGREGATION_TAG}"
         )
         self._lock = threading.Lock()
         self._loaded_root: Path | None = None
@@ -279,7 +282,7 @@ class FaceDeepfakeDetector:
             self._loaded_root = root.resolve()
             self.version = (
                 f"gend-clip-l14@{gend_rev[:8]}+clip@{clip_rev[:8]}"
-                f"+scrfd-10g@{det_rev[:8]}+{AGGREGATION_TAG}"
+                f"+scrfd-10g@{det_rev[:8]}+{PREPROCESSING_TAG}+{AGGREGATION_TAG}"
             )
 
     def _largest_face(self, frame: np.ndarray) -> FaceBox | None:

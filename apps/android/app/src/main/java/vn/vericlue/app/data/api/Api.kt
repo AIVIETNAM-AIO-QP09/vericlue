@@ -232,6 +232,9 @@ class SessionApi(
 ) {
     private val base = baseUrl.toHttpUrl()
     private val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
+    // Server inference can use 90.8s plus response/commit overhead. Share the
+    // transport and retain ordinary timeouts; only the two inference calls wait longer.
+    private val inferenceHttp = http.newBuilder().readTimeout(120, TimeUnit.SECONDS).build()
 
     /** [request] null = the old MVP session (no purpose, no dynamic schedule). */
     suspend fun createSession(mockScenario: String? = null, request: CreateSessionRequest? = null): ApiResult<CreateSessionResponse> {
@@ -291,7 +294,7 @@ class SessionApi(
 
     suspend fun finalize(sessionId: String, token: String, challengeId: String? = null): ApiResult<FinalizeResponse> {
         val body = challengeId?.let { json.encodeToString(FinalizeRequest.serializer(), FinalizeRequest(it)) } ?: ""
-        return call(post(url("v1", "sessions", sessionId, "finalize"), body.toRequestBody(JSON), token))
+        return call(post(url("v1", "sessions", sessionId, "finalize"), body.toRequestBody(JSON), token), inference = true)
     }
 
     /** [audioOffsetMs]: when the WAV starts, from the video's first frame (sent only with a video). */
@@ -315,7 +318,7 @@ class SessionApi(
                 if (mediaSignature != null) addFormDataPart("media_signature", mediaSignature)
             }
             .build()
-        return call(post(url("v1", "sessions", sessionId, "voice"), body, token))
+        return call(post(url("v1", "sessions", sessionId, "voice"), body, token), inference = true)
     }
 
     suspend fun sendOtp(sessionId: String, token: String, phone: String): ApiResult<OtpSent> =
@@ -348,9 +351,10 @@ class SessionApi(
             if (mockScenario != null) header("X-Mock-Scenario", mockScenario)
         }.build()
 
-    private suspend inline fun <reified T> call(request: Request): ApiResult<T> = withContext(Dispatchers.IO) {
+    private suspend inline fun <reified T> call(request: Request, inference: Boolean = false): ApiResult<T> = withContext(Dispatchers.IO) {
         try {
-            http.newCall(request).execute().use { res ->
+            val client = if (inference) inferenceHttp else http
+            client.newCall(request).execute().use { res ->
                 val text = res.body?.string().orEmpty()
                 if (!res.isSuccessful) {
                     val code = runCatching { json.decodeFromString(ErrorResponse.serializer(), text).errorCode }.getOrNull()

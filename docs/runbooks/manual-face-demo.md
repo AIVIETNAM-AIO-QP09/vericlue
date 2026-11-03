@@ -52,6 +52,48 @@ Kết quả manual giữ `prob_attack=null`, `calibrated=false`, marker
 `+manual-demo-<policy_id[:16]>`. Policy v2 làm thay đổi hash so với bản demo cũ;
 phiên/tài khoản khác mode hoặc policy bị từ chối, không chuyển đổi ngầm.
 
+## Preset cố định `phone-demo-fixed-v1` (03/11)
+
+Chỉ bật bằng `MANUAL_DEMO_PRESET=phone-demo-fixed-v1` trong cấu hình đã có
+`MANUAL_FULL_DEMO=true`. Không bật được ở đường chuẩn hoặc `MANUAL_FACE_DEMO`.
+Nếu không đặt preset, sáu cấu hình thủ công và mặc định ở bảng trên giữ nguyên.
+
+| Tham số | Giá trị cố định |
+|---|---:|
+| PAD tối đa | 0.70 |
+| GenD chính diện tối đa | 0.95 |
+| AntiDeepfake tối đa | 0.70 |
+| SyncNet tối đa | 0.60 |
+| Cosine nhận dạng tối thiểu | 0.30 |
+| Cosine nhất quán tối thiểu | 0.30 |
+
+Đây là lựa chọn kỹ thuật chưa hiệu chỉnh để nới cổng điểm thô cho demo; không
+chọn từ điểm lượt điện thoại, không fit tập test, không chứng minh giảm báo
+nhầm hoặc FAR/FRR. Tăng ngưỡng tấn công có thể tăng bỏ lọt. SyncNet dùng điểm
+`max(1-confidence, abs(offset_ms)/500)`: mốc 0.60 yêu cầu confidence ít nhất
+0.40 và độ lệch không quá 300 ms. Nhận dạng/nhất quán giữ 0.30; ASR vẫn yêu cầu
+WER không quá 0.30 và độ giống bỏ dấu ít nhất 0.90.
+
+Một đối tượng bất biến trong `common/manual_demo.py` cấp sáu giá trị cho API
+và worker. Hash policy v2 tiếp tục tính trên **giá trị thực dùng**, không đổi
+nhãn thành đã hiệu chỉnh. Khi bật preset, bỏ các biến `MANUAL_DEMO_*_MAX` và
+`MANUAL_DEMO_*_MIN` cũ hoặc đặt đúng các giá trị trên: cấu hình truyền tường
+minh khác preset bị từ chối lúc khởi động; mặc định chưa truyền không gây
+xung đột. Worker, kết quả và phiên vẫn bị ràng buộc cùng hash/version.
+
+Preset không bỏ kiểm tra thiếu trọng số/bằng chứng, lỗi/degraded/timeout,
+splice, câu đọc, chất lượng, quay đầu/ánh mắt, nhận dạng, continuity hoặc consent.
+Model thật vẫn chạy; `prob_attack=null`, `calibrated=false` và banner demo giữ nguyên.
+
+**Chuyển policy:** tài khoản/phiên cũ khác hash không được đổi nhãn hoặc tự
+chuyển. CCCD của tài khoản chưa hết hạn vẫn bị ràng buộc duy nhất: đăng ký
+lại ngay sẽ bị từ chối, dù tài khoản cũ không dùng được với policy mới.
+Để chuyển mà không đặt lại dữ liệu, chuẩn bị bản mới trước và chỉ kích hoạt
+sau khi tài khoản policy cũ hết TTL 24 giờ; tạo phiên mới để đăng ký lại.
+Quy trình hết hạn sẵn có giải phóng ràng buộc CCCD. Không tự xóa tài khoản,
+receipt/khóa trên app hoặc sửa thời hạn để né ràng buộc. Thay preset là đổi
+cấu hình vận hành riêng; thêm code/runbook không tự kích hoạt server đang chạy.
+
 ## Cấu hình full demo
 
 ```dotenv
@@ -88,8 +130,32 @@ credential và signed result cho bên tích hợp không được mở bởi ch�
 
 ## Giọng nói và chốt tài khoản
 
+**APP-03 (03/11):** `MANUAL_DEMO_CONTENT_BACKEND=qwen06` là mặc định như cũ.
+Chỉ khi `MANUAL_FULL_DEMO=true` mới được chọn `qwen17`; thiếu hoặc sai artifact
+không fallback về 0.6. Bản 1.7B cố định revision
+`bcd2b5b7f32b480ab5790554cfa8347f246a14f3`, wrapper
+`cpu-fp32-content-v2-assistant-prefix`, thư mục riêng
+`MODELS_DIR/qwen3-asr-17b-hf`; không ghi đè 0.6B hoặc đọc config override của nó.
+Pin byte và kiểm thư mục không được thoát MODELS_DIR qua symlink/junction.
+
+Hash policy vẫn biểu diễn đúng sáu ngưỡng bên trên. ASR được ràng buộc riêng:
+worker preload/hello/request/reply và kết quả phải cùng phiên bản; phiên mới
+lưu phiên bản ASR trong snapshot mã hóa do server tạo. Bản 1.7 từ chối pin
+thiếu/sai/của 0.6, không tự backfill phiên cũ. Rollback sang 0.6 cũng không nhận
+phiên đã pin 1.7; cần bắt đầu phiên mới. Chỉ 0.6 giữ tương thích phiên lịch sử
+chưa có pin. Các endpoint công khai và ngưỡng không thêm quyền chọn mô hình
+cho người dùng. SessionFlow và AccountStore kiểm pin/result khi cần giọng.
+
+Tài khoản cũ giữ template/version mặt, consent, khóa, mode và policy hiện có;
+không migration hoặc đổi nhãn. Khôi phục vẫn cần toàn bộ chốt mới đạt.
+18 mẫu/18 người DNU calib_fit cho kết quả khả quan với 1.7, nhưng CPU chậm
+hơn khoảng 2,5 lần, trọng số FP32 khoảng 8,15 GB. Trước khi bật cần preload
+thật toàn stack và kiểm ngân sách RAM/timeout. Fit không thay nghiệm thu
+điện thoại hay đánh giá spoof/lipsync. Xem bàn giao `2026-11-03-0128` và
+[hướng dẫn đo ASR](../../ml/src/vericlue_ml/eval/DNU_ASR_FIT.md).
+
 - Worker manual dùng raw **AntiDeepfake** (`voice01-v1-vad1-ln-win4-hop1-tail-meanlogits`)
-  và raw **SyncNet** (`voice05-v2`), giữ revision backend đầy đủ trước hậu tố
+  và raw **SyncNet** (`voice05-v3-u8resize`), giữ revision backend đầy đủ trước hậu tố
   policy. NES2Net ở đường tiêu chuẩn vẫn là diagnostic; không đổi
   `degraded/error` thành `ok/pass`, không dùng cửa sổ NES hoặc probability chung
   làm bằng chứng đạt cho manual full demo.

@@ -1,6 +1,7 @@
 package vn.vericlue.app.flow
 
 import vn.vericlue.app.capture.CccdInfo
+import vn.vericlue.app.capture.VoiceCaptureFailure
 import vn.vericlue.app.data.api.IdCardFields
 
 /**
@@ -58,6 +59,7 @@ object Routes {
 
     const val Voice = "voice"
     const val VoiceAgain = "voice_again"
+    const val VoiceTimeLimit = "voice_time_limit"
 
     const val Uploading = "uploading"
     const val UploadFailed = "upload_failed"
@@ -88,13 +90,31 @@ object Routes {
 }
 
 object FlowRules {
+    /** Only a current permission denial should show permission instructions. */
+    fun voiceCaptureFailureRoute(failure: VoiceCaptureFailure, cameraGranted: Boolean, micGranted: Boolean): String =
+        when (failure) {
+            VoiceCaptureFailure.Camera -> if (cameraGranted) Routes.ErrorDevice else Routes.ErrorCamera
+            VoiceCaptureFailure.Audio -> if (micGranted) Routes.NoVoice else Routes.ErrorMic
+            VoiceCaptureFailure.DurationLimit -> Routes.VoiceTimeLimit
+        }
+
+    /** Local capture failures never request a new server phrase or reset its reread identity. */
+    fun voiceLocalRetryRoute(again: Boolean): String = if (again) Routes.VoiceAgain else Routes.Voice
+
+    /** Use the native container duration, including preparation; never restart a UI timer. */
+    fun voiceRemainingMs(recordedDurationMs: Long, limitMs: Long): Long {
+        val limit = limitMs.coerceAtLeast(0L)
+        return limit - recordedDurationMs.coerceIn(0L, limit)
+    }
+
     fun closesCameraOnResult(route: String): Boolean = route in setOf(Routes.Success, Routes.Review, Routes.ManualDemoComplete)
     /** Prefer the back QR, falling back to the front on cards that print it there. */
     fun cardQr(frontQr: String?, backQr: String?): String? =
         backQr?.takeIf(String::isNotBlank) ?: frontQr?.takeIf(String::isNotBlank)
 
-    /** Retry with a back image only after the server actually needs an unread front QR. */
-    fun needsCardBack(hint: String?, hasBack: Boolean): Boolean = hint == "QR_UNREADABLE" && !hasBack
+    /** Legacy routes never request a second scan; corrections stay on the single card camera. */
+    @Suppress("UNUSED_PARAMETER")
+    fun needsCardBack(hint: String?, hasBack: Boolean): Boolean = false
 
     /** After OTP: re-auth skips the ID card (ADR-0013). */
     fun afterConsent(purpose: Purpose): String = if (purpose == Purpose.Reauth) Routes.FaceReady else Routes.Phone

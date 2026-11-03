@@ -34,6 +34,20 @@ Mọi đoạn code **chép** từ dự án khác phải được ghi vào bảng
 
 Văn bản giấy phép gốc lưu trong `third_party/licenses/<tên-dự-án>.txt`.
 
+## APP-03 — Landmark 106 cho đối chứng frontend khớp môi
+
+| Nguồn | Giấy phép | Dùng ở đâu | Điều chỉnh | Task |
+|---|---|---|---|---|
+| [InsightFace landmark.py](https://github.com/deepinsight/insightface/blob/3e6486942a1be2da0e5b475fac375ea73264bd21/python-package/insightface/model_zoo/landmark.py) và [face_align.py](https://github.com/deepinsight/insightface/blob/3e6486942a1be2da0e5b475fac375ea73264bd21/python-package/insightface/utils/face_align.py), revision `3e6486942a1be2da0e5b475fac375ea73264bd21` | MIT; Copyright (c) 2022 Jiankang Deng and Jia Guo | `ml/src/vericlue_ml/voice/landmarks106.py` | Adapter crop không xoay, đảo kênh và ánh xạ ngược; pin byte trọng số, một CPU ORT session và kiểm dữ liệu lỗi. Không chọn mặt/ra quyết định xác minh. | APP-03 |
+
+Giữ toàn bộ thông báo MIT trong module và `licenses/insightface-MIT.txt`.
+Trọng số `2d106det.onnx` từ bản phát hành chính thức `buffalo_l` v0.7 chịu
+điều khoản nghiên cứu phi thương mại của InsightFace, không phải giấy phép
+MIT của mã nguồn. Không phân phối trọng số trong Git. Adapter mới dành cho
+đối chứng offline, chưa được bật trong API hoặc nhận tương thích calibrator.
+Phép căn hình trong `eval/syncnet_frontend.py` được viết độc lập từ toán học
+và các tham số nguồn được dẫn riêng; không chép mã StyleSync không có giấy phép.
+
 ## VOICE-09 — NES2Net-X
 
 | Nguồn | Giấy phép | Chép vào đâu | Đã sửa gì | Task |
@@ -72,7 +86,7 @@ Giữ nguyên thông báo Apache-2.0 khi phân phối. Sau này gộp mô hình 
 
 | Nguồn | Giấy phép | Chép vào đâu | Đã sửa gì | Task |
 |---|---|---|---|---|
-| [yermandy/GenD](https://github.com/yermandy/GenD) commit `387a42266dd385fbe8f7626c5d3aa03eea3bfaab` — `detector.py::align_face` (mốc đích, `estimateAffinePartial2D` LMEDS, `target_size=None`), `src/retinaface.py` (SCRFD: chia 128, đảo BGR→RGB), `src/hf/modeling_gend.py` (`pooler_output` → L2-normalize → Linear(1024, 2)), `app/run.py` (softmax, nhãn 1 = giả) | MIT, Copyright (c) 2025 Andy (`third_party/licenses/GenD-MIT.txt`) | `ml/src/vericlue_ml/face/gend.py` (viết lại gọn; docstring giữ nguồn) và `ScrfdFaceFinder` trong `face/pad.py` (thêm giải mã 5 mốc, tham số `scale`/`swap_rb`) | Nạp CLIP từ `config.json` cục bộ + trọng số GenD (không dùng `GenD.from_pretrained`, không tải mạng, không chạy mã từ xa); không phụ thuộc `peft`/`timm`. Chưa có script đối chiếu số học với mã gốc trong repo (xem bàn giao FACE-02) | FACE-02 |
+| [yermandy/GenD](https://github.com/yermandy/GenD) commit `387a42266dd385fbe8f7626c5d3aa03eea3bfaab` — `detector.py::align_face` (mốc đích, `estimateAffinePartial2D` LMEDS, `target_size=None`), `src/retinaface.py` (SCRFD: chia 128, đảo BGR→RGB), `src/hf/modeling_gend.py` (`pooler_output` → L2-normalize → Linear(1024, 2)), `app/run.py` (softmax, nhãn 1 = giả) | MIT, Copyright (c) 2025 Andy (`third_party/licenses/GenD-MIT.txt`) | `ml/src/vericlue_ml/face/gend.py` (viết lại gọn; docstring giữ nguồn) và `ScrfdFaceFinder` trong `face/pad.py` (thêm giải mã 5 mốc, tham số `scale`/`swap_rb`) | Nạp CLIP từ `config.json` cục bộ + trọng số GenD (không dùng `GenD.from_pretrained`, không tải mạng, không chạy mã từ xa); không phụ thuộc `peft`/`timm`. Đối chứng số học: `ml/scripts/parity_gend.py` nhập nguồn MIT ghim SHA từ thư mục ngoài repo, không chép implementation; kiểm cả căn mặt và classifier. Regression dùng fixture số học tổng hợp từ upstream; không chứa ảnh người | FACE-02 |
 | [yermandy/GenD](https://github.com/yermandy/GenD) commit `387a42266dd385fbe8f7626c5d3aa03eea3bfaab` — `src/losses/unifalign.py` (`alignment`, `uniformity`), `src/exp/wacv_rebuttal.py` (tên lớp LayerNorm được mở, trọng số loss) | MIT, Copyright (c) 2025 Andy (`third_party/licenses/GenD-MIT.txt`) | `ml/src/vericlue_ml/finetune/gend_train.py` | Viết lại gọn bằng torch, nạp lười; chưa dùng để dạy (trưởng nhóm 19/10: chỉ hiệu chỉnh, không tinh chỉnh). Notebook `ml/notebooks/calibrate_gend.ipynb` nhúng nguyên văn `face/gend.py` và các file `finetune/` (đã ghi ở trên) | FACE-04 |
 
 Trọng số GenD `yermandy/GenD_CLIP_L_14` (MIT) và `openai/clip-vit-large-patch14` (MIT theo openai/CLIP, xem ghi chú trong `models/manifest.yaml`); `det_10g.onnx` vẫn là giấy phép nghiên cứu phi thương mại.

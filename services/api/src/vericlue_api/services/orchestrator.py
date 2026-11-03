@@ -95,6 +95,11 @@ class Orchestrator:
                     Path(self.settings.media_dir),
                     timeout=self.settings.session_model_timeout_seconds,
                     **(
+                        {"content_backend": self.settings.manual_demo_content_backend}
+                        if self.settings.manual_demo_content_backend != "qwen06"
+                        else {}
+                    ),
+                    **(
                         {
                             "manual_demo": self.settings.manual_demo_policy,
                             "warmup_kinds": ("spoof",)

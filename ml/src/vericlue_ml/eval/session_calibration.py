@@ -90,12 +90,9 @@ class SessionReport(Record):
     @field_validator("model_version")
     @classmethod
     def session_version(cls, value):
-        suffixes = tuple(
-            f"+session-video-v{protocol}" + ("+head-adaptive-v1" if adaptive else "")
-            for protocol in (1, 2)
-            for adaptive in (False, True)
-        )
-        if not value.endswith(suffixes) or value.startswith("mock@"):
+        if not value.endswith(
+            (SUFFIX, "+session-video-v2", "+session-video-v3-adaptive")
+        ) or value.startswith("mock@"):
             raise ValueError("Exact session-view model version required")
         return value
 
@@ -200,14 +197,10 @@ def collect(
         sample.sample_id: _source(data_root, sample.server_response) for sample in samples
     }
     challenge_hashes = {key: _sha(path) for key, path in challenges.items()}
-
-    def capture_protocol(inp):
-        return head_protocol_version(inp), parse_head_plan(inp).adaptive
-
-    protocols = {capture_protocol(_input(sample, data_root)) for sample in samples}
+    protocols = {head_protocol_version(_input(sample, data_root)) for sample in samples}
     if len(protocols) != 1:
         raise ValueError("A measurement report must contain exactly one capture protocol")
-    protocol, adaptive = protocols.pop()
+    protocol = protocols.pop()
     info = Manifest.model_validate(_read(manifest))
     protected = (
         {manifest}
@@ -225,7 +218,7 @@ def collect(
     try:
         if backend.name != module:
             raise ValueError("Backend module differs")
-        version = session_model_version(backend.frames_version, protocol, adaptive=adaptive)
+        version = session_model_version(backend.frames_version, protocol)
         for sample in samples:
             video, challenge = (
                 _source(data_root, sample.video),
@@ -235,7 +228,7 @@ def collect(
             if challenge_hash != challenge_hashes[sample.sample_id]:
                 raise ValueError("Server challenge changed after preflight")
             inp = _input(sample, data_root)
-            if capture_protocol(inp) != (protocol, adaptive) or _sha(challenge) != challenge_hash:
+            if head_protocol_version(inp) != protocol or _sha(challenge) != challenge_hash:
                 raise ValueError("Server challenge protocol changed after preflight")
             status, error, score = "error", "E_INTERNAL", None
             try:

@@ -109,8 +109,7 @@ class PresenceDebugTrace(
         val capturedMs = face?.timestampNs?.takeIf { it > 0L }?.div(1e6)
         val frameRel = capturedMs?.minus(originMs)?.toLong()
         val phase = if (timeline.adaptiveHead) {
-            // Adaptive cues follow observed holds, not the nominal timed slots. Attribute delayed
-            // analysis to the instruction shown when the frame was captured, never delivery time.
+            // Adaptive cues use observed boundaries, attributed on capture time.
             frameRel?.let { capturedRel ->
                 synchronized(lock) {
                     buffer.filterIsInstance<PresenceDebugEvent.PhaseBoundary>()

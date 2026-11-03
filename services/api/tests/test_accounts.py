@@ -537,9 +537,11 @@ def test_account_enrollment_requires_explicit_account_template_consent_receipt(p
 
 
 @pytest.mark.parametrize("manual", [False, True])
-@pytest.mark.parametrize("match_mode", ["adaptive-v2", "timed-v2", "adaptive-v1"])
-def test_adaptive_enrollment_requires_exact_match_sampling(private_client, manual, match_mode):
-    from vericlue_ml.presence.head_protocol import head_sampling_suffix
+@pytest.mark.parametrize("approved_protocol", [1, 2, 3])
+def test_adaptive_enrollment_requires_exact_match_sampling(
+    private_client, manual, approved_protocol
+):
+    from vericlue_ml.presence.head_protocol import head_identity_suffix
 
     with private_client.app.state.vericlue.transaction() as state:
         session, _, _ = prepared(state, voiced=False)
@@ -559,14 +561,10 @@ def test_adaptive_enrollment_requires_exact_match_sampling(private_client, manua
                 result.model_version += suffix
                 result.quality.update(manual_demo=True, demo_policy_id=policy.policy_id)
         session.results[Module.FACE_MATCH].model_version = (
-            VIDEO_MATCH_VERSION
-            + head_sampling_suffix(
-                1 if match_mode == "adaptive-v1" else 2, adaptive=match_mode != "timed-v2"
-            )
-            + suffix
+            VIDEO_MATCH_VERSION + head_identity_suffix(approved_protocol) + suffix
         )
         store = AccountStore(settings, state.db)
-        if match_mode == "adaptive-v2":
+        if approved_protocol == 3:
             store.validate_enrollment(session)
         else:
             with pytest.raises(ApiError):

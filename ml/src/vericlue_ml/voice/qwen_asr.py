@@ -3,6 +3,11 @@
 Checkpoint: Qwen/Qwen3-ASR-0.6B-hf at 7f1569a48a89f3e3f4dc3a5c9d28bddd903bc76c.
 API: transformers v5.13.0, models/qwen3_asr/processing_qwen3_asr.py and
 modeling_qwen3_asr.py. Use the installed Apache-2.0 library, no copied model code.
+Language prefill follows QwenLM/Qwen3-ASR at
+c17a131fe028b2e428b6e80a33d30bb4fa57b8df,
+qwen_asr/inference/qwen3_asr.py:445-465 (_build_messages/_build_text_prompt).
+Avoid the 5.13.0 system-language helper bug fixed upstream by Transformers
+c7f9c8815610d27e41a6b0b0cc9e2d3c49468d1d (PR #47111); use its public chat API.
 The expected phrase is NEVER passed to the processor/model as context/hotwords.
 """
 
@@ -14,7 +19,9 @@ import math
 import os
 import re
 import threading
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import yaml
@@ -32,7 +39,8 @@ from vericlue_ml.voice.asr import (
 from vericlue_ml.voice.challenge import VoiceChallengeDetector
 
 REVISION = "7f1569a48a89f3e3f4dc3a5c9d28bddd903bc76c"
-VERSION = f"qwen3-asr-06b@{REVISION}+cpu-fp32-content-v1"
+VERSION = f"qwen3-asr-06b@{REVISION}+cpu-fp32-content-v2-assistant-prefix"
+LANGUAGE_PREFIX = "language Vietnamese<asr_text>"
 MAX_AUDIO_SECONDS = 30
 MAX_AUDIO_BYTES = 32 * 1024 * 1024
 RUNTIME_FILES = frozenset(
@@ -68,13 +76,18 @@ class QwenASR:
     """Bounded local audio, verified files, one model load, serialized generation."""
 
     version = VERSION
+    _revision = REVISION
+
+    def _read_config(self, repo: Path) -> Mapping[str, Any]:
+        """Keep the default runtime pinned to its existing 0.6B configuration."""
+        config_path = Path(os.getenv("QWEN_ASR_CONFIG", repo / "ml/configs/qwen3_asr.yaml"))
+        return yaml.safe_load(config_path.read_text(encoding="utf-8"))
 
     def __init__(self, models_dir: Path | None = None) -> None:
         repo = Path(__file__).resolve().parents[4]
-        config_path = Path(os.getenv("QWEN_ASR_CONFIG", repo / "ml/configs/qwen3_asr.yaml"))
-        self.config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        self.config = self._read_config(repo)
         if (
-            self.config["revision"] != REVISION
+            self.config["revision"] != self._revision
             or set(self.config["sha256"]) != RUNTIME_FILES
             or type(self.config["cpu_threads"]) is not int
             or not 1 <= self.config["cpu_threads"] <= 16
@@ -172,11 +185,20 @@ class QwenASR:
 
         with self._lock, torch.inference_mode():
             self.preload()
-            inputs = self._processor.apply_transcription_request(
-                audio=audio,
-                language="Vietnamese",
-                sampling_rate=16000,
-                return_tensors="pt",
+            inputs = self._processor.apply_chat_template(
+                [
+                    [
+                        {"role": "user", "content": [{"type": "audio", "audio": audio}]},
+                        {
+                            "role": "assistant",
+                            "content": [{"type": "text", "text": LANGUAGE_PREFIX}],
+                        },
+                    ]
+                ],
+                tokenize=True,
+                return_dict=True,
+                continue_final_message=True,
+                processor_kwargs={"sampling_rate": 16000, "return_tensors": "pt"},
             ).to("cpu", torch.float32)
             prefix_length = inputs["input_ids"].shape[1]
             output = self._model.generate(
@@ -195,9 +217,15 @@ class QwenASR:
                 or int(generated[-1]) not in eos
             ):
                 raise ASRError("ASR decoding incomplete or token budget exhausted")
+            special_ids = set(self._processor.tokenizer.all_special_ids) | set(eos)
+            if any(int(token) in special_ids for token in generated[:-1]):
+                raise ASRError("Unexpected ASR control tokens")
             # Raw decode deliberately bypasses upstream's repetition-repair postprocessor.
             raw = self._processor.decode(generated, return_format="raw", skip_special_tokens=True)
-            return extract_transcript(raw)
+            if not isinstance(raw, str):
+                raise ASRError("Invalid ASR output")
+            # Forced-language output is text-only; restore only our fixed decoder prefix.
+            return extract_transcript(LANGUAGE_PREFIX + raw)
 
     def transcribe(self, path: Path, *, expected_syllable_count: int | None = None) -> str:
         """Only a syllable COUNT affects output bounds; text cannot bias recognition."""

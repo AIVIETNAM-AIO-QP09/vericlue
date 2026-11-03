@@ -2,6 +2,8 @@ package vn.vericlue.app.capture.av
 
 import java.io.ByteArrayOutputStream
 
+const val MUXED_PCM_CAPTURE_POLICY = "muxed-av-pcm-v3-ptsgrid"
+
 class MuxedVoiceAudioException(val code: String, cause: Throwable? = null) : Exception(code, cause)
 internal data class PcmFormat(val sampleRate: Int, val channels: Int, val encoding: Int)
 internal data class PcmAudio(
@@ -10,6 +12,8 @@ internal data class PcmAudio(
     val frames: Long,
     val firstPcmPtsUs: Long,
     val offsetUs: Long,
+    val anchors: List<PcmClockAnchor>,
+    val clock: PcmPresentationClock,
 )
 
 /** Validates decoded PCM without trimming, filling gaps or repairing timestamps. */
@@ -26,6 +30,8 @@ internal class PcmTimeline(
 
     private val pcm = ByteArrayOutputStream()
     private var firstPtsUs: Long? = null
+    private var lastPtsUs: Long? = null
+    private val anchors = mutableListOf<PcmClockAnchor>()
     private var frames = 0L
 
     fun append(ptsUs: Long, bytes: ByteArray) {
@@ -34,21 +40,27 @@ internal class PcmTimeline(
         val addedFrames = bytes.size / frameBytes
         if (frames + addedFrames > maxDurationUs * format.sampleRate / 1_000_000) throw MuxedVoiceAudioException("pcm_duration_limit")
         firstPtsUs?.let { first ->
-            val expectedPts = addPts(first, frames * 1_000_000 / format.sampleRate)
-            // Explicit two-sample tolerance; larger gaps are never repaired or filled with silence.
-            val toleranceUs = 2L * ((1_000_000L + format.sampleRate - 1) / format.sampleRate)
-            if (subtractPts(ptsUs, expectedPts) !in -toleranceUs..toleranceUs) throw MuxedVoiceAudioException("audio_pts_discontinuity")
+            if (subtractPts(ptsUs, first) > maxDurationUs) throw MuxedVoiceAudioException("pcm_duration_limit")
+        }
+        lastPtsUs?.let { previous ->
+            if (ptsUs <= previous) {
+                throw MuxedVoiceAudioException("audio_pts_discontinuity")
+            }
         }
         if (firstPtsUs == null) firstPtsUs = ptsUs
+        anchors.add(PcmClockAnchor(frames, ptsUs))
         pcm.write(bytes)
         frames += addedFrames
+        lastPtsUs = ptsUs
     }
 
     fun finish(sawOutputEos: Boolean, videoPtsUs: Long): PcmAudio {
         if (frames == 0L) throw MuxedVoiceAudioException("empty_pcm")
         if (!sawOutputEos) throw MuxedVoiceAudioException("missing_output_eos")
         val first = firstPtsUs ?: throw MuxedVoiceAudioException("empty_pcm")
-        return PcmAudio(format, pcm.toByteArray(), frames, first, subtractPts(first, videoPtsUs))
+        val clock = PcmPresentationClock(format.sampleRate, frames, anchors.toList())
+        if (clock.durationUs > maxDurationUs) throw MuxedVoiceAudioException("pcm_duration_limit")
+        return PcmAudio(format, pcm.toByteArray(), frames, first, subtractPts(first, videoPtsUs), anchors.toList(), clock)
     }
 }
 

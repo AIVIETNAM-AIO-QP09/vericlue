@@ -22,24 +22,44 @@ from vericlue_ml.runtime.voice_wire import (
     worker_hello,
     worker_scope,
 )
+from vericlue_ml.voice.content_backend import (
+    CONTENT_BACKENDS,
+    QWEN17_SUBDIR,
+    validate_content_backend,
+)
 
 
 class VoiceModels:
     """Load each model once; timing and SyncNet share one forced aligner."""
 
     def __init__(
-        self, models_dir: Path, *, manual_demo: ManualDemoThresholds | None = None
+        self,
+        models_dir: Path,
+        *,
+        manual_demo: ManualDemoThresholds | None = None,
+        content_backend: str = "qwen06",
     ) -> None:
         self.root, self.loaded = models_dir, {}
         self.aligner = None
         self.manual_demo = manual_demo
+        validate_content_backend(content_backend, manual=manual_demo is not None)
+        self.content_backend = content_backend
 
     def detector(self, kind: str) -> Detector:
         if kind not in self.loaded:
             if kind == "content":
                 from vericlue_ml.voice.qwen_asr import QwenASR, QwenVoiceChallengeDetector
 
-                detector = QwenVoiceChallengeDetector(QwenASR(self.root))
+                if self.content_backend == "qwen17":
+                    from vericlue_ml.voice.qwen17_asr import Qwen17ASR
+
+                    folder = (self.root / QWEN17_SUBDIR).resolve()
+                    if not folder.is_relative_to(self.root.resolve()):
+                        raise ValueError("Content model folder outside MODELS_DIR")
+                    asr = Qwen17ASR(folder)
+                else:
+                    asr = QwenASR(self.root)
+                detector = QwenVoiceChallengeDetector(asr)
             elif kind == "spoof" and self.manual_demo is not None:
                 from vericlue_ml.voice.antispoof import AntiDeepfakeDetector
 
@@ -67,12 +87,19 @@ class VoiceModels:
     def preload(self, kinds: tuple[str, ...]) -> None:
         for kind in kinds:
             detector = self.detector(kind)
-            expected = expected_version(kind, self.manual_demo)
+            expected = expected_version(
+                kind, self.manual_demo, content_backend=self.content_backend
+            )
             if self.manual_demo is not None and kind in {"spoof", "lipsync"}:
                 expected = expected.removesuffix(self.manual_demo.version_suffix)
             if detector.version != expected:
                 raise ValueError("Wrong preload backend version")
-            detector.preload(models_dir=self.root, device="cpu")
+            if kind == "content":
+                detector.preload(
+                    device="cpu"
+                )  # The ASR constructor already bound its verified root.
+            else:
+                detector.preload(models_dir=self.root, device="cpu")
 
 
 def serve(
@@ -83,15 +110,20 @@ def serve(
     *,
     manual_demo: ManualDemoThresholds | None = None,
     warmup_kinds=(),
+    content_backend: str = "qwen06",
 ) -> None:
     """Correlate each answer to request bytes and unchanged media, not just a filename."""
-    scope = worker_scope(manual_demo)
+    scope = worker_scope(manual_demo, content_backend=content_backend)
+    if getattr(models, "content_backend", "qwen06") != content_backend:
+        raise ValueError("Worker content selection mismatch")
     if manual_demo is not None:
         if not warmup_kinds or not set(warmup_kinds) <= KINDS.keys():
             raise ValueError("Manual worker requires explicit model preload")
         with contextlib.redirect_stdout(sys.stderr):
             models.preload(tuple(warmup_kinds))
-    target.write(canonical(worker_hello(manual_demo, warmup_kinds)) + b"\n")
+    target.write(
+        canonical(worker_hello(manual_demo, warmup_kinds, content_backend=content_backend)) + b"\n"
+    )
     target.flush()
     while line := source.readline(MAX_REQUEST + 1):
         if len(line) > MAX_REQUEST or not line.endswith(b"\n"):
@@ -175,6 +207,7 @@ def main() -> int:
     parser.add_argument("--media-root", type=Path, required=True)
     parser.add_argument("--manual-policy-json")
     parser.add_argument("--warmup-kinds", default="")
+    parser.add_argument("--content-backend", choices=CONTENT_BACKENDS, default="qwen06")
     args = parser.parse_args()
     try:
         policy = (
@@ -185,10 +218,11 @@ def main() -> int:
         serve(
             sys.stdin.buffer,
             sys.stdout.buffer,
-            VoiceModels(args.models_dir, manual_demo=policy),
+            VoiceModels(args.models_dir, manual_demo=policy, content_backend=args.content_backend),
             args.media_root,
             manual_demo=policy,
             warmup_kinds=tuple(filter(None, args.warmup_kinds.split(","))),
+            content_backend=args.content_backend,
         )
         return 0
     except Exception:

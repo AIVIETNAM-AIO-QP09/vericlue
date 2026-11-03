@@ -167,7 +167,7 @@ def synthetic_pipeline(monkeypatch):
 
     def predict(backend):
         detector = syncnet.SyncNetDetector(aligner=aligner, finder=object(), backend=backend)
-        assert detector.version.endswith("voice05-v2")
+        assert detector.version.endswith("voice05-v3-u8resize")
         return detector.predict(
             DetectorInput(
                 video=Path("unopened.mp4"),

@@ -132,18 +132,17 @@ def evaluate_head_turn(rows: list[FaceObservation], plan: HeadPlan) -> HeadEvalu
         for row in valid
     ):
         return result(Status.DEGRADED, Gate.UNCLEAR, "pose_out_of_range")
-    if not plan.adaptive:
-        # A transient yaw overshoot is unusable evidence, not an automatic whole-video veto.
-        # Keep the same coverage/gap/edge limits; prolonged overshoot still fails closed.
-        usable = [row for row in valid if abs(row.yaw_deg) <= MAX_USABLE_YAW_DEG]
-        usable_times = np.asarray([row.at_ms for row in usable])
-        if (
-            len(usable) / expected < MIN_COVERAGE
-            or usable_times[0] > plan.start_ms - BASELINE_MS + EDGE_TOLERANCE_MS
-            or usable_times[-1] < plan.end_ms - EDGE_TOLERANCE_MS
-            or np.diff(usable_times).max() > MAX_GAP_MS
-        ):
-            return result(Status.DEGRADED, Gate.UNCLEAR, "pose_out_of_range")
+    # A transient yaw overshoot is unusable evidence, not an automatic whole-video veto.
+    # Keep the same coverage/gap/edge limits; prolonged overshoot still fails closed.
+    usable = [row for row in valid if abs(row.yaw_deg) <= MAX_USABLE_YAW_DEG]
+    usable_times = np.asarray([row.at_ms for row in usable])
+    if (
+        len(usable) / expected < MIN_COVERAGE
+        or usable_times[0] > plan.start_ms - BASELINE_MS + EDGE_TOLERANCE_MS
+        or usable_times[-1] < observed_end - EDGE_TOLERANCE_MS
+        or np.diff(usable_times).max() > MAX_GAP_MS
+    ):
+        return result(Status.DEGRADED, Gate.UNCLEAR, "pose_out_of_range")
     baseline = [row for row in valid if row.at_ms < plan.start_ms]
     if (
         not baseline
@@ -257,8 +256,11 @@ class HeadTurnDetector:
 
     def predict(self, inp: DetectorInput) -> ModuleResult:
         started = perf_counter()
+        version = self.version
         try:
             plan = parse_head_plan(inp)
+            if plan.adaptive:
+                version += "+adaptive-v1"
             if inp.video is None:
                 raise LandmarkError(ErrorCode.E_DECODE, Status.DEGRADED)
             bounds = {"start_ms": plan.start_ms - BASELINE_MS, "end_ms": plan.end_ms}
@@ -268,7 +270,7 @@ class HeadTurnDetector:
             result = evaluate_head_turn(rows, plan)
             return ModuleResult(
                 module=Module.HEAD_TURN,
-                model_version=self.version,
+                model_version=version,
                 status=result.status,
                 gate=result.gate,
                 quality={"provisional": True, "depth_verified": False},
@@ -291,7 +293,7 @@ class HeadTurnDetector:
         except Exception as exc:
             return ModuleResult(
                 module=Module.HEAD_TURN,
-                model_version=self.version,
+                model_version=version,
                 status=exc.status if isinstance(exc, LandmarkError) else Status.ERROR,
                 error_code=exc.code if isinstance(exc, LandmarkError) else ErrorCode.E_INTERNAL,
                 gate=Gate.UNCLEAR,

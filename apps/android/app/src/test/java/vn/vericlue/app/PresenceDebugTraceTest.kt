@@ -56,9 +56,7 @@ class PresenceDebugTraceTest {
 
     @Test fun analyzerTraceUsesFramePhaseAndRecordsDeliveryDelay() {
         val trace = PresenceDebugTrace(enabled = true)
-        val demo = vn.vericlue.app.capture.FaceTimeline.demo(listOf(HeadTurnDirection.Left, HeadTurnDirection.Right))
-        val timeline = vn.vericlue.app.capture.FaceTimeline(demo.slots, demo.frontalAtMs, demo.gaze,
-            demo.headTurns, demo.headStartMs, demo.headDurationMs)
+        val timeline = vn.vericlue.app.capture.FaceTimeline.demo(listOf(HeadTurnDirection.Left, HeadTurnDirection.Right))
         val origin = 100_000.0
         val frameRel = timeline.headStartMs + 4950L
         val face = vn.vericlue.app.capture.FaceSignal(1, .45f, .5f, .45f, 26f, 120f,
@@ -70,31 +68,55 @@ class PresenceDebugTraceTest {
         assertEquals(HeadTurnDirection.Left, event.expectedDirection)
     }
 
-    @Test fun adaptiveTraceFollowsActualCueBoundariesAndKeepsDelayedFramesInOldDirection() {
+    @Test fun adaptiveTraceUsesObservedCueBoundaryAtCaptureTime() {
         val trace = PresenceDebugTrace(enabled = true, minSampleGapMs = 0)
-        val timeline = vn.vericlue.app.capture.FaceTimeline.demo(listOf(HeadTurnDirection.Left, HeadTurnDirection.Right))
+        val demo = vn.vericlue.app.capture.FaceTimeline.demo(
+            listOf(HeadTurnDirection.Left, HeadTurnDirection.Right))
+        val timeline = vn.vericlue.app.capture.FaceTimeline(demo.slots, demo.frontalAtMs,
+            demo.gaze, demo.headTurns, demo.headStartMs, demo.headDurationMs,
+            headTimeoutMs = 30000 - demo.headStartMs)
         val origin = 100_000.0
         val start = timeline.headStartMs.toLong()
-        fun sample(frameAt: Long, deliveredAt: Long = frameAt) = trace.recordAnalyzerFrame(
+        fun sample(capturedAt: Long, deliveredAt: Long = capturedAt) = trace.recordAnalyzerFrame(
             vn.vericlue.app.capture.FaceSignal(1, .45f, .5f, .45f, 26f, 120f,
-                ((origin + frameAt) * 1_000_000).toLong()),
+                ((origin + capturedAt) * 1_000_000).toLong()),
             timeline, origin, origin + deliveredAt,
         )!!
-        // No observed cue must never be invented from an elapsed scheduled slot.
-        assertEquals(-1, sample(start + 100).segmentIndex)
+
         trace.recordPhaseBoundary(start, "head", 0, HeadTurnDirection.Left)
+        // The nominal schedule has advanced, but the actual adaptive cue has not.
         assertEquals(0, sample(start + 9000).segmentIndex)
         assertEquals(HeadTurnDirection.Left, sample(start + 9000).expectedDirection)
         trace.recordPhaseBoundary(start + 10000, "head", 1, HeadTurnDirection.Right)
         val delayed = sample(start + 9950, start + 10500)
         assertEquals(0, delayed.segmentIndex)
+        assertEquals(HeadTurnDirection.Left, delayed.expectedDirection)
         assertEquals(550L, delayed.frameAgeMs)
         assertEquals(1, sample(start + 10100).segmentIndex)
-        assertEquals(HeadTurnDirection.Right, sample(start + 10100).expectedDirection)
-        // After nominal timed end, the active adaptive cue remains attributable.
-        assertEquals(1, sample(start + 13000).segmentIndex)
+        assertEquals(HeadTurnDirection.Right, sample(start + 13000).expectedDirection)
+    }
+
+    @Test fun adaptiveTraceDoesNotInventCueBeforeBoundaryOrAfterClear() {
+        val trace = PresenceDebugTrace(enabled = true, minSampleGapMs = 0)
+        val demo = vn.vericlue.app.capture.FaceTimeline.demo(
+            listOf(HeadTurnDirection.Left, HeadTurnDirection.Right))
+        val timeline = vn.vericlue.app.capture.FaceTimeline(demo.slots, demo.frontalAtMs,
+            demo.gaze, demo.headTurns, demo.headStartMs, demo.headDurationMs,
+            headTimeoutMs = 30000 - demo.headStartMs)
+        val origin = 100_000.0
+        val capturedAt = timeline.headStartMs.toLong() + 100
+        val face = vn.vericlue.app.capture.FaceSignal(1, .45f, .5f, .45f, 26f, 120f,
+            ((origin + capturedAt) * 1_000_000).toLong())
+        fun sample() = trace.recordAnalyzerFrame(face, timeline, origin, origin + capturedAt)!!
+
+        assertEquals(-1, sample().segmentIndex)
+        assertNull(sample().expectedDirection)
+        trace.recordPhaseBoundary(capturedAt - 50, "head", 0, HeadTurnDirection.Left)
+        assertEquals(0, sample().segmentIndex)
+        trace.recordPhaseBoundary(capturedAt, "done")
+        assertEquals(-1, sample().segmentIndex)
         trace.clear()
-        assertEquals(-1, sample(start + 13100).segmentIndex)
+        assertEquals(-1, sample().segmentIndex)
     }
 
     @Test fun traceJsonKeepsNoNonfiniteNumbersOrPrivateFields() {

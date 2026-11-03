@@ -35,13 +35,13 @@ abstract class FaceChallengeSnapshots(device: DeviceConfig) {
     @Test fun qrCardStates() {
         val q = vn.vericlue.app.capture.IdQuality(500.0, 0.0, null, portraitPresent = true)
         paparazzi.snapshot("card_auto") { VcTheme(motionEnabled = false) {
-            vn.vericlue.app.ui.screens.IdScanScreen(false, q, {}, {}, {})
+            vn.vericlue.app.ui.screens.IdScanScreen(false, q, {}, {})
         } }
         paparazzi.snapshot("card_timeout") { VcTheme(motionEnabled = false) {
-            vn.vericlue.app.ui.screens.IdScanScreen(true, q, {}, {}, {}, timedOut = true)
+            vn.vericlue.app.ui.screens.IdScanScreen(false, q, {}, {}, hint = "Giữ đủ thẻ trong khung, ứng dụng sẽ tự thử lại.")
         } }
         paparazzi.snapshot("card_server_retry") { VcTheme(motionEnabled = false) {
-            vn.vericlue.app.ui.screens.IdProcessingScreen({}, {}, vn.vericlue.app.capture.idScanErrorText("QR_UNREADABLE"))
+            vn.vericlue.app.ui.screens.IdScanScreen(false, q, {}, {}, hint = vn.vericlue.app.capture.idScanErrorText("QR_UNREADABLE"))
         } }
     }
 
@@ -58,7 +58,12 @@ abstract class FaceChallengeSnapshots(device: DeviceConfig) {
                     FaceChallengeContent(timeline, FaceTimeline.Phase.Head(0, TurnDir.Left), 3, captured) {}
                 }
             }
-            paparazzi.snapshot(view, "assist_$name", offsetMillis = 100L)
+            try {
+                paparazzi.snapshot(view, "assist_$name", offsetMillis = 100L)
+            } finally {
+                // A manual host owns the timed guidance poller beyond Layoutlib detachment.
+                view.disposeComposition()
+            }
         }
     }
 

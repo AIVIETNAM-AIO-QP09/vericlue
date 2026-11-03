@@ -894,7 +894,7 @@
           "minimum": 0
         }
       },
-      "description": "Mọi at_ms tính từ đầu bản ghi giai đoạn B. Thu âm được bắt đầu theo lịch, không cần chờ finalize; chỉ gửi /voice sau khi finalize yêu cầu. Gói này là lệnh, không phải bằng chứng đã làm đúng.",
+      "description": "Mọi at_ms tính từ đầu bản ghi giai đoạn B. Với timed, voice_start_at_ms là mốc lịch; với adaptive, chỉ bắt đầu giọng sau khi hoàn tất đầu và finalize yêu cầu. Gói này là lệnh, không phải bằng chứng đã làm đúng.",
       "allOf": [
         {
           "if": {
@@ -926,6 +926,19 @@
                 "const": 12000
               }
             }
+          }
+        },
+        {
+          "if": {
+            "properties": {"head_mode": {"const": "adaptive"}},
+            "required": ["head_mode"]
+          },
+          "then": {
+            "properties": {"head_timeout_ms": {"type": "integer"}},
+            "required": ["head_timeout_ms"]
+          },
+          "else": {
+            "properties": {"head_timeout_ms": {"type": "null"}}
           }
         }
       ]

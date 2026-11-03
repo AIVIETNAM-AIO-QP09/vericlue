@@ -8,16 +8,16 @@ import vn.vericlue.app.capture.idScanDisplayHint
 
 class IdScanHintTest {
     private val readable = IdQuality(500.0, 0.0,
-        "001095012345||Nguyễn Văn A|01011995|Nam|Địa chỉ minh họa|15072021")
+        "001095012345||Nguyễn Văn A|01011995|Nam|Địa chỉ minh họa|15072021", portraitPresent = true)
 
-    @Test fun expiredAutoCaptureDirectsReadableQrToTheAvailableManualButton() {
+    @Test fun elapsedScanNeverAsksForAShutterPress() {
         val message = idScanDisplayHint(readable, back = true, timedOut = true)
-        assertEquals("Tự chụp đã dừng. Bấm “Chụp ảnh thẻ” để tiếp tục.", message)
-        assertFalse(message.contains("đang tự chụp"))
+        assertEquals("Giữ yên, ứng dụng đang tự chụp", message)
+        assertFalse(message.contains("Bấm"))
     }
 
-    @Test fun expiredAutoCaptureSuppressesThePreviousAutoCaptureHint() {
-        assertEquals("Tự chụp đã dừng. Bấm “Chụp ảnh thẻ” để tiếp tục.",
+    @Test fun elapsedScanKeepsAutomaticCaptureInstruction() {
+        assertEquals("Giữ yên, ứng dụng đang tự chụp",
             idScanDisplayHint(readable, back = true, timedOut = true,
                 hint = "Giữ yên, ứng dụng đang tự chụp"))
     }
@@ -27,10 +27,15 @@ class IdScanHintTest {
             idScanDisplayHint(readable, back = true, timedOut = false))
     }
 
-    @Test fun expiredAutoCaptureKeepsTheFailedStillQualityReasonWithTheManualAction() {
+    @Test fun readablePortraitAndQrDoNotAskForAnUnnecessaryAngleCorrection() {
+        assertEquals("Giữ yên, ứng dụng đang tự chụp",
+            idScanDisplayHint(readable.copy(tilted = true), back = false, timedOut = false))
+    }
+
+    @Test fun elapsedScanKeepsQualityAdviceWithoutAManualAction() {
         val message = idScanDisplayHint(readable, back = true, timedOut = true,
             hint = "Nghiêng nhẹ thẻ để tránh lóa")
-        assertEquals("Nghiêng nhẹ thẻ để tránh lóa. Tự chụp đã dừng. Bấm “Chụp ảnh thẻ” để tiếp tục.", message)
+        assertEquals("Nghiêng nhẹ thẻ để tránh lóa", message)
     }
 
     @Test fun activeScanKeepsQualityAndStillHints() {
@@ -38,7 +43,7 @@ class IdScanHintTest {
             idScanDisplayHint(readable.copy(qr = null, brightness = 20.0), back = true, timedOut = false))
         assertEquals("Nghiêng nhẹ thẻ để tránh lóa",
             idScanDisplayHint(readable, back = true, timedOut = false, hint = "Nghiêng nhẹ thẻ để tránh lóa"))
-        assertEquals("Đưa mặt có ảnh chân dung vào khung",
+        assertEquals("Đưa mặt có ảnh chân dung và mã QR vào khung",
             idScanDisplayHint(null, back = false, timedOut = false))
     }
 }

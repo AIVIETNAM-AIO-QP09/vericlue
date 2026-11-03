@@ -237,12 +237,23 @@ class FaceObservationReader:
             previous = -1.0
             next_sample = start_ms
             observations = []
+            last_frame = None
+            last_observed_ms = None
             try:
                 if not capture.isOpened():
                     raise LandmarkError(ErrorCode.E_DECODE)
                 for _ in range(MAX_VIDEO_FRAMES):
                     ok, frame = capture.read()
                     if not ok:
+                        if (
+                            require_eof
+                            and last_frame is not None
+                            and last_frame[0] >= start_ms
+                            and last_frame[0] != last_observed_ms
+                        ):
+                            if perf_counter() - started > MAX_EXTRACT_SECONDS:
+                                raise LandmarkError(ErrorCode.E_TIMEOUT)
+                            observations.append(observer(last_frame[1], last_frame[0]))
                         break
                     height, width = frame.shape[:2]
                     if height * width > MAX_FRAME_PIXELS:
@@ -259,9 +270,12 @@ class FaceObservationReader:
                         break
                     if perf_counter() - started > MAX_EXTRACT_SECONDS:
                         raise LandmarkError(ErrorCode.E_TIMEOUT)
+                    if require_eof:
+                        last_frame = (at_ms, frame)
                     if at_ms < next_sample:
                         continue
                     observations.append(observer(frame, at_ms))
+                    last_observed_ms = at_ms
                     next_sample = at_ms + SAMPLE_INTERVAL_MS - 1
                 else:
                     raise LandmarkError(ErrorCode.E_TIMEOUT)

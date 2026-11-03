@@ -37,7 +37,7 @@ from vericlue_ml.face.continuity import FACE_VOICE_VERSION
 from vericlue_ml.face.enrolled import recovery_match_version
 from vericlue_ml.face.template import FaceTemplate
 from vericlue_ml.face.video_match import VIDEO_MATCH_VERSION
-from vericlue_ml.presence.head_protocol import head_sampling_suffix
+from vericlue_ml.presence.head_protocol import head_capture_protocol, head_identity_suffix
 
 ACCOUNT_TTL = timedelta(hours=24)
 _GATES = {
@@ -234,6 +234,17 @@ class AccountStore:
                 raise not_eligible()
             if (
                 s.manual_full_demo
+                and module == Module.VOICE_CHALLENGE
+                and (
+                    not s.voice_content_pin_matches(
+                        getattr(session, "created_voice_content_version", None)
+                    )
+                    or result.model_version != s.voice_content_model_version
+                )
+            ):
+                raise not_eligible()
+            if (
+                s.manual_full_demo
                 and module in {Module.VOICE_SPOOF, Module.LIPSYNC}
                 and policy is not None
             ):
@@ -267,20 +278,31 @@ class AccountStore:
                 raise not_eligible()
         match = session.results[Module.FACE_MATCH]
         suffix = policy.version_suffix if s.manual_full_demo and policy is not None else ""
-        dynamic = session.challenge.dynamic
+        recovery_version = None
         if recovery:
-            if dynamic is None:
+            if session.challenge.dynamic is None:
                 raise not_eligible()
-            base_versions = (
-                recovery_match_version(dynamic.version, adaptive=dynamic.head_mode == "adaptive"),
+            recovery_version = recovery_match_version(
+                head_capture_protocol(session.challenge.dynamic.model_dump())
             )
-        elif dynamic is not None and dynamic.head_mode == "adaptive":
-            base_versions = (
-                VIDEO_MATCH_VERSION + head_sampling_suffix(dynamic.version, adaptive=True),
+        dynamic = session.challenge.dynamic
+        onboarding_versions = (
+            (
+                VIDEO_MATCH_VERSION
+                + head_identity_suffix(head_capture_protocol(dynamic.model_dump())),
             )
-        else:
-            base_versions = (VIDEO_MATCH_VERSION, VIDEO_MATCH_VERSION + "+head12s-v2")
-        expected_match_versions = tuple(version + suffix for version in base_versions)
+            if dynamic is not None and dynamic.head_mode == "adaptive"
+            else (VIDEO_MATCH_VERSION, VIDEO_MATCH_VERSION + "+head12s-v2")
+        )
+        expected_match_versions = (
+            (recovery_version + suffix,)
+            if recovery and s.manual_full_demo
+            else (recovery_version,)
+            if recovery
+            else tuple(version + suffix for version in onboarding_versions)
+            if s.manual_full_demo
+            else onboarding_versions
+        )
         if (
             match.model_version not in expected_match_versions
             or match.quality.get("consistency_verified") is not True

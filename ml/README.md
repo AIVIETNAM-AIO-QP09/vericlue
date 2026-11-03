@@ -21,6 +21,13 @@
 
 ## Quy ước bắt buộc
 
+APP-03 (03/11): đối chứng ASR chỉ trên DNU calib_fit; API có opt-in Qwen1.7B
+manual-only với pin phiên riêng, mặc định giữ 0.6B. Frontend landmark106
+SyncNet vẫn ngoại tuyến, phiên bản riêng; chưa kết luận recovery đạt.
+[ASR fit](src/vericlue_ml/eval/DNU_ASR_FIT.md),
+[frontend file/RAM và giới hạn](../docs/runbooks/syncnet-frontend-probe.md),
+[ràng buộc opt-in](../docs/runbooks/manual-face-demo.md#giọng-nói-và-chốt-tài-khoản).
+
 ROUT-03 (01/11): core LTT offline dùng MAPIE 1.4.1 HB/max-p/Holm trên lưới
 khai báo trước, kiểm quan sát độc lập theo người/nguồn. Kết quả ứng viên luôn
 provisional và không đủ điều kiện runtime; không cài ngưỡng vào API.

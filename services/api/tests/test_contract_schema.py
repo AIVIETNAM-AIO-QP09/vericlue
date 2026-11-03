@@ -56,6 +56,32 @@ def test_head_protocol_model_rejects_invalid_end(patch):
         DynamicChallenge.model_validate(head_plan(**patch))
 
 
+@pytest.mark.parametrize(
+    "patch",
+    [
+        {"head_mode": "adaptive"},
+        {"head_mode": "adaptive", "head_timeout_ms": None},
+        {"head_mode": None, "head_timeout_ms": 6000},
+        {"head_timeout_ms": 6000},
+    ],
+)
+def test_adaptive_contract_requires_paired_mode_and_budget(patch):
+    with pytest.raises(ValidationError):
+        validate(head_plan(**patch), "session", "DynamicChallenge")
+
+
+@pytest.mark.parametrize(
+    "patch",
+    [
+        {},
+        {"head_mode": None, "head_timeout_ms": None},
+        {"head_mode": "adaptive", "head_timeout_ms": 18000},
+    ],
+)
+def test_adaptive_contract_preserves_timed_and_bounded_adaptive(patch):
+    validate(head_plan(**patch), "session", "DynamicChallenge")
+
+
 STEP = {"rgb": "#ffcc73", "hold_ms": 500, "transition_ms": 150}
 
 

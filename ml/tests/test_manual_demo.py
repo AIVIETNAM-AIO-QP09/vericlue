@@ -103,7 +103,7 @@ def test_attack_adapter_uses_manual_gate_without_fabricating_probability(
     inp = attack_input(video=Path("synthetic.mp4"))
     if adaptive:
         inp.metadata["expected_challenge"]["dynamic"].update(
-            head_mode="adaptive", head_timeout_ms=18000
+            version=2, head_duration_ms=12000, head_mode="adaptive", head_timeout_ms=18000
         )
     result = session_attack.SessionAttackDetector(
         backend, SimpleNamespace(), manual_demo=policy

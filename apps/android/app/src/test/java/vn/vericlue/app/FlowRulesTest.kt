@@ -133,8 +133,8 @@ class FlowRulesTest {
     }
 
     @Test
-    fun backOfCardIsRequestedOnlyWhenServerNeedsItsQr() {
-        assertTrue(FlowRules.needsCardBack("QR_UNREADABLE", hasBack = false))
+    fun serverRetryNeverStartsASeparateQrScan() {
+        assertFalse(FlowRules.needsCardBack("QR_UNREADABLE", hasBack = false))
         assertFalse(FlowRules.needsCardBack("QR_UNREADABLE", hasBack = true))
         assertFalse(FlowRules.needsCardBack("PORTRAIT_UNREADABLE", hasBack = false))
         assertFalse(FlowRules.needsCardBack("QR_INVALID", hasBack = false))

@@ -5,11 +5,12 @@ import vn.vericlue.app.flow.FramingState
 import kotlin.math.cos
 import kotlin.math.sin
 
-enum class GuideAlignment { Unavailable, TooClose, OffCenter, Good }
+enum class GuideAlignment { Unavailable, TooFar, TooClose, OffCenter, Good }
 
 /**
  * The oval aligns a face; full sensor bounds and all frontal landmarks are checked separately.
  * Small outline tolerance accommodates detector-box jitter, with bounded hysteresis during hold.
+ * Minimum fill is local composition guidance; it does not change server model thresholds.
  */
 fun faceGuideAlignment(face: Rect?, guide: Rect?, retainingAlignment: Boolean = false): GuideAlignment {
     if (face == null || guide == null || face.isEmpty || guide.isEmpty ||
@@ -26,7 +27,10 @@ fun faceGuideAlignment(face: Rect?, guide: Rect?, retainingAlignment: Boolean = 
         val y = (face.center.y + face.height / 2 * sin(angle) - guide.center.y) / ry
         x * x + y * y <= 1.0
     }
-    return if (fits) GuideAlignment.Good else GuideAlignment.OffCenter
+    if (!fits) return GuideAlignment.OffCenter
+    val minimumFill = if (retainingAlignment) 0.60f else 0.65f
+    if (face.width / guide.width < minimumFill || face.height / guide.height < minimumFill) return GuideAlignment.TooFar
+    return GuideAlignment.Good
 }
 
 fun faceFitsGuide(face: Rect?, guide: Rect?): Boolean = faceGuideAlignment(face, guide) == GuideAlignment.Good
@@ -59,6 +63,10 @@ class FramingAlignmentGate {
             GuideAlignment.Unavailable -> {
                 reset()
                 return FramingFeedback(FramingState.NoFace, preparingCamera = true)
+            }
+            GuideAlignment.TooFar -> {
+                reset()
+                return FramingFeedback(FramingState.TooFar)
             }
             GuideAlignment.TooClose -> {
                 reset()

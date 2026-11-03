@@ -63,7 +63,11 @@ from vericlue_ml.face.continuity import FACE_VOICE_VERSION
 from vericlue_ml.face.enrolled import REAUTH_MATCH_VERSION, recovery_match_version
 from vericlue_ml.face.match import MATCH_VERSION, MatchThreshold
 from vericlue_ml.face.video_match import VIDEO_MATCH_VERSION
-from vericlue_ml.presence.head_protocol import head_sampling_suffix, session_model_version
+from vericlue_ml.presence.head_protocol import (
+    head_capture_protocol,
+    head_identity_suffix,
+    session_model_version,
+)
 from vericlue_ml.router.flows import route_face, route_voice
 from vericlue_ml.router.policy import TrustRouter
 from vericlue_ml.voice.nes2net_timeline import VERSION as NES2NET_TIMELINE_VERSION
@@ -267,12 +271,12 @@ class SessionFlow:
             detectors[module] = detector
 
         protocol = (
-            session.challenge.dynamic.version
+            head_capture_protocol(session.challenge.dynamic.model_dump())
             if session is not None and session.challenge.dynamic is not None
+            else 3
+            if adaptive_head
             else 2
         )
-        if session is not None and session.challenge.dynamic is not None:
-            adaptive_head = session.challenge.dynamic.head_mode == "adaptive"
         for attack_mod in (Module.FACE_PAD, Module.FACE_DEEPFAKE):
             det = detectors[attack_mod]
             backend = getattr(det, "backend", None)
@@ -285,9 +289,7 @@ class SessionFlow:
                 )
             else:
                 frames_ver = str(getattr(backend, "frames_version", "") or "")
-                expected_attack_ver = session_model_version(
-                    frames_ver, protocol, adaptive=adaptive_head
-                )
+                expected_attack_ver = session_model_version(frames_ver, protocol)
             self._require_fitted_calibrator(attack_mod, expected_attack_ver)
 
         if needs_voice:
@@ -306,9 +308,7 @@ class SessionFlow:
                 self._require_fitted_calibrator(Module.LIPSYNC, lipsync_ver)
 
         if purpose == "onboarding":
-            video_version = VIDEO_MATCH_VERSION + head_sampling_suffix(
-                protocol, adaptive=adaptive_head
-            )
+            video_version = VIDEO_MATCH_VERSION + head_identity_suffix(protocol)
             self._require_match_threshold(
                 s.identity_face_calibration,
                 (video_version,),
@@ -326,16 +326,11 @@ class SessionFlow:
             if not account_bound:
                 raise self._flow_unavailable()
             self._require_match_threshold(
-                s.identity_recovery_calibration,
-                (recovery_match_version(protocol, adaptive=adaptive_head),),
+                s.identity_recovery_calibration, (recovery_match_version(protocol),)
             )
             self._require_match_threshold(
                 s.identity_consistency_calibration,
-                (
-                    VIDEO_MATCH_VERSION
-                    + head_sampling_suffix(protocol, adaptive=adaptive_head)
-                    + "+view-consistency-v1",
-                ),
+                (VIDEO_MATCH_VERSION + head_identity_suffix(protocol) + "+view-consistency-v1",),
             )
             self._require_match_threshold(s.identity_voice_calibration, (FACE_VOICE_VERSION,))
         else:
@@ -402,7 +397,9 @@ class SessionFlow:
         # No environment switch can accidentally enable an incomplete acceptance path.
         if request is not None and self.settings.use_mock_models is not True and not account_bound:
             self._ensure_standard_flow_ready(
-                request.purpose, account_bound=False, adaptive_head=request.head_mode == "adaptive"
+                request.purpose,
+                account_bound=False,
+                adaptive_head=request.head_mode == "adaptive",
             )
         session = self.sessions.create(
             scenario=scenario,
@@ -423,6 +420,8 @@ class SessionFlow:
         )
         if policy is not None:
             session.manual_demo_policy_id = policy.policy_id
+        if self.settings.manual_full_demo:
+            session.created_voice_content_version = self.settings.voice_content_model_version
         session.result_issuer = self.settings.result_issuer
         session.result_audience = self.settings.result_audience
         device_challenge = None
@@ -537,6 +536,12 @@ class SessionFlow:
     def _ensure_evaluation_binding(self, session: Session) -> None:
         policy = self.settings.manual_demo_policy
         expected = policy.policy_id if policy is not None else None
+        if self.settings.manual_full_demo and not self.settings.voice_content_pin_matches(
+            getattr(session, "created_voice_content_version", None)
+        ):
+            raise ApiError(
+                409, "session_expired", "Cấu hình trình diễn đã đổi. Vui lòng bắt đầu phiên mới."
+            )
         expected_manual_mode = (
             "manual_demo"
             if self.settings.manual_face_demo
@@ -1277,6 +1282,10 @@ class SessionFlow:
         challenge = decision_results.get(Module.VOICE_CHALLENGE)
         if (
             challenge is None
+            or not self.settings.voice_content_pin_matches(
+                getattr(session, "created_voice_content_version", None)
+            )
+            or challenge.model_version != self.settings.voice_content_model_version
             or challenge.status != Status.OK
             or (
                 challenge.error_code is not None
@@ -1411,7 +1420,7 @@ class SessionFlow:
         if session.account_id and session.purpose == "recovery":
             dynamic = session.challenge.dynamic
             base_versions = (
-                (recovery_match_version(dynamic.version, adaptive=dynamic.head_mode == "adaptive"),)
+                (recovery_match_version(head_capture_protocol(dynamic.model_dump())),)
                 if dynamic
                 else ()
             )
@@ -1422,13 +1431,9 @@ class SessionFlow:
             base_versions = (
                 (
                     VIDEO_MATCH_VERSION
-                    + head_sampling_suffix(
-                        dynamic.version, adaptive=dynamic.head_mode == "adaptive"
-                    ),
+                    + head_identity_suffix(head_capture_protocol(dynamic.model_dump())),
                 )
-                if self.settings.identity_consistency_required
-                and dynamic is not None
-                and dynamic.head_mode == "adaptive"
+                if dynamic is not None and dynamic.head_mode == "adaptive"
                 else (VIDEO_MATCH_VERSION, VIDEO_MATCH_VERSION + "+head12s-v2")
             )
         else:

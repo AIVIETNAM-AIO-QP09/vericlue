@@ -191,9 +191,27 @@ def _nms(dets: np.ndarray, threshold: float) -> list[int]:
 
 class ScrfdFaceFinder:
     """SCRFD det_10g. Mặc định giữ đúng tiền xử lý của FACE-01 (uniface); GenD (FACE-02) dùng
-    `scale=128, swap_rb=True` như `src/retinaface.py` của repo GenD."""
+    `scale=128, swap_rb=True` như `src/retinaface.py` của repo GenD.
 
-    def __init__(self, session, *, scale: float = 127.5, swap_rb: bool = False) -> None:
+    `input_size=512` chỉ là tùy chọn tường minh cho chẩn đoán offline; các caller
+    mặc định vẫn dùng 640. Caller phải ghi riêng kích thước/scale/thứ tự kênh.
+    """
+
+    def __init__(
+        self,
+        session,
+        *,
+        scale: float = 127.5,
+        swap_rb: bool = False,
+        input_size: int = DET_INPUT_SIZE,
+    ) -> None:
+        if (
+            isinstance(input_size, bool)
+            or not isinstance(input_size, int)
+            or input_size not in (512, 640)
+        ):
+            raise PadError("SCRFD input_size phải là số nguyên 512 hoặc 640.")
+        self._input_size = input_size
         self._scale = scale
         self._swap_rb = swap_rb
         self._session = session
@@ -214,7 +232,7 @@ class ScrfdFaceFinder:
         return self._centers[key]
 
     def find(self, image: np.ndarray) -> list[FaceBox]:
-        canvas, factor = _letterbox(image, DET_INPUT_SIZE)
+        canvas, factor = _letterbox(image, self._input_size)
         if self._swap_rb:
             canvas = np.ascontiguousarray(canvas[:, :, ::-1])
         tensor = ((canvas.astype(np.float32) - 127.5) / self._scale).transpose(2, 0, 1)[None]
@@ -228,7 +246,7 @@ class ScrfdFaceFinder:
             keep = np.where(score >= DET_CONFIDENCE)[0]
             if keep.size == 0:
                 continue
-            centers = self._anchor_centers(DET_INPUT_SIZE // stride, stride)
+            centers = self._anchor_centers(self._input_size // stride, stride)
             decoded = np.stack(
                 [
                     centers[:, 0] - distance[:, 0],

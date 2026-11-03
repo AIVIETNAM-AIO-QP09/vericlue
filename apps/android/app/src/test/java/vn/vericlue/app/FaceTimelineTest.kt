@@ -37,9 +37,10 @@ class FaceTimelineTest {
         val res = json.decodeFromString(CreateSessionResponse.serializer(), file.readText())
         return res.challenge
     }
+
     private fun example(): FaceTimeline = FaceTimeline.from(exampleChallenge()) ?: error("example has no dynamic schedule")
 
-    @Test fun adaptiveHeadRequiresExplicitBoundedServerOptIn() {
+    @Test fun adaptiveHeadRequiresExplicitBoundedServerOptInWithoutChangingTimedMarks() {
         val challenge = exampleChallenge()
         val dynamic = requireNotNull(challenge.dynamic)
         val enabled = dynamic.copy(headMode = "adaptive", headTimeoutMs = 30000 - dynamic.headStartAtMs)
@@ -50,10 +51,14 @@ class FaceTimelineTest {
         for (invalid in listOf(
             enabled.copy(headMode = "unknown"), enabled.copy(headTimeoutMs = null),
             enabled.copy(headTimeoutMs = 60001), enabled.copy(headMode = null),
+            enabled.copy(version = 1, headDurationMs = 6000, voiceStartAtMs = dynamic.headStartAtMs + 6000),
+            enabled.copy(voiceStartAtMs = 30000),
         )) assertNull(FaceTimeline.from(challenge.copy(dynamic = invalid)))
         assertEquals(example().gaze, timeline.gaze)
         assertEquals(example().coloursEndMs, timeline.coloursEndMs)
+        assertEquals(example().headDurationMs, timeline.headDurationMs)
     }
+
     @Test fun longScheduleGivesBothTurnsFiveSecondsAndCenterTwoSeconds() {
         for (order in listOf(listOf("left", "right", "center"), listOf("right", "left", "center"))) {
             val ch = exampleChallenge()

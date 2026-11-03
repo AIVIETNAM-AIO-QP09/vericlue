@@ -382,9 +382,9 @@ def test_recovery_transaction_failure_preserves_old_key(private_client):
         assert state.db.scalar(select(func.count()).select_from(AccountRecoveryRow)) == 0
 
 
-@pytest.mark.parametrize("match_mode", ["adaptive-v2", "timed-v2", "adaptive-v1"])
+@pytest.mark.parametrize("approved_protocol", [1, 2, 3])
 def test_adaptive_recovery_keeps_original_template_and_requires_exact_match_sampling(
-    private_client, match_mode
+    private_client, approved_protocol
 ):
     _, receipt, _, _ = seeded(private_client)
     key = new_key()
@@ -393,12 +393,10 @@ def test_adaptive_recovery_keeps_original_template_and_requires_exact_match_samp
         dynamic = session.challenge.dynamic
         dynamic.head_mode = "adaptive"
         dynamic.head_timeout_ms = 30000 - dynamic.head_start_at_ms
-        session.results[Module.FACE_MATCH].model_version = recovery_match_version(
-            1 if match_mode == "adaptive-v1" else 2, adaptive=match_mode != "timed-v2"
-        )
+        session.results[Module.FACE_MATCH].model_version = recovery_match_version(approved_protocol)
         store = AccountStore(real_settings(state), state.db)
         before = store.get(receipt.account_id)
-        if match_mode == "adaptive-v2":
+        if approved_protocol == 3:
             recovered = store.recover(session)
             after = store.get(recovered.account_id)
             assert after.template == before.template

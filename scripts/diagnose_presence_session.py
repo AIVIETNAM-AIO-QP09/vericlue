@@ -47,7 +47,7 @@ PAD_VIDEO_V2_VERSION = (
 )
 DEEPFAKE_VIDEO_V2_VERSION = (
     "gend-clip-l14@891ce014+clip@32bd6428+scrfd-10g@bfcc7d48"
-    "+agg-maxmeantop25-v1+headturn-3views-v1+session-video-v2"
+    "+align-upstream-numpy-v2+agg-maxmeantop25-v1+headturn-3views-v1+session-video-v2"
 )
 MATCH_VIDEO_V2_VERSION = VIDEO_MATCH_VERSION + "+head12s-v2"
 

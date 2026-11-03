@@ -7,18 +7,27 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
@@ -62,12 +71,29 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.toSize
 import kotlinx.coroutines.delay
 import vn.vericlue.app.capture.VoiceCapturePhase
 import vn.vericlue.app.flow.Purpose
+import vn.vericlue.app.flow.FlowRules
+import vn.vericlue.app.ui.components.ActionPanel
+import vn.vericlue.app.ui.components.JourneyHeader
+import vn.vericlue.app.ui.components.SystemBarIcons
+import vn.vericlue.app.ui.components.StableCameraScene
+import vn.vericlue.app.ui.components.CameraPresentation
+import vn.vericlue.app.ui.components.voiceFacePresentation
+import vn.vericlue.app.ui.components.TopBar
 import vn.vericlue.app.ui.components.ChecklistCard
 import vn.vericlue.app.ui.components.CompletionHaptic
 import vn.vericlue.app.ui.components.SuccessBadge
@@ -92,19 +118,16 @@ import vn.vericlue.app.ui.theme.VcType
 
 // ── Voice (stage C) ──────────────────────────────────────────────────────────
 
+private val VoiceFacePreviewShape = GenericShape { size, _ -> addOval(Rect(Offset.Zero, size)) }
+
+/** Always visible in the header, including while the reading itself scrolls. */
 @Composable
-private fun CameraStillOn() {
-    val c = Vc.colors
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(width = 52.dp, height = 64.dp).clip(RoundedCornerShape(10.dp))) { CameraFeed() }
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Box(Modifier.size(6.dp).clip(CircleShape).background(c.ok))
-                Text("Camera", style = VcType.labelXs, color = c.ink)
-            }
-            Text("Giữ khuôn mặt trong khung khi đọc.", style = VcType.caption, color = c.muted)
-        }
-    }
+private fun CameraStillOn(onThumbnailPosition: (Rect) -> Unit) {
+    Box(Modifier.size(width = 52.dp, height = 68.64.dp).clip(VoiceFacePreviewShape)
+        .border(1.dp, Vc.colors.accent, VoiceFacePreviewShape)
+        .testTag("voice-preview-thumbnail")
+        .semantics { contentDescription = "Hình camera trực tiếp; giữ khuôn mặt trong khung khi đọc" }
+        .onGloballyPositioned { onThumbnailPosition(Rect(it.positionInRoot(), it.size.toSize())) }) { CameraFeed() }
 }
 
 @Composable
@@ -140,69 +163,88 @@ fun VoiceScreen(
     level: Float? = null,
     onStartRecording: () -> Unit = {},
     capturePhase: VoiceCapturePhase = if (startRecording) VoiceCapturePhase.Recording else VoiceCapturePhase.Idle,
+    recordedDurationMs: Long? = null,
+    recordingLimitMs: Long = vn.vericlue.app.capture.MUXED_VOICE_LIMIT_MS,
 ) {
     val c = Vc.colors
     val recording = capturePhase == VoiceCapturePhase.Recording
     val preparing = capturePhase == VoiceCapturePhase.Preparing
     val processing = capturePhase == VoiceCapturePhase.Finished
-    VcScreen(onBack = onBack, step = 3, actions = {
-        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(
-                Modifier.size(76.dp).clip(CircleShape).background(if (recording) Palette.LogoNavy else c.primary)
-                    .clickable(enabled = capturePhase in setOf(VoiceCapturePhase.Idle, VoiceCapturePhase.Recording), role = Role.Button) {
-                        if (recording) {
-                            onFinished()
-                        } else {
-                            onStartRecording()
-                        }
-                    },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    if (preparing || processing) Icons.Outlined.HourglassEmpty else if (recording) Icons.Outlined.Stop else Icons.Outlined.Mic,
-                    contentDescription = if (preparing) "Đang chuẩn bị ghi âm" else if (processing) "Đang xử lý bản ghi" else if (recording) "Dừng ghi âm" else "Bắt đầu ghi âm",
-                    tint = if (recording) Color.White else c.onPrimary,
-                    modifier = Modifier.size(34.dp),
-                )
-            }
-            if (recording) Waveform(level)
-            Text(
-                when (capturePhase) {
-                    VoiceCapturePhase.Preparing -> "Đang chuẩn bị · Chờ thông báo rồi bắt đầu đọc"
-                    VoiceCapturePhase.Recording -> "Đang ghi âm · Đọc câu rồi chạm để kết thúc"
-                    VoiceCapturePhase.Finished -> "Đang xử lý bản ghi"
-                    VoiceCapturePhase.Failed -> "Chưa thể bắt đầu ghi âm"
-                    VoiceCapturePhase.Idle -> "Chạm và chờ sẵn sàng rồi bắt đầu đọc"
-                },
-                textAlign = TextAlign.Center,
-                style = VcType.caption,
-                color = c.muted,
-            )
-        }
+    val readingActive = preparing || recording
+    val density = LocalDensity.current
+    val largeText = density.fontScale >= 1.5f
+    val topInset = WindowInsets.statusBars.getTop(density).toFloat()
+    val bottomInset = WindowInsets.navigationBars.getBottom(density).toFloat()
+    var viewportBounds by remember { mutableStateOf<Rect?>(null) }
+    var thumbnailBounds by remember { mutableStateOf<Rect?>(null) }
+    val presentation = viewportBounds?.let { viewport ->
+        thumbnailBounds?.let { thumbnail -> voiceFacePresentation(viewport, thumbnail, density.density, topInset, bottomInset) }
+    } ?: CameraPresentation()
+    val readingScroll = rememberScrollState()
+    LaunchedEffect(readingActive) {
+        if (readingActive) readingScroll.scrollTo(0)
+    }
+    val remaining = recordedDurationMs?.let { FlowRules.voiceRemainingMs(it, recordingLimitMs) }
+    val seconds = remaining?.let { it / 1000 + if (it % 1000 == 0L) 0 else 1 }
+    val maximumSeconds = recordingLimitMs / 1000
+    androidx.activity.compose.BackHandler(onBack = onBack)
+    SystemBarIcons(c.background)
+    // The phrase scrolls independently. Finish/countdown stay reachable at 200% text.
+    Box(Modifier.fillMaxSize().onGloballyPositioned {
+        viewportBounds = Rect(it.positionInRoot(), it.size.toSize())
     }) {
-        CameraStillOn()
-        if (again) {
-            TitleBlock("Đọc lại câu xác nhận", "Chọn nơi yên tĩnh và đọc rõ câu bên dưới.", titleStyle = VcType.cameraTitle)
-        } else {
-            Text("Đọc câu xác nhận", style = VcType.cameraTitle, color = c.ink)
+     StableCameraScene(presentation = presentation) {
+      Column(Modifier.fillMaxSize().background(c.background).statusBarsPadding()) {
+        Row(Modifier.fillMaxWidth().padding(end = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f)) { TopBar(onBack) }
+            CameraStillOn { thumbnailBounds = it }
         }
-        Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surfaceInfo).padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Icon(Icons.Outlined.FormatQuote, contentDescription = null, tint = c.accent, modifier = Modifier.size(22.dp))
-            Text(
-                sentence?.let { "“$it”" }
+        if (!readingActive) JourneyHeader(3)
+        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(readingScroll).padding(horizontal = 24.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            if (!readingActive) {
+                Text(if (again) "Đọc lại câu xác nhận" else "Đọc câu xác nhận", style = VcType.cameraTitle, color = c.ink)
+                Text("Mỗi bản ghi tối đa $maximumSeconds giây, kể cả thời gian chuẩn bị. Đọc trước câu bên dưới; đọc hết rồi bấm Đọc xong.",
+                    style = VcType.caption, color = c.muted)
+            }
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surfaceInfo).padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (!readingActive) Icon(Icons.Outlined.FormatQuote, contentDescription = null, tint = c.accent, modifier = Modifier.size(22.dp))
+                Text(sentence?.let { "“$it”" }
                     ?: if (again) "“Tôi xác nhận danh tính, mã số tám ba năm một.”" else "“Tôi xác nhận danh tính, mã số bốn bảy hai chín.”",
-                style = VcType.titleMedium,
-                color = c.ink,
-            )
+                    style = VcType.titleMedium, color = c.ink)
+            }
+            Text(if (again) "Đang đọc lại câu mới. Ghi lại tại đây không đổi câu." else "Đọc rõ từng từ tại nơi yên tĩnh.",
+                style = VcType.caption, color = c.muted)
         }
-        Text(
-            if (again) "Còn 1 lần đọc lại" else "Đọc rõ từng từ tại nơi yên tĩnh.",
-            style = VcType.caption,
-            color = c.muted,
-        )
+        ActionPanel {
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if ((recording || preparing) && seconds != null) Text("Còn $seconds giây", style = VcType.titleMedium, color = c.ink)
+                if (recording && !largeText) Waveform(level)
+                PrimaryButton(
+                    when {
+                        recording -> "Đọc xong"
+                        preparing -> "Đang chuẩn bị"
+                        processing -> "Đang xử lý"
+                        capturePhase == VoiceCapturePhase.Failed -> "Chưa thể ghi âm"
+                        else -> "Bắt đầu ghi âm"
+                    },
+                    onClick = { if (recording) onFinished() else onStartRecording() },
+                    enabled = capturePhase == VoiceCapturePhase.Idle || recording,
+                    loading = preparing || processing,
+                )
+                Text(when (capturePhase) {
+                    VoiceCapturePhase.Preparing -> "Chờ sẵn sàng rồi bắt đầu đọc."
+                    VoiceCapturePhase.Recording -> "Đang ghi âm"
+                    VoiceCapturePhase.Finished -> "Đang xử lý bản ghi."
+                    VoiceCapturePhase.Failed -> "Bản ghi chưa được gửi."
+                    VoiceCapturePhase.Idle -> "Chuẩn bị đọc trước khi bấm ghi."
+                }, textAlign = TextAlign.Center, style = VcType.caption, color = c.muted)
+            }
+        }
+      }
+     }
     }
 }
 
@@ -251,8 +293,7 @@ fun SuccessScreen(
                 verticalArrangement = Arrangement.spacedBy(20.dp)) {
                 Text(if (preview) "XEM TRƯỚC" else "ĐÃ HOÀN TẤT", style = VcType.labelSmall, color = Vc.colors.ok)
                 IdentityScene3D(Modifier.fillMaxWidth().height(168.dp), IllustrationScene.Success)
-                TitleBlock(if (preview) "Xem trước màn thành công" else "Xác minh thành công",
-                    if (preview || accountReady == false) null else "Bạn có thể tiếp tục với dịch vụ.", centered = true)
+                TitleBlock(if (preview) "Xem trước màn thành công" else "Xác minh thành công", centered = true)
             }
             if (manualFullDemo) Banner("Demo · Ngưỡng chưa hiệu chỉnh", tone = Tone.Warn)
             if (preview) Banner("Xem trước giao diện · Không chạy AI", tone = Tone.Warn)
@@ -442,8 +483,14 @@ object Messages {
     )
 
     @Composable fun NoVoice(onRetry: () -> Unit, onStop: () -> Unit) = MessageScreen(
-        Icons.Outlined.MicOff, "Chưa thu được giọng nói",
-        "Bản ghi chưa dùng được hoặc micro đã bị ngắt. Hãy kiểm tra micro và chọn nơi yên tĩnh trước khi chuẩn bị đọc lại.",
+        Icons.Outlined.MicOff, "Chưa xử lý được bản ghi",
+        "Bản ghi chưa thể xử lý. Bạn có thể chuẩn bị đọc lại hoặc dừng xác minh để thử sau.",
         "Chuẩn bị đọc lại" to onRetry, "Dừng xác minh" to onStop, onBack = onRetry,
+    )
+
+    @Composable fun VoiceTimeLimit(onRetry: () -> Unit, onStop: () -> Unit) = MessageScreen(
+        Icons.Outlined.Schedule, "Bản ghi đã hết thời gian",
+        "Bản ghi đã dừng trước khi bạn bấm Đọc xong và chưa được gửi. Hãy chuẩn bị rồi ghi lại cùng câu. Lần ghi này chưa trừ lượt đọc lại.",
+        "Ghi lại cùng câu" to onRetry, "Dừng xác minh" to onStop, onBack = onRetry,
     )
 }

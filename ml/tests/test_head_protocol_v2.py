@@ -192,8 +192,7 @@ def test_collector_rejects_challenge_replaced_after_preflight(
     assert not output.exists()
 
 
-@pytest.mark.parametrize("adaptive", [False, True])
-def test_video_match_passes_local_v2_version_to_identity_backend(monkeypatch, adaptive):
+def test_video_match_passes_local_v2_version_to_identity_backend(monkeypatch):
     import numpy as np
     from test_video_frontal_match import inputs as match_input
     from test_video_frontal_match import setup
@@ -207,23 +206,18 @@ def test_video_match_passes_local_v2_version_to_identity_backend(monkeypatch, ad
     inp.metadata["expected_challenge"]["dynamic"].update(
         version=2, head_start_at_ms=12000, head_duration_ms=12000
     )
-    if adaptive:
-        inp.metadata["expected_challenge"]["dynamic"].update(
-            head_mode="adaptive", head_timeout_ms=18000
-        )
-    suffix = "+head12s-v2" + ("+head-adaptive-v1" if adaptive else "")
     frames = {k: np.full((112, 112, 3), 42, np.uint8) for k in ("front", "left", "right")}
     monkeypatch.setattr(video_match, "session_views", lambda *_: (frames, "a" * 64))
 
     def score(inp, frames, *, result_version=None):
-        assert result_version == video_match.VIDEO_MATCH_VERSION + suffix
+        assert result_version == video_match.VIDEO_MATCH_VERSION + "+head12s-v2"
         return ModuleResult(
             module="face_match", model_version=result_version, status="degraded", latency_ms=0
         )
 
     monkeypatch.setattr(matcher, "predict_frames", score)
     result = matcher.predict(inp)
-    assert result.model_version.endswith(suffix)
+    assert result.model_version.endswith("+head12s-v2")
     assert result.status == Status.DEGRADED
     assert matcher.version == video_match.VIDEO_MATCH_VERSION
 
@@ -283,6 +277,6 @@ def test_collector_keeps_adaptive_sampling_separate_from_timed(monkeypatch, tmp_
         assert not output.exists()
     else:
         result = sc.collect(path, tmp_path, tmp_path / "models", "face_pad", output)
-        assert result["model_version"] == "synthetic-views+session-video-v2+head-adaptive-v1"
+        assert result["model_version"] == "synthetic-views+session-video-v3-adaptive"
         fitted = sc.fit_report(output, tmp_path / "calibrators", n_splits=3)
         assert fitted["model_version"] == result["model_version"]

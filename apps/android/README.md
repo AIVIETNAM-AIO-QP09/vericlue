@@ -4,79 +4,102 @@
 
 ## Trạng thái
 
-**Tích hợp PR #130 với main:** app giữ UI APP-11 và chế độ quay đầu thích ứng
-(opt-in `head_mode=adaptive`), đồng thời giữ sửa lỗi nguồn ghi hình/tiếng chung,
-consent và chế độ API của APP-01…03. Mô tả lịch 5/5/2 bên dưới áp dụng cho
-challenge v2 theo thời gian; adaptive chờ đủ bằng chứng từng hướng trong
-ngân sách video, không đổi bước chỉ vì hết một đoạn thời gian.
+**03/11 chiều — CCCD một màn, oval gọn và preset cố định:** camera giữ nguyên
+màn khi thiếu QR/chân dung; hướng dẫn chỉnh thẻ rồi thử ảnh mới, không mở bước
+QR riêng. Chỉ gửi một ảnh mới chứa cả hai, không nối dữ liệu cũ. Vùng crop live/
+still theo viewport và xoay thực, đo chất lượng chân dung, thử crop QR có lề.
+Hiển thị “Đang trích xuất thông tin”/“Đang trích xuất chân dung”.
 
-APP-11 / lượt trau chuốt chuyển động và chốt capture: màn danh tính chỉ giữ ba
-nhãn hành trình, bỏ mô tả và câu chuẩn bị thừa; native xuất hiện tuần tự, cảnh
-Three.js ghép lớp/xoay rồi ổn định trong 3 giây. Quay đầu có hình hướng dẫn chuyển
-động, tiến độ giữ tư thế lấy từ frame thật. Tất cả có trạng thái giảm chuyển động.
+Oval hiển thị gọn và dùng cùng vùng camera ở các pha, kể cả lúc đọc câu; chữ
+lớn không thu hẹp vùng tối đa nhận mặt. Mặt quá nhỏ trong oval được nhắc đưa
+máy gần hơn; không thay ngưỡng danh tính hoặc lịch thử thách. Thiếu tracking ID
+ngắn sau khi đã bám mặt dùng cơ chế thiếu bằng chứng hiện có, không coi ngay
+là đổi người và không cộng tiến độ từ khung đó. Preset `phone-demo-fixed-v1`
+được chuẩn bị nhưng **chưa bật**, theo lựa chọn giữ tài khoản của người dùng.
+Chưa nghiệm thu tốc độ quét/khoảng cách/AI trên S24 FE; xem
+[bàn giao](../../docs/status/handoffs/2026-11-03-1300-app-04-ngoc-quang-codex.md).
 
-Camera mặt dùng `FIT_CENTER` để không phóng ảnh lấp màn hình dài; oval rộng hơn.
-Chỉ bắt đầu khi một mặt đầy đủ, nhìn thẳng, nằm trong oval và ổn định qua các
-frame mới trong một giây. Tọa độ mặt được ánh xạ bằng CameraX tới đúng khung UI.
-Gaze thu phần xem camera vào góc bằng transform lớp vẽ, giữ nguyên CameraX và
-tọa độ chấm. Kết thúc gaze khôi phục khung chính. Lượt phản hồi tiếp bổ sung
-dung sai căn mặt và chế độ quay đầu thích ứng: quay sai/chưa quay được nhắc
-ngay tại chỗ, giữ yêu cầu hiện tại đến khi quan sát đủ tư thế. API cấp chế độ
-này theo opt-in và tự kiểm video gốc; tổng video tối đa 30 giây. Bản cũ giữ
-lịch cũ. Chi tiết/giới hạn: [capture khuôn mặt](docs/face-capture.md).
-Preview mới: `tmp/app11-ui/polished/index.html`, tạo bằng
-`python apps/android/scripts/build-polished-preview.py` sau Paparazzi.
+**03/11 — mốc ghi hình trước hàng đợi UI:** timestamp của CameraX Status được
+chụp lúc gửi callback vào executor, trước khi chờ luồng giao diện. Callback và
+trạng thái vẫn chạy trên main thread, mỗi lượt ghi có đồng hồ riêng. Thay đổi
+này loại phần trễ hàng đợi khỏi ước lượng mốc video; chưa đo được trễ encoder
+và chưa chứng minh ánh mắt đã đạt trên máy thật. Không đổi lịch/ngưỡng ánh mắt,
+GenD hoặc chốt xác minh. Xem
+[bàn giao](../../docs/status/handoffs/2026-11-03-1210-app-03-ngoc-quang-codex.md).
 
-APP-11 / phản hồi test thiết bị: 3D chỉ trang trí, tự chạy tối đa 3 giây rồi đứng
-yên; bỏ tab, nút xem lại/tạm dừng và lời thuyết minh minh họa khỏi app. Bốn cảnh
-được dùng: thẻ ở màn đầu, khiên/khóa ở đồng ý, khuôn mặt ở chuẩn bị và huy hiệu
-thành công. Tạm dừng khi ẩn/ra nền. Giảm chuyển động hoặc lỗi
-WebGL dùng hình native dự phòng. Chi tiết và giới hạn kiểm tra:
-[Three.js trên Android](docs/three-scene.md). Preview tương tác tại máy:
-`tmp/app11-ui/three/index.html` từ repo root.
-Tạo lại bằng `python apps/android/scripts/build-three-preview.py` sau khi render
-Paparazzi và chạy kiểm tra WebGL. Màn thành công dùng 3D; Lottie vẫn có ở
-`SuccessBadge` cho màn ngân hàng mẫu/gallery, không chạy chồng lên cảnh 3D.
+**03/11 — khung chụp và trace adaptive:** yêu cầu JPEG chỉ nhận khung được
+camera chụp sau thời điểm yêu cầu, kể cả khi analyzer giao khung cũ muộn.
+Trace quay đầu dùng mốc đổi hướng thực tế tại thời điểm chụp, không suy từ
+lịch timed khi chạy adaptive. Giữ hướng dẫn timed và bộ kiểm adaptive hiện có.
 
-Camera: `FaceCaptureSurface` dùng một viewport toàn màn hình và cùng hình học
-oval chính cho căn mặt, đổi màu và quay đầu; bước gaze dùng thumbnail từ cùng
-nguồn, chỉ biến đổi lớp vẽ. Chấm vẫn theo tọa độ toàn màn hình
-do server cấp; giữ lịch, màu, độ sáng và mốc recording. Diện tích màu nhìn thấy
-thay đổi do khung camera thống nhất, cần kiểm lại chất lượng thu trên thiết bị.
-Màn chuẩn bị rút gọn; đăng nhập thụ động không có cảnh báo đổi màu. Trợ giúp về
-nhạy cảm ánh sáng mở bottom sheet, không tự rời phiên. Backend hiện chưa có
-luồng đăng ký/khôi phục không đổi màu; đây là việc sản phẩm/backend còn thiếu, không được
-bỏ thử thách rồi tự kết luận đạt. Xem bàn giao APP-11 ngày 02/11 lúc 18:36.
+**03/11 — kiểm phản hồi trước khi giải phóng bản thu:** HTTP 200 chỉ được coi
+là tiếp nhận media/signals khi `received=true` và đúng tên bước. Phản hồi
+đọc lại phải có câu và mã thử thách hợp lệ trước khi app bỏ bản thu cũ;
+phản hồi lỗi/thiếu trường giữ dữ liệu đang chờ. Các route hợp lệ, consent,
+chữ ký và xử lý 409 xác nhận bước đã nhận giữ nguyên.
 
-APP-11 mở rộng: màn đầu có thẻ navy và hành trình đánh số; màn số điện
-thoại/OTP có dán chủ động, phản hồi lỗi và trạng thái đang gửi/kiểm mã.
-Trợ giúp theo ngữ cảnh mở bằng bottom sheet, FAQ mở rộng từng câu; đọc
-hướng dẫn không gửi dữ liệu hoặc chuyển bước. Màn chờ, kết quả và làm lại
-có thẻ nội dung thống nhất. Bộ đếm gửi lại OTP chạy lại ở mỗi lượt và chặn
-chạm lặp. Các mẫu được chọn từ awesome-android-ui, tự triển khai bằng
-Compose/Material 3; bảng nguồn và cách thử tại [UI libraries](docs/ui-libraries.md).
-Preview so với bản vừa có Lottie: `tmp/app11-ui/upgrade/index.html` từ repo root.
+**03/11 — chờ phản hồi AI:** finalize và gửi giọng dùng read timeout 120 giây,
+vì deadline suy luận server tối đa 90,8 giây có thể vượt mức chờ 60 giây trước
+đó. Các endpoint thường giữ 60 giây; connect/write vẫn 15/60 giây. Không bổ sung
+cơ chế gửi lại POST, sửa chốt AI hay chuyển lỗi thành đạt. Lượt S24 FE phát hiện lỗi
+đã qua phần mặt nhưng app mất phản hồi trước màn giọng; chưa nghiệm thu
+khôi phục trên bản sửa này.
 
-APP-11 bổ sung: đã chọn Lottie Compose 6.6.2 từ danh mục
-`wasabeef/awesome-android-ui`, dùng cho vòng viền động quanh huy hiệu thành công.
-Asset vector tự tạo được đóng gói trong APK; chạy một lần, tạm dừng khi app
-không ở foreground, hiện trạng thái cuối khi tắt chuyển động. Logo/dấu xác
-nhận tĩnh luôn hiện kể cả khi parse asset lỗi; animation không điều khiển kết
-quả hoặc nút tiếp tục. Setup và cách xem: [UI libraries](docs/ui-libraries.md).
+**03/11 — sửa preview màn đọc:** khung camera nhỏ được ánh xạ FIT từ toàn bộ
+viewport, tránh nhìn như bị zoom vào một phần khuôn mặt. Chỉ đổi lớp hiển thị;
+giữ nguyên kích thước/vòng đời native preview và dữ liệu ghi hình. Lượt thử
+trên APK1840ede đã qua toàn bộ mặt và gửi được giọng, nhưng nhận dạng câu và
+lipsync vẫn không đạt; bản sửa preview không được coi là đã sửa hai chốt AI.
 
-APP-11 (02/11): làm mới màn bắt đầu, đồng ý, xác nhận thông tin và chuẩn bị
-khuôn mặt bằng `ContentCard`/`FeatureRow`, giữ nền ngà, navy và Be Vietnam Pro.
-Ô đồng ý nằm cạnh nút tiếp tục, không chọn sẵn; chi tiết xử lý dữ liệu mở
-trong cùng vùng cuộn. Các hướng dẫn trước camera tách riêng giữ đầu thẳng,
-đưa mắt theo chấm và quay đầu; vẫn giữ cảnh báo nhạy cảm ánh sáng.
-`VcScreen` giới hạn vùng đọc 600dp, lề 24dp, tránh bàn phím hệ thống và cho
-cả nội dung/nút/bàn phím số cuộn khi vùng hiển thị thấp hơn 560dp hoặc chữ
-từ 150%. Các màn còn lại giữ nút dưới cùng. Liên kết có vùng bấm tối thiểu
-48dp, tiêu đề có semantics heading. Không thay lịch màu/chấm/quay đầu,
-camera, API hay kết quả xác minh. Bộ ảnh onboarding có thêm tablet và
-`AdaptiveScreenSnapshotTest` kiểm tra cuộn tới toàn bộ nút tiếp tục.
+**03/11 — APP-03, bản sửa thao tác đọc câu:** luồng API dùng cap native 10 giây
+(gồm thời gian chuẩn bị), hiển thị thời gian còn lại từ CameraX và yêu cầu bấm
+“Đọc xong” trước khi gửi. Nút kết thúc nằm cố định phía dưới. Hết cap hoặc native
+tự kết thúc không được coi là đã đọc xong: app yêu cầu ghi lại cùng câu, chưa
+gửi media và chưa dùng lượt đọc lại phía server. Lỗi này khác lỗi quyền micro
+và lỗi xử lý bản ghi. Khi bắt đầu ghi, câu đọc hiện trước và cuộn về đầu;
+khung camera native vẫn gắn suốt các trạng thái. Giữ decoder PTS v3, giới hạn giải mã 12 giây, chữ ký và
+chốt AI. Đây chưa phải nghiệm thu ASR/lipsync hoặc khôi phục; xem
+[bàn giao thu giọng](../../docs/status/handoffs/2026-11-03-0001-app-03-ngoc-quang-codex.md).
 
-**02/11 — APP-03, chung nguồn hình/tiếng (doing):** luồng API thật dùng CameraX
+**02/11 tối — APP-11, tích hợp thử trên S24 FE:** ghép PR130 tại `658139f`
+với sửa giọng/quyền riêng tư tại `9291bb5` trên nhánh riêng. Giữ ghi hình–tiếng
+chung và decoder PTS v3, hai đồng ý độc lập, tài khoản và nhãn demo. Giao diện
+mới chờ giữ đúng hướng trước khi chuyển bước; cập nhật API kèm danh tính phép
+đo adaptive riêng. Đây chưa phải nghiệm thu khôi phục; nhận dạng câu và
+lipsync ở lượt thật trước vẫn chưa đạt. Kiểm tra và triển khai ghi trong
+[bàn giao tích hợp](../../docs/status/handoffs/2026-11-02-2331-app-11-ngoc-quang-codex.md).
+
+**02/11 21:16 — APP-03, đã thử người thật trên v3:** lượt khôi phục mới đã gửi
+được cả bản đọc đầu và bản đọc lại đến AI. Các chốt mặt/quay đầu, voice spoof
+và face continuity đạt; nhận dạng câu và lipsync không đạt. API kết thúc ở
+`review`, tài khoản còn nguyên, chưa ghi liên kết khôi phục. Kiểm tra độc lập
+WAV/container không tái hiện lỗi parser cũ; chưa xác định nguyên nhân gốc của
+hai chốt AI. Không coi việc gửi được giọng hoặc CI xanh là nghiệm thu khôi phục.
+Xem [bàn giao lượt mới](../../docs/status/handoffs/2026-11-02-2116-app-03-ngoc-quang-codex.md).
+
+**Lịch sử 02/11 tối — APP-03, sửa ca đọc lại:** v2 đã gửi được một lượt giọng tới
+server, nhưng các lượt đọc lại vẫn bị parser từ chối bởi bước nhảy PTS. Không
+có kết luận người dùng nói nhỏ từ lỗi này. Đã kiểm chứng bộ đọc nguồn
+`muxed-av-pcm-v3-ptsgrid`: WAV16k nội suy theo timeline presentation trong MP4,
+policy `pcm16-mono16k-pts-sinc-v2`. Đây là cách biểu diễn dữ liệu theo container,
+không chứng minh clock vật lý hoặc dữ liệu chưa từng bị mất. Giữ mốc đầu,
+giới hạn thời lượng/định dạng/rate và chốt AI.320tests/0failure/1exportskip,
+5file đọc lại đều qua native decoder/WAV guard; đây là kiểm tra bộ đọc.
+Lỗi xử lý bản ghi được diễn đạt riêng với thiếu quyền/độ rõ giọng.
+
+**02/11 tối — APP-03, lỗi báo thiếu quyền micro:** quyền Android đã được cấp,
+nhưng decoder từ chối timestamp của bản ghi thật vì kiểm clock quá sát từng mẫu.
+Nguồn `muxed-av-pcm-v2-clock1ms` cho phép sai số clock tối đa1ms so với mốc đầu
+và đoạn kế cận; PTS vẫn phải tăng, không chèn/cắt mẫu hoặc tự dịch offset.
+Đây là ngân sách sai số của app, không phải bảo đảm clock Android hay ngưỡng AI.
+Chuẩn hóa WAV vẫn `pcm16-mono16k-sinc-v1`. Hai callback lỗi ghi/giải mã kiểm lại
+quyền hiện tại: chỉ khi quyền bị từ chối mới mở hướng dẫn cấp quyền; lỗi bản ghi
+khi đã có quyền mở màn “Chưa thu được giọng nói”. Chốt gửi/AI không đổi.
+Full Android304ca/0failure/1exportskip, native replay file bị lỗi đã giải mã
+thành công và qua WAV guard; fixtures/cancellation cũng đạt. Đây là kiểm chứng
+bộ đọc bản ghi, khôi phục toàn luồng vẫn chưa nghiệm thu.
+
+**Lịch sử 02/11 — APP-03, chung nguồn hình/tiếng:** luồng API thật dùng CameraX
 ghi micro và video vào một MP4, giới hạn 8 giây. Chỉ báo sẵn sàng khi có khung
 video và audio native ACTIVE. Sau finalize, MediaCodec giải mã âm thanh từ
 chính MP4 sẽ tải lên; WAV đầu ra là PCM 16-bit, mono, 16 kHz. Policy nguồn
@@ -110,8 +133,9 @@ ngưỡng hoặc khẳng định đồng bộ hardware. Cần thử lại trên 
 lại giọng. Cảnh báo tư thế và đổi bước vẫn được ưu tiên. Không kéo dài hoặc
 đổi lịch challenge12s phía server, không đổi ngưỡng hay coi hướng dẫn local là
 kết quả xác minh. Nhịp UI mới dành5giây mỗi bên và2giây nhìn thẳng, tổng vẫn
-12giây; v1 giữ2/2/2giây. Sau20s tự chụp CCCD dừng, màn hình yêu cầu bấm “Chụp ảnh thẻ”
-và vẫn giữ lý do cần chụp lại nếu có. Log debug QR chỉ bổ sung cờ định dạng hợp
+12giây; v1 giữ2/2/2giây. Bản 02/11 từng dừng tự chụp CCCD sau20s và yêu cầu
+bấm chụp; yêu cầu mới 03/11 bên dưới thay hành vi đó bằng tự chụp liên tục.
+Log debug QR chỉ bổ sung cờ định dạng hợp
 lệ, góc xoay và cropRect để phân biệt lỗi đọc với mã nằm ngoài khung; không log
 nội dung QR/thông tin thẻ. Sau cập nhật APK1367c2e/API6f3171e, người dùng xác
 nhận một lượt đăng ký dễ theo và hoàn tất; server ghi đủ bảy module ok/pass,
@@ -231,16 +255,78 @@ OTP vẫn mô phỏng với `SIMULATED_OTP=true` trong `synthetic`, độc lập
 Khi SESSION_FACE_MODELS bật, Quality SCRFD/CamProbe rules cũng chạy thật dù OTP vẫn demo. Môi trường/model nạp được không chứng minh chất lượng AI. Artifact hiệu chỉnh
 đúng protocol video và nghiệm thu máy thật còn thiếu; không mở guard hoặc dùng
 calibrator tạm của pipeline cũ để ép đạt.
+APP-11 / lượt trau chuốt chuyển động và chốt capture: màn danh tính chỉ giữ ba
+nhãn hành trình, bỏ mô tả và câu chuẩn bị thừa; native xuất hiện tuần tự, cảnh
+Three.js ghép lớp/xoay rồi ổn định trong 3 giây. Quay đầu có hình hướng dẫn chuyển
+động, tiến độ giữ tư thế lấy từ frame thật. Tất cả có trạng thái giảm chuyển động.
 
-APP-10: quét thẻ yêu cầu ảnh phân tích tối đa 1920×1440, fallback theo khả năng
-CameraX/thiết bị; camera trước dùng cấu hình cũ. Bước lấy QR không chạy thêm
-face detector. ML Kit trả cả vùng nghi là QR và có thể đề nghị zoom; chỉ bước
-QR được zoom, giới hạn theo phần cứng và tối đa 3×, reset khi mở bước khác.
-Hai lần đọc cùng QR trong 1,5 giây có thể cách nhau các khung chưa đọc được;
-kết quả đổi/quá hạn/reset không nối thành lượt cũ. Dấu đọc QR được giữ ngắn
-hạn cho UI, không dùng làm bằng chứng cho ảnh chụp mới. Ảnh tự chụp ở bước QR
-phải tự giải mã được; chụp thủ công vẫn có thể gửi ảnh rõ để server thử bộ đọc
-độc lập. QR đã giải mã không bị chặn bởi tỷ lệ điểm trắng trên toàn khung.
+Camera mặt dùng `FIT_CENTER` để không phóng ảnh lấp màn hình dài; oval rộng hơn.
+Chỉ bắt đầu khi một mặt đầy đủ, nhìn thẳng, nằm trong oval và ổn định qua các
+frame mới trong một giây. Tọa độ mặt được ánh xạ bằng CameraX tới đúng khung UI.
+Gaze thu phần xem camera vào góc bằng transform lớp vẽ, giữ nguyên CameraX và
+tọa độ chấm. Kết thúc gaze khôi phục khung chính. Lượt phản hồi tiếp bổ sung
+dung sai căn mặt và chế độ quay đầu thích ứng: quay sai/chưa quay được nhắc
+ngay tại chỗ, giữ yêu cầu hiện tại đến khi quan sát đủ tư thế. API cấp chế độ
+này theo opt-in và tự kiểm video gốc; tổng video tối đa 30 giây. Bản cũ giữ
+lịch cũ. Chi tiết/giới hạn: [capture khuôn mặt](docs/face-capture.md).
+Preview mới: `tmp/app11-ui/polished/index.html`, tạo bằng
+`python apps/android/scripts/build-polished-preview.py` sau Paparazzi.
+
+APP-11 / phản hồi test thiết bị: 3D chỉ trang trí, tự chạy tối đa 3 giây rồi đứng
+yên; bỏ tab, nút xem lại/tạm dừng và lời thuyết minh minh họa khỏi app. Bốn cảnh
+được dùng: thẻ ở màn đầu, khiên/khóa ở đồng ý, khuôn mặt ở chuẩn bị và huy hiệu
+thành công. Tạm dừng khi ẩn/ra nền. Giảm chuyển động hoặc lỗi
+WebGL dùng hình native dự phòng. Chi tiết và giới hạn kiểm tra:
+[Three.js trên Android](docs/three-scene.md). Preview tương tác tại máy:
+`tmp/app11-ui/three/index.html` từ repo root.
+Tạo lại bằng `python apps/android/scripts/build-three-preview.py` sau khi render
+Paparazzi và chạy kiểm tra WebGL. Màn thành công dùng 3D; Lottie vẫn có ở
+`SuccessBadge` cho màn ngân hàng mẫu/gallery, không chạy chồng lên cảnh 3D.
+
+Camera: `FaceCaptureSurface` dùng một viewport toàn màn hình và cùng hình học
+oval chính cho căn mặt, đổi màu và quay đầu; bước gaze dùng thumbnail từ cùng
+nguồn, chỉ biến đổi lớp vẽ. Chấm vẫn theo tọa độ toàn màn hình
+do server cấp; giữ lịch, màu, độ sáng và mốc recording. Diện tích màu nhìn thấy
+thay đổi do khung camera thống nhất, cần kiểm lại chất lượng thu trên thiết bị.
+Màn chuẩn bị rút gọn; đăng nhập thụ động không có cảnh báo đổi màu. Trợ giúp về
+nhạy cảm ánh sáng mở bottom sheet, không tự rời phiên. Backend hiện chưa có
+luồng đăng ký/khôi phục không đổi màu; đây là việc sản phẩm/backend còn thiếu, không được
+bỏ thử thách rồi tự kết luận đạt. Xem bàn giao APP-11 ngày 02/11 lúc 18:36.
+
+APP-11 mở rộng: màn đầu có thẻ navy và hành trình đánh số; màn số điện
+thoại/OTP có dán chủ động, phản hồi lỗi và trạng thái đang gửi/kiểm mã.
+Trợ giúp theo ngữ cảnh mở bằng bottom sheet, FAQ mở rộng từng câu; đọc
+hướng dẫn không gửi dữ liệu hoặc chuyển bước. Màn chờ, kết quả và làm lại
+có thẻ nội dung thống nhất. Bộ đếm gửi lại OTP chạy lại ở mỗi lượt và chặn
+chạm lặp. Các mẫu được chọn từ awesome-android-ui, tự triển khai bằng
+Compose/Material 3; bảng nguồn và cách thử tại [UI libraries](docs/ui-libraries.md).
+Preview so với bản vừa có Lottie: `tmp/app11-ui/upgrade/index.html` từ repo root.
+
+APP-11 bổ sung: đã chọn Lottie Compose 6.6.2 từ danh mục
+`wasabeef/awesome-android-ui`, dùng cho vòng viền động quanh huy hiệu thành công.
+Asset vector tự tạo được đóng gói trong APK; chạy một lần, tạm dừng khi app
+không ở foreground, hiện trạng thái cuối khi tắt chuyển động. Logo/dấu xác
+nhận tĩnh luôn hiện kể cả khi parse asset lỗi; animation không điều khiển kết
+quả hoặc nút tiếp tục. Setup và cách xem: [UI libraries](docs/ui-libraries.md).
+
+APP-11 (02/11): làm mới màn bắt đầu, đồng ý, xác nhận thông tin và chuẩn bị
+khuôn mặt bằng `ContentCard`/`FeatureRow`, giữ nền ngà, navy và Be Vietnam Pro.
+Ô đồng ý nằm cạnh nút tiếp tục, không chọn sẵn; chi tiết xử lý dữ liệu mở
+trong cùng vùng cuộn. Các hướng dẫn trước camera tách riêng giữ đầu thẳng,
+đưa mắt theo chấm và quay đầu; vẫn giữ cảnh báo nhạy cảm ánh sáng.
+`VcScreen` giới hạn vùng đọc 600dp, lề 24dp, tránh bàn phím hệ thống và cho
+cả nội dung/nút/bàn phím số cuộn khi vùng hiển thị thấp hơn 560dp hoặc chữ
+từ 150%. Các màn còn lại giữ nút dưới cùng. Liên kết có vùng bấm tối thiểu
+48dp, tiêu đề có semantics heading. Không thay lịch màu/chấm/quay đầu,
+camera, API hay kết quả xác minh. Bộ ảnh onboarding có thêm tablet và
+`AdaptiveScreenSnapshotTest` kiểm tra cuộn tới toàn bộ nút tiếp tục.
+
+APP-10/APP-04: quét thẻ yêu cầu ảnh phân tích tối đa 1920×1440, fallback theo
+CameraX/thiết bị. Một pipeline nhận QR và chân dung trên cùng vùng thẻ. Vùng
+nghi QR có thể kích hoạt ảnh chụp rõ hơn; chỉ QR giải mã được trên ảnh đó mới
+đủ để gửi. Không zoom riêng QR làm mất chân dung. Dấu QR lưu ngắn hạn không
+được dùng để hoàn tất ảnh mới. QR phải đọc được, chân dung
+phải rõ; nền trắng ngoài vùng chân dung không quyết định độ lóa của chân dung.
 Không nới điều kiện kiểm danh tính/đọc lại QR của server. Log debug tag
 `VeriClueCardScan` chỉ gồm kích thước, thời gian và cờ boolean, không có ảnh,
 nội dung QR hoặc thông tin cá nhân. Cần nghiệm thu thực tế, không suy tốc độ
@@ -254,10 +340,9 @@ không hứa SMS, nhân viên duyệt, thời hạn lưu hoặc tài khoản đ�
 chưa có bằng chứng từ API. Chỉ báo thành công sau kết quả đạt; không đánh dấu
 giọng nói đã đạt khi phiên không yêu cầu đọc câu.
 
-Quét mặt có chân dung trước và để server thử QR trên ảnh chụp đầy đủ. Chỉ lỗi
-`qr_unreadable` khi chưa thu mặt còn lại mới yêu cầu quét thêm mặt có QR;
-lỗi chân dung, QR sai định dạng hoặc lỗi mạng không tự biến thành yêu cầu
-chụp mặt sau. Luôn xem/xác nhận thông tin trước khuôn mặt. Không có nút bỏ qua
+Quét mặt thẻ chứa cả chân dung và QR. Khi chưa đọc được một phần, hướng dẫn
+điều chỉnh ngay tại màn quét; không có bước chụp QR riêng. Server đọc lại ảnh
+và trả thông tin xác nhận. Luôn xem/xác nhận thông tin trước khuôn mặt. Không có nút bỏ qua
 chụp mặt/quay đầu trong luồng chuẩn; chế độ Giả lập vẫn ở gallery debug.
 Ảnh review mới dùng `OnboardingJourneySnapshotTest` (Paparazzi), dữ liệu minh họa;
 bao phủ sáng/tối, 375dp, chữ 200% và bố cục ngang để kiểm lỗi. Activity vẫn khóa
@@ -267,11 +352,17 @@ APP-08 thay quét thẻ bằng QR/chân dung, bỏ dependency ML Kit Text Recogn
 Camera sau phân tích liên tục QR/ảnh chân dung trong khung, một gợi ý chất lượng;
 đủ điều kiện thì chụp ImageCapture, xoay/crop vùng thẻ và giới hạn cạnh 2560px,
 kiểm lại trên chính bitmap rồi gửi JPEG. Không dùng frame phân tích 480×640 làm
-ảnh chính. Đủ QR và chân dung trên một mặt thì dùng một mặt; thiếu QR mới thu
-mặt còn lại. Server đọc
+ảnh chính. Chỉ ảnh mới có cả QR và chân dung mới được gửi; thiếu phần nào
+thì hướng dẫn chỉnh và chụp lại cùng màn. Server đọc
 lại QR và kiểm chân dung, không OCR. Tự gửi, xác nhận thông tin trước quay mặt.
-20 giây hoặc ba lần chụp chưa đủ thì hiện chụp thủ công/dừng; không vòng lặp gửi
-server tự động. Chỉ một package **vn.vericlue.app**, nhãn **VeriClue**;
+Tự chụp tiếp trong phiên còn hiệu lực, không dừng sau 20 giây/ba lần thử và
+không có nút chụp thủ công. Các lần thử có khoảng nghỉ và phải có quan sát mới;
+retry phía server nghỉ lâu hơn, vẫn giữ giới hạn lượt/dung lượng/TTL của server.
+Hướng dẫn lỗi ngắn hạn nhường lại cho trạng thái camera hiện tại. Ảnh xem trước
+chỉ kích hoạt thử ảnh chụp rõ hơn, không thay chốt chất lượng ảnh cuối. Nếu toàn
+khung chưa thấy QR, thử tối đa hai vùng chồng lấp trên cùng bitmap; không zoom
+camera, ghép QR từ ảnh cũ hoặc coi vùng nghi QR là đã đọc được.
+Chỉ một package **vn.vericlue.app**, nhãn **VeriClue**;
 bỏ các profile USB/QR/remote riêng. Workflow `Android VeriClue APK` xuất
 bản chưa ký để ký trên laptop bằng khóa demo ổn định; file cài cuối là
 `VeriClue.apk`. Không cần đưa khóa/mật khẩu lên GitHub.
@@ -328,7 +419,7 @@ Không có màn hình mới. Xem
 | Quay đầu | Theo `challenge.dynamic.head_turns` (trái/phải rồi nhìn thẳng, mỗi đoạn 2 giây), cùng một bản ghi với màu và chấm | Chiều dấu `yaw` phải kiểm trên máy thật |
 | Chấm sáng | Theo 8 `gaze_points` của `challenge.dynamic`, chạy trên toàn màn hình, mốc `at_ms` tính từ khung đầu của video | Server đo ánh mắt trên video (LIVE-02) |
 | Ghi âm | `AudioRecord` 16 kHz mono → WAV, câu đọc từ `voice_prompt`; quay MP4 cùng lúc (API thật) và gửi kèm ở `/voice` cho khớp môi (VOICE-05) | Video bắt đầu trước WAV khoảng 0,6 s; app gửi độ lệch ở `audio_offset_ms` (PR #47), server mới chuyển cho mô-đun, SyncNet chưa dùng |
-| CCCD | Camera sau, tự chụp khi 2 khung liền nhau đủ nét và không lóa (`IdAutoCapture`, vẫn có nút chụp), đọc QR (ML Kit), điền thông tin từ QR | Gửi 2 ảnh + chuỗi QR lên server, thông tin xác nhận theo server; thứ tự trường QR cần kiểm với thẻ thật |
+| CCCD | Một màn camera, tự chụp và thử lại có khoảng nghỉ; thiếu thì hướng dẫn chỉnh ngay tại màn, không có nút chụp thủ công | Gửi một ảnh mới có QR + chân dung; server đọc lại và cung cấp thông tin để xác nhận |
 | OTP | Gửi/kiểm mã qua server; tự điền từ `simulated_sms` hoặc SMS thật (SMS User Consent, không cần quyền SMS); bàn phím vẫn gõ tay được | SMS thật chưa có (kênh mô phỏng) |
 | Gián đoạn | Xuống nền giữa lúc quay → bỏ lượt, màn "Xác minh bị gián đoạn" | Gia hạn phiên (LIVE-06) |
 | Keystore, ký media | P-256/SHA-256 opt-in; receipt gắn alias; L0 reauth; đổi khóa khôi phục, xóa khóa cũ sau ghi bền | Chưa nghiệm thu Keystore/khôi phục trên điện thoại thật; sinh trắc tài khoản bị chặn ở server |
@@ -439,7 +530,6 @@ app/src/main/java/vn/vericlue/app/
 - Hiệu ứng trang trí dùng `Vc.motion` (`ui/theme/Motion.kt`). Theme theo dõi `Settings.Global.ANIMATOR_DURATION_SCALE`; bằng 0 thì hiện trạng thái cuối ngay, kể cả khi đổi cài đặt lúc app đang mở. Chuyển màn tắt ở cả hai chiều khi đi vào/ra camera. Không dùng thời lượng này cho lịch màu/chấm sáng do server cấp.
 - Rung nhẹ sau khi chụp CCCD và khi thành công dùng phản hồi hệ thống (`CONTEXT_CLICK`), tôn trọng cài đặt rung của máy, không xin thêm quyền.
 - Ảnh Paparazzi đặt `motionEnabled = false` để so bố cục ở trạng thái tĩnh. Chạy `recordPaparazziDebug --tests '*ScreensSnapshotTest*'` trước/sau khi sửa; không commit ảnh trong `app/src/test/snapshots/`.
-- Các task test Gradle chạy từng lớp trong JVM riêng (`forkEvery = 1`, tuần tự) để đồng hồ Compose/Layoutlib của lớp snapshot trước không làm chuyển động ở lớp sau đứng tại frame đầu. Cấu hình này áp dụng cả `testDebugUnitTest` và `recordPaparazziDebug` trên local/CI; vẫn giữ assertion hoạt ảnh phải chạy tới frame cuối. Đổi lại, bộ test tốn thêm thời gian khởi động JVM.
 - Chưa dùng lại code từ `AIVIETNAM-AIO-QP09/eKYC-system`; khi chép Keystore từ đó (SEC-02) phải giữ dòng giấy phép MIT và ghi vào `third_party/README.md`.
 
 Kiểm tra giảm chuyển động trên máy ảo: khi app đang ở màn đăng ký/đăng nhập, chạy `adb shell settings put global animator_duration_scale 0`, kiểm tra các thẻ đứng yên và nút/OTP đổi ngay. Đặt lại giá trị ban đầu sau khi thử (thường là `1`; nếu ban đầu chưa có giá trị thì dùng `adb shell settings delete global animator_duration_scale`). Vẫn phải thử cảm giác rung trên điện thoại thật.

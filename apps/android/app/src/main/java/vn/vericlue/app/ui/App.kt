@@ -67,9 +67,11 @@ import vn.vericlue.app.capture.MuxedVoiceCapture
 import vn.vericlue.app.capture.MuxedVoiceDecodedAudio
 import vn.vericlue.app.capture.MUXED_VOICE_LIMIT_MS
 import vn.vericlue.app.capture.av.MuxedVoiceAudioDecoder
+import vn.vericlue.app.capture.av.MuxedVoiceAudioException
 import vn.vericlue.app.capture.CccdInfo
 import vn.vericlue.app.capture.CccdQr
 import vn.vericlue.app.capture.IdAutoCapture
+import vn.vericlue.app.capture.IdAutoCaptureScheduler
 import vn.vericlue.app.capture.IdQuality
 import vn.vericlue.app.ui.screens.idFields
 import vn.vericlue.app.capture.CaptureClock
@@ -203,7 +205,7 @@ fun VeriClueApp() {
         nav.go(Routes.ExitConfirm)
     }
 
-    // ID card photos and QR text; in live mode they go to the server at the back-side review (FLOW-03).
+    // A single fresh card image binds portrait and QR; the server independently verifies it.
     var idFront by remember { mutableStateOf<Pair<ByteArray, IdQuality>?>(null) }
     var idBack by remember { mutableStateOf<Pair<ByteArray, IdQuality>?>(null) }
     var cccd by remember { mutableStateOf<CccdInfo?>(null) }
@@ -215,6 +217,7 @@ fun VeriClueApp() {
     // before the confirm: the server refuses a confirm or a new card once it has media (FLOW-05 runbook).
     var faceCaptured by remember { mutableStateOf(false) }
     var localFaceIssue by remember { mutableStateOf<String?>(null) }
+    var localVoiceAgain by remember { mutableStateOf(false) }
     // Why the server asked for the card again; shown on the camera until the next shot.
     var idHint by remember { mutableStateOf<String?>(null) }
     // Why the server refused the confirmed fields; shown on the edit screen.
@@ -271,26 +274,26 @@ fun VeriClueApp() {
         nav.go(entry?.route ?: if (requested == Purpose.Onboarding) Routes.Terms else Routes.Phone)
     }
 
-    /** Back to the one review screen, replacing an older copy of it in the back stack. */
-    fun toIdReview() = nav.navigate(Routes.IdReview) {
-        popUpTo(Routes.IdReview) { inclusive = true }
-        launchSingleTop = true
-    }
-
-    /**
-     * One side of the card: the app takes the photo when it is sharp and glare-free (the shutter
-     * stays), keeps it on screen for one beat with "Chụp lại", then calls [onDone].
-     */
+    /** One continuous card scan. A retry never joins evidence from different photos/cards. */
     @Composable
-    fun IdCaptureRoute(back: Boolean, onDone: () -> Unit) {
+    fun IdCaptureRoute() {
         val observation by camera.idQuality.collectAsState()
+        val captureScope = rememberCoroutineScope()
+        val scheduler = remember { IdAutoCaptureScheduler() }
+        var scanActive by remember { mutableStateOf(true) }
         var captured by remember { mutableStateOf(false) }
         var taking by remember { mutableStateOf(false) }
-        var timedOut by remember { mutableStateOf(false) }
-        var attempts by remember { mutableStateOf(0) }
+        var extracted by remember { mutableStateOf<IdQuality?>(null) }
+        var hintExpiresMs by remember { mutableStateOf(0L) }
         var captureJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
         DisposableEffect(Unit) {
-            onDispose { captureJob?.cancel() }
+            onDispose {
+                scanActive = false
+                scheduler.cancel()
+                captureJob?.cancel()
+                camera.clearQr()
+                camera.unbind()
+            }
         }
         LaunchedEffect(Unit) {
             camera.clearQr()
@@ -298,52 +301,118 @@ fun VeriClueApp() {
             if (!hasCamera) askPermissions.launch(arrayOf(Manifest.permission.CAMERA))
         }
         LaunchedEffect(hasCamera) {
-            if (hasCamera && !camera.start(lifecycleOwner, back = true, idQrOnly = back)) nav.go(Routes.ErrorDevice)
+            if (hasCamera && !camera.start(lifecycleOwner, back = true)) {
+                scanActive = false
+                scheduler.cancel()
+                nav.go(Routes.ErrorDevice)
+            }
         }
-        fun capture(manual: Boolean) {
-            if (taking || captured) return
+        fun showCaptureHint(message: String) {
+            idHint = message
+            hintExpiresMs = SystemClock.elapsedRealtime() + 3000L
+        }
+        fun cancelCapture() {
+            scanActive = false
+            scheduler.cancel()
+            captureJob?.cancel()
+            camera.clearQr()
+        }
+        BackHandler {
+            cancelCapture()
+            nav.popBackStack()
+        }
+        fun capture(attempt: Long) {
+            if (!scanActive || taking || captured || !scheduler.isCurrent(attempt)) return
             taking = true
-            attempts++
-            captureJob = scope.launch {
+            extracted = null
+            idHint = null
+            val sessionId = live.session?.sessionId
+            camera.clearQr()
+            captureJob = captureScope.launch {
+                var serverRetry = false
                 try {
                     val shot = withTimeoutOrNull(8000) { camera.captureId() }
-                    if (shot == null) { timedOut = true; return@launch }
-                    val q = shot.second
-                    if (!vn.vericlue.app.capture.idCaptureUsable(q, back, manual)) {
-                        idHint = idScanHint(q, back)
-                        if (attempts >= 3) timedOut = true
+                    currentCoroutineContext().ensureActive()
+                    if (!scheduler.isCurrent(attempt)) return@launch
+                    if (flow.live && live.session?.sessionId != sessionId) {
+                        scanActive = false
+                        scheduler.cancel()
+                        nav.go(Routes.ErrorSession)
                         return@launch
                     }
-                    if (back) idBack = shot else { idFront = shot; idBack = null }
-                    cccd = CccdQr.parse(FlowRules.cardQr(idFront?.second?.qr, idBack?.second?.qr))
+                    if (shot == null) {
+                        showCaptureHint("Chưa chụp được ảnh rõ. Giữ yên thẻ, ứng dụng sẽ tự thử lại.")
+                        return@launch
+                    }
+                    val q = shot.second
+                    if (!vn.vericlue.app.capture.idCaptureUsable(q, back = false, manual = false)) {
+                        showCaptureHint(idScanHint(q, back = false))
+                        return@launch
+                    }
+                    extracted = q
+                    if (flow.live) {
+                        serverRetry = true
+                        val (hint, error) = live.sendIdCard(shot.first, null, q.qr)
+                        currentCoroutineContext().ensureActive()
+                        if (!scheduler.isCurrent(attempt)) return@launch
+                        if (live.session?.sessionId != sessionId) {
+                            scanActive = false
+                            scheduler.cancel()
+                            nav.go(Routes.ErrorSession)
+                            return@launch
+                        }
+                        if (error != null) {
+                            scanActive = false
+                            scheduler.cancel()
+                            nav.go(errorRoute(error))
+                            return@launch
+                        }
+                        if (hint != null || live.idFields == null) {
+                            showCaptureHint(idScanErrorText(hint))
+                            extracted = null
+                            return@launch
+                        }
+                        cccd = FlowRules.cccdFrom(live.idFields!!)
+                    } else {
+                        cccd = CccdQr.parse(q.qr)
+                    }
+                    idFront = shot
+                    idBack = null
                     idConfirmed = false
                     faceCaptured = false
                     captured = true
                     delay(450)
                     camera.unbind()
-                    onDone()
+                    nav.go(Routes.Confirm)
                 } catch (cancelled: kotlinx.coroutines.CancellationException) {
                     throw cancelled
                 } catch (_: Exception) {
-                    timedOut = true
-                } finally { taking = false }
+                    showCaptureHint("Chưa trích xuất được thông tin. Giữ đủ thẻ trong khung, ứng dụng sẽ tự thử lại.")
+                    extracted = null
+                } finally {
+                    if (scheduler.isCurrent(attempt)) {
+                        taking = false
+                        camera.clearQr()
+                        if (captured) scheduler.cancel()
+                        else scheduler.retry(attempt, SystemClock.elapsedRealtime(), serverRetry)
+                    }
+                }
             }
         }
-        LaunchedEffect(Unit) { delay(20_000); timedOut = true }
         LaunchedEffect(hasCamera, captured) {
             if (!hasCamera || captured) return@LaunchedEffect
-            val auto = IdAutoCapture(back = back)
             delay(IdAutoCapture.START_DELAY_MS)
-            while (!captured) {
+            while (!captured && scanActive) {
                 val q = camera.idQuality.value
-                if (!timedOut && !taking && q != null && auto.offer(q)) capture(manual = false)
+                val nowMs = SystemClock.elapsedRealtime()
+                if (idHint != null && nowMs >= hintExpiresMs) idHint = null
+                if (q != null) scheduler.offer(q, nowMs)?.let(::capture)
                 delay(250)
             }
         }
-        IdScanScreen(back, observation,
-            onBack = { camera.clearQr(); nav.popBackStack() }, onStop = exit,
-            onManual = { capture(manual = true) }, timedOut = timedOut,
-            taking = taking || captured, hint = idHint)
+        IdScanScreen(false, observation,
+            onBack = { cancelCapture(); nav.popBackStack() }, onStop = { cancelCapture(); exit() },
+            taking = taking || captured, hint = idHint, extracted = extracted)
     }
 
     fun startFace() {
@@ -384,10 +453,26 @@ fun VeriClueApp() {
         nav.navigate(route) { popUpTo(Routes.Uploading) { inclusive = true } }
     }
 
+    /** Retry only unsubmitted local media; retain the server's current phrase and challenge id. */
+    fun retryLocalVoice() {
+        activeMuxedCapture.get()?.cancel()
+        camera.stopRecording()
+        camera.deleteVideo()
+        recorder.stop()
+        live.pendingWav = null
+        live.audioOffsetMs = null
+        val target = FlowRules.voiceLocalRetryRoute(localVoiceAgain)
+        nav.navigate(target) {
+            popUpTo(target) { inclusive = true }
+            launchSingleTop = true
+        }
+    }
+
     @Composable
     fun VoiceRoute(again: Boolean) {
         val legacyLevel by recorder.level.collectAsState()
         val muxedLevel by camera.voiceLevel.collectAsState()
+        val nativeDurationMs by camera.voiceRecordedDurationMs.collectAsState()
         val audioState by recorder.state.collectAsState()
         val voiceScope = rememberCoroutineScope()
         val isLive = flow.live
@@ -403,7 +488,12 @@ fun VeriClueApp() {
                     nav.go(Routes.Uploading)
                 },
                 onFailure = { failure ->
-                    nav.go(if (failure == VoiceCaptureFailure.Camera) Routes.ErrorCamera else Routes.ErrorMic)
+                    localVoiceAgain = again
+                    nav.go(FlowRules.voiceCaptureFailureRoute(
+                        failure,
+                        cameraGranted = granted(context, Manifest.permission.CAMERA),
+                        micGranted = granted(context, Manifest.permission.RECORD_AUDIO),
+                    ))
                 },
             )
         }
@@ -422,7 +512,13 @@ fun VeriClueApp() {
                 decode = { file ->
                     withContext(Dispatchers.IO) {
                         val decoding = currentCoroutineContext()
-                        val audio = MuxedVoiceAudioDecoder.decode(file, checkCancelled = { decoding.ensureActive() })
+                        val audio = try {
+                            MuxedVoiceAudioDecoder.decode(file, checkCancelled = { decoding.ensureActive() })
+                        } catch (error: MuxedVoiceAudioException) {
+                            // Fixed technical code only; no media path, samples, transcript or identifiers.
+                            if (BuildConfig.DEBUG) Log.w("VeriClueVoiceCapture", "decode_failed code=${error.code}")
+                            throw error
+                        }
                         MuxedVoiceDecodedAudio(audio.wav, audio.audioOffsetMs, audio.source)
                     }
                 },
@@ -437,7 +533,12 @@ fun VeriClueApp() {
                     }
                 },
                 onFailure = { failure ->
-                    nav.go(if (failure == VoiceCaptureFailure.Camera) Routes.ErrorCamera else Routes.ErrorMic)
+                    localVoiceAgain = again
+                    nav.go(FlowRules.voiceCaptureFailureRoute(
+                        failure,
+                        cameraGranted = granted(context, Manifest.permission.CAMERA),
+                        micGranted = granted(context, Manifest.permission.RECORD_AUDIO),
+                    ))
                 },
                 failureReason = { camera.muxedVoiceFailure ?: VoiceCaptureFailure.Camera },
             )
@@ -467,6 +568,7 @@ fun VeriClueApp() {
             }
         }
         LaunchedEffect(Unit) {
+            localVoiceAgain = again
             if (flow.live && !live.privacy.permits("voice_biometrics")) {
                 nav.go(Routes.ErrorService)
                 return@LaunchedEffect
@@ -479,6 +581,8 @@ fun VeriClueApp() {
             sentence = if (flow.live) live.voicePrompt else null,
             level = if (isLive) muxedLevel else legacyLevel,
             capturePhase = capturePhase,
+            recordedDurationMs = if (isLive) nativeDurationMs else null,
+            recordingLimitMs = if (isLive) MUXED_VOICE_LIMIT_MS else 8_000L,
             onStartRecording = {
                 if (hasMic) {
                     if (isLive) sharedCapture.start() else capture.start()
@@ -630,46 +734,19 @@ fun VeriClueApp() {
         composable(Routes.OtpError) {
             OtpScreen(onBack = { nav.popBackStack() }, onVerified = { nav.go(FlowRules.afterOtp(flow.purpose)) }, startWithError = true)
         }
-        // Let the server decode the front before asking for another side.
-        composable(Routes.IdFront) { IdCaptureRoute(back = false) { toIdReview() } }
+        composable(Routes.IdFront) { IdCaptureRoute() }
         composable(Routes.IdFrontGlare) { IdScanScreen(false, IdQuality(500.0, 0.5, null),
-            onBack = { nav.popBackStack() }, onStop = exit, onManual = { nav.go(Routes.IdFront) }) }
-        composable(Routes.IdBack) { IdCaptureRoute(back = true) { toIdReview() } }
+            onBack = { nav.popBackStack() }, onStop = exit) }
+        // Old saved/debug routes rejoin the same scan; no QR-only fallback screen remains.
+        composable(Routes.IdBack) { LaunchedEffect(Unit) { nav.navigate(Routes.IdFront) {
+            popUpTo(Routes.IdBack) { inclusive = true }; launchSingleTop = true
+        } } }
         composable(Routes.IdReview) {
-            var failure by remember { mutableStateOf<String?>(null) }
             LaunchedEffect(Unit) {
-                if (!flow.live) {
-                    delay(500)
-                    nav.go(Routes.Confirm)
-                    return@LaunchedEffect
-                }
-                val front = idFront?.first
-                if (front == null) { nav.go(Routes.IdFront); return@LaunchedEffect }
-                val qr = FlowRules.cardQr(idFront?.second?.qr, idBack?.second?.qr)
-                val (hint, error) = live.sendIdCard(front, idBack?.first, qr)
-                when {
-                    error != null -> nav.go(errorRoute(error))
-                    FlowRules.needsCardBack(hint, idBack != null) -> nav.navigate(Routes.IdBack) {
-                        popUpTo(Routes.IdReview) { inclusive = true }
-                    }
-                    hint != null -> failure = idScanErrorText(hint)
-                    else -> {
-                        val fields = live.idFields
-                        if (fields == null) {
-                            failure = "Chưa đọc được thông tin trên thẻ. Hãy quét lại."
-                        } else {
-                            cccd = FlowRules.cccdFrom(fields)
-                            idConfirmed = false
-                            nav.go(Routes.Confirm)
-                        }
-                    }
+                nav.navigate(Routes.IdFront) {
+                    popUpTo(Routes.IdReview) { inclusive = true }; launchSingleTop = true
                 }
             }
-            IdProcessingScreen(onStop = exit, onRetake = {
-                idFront = null; idBack = null; cccd = null
-                idConfirmed = false; faceCaptured = false
-                nav.navigate(Routes.IdFront) { popUpTo(Routes.IdFront) { inclusive = true } }
-            }, error = failure)
         }
         composable(Routes.Confirm) {
             // After the face part, going back would restart the recording: ask whether to stop instead.
@@ -843,7 +920,6 @@ fun VeriClueApp() {
                         ?: if (flow.purpose == Purpose.Reauth) FaceTimeline.passive() else null
                 }
             }
-            var demoStart by remember { mutableStateOf<Double?>(null) }
             LaunchedEffect(timeline) {
                 if (timeline == null || !ColorSchedule.isSafe(timeline.slots)) nav.go(Routes.ErrorService)
             }
@@ -853,13 +929,15 @@ fun VeriClueApp() {
                     onStop = { terminal = true; frontalJob?.cancel(); exit() },
                     onStart = {
                         live.colorEvents.clear()
-                        if (hasCamera) camera.startRecording() else if (!flow.live) demoStart = CaptureClock.nowMs()
+                        if (hasCamera) camera.startRecording() else nav.go(Routes.ErrorCamera)
                         camera.debugTrace.bindAttempt(challenge?.challengeId)
                     },
-                    recordingStartMs = { if (hasCamera || flow.live) camera.recordingStartMs() else demoStart },
+                    recordingStartMs = { camera.recordingStartMs() },
                     onPainted = { slot, t -> slot.index?.let { live.colorEvents += ColorEvent(it, slot.rgb, t) } },
                     onFrontal = { if (hasCamera) frontalJob = captureScope.launch {
-                        val shot = withTimeoutOrNull(1500) { camera.captureJpeg() }
+                        val shot = try { withTimeoutOrNull(1500) { camera.captureJpeg() } }
+                            catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                            catch (_: Exception) { null }
                         frontalJob = null
                         if (!terminal) {
                             if (shot != null) { live.frontalJpeg = shot; frontalReady = true }
@@ -979,7 +1057,7 @@ fun VeriClueApp() {
 
         // Errors and interruptions
         composable(Routes.ErrorCamera) { Messages.CameraDenied(onRetry = { nav.go(Routes.FaceReady) }, onBack = { nav.popBackStack() }) }
-        composable(Routes.ErrorMic) { Messages.MicDenied(onRetry = { nav.go(Routes.Voice) }, onBack = { nav.popBackStack() }) }
+        composable(Routes.ErrorMic) { Messages.MicDenied(onRetry = ::retryLocalVoice, onBack = { nav.popBackStack() }) }
         composable(Routes.ErrorNetwork) {
             Messages.Network(onRetry = {
                 nav.navigate(FlowRules.afterNetworkRetry(flow.live)) { popUpTo(Routes.ErrorNetwork) { inclusive = true } }
@@ -1001,7 +1079,11 @@ fun VeriClueApp() {
             }, onStop = { nav.go(Routes.Stopped) })
         }
         composable(Routes.Interrupted) { Messages.Interrupted(onRedo = { nav.go(Routes.FaceReady) }, onStop = { nav.go(Routes.Stopped) }) }
-        composable(Routes.NoVoice) { Messages.NoVoice(onRetry = { nav.go(Routes.Voice) }, onStop = exit) }
+        composable(Routes.NoVoice) { Messages.NoVoice(onRetry = ::retryLocalVoice, onStop = exit) }
+        composable(Routes.VoiceTimeLimit) {
+            androidx.activity.compose.BackHandler(onBack = ::retryLocalVoice)
+            Messages.VoiceTimeLimit(onRetry = ::retryLocalVoice, onStop = exit)
+        }
         composable(Routes.UploadFailed) { Messages.UploadFailed(onResend = { nav.go(Routes.Uploading) }, onStop = exit) }
         composable(Routes.Slow) {
             Messages.Slow(onWait = {
@@ -1084,8 +1166,8 @@ private fun GalleryScreen(nav: NavHostController, flow: FlowState) {
         "Bắt đầu" to listOf("Màn chào" to Routes.Splash, "Đăng nhập / Đăng ký" to Routes.Auth, "Điều khoản và đồng ý" to Routes.Terms),
         "Danh tính" to listOf(
             "Số điện thoại" to Routes.Phone, "OTP" to Routes.Otp, "OTP nhập sai" to Routes.OtpError,
-            "Quét mặt có chân dung" to Routes.IdFront, "CCCD bị lóa" to Routes.IdFrontGlare, "Quét thêm mã QR khi cần" to Routes.IdBack,
-            "Đọc thông tin thẻ" to Routes.IdReview, "Kiểm tra thông tin" to Routes.Confirm, "Sửa thông tin" to Routes.EditInfo,
+            "Quét thẻ căn cước" to Routes.IdFront, "CCCD bị lóa" to Routes.IdFrontGlare,
+            "Kiểm tra thông tin" to Routes.Confirm, "Sửa thông tin" to Routes.EditInfo,
         ),
         "Khuôn mặt" to listOf("Chuẩn bị" to Routes.FaceReady, "Căn mặt" to Routes.Framing, "Giữ yên + nháy màu + chấm sáng" to Routes.HoldStill, "Quay đầu" to Routes.TurnHead),
         "Giọng nói" to listOf("Đọc câu" to Routes.Voice, "Đọc lại câu mới" to Routes.VoiceAgain),

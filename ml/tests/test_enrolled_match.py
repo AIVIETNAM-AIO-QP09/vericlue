@@ -214,17 +214,17 @@ def test_adaptive_recovery_requires_matching_sampling_for_both_artifacts(
     monkeypatch, tmp_path, match_adaptive, consistency_adaptive
 ):
     from vericlue_ml.face.enrolled import recovery_match_version
-    from vericlue_ml.presence.head_protocol import head_sampling_suffix
+    from vericlue_ml.presence.head_protocol import head_identity_suffix
 
     matcher, inp, template, artifact, _, _ = setup(monkeypatch, tmp_path, recovery=True)
     inp.metadata["expected_challenge"]["dynamic"].update(
         version=2, head_duration_ms=12000, head_mode="adaptive", head_timeout_ms=29000
     )
-    artifact.write_text(json.dumps(threshold(recovery_match_version(2, adaptive=match_adaptive))))
+    artifact.write_text(json.dumps(threshold(recovery_match_version(3 if match_adaptive else 2))))
     matcher._consistency_threshold = MatchThreshold(
         **threshold(
             VIDEO_MATCH_VERSION
-            + head_sampling_suffix(2, adaptive=consistency_adaptive)
+            + head_identity_suffix(3 if consistency_adaptive else 2)
             + "+view-consistency-v1"
         )
     )

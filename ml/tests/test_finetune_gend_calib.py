@@ -179,6 +179,8 @@ def test_expected_version_and_thresholds_match_config():
     from vericlue_ml.face.gend import AGGREGATION_TAG
 
     assert gc.EXPECTED_MODEL_VERSION.endswith(AGGREGATION_TAG)
+    # New alignment pixels must not emit artifacts under the legacy model ID.
+    assert "+align-upstream-numpy-v2+" in gc.EXPECTED_MODEL_VERSION
     path = Path(__file__).resolve().parents[1] / "configs" / "thresholds.yaml"
     cfg = yaml.safe_load(path.read_text(encoding="utf-8"))
     assert {"B": cfg["face"]["b"], "A": cfg["face"]["a"]} == gc.REPORT_THRESHOLDS

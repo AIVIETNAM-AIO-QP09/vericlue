@@ -268,14 +268,14 @@ def test_adaptive_attack_never_borrows_timed_calibration(monkeypatch, tmp_path, 
     store.save(artifact.model_copy(update={"model_version": timed_version}))
     inp = attack_input(video=Path("sample.mp4"))
     inp.metadata["expected_challenge"]["dynamic"].update(
-        version=protocol,
-        head_duration_ms=6000 * protocol,
+        version=2,
+        head_duration_ms=12000,
         head_mode="adaptive",
         head_timeout_ms=18000,
     )
     result = SessionAttackDetector(backend, SimpleNamespace(), store).predict(inp)
     assert result.status == Status.DEGRADED and result.prob_attack is None
-    assert result.model_version == timed_version + "+head-adaptive-v1"
+    assert result.model_version == "synthetic-3views+session-video-v3-adaptive"
     store.save(artifact.model_copy(update={"model_version": result.model_version}))
     calibrated = SessionAttackDetector(backend, SimpleNamespace(), store).predict(inp)
     assert calibrated.status == Status.OK and calibrated.prob_attack is not None

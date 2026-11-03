@@ -10,7 +10,6 @@ from vericlue_ml.common.detector import DetectorInput
 from vericlue_ml.common.manual_demo import ManualDemoThresholds
 from vericlue_ml.common.result import ErrorCode, Evidence, Gate, ModuleResult, Status
 from vericlue_ml.face.pad import PadError
-from vericlue_ml.presence.challenge import expected_dynamic
 from vericlue_ml.presence.head_protocol import head_protocol_version, session_model_version
 from vericlue_ml.presence.head_turn import CENTER_MAX_DEG, MAX_PITCH_ROLL_DEG
 from vericlue_ml.presence.landmarks import FaceObservationReader, LandmarkError
@@ -80,9 +79,7 @@ class SessionAttackDetector:
                 )
             else:
                 version = session_model_version(
-                    self.backend.frames_version,
-                    head_protocol_version(inp),
-                    adaptive=expected_dynamic(inp).get("head_mode") == "adaptive",
+                    self.backend.frames_version, head_protocol_version(inp)
                 )
                 if self.manual_demo is not None:
                     version += self.manual_demo.version_suffix

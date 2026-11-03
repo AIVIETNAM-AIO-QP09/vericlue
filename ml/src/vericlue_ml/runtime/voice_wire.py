@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from vericlue_ml.common.detector import DetectorInput
+from vericlue_ml.voice.content_backend import content_model_version, validate_content_backend
 
 PROTOCOL = "vericlue-session-voice-v1"
 MAX_REQUEST = 65536
@@ -17,7 +18,8 @@ KINDS = {
 }
 
 
-def expected_version(kind: str, manual_demo=None) -> str:
+def expected_version(kind: str, manual_demo=None, *, content_backend: str = "qwen06") -> str:
+    validate_content_backend(content_backend, manual=manual_demo is not None)
     if kind not in KINDS:
         raise ValueError("Unknown voice worker kind")
     if manual_demo is not None and kind in {"spoof", "lipsync"}:
@@ -27,7 +29,7 @@ def expected_version(kind: str, manual_demo=None) -> str:
         raw = AntiDeepfakeDetector().version if kind == "spoof" else SyncNetDetector().version
         return raw + manual_demo.version_suffix
     if kind == "content":
-        from vericlue_ml.voice.qwen_asr import VERSION
+        return content_model_version(content_backend)
     elif kind == "timing":
         from vericlue_ml.voice.reading_timing import VERSION
     elif kind == "spoof":
@@ -71,19 +73,28 @@ def source_hashes(inp: DetectorInput, root: Path, kind: str) -> dict[str, str]:
     return result
 
 
-def worker_scope(manual_demo=None) -> dict:
+def worker_scope(manual_demo=None, *, content_backend: str = "qwen06") -> dict:
     """Private protocol binding; standard framing stays backward compatible."""
-    return (
+    validate_content_backend(content_backend, manual=manual_demo is not None)
+    scope = (
         {"mode": "manual_full_demo", "policy_id": manual_demo.policy_id}
         if manual_demo is not None
         else {}
     )
+    if content_backend == "qwen17":
+        scope["content_model_version"] = content_model_version(content_backend)
+    return scope
 
 
-def worker_hello(manual_demo=None, warmup_kinds=()) -> dict:
-    hello = {"protocol": PROTOCOL, "ready": True, **worker_scope(manual_demo)}
+def worker_hello(manual_demo=None, warmup_kinds=(), *, content_backend: str = "qwen06") -> dict:
+    hello = {
+        "protocol": PROTOCOL,
+        "ready": True,
+        **worker_scope(manual_demo, content_backend=content_backend),
+    }
     if manual_demo is not None:
         hello["loaded_versions"] = {
-            kind: expected_version(kind, manual_demo) for kind in warmup_kinds
+            kind: expected_version(kind, manual_demo, content_backend=content_backend)
+            for kind in warmup_kinds
         }
     return hello

@@ -11,9 +11,14 @@ class FaceAttemptGuard(private val timeline: FaceTimeline) {
     private var failed: FaceAttemptIssue? = null
     val actionProgress: Float get() = action?.progress ?: 0f
 
+    /** Missing metadata is missing evidence, not proof that a different tracked face appeared. */
+    fun observationForTracking(signal: FaceSignal?): FaceSignal? =
+        signal?.takeUnless { identity != null && it.trackingId == null }
+
     fun update(phase: FaceTimeline.Phase, signal: FaceSignal?, nowMs: Long): FaceAttemptIssue? {
         failed?.let { return it }
-        if (!QualityGate.hasCompleteFace(signal, nowMs)) {
+        val tracked = observationForTracking(signal)
+        if (!QualityGate.hasCompleteFace(tracked, nowMs)) {
             val since = missingSince ?: nowMs.also { missingSince = it }
             // During adaptive head guidance a temporary detection/pose problem is corrected
             // inline. The bounded capture controller never completes with missing evidence.
@@ -22,7 +27,7 @@ class FaceAttemptGuard(private val timeline: FaceTimeline) {
                 signal?.faces?.let { it > 1 } == true) return fail(FaceAttemptIssue.FaceLost)
         } else {
             missingSince = null
-            val id = signal?.trackingId
+            val id = tracked?.trackingId
             if (identity != null && identity != id) return fail(FaceAttemptIssue.FaceLost)
             if (identity == null) identity = id
         }
@@ -30,7 +35,7 @@ class FaceAttemptGuard(private val timeline: FaceTimeline) {
             (phase.segment !in timeline.headTurns.indices || phase.dir != timeline.headTurns[phase.segment])) {
             return fail(FaceAttemptIssue.ActionIncomplete)
         }
-        if (phase is FaceTimeline.Phase.Head && phase.segment != segment) {
+        if (timeline.adaptiveHead && phase is FaceTimeline.Phase.Head && phase.segment != segment) {
             // A late UI frame must not skip an unchecked direction.
             if (phase.segment != segment + 1 || (segment >= 0 && action?.complete != true)) {
                 return fail(FaceAttemptIssue.ActionIncomplete)
@@ -38,8 +43,9 @@ class FaceAttemptGuard(private val timeline: FaceTimeline) {
             segment = phase.segment
             action = HeadActionGate(phase.dir)
         }
-        if (phase is FaceTimeline.Phase.Head) action?.update(signal, nowMs)
-        if (phase == FaceTimeline.Phase.Done && timeline.headTurns.isNotEmpty() &&
+        if (timeline.adaptiveHead && phase is FaceTimeline.Phase.Head) action?.update(tracked, nowMs)
+        // Legacy timed coaching remains advisory; only an adaptive plan adds local hold completion.
+        if (timeline.adaptiveHead && phase == FaceTimeline.Phase.Done && timeline.headTurns.isNotEmpty() &&
             (segment != timeline.headTurns.lastIndex || action?.complete != true)) {
             return fail(FaceAttemptIssue.ActionIncomplete)
         }
