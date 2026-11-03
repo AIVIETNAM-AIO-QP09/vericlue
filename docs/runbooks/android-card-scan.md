@@ -52,6 +52,16 @@ thế kiểm camera hoặc đọc QR thật trên thiết bị.
 Triển khai API và Android cùng bản; máy chủ cũ chưa có đường nắn phối cảnh
 và có thể còn cấu hình chân dung tùy chọn. Bắt đầu phiên mới khi nghiệm thu.
 
+## Khi app chưa ghi nhận được đồng ý
+
+`/healthz=ok` chỉ chứng minh server đang chạy. Android hiện đóng gói thông báo
+`demo-v1` và `account-template-v1` trong `SessionPrivacyFlow.kt`; GET privacy
+của phiên phải trả phiên bản khớp nội dung thực sự hiển thị. Profile local cũ
+`PRIVACY_POLICY_VERSION=remote-test-v1` sẽ bị app từ chối dù kết nối tốt.
+Với nguyên nội dung demo đang đóng gói, dùng `PRIVACY_POLICY_VERSION=demo-v1`
+rồi restart server; người dùng tự bấm đồng ý lại. Không bỏ kiểm phiên bản,
+không sao chép tự động phiên bản server vào lựa chọn đồng ý của client.
+
 ## Căn cứ API
 
 - [CameraController: resolution selector](https://developer.android.com/reference/androidx/camera/view/CameraController#setImageAnalysisResolutionSelector(androidx.camera.core.resolutionselector.ResolutionSelector))
