@@ -1480,11 +1480,20 @@ fun VeriClueApp() {
                 error ?: if (loginFlow.challenge == null || loginFlow.challenge?.dynamic != null)
                     vn.vericlue.app.data.api.ApiError.BadResponse else null
             },
-            onSubmit = {
-                val next = submitWithVideo(camera.finishedVideo()) { video ->
-                    val probe = withContext(Dispatchers.IO) { camera.camProbe() }
-                    loginFlow.submitFace(video, camera.frameTimes(), camera.clientQuality(video), probe,
-                        camera.regionMeans().ifEmpty { null },
+            onSubmit = { onCaptureReleased ->
+                val recording = camera.finishedVideo()
+                val video = (recording as? vn.vericlue.app.capture.VideoResult.Ready)?.file
+                // Snapshot camera metadata before unbinding; do not keep the camera active
+                // while uploading or waiting for the server's authentication decision.
+                val frameTimes = camera.frameTimes()
+                val quality = camera.clientQuality(video)
+                val regions = camera.regionMeans().ifEmpty { null }
+                val probe = withContext(Dispatchers.IO) { camera.camProbe() }
+                camera.unbind()
+                onCaptureReleased()
+                val next = submitWithVideo(recording) { readyVideo ->
+                    loginFlow.submitFace(readyVideo, frameTimes, quality, probe,
+                        regions,
                         onMediaAcked = { camera.deleteVideo(preserveDiagnostics = true) })
                 }
                 if (generation == accessGeneration) {

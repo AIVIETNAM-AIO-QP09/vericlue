@@ -41,7 +41,7 @@ import vn.vericlue.app.ui.components.PrimaryButton
 import vn.vericlue.app.ui.theme.Vc
 import vn.vericlue.app.ui.theme.VcType
 
-enum class QuickFaceStage { Consent, Preparing, Aligning, Recording, Checking, Error }
+enum class QuickFaceStage { Consent, Preparing, Aligning, Recording, Finishing, Checking, Error }
 
 /** One preview and one popup for the entire passive login. Server verification still owns success. */
 @Composable
@@ -50,7 +50,7 @@ fun QuickFaceLogin(
     live: LiveFlow,
     owner: LifecycleOwner,
     onPrepare: suspend () -> ApiError?,
-    onSubmit: suspend () -> Unit,
+    onSubmit: suspend (onCaptureReleased: () -> Unit) -> Unit,
     onCancel: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -118,10 +118,13 @@ fun QuickFaceLogin(
                 if (stable.update(face, now)) { stage = QuickFaceStage.Recording; break }
                 delay(50)
             }
-        } else if (stage == QuickFaceStage.Checking) {
-            // This callback waits for the real API result and account access exchange.
-            submit()
         }
+    }
+    // Keep the upload job alive when Finishing becomes Checking. The preview must not detach
+    // until CameraX has finalized the recording and capture diagnostics have been saved.
+    val submitting = stage == QuickFaceStage.Finishing || stage == QuickFaceStage.Checking
+    LaunchedEffect(submitting) {
+        if (submitting) submit { stage = QuickFaceStage.Checking }
     }
     fun incomplete() {
         if (terminal) return
@@ -166,15 +169,16 @@ fun QuickFaceLogin(
                                 else {
                                     terminal = true
                                     camera.stopRecording(); camera.lockAeAwb(false)
-                                    stage = QuickFaceStage.Checking
+                                    stage = QuickFaceStage.Finishing
                                 }
                             }
                         },
                         onNoRecording = ::incomplete, faceSignal = { camera.face.value },
                         onIncomplete = { incomplete() },
                         captureContent = { captured -> LinearProgressIndicator(progress = { captured }, modifier = Modifier.fillMaxWidth()) },
+                        previewAlreadyStable = true,
                     )
-                } else if (stage in setOf(QuickFaceStage.Preparing, QuickFaceStage.Checking)) {
+                } else if (stage in setOf(QuickFaceStage.Preparing, QuickFaceStage.Finishing)) {
                     LinearProgressIndicator(Modifier.fillMaxWidth())
                 }
             },
@@ -192,6 +196,10 @@ fun QuickFaceLoginContent(
     camera: @Composable BoxScope.() -> Unit = {},
     progress: @Composable () -> Unit = {},
 ) {
+    if (stage == QuickFaceStage.Checking) {
+        QuickFaceLoginWaiting(onCancel)
+        return
+    }
     var details by remember { mutableStateOf(false) }
     // Dialogs center their content; a fixed available height also prevents the preview moving
     // when consent buttons disappear or the status text changes.
@@ -209,6 +217,7 @@ fun QuickFaceLoginContent(
                 QuickFaceStage.Preparing -> "Đang mở camera…"
                 QuickFaceStage.Aligning, QuickFaceStage.Error -> hint
                 QuickFaceStage.Recording -> "Đang quét · Giữ điện thoại ổn định"
+                QuickFaceStage.Finishing -> "Đang hoàn tất thu hình…"
                 QuickFaceStage.Checking -> "Đang xác minh…"
             }
             Text(message, style = VcType.bodySmall, color = Vc.colors.ink, textAlign = TextAlign.Center,
@@ -220,6 +229,26 @@ fun QuickFaceLoginContent(
                 PrimaryButton("Đồng ý và quét", onStart)
             } else if (stage == QuickFaceStage.Error) PrimaryButton("Thử lại", onStart)
             TextButton(onClick = onCancel, modifier = Modifier.heightIn(min = 48.dp)) { Text("Hủy", style = VcType.label) }
+        }
+    }
+}
+
+/** Camera-free waiting state over Login; only the real account exchange can open the profile. */
+@Composable
+private fun QuickFaceLoginWaiting(onCancel: () -> Unit) {
+    Box(Modifier.fillMaxSize().testTag("quick-face-waiting"), contentAlignment = Alignment.Center) {
+        Surface(Modifier.padding(24.dp).widthIn(max = 280.dp).fillMaxWidth(),
+            shape = RoundedCornerShape(28.dp), color = Vc.colors.surface) {
+            Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                CircularProgressIndicator(Modifier.size(44.dp).testTag("quick-face-spinner"), color = Vc.colors.accent)
+                Text("Đang xác minh…", style = VcType.section, color = Vc.colors.ink,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                TextButton(onClick = onCancel, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Text("Hủy", style = VcType.label)
+                }
+            }
         }
     }
 }

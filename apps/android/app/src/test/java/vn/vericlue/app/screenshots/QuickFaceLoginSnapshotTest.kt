@@ -32,6 +32,7 @@ abstract class QuickFaceLoginSnapshots(device: DeviceConfig) {
                 var panel: Rect? = null
                 var text = emptyList<String>()
                 var tags = emptyList<String>()
+                var cameraComposed = false
                 paparazzi.snapshot("quick_${stage}_$dark") {
                     val root = LocalView.current as RootForTest
                     VcTheme(dark = dark, motionEnabled = false) {
@@ -42,14 +43,25 @@ abstract class QuickFaceLoginSnapshots(device: DeviceConfig) {
                             panel = nodes.firstOrNull { it.config.getOrNull(SemanticsProperties.TestTag) == "quick-face-panel" }?.boundsInRoot
                             text = nodes.flatMap { it.config.getOrNull(SemanticsProperties.Text).orEmpty() }.map { it.text }
                         }) {
-                            QuickFaceLoginContent(stage, "Nhìn thẳng vào camera", {}, {})
+                            QuickFaceLoginContent(stage, "Nhìn thẳng vào camera", {}, {},
+                                camera = { cameraComposed = true })
                         }
                     }
                 }
-                if (bounds == null) bounds = requireNotNull(preview)
-                if (panelBounds == null) panelBounds = requireNotNull(panel)
-                assertEquals("Centered dialog must keep its size so the camera cannot shift", panelBounds, panel)
-                assertEquals("Preview must not resize or move between capture phases", bounds, preview)
+                if (stage == QuickFaceStage.Checking) {
+                    assertNull("Camera popup is gone while waiting for the server", preview)
+                    assertNull(panel)
+                    assertFalse("Waiting must not compose a camera view", cameraComposed)
+                    assertTrue("quick-face-waiting" in tags)
+                    assertTrue("quick-face-spinner" in tags)
+                } else {
+                    if (bounds == null) bounds = requireNotNull(preview)
+                    if (panelBounds == null) panelBounds = requireNotNull(panel)
+                    assertEquals("Centered dialog must keep its size so the camera cannot shift", panelBounds, panel)
+                    assertEquals("Preview must not resize or move before video finalization", bounds, preview)
+                    assertTrue(cameraComposed)
+                    assertFalse("quick-face-spinner" in tags)
+                }
                 assertFalse("No oval placement step in quick login", "face-guide" in tags)
                 assertFalse(text.any { it.contains("thành công", true) || it.startsWith("Bước") })
                 assertTrue("Cancellation remains available while the server runs", "Hủy" in text)
