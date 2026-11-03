@@ -1,5 +1,42 @@
 # services/api — Máy chủ API (FastAPI)
 
+**APP-01 — Đăng nhập và hồ sơ (03/11):** migration `0012_account_access`
+thêm đăng nhập bằng tên/mật khẩu hoặc phiên camera reauth đã hoàn tất.
+Bật riêng `ACCOUNT_ACCESS_ENABLED=true` cùng `ACCOUNT_ENROLLMENT=true`,
+`SESSION_PRIVACY=true`, `PRODUCT_MODE=ekyc` và cấu hình mô hình thật hoặc
+`MANUAL_FULL_DEMO` hiện có. Mock/mixed thông thường bị chặn. Chạy
+`uv run alembic -c services/api/alembic.ini upgrade head` trước khi khởi động.
+
+| Endpoint | Xác thực và kết quả |
+|---|---|
+| `POST /v1/sessions/{id}/account-access/setup` | Bearer phiên onboarding/recovery/reauth đã pass và gắn tài khoản; nhận `username`, `password`, `profile_consent: true`, `policy_version: "account-profile-v1"`; trả hồ sơ, không tự đăng nhập |
+| `POST /v1/sessions/{id}/account-access/face` | Bearer reauth đã pass với chữ ký thiết bị/media và bằng chứng đối chiếu đúng tài khoản; cấp phiên đăng nhập một lần |
+| `POST /v1/account-access/password` | Tên đăng nhập/mật khẩu; cấp phiên đăng nhập |
+| `GET /v1/account-access/me` | Bearer `vca_…`; trả hồ sơ tối thiểu |
+| `POST /v1/account-access/logout` | Thu hồi bearer đăng nhập hiện tại |
+
+Tên đăng nhập gồm 3–32 ký tự thường `a-z`, `0-9`, `.`, `_`, `-` và bắt đầu
+bằng chữ/số; mật khẩu 12–128 ký tự, không tự trim. Mật khẩu băm PBKDF2-SHA256
+600.000 vòng với salt ngẫu nhiên; tên tra cứu bằng HMAC. Hồ sơ và verifier
+mật khẩu mã hóa AES-GCM bằng DEK riêng cho tài khoản, bọc bởi master key.
+Chỉ giữ tên được xác nhận từ giấy tờ, CCCD che 8 ký tự, tên đăng nhập, mã/timestamp
+tài khoản và marker mode/policy; trường chưa có nguồn trả `null`. Không có dữ
+liệu điện thoại thô để suy ra số điện thoại. Xóa/TTL tài khoản hủy DEK hồ sơ và
+thu hồi token; recovery đổi thiết bị vô hiệu hóa thông tin đăng nhập cũ.
+
+Token ngẫu nhiên chỉ lưu hash, có hạn 15 phút và không vượt TTL tài khoản
+24 giờ; mỗi truy vấn kiểm lại tài khoản, thiết bị và policy hiện hành.
+Đăng nhập mật khẩu giới hạn 5 lần sai/tài khoản/5 phút và 20 yêu cầu/IP/5 phút
+bằng bộ đếm DB (IP cũng HMAC), lỗi sai tên/mật khẩu cùng thông báo.
+Setup gửi lại cùng phiên/nội dung có tính idempotent; đổi mật khẩu đã có chỉ
+qua phiên recovery mới đã hoàn tất. Face exchange replay bị từ chối; client
+khởi tạo lại reauth nếu mất phản hồi. Tài khoản cũ chưa có mật khẩu trả
+`409 account_setup_required` sau face pass để hiển thị setup có đồng ý riêng.
+Phiên đăng nhập chỉ mở hồ sơ, không phải kết quả eKYC, chữ ký hay credential.
+Contract: `packages/contracts/schemas/account_access.schema.json` và OpenAPI.
+Kiểm tra: `uv run pytest services/api/tests/test_account_access.py` (dữ liệu
+tổng hợp và chữ ký thật; không chứng minh độ chính xác sinh trắc).
+
 **APP-04 — WeChat QR (03/11):** `IDENTITY_QR_BACKEND=wechat` thay bộ đọc OpenCV
 thường bằng detector + super-resolution WeChat, chạy cùng ZXing-C++ trên ảnh
 được tải lên. Cả hai kết quả được giữ để phát hiện QR xung đột; chân dung vẫn

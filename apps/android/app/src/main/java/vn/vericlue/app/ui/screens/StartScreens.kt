@@ -139,11 +139,10 @@ fun BankStartScreen(onOpenAccount: () -> Unit, onGallery: () -> Unit, manualFull
 
 @Composable
 fun BankOpenedScreen(onDone: () -> Unit, manualFullDemo: Boolean = false, preview: Boolean = false) {
-    VcScreen(actions = { SampleAccount(); PrimaryButton("Vào ứng dụng", onDone) }) {
-        BankHeader()
-        Spacer(Modifier.height(56.dp))
+    VcScreen(centered = true, actions = { PrimaryButton("Vào ứng dụng", onDone) }) {
         SuccessBadge()
-        TitleBlock(if (preview) "Xem trước màn hoàn tất" else "Đã hoàn tất xác minh")
+        TitleBlock(if (preview) "Xem trước màn hoàn tất" else "Tài khoản đã sẵn sàng",
+            "Đăng nhập để xem hồ sơ và quản lý tài khoản của bạn.", centered = true)
         if (manualFullDemo) Banner("Demo · Ngưỡng chưa hiệu chỉnh", tone = Tone.Warn)
         if (preview) Banner("Xem trước giao diện · Không chạy AI", tone = Tone.Warn)
     }
@@ -203,12 +202,11 @@ fun SplashScreen(onDone: () -> Unit) {
 // ── Sign in / sign up ─────────────────────────────────────────────────────────
 
 @Composable
-fun AuthScreen(onRegister: () -> Unit, onLogin: () -> Unit, onRecover: () -> Unit, manualFullDemo: Boolean = false, preview: Boolean = false) {
+fun AuthScreen(onRegister: () -> Unit, onLogin: () -> Unit, onRecover: () -> Unit, manualFullDemo: Boolean = false, preview: Boolean = false, onBack: (() -> Unit)? = null) {
     val c = Vc.colors
-    VcScreen(actions = {
+    VcScreen(onBack = onBack, actions = {
         PrimaryButton("Bắt đầu đăng ký", onRegister)
-        SecondaryButton("Đăng nhập", onLogin)
-        LinkButton("Khôi phục tài khoản", onRecover)
+        LinkButton("Đã có tài khoản? Đăng nhập", onLogin)
     }) {
         if (manualFullDemo) Banner("Demo · Ngưỡng chưa hiệu chỉnh", tone = Tone.Warn)
         if (preview) Banner("Xem trước giao diện · Không chạy AI", tone = Tone.Warn)

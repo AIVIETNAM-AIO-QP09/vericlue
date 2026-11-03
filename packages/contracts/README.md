@@ -72,6 +72,7 @@ khóa, không phải verdict sinh trắc. Chi tiết:
 | `schemas/detector_input.schema.json` | Đầu vào nội bộ API → ML; đường dẫn do server kiểm soát, không phải body HTTP |
 | `schemas/face_template.schema.json` | Artifact ML → API nội bộ: vector chỉ lưu mã hóa, không nhận/trả qua HTTP |
 | `schemas/session.schema.json` | API phiên eKYC: tạo phiên, tín hiệu, kết quả (API v1, chốt ở PLAT-04) |
+| `schemas/account_access.schema.json` | Đăng nhập mật khẩu/camera sau ghi danh, hồ sơ tối thiểu và phiên đăng nhập thu hồi được; không thay kết quả eKYC |
 | `schemas/review.schema.json` | Bàn duyệt. **Draft v1**: chỉ thêm trường tùy chọn. `ReviewCase` không có điểm AI; `ReviewAiOpinion` tách riêng |
 | `schemas/forensic.schema.json` | Cổng giám định. **Draft v1**: chỉ thêm trường tùy chọn |
 | `chromapulse.json` | **File cấu hình** (không phải JSON Schema): bảng màu, nhịp và giới hạn an toàn của ChromaPulse. Nguồn duy nhất cho API (`challenge.py`) và web (trang lab, CAP-04); test ở cả hai phía kiểm điều đó và kiểm các giới hạn ADR-0011 |

@@ -49,6 +49,8 @@ PROCESSING_ENDPOINTS = frozenset(
         "credential_authorization",
         "issue_credential",
         "account_receipt",
+        "setup_account_access",
+        "exchange_account_face",
     }
 )
 VOICE_EVIDENCE_MODULES = frozenset(
