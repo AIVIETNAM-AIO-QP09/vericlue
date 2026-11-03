@@ -288,6 +288,11 @@ Giữ hạn tài khoản 24 giờ, phiên hồ sơ tối đa 15 phút. Hồ sơ 
 được API cung cấp; không có tài khoản ngân hàng/số dư mẫu. Chưa đánh dấu done
 trước nghiệm thu trên điện thoại. Chi tiết tại bàn giao APP-01 ngày 03/11.
 
+**03/11 tối — quét tại màn đăng nhập:** dùng một hộp consent/camera/đang xử lý,
+giữ preview cố định và bỏ yêu cầu khớp oval cho reauth. Dùng lại cổng đủ mặt,
+frame mới, tư thế, độ sáng, hold và timeline 3 giây; chỉ server cấp quyền mở hồ sơ.
+Giữ đăng ký/khôi phục và mọi model/ngưỡng. Cần nghiệm thu tốc độ trên máy thật.
+
 **02/11 — đang thử S24 FE:** APK0.3.0 đã cài và API/ADB hoạt động. Chưa nghiệm
 thu đăng ký: lượt đầu `review` ở gaze; phát hiện và sửa thiếu challenge binding
 trong bước trích template enrollment, có regression dùng validator production.

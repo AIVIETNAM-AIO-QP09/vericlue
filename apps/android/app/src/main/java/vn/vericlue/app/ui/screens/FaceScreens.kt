@@ -480,6 +480,7 @@ fun FaceTimelineScreen(
     faceSignal: () -> FaceSignal? = { face },
     onIncomplete: (FaceAttemptIssue) -> Unit = { onNoRecording() },
     debugTrace: vn.vericlue.app.capture.PresenceDebugTrace? = null,
+    captureContent: (@Composable (Float) -> Unit)? = null,
 ) {
     val speech = if (timeline.headTurns.isNotEmpty()) vn.vericlue.app.ui.components.rememberHeadSpeech() else null
     val passive = timeline.isPassiveLogin
@@ -593,7 +594,8 @@ fun FaceTimelineScreen(
     val stop = { speech?.stop(); onStop() }
     BackHandler(onBack = stop)
     FullBrightness(enabled = true)
-    FaceChallengeContent(timeline, phase, remainingSeconds, observedFace, debugTrace, recordingOriginMs,
+    if (captureContent != null) captureContent(captureProgress)
+    else FaceChallengeContent(timeline, phase, remainingSeconds, observedFace, debugTrace, recordingOriginMs,
         speech, actionProgress, headFeedback, captureProgress = captureProgress, onStop = stop)
 }
 
