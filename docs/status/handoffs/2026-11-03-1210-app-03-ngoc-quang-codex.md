@@ -37,7 +37,8 @@ GenD 0.90 theo yêu cầu người dùng. Mốc giờ trong tài liệu là UTC+
 
 ## Đang dở
 - Mốc video vẫn là ước lượng: bản sửa loại trễ main queue, chưa đo latency
-  encoder/sensor và chưa có lượt S24 FE trên APK mới.
+  encoder/sensor. Một lượt S24 FE trên APK mới đã qua gaze, chưa đủ nghiệm thu
+  độ ổn định hoặc chứng minh clock vật lý.
 - GenD phiên bản `align-upstream-numpy-v2` chưa có hiệu chỉnh/đánh giá độc lập
   phù hợp. Ngưỡng 0.90 là cấu hình vận hành demo, không phải kết quả đánh giá.
 - Lipsync 11:15 có cờ căn câu và điểm SyncNet độc lập không đạt. Oracle Uroman
@@ -96,3 +97,20 @@ GenD 0.90 theo yêu cầu người dùng. Mốc giờ trong tài liệu là UTC+
   8421 còn hoạt động. Không restart server.
 - Backup/receipt: `revision-backups/before-clock-apk-52bdbf34de27/` trong bundle.
   Đã mời người dùng thử một lượt mới; chưa có kết quả nghiệm thu bản này.
+
+## Đối chiếu lượt mới 12:20
+- Người dùng báo vẫn chưa hoàn tất. DB read-only xác nhận recovery bắt đầu
+  **12:20:26**, kết thúc `review`: quality, PAD, camprobe, gaze, head và match
+  đều `ok/pass`; **chỉ GenD `ok/fail`**, không có error_code.
+- Front vượt ngưỡng demo 0.90, đủ ba view, đúng policy/model version hiện hành;
+  PAD/GenD/match cùng video. Chưa yêu cầu giọng, không kết luận lỗi lipsync từ
+  lượt này. Tài khoản còn nguyên, chưa commit liên kết khôi phục.
+- Đây là một lượt ánh mắt đạt sau cài APK mới, không chứng minh quan hệ nhân
+  quả hoặc độ ổn định của clock. GenD/khôi phục vẫn chưa được sửa dứt điểm.
+- Bằng chứng lọc riêng: `diagnostics/post-clock-attempt-safe.json`; helper
+  `inspect_clock_followup.py` chỉ đọc DB và không xuất ID/transcript/media.
+- Agent review thêm lịch front: target 500 ms nằm trong baseline xám 1.000 ms,
+  cả timed/adaptive giữ target này; decoder chọn gần nhất trong ±100 ms. Không
+  thấy lỗi lịch lấy nhầm pha đổi màu; byte source server liên quan khớp bản
+  đang chạy. Chưa đo được quan hệ display/encoder vật lý. Giả thuyết phơi sáng
+  lúc khởi động chưa được chứng minh, không chọn lại khung dựa trên điểm GenD.
