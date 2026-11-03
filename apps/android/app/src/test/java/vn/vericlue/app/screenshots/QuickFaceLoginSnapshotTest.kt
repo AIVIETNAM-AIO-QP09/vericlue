@@ -26,8 +26,10 @@ abstract class QuickFaceLoginSnapshots(device: DeviceConfig) {
     @Test fun onePreviewNoOvalAndNoSuccessBeforeServerResult() {
         for (dark in listOf(false, true)) {
             var bounds: Rect? = null
+            var panelBounds: Rect? = null
             for (stage in QuickFaceStage.entries) {
                 var preview: Rect? = null
+                var panel: Rect? = null
                 var text = emptyList<String>()
                 var tags = emptyList<String>()
                 paparazzi.snapshot("quick_${stage}_$dark") {
@@ -37,6 +39,7 @@ abstract class QuickFaceLoginSnapshots(device: DeviceConfig) {
                             val nodes = root.semanticsOwner.getAllSemanticsNodes(mergingEnabled = false)
                             tags = nodes.mapNotNull { it.config.getOrNull(SemanticsProperties.TestTag) }
                             preview = nodes.firstOrNull { it.config.getOrNull(SemanticsProperties.TestTag) == "quick-face-preview" }?.boundsInRoot
+                            panel = nodes.firstOrNull { it.config.getOrNull(SemanticsProperties.TestTag) == "quick-face-panel" }?.boundsInRoot
                             text = nodes.flatMap { it.config.getOrNull(SemanticsProperties.Text).orEmpty() }.map { it.text }
                         }) {
                             QuickFaceLoginContent(stage, "Nhìn thẳng vào camera", {}, {})
@@ -44,6 +47,8 @@ abstract class QuickFaceLoginSnapshots(device: DeviceConfig) {
                     }
                 }
                 if (bounds == null) bounds = requireNotNull(preview)
+                if (panelBounds == null) panelBounds = requireNotNull(panel)
+                assertEquals("Centered dialog must keep its size so the camera cannot shift", panelBounds, panel)
                 assertEquals("Preview must not resize or move between capture phases", bounds, preview)
                 assertFalse("No oval placement step in quick login", "face-guide" in tags)
                 assertFalse(text.any { it.contains("thành công", true) || it.startsWith("Bước") })

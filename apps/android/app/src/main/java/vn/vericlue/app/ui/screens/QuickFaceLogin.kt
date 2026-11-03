@@ -71,6 +71,7 @@ fun QuickFaceLogin(
         if (!granted) failure("Cho phép camera để đăng nhập bằng khuôn mặt.")
     }
     fun begin() {
+        if (stage != QuickFaceStage.Consent && stage != QuickFaceStage.Error) return
         frontalReady = false; terminal = false; ready = false
         stage = QuickFaceStage.Preparing
         attempt++
@@ -192,7 +193,10 @@ fun QuickFaceLoginContent(
     progress: @Composable () -> Unit = {},
 ) {
     var details by remember { mutableStateOf(false) }
-    Surface(Modifier.padding(20.dp).widthIn(max = 360.dp).fillMaxWidth(),
+    // Dialogs center their content; a fixed available height also prevents the preview moving
+    // when consent buttons disappear or the status text changes.
+    Surface(Modifier.padding(20.dp).widthIn(max = 360.dp).fillMaxWidth()
+        .heightIn(max = 680.dp).fillMaxHeight().testTag("quick-face-panel"),
         shape = RoundedCornerShape(28.dp), color = Vc.colors.surface) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
