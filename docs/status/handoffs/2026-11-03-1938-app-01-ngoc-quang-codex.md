@@ -15,6 +15,11 @@
   Bổ sung snapshots sáng/tối, font 200%, preview không đổi vị trí giữa các pha.
 
 ## Đang dở
+- PR #138 đã mở, Ready for review, base PR #137. APK nguồn `c16f889` kèm
+  bốn file UI local có sẵn đã ký đúng chứng thư và cài đè S24 FE thành công,
+  không xóa dữ liệu; build-info ghi rõ `code_dirty` và hash overlay.
+  API local cổng 8421 đang chạy; ADB reverse đã nối lại. Máy đang khóa nên
+  chưa nghiệm thu thao tác mở/hủy/quét thực tế, đã nhờ người dùng mở khóa.
 - Chưa đo độ trễ đầu-cuối trên thiết bị; không quảng cáo quét tức thời.
 - Giữ nguyên các thay đổi chưa commit có sẵn của người dùng trong
   AccountAccessScreens.kt, Theme.kt, AccountAccessSnapshotTest.kt, three-scene.md;
