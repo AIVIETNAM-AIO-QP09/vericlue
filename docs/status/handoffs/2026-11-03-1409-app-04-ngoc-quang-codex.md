@@ -28,14 +28,12 @@
   https://developers.google.com/ml-kit/vision/barcode-scanning/android
 
 ## Đang dở
-- Full Android test/lint/build đã đạt; chưa cài bản này tại lúc viết.
+- Full Android test/lint/build đã đạt, APK đã cài lúc 14:14:28 trên S24 FE.
   Nghiệm thu quét CCCD/độ nhạy trên S24 FE còn chờ; không công bố tăng accuracy
   hoặc bảo đảm một lần đưa thẻ là thành công khi chưa đo thật.
 
 ## Bước tiếp theo
-1. Full Android GREEN và render đã review; commit và cài APK -r giữ
-   dữ liệu; đối chiếu signer/hash trên máy, API health và ADB reverse.
-2. Người dùng thử lại CCCD, xác nhận không xuất hiện nút chụp thủ công và
+1. Người dùng thử lại CCCD, xác nhận không xuất hiện nút chụp thủ công và
    quét tự tiếp tục sau lần ảnh chưa đủ; theo dõi thời gian/flags không PII.
 
 ## Quyết định, lưu ý, bẫy
@@ -59,3 +57,15 @@
   cỡ chữ thường/200%; không có shutter, hướng dẫn tự chụp hiện đúng. Ở chữ
   lớn nội dung tiếp tục trong vùng cuộn, không coi render là thử camera thật.
 - `plan_check`: 0 lỗi, 10 cảnh báo có sẵn; `git diff --check` sạch.
+
+## Triển khai 14:14 UTC+7
+- APK nguồn `cb316ba799a4ef5ad2accdfcafc61a3e1ead033e`, Android tree
+  `d906dedc46cca052e8c1592213478a3362a6b52b`, SHA-256
+  `8f3128b5f703c7ae65ca25c12a8defe77d6fbb22fed2581ae2dda9d108fb95fc`.
+- Signer/v2, trace=false/live=true/signed=true được kiểm; backup APK/build-info
+  trước thay. `adb install -r` Success; base.apk trên máy khớp hash. Cài lần
+  đầu vẫn 02/11 09:01:50, update 03/11 14:14:28; không clear data/uninstall.
+- Lint 0 lỗi, 44 warnings/5 information. Server ready=true,
+  failed_modules=[], signed policy attestation đạt; reverse tcp8421 hoạt động.
+  Profile vẫn `588ba6c6d8011adbef67df129bd9ab963e24a8b30bba31aa0c53ffd6b553dea6`.
+- Chưa có lượt máy thật xác nhận độ nhạy mới; PR giữ draft/chưa merge.
