@@ -841,6 +841,11 @@ hiệu chỉnh, không thay artifact chuẩn. Giữ lỗi/degraded/timeout non-p
 Yêu cầu mới này thay giới hạn chỉ bật GenD 0.95 ở bàn giao 13:47; không cấp
 thêm quyền xóa tài khoản. Xem bàn giao `2026-11-03-1656-app-04-codex.md`.
 
+**Sửa CI PR #136 (03/11):** image BBS đã build nhưng export cache GitHub bị
+treo, làm job hết 15 phút trước offline smoke. Giới hạn cache import/export
+2 phút, chỉ bỏ lỗi export cache; build và smoke vẫn bắt buộc. Xem bàn giao
+`2026-11-03-1755-app-04-codex.md`.
+
 **Tiêu chí hoàn thành:**
 - [x] Đi hết giai đoạn A trên điện thoại thật. (27/10, Galaxy S24 FE, thẻ CCCD gắn chip; bàn giao `2026-10-27-2000-app-01`)
 - [ ] Nghiệm thu lại bước quét một màn theo yêu cầu 03/11 trên S24 FE; test tự động không thay nghiệm thu này.
