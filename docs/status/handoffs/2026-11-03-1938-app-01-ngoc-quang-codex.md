@@ -18,8 +18,10 @@
 - PR #138 đã mở, Ready for review, base PR #137. APK nguồn `c16f889` kèm
   bốn file UI local có sẵn đã ký đúng chứng thư và cài đè S24 FE thành công,
   không xóa dữ liệu; build-info ghi rõ `code_dirty` và hash overlay.
-  API local cổng 8421 đang chạy; ADB reverse đã nối lại. Máy đang khóa nên
-  chưa nghiệm thu thao tác mở/hủy/quét thực tế, đã nhờ người dùng mở khóa.
+  API local cổng 8421 đang chạy; ADB reverse đã nối lại. Sau khi người dùng
+  mở khóa đã kiểm tra hộp consent mở tại Login, Hủy trở về Login và mở lại được
+  bằng UI hierarchy trên máy. Đã thấy pha hướng dẫn giữ ổn định; dừng điều
+  khiển để người dùng tự thử. Chưa xác nhận kết quả đăng nhập đầu-cuối.
 - Chưa đo độ trễ đầu-cuối trên thiết bị; không quảng cáo quét tức thời.
 - Giữ nguyên các thay đổi chưa commit có sẵn của người dùng trong
   AccountAccessScreens.kt, Theme.kt, AccountAccessSnapshotTest.kt, three-scene.md;
