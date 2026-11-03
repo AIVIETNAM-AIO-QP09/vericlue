@@ -62,6 +62,25 @@ Với nguyên nội dung demo đang đóng gói, dùng `PRIVACY_POLICY_VERSION=d
 rồi restart server; người dùng tự bấm đồng ý lại. Không bỏ kiểm phiên bản,
 không sao chép tự động phiên bản server vào lựa chọn đồng ý của client.
 
+## Kiểm cả đồng ý và OTP trước khi giao máy thử
+
+Profile local `synthetic` cần bật tường minh `SIMULATED_OTP=true`. Nếu thiếu,
+server trả `503 otp_unavailable` khi gửi mã dù health và đồng ý đều thành
+công; Android hiện đưa lỗi này vào màn dịch vụ tạm thời chưa sẵn sàng.
+OTP này chỉ hiển thị SMS mô phỏng trong app, không gửi SMS thật.
+
+Sau khi restart đúng server, chạy bằng môi trường Python có dependency API:
+
+```powershell
+tmp/session-api-runtime/Scripts/python.exe -X utf8 scripts/smoke_android_stage_a.py --run-synthetic
+```
+
+Lệnh chỉ gọi loopback 8421, yêu cầu profile synthetic, tạo phiên chẩn đoán
+riêng và kiểm đồng ý xử lý + lưu mẫu, OTP sai/đúng, bộ đọc QR thật với ảnh
+tổng hợp không có chân dung (phải retry). Phiên chẩn đoán được rút lại sau
+kiểm tra, không dùng phiên/dữ liệu hoặc biên nhận của người dùng. Không thay
+nghiệm thu camera, chân dung thật hoặc các mô hình xác minh khuôn mặt.
+
 ## Căn cứ API
 
 - [CameraController: resolution selector](https://developer.android.com/reference/androidx/camera/view/CameraController#setImageAnalysisResolutionSelector(androidx.camera.core.resolutionselector.ResolutionSelector))

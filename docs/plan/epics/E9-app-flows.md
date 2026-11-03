@@ -824,6 +824,7 @@ local. Thử crop QR và nắn phối cảnh giới hạn, chưa thay model/tr�
 - [x] Đi hết giai đoạn A trên điện thoại thật. (27/10, Galaxy S24 FE, thẻ CCCD gắn chip; bàn giao `2026-10-27-2000-app-01`)
 - [ ] Nghiệm thu lại bước quét một màn theo yêu cầu 03/11 trên S24 FE; test tự động không thay nghiệm thu này.
 - [x] Tách chụp/gửi khỏi xác nhận; không dùng QR cũ, không chấp nhận QR xung đột hoặc thiếu chân dung phía server cho ảnh một mặt.
+- [x] Có smoke giai đoạn A trên API local: hai đồng ý, OTP sai/đúng, đọc QR tổng hợp và từ chối ảnh thiếu chân dung; phát hiện cấu hình thiếu OTP/lệch phiên bản trước giao bản thử.
 
 ---
 
