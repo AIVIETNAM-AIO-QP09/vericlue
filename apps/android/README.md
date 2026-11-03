@@ -4,6 +4,21 @@
 
 ## Trạng thái
 
+**03/11 chiều — CCCD một màn, oval gọn và preset cố định:** camera giữ nguyên
+màn khi thiếu QR/chân dung; hướng dẫn chỉnh thẻ rồi thử ảnh mới, không mở bước
+QR riêng. Chỉ gửi một ảnh mới chứa cả hai, không nối dữ liệu cũ. Vùng crop live/
+still theo viewport và xoay thực, đo chất lượng chân dung, thử crop QR có lề.
+Hiển thị “Đang trích xuất thông tin”/“Đang trích xuất chân dung”.
+
+Oval hiển thị gọn và dùng cùng vùng camera ở các pha, kể cả lúc đọc câu; chữ
+lớn không thu hẹp vùng tối đa nhận mặt. Mặt quá nhỏ trong oval được nhắc đưa
+máy gần hơn; không thay ngưỡng danh tính hoặc lịch thử thách. Thiếu tracking ID
+ngắn sau khi đã bám mặt dùng cơ chế thiếu bằng chứng hiện có, không coi ngay
+là đổi người và không cộng tiến độ từ khung đó. Preset `phone-demo-fixed-v1`
+được chuẩn bị nhưng **chưa bật**, theo lựa chọn giữ tài khoản của người dùng.
+Chưa nghiệm thu tốc độ quét/khoảng cách/AI trên S24 FE; xem
+[bàn giao](../../docs/status/handoffs/2026-11-03-1300-app-04-ngoc-quang-codex.md).
+
 **03/11 — mốc ghi hình trước hàng đợi UI:** timestamp của CameraX Status được
 chụp lúc gửi callback vào executor, trước khi chờ luồng giao diện. Callback và
 trạng thái vẫn chạy trên main thread, mỗi lượt ghi có đồng hồ riêng. Thay đổi
@@ -305,15 +320,12 @@ từ 150%. Các màn còn lại giữ nút dưới cùng. Liên kết có vùng 
 camera, API hay kết quả xác minh. Bộ ảnh onboarding có thêm tablet và
 `AdaptiveScreenSnapshotTest` kiểm tra cuộn tới toàn bộ nút tiếp tục.
 
-APP-10: quét thẻ yêu cầu ảnh phân tích tối đa 1920×1440, fallback theo khả năng
-CameraX/thiết bị; camera trước dùng cấu hình cũ. Bước lấy QR không chạy thêm
-face detector. ML Kit trả cả vùng nghi là QR và có thể đề nghị zoom; chỉ bước
-QR được zoom, giới hạn theo phần cứng và tối đa 3×, reset khi mở bước khác.
-Hai lần đọc cùng QR trong 1,5 giây có thể cách nhau các khung chưa đọc được;
-kết quả đổi/quá hạn/reset không nối thành lượt cũ. Dấu đọc QR được giữ ngắn
-hạn cho UI, không dùng làm bằng chứng cho ảnh chụp mới. Ảnh tự chụp ở bước QR
-phải tự giải mã được; chụp thủ công vẫn có thể gửi ảnh rõ để server thử bộ đọc
-độc lập. QR đã giải mã không bị chặn bởi tỷ lệ điểm trắng trên toàn khung.
+APP-10/APP-04: quét thẻ yêu cầu ảnh phân tích tối đa 1920×1440, fallback theo
+CameraX/thiết bị. Một pipeline nhận QR và chân dung trên cùng vùng thẻ. Vùng
+nghi QR có thể kích hoạt ảnh chụp rõ hơn; chỉ QR giải mã được trên ảnh đó mới
+đủ để gửi. Không zoom riêng QR làm mất chân dung. Dấu QR lưu ngắn hạn không
+được dùng để hoàn tất ảnh mới, kể cả chụp thủ công. QR phải đọc được, chân dung
+phải rõ; nền trắng ngoài vùng chân dung không quyết định độ lóa của chân dung.
 Không nới điều kiện kiểm danh tính/đọc lại QR của server. Log debug tag
 `VeriClueCardScan` chỉ gồm kích thước, thời gian và cờ boolean, không có ảnh,
 nội dung QR hoặc thông tin cá nhân. Cần nghiệm thu thực tế, không suy tốc độ
@@ -327,10 +339,9 @@ không hứa SMS, nhân viên duyệt, thời hạn lưu hoặc tài khoản đ�
 chưa có bằng chứng từ API. Chỉ báo thành công sau kết quả đạt; không đánh dấu
 giọng nói đã đạt khi phiên không yêu cầu đọc câu.
 
-Quét mặt có chân dung trước và để server thử QR trên ảnh chụp đầy đủ. Chỉ lỗi
-`qr_unreadable` khi chưa thu mặt còn lại mới yêu cầu quét thêm mặt có QR;
-lỗi chân dung, QR sai định dạng hoặc lỗi mạng không tự biến thành yêu cầu
-chụp mặt sau. Luôn xem/xác nhận thông tin trước khuôn mặt. Không có nút bỏ qua
+Quét mặt thẻ chứa cả chân dung và QR. Khi chưa đọc được một phần, hướng dẫn
+điều chỉnh ngay tại màn quét; không có bước chụp QR riêng. Server đọc lại ảnh
+và trả thông tin xác nhận. Luôn xem/xác nhận thông tin trước khuôn mặt. Không có nút bỏ qua
 chụp mặt/quay đầu trong luồng chuẩn; chế độ Giả lập vẫn ở gallery debug.
 Ảnh review mới dùng `OnboardingJourneySnapshotTest` (Paparazzi), dữ liệu minh họa;
 bao phủ sáng/tối, 375dp, chữ 200% và bố cục ngang để kiểm lỗi. Activity vẫn khóa
@@ -340,8 +351,8 @@ APP-08 thay quét thẻ bằng QR/chân dung, bỏ dependency ML Kit Text Recogn
 Camera sau phân tích liên tục QR/ảnh chân dung trong khung, một gợi ý chất lượng;
 đủ điều kiện thì chụp ImageCapture, xoay/crop vùng thẻ và giới hạn cạnh 2560px,
 kiểm lại trên chính bitmap rồi gửi JPEG. Không dùng frame phân tích 480×640 làm
-ảnh chính. Đủ QR và chân dung trên một mặt thì dùng một mặt; thiếu QR mới thu
-mặt còn lại. Server đọc
+ảnh chính. Chỉ ảnh mới có cả QR và chân dung mới được gửi; thiếu phần nào
+thì hướng dẫn chỉnh và chụp lại cùng màn. Server đọc
 lại QR và kiểm chân dung, không OCR. Tự gửi, xác nhận thông tin trước quay mặt.
 20 giây hoặc ba lần chụp chưa đủ thì hiện chụp thủ công/dừng; không vòng lặp gửi
 server tự động. Chỉ một package **vn.vericlue.app**, nhãn **VeriClue**;
@@ -401,7 +412,7 @@ Không có màn hình mới. Xem
 | Quay đầu | Theo `challenge.dynamic.head_turns` (trái/phải rồi nhìn thẳng, mỗi đoạn 2 giây), cùng một bản ghi với màu và chấm | Chiều dấu `yaw` phải kiểm trên máy thật |
 | Chấm sáng | Theo 8 `gaze_points` của `challenge.dynamic`, chạy trên toàn màn hình, mốc `at_ms` tính từ khung đầu của video | Server đo ánh mắt trên video (LIVE-02) |
 | Ghi âm | `AudioRecord` 16 kHz mono → WAV, câu đọc từ `voice_prompt`; quay MP4 cùng lúc (API thật) và gửi kèm ở `/voice` cho khớp môi (VOICE-05) | Video bắt đầu trước WAV khoảng 0,6 s; app gửi độ lệch ở `audio_offset_ms` (PR #47), server mới chuyển cho mô-đun, SyncNet chưa dùng |
-| CCCD | Camera sau, tự chụp khi 2 khung liền nhau đủ nét và không lóa (`IdAutoCapture`, vẫn có nút chụp), đọc QR (ML Kit), điền thông tin từ QR | Gửi 2 ảnh + chuỗi QR lên server, thông tin xác nhận theo server; thứ tự trường QR cần kiểm với thẻ thật |
+| CCCD | Một màn camera, tự chụp ảnh có QR/chân dung; thiếu thì chỉnh ngay tại màn, vẫn có nút chụp sau giới hạn tự động | Gửi một ảnh mới có QR + chân dung; server đọc lại và cung cấp thông tin để xác nhận |
 | OTP | Gửi/kiểm mã qua server; tự điền từ `simulated_sms` hoặc SMS thật (SMS User Consent, không cần quyền SMS); bàn phím vẫn gõ tay được | SMS thật chưa có (kênh mô phỏng) |
 | Gián đoạn | Xuống nền giữa lúc quay → bỏ lượt, màn "Xác minh bị gián đoạn" | Gia hạn phiên (LIVE-06) |
 | Keystore, ký media | P-256/SHA-256 opt-in; receipt gắn alias; L0 reauth; đổi khóa khôi phục, xóa khóa cũ sau ghi bền | Chưa nghiệm thu Keystore/khôi phục trên điện thoại thật; sinh trắc tài khoản bị chặn ở server |

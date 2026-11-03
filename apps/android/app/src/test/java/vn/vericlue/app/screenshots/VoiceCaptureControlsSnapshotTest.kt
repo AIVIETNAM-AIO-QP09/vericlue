@@ -115,6 +115,8 @@ class LargeTextVoiceCaptureControlsSnapshotTest : VoiceCaptureControlsSnapshots(
         var mounts = 0
         var disposals = 0
         var preparingDisposals = -1
+        var preparingPreview = false
+        var recordingPreview = false
         var readScroll: (() -> Float)? = null
         var requestScroll: (() -> Unit)? = null
         var idleScrolled = false
@@ -150,9 +152,19 @@ class LargeTextVoiceCaptureControlsSnapshotTest : VoiceCaptureControlsSnapshots(
                         phase.value = VoiceCapturePhase.Preparing
                         delay(100)
                         preparingDisposals = disposals
+                        preparingPreview = root.semanticsOwner
+                            .getAllSemanticsNodes(mergingEnabled = false).any {
+                                it.config.getOrNull(SemanticsProperties.TestTag) == "voice-preview-thumbnail" &&
+                                    it.boundsInRoot.width > 0f && it.boundsInRoot.height > 0f
+                            }
                         phase.value = VoiceCapturePhase.Recording
                         delay(100)
                         recordingScroll = readScroll?.invoke() ?: -1f
+                        recordingPreview = root.semanticsOwner
+                            .getAllSemanticsNodes(mergingEnabled = false).any {
+                                it.config.getOrNull(SemanticsProperties.TestTag) == "voice-preview-thumbnail" &&
+                                    it.boundsInRoot.width > 0f && it.boundsInRoot.height > 0f
+                            }
                         phase.value = VoiceCapturePhase.Finished
                         delay(100)
                         clockAdvanced = true
@@ -183,6 +195,8 @@ class LargeTextVoiceCaptureControlsSnapshotTest : VoiceCaptureControlsSnapshots(
         assertTrue("The fixture must expose a scroll action", scrollRequested)
         assertTrue("The idle reading must overflow its viewport: $idleMaximum", idleMaximum > 0f)
         assertTrue("The fixture must actually scroll the idle reading (maximum=$idleMaximum)", idleScrolled)
+        assertTrue("Camera guide must remain visible while preparing", preparingPreview)
+        assertTrue("Camera guide must remain visible while recording", recordingPreview)
         assertEquals("Starting recording must not detach the native preview", 0, preparingDisposals)
         assertEquals("One native preview must survive every capture phase", 1, mounts)
         assertEquals("Only final fixture teardown may dispose the preview", 1, disposals)

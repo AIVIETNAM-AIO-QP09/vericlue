@@ -115,12 +115,68 @@ class FaceAttemptGuardTest {
         }
     }
 
-    @Test fun changedOrMissingEstablishedTrackingIdInvalidatesAttempt() {
-        for (id in listOf(8, null)) {
+    @Test fun changedEstablishedTrackingIdInvalidatesAttemptImmediately() {
+        for (id in listOf(8)) {
             val guard = FaceAttemptGuard(timeline())
             assertNull(guard.update(FaceTimeline.Phase.Colour(0), frame(0), 0))
             assertEquals(FaceAttemptIssue.FaceLost, guard.update(FaceTimeline.Phase.Colour(0), frame(200, id = id), 200))
         }
+    }
+
+    @Test fun missingTrackingMetadataUsesTheSameBoundedGraceAsMissingFace() {
+        val guard = FaceAttemptGuard(timeline())
+        assertNull(guard.update(FaceTimeline.Phase.Colour(0), frame(0), 0))
+        assertNull(guard.update(FaceTimeline.Phase.Colour(0), frame(100, id = null), 100))
+        assertNull(guard.update(FaceTimeline.Phase.Colour(0), frame(300), 300))
+        assertNull(guard.update(FaceTimeline.Phase.Colour(0), frame(400, id = null), 400))
+        assertNull(guard.update(FaceTimeline.Phase.Colour(0), frame(849, id = null), 849))
+        assertEquals(FaceAttemptIssue.FaceLost,
+            guard.update(FaceTimeline.Phase.Colour(0), frame(850, id = null), 850))
+        assertEquals(FaceAttemptIssue.FaceLost,
+            guard.update(FaceTimeline.Phase.Colour(0), frame(900), 900))
+    }
+
+    @Test fun missingTrackingMetadataCannotCompletePassiveCaptureEvenDuringGrace() {
+        val guard = FaceAttemptGuard(FaceTimeline.passive())
+        assertNull(guard.update(FaceTimeline.Phase.Colour(0), frame(0), 0))
+        assertNull(guard.update(FaceTimeline.Phase.Colour(0), frame(100, id = null), 100))
+        assertEquals(FaceAttemptIssue.FaceLost,
+            guard.update(FaceTimeline.Phase.Done, frame(200, id = null), 200))
+    }
+
+    @Test fun anotherTrackingIdCannotResumeEvenAfterAMetadataGap() {
+        val guard = FaceAttemptGuard(timeline())
+        assertNull(guard.update(FaceTimeline.Phase.Colour(0), frame(0), 0))
+        assertNull(guard.update(FaceTimeline.Phase.Colour(0), frame(100, id = null), 100))
+        assertEquals(FaceAttemptIssue.FaceLost,
+            guard.update(FaceTimeline.Phase.Colour(0), frame(200, id = 8), 200))
+    }
+
+    @Test fun metadataGapCannotAccumulateAdaptiveHoldAndSameFaceMayResumeInline() {
+        val plan = timeline()
+        val guard = FaceAttemptGuard(plan)
+        val controller = AdaptiveHeadCapture(plan.headTurns, plan.headDeadlineMs.toDouble())
+        assertNull(guard.update(FaceTimeline.Phase.Colour(0), frame(0), 0))
+        for (at in 1000L..2000L step 100) {
+            val signal = frame(at, 30f, id = null)
+            val tracked = guard.observationForTracking(signal)
+            assertNull(tracked)
+            val state = controller.update(tracked, at, at.toDouble())
+            assertFalse(state.done)
+            assertEquals(0, state.segment)
+            assertEquals(0f, state.progress, 0f)
+            assertNull(guard.update(FaceTimeline.Phase.Head(0, TurnDir.Left), signal, at))
+            assertEquals(0f, guard.actionProgress, 0f)
+        }
+        var advanced = false
+        for (at in 2100L..3200L step 100) {
+            val signal = frame(at, 30f)
+            assertEquals(signal, guard.observationForTracking(signal))
+            val state = controller.update(guard.observationForTracking(signal), at, at.toDouble())
+            assertNull(guard.update(FaceTimeline.Phase.Head(state.segment, state.direction), signal, at))
+            if (state.segment == 1) { advanced = true; break }
+        }
+        assertTrue(advanced)
     }
 
     @Test fun passiveCaptureStillRequiresCurrentCompleteFaceAtCompletion() {

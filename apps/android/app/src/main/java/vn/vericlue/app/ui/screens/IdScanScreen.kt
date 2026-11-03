@@ -45,7 +45,7 @@ import vn.vericlue.app.ui.theme.VcType
 fun IdScanScreen(
     back: Boolean, quality: IdQuality?, onBack: () -> Unit, onStop: () -> Unit,
     onManual: () -> Unit, timedOut: Boolean = false, taking: Boolean = false,
-    hint: String? = null,
+    hint: String? = null, extracted: IdQuality? = null,
 ) {
     VcTheme(dark = true) {
         val c = Vc.colors
@@ -54,16 +54,18 @@ fun IdScanScreen(
             LinkButton("Dừng xác minh", onStop)
         }) {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(if (back) "Quét thêm mặt có mã QR" else "Quét thẻ căn cước", style = VcType.titleLarge, color = c.ink)
+                Text("Quét thẻ căn cước", style = VcType.titleLarge, color = c.ink)
                 Box(Modifier.fillMaxWidth().aspectRatio(1.586f).clip(RoundedCornerShape(12.dp))) {
-                    CameraFeed(placeholder = { CardGuide(back) })
+                    CameraFeed(placeholder = { CardGuide(false) })
                     if (taking) Box(Modifier.fillMaxSize().background(c.background.copy(alpha = 0.65f)), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = c.accent)
                     }
                 }
-                Text(if (taking) "Đang chụp ảnh" else idScanDisplayHint(quality, back, timedOut, hint), style = VcType.bodyStrong, color = c.ink)
-                ScanCheck("Đã đọc mã QR", "Đang tìm mã QR", CccdQr.parse(quality?.qr) != null || quality?.qrRecentlySeen == true)
-                if (!back) ScanCheck("Đã tìm thấy ảnh chân dung", "Đang tìm ảnh chân dung", quality?.portraitPresent == true)
+                Text(if (taking) {
+                    if (extracted != null) "Đang kiểm tra thông tin thẻ" else "Giữ yên thẻ trong khung"
+                } else idScanDisplayHint(quality, false, timedOut, hint), style = VcType.bodyStrong, color = c.ink)
+                ScanCheck("Đã trích xuất thông tin", "Đang trích xuất thông tin", CccdQr.parse(extracted?.qr) != null)
+                ScanCheck("Đã trích xuất chân dung", "Đang trích xuất chân dung", extracted?.portraitPresent == true)
                 if (timedOut) Banner("Đặt đủ bốn góc thẻ trong khung và tránh ánh sáng phản chiếu. Bạn có thể chụp ảnh để thử lại.")
             }
         }

@@ -195,6 +195,7 @@ class Settings(BaseSettings):
     session_face_models: bool = False
     manual_face_demo: bool = False
     manual_full_demo: bool = False
+    manual_demo_preset: Literal["phone-demo-fixed-v1"] | None = None
     manual_demo_content_backend: Literal["qwen06", "qwen17"] = "qwen06"
     manual_demo_pad_max: float = Field(default=0.50, gt=0, lt=1, allow_inf_nan=False)
     manual_demo_gend_max: float = Field(default=0.50, gt=0, lt=1, allow_inf_nan=False)
@@ -216,8 +217,10 @@ class Settings(BaseSettings):
 
     @property
     def manual_demo_policy(self):
-        from vericlue_ml.common.manual_demo import ManualDemoThresholds
+        from vericlue_ml.common.manual_demo import PHONE_DEMO_FIXED_V1, ManualDemoThresholds
 
+        if self.manual_full_demo and self.manual_demo_preset == "phone-demo-fixed-v1":
+            return PHONE_DEMO_FIXED_V1
         return (
             ManualDemoThresholds(
                 pad_max=self.manual_demo_pad_max,
@@ -242,6 +245,22 @@ class Settings(BaseSettings):
         default=180, gt=0, le=600, allow_inf_nan=False
     )
     session_model_timeout_seconds: float = Field(default=30, gt=0, le=90)
+
+    @model_validator(mode="after")
+    def fixed_manual_demo_preset(self):
+        if self.manual_demo_preset is None:
+            return self
+        if not self.manual_full_demo or self.manual_face_demo:
+            raise ValueError("phone-demo-fixed-v1 requires explicit MANUAL_FULL_DEMO")
+        from vericlue_ml.common.manual_demo import PHONE_DEMO_FIXED_V1
+
+        for field, value in PHONE_DEMO_FIXED_V1.model_dump().items():
+            setting = "manual_demo_" + field
+            if setting in self.model_fields_set and getattr(self, setting) != value:
+                raise ValueError(f"{setting} conflicts with phone-demo-fixed-v1")
+            # Normalize absent legacy defaults without marking them as explicit overrides.
+            object.__setattr__(self, setting, value)
+        return self
 
     @model_validator(mode="after")
     def consistency_requires_video(self):

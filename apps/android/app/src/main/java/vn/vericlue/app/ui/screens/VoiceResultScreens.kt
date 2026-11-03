@@ -7,8 +7,12 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,6 +27,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
@@ -67,11 +72,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
@@ -84,7 +92,7 @@ import vn.vericlue.app.ui.components.JourneyHeader
 import vn.vericlue.app.ui.components.SystemBarIcons
 import vn.vericlue.app.ui.components.StableCameraScene
 import vn.vericlue.app.ui.components.CameraPresentation
-import vn.vericlue.app.ui.components.fittedCameraPresentation
+import vn.vericlue.app.ui.components.voiceFacePresentation
 import vn.vericlue.app.ui.components.TopBar
 import vn.vericlue.app.ui.components.ChecklistCard
 import vn.vericlue.app.ui.components.CompletionHaptic
@@ -110,21 +118,16 @@ import vn.vericlue.app.ui.theme.VcType
 
 // ── Voice (stage C) ──────────────────────────────────────────────────────────
 
+private val VoiceFacePreviewShape = GenericShape { size, _ -> addOval(Rect(Offset.Zero, size)) }
+
+/** Always visible in the header, including while the reading itself scrolls. */
 @Composable
 private fun CameraStillOn(onThumbnailPosition: (Rect) -> Unit) {
-    val c = Vc.colors
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(width = 52.dp, height = 64.dp).clip(RoundedCornerShape(10.dp))
-            .testTag("voice-preview-thumbnail")
-            .onGloballyPositioned { onThumbnailPosition(Rect(it.positionInRoot(), it.size.toSize())) }) { CameraFeed() }
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Box(Modifier.size(6.dp).clip(CircleShape).background(c.ok))
-                Text("Camera", style = VcType.labelXs, color = c.ink)
-            }
-            Text("Giữ khuôn mặt trong khung khi đọc.", style = VcType.caption, color = c.muted)
-        }
-    }
+    Box(Modifier.size(width = 52.dp, height = 68.64.dp).clip(VoiceFacePreviewShape)
+        .border(1.dp, Vc.colors.accent, VoiceFacePreviewShape)
+        .testTag("voice-preview-thumbnail")
+        .semantics { contentDescription = "Hình camera trực tiếp; giữ khuôn mặt trong khung khi đọc" }
+        .onGloballyPositioned { onThumbnailPosition(Rect(it.positionInRoot(), it.size.toSize())) }) { CameraFeed() }
 }
 
 @Composable
@@ -168,11 +171,14 @@ fun VoiceScreen(
     val preparing = capturePhase == VoiceCapturePhase.Preparing
     val processing = capturePhase == VoiceCapturePhase.Finished
     val readingActive = preparing || recording
-    val largeText = LocalDensity.current.fontScale >= 1.5f
+    val density = LocalDensity.current
+    val largeText = density.fontScale >= 1.5f
+    val topInset = WindowInsets.statusBars.getTop(density).toFloat()
+    val bottomInset = WindowInsets.navigationBars.getBottom(density).toFloat()
     var viewportBounds by remember { mutableStateOf<Rect?>(null) }
     var thumbnailBounds by remember { mutableStateOf<Rect?>(null) }
     val presentation = viewportBounds?.let { viewport ->
-        thumbnailBounds?.let { thumbnail -> fittedCameraPresentation(viewport, thumbnail) }
+        thumbnailBounds?.let { thumbnail -> voiceFacePresentation(viewport, thumbnail, density.density, topInset, bottomInset) }
     } ?: CameraPresentation()
     val readingScroll = rememberScrollState()
     LaunchedEffect(readingActive) {
@@ -189,19 +195,21 @@ fun VoiceScreen(
     }) {
      StableCameraScene(presentation = presentation) {
       Column(Modifier.fillMaxSize().background(c.background).statusBarsPadding()) {
-        TopBar(onBack)
+        Row(Modifier.fillMaxWidth().padding(end = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f)) { TopBar(onBack) }
+            CameraStillOn { thumbnailBounds = it }
+        }
         if (!readingActive) JourneyHeader(3)
-        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(readingScroll).padding(24.dp),
+        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(readingScroll).padding(horizontal = 24.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
             if (!readingActive) {
-                CameraStillOn { thumbnailBounds = it }
                 Text(if (again) "Đọc lại câu xác nhận" else "Đọc câu xác nhận", style = VcType.cameraTitle, color = c.ink)
                 Text("Mỗi bản ghi tối đa $maximumSeconds giây, kể cả thời gian chuẩn bị. Đọc trước câu bên dưới; đọc hết rồi bấm Đọc xong.",
                     style = VcType.caption, color = c.muted)
             }
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.surfaceInfo).padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Outlined.FormatQuote, contentDescription = null, tint = c.accent, modifier = Modifier.size(22.dp))
+                if (!readingActive) Icon(Icons.Outlined.FormatQuote, contentDescription = null, tint = c.accent, modifier = Modifier.size(22.dp))
                 Text(sentence?.let { "“$it”" }
                     ?: if (again) "“Tôi xác nhận danh tính, mã số tám ba năm một.”" else "“Tôi xác nhận danh tính, mã số bốn bảy hai chín.”",
                     style = VcType.titleMedium, color = c.ink)

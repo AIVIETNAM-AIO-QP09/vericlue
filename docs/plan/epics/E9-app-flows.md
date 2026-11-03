@@ -635,6 +635,14 @@ khóa/tài khoản và năm module ok/pass (tổng hợp APP-01-s24fe-physical-a
 |---|---|---|---|---|
 | M1 | 2 | S1–S2 | P0 | APP-01 |
 
+**03/11 chiều — yêu cầu giao diện mới:** oval hiển thị gọn, cùng source guide
+ở framing/các thử thách/giọng; text scale không đổi vùng tối đa nhận mặt.
+Hướng dẫn lấp đầy ít nhất 65% khi vào/60% khi giữ để tránh mặt quá nhỏ trong
+oval. Thiếu tracking metadata sau khi đã có ID dùng correction/grace hiện có,
+không coi ngay là đổi người; không cộng hold từ khung đó. Chờ nghiệm thu máy
+thật, không công bố khoảng cách cm hoặc mức giảm retry. Xem
+[bàn giao](../../status/handoffs/2026-11-03-1300-app-04-ngoc-quang-codex.md).
+
 **02/11 — sửa nhắc lặp:** người dùng xác nhận bị nhắc cùng bên; local hold chưa
 hoàn tất có thể nhắc quay ra lại sau khi đã về giữa. Thêm latch hướng dẫn riêng
 từng đoạn: một excursion đúng phía rồi về giữa thì chờ hướng tiếp. Không coi
@@ -790,13 +798,21 @@ chụp để hướng dẫn bấm nút thủ công và giữ lý do chụp lại
 
 **Mục tiêu:** làm giai đoạn A của ADR-0013. Phần server nằm ở FLOW-02 và FLOW-03.
 
+**Yêu cầu mới 03/11 — doing:** một màn quét, QR và chân dung cùng ảnh mới;
+thiếu thì hướng dẫn chỉnh tại chỗ, bỏ điều hướng QR-only. Sửa crop/đo chất
+lượng vùng thẻ, giữ xác nhận thông tin và kiểm server. Preset ngưỡng demo
+`phone-demo-fixed-v1` chuẩn bị riêng nhưng chưa bật; người dùng chọn giữ tài
+khoản hiện tại đến hết hạn. Xem
+[bàn giao](../../status/handoffs/2026-11-03-1300-app-04-ngoc-quang-codex.md).
+
 **Đầu ra:**
 - Màn hình số điện thoại và OTP, có khung "SMS mô phỏng".
-- Chụp CCCD hai mặt bằng camera sau, khung 4 góc. Đọc thử QR trên máy chỉ để báo người dùng chụp lại khi không đọc được.
+- Một màn camera sau quét mặt thẻ có QR và chân dung; chỉ gửi ảnh mới đủ cả hai, thiếu thì hướng dẫn chỉnh cùng màn, không mở bước QR riêng.
 - Màn hình xác nhận thông tin.
 
 **Tiêu chí hoàn thành:**
 - [x] Đi hết giai đoạn A trên điện thoại thật. (27/10, Galaxy S24 FE, thẻ CCCD gắn chip; bàn giao `2026-10-27-2000-app-01`)
+- [ ] Nghiệm thu lại bước quét một màn theo yêu cầu 03/11 trên S24 FE; test tự động không thay nghiệm thu này.
 
 ---
 

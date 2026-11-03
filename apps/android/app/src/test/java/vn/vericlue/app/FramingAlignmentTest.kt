@@ -93,6 +93,54 @@ class FramingAlignmentTest {
         assertEquals(0f, missingTransform.progress, 0f)
     }
 
+    @Test fun qualityGoodButSmallFaceMustMoveCloserBeforeTheStableCaptureStarts() {
+        for (small in listOf(Rect(18f, 14f, 82f, 126f), Rect(10f, 25.2f, 90f, 114.8f))) {
+            val gate = FramingAlignmentGate()
+            for (at in 0L..1200L step 200) {
+                val signal = frame(at)
+                assertEquals(FramingState.Good, QualityGate.evaluate(signal, at))
+                val feedback = gate.update(signal, at, small, guide)
+                assertEquals("Both dimensions must fill the face guide", FramingState.TooFar, feedback.state)
+                assertFalse(feedback.ready)
+                assertEquals(0f, feedback.progress, 0f)
+                assertFalse(gate.acceptsLatest(signal, at, small, guide))
+            }
+            val filled = Rect(10f, 14f, 90f, 126f)
+            for (at in 1400L..2200L step 200) assertFalse(gate.update(frame(at), at, filled, guide).ready)
+            assertTrue(gate.update(frame(2400), 2400, filled, guide).ready)
+        }
+    }
+
+    @Test fun minimumFaceFillHasBoundedEntryAndRetentionHysteresis() {
+        val entry = Rect(17.5f, 24.5f, 82.5f, 115.5f) // 65% on both axes.
+        val retained = Rect(20f, 28f, 80f, 112f) // 60% on both axes.
+        val tooSmall = Rect(20.05f, 28f, 79.95f, 112f)
+        val gate = FramingAlignmentGate()
+        assertEquals(FramingState.TooFar, gate.update(frame(), 0, retained, guide).state)
+        assertEquals(FramingState.Good, gate.update(frame(100), 100, entry, guide).state)
+        assertEquals(FramingState.Good, gate.update(frame(300), 300, retained, guide).state)
+        assertTrue(gate.acceptsLatest(frame(350), 350, retained, guide))
+        assertFalse(gate.acceptsLatest(frame(350), 350, tooSmall, guide))
+        val lost = gate.update(frame(400), 400, tooSmall, guide)
+        assertEquals(FramingState.TooFar, lost.state)
+        assertEquals(0f, lost.progress, 0f)
+        assertEquals(FramingState.TooFar, gate.update(frame(500), 500, retained, guide).state)
+        assertEquals(FramingState.Good, gate.update(frame(600), 600, entry, guide).state)
+        gate.reset()
+        assertEquals(FramingState.TooFar, gate.update(frame(700), 700, retained, guide).state)
+    }
+
+    @Test fun faceFillGuidanceDoesNotBypassRawFaceOrOutlineChecks() {
+        val gate = FramingAlignmentGate()
+        val filled = Rect(10f, 14f, 90f, 126f)
+        assertEquals(FramingState.IncompleteFace, gate.update(frame().copy(landmarksComplete = false), 0, filled, guide).state)
+        assertEquals(FramingState.MultipleFaces, gate.update(frame().copy(faces = 2), 0, filled, guide).state)
+        assertEquals(FramingState.NoFace, gate.update(frame(), 501, filled, guide).state)
+        assertEquals(FramingState.IncompleteFace, gate.update(frame().copy(centerY = .05f), 0, filled, guide).state)
+        assertEquals(FramingState.TooClose, gate.update(frame(), 0, Rect(-10f, -14f, 110f, 154f), guide).state)
+        assertEquals(FramingState.OffCenter, gate.update(frame(), 0, Rect(40f, 14f, 120f, 126f), guide).state)
+    }
+
     @Test fun alignmentToleranceCannotTurnRepeatedOrOldSamplesIntoCapture() {
         val gate = FramingAlignmentGate()
         val old = frame()

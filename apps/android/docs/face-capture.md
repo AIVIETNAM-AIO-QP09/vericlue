@@ -6,12 +6,17 @@ Mặt trước dùng `PreviewView.ScaleType.FIT_CENTER`, tránh crop để lấp
 hình dài. Mặt sau chụp thẻ vẫn dùng `FILL_CENTER`. Zoom phần cứng đặt lại 1×
 khi mở camera; không tự thay đổi zoom giữa các pha khuôn mặt.
 
-`FaceCaptureSurface` dùng oval chính tối đa 82% chiều rộng/320dp, thu lại theo
-không gian đọc chữ và nút trên màn thấp/chữ lớn. Căn mặt, baseline, đổi màu và
-quay đầu dùng cùng oval. Gaze thu preview vào góc phải trên bằng transform lớp
+`FaceCaptureSurface` tách vùng camera dùng để căn mặt (source guide, giới hạn
+tối đa 82%/320dp theo bố cục chữ thường) khỏi oval hiển thị tối đa 68%/264dp.
+Chữ lớn chỉ đổi bố cục hiển thị, không làm người dùng phải đưa máy xa hơn để
+lọt một vùng camera nhỏ lại. Preview và oval cùng biến đổi đều theo source
+guide. Căn mặt, baseline, đổi màu và quay đầu dùng cùng vùng. Gaze thu preview vào góc phải trên bằng transform lớp
 vẽ 360ms, không đổi layout/bind CameraX; khi quay đầu trở lại đúng khung chính.
 Không yêu cầu người dùng căn lại theo thumbnail. Chấm giữ nguyên tọa độ toàn
 màn hình và thời gian do server cấp; viền navy/tâm sáng giúp nhìn rõ trên nền.
+Màn đọc câu giữ thumbnail oval trong header cả khi chuẩn bị/ghi âm, ánh xạ
+cùng source guide thay vì thu cả cửa sổ điện thoại vào thumbnail. Native
+camera host vẫn giữ nguyên; đây không phải crop/zoom dữ liệu ghi hình.
 
 ## Điều kiện bắt đầu và hoàn tất
 
@@ -30,6 +35,9 @@ màn hình và thời gian do server cấp; viền navy/tâm sáng giúp nhìn r
   tăng tối đa 10% khi đã căn ổn định để tránh rung mép làm mất tiến độ.
   Dung sai không cho phép ảnh bị cắt mất mặt. Gợi ý phân biệt quá gần với
   lệch tâm; chưa có transform thì báo đang chuẩn bị camera.
+- Để mặt lấp oval thay vì nhận một mặt nhỏ ở xa, cả chiều rộng/cao của bbox
+  cần ít nhất 65% source guide lúc vào và 60% khi đã căn ổn định. Đây là hướng
+  dẫn bố cục client tạm, không phải khoảng cách cm hoặc ngưỡng AI đã hiệu chỉnh.
 - JPEG chỉ lấy từ frame mới đã qua kiểm tra mặt nhìn thẳng. Request hủy/timeout
   được xóa; route hủy coroutine nên ảnh cũ không ghi sang lượt thử mới.
 - App mới gửi `head_mode=adaptive` khi tạo phiên đăng ký/khôi phục. Server
@@ -45,6 +53,11 @@ màn hình và thời gian do server cấp; viền navy/tâm sáng giúp nhìn r
   Timed v1/v2 giữ hướng dẫn và kiểm mặt/identity hiện có, không nhận thêm chốt
   hoàn tất động tác của adaptive. Lời nhắc adaptive dùng cùng bộ chống lặp;
   xác nhận một bên không nhắc nhìn giữa trước khi controller chuyển bước.
+- Khi đã có tracking ID, một khung tạm thiếu ID được coi là thiếu bằng chứng:
+  grace 450ms ở màu/gaze; correction trong deadline hiện có ở adaptive head.
+  Cả controller và hold gate không tính tiến độ khung đó. ID cũ có thể trở lại,
+  ID khác vẫn bị chặn; không hoàn tất với ID đã thiết lập đang thiếu. Hành vi
+  trước khi có ID đầu tiên không đổi. Không nới khoảng grace hoặc deadline.
 - Server adaptive đọc tới EOF, tự tìm đủ hướng theo thứ tự và giữ giữa ở
   cuối video; không tin thời điểm hoàn tất do client khai. Video quá hạn,
   thiếu coverage, nhiều mặt hoặc chỉ chuyển động sai không được coi là đạt.

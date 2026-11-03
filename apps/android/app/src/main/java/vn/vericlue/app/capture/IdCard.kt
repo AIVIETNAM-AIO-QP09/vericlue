@@ -16,6 +16,8 @@ data class IdQuality(
     val frameTimeNs: Long = 0,
     /** UI feedback only; never a replacement for a QR decoded from this frame/photo. */
     val qrRecentlySeen: Boolean = false,
+    /** A region can trigger a higher-resolution photo, never approve its contents. */
+    val qrCandidatePresent: Boolean = false,
 ) {
     val sharp: Boolean get() = sharpness >= MIN_SHARPNESS
     val noGlare: Boolean get() = glareFraction <= MAX_GLARE
@@ -50,7 +52,8 @@ object CardText {
  * Requests a still photo after [needed] fresh frames show the portrait/QR with usable quality.
  * The captured still is checked again before upload; timeout/manual controls belong to the UI.
  */
-class IdAutoCapture(private val needed: Int = 2, private val back: Boolean = false) {
+@Suppress("UNUSED_PARAMETER") // Legacy preview callers still pass a side; capture is always unified.
+class IdAutoCapture(private val needed: Int = 2, back: Boolean = false) {
     private var good = 0
     private var lastFrame = -1L
     private var lastQr: String? = null
@@ -60,17 +63,17 @@ class IdAutoCapture(private val needed: Int = 2, private val back: Boolean = fal
     fun offer(q: IdQuality): Boolean {
         if (q.frameTimeNs > 0 && q.frameTimeNs <= lastFrame) return false
         lastFrame = q.frameTimeNs
-        if (back) {
-            val expired = q.frameTimeNs > 0 && lastReadNs > 0 && q.frameTimeNs - lastReadNs > QR_HOLD_NS
-            if (expired) { good = 0; lastQr = null }
-            if (CccdQr.parse(q.qr) == null) return false
-            // A real decode is stronger evidence of QR readability than white-pixel heuristics.
-            good = if (lastQr == q.qr) good + 1 else 1
-            lastQr = q.qr
-            lastReadNs = q.frameTimeNs
-        } else {
-            good = if (q.good && q.brightness >= 45 && !q.tilted && q.portraitPresent) good + 1 else 0
+        val expired = q.frameTimeNs > 0 && lastReadNs > 0 && q.frameTimeNs - lastReadNs > QR_HOLD_NS
+        val readyForStill = q.good && q.brightness >= 45 && q.portraitPresent && !q.tilted &&
+            (CccdQr.parse(q.qr) != null || q.qrCandidatePresent)
+        if (!readyForStill) {
+            good = 0
+            lastQr = null
+            return false
         }
+        good = if (!expired && lastQr == q.qr) good + 1 else 1
+        lastQr = q.qr
+        lastReadNs = q.frameTimeNs
         return good >= needed
     }
 
@@ -93,25 +96,22 @@ class IdAutoCapture(private val needed: Int = 2, private val back: Boolean = fal
 }
 
 /** A single actionable message; detection is an input-quality check, never identity approval. */
+@Suppress("UNUSED_PARAMETER")
 fun idScanHint(q: IdQuality?, back: Boolean): String = when {
-    q == null -> if (back) "Đưa mặt có mã QR vào khung" else "Đưa mặt có ảnh chân dung vào khung"
-    back && CccdQr.parse(q.qr) != null -> "Giữ yên, ứng dụng đang tự chụp"
-    back && q.qrRecentlySeen -> "Giữ mã QR trong khung"
+    q == null -> "Đưa mặt có ảnh chân dung và mã QR vào khung"
     q.brightness < 45 -> "Đưa thẻ đến nơi sáng hơn"
     !q.noGlare -> "Nghiêng nhẹ thẻ để tránh lóa"
     q.tilted -> "Giữ thẻ thẳng và song song với camera"
     !q.sharp -> "Giữ yên thẻ và điện thoại để lấy nét"
-    !back && !q.portraitPresent -> "Đưa mặt có ảnh chân dung vào khung"
-    back && CccdQr.parse(q.qr) == null -> "Đưa mã QR lại gần và giữ trong khung"
+    !q.portraitPresent -> "Đặt đủ bốn góc thẻ trong khung để thấy rõ chân dung"
+    CccdQr.parse(q.qr) == null -> "Đưa thẻ gần hơn để mã QR rõ, giữ đủ bốn góc trong khung"
     else -> "Giữ yên, ứng dụng đang tự chụp"
 }
 
 /** Validate the fresh still, not the live scanner's retained state. Server checks it again. */
-fun idCaptureUsable(q: IdQuality, back: Boolean, manual: Boolean): Boolean {
-    if (back && CccdQr.parse(q.qr) != null) return true
-    if (back && !manual) return false
-    return q.good && q.brightness >= 45 && (back || manual || q.portraitPresent)
-}
+@Suppress("UNUSED_PARAMETER")
+fun idCaptureUsable(q: IdQuality, back: Boolean, manual: Boolean): Boolean =
+    q.good && q.brightness >= 45 && q.portraitPresent && CccdQr.parse(q.qr) != null
 
 /** Once auto-capture stops, direct the user to the manual action that remains available. */
 fun idScanDisplayHint(q: IdQuality?, back: Boolean, timedOut: Boolean, hint: String? = null): String {

@@ -3,18 +3,21 @@ package vn.vericlue.app.screenshots
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.node.RootForTest
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.*
 import com.android.resources.Density
 import com.android.resources.ScreenOrientation
@@ -26,6 +29,7 @@ import vn.vericlue.app.flow.FramingState
 import vn.vericlue.app.flow.TurnDir
 import vn.vericlue.app.ui.components.FakeCameraFeed
 import vn.vericlue.app.ui.components.LocalCameraFeed
+import vn.vericlue.app.ui.components.faceSourceGuideRect
 import vn.vericlue.app.ui.screens.FaceChallengeContent
 import vn.vericlue.app.ui.screens.FramingScreen
 import vn.vericlue.app.ui.theme.VcTheme
@@ -42,6 +46,8 @@ abstract class FaceViewportSnapshots(device: DeviceConfig) {
         var expectedGuide: Rect? = null
         phases.forEachIndexed { index, phase ->
             var preview: Rect? = null
+            var previewSourceDrawing: Rect? = null
+            var sourceGuide: Rect? = null
             var guide: Rect? = null
             var thumbnail: Rect? = null
             var dot: Rect? = null
@@ -52,11 +58,23 @@ abstract class FaceViewportSnapshots(device: DeviceConfig) {
             paparazzi.snapshot("phase_$index") {
                 VcTheme(motionEnabled = false) {
                     val root = LocalView.current as RootForTest
+                    val density = LocalDensity.current
+                    val topInset = WindowInsets.statusBars.getTop(density).toFloat()
+                    val bottomInset = WindowInsets.navigationBars.getBottom(density).toFloat()
                     CompositionLocalProvider(LocalCameraFeed provides { modifier ->
                         // Drawing transforms may shrink the selfie; CameraX must keep its layout size.
-                        Box(modifier.onGloballyPositioned { preview = Rect(it.positionInParent(), it.size.toSize()) }) { FakeCameraFeed(centerYFraction = 0.5f) }
+                        Box(modifier.onGloballyPositioned {
+                            preview = Rect(it.positionInParent(), it.size.toSize())
+                            val localSource = faceSourceGuideRect(it.size.width.toFloat(), it.size.height.toFloat(),
+                                density.density, topInset, bottomInset)
+                            val first = it.localToRoot(localSource.topLeft)
+                            val last = it.localToRoot(localSource.bottomRight)
+                            previewSourceDrawing = Rect(first.x, first.y, last.x, last.y)
+                        }) { FakeCameraFeed(centerYFraction = 0.5f) }
                     }) {
                         Box(Modifier.fillMaxSize().onGloballyPositioned {
+                            sourceGuide = faceSourceGuideRect(it.size.width.toFloat(), it.size.height.toFloat(),
+                                density.density, topInset, bottomInset)
                             val nodes = root.semanticsOwner.getAllSemanticsNodes(mergingEnabled = false)
                             guide = nodes.firstOrNull { it.config.getOrNull(SemanticsProperties.TestTag) == "face-guide" }?.boundsInRoot
                             thumbnail = nodes.firstOrNull { it.config.getOrNull(SemanticsProperties.TestTag) == "face-preview-thumbnail" }?.boundsInRoot
@@ -75,10 +93,19 @@ abstract class FaceViewportSnapshots(device: DeviceConfig) {
             if (index == 0) { expectedPreview = actualPreview; expectedGuide = requireNotNull(guide) }
             if (phase == null) {
                 assertEquals(actualPreview.size, requireNotNull(reportedViewport))
-                assertEquals(requireNotNull(guide).center.x, requireNotNull(reportedGuide).center.x, 1f)
-                assertEquals(requireNotNull(guide).center.y, requireNotNull(reportedGuide).center.y, 1f)
+                assertEquals("Framing must report camera coordinates, independent of display text size",
+                    requireNotNull(sourceGuide), requireNotNull(reportedGuide))
             }
             assertEquals("Preview changed in phase $phase", expectedPreview, actualPreview)
+            val aperture = requireNotNull(if (phase is FaceTimeline.Phase.Gaze) thumbnail else guide)
+            val drawn = requireNotNull(previewSourceDrawing)
+            // Map the accepted source corners through the real native drawing transform.
+            // Compare at the aperture: inferring scale from rounded semantics amplifies error
+            // over the full host, and boundsInRoot clips enlarged landscape previews.
+            assertEquals("Projected source left differs from aperture in $phase", aperture.left, drawn.left, 1f)
+            assertEquals("Projected source top differs from aperture in $phase", aperture.top, drawn.top, 1f)
+            assertEquals("Projected source right differs from aperture in $phase", aperture.right, drawn.right, 1f)
+            assertEquals("Projected source bottom differs from aperture in $phase", aperture.bottom, drawn.bottom, 1f)
             if (phase is FaceTimeline.Phase.Gaze) {
                 assertNull("Gaze should release the main view", guide)
                 val small = requireNotNull(thumbnail)

@@ -204,7 +204,7 @@ fun VeriClueApp() {
         nav.go(Routes.ExitConfirm)
     }
 
-    // ID card photos and QR text; in live mode they go to the server at the back-side review (FLOW-03).
+    // A single fresh card image binds portrait and QR; the server independently verifies it.
     var idFront by remember { mutableStateOf<Pair<ByteArray, IdQuality>?>(null) }
     var idBack by remember { mutableStateOf<Pair<ByteArray, IdQuality>?>(null) }
     var cccd by remember { mutableStateOf<CccdInfo?>(null) }
@@ -273,26 +273,26 @@ fun VeriClueApp() {
         nav.go(entry?.route ?: if (requested == Purpose.Onboarding) Routes.Terms else Routes.Phone)
     }
 
-    /** Back to the one review screen, replacing an older copy of it in the back stack. */
-    fun toIdReview() = nav.navigate(Routes.IdReview) {
-        popUpTo(Routes.IdReview) { inclusive = true }
-        launchSingleTop = true
-    }
-
-    /**
-     * One side of the card: the app takes the photo when it is sharp and glare-free (the shutter
-     * stays), keeps it on screen for one beat with "Chụp lại", then calls [onDone].
-     */
+    /** One continuous card scan. A retry never joins evidence from different photos/cards. */
     @Composable
-    fun IdCaptureRoute(back: Boolean, onDone: () -> Unit) {
+    fun IdCaptureRoute() {
         val observation by camera.idQuality.collectAsState()
+        val captureScope = rememberCoroutineScope()
+        val auto = remember { IdAutoCapture() }
         var captured by remember { mutableStateOf(false) }
         var taking by remember { mutableStateOf(false) }
+        var extracted by remember { mutableStateOf<IdQuality?>(null) }
         var timedOut by remember { mutableStateOf(false) }
         var attempts by remember { mutableStateOf(0) }
+        var generation by remember { mutableStateOf(0L) }
         var captureJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
         DisposableEffect(Unit) {
-            onDispose { captureJob?.cancel() }
+            onDispose {
+                generation++
+                captureJob?.cancel()
+                camera.clearQr()
+                camera.unbind()
+            }
         }
         LaunchedEffect(Unit) {
             camera.clearQr()
@@ -300,41 +300,76 @@ fun VeriClueApp() {
             if (!hasCamera) askPermissions.launch(arrayOf(Manifest.permission.CAMERA))
         }
         LaunchedEffect(hasCamera) {
-            if (hasCamera && !camera.start(lifecycleOwner, back = true, idQrOnly = back)) nav.go(Routes.ErrorDevice)
+            if (hasCamera && !camera.start(lifecycleOwner, back = true)) nav.go(Routes.ErrorDevice)
         }
         fun capture(manual: Boolean) {
             if (taking || captured) return
             taking = true
+            extracted = null
+            idHint = null
             attempts++
-            captureJob = scope.launch {
+            val attempt = ++generation
+            val sessionId = live.session?.sessionId
+            auto.reset()
+            camera.clearQr()
+            captureJob = captureScope.launch {
                 try {
                     val shot = withTimeoutOrNull(8000) { camera.captureId() }
-                    if (shot == null) { timedOut = true; return@launch }
+                    currentCoroutineContext().ensureActive()
+                    if (generation != attempt || (flow.live && live.session?.sessionId != sessionId)) return@launch
+                    if (shot == null) {
+                        idHint = "Chưa chụp được ảnh rõ. Giữ yên thẻ rồi thử lại."
+                        timedOut = true
+                        return@launch
+                    }
                     val q = shot.second
-                    if (!vn.vericlue.app.capture.idCaptureUsable(q, back, manual)) {
-                        idHint = idScanHint(q, back)
+                    if (!vn.vericlue.app.capture.idCaptureUsable(q, back = false, manual = manual)) {
+                        idHint = idScanHint(q, back = false)
                         if (attempts >= 3) timedOut = true
                         return@launch
                     }
-                    if (back) idBack = shot else { idFront = shot; idBack = null }
-                    cccd = CccdQr.parse(FlowRules.cardQr(idFront?.second?.qr, idBack?.second?.qr))
+                    extracted = q
+                    if (flow.live) {
+                        val (hint, error) = live.sendIdCard(shot.first, null, q.qr)
+                        currentCoroutineContext().ensureActive()
+                        if (generation != attempt || live.session?.sessionId != sessionId) return@launch
+                        if (error != null) { nav.go(errorRoute(error)); return@launch }
+                        if (hint != null || live.idFields == null) {
+                            idHint = idScanErrorText(hint)
+                            extracted = null
+                            // A server retry stays here; manual retry prevents unattended upload loops.
+                            timedOut = true
+                            return@launch
+                        }
+                        cccd = FlowRules.cccdFrom(live.idFields!!)
+                    } else {
+                        cccd = CccdQr.parse(q.qr)
+                    }
+                    idFront = shot
+                    idBack = null
                     idConfirmed = false
                     faceCaptured = false
                     captured = true
                     delay(450)
                     camera.unbind()
-                    onDone()
+                    nav.go(Routes.Confirm)
                 } catch (cancelled: kotlinx.coroutines.CancellationException) {
                     throw cancelled
                 } catch (_: Exception) {
+                    idHint = "Chưa trích xuất được thông tin. Giữ đủ thẻ trong khung rồi thử lại."
+                    extracted = null
                     timedOut = true
-                } finally { taking = false }
+                } finally {
+                    if (generation == attempt) {
+                        taking = false
+                        camera.clearQr()
+                    }
+                }
             }
         }
         LaunchedEffect(Unit) { delay(20_000); timedOut = true }
         LaunchedEffect(hasCamera, captured) {
             if (!hasCamera || captured) return@LaunchedEffect
-            val auto = IdAutoCapture(back = back)
             delay(IdAutoCapture.START_DELAY_MS)
             while (!captured) {
                 val q = camera.idQuality.value
@@ -342,10 +377,10 @@ fun VeriClueApp() {
                 delay(250)
             }
         }
-        IdScanScreen(back, observation,
+        IdScanScreen(false, observation,
             onBack = { camera.clearQr(); nav.popBackStack() }, onStop = exit,
             onManual = { capture(manual = true) }, timedOut = timedOut,
-            taking = taking || captured, hint = idHint)
+            taking = taking || captured, hint = idHint, extracted = extracted)
     }
 
     fun startFace() {
@@ -667,46 +702,19 @@ fun VeriClueApp() {
         composable(Routes.OtpError) {
             OtpScreen(onBack = { nav.popBackStack() }, onVerified = { nav.go(FlowRules.afterOtp(flow.purpose)) }, startWithError = true)
         }
-        // Let the server decode the front before asking for another side.
-        composable(Routes.IdFront) { IdCaptureRoute(back = false) { toIdReview() } }
+        composable(Routes.IdFront) { IdCaptureRoute() }
         composable(Routes.IdFrontGlare) { IdScanScreen(false, IdQuality(500.0, 0.5, null),
             onBack = { nav.popBackStack() }, onStop = exit, onManual = { nav.go(Routes.IdFront) }) }
-        composable(Routes.IdBack) { IdCaptureRoute(back = true) { toIdReview() } }
+        // Old saved/debug routes rejoin the same scan; no QR-only fallback screen remains.
+        composable(Routes.IdBack) { LaunchedEffect(Unit) { nav.navigate(Routes.IdFront) {
+            popUpTo(Routes.IdBack) { inclusive = true }; launchSingleTop = true
+        } } }
         composable(Routes.IdReview) {
-            var failure by remember { mutableStateOf<String?>(null) }
             LaunchedEffect(Unit) {
-                if (!flow.live) {
-                    delay(500)
-                    nav.go(Routes.Confirm)
-                    return@LaunchedEffect
-                }
-                val front = idFront?.first
-                if (front == null) { nav.go(Routes.IdFront); return@LaunchedEffect }
-                val qr = FlowRules.cardQr(idFront?.second?.qr, idBack?.second?.qr)
-                val (hint, error) = live.sendIdCard(front, idBack?.first, qr)
-                when {
-                    error != null -> nav.go(errorRoute(error))
-                    FlowRules.needsCardBack(hint, idBack != null) -> nav.navigate(Routes.IdBack) {
-                        popUpTo(Routes.IdReview) { inclusive = true }
-                    }
-                    hint != null -> failure = idScanErrorText(hint)
-                    else -> {
-                        val fields = live.idFields
-                        if (fields == null) {
-                            failure = "Chưa đọc được thông tin trên thẻ. Hãy quét lại."
-                        } else {
-                            cccd = FlowRules.cccdFrom(fields)
-                            idConfirmed = false
-                            nav.go(Routes.Confirm)
-                        }
-                    }
+                nav.navigate(Routes.IdFront) {
+                    popUpTo(Routes.IdReview) { inclusive = true }; launchSingleTop = true
                 }
             }
-            IdProcessingScreen(onStop = exit, onRetake = {
-                idFront = null; idBack = null; cccd = null
-                idConfirmed = false; faceCaptured = false
-                nav.navigate(Routes.IdFront) { popUpTo(Routes.IdFront) { inclusive = true } }
-            }, error = failure)
         }
         composable(Routes.Confirm) {
             // After the face part, going back would restart the recording: ask whether to stop instead.
@@ -1126,8 +1134,8 @@ private fun GalleryScreen(nav: NavHostController, flow: FlowState) {
         "Bắt đầu" to listOf("Màn chào" to Routes.Splash, "Đăng nhập / Đăng ký" to Routes.Auth, "Điều khoản và đồng ý" to Routes.Terms),
         "Danh tính" to listOf(
             "Số điện thoại" to Routes.Phone, "OTP" to Routes.Otp, "OTP nhập sai" to Routes.OtpError,
-            "Quét mặt có chân dung" to Routes.IdFront, "CCCD bị lóa" to Routes.IdFrontGlare, "Quét thêm mã QR khi cần" to Routes.IdBack,
-            "Đọc thông tin thẻ" to Routes.IdReview, "Kiểm tra thông tin" to Routes.Confirm, "Sửa thông tin" to Routes.EditInfo,
+            "Quét thẻ căn cước" to Routes.IdFront, "CCCD bị lóa" to Routes.IdFrontGlare,
+            "Kiểm tra thông tin" to Routes.Confirm, "Sửa thông tin" to Routes.EditInfo,
         ),
         "Khuôn mặt" to listOf("Chuẩn bị" to Routes.FaceReady, "Căn mặt" to Routes.Framing, "Giữ yên + nháy màu + chấm sáng" to Routes.HoldStill, "Quay đầu" to Routes.TurnHead),
         "Giọng nói" to listOf("Đọc câu" to Routes.Voice, "Đọc lại câu mới" to Routes.VoiceAgain),

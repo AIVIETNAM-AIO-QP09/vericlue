@@ -52,6 +52,48 @@ Kết quả manual giữ `prob_attack=null`, `calibrated=false`, marker
 `+manual-demo-<policy_id[:16]>`. Policy v2 làm thay đổi hash so với bản demo cũ;
 phiên/tài khoản khác mode hoặc policy bị từ chối, không chuyển đổi ngầm.
 
+## Preset cố định `phone-demo-fixed-v1` (03/11)
+
+Chỉ bật bằng `MANUAL_DEMO_PRESET=phone-demo-fixed-v1` trong cấu hình đã có
+`MANUAL_FULL_DEMO=true`. Không bật được ở đường chuẩn hoặc `MANUAL_FACE_DEMO`.
+Nếu không đặt preset, sáu cấu hình thủ công và mặc định ở bảng trên giữ nguyên.
+
+| Tham số | Giá trị cố định |
+|---|---:|
+| PAD tối đa | 0.70 |
+| GenD chính diện tối đa | 0.95 |
+| AntiDeepfake tối đa | 0.70 |
+| SyncNet tối đa | 0.60 |
+| Cosine nhận dạng tối thiểu | 0.30 |
+| Cosine nhất quán tối thiểu | 0.30 |
+
+Đây là lựa chọn kỹ thuật chưa hiệu chỉnh để nới cổng điểm thô cho demo; không
+chọn từ điểm lượt điện thoại, không fit tập test, không chứng minh giảm báo
+nhầm hoặc FAR/FRR. Tăng ngưỡng tấn công có thể tăng bỏ lọt. SyncNet dùng điểm
+`max(1-confidence, abs(offset_ms)/500)`: mốc 0.60 yêu cầu confidence ít nhất
+0.40 và độ lệch không quá 300 ms. Nhận dạng/nhất quán giữ 0.30; ASR vẫn yêu cầu
+WER không quá 0.30 và độ giống bỏ dấu ít nhất 0.90.
+
+Một đối tượng bất biến trong `common/manual_demo.py` cấp sáu giá trị cho API
+và worker. Hash policy v2 tiếp tục tính trên **giá trị thực dùng**, không đổi
+nhãn thành đã hiệu chỉnh. Khi bật preset, bỏ các biến `MANUAL_DEMO_*_MAX` và
+`MANUAL_DEMO_*_MIN` cũ hoặc đặt đúng các giá trị trên: cấu hình truyền tường
+minh khác preset bị từ chối lúc khởi động; mặc định chưa truyền không gây
+xung đột. Worker, kết quả và phiên vẫn bị ràng buộc cùng hash/version.
+
+Preset không bỏ kiểm tra thiếu trọng số/bằng chứng, lỗi/degraded/timeout,
+splice, câu đọc, chất lượng, quay đầu/ánh mắt, nhận dạng, continuity hoặc consent.
+Model thật vẫn chạy; `prob_attack=null`, `calibrated=false` và banner demo giữ nguyên.
+
+**Chuyển policy:** tài khoản/phiên cũ khác hash không được đổi nhãn hoặc tự
+chuyển. CCCD của tài khoản chưa hết hạn vẫn bị ràng buộc duy nhất: đăng ký
+lại ngay sẽ bị từ chối, dù tài khoản cũ không dùng được với policy mới.
+Để chuyển mà không đặt lại dữ liệu, chuẩn bị bản mới trước và chỉ kích hoạt
+sau khi tài khoản policy cũ hết TTL 24 giờ; tạo phiên mới để đăng ký lại.
+Quy trình hết hạn sẵn có giải phóng ràng buộc CCCD. Không tự xóa tài khoản,
+receipt/khóa trên app hoặc sửa thời hạn để né ràng buộc. Thay preset là đổi
+cấu hình vận hành riêng; thêm code/runbook không tự kích hoạt server đang chạy.
+
 ## Cấu hình full demo
 
 ```dotenv

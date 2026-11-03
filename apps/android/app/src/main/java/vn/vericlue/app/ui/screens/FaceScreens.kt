@@ -500,7 +500,8 @@ fun FaceTimelineScreen(
             val t = nowMs - start
             val signal = currentSignal()
             val observedNow = android.os.SystemClock.elapsedRealtime()
-            val headState = if (adaptive != null && t >= timeline.headStartMs) adaptive.update(signal, observedNow, t) else null
+            val headState = if (adaptive != null && t >= timeline.headStartMs)
+                adaptive.update(guard.observationForTracking(signal), observedNow, t) else null
             headState?.issue?.let {
                 speech?.stop()
                 incomplete(it)

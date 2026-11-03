@@ -112,8 +112,9 @@ object FlowRules {
     fun cardQr(frontQr: String?, backQr: String?): String? =
         backQr?.takeIf(String::isNotBlank) ?: frontQr?.takeIf(String::isNotBlank)
 
-    /** Retry with a back image only after the server actually needs an unread front QR. */
-    fun needsCardBack(hint: String?, hasBack: Boolean): Boolean = hint == "QR_UNREADABLE" && !hasBack
+    /** Legacy routes never request a second scan; corrections stay on the single card camera. */
+    @Suppress("UNUSED_PARAMETER")
+    fun needsCardBack(hint: String?, hasBack: Boolean): Boolean = false
 
     /** After OTP: re-auth skips the ID card (ADR-0013). */
     fun afterConsent(purpose: Purpose): String = if (purpose == Purpose.Reauth) Routes.FaceReady else Routes.Phone
