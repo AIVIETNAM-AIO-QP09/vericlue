@@ -61,7 +61,7 @@ abstract class IdAutomaticScanSnapshots(device: DeviceConfig) {
             }
         }
         assertTrue("Đã nhận diện chân dung" in texts)
-        assertTrue("Đang tìm mã QR" in texts)
+        assertTrue("Đang trích xuất thông tin" in texts)
         assertFalse("Đã nhận diện mã QR" in texts)
         assertTrue("Dừng xác minh" in texts)
     }

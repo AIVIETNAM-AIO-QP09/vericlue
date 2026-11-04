@@ -91,7 +91,7 @@ abstract class AccountAccessSnapshots(private val device: DeviceConfig) {
             assertTrue("Face login is offered on the card", "Đăng nhập khuôn mặt" in descriptions)
             assertTrue("Tạo tài khoản" in texts)
             assertTrue("Quên mật khẩu?" in texts)
-            assertTrue("Demo · Ngưỡng chưa hiệu chỉnh" in texts)
+            assertFalse("Technical threshold labels stay out of the user interface", "Demo · Ngưỡng chưa hiệu chỉnh" in texts)
             assertFalse(texts.any { it == "Số dư" || it == "0123 4567 8901" })
         }
     }
@@ -154,7 +154,7 @@ abstract class AccountAccessSnapshots(private val device: DeviceConfig) {
         }
     }
 
-    @Test fun homeUsesOnlySuppliedProfileAndRetainsDemoDisclosure() {
+    @Test fun homeUsesOnlySuppliedProfileWithoutTechnicalThresholdLabels() {
         val profile = AccountHomeData(
             fullName = "NGƯỜI DÙNG MINH HỌA", username = "nguoidung.demo",
             accountId = "acct_synthetic_example", maskedIdentityNumber = "••••••••1234",
@@ -165,7 +165,8 @@ abstract class AccountAccessSnapshots(private val device: DeviceConfig) {
             assertTrue(profile.accountId in texts)
             assertTrue(profile.maskedIdentityNumber in texts)
             assertEquals("No fabricated phone when API omitted it", 0, texts.count { it == "Số điện thoại" })
-            assertTrue("Demo · Ngưỡng chưa hiệu chỉnh" in texts)
+            assertFalse("Demo · Ngưỡng chưa hiệu chỉnh" in texts)
+            assertTrue("Actual account lifetime remains visible", texts.any { "24 giờ" in it })
             assertFalse(texts.any { it == "Số dư" || it == "Dữ liệu mẫu" || it == "0123 4567 8901" })
         }
     }

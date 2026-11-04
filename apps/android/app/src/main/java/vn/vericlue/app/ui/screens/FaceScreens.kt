@@ -120,7 +120,6 @@ fun FaceReadyScreen(onBack: () -> Unit, onReady: () -> Unit, onSkipFlash: () -> 
         },
     ) {
         TitleBlock("Xác minh khuôn mặt", "Giữ điện thoại ngang tầm mắt.")
-        if (manualDemo) Banner("Chế độ trình diễn · Ngưỡng thử nghiệm, chưa hiệu chỉnh. Kết quả không dùng để xác minh danh tính.", tone = Tone.Warn)
         IdentityScene3D(Modifier.fillMaxWidth().height(132.dp), IllustrationScene.Face)
         ContentCard {
             FeatureRow(Icons.Outlined.WbSunny, "Chọn nơi đủ sáng")

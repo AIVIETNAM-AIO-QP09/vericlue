@@ -86,8 +86,8 @@ fun IdScanScreen(
                     if (extracted != null) "Đang kiểm tra thông tin thẻ" else "Giữ yên thẻ trong khung"
                 } else idScanDisplayHint(quality, false, hint = hint), style = VcType.bodyStrong, color = c.ink,
                     modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
-                ScanCheck(if (extracted != null) "Đã đọc thông tin từ ảnh" else "Đã nhận diện mã QR", "Đang tìm mã QR", qrSeen)
-                ScanCheck(if (extracted != null) "Đã tìm thấy chân dung trong ảnh" else "Đã nhận diện chân dung", "Đang tìm chân dung", portraitSeen)
+                ScanCheck(if (extracted != null) "Đã đọc thông tin từ ảnh" else "Đã nhận diện mã QR", "Đang trích xuất thông tin", qrSeen)
+                ScanCheck(if (extracted != null) "Đã tìm thấy chân dung trong ảnh" else "Đã nhận diện chân dung", "Đang trích xuất chân dung", portraitSeen)
                 Text("Giữ đủ thẻ trong khung. Ứng dụng tự chụp; chạm lên thẻ để lấy nét.", style = VcType.bodySmall, color = c.muted)
             }
         }

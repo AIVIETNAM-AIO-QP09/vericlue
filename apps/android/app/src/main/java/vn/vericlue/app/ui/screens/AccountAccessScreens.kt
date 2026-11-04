@@ -92,7 +92,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import vn.vericlue.app.flow.PrivacyNotice
 import vn.vericlue.app.ui.components.Banner
 import vn.vericlue.app.ui.components.ContentCard
 import vn.vericlue.app.ui.components.IdentityScene3D
@@ -185,7 +184,6 @@ fun LoginScreen(
                         VcLogo(height = 28.dp, onDark = true)
                     }
                 }
-                if (manualFullDemo) Reveal(0, modifier = Modifier.padding(horizontal = 24.dp)) { DemoPill() }
                 // Leave the identity ring of the 3D stage visible above the card at every text size.
                 Spacer(Modifier.height(if (manualFullDemo) 128.dp else 168.dp))
                 Reveal(1, distance = 32.dp) {
@@ -438,16 +436,6 @@ private fun Reveal(index: Int, modifier: Modifier = Modifier, distance: Dp = 12.
 }
 
 @Composable
-private fun DemoPill() {
-    Row(Modifier.background(VcStage.warnBg, CircleShape).border(1.dp, VcStage.warn.copy(alpha = .6f), CircleShape)
-        .padding(horizontal = 12.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Icon(Icons.Outlined.WarningAmber, null, tint = VcStage.warn, modifier = Modifier.size(16.dp))
-        Text("Demo · Ngưỡng chưa hiệu chỉnh", style = VcType.labelXs, color = VcStage.warn)
-    }
-}
-
-@Composable
 fun CredentialSetupScreen(
     username: String,
     password: String,
@@ -478,7 +466,6 @@ fun CredentialSetupScreen(
                 style = VcType.body, color = Vc.colors.muted)
         }
         AccessPanel {
-            if (manualFullDemo) DemoAccessLabel()
             if (error != null) AccessNotice(error, error = true)
             ProfileValue("Họ và tên theo CCCD", vn.vericlue.app.flow.AccountAccessRules.displayName(fullName) ?: "Chưa có thông tin")
             if (phoneLocked) ProfileValue("Số điện thoại đăng nhập", username)
@@ -490,7 +477,7 @@ fun CredentialSetupScreen(
             AccessPasswordField(confirmation, onConfirmationChange, "Nhập lại mật khẩu", enabled = !busy,
                 onDone = { if (canSave && !busy) { focus.clearFocus(); onSave() } })
             ConsentRow(profileConsent, onProfileConsentChange, enabled = !busy,
-                text = "Tôi đồng ý lưu họ tên, SĐT, thông tin định danh đã che và ghi nhớ tài khoản trên thiết bị này, tối đa 24 giờ trong bản demo.")
+                text = "Tôi đồng ý lưu họ tên, SĐT, thông tin định danh đã che và ghi nhớ tài khoản trên thiết bị này, tối đa 24 giờ.")
             PrimaryButton(if (recovery) "Hoàn tất khôi phục" else "Hoàn tất đăng ký",
                 { focus.clearFocus(); onSave() }, enabled = canSave, loading = busy)
         }
@@ -516,11 +503,10 @@ fun FaceLoginIntroScreen(
             AccessHeading("Nhìn vào camera để đăng nhập", large = true)
             Text("Đặt toàn bộ khuôn mặt trong khung và giữ điện thoại ổn định.",
                 style = VcType.body, color = Vc.colors.muted)
-            if (manualFullDemo) DemoAccessLabel()
             if (error != null) AccessNotice(error, error = true)
             ContentCard {
                 Text("Xác minh phiên đăng nhập", style = VcType.section, color = Vc.colors.ink)
-                Text("Thông báo ${PrivacyNotice.VERSION} · xử lý trong phiên", style = VcType.caption, color = Vc.colors.muted)
+                Text("Thông tin được xử lý trong phiên xác minh", style = VcType.caption, color = Vc.colors.muted)
                 ConsentRow(consent, onConsentChange, enabled = !busy,
                     text = "Tôi đồng ý xử lý khuôn mặt và giọng nói khi cần để xác minh phiên đăng nhập này.")
                 TextButton(onClick = { privacyExpanded = !privacyExpanded }, modifier = Modifier.heightIn(min = 48.dp)) {
@@ -552,7 +538,6 @@ fun AccountHomeScreen(
             }
         }
         Column(Modifier.padding(horizontal = 24.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-            if (profile.manualFullDemo) DemoAccessLabel()
             if (error != null) AccessNotice(error, error = true)
             if (busy) AccessNotice("Đang cập nhật hồ sơ…")
             Surface(shape = RoundedCornerShape(28.dp), color = Vc.colors.surfaceInfo) {
@@ -587,7 +572,7 @@ fun AccountHomeScreen(
                 Text("Đăng nhập bằng mật khẩu hoặc khuôn mặt VeriClue trên thiết bị đã đăng ký.", style = VcType.bodySmall, color = Vc.colors.muted)
                 ProfileValue("Ngày tạo", profile.createdAt)
                 ProfileValue("Có hiệu lực đến", profile.expiresAt)
-                if (profile.manualFullDemo) Text("Tài khoản thử nghiệm có thời hạn tối đa 24 giờ. Hết hạn, bạn cần đăng ký lại.",
+                if (profile.manualFullDemo) Text("Tài khoản có thời hạn tối đa 24 giờ. Hết hạn, bạn cần đăng ký lại.",
                     style = VcType.caption, color = Vc.colors.muted)
                 AccessAction("Quyền riêng tư", Icons.Outlined.Info, onPrivacy, enabled = !busy)
             }
@@ -629,11 +614,6 @@ private fun AccessTopBar(title: String, onBack: () -> Unit, enabled: Boolean) {
 @Composable
 private fun AccessHeading(text: String, large: Boolean = false) {
     Text(text, style = if (large) VcType.titleLarge else VcType.section, color = Vc.colors.ink, modifier = Modifier.semantics { heading() })
-}
-
-@Composable
-private fun DemoAccessLabel() {
-    Banner("Demo · Ngưỡng chưa hiệu chỉnh", tone = Tone.Warn)
 }
 
 @Composable

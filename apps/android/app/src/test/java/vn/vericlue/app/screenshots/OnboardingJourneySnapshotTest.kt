@@ -85,7 +85,7 @@ abstract class OnboardingJourneySnapshots(device: DeviceConfig, private val comp
             shot("p02_withdraw", dark) { PrivacyStopScreen(false, false, false, n, n, n) }
             shot("p03_withdraw_unconfirmed", dark) { PrivacyStopScreen(false, true, true, n, n, n) }
             shot("p04_session_only_success", dark) { SuccessScreen(Purpose.Onboarding, n, checked = FlowRules.checkedByServer(false), accountReady = false) }
-            if (complete) shot("b01_terms_details", dark) { TermsScreen(n, n, initialAccepted = true, initialDetailsOpen = true) }
+            if (complete) shot("b01_terms_details", dark) { TermsScreen(n, n, initialAccepted = true) }
             shot("b02_card_back", dark) { IdScanScreen(false, null, n, n) }
             shot("b03_voice", dark) { VoiceScreen(n, n, sentence = "Tôi xác nhận danh tính, mã số tám ba năm một.") }
             if (complete) {

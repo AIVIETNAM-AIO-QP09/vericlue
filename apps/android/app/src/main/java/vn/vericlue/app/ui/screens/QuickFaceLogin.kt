@@ -224,7 +224,7 @@ fun QuickFaceLoginContent(
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
             if (stage == QuickFaceStage.Consent) {
                 TextButton(onClick = { details = !details }) { Text("Quyền riêng tư", style = VcType.label) }
-                if (details) Text("Thông báo ${PrivacyNotice.VERSION}. Video được gửi đến máy chủ để đối chiếu tài khoản. Giọng nói chỉ được yêu cầu khi cần bổ sung xác minh. Hủy lượt quét để yêu cầu rút lại đồng ý cho phiên này.",
+                if (details) Text("Video được gửi đến máy chủ để đối chiếu tài khoản. Giọng nói chỉ được yêu cầu khi cần bổ sung xác minh. Hủy lượt quét để yêu cầu rút lại đồng ý cho phiên này.",
                     style = VcType.bodySmall, color = Vc.colors.muted)
                 PrimaryButton("Đồng ý và quét", onStart)
             } else if (stage == QuickFaceStage.Error) PrimaryButton("Thử lại", onStart)

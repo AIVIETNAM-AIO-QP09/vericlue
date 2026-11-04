@@ -4,6 +4,15 @@
 
 ## Trạng thái
 
+**04/11 — đồng ý và trạng thái gửi dữ liệu:** thông tin xử lý dữ liệu được
+hiển thị đầy đủ trong một màn cuộn. Đọc đến cuối mới mở các ô tích tròn;
+cuộn không tự ghi nhận đồng ý, hai lựa chọn xử lý/lưu mẫu vẫn độc lập. Chữ
+đồng ý 13sp, vùng bấm tối thiểu 48dp; vẫn hỗ trợ chữ hệ thống lớn. Gửi dữ
+liệu dùng biểu tượng và thanh chờ xanh, không tạo phần trăm tiến độ; chế độ
+giảm chuyển động giữ trạng thái chờ tĩnh. Bỏ nhãn demo/ngưỡng trên giao diện,
+giữ thời hạn lưu mẫu/tài khoản và thông báo preview không chạy AI. Chỉ đổi
+trình bày, không thay mode/hash, ngưỡng, consent API hay chốt xác minh.
+
 **03/11 — APP-04, quay lại camera native theo yêu cầu người dùng:** bỏ luồng
 Document Scanner và dependency tương ứng. Preview nhận QR/chân dung, hiển thị
 trạng thái từng phần; tự chụp rồi gửi cùng ảnh để API kiểm lại. Ảnh tĩnh yêu
