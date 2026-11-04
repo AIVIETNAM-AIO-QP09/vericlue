@@ -82,7 +82,9 @@ fun QuickFaceLogin(
         onDispose {
             frontalJob?.cancel()
             camera.stopRecording(); camera.lockAeAwb(false)
-            camera.unbind(); camera.deleteVideo()
+            // App owns media deletion on acknowledgment, cancellation or dropping the attempt.
+            // Closing this popup after a recoverable upload failure must retain the recording.
+            camera.unbind()
         }
     }
     LaunchedEffect(attempt, permission) {

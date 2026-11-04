@@ -932,7 +932,7 @@ fun VeriClueApp() {
                 onUsernameChange = { loginUsername = it.take(32); accessError = null },
                 onPasswordChange = { loginPassword = it.take(256); accessError = null },
                 onPasswordLogin = ::loginPasswordAccount,
-                onFaceLogin = { loginUsername = ""; loginPassword = ""; enterAccount(Purpose.Reauth) },
+                onFaceLogin = { loginPassword = ""; enterAccount(Purpose.Reauth) },
                 onRegister = { accessError = null; loginPassword = ""; nav.go(Routes.Auth) },
                 onRecovery = { loginPassword = ""; enterAccount(Purpose.Recovery) },
                 busy = busy, error = accessError, notice = loginNotice,

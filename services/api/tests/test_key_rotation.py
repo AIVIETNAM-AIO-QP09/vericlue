@@ -11,6 +11,7 @@ import subprocess
 import sys
 from datetime import timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from cryptography.exceptions import InvalidTag
@@ -25,7 +26,14 @@ from vericlue_api.core.key_rotation import (
     rewrap_master_keys,
 )
 from vericlue_api.db.database import Database
-from vericlue_api.db.models import AccountRow, SessionKeyRow, SessionRow, utcnow
+from vericlue_api.db.models import (
+    AccountAccessCredentialRow,
+    AccountRow,
+    SessionKeyRow,
+    SessionRow,
+    utcnow,
+)
+from vericlue_api.services.account_access import AccountAccess, erase_account_access
 from vericlue_api.services.accounts import AccountStore
 from vericlue_api.services.session_privacy import SessionPrivacy
 
@@ -44,7 +52,7 @@ def vault():
         privacy = SessionPrivacy(settings, db)
         row.payload = privacy.seal_json(row.session_id, "session", {"synthetic": "unchanged"})
         account = AccountRow(
-            account_id="acct_synthetic",
+            account_id="acct_" + "a" * 32,
             source_session_id=row.session_id,
             id_number_hmac="a" * 64,
             phone_hmac="b" * 64,
@@ -59,6 +67,43 @@ def vault():
         account.encrypted_payload = AccountStore._seal(
             key, b'{"synthetic":true}', AccountStore._aad(account, "identity")
         )
+        access = AccountAccess(
+            SimpleNamespace(settings=settings, db=db, accounts=AccountStore(settings, db))
+        )
+        credential = AccountAccessCredentialRow(
+            account_id=account.account_id,
+            username_hmac=access._digest("username", "0901234567"),
+            device_id=account.device_id,
+            setup_session_id=row.session_id,
+            policy_version="account-profile-v1",
+            consented_at=utcnow(),
+            expires_at=account.expires_at,
+        )
+        profile = {
+            "account_id": account.account_id,
+            "username": "0901234567",
+            "full_name": "SYNTHETIC NAME",
+            "masked_id_number": "********1234",
+            "created_at": account.created_at.isoformat(),
+            "expires_at": account.expires_at.isoformat(),
+            "evaluation_mode": "standard",
+            "demo_policy_id": None,
+        }
+        key = AESGCM.generate_key(bit_length=256)
+        credential.wrapped_key = AccountStore._seal(old, key, access._aad(credential, "dek"))
+        credential.encrypted_payload = AccountStore._seal(
+            key,
+            json.dumps(
+                {
+                    "profile": profile,
+                    "password": {"synthetic": "unchanged-verifier"},
+                    "device_id": account.device_id,
+                    "policy_version": "account-profile-v1",
+                }
+            ).encode(),
+            access._aad(credential, "profile"),
+        )
+        db.add(credential)
         tombstone = SessionRow(session_id="ses_destroyed", payload={})
         db.add(tombstone)
         db.flush()
@@ -80,6 +125,14 @@ def envelopes(database):
                 (r.account_id, r.wrapped_key, r.encrypted_payload)
                 for r in db.scalars(select(AccountRow).order_by(AccountRow.account_id))
             ],
+            [
+                (r.account_id, r.wrapped_key, r.encrypted_payload, r.username_hmac)
+                for r in db.scalars(
+                    select(AccountAccessCredentialRow).order_by(
+                        AccountAccessCredentialRow.account_id
+                    )
+                )
+            ],
         )
 
 
@@ -93,8 +146,10 @@ def test_dry_run_verifies_without_changing_rows_or_database_file(vault):
     assert report["counts"] == {
         "session_keys": 1,
         "account_keys": 1,
+        "account_access_keys": 1,
         "destroyed_session_keys": 1,
         "destroyed_account_keys": 0,
+        "destroyed_account_access_keys": 0,
     }
     assert report["services_stopped_verified"] is False
     assert envelopes(database) == before
@@ -117,7 +172,7 @@ def test_apply_uses_new_master_with_unchanged_payloads(vault):
         assert SessionPrivacy(current, db).open_json(row.session_id, "session", row.payload) == {
             "synthetic": "unchanged"
         }
-        account = db.get(AccountRow, "acct_synthetic")
+        account = db.get(AccountRow, "acct_" + "a" * 32)
         key = AccountStore._open(new, account.wrapped_key, AccountStore._aad(account, "dek"))
         assert (
             AccountStore._open(
@@ -128,6 +183,68 @@ def test_apply_uses_new_master_with_unchanged_payloads(vault):
         with pytest.raises(InvalidTag):
             AccountStore._open(old, account.wrapped_key, AccountStore._aad(account, "dek"))
         assert db.get(SessionKeyRow, "ses_destroyed").wrapped_key is None
+
+
+def test_apply_keeps_access_profile_readable_with_new_master_only(vault):
+    database, old, new, settings = vault
+    before = envelopes(database)
+    with database.sessions() as db:
+        service = AccountAccess(
+            SimpleNamespace(settings=settings, db=db, accounts=AccountStore(settings, db))
+        )
+        expected = service._open(db.get(AccountAccessCredentialRow, "acct_" + "a" * 32))
+    report = rewrap_master_keys(database, old, new, apply=True, services_stopped=True)
+    after = envelopes(database)
+    assert before[2][0][1] != after[2][0][1]
+    assert before[2][0][2:] == after[2][0][2:]
+    current = settings.model_copy(
+        update={"session_master_key": SecretStr(base64.b64encode(new).decode())}
+    )
+    with database.sessions() as db:
+        credential = db.get(AccountAccessCredentialRow, "acct_" + "a" * 32)
+        service = AccountAccess(
+            SimpleNamespace(settings=current, db=db, accounts=AccountStore(current, db))
+        )
+        assert service._open(credential) == expected
+        with pytest.raises(InvalidTag):
+            AccountStore._open(old, credential.wrapped_key, service._aad(credential, "dek"))
+    assert report["counts"]["account_access_keys"] == 1
+    assert "0901234567" not in json.dumps(report)
+    assert "SYNTHETIC NAME" not in json.dumps(report)
+
+
+@pytest.mark.parametrize("apply", [False, True])
+def test_corrupt_access_envelope_rejects_rotation_and_rolls_back_every_key(vault, apply):
+    database, old, new, _ = vault
+    with database.sessions.begin() as db:
+        row = db.get(AccountAccessCredentialRow, "acct_" + "a" * 32)
+        raw = bytearray(base64.b64decode(row.wrapped_key))
+        raw[-1] ^= 1
+        row.wrapped_key = base64.b64encode(raw).decode()
+    before = envelopes(database)
+    with pytest.raises(KeyRotationError, match="rotation_integrity_failed"):
+        rewrap_master_keys(database, old, new, apply=apply, services_stopped=apply)
+    assert envelopes(database) == before
+
+
+@pytest.mark.parametrize("remaining", [None, "wrapped_key", "encrypted_payload", "username_hmac"])
+def test_access_erasure_is_preserved_and_partial_erasure_is_rejected(vault, remaining):
+    database, old, new, _ = vault
+    with database.sessions.begin() as db:
+        row = db.get(AccountAccessCredentialRow, "acct_" + "a" * 32)
+        for field in ("wrapped_key", "encrypted_payload", "username_hmac"):
+            if field != remaining:
+                setattr(row, field, None)
+    before = envelopes(database)
+    if remaining is not None:
+        with pytest.raises(KeyRotationError, match="key_state_invalid"):
+            rewrap_master_keys(database, old, new, apply=True, services_stopped=True)
+        assert envelopes(database) == before
+    else:
+        report = rewrap_master_keys(database, old, new, apply=True, services_stopped=True)
+        assert report["counts"]["destroyed_account_access_keys"] == 1
+        assert report["counts"]["account_access_keys"] == 0
+        assert envelopes(database)[2] == before[2]
 
 
 def test_missing_ack_cannot_touch_database(vault):
@@ -151,7 +268,7 @@ def test_wrong_old_master_changes_nothing(vault):
 def test_corrupt_later_account_rolls_back_already_rewrapped_sessions(vault):
     database, old, new, _ = vault
     with database.sessions.begin() as db:
-        row = db.get(AccountRow, "acct_synthetic")
+        row = db.get(AccountRow, "acct_" + "a" * 32)
         raw = bytearray(base64.b64decode(row.wrapped_key))
         raw[-1] ^= 1
         row.wrapped_key = base64.b64encode(raw).decode()
@@ -180,7 +297,8 @@ def test_commit_failure_rolls_back_all_envelopes(vault):
 def test_destroyed_accounts_stay_destroyed_and_invalid_tombstones_fail_closed(vault):
     database, old, new, _ = vault
     with database.sessions.begin() as db:
-        row = db.get(AccountRow, "acct_synthetic")
+        row = db.get(AccountRow, "acct_" + "a" * 32)
+        erase_account_access(db, row.account_id)
         row.destroyed_at = utcnow()
         row.wrapped_key = row.encrypted_payload = None
     report = rewrap_master_keys(database, old, new, apply=True, services_stopped=True)

@@ -279,6 +279,12 @@ cứng. Xem `media-proof.md` và `account-authentication.md`.
 |---|---|---|---|---|
 | M1 | 1,5 | S1 | P0 | PLAT-04 |
 
+**04/11 — review trước gộp PR141:** giữ username khi mở quét mặt để hủy hoặc
+đăng xuất vẫn đăng nhập mật khẩu được; đóng popup chỉ giải phóng camera,
+App giữ quyền xóa video khi ACK/hủy/bỏ lượt. Xoay master key thêm DEK hồ sơ
+account-access, khóa bảng và rollback nguyên tử. Chưa nghiệm thu các ca
+điều hướng/giữ file trên CameraX thật; không chạy xoay khóa trên kho thật.
+
 **04/11 — gộp lựa chọn theo yêu cầu tiếp theo:** màn điều khoản chỉ còn một
 ô tích tròn. Với đăng ký, câu đồng ý nêu cả xử lý xác minh và lưu mẫu mặt mã
 hóa trên máy chủ trong 24 giờ; tích/bỏ tích cập nhật đồng thời hai trạng thái

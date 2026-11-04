@@ -8,7 +8,10 @@ kho thật được thực hiện trong task này.
 ## Phạm vi
 
 `scripts/rotate_master_keys.py` mở DEK bằng master cũ rồi bọc lại bằng master
-mới, giữ nguyên định dạng AES-GCM/AAD của `SessionKeyRow` và `AccountRow`.
+mới, giữ nguyên định dạng AES-GCM/AAD của `SessionKeyRow`, `AccountRow` và
+`AccountAccessCredentialRow` (DEK hồ sơ/verifier mật khẩu). Báo cáo tách số
+`account_access_keys` và `destroyed_account_access_keys`; trường `coverage`
+là `existing_session_account_and_account_access_deks_only`.
 Không giải mã ảnh, âm thanh, video, snapshot hay thông tin định danh. Payload
 đã mã hóa giữ nguyên; DEK đã hủy không được khôi phục. Mọi hàng đang hoạt động
 phải mở được trước khi giao dịch được commit; một hàng lỗi làm rollback toàn bộ.
@@ -41,8 +44,9 @@ SQLite: chỉ dùng tệp đã có, dịch vụ đã dừng và không còn tệ
 Checkpoint/backup bằng quy trình SQLite đúng trước đó; **không tự xóa sidecar**.
 Dry-run mở SQLite ở chế độ chỉ đọc; apply mở tệp hiện có, không tạo DB mới.
 
-PostgreSQL: apply lấy khóa `EXCLUSIVE` trên `session_keys` và `accounts`, chờ tối
-đa 5 giây để lấy khóa. Tài khoản DB cần quyền đọc/cập nhật và khóa các bảng này.
+PostgreSQL: apply lấy khóa `EXCLUSIVE` trên `session_keys`, `accounts` và
+`account_access_credentials`, chờ tối đa 5 giây để lấy khóa. Tài khoản DB cần
+quyền đọc/cập nhật và khóa các bảng này.
 Khóa giao dịch chặn ghi trong lúc chạy; nó không ngăn một worker còn sống ghi
 bằng master cũ sau commit. Đường khóa PostgreSQL có trong code nhưng chưa được
 kiểm chứng với một PostgreSQL đang chạy trong task này.

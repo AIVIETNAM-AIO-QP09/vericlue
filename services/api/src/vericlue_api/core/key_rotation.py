@@ -11,7 +11,8 @@ from cryptography.exceptions import InvalidTag
 from sqlalchemy import select, text
 
 from vericlue_api.db.database import Database
-from vericlue_api.db.models import AccountRow, SessionKeyRow
+from vericlue_api.db.models import AccountAccessCredentialRow, AccountRow, SessionKeyRow
+from vericlue_api.services.account_access import AccountAccess
 from vericlue_api.services.accounts import AccountStore
 from vericlue_api.services.session_privacy import SessionPrivacy
 
@@ -53,8 +54,10 @@ def rewrap_master_keys(
     counts = {
         "session_keys": 0,
         "account_keys": 0,
+        "account_access_keys": 0,
         "destroyed_session_keys": 0,
         "destroyed_account_keys": 0,
+        "destroyed_account_access_keys": 0,
     }
     try:
         with database.sessions.begin() as db:
@@ -66,7 +69,12 @@ def rewrap_master_keys(
                     db.execute(text("BEGIN IMMEDIATE"))
                 else:
                     db.execute(text("SET LOCAL lock_timeout = '5s'"))
-                    db.execute(text("LOCK TABLE session_keys, accounts IN EXCLUSIVE MODE"))
+                    db.execute(
+                        text(
+                            "LOCK TABLE session_keys, accounts, account_access_credentials "
+                            "IN EXCLUSIVE MODE"
+                        )
+                    )
             elif dialect == "postgresql":
                 db.execute(text("SET TRANSACTION READ ONLY"))
             for row in db.scalars(select(SessionKeyRow).order_by(SessionKeyRow.session_id)):
@@ -105,6 +113,27 @@ def rewrap_master_keys(
                     row.wrapped_key = AccountStore._seal(new_master, dek, aad)
                 del dek
                 counts["account_keys"] += 1
+            for row in db.scalars(
+                select(AccountAccessCredentialRow).order_by(AccountAccessCredentialRow.account_id)
+            ):
+                # Erasure clears all three fields; never revive an erased profile DEK.
+                if (
+                    row.wrapped_key is None
+                    and row.encrypted_payload is None
+                    and row.username_hmac is None
+                ):
+                    counts["destroyed_account_access_keys"] += 1
+                    continue
+                if not row.wrapped_key or not row.encrypted_payload or not row.username_hmac:
+                    raise KeyRotationError("key_state_invalid")
+                aad = AccountAccess._aad(row, "dek")
+                dek = AccountStore._open(old_master, row.wrapped_key, aad)
+                if len(dek) != 32:
+                    raise KeyRotationError("dek_invalid")
+                if apply:
+                    row.wrapped_key = AccountStore._seal(new_master, dek, aad)
+                del dek
+                counts["account_access_keys"] += 1
     except KeyRotationError:
         raise
     except InvalidTag:
@@ -119,7 +148,7 @@ def rewrap_master_keys(
         "counts": counts,
         "services_stopped_acknowledged": services_stopped,
         "services_stopped_verified": False,
-        "coverage": "existing_session_and_account_deks_only",
+        "coverage": "existing_session_account_and_account_access_deks_only",
         "not_checked": [
             "media_payload_integrity",
             "legacy_plaintext",
