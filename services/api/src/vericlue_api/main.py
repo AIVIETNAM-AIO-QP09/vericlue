@@ -21,7 +21,15 @@ from vericlue_api.core.request_limits import RequestLimitsMiddleware
 from vericlue_api.core.security_profile import validate_security_profile
 from vericlue_api.core.staff_access import authenticate_staff, is_staff_path
 from vericlue_api.core.state import ApplicationState
-from vericlue_api.routers import credentials, forensic, health, privacy, review, sessions
+from vericlue_api.routers import (
+    account_access,
+    credentials,
+    forensic,
+    health,
+    privacy,
+    review,
+    sessions,
+)
 from vericlue_api.services.storage import cleanup_expired
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -101,6 +109,8 @@ def create_app() -> FastAPI:
         sessions.router,
         sessions.keys_router,
         privacy.router,
+        account_access.router,
+        account_access.session_router,
         credentials.router,
     ]
     if settings.product_mode == "tools":

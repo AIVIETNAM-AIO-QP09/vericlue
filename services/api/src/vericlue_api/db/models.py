@@ -309,3 +309,47 @@ class AccountTemplateConsentRow(Base):
     policy_version: Mapped[str] = mapped_column(String(64))
     retention_seconds: Mapped[int] = mapped_column(Integer, default=86400)
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AccountAccessCredentialRow(Base):
+    """Encrypted profile/password verifier; destroyed with its enrolled account."""
+
+    __tablename__ = "account_access_credentials"
+    account_id: Mapped[str] = mapped_column(ForeignKey("accounts.account_id"), primary_key=True)
+    username_hmac: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
+    device_id: Mapped[str] = mapped_column(String(80))
+    setup_session_id: Mapped[str] = mapped_column(String(80), unique=True)
+    policy_version: Mapped[str] = mapped_column(String(64))
+    consented_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    wrapped_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    encrypted_payload: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class AccountAccessTokenRow(Base):
+    __tablename__ = "account_access_tokens"
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    account_id: Mapped[str] = mapped_column(ForeignKey("accounts.account_id"), index=True)
+    device_id: Mapped[str] = mapped_column(String(80))
+    authentication_method: Mapped[str] = mapped_column(String(16))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class AccountAccessFaceUseRow(Base):
+    """A successful face session can be exchanged only once, including after logout."""
+
+    __tablename__ = "account_access_face_uses"
+    session_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    account_id: Mapped[str] = mapped_column(ForeignKey("accounts.account_id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AccountAccessAttemptRow(Base):
+    """Persistent HMAC buckets: no client IP or username plaintext."""
+
+    __tablename__ = "account_access_attempts"
+    bucket_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    window_started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)

@@ -12,7 +12,7 @@ val apiBaseUrl = (project.findProperty("vericlue.apiBaseUrl") as String?) ?: "ht
 val signedMedia = (project.findProperty("vericlue.signedMedia") as String?)?.toBooleanStrict() ?: true
 val deferSigning = (project.findProperty("vericlue.deferSigning") as String?)?.toBooleanStrict() ?: false
 val presenceTrace = (project.findProperty("vericlue.presenceTrace") as String?)?.toBooleanStrict() ?: false
-val liveByDefault = (project.findProperty("vericlue.liveByDefault") as String?)?.toBooleanStrict() ?: false
+val liveByDefault = (project.findProperty("vericlue.liveByDefault") as String?)?.toBooleanStrict() ?: true
 // A release build only talks HTTPS: stop it when the address is not https:// (debug may use http).
 val checkReleaseApiUrl by tasks.registering {
     val url = apiBaseUrl

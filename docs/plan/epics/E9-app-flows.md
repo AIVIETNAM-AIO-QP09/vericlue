@@ -275,14 +275,23 @@ cứng. Xem `media-proof.md` và `account-authentication.md`.
 
 ### APP-01 ★ · App Kotlin: khung, API qua HTTPS, điều hướng 3 luồng
 
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M1 | 1,5 | S1 | P0 | PLAT-04 |
+
+**03/11 — đăng nhập và hồ sơ (doing):** theo luồng người dùng xác nhận,
+logo → đăng nhập; Mở tài khoản → giới thiệu xác minh. Sau đăng ký/khôi phục,
+thiết lập tên đăng nhập/mật khẩu và đồng ý lưu hồ sơ; Vào ứng dụng quay lại
+đăng nhập. Thêm contract/API account-access, hồ sơ mã hóa, token có hạn và
+thu hồi; quét mặt thụ động dùng đầy đủ kiểm tra hiện có, không bỏ xác minh.
+Giữ hạn tài khoản 24 giờ, phiên hồ sơ tối đa 15 phút. Hồ sơ chỉ có dữ liệu thật
+được API cung cấp; không có tài khoản ngân hàng/số dư mẫu. Chưa đánh dấu done
+trước nghiệm thu trên điện thoại. Chi tiết tại bàn giao APP-01 ngày 03/11.
+
 **02/11 — đang thử S24 FE:** APK0.3.0 đã cài và API/ADB hoạt động. Chưa nghiệm
 thu đăng ký: lượt đầu `review` ở gaze; phát hiện và sửa thiếu challenge binding
 trong bước trích template enrollment, có regression dùng validator production.
 Không nới ngưỡng; tiếp tục thử lại và nghiệm thu ba luồng sau triển khai.
-
-| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
-|---|---|---|---|---|
-| M1 | 1,5 | S1 | P0 | PLAT-04 |
 
 **01/11 — chuẩn bị thử điện thoại 02/11 (doing):** source
 `7904d7092baaa338f06351688286c1f4dc440ea0`, gói riêng

@@ -58,6 +58,7 @@ fun FaceCaptureSurface(
     headGuidance: Boolean = false,
     feedback: String? = null,
     feedbackTone: Tone = Tone.Info,
+    reauth: Boolean = false,
     extraOverlay: @Composable () -> Unit = {},
 ) {
     BackHandler(onBack = onStop)
@@ -119,7 +120,7 @@ fun FaceCaptureSurface(
                 }
                 Column(Modifier.fillMaxWidth().statusBarsPadding().testTag("face-instruction-header")) {
                     TopBar(onStop)
-                    StepProgress(2, stepLabel(2))
+                    if (!reauth) StepProgress(2, stepLabel(2))
                     Text(title, style = VcType.titleMedium, color = ink,
                         textAlign = if (gaze == null) TextAlign.Center else TextAlign.Start,
                         modifier = Modifier.fillMaxWidth().padding(start = 20.dp, top = 12.dp, bottom = 12.dp,
@@ -141,7 +142,7 @@ fun FaceCaptureSurface(
                                     .semantics { liveRegion = LiveRegionMode.Polite }
                             } else Modifier))
                     }
-                    SecondaryButton("Dừng xác minh", onStop)
+                    SecondaryButton(if (reauth) "Dừng đăng nhập" else "Dừng xác minh", onStop)
                 }
                 // The target follows server coordinates exactly; no easing, lag, or independent pulse.
                 gaze?.let {

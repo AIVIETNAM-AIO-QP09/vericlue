@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vericlue.local/contracts/account_access.schema.json",
+  "title": "Đăng nhập và hồ sơ tài khoản demo",
+  "description": "Phiên truy cập hồ sơ độc lập kết quả eKYC, không phải chứng nhận hay quyền giao dịch. Chỉ tài khoản đã ghi danh, còn hạn và đúng policy được dùng.",
+  "$defs": {
+    "AccountAccessSetupRequest": {
+      "type": "object", "additionalProperties": false,
+      "required": ["username", "password", "profile_consent", "policy_version"],
+      "properties": {
+        "username": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,31}$"},
+        "password": {"type": "string", "minLength": 12, "maxLength": 128},
+        "profile_consent": {"type": "boolean", "const": true},
+        "policy_version": {"type": "string", "const": "account-profile-v1"}
+      }
+    },
+    "AccountPasswordRequest": {
+      "type": "object", "additionalProperties": false,
+      "required": ["username", "password"],
+      "properties": {
+        "username": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,31}$"},
+        "password": {"type": "string", "minLength": 12, "maxLength": 128}
+      }
+    },
+    "AccountProfile": {
+      "type": "object", "additionalProperties": false,
+      "required": ["account_id", "username", "full_name", "masked_id_number", "created_at", "expires_at", "evaluation_mode", "demo_policy_id"],
+      "properties": {
+        "account_id": {"type": "string", "pattern": "^acct_[0-9a-f]{32}$"},
+        "username": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,31}$"},
+        "full_name": {"type": ["string", "null"], "maxLength": 200},
+        "masked_id_number": {"type": ["string", "null"], "pattern": "^\\*{8}[0-9]{4}$"},
+        "created_at": {"type": "string", "format": "date-time"},
+        "expires_at": {"type": "string", "format": "date-time"},
+        "evaluation_mode": {"type": "string", "enum": ["standard", "manual_full_demo"]},
+        "demo_policy_id": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "AccountAccessSession": {
+      "type": "object", "additionalProperties": false,
+      "required": ["access_token", "expires_at", "authentication_method", "profile"],
+      "properties": {
+        "access_token": {"type": "string", "pattern": "^vca_[A-Za-z0-9_-]{43}$"},
+        "expires_at": {"type": "string", "format": "date-time"},
+        "authentication_method": {"type": "string", "enum": ["password", "face"]},
+        "profile": {"$ref": "#/$defs/AccountProfile"}
+      }
+    },
+    "AccountLogoutResponse": {
+      "type": "object", "additionalProperties": false,
+      "required": ["revoked"],
+      "properties": {"revoked": {"type": "boolean", "const": true}}
+    }
+  }
+}

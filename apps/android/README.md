@@ -166,9 +166,10 @@ Hai lượt không yêu cầu đọc câu; khôi phục và nhánh giọng vẫn
 `D:/vericlue/tmp/phone-demo-2026-11-02/`, source đầy đủ
 `7904d7092baaa338f06351688286c1f4dc440ea0`. APK 0.3.0 dùng localhost:8421,
 `-Pvericlue.signedMedia=true -Pvericlue.liveByDefault=true -Pvericlue.presenceTrace=false`.
-Cờ `LIVE_API_DEFAULT` mở API thật từ đầu; debug mặc định vẫn cho gallery khi
-không truyền option, release luôn bật API. API lỗi không tự rơi sang kết quả
-đạt dựng sẵn; gallery offline được ghi rõ là xem trước.
+Cờ `LIVE_API_DEFAULT` mở API thật từ đầu. Từ cập nhật đăng nhập 03/11, debug
+và release đều mặc định bật API; chỉ bản debug truyền rõ
+`-Pvericlue.liveByDefault=false` mới dùng luồng xem trước. API lỗi không tự
+rơi sang kết quả đạt dựng sẵn; gallery offline được ghi rõ là xem trước.
 Workflow xuất APK GitHub cũng truyền `liveByDefault=true`, kiểm cờ trong
 BuildConfig trước xuất và ghi `live_by_default=true` vào metadata unsigned.
 
@@ -551,3 +552,27 @@ app/src/main/java/vn/vericlue/app/
 - Chưa dùng lại code từ `AIVIETNAM-AIO-QP09/eKYC-system`; khi chép Keystore từ đó (SEC-02) phải giữ dòng giấy phép MIT và ghi vào `third_party/README.md`.
 
 Kiểm tra giảm chuyển động trên máy ảo: khi app đang ở màn đăng ký/đăng nhập, chạy `adb shell settings put global animator_duration_scale 0`, kiểm tra các thẻ đứng yên và nút/OTP đổi ngay. Đặt lại giá trị ban đầu sau khi thử (thường là `1`; nếu ban đầu chưa có giá trị thì dùng `adb shell settings delete global animator_duration_scale`). Vẫn phải thử cảm giác rung trên điện thoại thật.
+## Đăng nhập và hồ sơ tài khoản (APP-01, 03/11)
+
+Mở ứng dụng đi qua logo VeriClue rồi đến màn đăng nhập. Chọn **Mở tài khoản**
+mới vào hành trình đăng ký hiện có. Sau khi API xác nhận đăng ký/khôi phục và
+lưu biên nhận thành công, người dùng thiết lập tên đăng nhập, mật khẩu và đồng ý
+lưu hồ sơ; nút **Vào ứng dụng** quay về đăng nhập, không tự cấp phiên truy cập.
+
+- Mật khẩu mở hồ sơ qua API `account-access`; không thay thế kết quả eKYC.
+- Đăng nhập khuôn mặt dùng camera và mô hình VeriClue: đồng ý cho phiên mới,
+  căn toàn bộ mặt, giữ ổn định trong đoạn quay ngắn. Không quét lại CCCD/OTP
+  cho thiết bị đã ghi danh; API vẫn có thể yêu cầu bổ sung giọng nói.
+- Hồ sơ chỉ hiển thị dữ liệu API thực sự có: tên đăng nhập, họ tên nếu có,
+  số định danh đã che, mã tài khoản và thời hạn. Không tạo số dư/số tài khoản ngân hàng.
+- Tài khoản giữ thời hạn demo hiện có (tối đa 24 giờ); phiên truy cập tối đa
+  15 phút. Mật khẩu và access token chỉ ở bộ nhớ Android; đưa app xuống nền,
+  đăng xuất hoặc hết phiên sẽ khóa hồ sơ. Back không mở lại hồ sơ đã đăng xuất.
+- Tài khoản đã ghi danh bằng bản cũ có thể quét mặt, rồi thiết lập mật khẩu
+  nếu chưa có thông tin đăng nhập. Thiếu khóa thiết bị phải đi qua khôi phục.
+
+API cần `ACCOUNT_ACCESS_ENABLED=true`, migration `0012_account_access`,
+`ACCOUNT_ENROLLMENT=true`, `SESSION_PRIVACY=true` và cấu hình eKYC tương ứng.
+Contract: `packages/contracts/schemas/account_access.schema.json`.
+Các màn mới dùng Compose, hệ thống màu/chữ/chuyển động VeriClue và cảnh Three.js
+có sẵn; camera giữ nguyên hình học, chỉ dẫn và lịch ghi hình kiểm chứng.
