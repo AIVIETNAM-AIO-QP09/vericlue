@@ -93,16 +93,17 @@ class IdCardTest {
         assertFalse(auto.offer(first)) // late asynchronous result cannot complete a new observation
     }
 
-    @Test fun frontDoesNotCaptureAReadableQrWithoutAPortrait() {
+    @Test fun frontCanProbeAReadableQrWithoutAPreviewPortrait() {
         val auto = IdAutoCapture()
-        repeat(3) { assertFalse(auto.offer(IdQuality(500.0, 0.0, qr))) }
+        assertFalse(auto.offer(IdQuality(500.0, 0.0, qr)))
+        assertTrue(auto.offer(IdQuality(500.0, 0.0, qr)))
     }
 
     @Test fun readableQrDoesNotOverrideUnusablePortraitQuality() {
         val auto = IdAutoCapture(back = true)
         val read = IdQuality(1.0, 0.7, qr, brightness = 20.0, frameTimeNs = 1)
         assertFalse(auto.offer(read))
-        assertFalse(auto.offer(read.copy(frameTimeNs = 2)))
+        assertTrue(auto.offer(read.copy(frameTimeNs = 2))) // try a still, never approve this preview
         assertFalse(idCaptureUsable(read, back = true, manual = false))
         assertFalse(idCaptureUsable(read.copy(qr = null), back = true, manual = false))
     }

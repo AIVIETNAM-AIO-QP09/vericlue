@@ -18,7 +18,7 @@ dependencies = [
 # Thêm phiên bản cụ thể ở các task đó.
 face = [
   "onnxruntime>=1.20,<2",
-  "opencv-python-headless>=4.10,<5",
+  "opencv-contrib-python-headless>=4.10,<5",
 ]
 # FACE-02 (GenD): CLIP ViT-L/14 qua transformers. Nặng (kéo torch), nên KHÔNG nằm trong `face`; CI chỉ cài
 # `face`. Máy chạy GenD thật cần `--extra face --extra gend` (CPU) hoặc `--extra cuda` (GPU).
@@ -50,7 +50,7 @@ eval = ["matplotlib>=3.9,<4"]
 # Mặc định và CI không dùng. Giữ danh sách khớp `face` ∪ `gend` ∪ `voice` ∪ `forensic` (test: ml/tests/test_device.py).
 cuda = [
   "onnxruntime-gpu[cuda,cudnn]>=1.20,<2",
-  "opencv-python-headless>=4.10,<5",
+  "opencv-contrib-python-headless>=4.10,<5",
   "torch>=2.6,<3",
   "torchaudio>=2.6,<3",
   "safetensors>=0.5,<1",

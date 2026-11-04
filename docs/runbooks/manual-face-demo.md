@@ -1,5 +1,51 @@
 # Trình diễn AI thật với ngưỡng thủ công
 
+## Cấu hình local được yêu cầu ngày 03/11: WeChat và preset cố định
+
+Người dùng đã cho phép bật `MANUAL_FULL_DEMO=true` cùng
+`MANUAL_DEMO_PRESET=phone-demo-fixed-v1` và đổi bộ đọc QR server sang WeChat.
+Đây là thay đổi vận hành riêng, không tự thay cấu hình của người kéo repo.
+Sáu ngưỡng lấy từ đối tượng preset hiện có; không sửa `thresholds.yaml`,
+không tạo artifact hiệu chỉnh. Hash policy:
+`ebe8835e33f9e0cdc187bf450a0793b105084d7258509455e71be0923294fed9`.
+
+Trên máy `D:/Projects/Data4Life`, runtime thực tế là `tmp/vericlue-server`,
+Python API `tmp/session-api-runtime/Scripts/python.exe`. Không dùng đường dẫn
+gói `D:/vericlue/...` lịch sử bên dưới. Sao lưu `.env` riêng trước khi đổi;
+giữ nguyên DB, media, khóa và phiên cũ. Kiểm tra không còn tài khoản hiệu lực
+trước khi chuyển policy. Phiên cũ không được đổi nhãn: bắt đầu lượt mới.
+
+WeChat dùng bốn file đã pin SHA-256 và OpenCV contrib (extra `face`/`cuda`):
+
+```powershell
+uv sync --all-packages --extra face
+uv run python scripts/download_wechat_qr.py --models-dir <MODELS_DIR>
+```
+
+Đặt `IDENTITY_QR_BACKEND=wechat`; ZXing-C++ vẫn kiểm cùng ảnh, SCRFD vẫn kiểm
+chân dung ảnh gốc. Hai decoder không được tự bỏ QR xung đột. Thiếu/sai trọng
+số hoặc lỗi backend làm bước đọc thẻ chưa sẵn sàng. Chỉ có `opencv` được chọn
+tường minh mới dùng decoder cũ. Tránh cài nhiều biến thể package OpenCV vào
+cùng môi trường vì chúng cùng cung cấp `cv2`.
+
+Cấu hình full demo ở dưới vẫn bắt buộc. Local chọn Qwen 0.6B có sẵn,
+`VOICE_RUNTIME_PYTHON` và `VOICE_SPOOF_PYTHON` cùng trỏ executable riêng trong
+`tmp/av-lab-runtime`; hai worker vẫn là hai tiến trình độc lập. Nạp thử thật
+AntiDeepfake/Qwen/CTC/SyncNet trước khi khởi động API. Cho phép tối đa 300 giây
+nạp worker, 600 giây khởi động API; inference vẫn tối đa 90 giây và timeout
+không được coi là đạt. Không nới guard RAM 3 GiB của launcher.
+
+Sau khi API sẵn sàng, kiểm profile đang chạy bằng phiên tổng hợp riêng:
+
+```powershell
+tmp/session-api-runtime/Scripts/python.exe -X utf8 scripts/smoke_android_stage_a.py --run-synthetic --expect-manual-preset
+```
+
+Smoke xác nhận mode/hash từ response API, consent, OTP và QR thật, đồng thời
+từ chối thẻ tổng hợp thiếu chân dung; tự rút consent phiên test. Đây không
+phải nghiệm thu xác minh sinh trắc đầu cuối hoặc đo độ nhạy trên CCCD thật.
+Không cần đổi APK để chọn decoder server; điện thoại vẫn cần thử lại lượt mới.
+
 ## Bản chuẩn bị thử điện thoại ngày 02/11/2026
 
 APP-01/FLOW-04/SEC-09: source `7904d7092baaa338f06351688286c1f4dc440ea0`

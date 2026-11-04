@@ -2,6 +2,7 @@ package vn.vericlue.app
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import vn.vericlue.app.capture.IdQuality
 import vn.vericlue.app.capture.idScanDisplayHint
@@ -9,6 +10,12 @@ import vn.vericlue.app.capture.idScanDisplayHint
 class IdScanHintTest {
     private val readable = IdQuality(500.0, 0.0,
         "001095012345||Nguyễn Văn A|01011995|Nam|Địa chỉ minh họa|15072021", portraitPresent = true)
+
+    @Test fun clearPortraitWaitingForQrAsksForStabilityNotAnUnmeasuredDistanceChange() {
+        val hint = idScanDisplayHint(readable.copy(qr = null), back = false)
+        assertTrue(hint.contains("tự chụp"))
+        assertFalse(hint.contains("gần hơn"))
+    }
 
     @Test fun elapsedScanNeverAsksForAShutterPress() {
         val message = idScanDisplayHint(readable, back = true, timedOut = true)

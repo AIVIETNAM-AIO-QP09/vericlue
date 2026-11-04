@@ -187,6 +187,7 @@ class Settings(BaseSettings):
     # In-process QR/SCRFD reader and LVFace identity matching; no second HTTP service.
     identity_card_enabled: bool = False
     identity_card_portrait_required: bool = False
+    identity_qr_backend: Literal["opencv", "wechat"] = "opencv"
     identity_face_calibration: str | None = None
     identity_account_calibration: str | None = None
     identity_recovery_calibration: str | None = None

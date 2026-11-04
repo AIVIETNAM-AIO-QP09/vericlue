@@ -101,6 +101,7 @@ dependencies {
     implementation(libs.androidx.camera.video)
     implementation(libs.mlkit.face.detection)
     implementation(libs.mlkit.barcode.scanning)
+    implementation(libs.zxing.core)
     implementation(libs.play.services.auth.api.phone) // SMS User Consent: fills the OTP from a real SMS
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)

@@ -345,14 +345,16 @@ fun VeriClueApp() {
                         return@launch
                     }
                     val q = shot.second
-                    if (!vn.vericlue.app.capture.idCaptureUsable(q, back = false, manual = false)) {
+                    if (!vn.vericlue.app.capture.idCaptureCanSubmit(q, serverAvailable = flow.live)) {
                         showCaptureHint(idScanHint(q, back = false))
                         return@launch
                     }
                     extracted = q
                     if (flow.live) {
                         serverRetry = true
-                        val (hint, error) = live.sendIdCard(shot.first, null, q.qr)
+                        // An incomplete local extraction cannot be accepted by a client-QR mock server.
+                        val localComplete = vn.vericlue.app.capture.idCaptureUsable(q, false, false)
+                        val (hint, error) = live.sendIdCard(shot.first, null, q.qr.takeIf { localComplete })
                         currentCoroutineContext().ensureActive()
                         if (!scheduler.isCurrent(attempt)) return@launch
                         if (live.session?.sessionId != sessionId) {

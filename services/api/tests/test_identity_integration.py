@@ -98,14 +98,15 @@ def test_ocr_fields_are_not_a_fallback(client, monkeypatch):
 
 
 @pytest.mark.parametrize("portrait,expected", [(True, "ok"), (False, "retry"), (None, "error")])
+@pytest.mark.parametrize("portrait_required", [True, False])
 def test_front_only_card_requires_server_portrait_when_enabled(
-    client, monkeypatch, portrait, expected
+    client, monkeypatch, portrait, expected, portrait_required
 ):
     reply = {"qr_values": [QR]}
     if portrait is not None:
         reply["portrait_usable"] = portrait
     sid, auth = enable(client, monkeypatch, reply)
-    client.app.state.vericlue.settings.identity_card_portrait_required = True
+    client.app.state.vericlue.settings.identity_card_portrait_required = portrait_required
     response = client.post(
         f"/v1/sessions/{sid}/id-card", headers=auth, files={"front": FILES["front"]}
     )

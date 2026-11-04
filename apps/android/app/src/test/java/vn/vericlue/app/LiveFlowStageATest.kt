@@ -5,6 +5,7 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -76,6 +77,23 @@ class LiveFlowStageATest {
         assertTrue(body.contains("name=\"front\"") && body.contains("name=\"back\"") && body.contains("qr text"))
         server.enqueue(json("""{"status":"retry","retry_hint":"QR_INVALID"}"""))
         assertEquals("QR_INVALID" to null, flow.sendIdCard(byteArrayOf(1), byteArrayOf(2), null))
+    }
+
+    @Test
+    fun incompleteLocalScanSendsOnlyTheFreshPhotoAndWaitsForServerFields() = runTest {
+        server.enqueue(json(session))
+        flow.ensureSession(null)
+        server.enqueue(json("""{"status":"retry","retry_hint":"PORTRAIT_UNREADABLE"}"""))
+        assertEquals("PORTRAIT_UNREADABLE" to null, flow.sendIdCard(byteArrayOf(1), null, null))
+        assertNull(flow.idFields)
+        server.takeRequest()
+        val body = server.takeRequest().body.readUtf8()
+        assertTrue(body.contains("name=\"front\""))
+        assertFalse(body.contains("name=\"back\""))
+        assertFalse(body.contains("name=\"qr\""))
+        server.enqueue(json("""{"status":"ok","fields":{"full_name":"Test Person","id_number":"001099012345","date_of_birth":"1995-01-01","sex":"Nam"}}"""))
+        assertEquals(null to null, flow.sendIdCard(byteArrayOf(2), null, null))
+        assertEquals("001099012345", flow.idFields?.idNumber)
     }
 
     @Test

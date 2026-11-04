@@ -23,8 +23,9 @@ jobs:
           file: services/api/Dockerfile
           load: true
           tags: vericlue-api:bbs-ci
-          cache-from: type=gha,scope=bbs-api
-          cache-to: type=gha,mode=max,scope=bbs-api
+          cache-from: type=gha,scope=bbs-api,timeout=2m
+          # Cache export is optional; leave time for the required offline smoke checks.
+          cache-to: type=gha,mode=max,scope=bbs-api,timeout=2m,ignore-error=true
       - name: Offline public conformance and packaged runtime, no keys or DB
         run: |
           docker run --rm --network none --read-only --tmpfs /tmp --entrypoint node vericlue-api:bbs-ci /app/services/credentials/runtime-check.mjs

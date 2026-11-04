@@ -101,6 +101,11 @@ class CameraSession(
         FaceDetectorOptions.Builder().setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
             .setMinFaceSize(0.05f).build(),
     )
+    // Still photos are infrequent: spend more computation on the small printed portrait.
+    private val cardStillFaceDetector = FaceDetection.getClient(
+        FaceDetectorOptions.Builder().setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)
+            .setMinFaceSize(0.05f).build(),
+    )
     private val _idQuality = MutableStateFlow<IdQuality?>(null)
     val idQuality: StateFlow<IdQuality?> = _idQuality
     private val qrScanner = BarcodeScanning.getClient(
@@ -118,6 +123,14 @@ class CameraSession(
             ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER))
         .setResolutionFilter { sizes, _ -> sizes.filter { it.width.toLong() * it.height <= 1920L * 1440 }
             .ifEmpty { sizes } }
+        .build()
+    // Preview resolution is for responsiveness. Dense QR needs a separate, detailed still.
+    private val cardStillResolution = ResolutionSelector.Builder()
+        .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
+        .setResolutionStrategy(ResolutionStrategy(Size(4000, 3000),
+            ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER))
+        .setResolutionFilter { sizes, _ -> sizes.filter { it.width.toLong() * it.height <= 16_000_000L }
+            .ifEmpty { sizes.takeLast(1) } }
         .build()
     private var idRequest: CompletableDeferred<Pair<ByteArray, IdQuality>>? = null
     private val qrState = QrCaptureState()
@@ -229,6 +242,9 @@ class CameraSession(
         for (resolution in resolutions) for (useCases in choices) {
             val ok = runCatching {
                 controller.imageAnalysisResolutionSelector = resolution
+                controller.imageCaptureResolutionSelector = if (back && resolution != null) cardStillResolution else null
+                controller.imageCaptureMode = if (back) ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY
+                    else ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY
                 controller.setEnabledUseCases(useCases)
                 controller.cameraSelector = selector
                 if (!bound) controller.bindToLifecycle(owner)
@@ -271,23 +287,33 @@ class CameraSession(
                 override fun onCaptureSuccess(image: ImageProxy) {
                     if (!req.isActive || generation != qrState.generation()) { image.close(); req.cancel(); return }
                     val bitmap = try {
-                        cardBitmap(image)
+                        cardBitmap(image, maxSide = 4096)
                     } catch (_: Exception) {
                         req.completeExceptionally(IllegalStateException("Card capture unavailable")); image.close(); return
                     }
                     image.close()
                     val qrTask = cardScanTask { scanCardQr(bitmap) }
-                    val faceTask = cardScanTask { cardFaceDetector.process(InputImage.fromBitmap(bitmap, 0)) }
+                    val faceTask = cardScanTask { cardStillFaceDetector.process(InputImage.fromBitmap(bitmap, 0)) }
                     Tasks.whenAllComplete(qrTask, faceTask).addOnCompleteListener(analysisExecutor) {
                         try {
                             if (generation != qrState.generation() || !req.isActive) { req.cancel(); return@addOnCompleteListener }
                             if (!qrTask.isSuccessful || !faceTask.isSuccessful) throw IllegalStateException("Card analysis unavailable")
-                            val qr = qrTask.result.raw
+                            val pixels = IntArray(bitmap.width * bitmap.height)
+                            bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+                            val alternate = CardQrDecoder.decode(bitmap.width, bitmap.height, pixels)
+                            val reads = listOfNotNull(qrTask.result.raw) + alternate
+                            val qr = uniqueCardQr(reads)
+                            val conflict = qrTask.result.conflicting || conflictingCardQr(reads)
                             val faces = faceTask.result
                             val q = bitmapQuality(bitmap, faces.singleOrNull()?.boundingBox).copy(qr = qr, portraitPresent = faces.size == 1,
                                 tilted = faces.singleOrNull()?.let { kotlin.math.abs(it.headEulerAngleZ) > 15f } ?: false,
-                                looksLikeCard = faces.size == 1 || qr != null)
-                            val bytes = ByteArrayOutputStream().use { out -> bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out); out.toByteArray() }
+                                looksLikeCard = faces.size == 1 || qr != null,
+                                portraitCount = faces.size, qrCandidatePresent = qrTask.result.candidatePresent,
+                                qrConflicting = conflict)
+                            val bytes = ByteArrayOutputStream().use { out -> bitmap.compress(Bitmap.CompressFormat.JPEG, 98, out); out.toByteArray() }
+                            require(bytes.size <= 10 * 1024 * 1024) { "Card image too large" }
+                            if (BuildConfig.DEBUG) Log.d("VeriClueCardScan",
+                                "still=${bitmap.width}x${bitmap.height} mlQr=${qrTask.result.raw != null} alternateQr=${alternate.any { CccdQr.parse(it) != null }} conflict=$conflict portrait=${faces.size == 1} sharp=${q.sharp} glareClear=${q.noGlare} bytes=${bytes.size}")
                             req.complete(bytes to q)
                         } catch (_: Exception) {
                             req.completeExceptionally(IllegalStateException("Card analysis unavailable"))
@@ -739,17 +765,18 @@ class CameraSession(
                     tilted = faces.singleOrNull()?.let { kotlin.math.abs(it.headEulerAngleZ) > 15f } ?: false,
                     frameTimeNs = timestampNs,
                     qrRecentlySeen = qrState.recentlySeen(generation, timestampNs),
-                    qrCandidatePresent = qrTask.result.candidatePresent)
+                    qrCandidatePresent = qrTask.result.candidatePresent,
+                    portraitCount = faces.size, qrConflicting = qrTask.result.conflicting)
                 if (BuildConfig.DEBUG && started - lastCardDiagnosticMs >= 1000) {
                     lastCardDiagnosticMs = started
                     // Fixed technical flags only; never log QR contents or document fields.
-                    Log.d("VeriClueCardScan", "size=${proxy.width}x${proxy.height} rotation=$rotation crop=${proxy.cropRect} card=${bitmap.width}x${bitmap.height} qrRead=${qr != null} portrait=${faces.size == 1} sharp=${quality.sharp} glareClear=${quality.noGlare} bright=${quality.brightness >= 45} elapsedMs=${SystemClock.elapsedRealtime() - started}")
+                    Log.d("VeriClueCardScan", "size=${proxy.width}x${proxy.height} rotation=$rotation crop=${proxy.cropRect} card=${bitmap.width}x${bitmap.height} qrRead=${qr != null} qrCandidate=${qrTask.result.candidatePresent} conflict=${qrTask.result.conflicting} portrait=${faces.size == 1} sharp=${quality.sharp} glareClear=${quality.noGlare} bright=${quality.brightness >= 45} elapsedMs=${SystemClock.elapsedRealtime() - started}")
                 }
             } finally { bitmap.recycle(); proxy.close() }
         }
     }
 
-    private fun cardBitmap(image: ImageProxy): Bitmap {
+    private fun cardBitmap(image: ImageProxy, maxSide: Int = 2560): Bitmap {
         val source = image.toBitmap()
         val rotation = image.imageInfo.rotationDegrees
         val upright = if (rotation == 0) source else Bitmap.createBitmap(source, 0, 0, source.width, source.height,
@@ -758,7 +785,7 @@ class CameraSession(
         val roi = cardFrameRect(image.width, image.height, CardFrameRect(rect.left, rect.top, rect.right, rect.bottom), rotation, cardPreviewAspect)
         val crop = Bitmap.createBitmap(upright, roi.left, roi.top, roi.width, roi.height)
         if (crop !== upright) upright.recycle()
-        val ratio = minOf(1f, 2560f / maxOf(crop.width, crop.height))
+        val ratio = minOf(1f, maxSide.toFloat() / maxOf(crop.width, crop.height))
         return if (ratio == 1f) crop else Bitmap.createScaledBitmap(crop, (crop.width * ratio).toInt(), (crop.height * ratio).toInt(), true)
             .also { if (it !== crop) crop.recycle() }
     }
@@ -770,7 +797,7 @@ class CameraSession(
         Tasks.forException(error)
     }
 
-    private data class CardQrRead(val raw: String?, val candidatePresent: Boolean)
+    private data class CardQrRead(val raw: String?, val candidatePresent: Boolean, val conflicting: Boolean)
     private data class CardQrCandidates(val values: List<String>, val candidatePresent: Boolean)
 
     /** Bounded same-image QR retries; the original full-card bitmap still supplies portrait and upload. */
@@ -784,7 +811,7 @@ class CameraSession(
             // A decoded card does not hide other undecoded candidates. Conflicting reads stay rejected.
             val regions = if (candidates.isNotEmpty() || values.none { CccdQr.parse(it) != null })
                 cardQrRetryRegions(bitmap.width, bitmap.height, candidates) else emptyList()
-            if (regions.isEmpty()) return@continueWithTask Tasks.forResult(CardQrRead(uniqueCardQr(values), candidatePresent))
+            if (regions.isEmpty()) return@continueWithTask Tasks.forResult(CardQrRead(uniqueCardQr(values), candidatePresent, conflictingCardQr(values)))
             val retries = regions.map { box ->
                 cardScanTask {
                     val region = Bitmap.createBitmap(bitmap, box.left, box.top, box.width, box.height)
@@ -798,8 +825,9 @@ class CameraSession(
             }
             Tasks.whenAllSuccess<CardQrCandidates>(retries).continueWith(analysisExecutor) { completed ->
                 if (!completed.isSuccessful) throw completed.exception ?: IllegalStateException("QR unavailable")
-                CardQrRead(uniqueCardQr(values + completed.result.flatMap { it.values }),
-                    candidatePresent || completed.result.any { it.candidatePresent })
+                val allValues = values + completed.result.flatMap { it.values }
+                CardQrRead(uniqueCardQr(allValues),
+                    candidatePresent || completed.result.any { it.candidatePresent }, conflictingCardQr(allValues))
             }
         }
 

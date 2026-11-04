@@ -8,7 +8,7 @@ data class IdQuality(
     val sharpness: Double,
     val glareFraction: Double,
     val qr: String?,
-    /** Card words read on the rear camera in the last moment ([CardText]); null = not checked. */
+    /** Current frame contains portrait or QR evidence; null = not checked. */
     val looksLikeCard: Boolean? = null,
     val portraitPresent: Boolean = false,
     val brightness: Double = 128.0,
@@ -18,6 +18,9 @@ data class IdQuality(
     val qrRecentlySeen: Boolean = false,
     /** A region can trigger a higher-resolution photo, never approve its contents. */
     val qrCandidatePresent: Boolean = false,
+    /** Fresh image evidence; ambiguity must not be hidden by a failed local decode. */
+    val qrConflicting: Boolean = false,
+    val portraitCount: Int = if (portraitPresent) 1 else 0,
 ) {
     val sharp: Boolean get() = sharpness >= MIN_SHARPNESS
     val noGlare: Boolean get() = glareFraction <= MAX_GLARE
@@ -49,7 +52,7 @@ object CardText {
 }
 
 /**
- * Requests a still after [needed] portrait/QR observations, or a longer clear-portrait probe.
+ * Requests a still after [needed] QR observations, or a longer clear-portrait probe.
  * Preview heuristics only decide when to try; the fresh still must pass every upload check.
  */
 @Suppress("UNUSED_PARAMETER") // Legacy preview callers still pass a side; capture is always unified.
@@ -65,7 +68,8 @@ class IdAutoCapture(private val needed: Int = 2, back: Boolean = false) {
         lastFrame = q.frameTimeNs
         val expired = q.frameTimeNs > 0 && lastReadNs > 0 && q.frameTimeNs - lastReadNs > QR_HOLD_NS
         val qrEvidence = CccdQr.parse(q.qr) != null || q.qrCandidatePresent
-        val readyForStill = q.portraitPresent && (qrEvidence || (q.good && q.brightness >= 45))
+        val readyForStill = !q.qrConflicting && q.portraitCount <= 1 &&
+            (qrEvidence || (q.portraitPresent && q.good && q.brightness >= 45))
         if (!readyForStill) {
             good = 0
             lastQr = null
@@ -99,20 +103,33 @@ class IdAutoCapture(private val needed: Int = 2, back: Boolean = false) {
 @Suppress("UNUSED_PARAMETER")
 fun idScanHint(q: IdQuality?, back: Boolean): String = when {
     q == null -> "Đưa mặt có ảnh chân dung và mã QR vào khung"
+    q.qrConflicting || q.portraitCount > 1 -> "Chỉ đặt một thẻ trong khung"
     q.brightness < 45 -> "Đưa thẻ đến nơi sáng hơn"
     !q.noGlare -> "Nghiêng nhẹ thẻ để tránh lóa"
-    !q.sharp -> "Giữ yên thẻ và điện thoại để lấy nét"
+    !q.sharp -> "Chạm lên thẻ để lấy nét, rồi giữ yên"
     q.portraitPresent && CccdQr.parse(q.qr) != null -> "Giữ yên, ứng dụng đang tự chụp"
+    q.qrCandidatePresent || CccdQr.parse(q.qr) != null -> "Giữ đủ thẻ trong khung, ứng dụng đang lấy ảnh rõ hơn"
     q.tilted -> "Giữ thẻ thẳng và song song với camera"
     !q.portraitPresent -> "Đặt đủ bốn góc thẻ trong khung để thấy rõ chân dung"
-    CccdQr.parse(q.qr) == null -> "Đưa thẻ gần hơn để mã QR rõ, giữ đủ bốn góc trong khung"
+    CccdQr.parse(q.qr) == null -> "Giữ yên để tự chụp và đọc mã QR"
     else -> "Giữ yên, ứng dụng đang tự chụp"
 }
 
 /** Validate the fresh still, not the live scanner's retained state. Server checks it again. */
 @Suppress("UNUSED_PARAMETER")
 fun idCaptureUsable(q: IdQuality, back: Boolean, manual: Boolean): Boolean =
-    q.good && q.brightness >= 45 && q.portraitPresent && CccdQr.parse(q.qr) != null
+    q.good && q.brightness >= 45 && q.portraitPresent && q.portraitCount == 1 &&
+        !q.qrConflicting && CccdQr.parse(q.qr) != null
+
+/** Submission is not confirmation: the server must decode QR and find portrait on this photo. */
+fun idCaptureCanSubmit(q: IdQuality, serverAvailable: Boolean): Boolean {
+    if (!serverAvailable) return idCaptureUsable(q, back = false, manual = false)
+    // Without a detected portrait, near-white pixels may just be the card's white print.
+    // Only the server can assess the missing portrait; whole-card whiteness is not a veto.
+    return q.sharp && q.brightness >= 45 && (!q.portraitPresent || q.noGlare) &&
+        !q.qrConflicting && q.portraitCount <= 1 &&
+        (q.portraitPresent || CccdQr.parse(q.qr) != null || q.qrCandidatePresent)
+}
 
 /** Elapsed time never changes the scan into a manual shutter step. */
 @Suppress("UNUSED_PARAMETER")
@@ -122,7 +139,7 @@ fun idScanDisplayHint(q: IdQuality?, back: Boolean, timedOut: Boolean = false, h
 fun idScanErrorText(hint: String?): String = when (hint) {
     "PORTRAIT_UNREADABLE" -> "Chưa thấy rõ chân dung trên thẻ. Hãy quét lại mặt có ảnh chân dung."
     "QR_INVALID" -> "Mã QR chưa có đủ thông tin phù hợp. Hãy quét lại đúng thẻ."
-    else -> "Chưa đọc được mã QR từ ảnh. Hãy đưa thẻ gần hơn, tránh lóa rồi quét lại."
+    else -> "Chưa đọc được mã QR. Giữ đủ thẻ trong khung, chạm lấy nét và tránh lóa."
 }
 
 object ImageChecks {

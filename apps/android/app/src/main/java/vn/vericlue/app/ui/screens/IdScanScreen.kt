@@ -1,5 +1,8 @@
 package vn.vericlue.app.ui.screens
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -25,10 +28,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.foundation.layout.Row
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import vn.vericlue.app.capture.CccdQr
 import vn.vericlue.app.capture.IdQuality
 import vn.vericlue.app.capture.idScanDisplayHint
@@ -48,6 +56,12 @@ fun IdScanScreen(
 ) {
     VcTheme(dark = true) {
         val c = Vc.colors
+        val visible = extracted ?: quality
+        val qrSeen = visible?.qrConflicting != true && CccdQr.parse(visible?.qr) != null
+        val portraitSeen = visible?.portraitPresent == true && visible.portraitCount == 1
+        val frameColor by animateColorAsState(
+            if (qrSeen && portraitSeen) c.ok else if (qrSeen || portraitSeen) c.accent else c.border,
+            animationSpec = tween(if (Vc.motion.enabled) 180 else 0), label = "cardDetection")
         VcScreen(onBack = onBack, step = 1, actions = {
             LinkButton("Dừng xác minh", onStop)
         }) {
@@ -55,16 +69,26 @@ fun IdScanScreen(
                 Text("Quét thẻ căn cước", style = VcType.titleLarge, color = c.ink)
                 Box(Modifier.fillMaxWidth().aspectRatio(1.586f).clip(RoundedCornerShape(12.dp))) {
                     CameraFeed(placeholder = { CardGuide(false) })
+                    Canvas(Modifier.fillMaxSize()) {
+                        val inset = 8.dp.toPx()
+                        val arm = 24.dp.toPx()
+                        val stroke = 3.dp.toPx()
+                        for (x in listOf(inset, size.width - inset)) for (y in listOf(inset, size.height - inset)) {
+                            drawLine(frameColor, Offset(x, y), Offset(x + if (x == inset) arm else -arm, y), stroke)
+                            drawLine(frameColor, Offset(x, y), Offset(x, y + if (y == inset) arm else -arm), stroke)
+                        }
+                    }
                     if (taking) Box(Modifier.fillMaxSize().background(c.background.copy(alpha = 0.65f)), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = c.accent)
                     }
                 }
                 Text(if (taking) {
                     if (extracted != null) "Đang kiểm tra thông tin thẻ" else "Giữ yên thẻ trong khung"
-                } else idScanDisplayHint(quality, false, hint = hint), style = VcType.bodyStrong, color = c.ink)
-                ScanCheck("Đã trích xuất thông tin", "Đang trích xuất thông tin", CccdQr.parse(extracted?.qr) != null)
-                ScanCheck("Đã trích xuất chân dung", "Đang trích xuất chân dung", extracted?.portraitPresent == true)
-                Text("Ứng dụng tự chụp và tiếp tục thử khi bạn chỉnh lại thẻ.", style = VcType.bodySmall, color = c.muted)
+                } else idScanDisplayHint(quality, false, hint = hint), style = VcType.bodyStrong, color = c.ink,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                ScanCheck(if (extracted != null) "Đã đọc thông tin từ ảnh" else "Đã nhận diện mã QR", "Đang tìm mã QR", qrSeen)
+                ScanCheck(if (extracted != null) "Đã tìm thấy chân dung trong ảnh" else "Đã nhận diện chân dung", "Đang tìm chân dung", portraitSeen)
+                Text("Giữ đủ thẻ trong khung. Ứng dụng tự chụp; chạm lên thẻ để lấy nét.", style = VcType.bodySmall, color = c.muted)
             }
         }
     }

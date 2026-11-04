@@ -45,3 +45,35 @@ def test_conflicting_qr_candidates_are_preserved_for_api_validation(monkeypatch)
 def test_invalid_image_is_not_accepted():
     with pytest.raises(InputError):
         CardScanner().scan(b"not an image")
+
+
+def test_retry_reads_are_combined_and_conflicts_are_not_hidden(monkeypatch):
+    image = np.zeros((100, 160, 3), dtype=np.uint8)
+    recovered = QR.replace("001099012345", "001099999999")
+    replies = iter([set(), {QR}, {recovered}, {QR}])
+    monkeypatch.setattr(CardScanner, "_decode_qr", lambda *_: next(replies))
+    monkeypatch.setattr(
+        "vericlue_api.services.card_scanner.rectified_card_views", lambda _: [image.copy()]
+    )
+    assert CardScanner().qr_values([image]) == sorted([QR, recovered])
+
+
+def test_readable_original_avoids_extra_work_but_still_checks_second_image(monkeypatch):
+    replies = iter([{QR}, {QR.replace("001099012345", "001099999999")}])
+    monkeypatch.setattr(CardScanner, "_decode_qr", lambda *_: next(replies))
+
+    def forbidden(_):
+        raise AssertionError("Readable original must not need additional geometry work")
+
+    monkeypatch.setattr("vericlue_api.services.card_scanner.rectified_card_views", forbidden)
+    assert len(CardScanner().qr_values([np.zeros((100, 160, 3), np.uint8)] * 2)) == 2
+
+
+def test_recovered_qr_without_portrait_is_not_usable(monkeypatch):
+    monkeypatch.setattr(
+        "vericlue_api.services.card_scanner.decode_image",
+        lambda _: np.zeros((100, 160, 3), np.uint8),
+    )
+    scanner = CardScanner(portrait_check=lambda _: False)
+    monkeypatch.setattr(scanner, "qr_values", lambda _: [QR])
+    assert scanner.scan(b"front") == {"qr_values": [QR], "portrait_usable": False}

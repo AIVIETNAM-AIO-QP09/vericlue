@@ -3,11 +3,14 @@
 import io
 import re
 from datetime import datetime
+from pathlib import Path
 from threading import Lock
 
 import cv2
 import numpy as np
 from PIL import Image, ImageOps, UnidentifiedImageError
+
+from vericlue_api.services.card_views import rectified_card_views
 
 MAX_BYTES = 10 * 1024 * 1024
 MAX_PIXELS = 16_000_000
@@ -46,19 +49,30 @@ def valid_card_qr(value):
 
 
 class CardScanner:
-    def __init__(self, portrait_check=None, *, models_dir=None, device="cpu"):
+    def __init__(self, portrait_check=None, *, models_dir=None, device="cpu", qr_backend="opencv"):
+        if qr_backend not in {"opencv", "wechat"}:
+            raise ValueError("Unknown QR backend")
         self.models_dir = models_dir
         self.device = device
         self._portrait_check = portrait_check
         self._finder = None
         self._lock = Lock()
+        self._wechat = None
+        if qr_backend == "wechat":
+            from vericlue_api.services.wechat_qr import WeChatQR
+
+            if models_dir is None:
+                raise ValueError("WeChat QR requires MODELS_DIR")
+            self._wechat = WeChatQR(Path(models_dir))
 
     def preload(self):
-        """Load only the existing SCRFD portrait finder; never load a text model."""
+        """Verify selected QR backend and load SCRFD; never load a text model."""
         import zxingcpp
 
         if not callable(zxingcpp.read_barcodes):
             raise RuntimeError("QR decoder unavailable")
+        if self._wechat is not None:
+            self._wechat.preload()
         if self._portrait_check is not None or self._finder is not None:
             return
         from vericlue_ml.face.pad import ScrfdFaceFinder, _models_root, shared_scrfd_session
@@ -66,41 +80,59 @@ class CardScanner:
         session, _ = shared_scrfd_session(_models_root(self.models_dir), self.device)
         self._finder = ScrfdFaceFinder(session, scale=128.0, swap_rb=True)
 
-    @staticmethod
-    def qr_values(images):
+    def qr_values(self, images):
         values = set()
         try:
             import zxingcpp
         except ImportError:
             zxingcpp = None
         for original in images:
-            h, w = original.shape[:2]
-            # Preserve the original pixels for dense QR. Work is bounded by decode_image.
-            image = original
-            if zxingcpp is not None:
-                for item in zxingcpp.read_barcodes(image, formats=zxingcpp.BarcodeFormat.QRCode):
-                    if getattr(item, "valid", True) and item.text:
-                        values.add(item.text)
-            # A second decoder also runs, so conflicting codes are not silently ignored.
-            for pixels in (
-                [image]
-                if max(h, w) <= 1600
-                else [cv2.resize(image, (round(w * 1600 / max(h, w)), round(h * 1600 / max(h, w))))]
-            ):
-                detector = cv2.QRCodeDetector()
-                try:
-                    ok, texts, _, _ = detector.detectAndDecodeMulti(pixels)
-                    if ok:
-                        values.update(t for t in texts if t)
-                except (cv2.error, UnicodeError):
-                    pass
-                try:
-                    text, _, _ = detector.detectAndDecode(pixels)
-                    if text:
-                        values.add(text)
-                except (cv2.error, UnicodeError):
-                    pass
+            # Always keep original decodes, including conflicts. Rectification is only a retry.
+            reads = self._decode_qr(original, zxingcpp)
+            values.update(reads)
+            if not any(valid_card_qr(value) for value in reads):
+                width = original.shape[1]
+                span = (width * 65 + 99) // 100
+                views = [original[:, :span], original[:, width - span :]]
+                views.extend(rectified_card_views(original))
+                for view in views:
+                    values.update(self._decode_qr(view, zxingcpp))
         return sorted(values)
+
+    def _decode_qr(self, original, zxingcpp):
+        values = set()
+        image = original
+        h, w = image.shape[:2]
+        # Preserve the original pixels for dense QR. Work is bounded by decode_image.
+        if zxingcpp is not None:
+            for item in zxingcpp.read_barcodes(image, formats=zxingcpp.BarcodeFormat.QRCode):
+                if getattr(item, "valid", True) and item.text:
+                    values.add(item.text)
+        # A second decoder also runs, so conflicting codes are not silently ignored.
+        for pixels in (
+            [image]
+            if max(h, w) <= 1600
+            else [cv2.resize(image, (round(w * 1600 / max(h, w)), round(h * 1600 / max(h, w))))]
+        ):
+            if self._wechat is not None:
+                # Run even when ZXing succeeded, preserving conflicts from the same image.
+                # Backend errors propagate: never silently replace a requested model.
+                values.update(self._wechat.decode(pixels))
+                continue
+            detector = cv2.QRCodeDetector()
+            try:
+                ok, texts, _, _ = detector.detectAndDecodeMulti(pixels)
+                if ok:
+                    values.update(t for t in texts if t)
+            except (cv2.error, UnicodeError):
+                pass
+            try:
+                text, _, _ = detector.detectAndDecode(pixels)
+                if text:
+                    values.add(text)
+            except (cv2.error, UnicodeError):
+                pass
+        return values
 
     def portrait_usable(self, image):
         if self._portrait_check is not None:
