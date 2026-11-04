@@ -166,9 +166,10 @@ Hai lượt không yêu cầu đọc câu; khôi phục và nhánh giọng vẫn
 `D:/vericlue/tmp/phone-demo-2026-11-02/`, source đầy đủ
 `7904d7092baaa338f06351688286c1f4dc440ea0`. APK 0.3.0 dùng localhost:8421,
 `-Pvericlue.signedMedia=true -Pvericlue.liveByDefault=true -Pvericlue.presenceTrace=false`.
-Cờ `LIVE_API_DEFAULT` mở API thật từ đầu; debug mặc định vẫn cho gallery khi
-không truyền option, release luôn bật API. API lỗi không tự rơi sang kết quả
-đạt dựng sẵn; gallery offline được ghi rõ là xem trước.
+Cờ `LIVE_API_DEFAULT` mở API thật từ đầu. Từ cập nhật đăng nhập 03/11, debug
+và release đều mặc định bật API; chỉ bản debug truyền rõ
+`-Pvericlue.liveByDefault=false` mới dùng luồng xem trước. API lỗi không tự
+rơi sang kết quả đạt dựng sẵn; gallery offline được ghi rõ là xem trước.
 Workflow xuất APK GitHub cũng truyền `liveByDefault=true`, kiểm cờ trong
 BuildConfig trước xuất và ghi `live_by_default=true` vào metadata unsigned.
 
@@ -525,7 +526,7 @@ app/src/main/java/vn/vericlue/app/
   capture/WavRecorder.kt    ghi âm WAV 16 kHz
   capture/IdCard.kt         đo nét/lóa, đọc QR CCCD
   ui/App.kt                 NavHost, quyền, nối camera/API vào màn, màn "tất cả màn"
-  ui/theme/Theme.kt         màu (khớp biến Figma "VeriClue / Màu"), kiểu chữ, theme sáng/tối
+  ui/theme/Theme.kt         màu, kiểu chữ; một theme thương hiệu "VeriClue Night" cho mọi màn (ngoài camera)
   ui/components/            thanh trên, thanh tiến độ, nút, bàn phím số, khung camera, thẻ danh sách
   ui/screens/               Bắt đầu, Danh tính, Khuôn mặt, Giọng nói + Kết quả
 ```
@@ -551,3 +552,59 @@ app/src/main/java/vn/vericlue/app/
 - Chưa dùng lại code từ `AIVIETNAM-AIO-QP09/eKYC-system`; khi chép Keystore từ đó (SEC-02) phải giữ dòng giấy phép MIT và ghi vào `third_party/README.md`.
 
 Kiểm tra giảm chuyển động trên máy ảo: khi app đang ở màn đăng ký/đăng nhập, chạy `adb shell settings put global animator_duration_scale 0`, kiểm tra các thẻ đứng yên và nút/OTP đổi ngay. Đặt lại giá trị ban đầu sau khi thử (thường là `1`; nếu ban đầu chưa có giá trị thì dùng `adb shell settings delete global animator_duration_scale`). Vẫn phải thử cảm giác rung trên điện thoại thật.
+## Đăng nhập và hồ sơ tài khoản (APP-01, 03/11)
+
+Mở ứng dụng đi qua logo VeriClue rồi đến màn đăng nhập (bố cục thẻ kính kiểu
+ngân hàng trên nền 3D `backdrop`). Khi máy đã nhớ tên đăng nhập, thẻ chào
+"Xin chào, <tên>" và chỉ hỏi mật khẩu; nút khuôn mặt nằm trong thẻ.
+**Tài khoản khác** mở thẻ đủ tên đăng nhập + mật khẩu, có **Quay lại** tài khoản
+đã nhớ. **Tạo tài khoản** vào hành trình đăng ký hiện có, **Quên mật khẩu?**
+vào khôi phục bằng khuôn mặt như cũ. Sau khi API xác nhận đăng ký/khôi phục và
+lưu biên nhận thành công, SĐT OTP được điền sẵn làm tên đăng nhập, người dùng
+đặt mật khẩu và đồng ý lưu hồ sơ. Chỉ sau khi lưu thành công mới hiện hoàn tất;
+nút **Vào ứng dụng** quay về đăng nhập, không tự cấp phiên truy cập.
+
+- Mật khẩu mở hồ sơ qua API `account-access`; không thay thế kết quả eKYC.
+- Đăng nhập khuôn mặt dùng camera và mô hình VeriClue: đồng ý cho phiên mới,
+  mở hộp quét ngay trên màn đăng nhập, tự nhận đủ khuôn mặt và quay trong cùng
+  preview. Không cần khớp với oval hoặc chuyển qua từng màn căn/quay/chờ.
+  Giữ ổn định trong đoạn quay ngắn. Không quét lại CCCD/OTP
+  cho thiết bị đã ghi danh; API vẫn có thể yêu cầu bổ sung giọng nói.
+- Hồ sơ chỉ hiển thị dữ liệu API thực sự có: tên đăng nhập, họ tên nếu có,
+  số định danh đã che, mã tài khoản và thời hạn. Không tạo số dư/số tài khoản ngân hàng.
+- Tài khoản giữ thời hạn demo hiện có (tối đa 24 giờ); phiên truy cập tối đa
+  15 phút. Mật khẩu và access token chỉ ở bộ nhớ Android. `LoginHint` ghi nhớ
+  tên, username/SĐT, mã và hạn tài khoản đã thiết lập/đăng nhập thành công,
+  qua AES-GCM/Android Keystore trong `vericlue.login.secure`. Không lưu mật
+  khẩu, token hoặc số CCCD trong hint; đưa app xuống nền,
+  đăng xuất hoặc hết phiên sẽ khóa hồ sơ. Back không mở lại hồ sơ đã đăng xuất.
+- Tài khoản đã ghi danh bằng bản cũ có thể quét mặt, rồi thiết lập mật khẩu
+  nếu chưa có thông tin đăng nhập. Thiếu khóa thiết bị phải đi qua khôi phục.
+
+API cần `ACCOUNT_ACCESS_ENABLED=true`, migration `0012_account_access`,
+`ACCOUNT_ENROLLMENT=true`, `SESSION_PRIVACY=true` và cấu hình eKYC tương ứng.
+Contract: `packages/contracts/schemas/account_access.schema.json`.
+Các màn mới dùng Compose, hệ thống màu/chữ/chuyển động VeriClue và cảnh Three.js
+có sẵn. Đăng ký/khôi phục giữ giao diện camera hiện có. Đăng nhập thụ động
+dùng toàn bộ preview FIT_CENTER, giữ kiểm tra đủ mặt/landmark, độ sáng, tư thế,
+khung mới và thời gian ổn định; bỏ ràng buộc lấp oval chỉ phục vụ bố cục.
+Lượt quay vẫn 3 giây, ảnh frontal ở 0,5 giây; chỉ API thật mới mở hồ sơ.
+Đây là giảm thao tác giao diện, chưa phải đo được đăng nhập tức thời.
+
+**03/11 — tách thu hình khỏi chờ đăng nhập:** preview inline đã qua
+`StableFaceGate` không chờ chuyển cảnh 600 ms lần nữa. Thu xong vẫn đợi CameraX
+đóng file và chụp lại metadata trước khi unbind; sau đó đóng hộp camera, hiện
+vòng chờ và nút Hủy trên nền Login trong lúc gửi/chờ API. Chỉ kết quả trao đổi
+phiên hợp lệ mới mở hồ sơ. Clip vẫn 3 giây và hold vẫn 1 giây; chưa có bằng chứng
+đạt tốc độ dưới 1 giây bằng camera VeriClue. Đăng ký/khôi phục và preview chuyển
+màn vẫn giữ thời gian ổn định cũ.
+
+**03/11 — hoàn tất đăng ký bằng SĐT:** sau eKYC đạt và đã lưu liên kết thiết bị,
+đi thẳng đến thiết lập mật khẩu. Họ tên CCCD hiển thị in hoa không dấu, SĐT OTP
+được điền sẵn và cố định; chỉ sau khi API setup thành công mới hiện màn hoàn tất.
+API từ chối số khác SĐT đã xác thực. Tài khoản demo cũ vẫn dùng username cũ;
+nếu chưa có mật khẩu, sau quét mặt cần nhập đúng SĐT đã đăng ký để thiết lập.
+Hồ sơ giữ họ tên gốc có dấu. Lời chào chỉ nhớ họ tên, username/SĐT, mã tài khoản
+và hạn; mã hóa AES-GCM bằng khóa Android Keystore, không backup, không chứa
+mật khẩu/token/CCCD. Hint hết hạn bị bỏ khi đọc; mất khóa chỉ mất lời chào.
+Chỉ hiện lối quét mặt cho hint khớp tài khoản đã liên kết trên thiết bị.

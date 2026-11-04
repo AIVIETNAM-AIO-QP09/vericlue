@@ -95,6 +95,16 @@ import vn.vericlue.app.R
 import vn.vericlue.app.ui.theme.Palette
 import vn.vericlue.app.ui.theme.Vc
 import vn.vericlue.app.ui.theme.VcType
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import vn.vericlue.app.ui.theme.VcStage
 
 /** Sets status/navigation bar icon colour to match the screen background. */
 @Composable
@@ -192,8 +202,11 @@ fun VcScreen(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     SystemBarIcons(background)
+    val stage = background == Vc.colors.background
+    if (stage) Box(Modifier.fillMaxSize().stageBackground()) { StageAmbient() }
     BoxWithConstraints(
-        Modifier.fillMaxSize().background(background).statusBarsPadding().imePadding(),
+        Modifier.fillMaxSize().then(if (stage) Modifier else Modifier.background(background))
+            .statusBarsPadding().imePadding(),
         contentAlignment = Alignment.TopCenter,
     ) {
         // A fixed footer/keypad must never consume the entire reading viewport.
@@ -240,7 +253,8 @@ fun VcScreen(
 /** A quiet, fixed action area shared by the warm screens. */
 @Composable
 fun ActionPanel(navigationInset: Boolean = true, content: @Composable ColumnScope.() -> Unit) {
-    Surface(color = Vc.colors.surface, shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp), shadowElevation = 2.dp) {
+    Surface(color = Vc.colors.surface.copy(alpha = .94f), shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        border = BorderStroke(1.dp, Vc.colors.border)) {
         Column(
             Modifier.fillMaxWidth().then(if (navigationInset) Modifier.navigationBarsPadding() else Modifier)
                 .padding(horizontal = 24.dp, vertical = 16.dp),
@@ -284,15 +298,33 @@ fun PrimaryButton(
         else -> container
     }, motion.tween(), label = "button-color")
     val fg = c.buttonForeground(bg)
+    // Brand buttons carry the login CTA's gradient; other containers (bank green) stay solid.
+    val brand = container == c.primary && enabled && !pressed
+    val shine = if (motion.enabled && brand && !loading) {
+        rememberInfiniteTransition(label = "button-shine").animateFloat(-0.3f, 1.3f,
+            infiniteRepeatable(tween(1800, delayMillis = 2200, easing = LinearEasing)), label = "shine").value
+    } else null
     Button(
         onClick = onClick,
         enabled = enabled && !loading,
         modifier = modifier.fillMaxWidth().heightIn(min = 56.dp).scale(if (motion.enabled) scale else 1f)
+            .clip(CircleShape)
+            .drawBehind {
+                if (brand) drawRect(Brush.horizontalGradient(listOf(VcStage.cta, VcStage.ctaEnd)))
+            }
+            .drawWithContent {
+                drawContent()
+                shine?.let { p ->
+                    val x = size.width * p
+                    drawRect(Brush.linearGradient(listOf(Color.Transparent, Color.White.copy(alpha = .5f), Color.Transparent),
+                        start = Offset(x - 96.dp.toPx(), 0f), end = Offset(x, size.height)))
+                }
+            }
             .semantics { if (loading) { stateDescription = "Đang xử lý"; liveRegion = LiveRegionMode.Polite } },
         interactionSource = interactions,
         shape = CircleShape,
         colors = ButtonDefaults.buttonColors(
-            containerColor = bg,
+            containerColor = if (brand) Color.Transparent else bg,
             contentColor = fg,
             disabledContainerColor = bg,
             disabledContentColor = fg,
@@ -389,7 +421,9 @@ fun StatusBadge(icon: ImageVector?, tone: Tone? = null, spinning: Boolean = fals
         Tone.Warn -> c.warnBg to c.warn
         else -> c.surfaceInfo to c.accent
     }
-    Box(Modifier.size(96.dp).clip(CircleShape).background(bg), contentAlignment = Alignment.Center) {
+    // Neutral states wear the liveness ring; ok/warn keep a calm ring in their own tone.
+    val ring = if (tone == null) VcStage.ring else listOf(fg, fg.copy(alpha = .35f))
+    LivenessRing(active = tone == null, size = 136.dp, arc = ring, tick = c.border, disc = bg, glow = fg) {
         if (spinning && !Vc.motion.enabled) {
             CircularProgressIndicator(progress = { 0.75f }, color = fg, trackColor = fg.copy(alpha = 0.15f), strokeWidth = 3.dp, modifier = Modifier.size(44.dp))
         } else if (spinning) {

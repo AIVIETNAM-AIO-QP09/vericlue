@@ -200,8 +200,10 @@ def get_state(request: Request) -> Iterator[AppState]:
     # Serialize all session routes, so refresh/signals/GET cannot restore stale
     # counters while an upload commits. PostgreSQL already uses row locks.
     route_path = getattr(route, "path", "")
-    serialized_write = route_path == "/v1/sessions/{session_id}" or route_path.startswith(
-        "/v1/sessions/{session_id}/"
+    serialized_write = (
+        route_path == "/v1/sessions/{session_id}"
+        or route_path.startswith("/v1/sessions/{session_id}/")
+        or route_path.startswith("/v1/account-access/")
     )
     with root.transaction(
         lock_timeout_seconds=timeout,

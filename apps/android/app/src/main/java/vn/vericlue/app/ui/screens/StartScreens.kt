@@ -107,9 +107,13 @@ import vn.vericlue.app.ui.components.TitleBlock
 import vn.vericlue.app.ui.components.Tone
 import vn.vericlue.app.ui.components.VcLogo
 import vn.vericlue.app.ui.components.VcScreen
+import vn.vericlue.app.ui.components.LivenessRing
+import vn.vericlue.app.ui.components.StageAmbient
+import vn.vericlue.app.ui.components.stageBackground
 import vn.vericlue.app.ui.components.StatusBadge
 import vn.vericlue.app.ui.theme.Palette
 import vn.vericlue.app.ui.theme.Vc
+import vn.vericlue.app.ui.theme.VcStage
 import vn.vericlue.app.ui.theme.VcType
 
 // ── Host bank app (mock) ──────────────────────────────────────────────────────
@@ -139,11 +143,10 @@ fun BankStartScreen(onOpenAccount: () -> Unit, onGallery: () -> Unit, manualFull
 
 @Composable
 fun BankOpenedScreen(onDone: () -> Unit, manualFullDemo: Boolean = false, preview: Boolean = false) {
-    VcScreen(actions = { SampleAccount(); PrimaryButton("Vào ứng dụng", onDone) }) {
-        BankHeader()
-        Spacer(Modifier.height(56.dp))
+    VcScreen(centered = true, actions = { PrimaryButton("Vào ứng dụng", onDone) }) {
         SuccessBadge()
-        TitleBlock(if (preview) "Xem trước màn hoàn tất" else "Đã hoàn tất xác minh")
+        TitleBlock(if (preview) "Xem trước màn hoàn tất" else "Tài khoản đã sẵn sàng",
+            "Đăng nhập để xem hồ sơ và quản lý tài khoản của bạn.", centered = true)
         if (manualFullDemo) Banner("Demo · Ngưỡng chưa hiệu chỉnh", tone = Tone.Warn)
         if (preview) Banner("Xem trước giao diện · Không chạy AI", tone = Tone.Warn)
     }
@@ -172,8 +175,14 @@ fun SplashScreen(onDone: () -> Unit) {
         onDone()
     }
     SystemBarIcons(c.background)
-    Box(Modifier.fillMaxSize().background(c.background), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxSize().stageBackground(), contentAlignment = Alignment.Center) {
+        StageAmbient()
         Rings(c.illustration.copy(alpha = appear.value), Modifier.fillMaxSize())
+        // The liveness ring draws itself around the mark while the app starts.
+        Box(Modifier.alpha(appear.value)) {
+            LivenessRing(active = true, size = 260.dp, arc = VcStage.ring, tick = c.border, disc = Color.Transparent,
+                glow = c.accent) {}
+        }
         Column(
             Modifier.alpha(appear.value).scale(0.92f + 0.08f * appear.value),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -203,12 +212,11 @@ fun SplashScreen(onDone: () -> Unit) {
 // ── Sign in / sign up ─────────────────────────────────────────────────────────
 
 @Composable
-fun AuthScreen(onRegister: () -> Unit, onLogin: () -> Unit, onRecover: () -> Unit, manualFullDemo: Boolean = false, preview: Boolean = false) {
+fun AuthScreen(onRegister: () -> Unit, onLogin: () -> Unit, onRecover: () -> Unit, manualFullDemo: Boolean = false, preview: Boolean = false, onBack: (() -> Unit)? = null) {
     val c = Vc.colors
-    VcScreen(actions = {
+    VcScreen(onBack = onBack, actions = {
         PrimaryButton("Bắt đầu đăng ký", onRegister)
-        SecondaryButton("Đăng nhập", onLogin)
-        LinkButton("Khôi phục tài khoản", onRecover)
+        LinkButton("Đã có tài khoản? Đăng nhập", onLogin)
     }) {
         if (manualFullDemo) Banner("Demo · Ngưỡng chưa hiệu chỉnh", tone = Tone.Warn)
         if (preview) Banner("Xem trước giao diện · Không chạy AI", tone = Tone.Warn)

@@ -1,6 +1,6 @@
 import * as THREE from './vendor/three.module.min.js';
 
-export const SCENES = Object.freeze(['card', 'face', 'eyes', 'turn', 'voice', 'privacy', 'success']);
+export const SCENES = Object.freeze(['card', 'face', 'eyes', 'turn', 'voice', 'privacy', 'success', 'backdrop']);
 const clamp = value => Math.max(0, Math.min(1, value));
 const ease = value => 1 - Math.pow(1 - clamp(value), 3);
 const smooth = value => { const p = clamp(value); return p * p * (3 - 2 * p); };
@@ -130,6 +130,44 @@ export function createIllustration(mode, dark) {
       }
       sparks.instanceMatrix.needsUpdate = true;
     };
+  } else if (mode === 'backdrop') {
+    // Full-screen login stage in screen units (width 3.65, y up). Always the navy stage palette.
+    // The broken ring repeats the four reflection-challenge colours; it is ornament, not a challenge.
+    orbitGroup.visible = false;
+    const glass = material(0x3f7ff0, 0.2, 0.16), deep = material(0x1d4fb8, 0.3, 0.24);
+    const pill = (w, h, d, surface, x, y, z, turn) => {
+      const p = plate(w, h, h / 2 - 0.03, d, surface, body, x, y, z); p.rotation.z = turn; return p;
+    };
+    const slabs = [
+      [pill(3.6, 1.05, 0.55, glass, 1.45, 3.55, -1.2, -0.42), [1.4, 0.9, 0]],
+      [pill(3.0, 0.95, 0.5, deep, -1.75, 1.75, -1.4, 0.36), [-1.3, -0.4, 0]],
+      [pill(2.4, 0.8, 0.45, glass, 1.75, -2.6, -1.2, 0.5), [1.0, -0.8, 0]],
+    ].map(([slab, from]) => ({ slab, from, x: slab.position.x, y: slab.position.y, turn: slab.rotation.z }));
+    // The identity card sits inside the liveness ring: the product in one image.
+    const card = plate(0.96, 0.6, 0.08, 0.05, ivory, body, 0.7, 2.5, 0.1);
+    plate(0.18, 0.13, 0.025, 0.012, gold, card, -0.28, 0.13, 0.055);
+    [0.46, 0.34].forEach((width, i) => plate(width, 0.04, 0.016, 0.005, silver, card, 0.1, -0.05 - i * 0.11, 0.055));
+    const ring = new THREE.Group(); body.add(ring); ring.position.set(0.7, 2.5, 0.2);
+    [0x3f86ff, 0xff7cc4, 0xffc94d, 0x3fd890].forEach((color, i) => {
+      const glow = keep(new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.12, metalness: 0.05, roughness: 0.4 }));
+      const arc = mesh(new THREE.TorusGeometry(0.72, 0.04, 10, 40, Math.PI / 2 - 0.2), glow, ring);
+      arc.rotation.z = i * Math.PI / 2 + 0.1;
+    });
+    // Slabs start off-stage; keep them drawable so GPU allocations match on every scene switch.
+    body.traverse(node => { node.frustumCulled = false; });
+    articulate = t => {
+      // Slabs glide in from off-stage, the card turns to face the viewer, the ring locks into place.
+      slabs.forEach(({ slab, from, x, y, turn }, i) => {
+        const p = arrive((t - i * 0.18) / 1.6);
+        slab.position.x = x + from[0] * (1 - p); slab.position.y = y + from[1] * (1 - p);
+        slab.rotation.z = turn + 0.25 * (1 - p);
+      });
+      const turnIn = ease((t - 0.45) / 1.4);
+      card.rotation.set(0.32 * (1 - turnIn) + 0.12, -0.9 * (1 - turnIn) - 0.28, -0.17);
+      card.position.y = 2.5 - 0.5 * (1 - turnIn);
+      ring.rotation.z = -1.6 * (1 - ease((t - 0.2) / 2.2));
+      ring.scale.setScalar(0.6 + 0.4 * arrive((t - 0.2) / 1.2));
+    };
   }
   // Small orbit markers add depth without textures, bloom passes or transparency stacks.
   [0.4, 2.5, 4.6].forEach((angle, i) => sphere(0.045, [gold, silver, blue][i], orbitGroup,
@@ -139,6 +177,7 @@ export function createIllustration(mode, dark) {
     pose(t, animate = true) {
       // All channels share an exact resting pose. Reduced motion skips the entrance entirely.
       const time = animate ? Math.max(0, Math.min(3, t)) : 3;
+      if (mode === 'backdrop') { articulate(time); return; }
       const enter = ease(time / 1.15), rest = smooth((time - 1.5) / 1.5);
       const face = ['face', 'eyes', 'turn'].includes(mode);
       const drift = Math.sin(time * 2.1) * (1 - rest);

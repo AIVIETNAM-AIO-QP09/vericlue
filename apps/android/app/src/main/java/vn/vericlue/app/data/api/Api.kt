@@ -235,6 +235,26 @@ class SessionApi(
     // Server inference can use 90.8s plus response/commit overhead. Share the
     // transport and retain ordinary timeouts; only the two inference calls wait longer.
     private val inferenceHttp = http.newBuilder().readTimeout(120, TimeUnit.SECONDS).build()
+    private val accountHttp = http.newBuilder().retryOnConnectionFailure(false)
+        .followRedirects(false).followSslRedirects(false).build()
+
+    suspend fun setupAccountAccess(sessionId: String, token: String, input: AccountAccessSetupRequest): ApiResult<AccountProfile> =
+        call(post(url("v1", "sessions", sessionId, "account-access", "setup"),
+            json.encodeToString(AccountAccessSetupRequest.serializer(), input).toRequestBody(JSON), token), accountAccess = true)
+
+    suspend fun loginWithPassword(username: String, password: String): ApiResult<AccountAccessSession> =
+        call(post(url("v1", "account-access", "password"),
+            json.encodeToString(AccountPasswordRequest.serializer(), AccountPasswordRequest(username, password)).toRequestBody(JSON), null), accountAccess = true)
+
+    suspend fun loginAfterFace(sessionId: String, token: String): ApiResult<AccountAccessSession> =
+        call(post(url("v1", "sessions", sessionId, "account-access", "face"), "{}".toRequestBody(JSON), token), accountAccess = true)
+
+    suspend fun accountProfile(token: String): ApiResult<AccountProfile> =
+        call(Request.Builder().url(url("v1", "account-access", "me"))
+            .header("Authorization", "Bearer $token").get().build(), accountAccess = true)
+
+    suspend fun logoutAccount(token: String): ApiResult<AccountLogoutResponse> =
+        call(post(url("v1", "account-access", "logout"), "{}".toRequestBody(JSON), token), accountAccess = true)
 
     /** [request] null = the old MVP session (no purpose, no dynamic schedule). */
     suspend fun createSession(mockScenario: String? = null, request: CreateSessionRequest? = null): ApiResult<CreateSessionResponse> {
@@ -351,10 +371,16 @@ class SessionApi(
             if (mockScenario != null) header("X-Mock-Scenario", mockScenario)
         }.build()
 
-    private suspend inline fun <reified T> call(request: Request, inference: Boolean = false): ApiResult<T> = withContext(Dispatchers.IO) {
+    private suspend inline fun <reified T> call(request: Request, inference: Boolean = false, accountAccess: Boolean = false): ApiResult<T> = withContext(Dispatchers.IO) {
         try {
-            val client = if (inference) inferenceHttp else http
-            client.newCall(request).execute().use { res ->
+            val client = if (accountAccess) accountHttp else if (inference) inferenceHttp else http
+            val outgoing = if (accountAccess) request.newBuilder().header("Cache-Control", "no-store").build() else request
+            client.newCall(outgoing).execute().use { res ->
+                if (accountAccess) {
+                    val source = res.body?.source() ?: return@withContext ApiResult.Err(ApiError.BadResponse)
+                    source.request(65_537)
+                    if (source.buffer.size > 65_536) return@withContext ApiResult.Err(ApiError.BadResponse)
+                }
                 val text = res.body?.string().orEmpty()
                 if (!res.isSuccessful) {
                     val code = runCatching { json.decodeFromString(ErrorResponse.serializer(), text).errorCode }.getOrNull()

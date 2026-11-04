@@ -35,6 +35,11 @@ object Routes {
     const val Gallery = "gallery"
 
     const val Splash = "splash"
+    const val Login = "login"
+    const val FaceLogin = "face_login"
+    const val CredentialSetup = "credential_setup"
+    const val AccountHome = "account_home"
+    const val AccountPrivacy = "account_privacy"
     const val Auth = "auth"
     /** Terms and per-item consent on one screen (short flow, 24/10). */
     const val Terms = "terms"
