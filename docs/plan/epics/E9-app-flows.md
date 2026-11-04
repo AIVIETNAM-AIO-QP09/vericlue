@@ -275,14 +275,59 @@ cứng. Xem `media-proof.md` và `account-authentication.md`.
 
 ### APP-01 ★ · App Kotlin: khung, API qua HTTPS, điều hướng 3 luồng
 
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M1 | 1,5 | S1 | P0 | PLAT-04 |
+
+**04/11 — review trước gộp PR141:** giữ username khi mở quét mặt để hủy hoặc
+đăng xuất vẫn đăng nhập mật khẩu được; đóng popup chỉ giải phóng camera,
+App giữ quyền xóa video khi ACK/hủy/bỏ lượt. Xoay master key thêm DEK hồ sơ
+account-access, khóa bảng và rollback nguyên tử. Chưa nghiệm thu các ca
+điều hướng/giữ file trên CameraX thật; không chạy xoay khóa trên kho thật.
+
+**04/11 — gộp lựa chọn theo yêu cầu tiếp theo:** màn điều khoản chỉ còn một
+ô tích tròn. Với đăng ký, câu đồng ý nêu cả xử lý xác minh và lưu mẫu mặt mã
+hóa trên máy chủ trong 24 giờ; tích/bỏ tích cập nhật đồng thời hai trạng thái
+UI. Biên nhận và kiểm quyền phía API vẫn tách riêng, không thay contract.
+Giữ chốt đọc đến cuối; xuất ảnh render các màn đã sửa bằng dữ liệu minh họa.
+
+**04/11 — chỉnh trình bày theo yêu cầu:** thông tin quyền riêng tư luôn mở,
+cuộn đến cuối mới được chọn ô tích tròn; hai lựa chọn xử lý/lưu mẫu độc lập
+và không tự được chấp nhận. Gửi dữ liệu dùng thanh chờ xanh không phần trăm,
+hỗ trợ giảm chuyển động. Bỏ nhãn demo/ngưỡng khỏi màn người dùng, giữ hạn
+24 giờ và cảnh báo preview không chạy AI. Không đổi consent API/version,
+ngưỡng/mode hay xác minh. Task giữ `doing`, còn nghiệm thu điện thoại.
+
+**03/11 — đăng nhập và hồ sơ (doing):** theo luồng người dùng xác nhận,
+logo → đăng nhập; Mở tài khoản → giới thiệu xác minh. Sau đăng ký/khôi phục,
+thiết lập tên đăng nhập/mật khẩu và đồng ý lưu hồ sơ; Vào ứng dụng quay lại
+đăng nhập. Thêm contract/API account-access, hồ sơ mã hóa, token có hạn và
+thu hồi; quét mặt thụ động dùng đầy đủ kiểm tra hiện có, không bỏ xác minh.
+Giữ hạn tài khoản 24 giờ, phiên hồ sơ tối đa 15 phút. Hồ sơ chỉ có dữ liệu thật
+được API cung cấp; không có tài khoản ngân hàng/số dư mẫu. Chưa đánh dấu done
+trước nghiệm thu trên điện thoại. Chi tiết tại bàn giao APP-01 ngày 03/11.
+
+**03/11 tối — quét tại màn đăng nhập:** dùng một hộp consent/camera/đang xử lý,
+giữ preview cố định và bỏ yêu cầu khớp oval cho reauth. Dùng lại cổng đủ mặt,
+frame mới, tư thế, độ sáng, hold và timeline 3 giây; chỉ server cấp quyền mở hồ sơ.
+Giữ đăng ký/khôi phục và mọi model/ngưỡng. Cần nghiệm thu tốc độ trên máy thật.
+
+**03/11 — tách trạng thái chờ:** quét inline bỏ chờ chuyển cảnh 600 ms sau khi
+preview đã qua hold. Giữ preview đến khi CameraX finalize và snapshot metadata,
+sau đó tắt camera và hiện vòng chờ trên Login đến kết quả API. Không rút clip
+3 giây hoặc hold 1 giây; mục tiêu dưới 1 giây chưa đạt với phương thức hiện tại.
+
+**03/11 — thiết lập sau eKYC:** chuyển trực tiếp từ pass + đã lưu thiết bị sang
+đặt mật khẩu; username mới là SĐT đã qua OTP, server đối chiếu tài khoản/phiên.
+Họ tên chỉ đổi hiển thị in hoa không dấu, giữ dữ liệu gốc. Sau setup thành công
+mới tới màn hoàn tất. Nhớ lời chào tối thiểu bằng AES-GCM/Android Keystore,
+giữ hạn tài khoản và kiểm mã tài khoản trước cho đăng nhập mặt. Legacy username
+vẫn được đăng nhập; chưa đánh dấu done khi chưa nghiệm thu trên điện thoại.
+
 **02/11 — đang thử S24 FE:** APK0.3.0 đã cài và API/ADB hoạt động. Chưa nghiệm
 thu đăng ký: lượt đầu `review` ở gaze; phát hiện và sửa thiếu challenge binding
 trong bước trích template enrollment, có regression dùng validator production.
 Không nới ngưỡng; tiếp tục thử lại và nghiệm thu ba luồng sau triển khai.
-
-| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
-|---|---|---|---|---|
-| M1 | 1,5 | S1 | P0 | PLAT-04 |
 
 **01/11 — chuẩn bị thử điện thoại 02/11 (doing):** source
 `7904d7092baaa338f06351688286c1f4dc440ea0`, gói riêng

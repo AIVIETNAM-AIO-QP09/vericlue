@@ -88,6 +88,14 @@ import vn.vericlue.app.security.AndroidAccountKeys
 import vn.vericlue.app.data.api.ColorEvent
 import vn.vericlue.app.capture.FaceTimeline
 import vn.vericlue.app.data.api.SessionApi
+import vn.vericlue.app.data.api.AccountAccessSession
+import vn.vericlue.app.data.api.AccountAccessSetupRequest
+import vn.vericlue.app.data.api.ApiResult
+import vn.vericlue.app.flow.AccountAccessRules
+import vn.vericlue.app.ui.screens.LoginScreen
+import vn.vericlue.app.ui.screens.CredentialSetupScreen
+import vn.vericlue.app.ui.screens.AccountHomeScreen
+import vn.vericlue.app.ui.screens.AccountHomeData
 import vn.vericlue.app.flow.FramingState
 import vn.vericlue.app.flow.OtpRules
 import vn.vericlue.app.flow.LiveFlow
@@ -162,9 +170,10 @@ private const val DEBUG_SAMPLE_QR = "001095012345|123456789|Nguyễn Văn A|0101
 
 private fun NavHostController.go(route: String) = navigate(route) { launchSingleTop = true }
 
-/** Leaves the VeriClue flow and returns to the mock bank app. */
-private fun NavHostController.toBank() = navigate(Routes.BankStart) {
-    popUpTo(Routes.BankStart) { inclusive = true }
+/** Clear protected destinations so Back never reopens an authenticated profile. */
+private fun NavHostController.toBank() = navigate(Routes.Login) {
+    popUpTo(graph.id) { inclusive = true }
+    launchSingleTop = true
 }
 
 private fun granted(context: Context, permission: String) =
@@ -183,12 +192,36 @@ fun VeriClueApp() {
     val accounts = remember {
         AccountStore(PrefsStore(context.applicationContext.getSharedPreferences("vericlue.account", Context.MODE_PRIVATE)))
     }
+    val loginHint = remember {
+        context.applicationContext.getSharedPreferences("vericlue.login", Context.MODE_PRIVATE)
+            .edit().remove(vn.vericlue.app.data.LoginHint.KEY).apply()
+        vn.vericlue.app.data.LoginHint(vn.vericlue.app.data.EncryptedStore(
+            PrefsStore(context.applicationContext.getSharedPreferences("vericlue.login.secure", Context.MODE_PRIVATE)),
+            { vn.vericlue.app.security.loginHintKey() },
+        ))
+    }
+    var rememberedUsername by remember { mutableStateOf<String?>(null) }
+    var rememberedFullName by remember { mutableStateOf<String?>(null) }
+    var rememberedAccountId by remember { mutableStateOf<String?>(null) }
     val accountFlow = remember {
         AccountFlow(accounts, AndroidAccountKeys(), BuildConfig.SIGNED_MEDIA,
             warn = { Log.w("VeriClue", it) })
     }
     var accountEntry by remember { mutableStateOf<AccountEntry?>(null) }
     var restoredAccount by remember { mutableStateOf<vn.vericlue.app.data.StoredAccount?>(null) }
+    // Credentials, profile and access bearer are memory-only; never rememberSaveable or log them.
+    var access by remember { mutableStateOf<AccountAccessSession?>(null) }
+    var accessGeneration by remember { mutableStateOf(0L) }
+    var loginUsername by remember { mutableStateOf("") }
+    var loginPassword by remember { mutableStateOf("") }
+    var setupUsername by remember { mutableStateOf("") }
+    var setupPassword by remember { mutableStateOf("") }
+    var setupConfirmation by remember { mutableStateOf("") }
+    var profileConsent by remember { mutableStateOf(false) }
+    var accessError by remember { mutableStateOf<String?>(null) }
+    var loginNotice by remember { mutableStateOf<String?>(null) }
+    var credentialsReady by remember { mutableStateOf(false) }
+    var quickFaceLoginOpen by remember { mutableStateOf(false) }
     val recorder = remember { WavRecorder() }
     val activeMuxedCapture = remember { AtomicReference<MuxedVoiceCapture?>(null) }
     var hasCamera by remember { mutableStateOf(granted(context, Manifest.permission.CAMERA)) }
@@ -247,6 +280,13 @@ fun VeriClueApp() {
 
     /** Every auth choice starts a fresh session, including when returning from OTP with Back. */
     fun enterAccount(requested: Purpose) = once {
+        val generation = ++accessGeneration
+        loginPassword = ""
+        setupPassword = ""
+        setupConfirmation = ""
+        profileConsent = false
+        accessError = null
+        credentialsReady = false
         activeMuxedCapture.get()?.cancel()
         camera.unbind()
         camera.deleteVideo()
@@ -260,18 +300,41 @@ fun VeriClueApp() {
         phone = ""
         otpError = null
         accountEntry = null
+        if (requested == Purpose.Reauth && (!flow.live || !BuildConfig.SIGNED_MEDIA ||
+                withContext(Dispatchers.IO) { accounts.load() } == null)) {
+            if (generation == accessGeneration) {
+                loginNotice = "Hãy đăng ký tài khoản trên điện thoại này trước khi dùng đăng nhập khuôn mặt."
+                nav.toBank()
+            }
+            return@once
+        }
         val entry = if (flow.live) withContext(Dispatchers.IO) {
             runCatching { accountFlow.begin(requested) }.getOrNull()
         } else null
+        if (generation != accessGeneration) return@once
         if (flow.live && entry == null) {
             nav.go(Routes.ErrorService)
+            return@once
+        }
+        if (requested == Purpose.Reauth && entry?.route == Routes.RecoveryRequired) {
+            nav.go(Routes.RecoveryRequired)
+            return@once
+        }
+        if (requested == Purpose.Reauth && (!flow.live || entry?.purpose != Purpose.Reauth || entry?.previous == null)) {
+            loginNotice = "Hãy đăng ký tài khoản trên điện thoại này trước khi dùng đăng nhập khuôn mặt."
+            nav.toBank()
             return@once
         }
         flow.purpose = entry?.purpose ?: requested
         live = LiveFlow(api, mediaSigner = entry?.signer, enforcePrivacy = true).apply { bindAccount(entry?.previous) }
         accountEntry = entry
         entry?.hint?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
-        nav.go(entry?.route ?: if (requested == Purpose.Onboarding) Routes.Terms else Routes.Phone)
+        if (requested == Purpose.Reauth && entry?.route == Routes.Terms) {
+            quickFaceLoginOpen = true
+            return@once
+        }
+        nav.go(if (requested == Purpose.Reauth && entry?.route == Routes.Terms) Routes.FaceLogin
+            else entry?.route ?: if (requested == Purpose.Onboarding) Routes.Terms else Routes.Phone)
     }
 
     /** One continuous card scan. A retry never joins evidence from different photos/cards. */
@@ -430,6 +493,18 @@ fun VeriClueApp() {
 
     /** Leaves the flow: camera off, session data dropped. */
     fun leave() {
+        accessGeneration++
+        quickFaceLoginOpen = false
+        val retiringToken = access?.accessToken
+        access = null
+        loginPassword = ""
+        setupPassword = ""
+        setupConfirmation = ""
+        setupUsername = ""
+        profileConsent = false
+        accessError = null
+        credentialsReady = false
+        if (retiringToken != null) scope.launch { api.logoutAccount(retiringToken) }
         activeMuxedCapture.get()?.cancel()
         camera.unbind()
         camera.deleteVideo()
@@ -444,6 +519,121 @@ fun VeriClueApp() {
         nav.toBank()
     }
 
+    suspend fun rememberProfile(profile: vn.vericlue.app.data.api.AccountProfile): Boolean {
+        val generation = accessGeneration
+        withContext(Dispatchers.IO) { loginHint.save(profile) }
+        if (generation != accessGeneration) return false
+        rememberedUsername = profile.username
+        rememberedFullName = profile.fullName
+        rememberedAccountId = profile.accountId
+        return true
+    }
+
+    suspend fun showAccount(value: AccountAccessSession) {
+        if (!rememberProfile(value.profile)) { api.logoutAccount(value.accessToken); return }
+        loginUsername = value.profile.username
+        quickFaceLoginOpen = false
+        camera.unbind()
+        camera.deleteVideo()
+        recorder.stop()
+        live.reset()
+        accountEntry = null
+        idFront = null
+        idBack = null
+        cccd = null
+        phone = ""
+        loginPassword = ""
+        setupPassword = ""
+        setupConfirmation = ""
+        accessError = null
+        loginNotice = null
+        access = value
+        nav.navigate(Routes.AccountHome) { popUpTo(nav.graph.id) { inclusive = true }; launchSingleTop = true }
+    }
+
+    fun loginPasswordAccount() = once {
+        accessError = null
+        val username = AccountAccessRules.username(loginUsername)
+        val password = loginPassword
+        if (!AccountAccessRules.validUsername(username) || !AccountAccessRules.validPassword(password)) {
+            accessError = "Vui lòng nhập tên đăng nhập và mật khẩu đã thiết lập."
+            return@once
+        }
+        val generation = ++accessGeneration
+        val result = api.loginWithPassword(username, password)
+        if (generation != accessGeneration) {
+            if (result is ApiResult.Ok) api.logoutAccount(result.value.accessToken)
+            return@once
+        }
+        loginPassword = ""
+        when (result) {
+            is ApiResult.Err -> accessError = AccountAccessRules.error(result)
+            is ApiResult.Ok -> if (AccountAccessRules.sessionValid(result.value, "password", username)) {
+                showAccount(result.value)
+            } else {
+                api.logoutAccount(result.value.accessToken)
+                accessError = "Phản hồi đăng nhập chưa hợp lệ. Vui lòng thử lại."
+            }
+        }
+    }
+
+    fun refreshAccount() = once {
+        val current = access ?: return@once
+        val generation = accessGeneration
+        when (val result = api.accountProfile(current.accessToken)) {
+            is ApiResult.Err -> if (generation == accessGeneration && access?.accessToken == current.accessToken) {
+                if (result.error in setOf(vn.vericlue.app.data.api.ApiError.Unauthorized, vn.vericlue.app.data.api.ApiError.Expired)) {
+                    leave(); loginNotice = "Phiên đăng nhập đã kết thúc. Vui lòng đăng nhập lại."
+                } else accessError = AccountAccessRules.error(result)
+            }
+            is ApiResult.Ok -> if (generation == accessGeneration && access?.accessToken == current.accessToken) {
+                if (AccountAccessRules.profileValid(result.value) && AccountAccessRules.sameProfile(current.profile, result.value)) {
+                    access = current.copy(profile = result.value); accessError = null
+                } else { leave(); loginNotice = "Không thể tiếp tục phiên đăng nhập này." }
+            }
+        }
+    }
+
+    fun saveCredentials() = once {
+        val current = live.session
+        val expectedAccount = live.accountReceipt ?: live.boundAccount
+        val username = AccountAccessRules.username(setupUsername)
+        accessError = null
+        if (current == null || expectedAccount == null || !flow.live) {
+            accessError = "Vui lòng xác minh tài khoản trước khi thiết lập đăng nhập."; return@once
+        }
+        if (!Regex("0[0-9]{9}").matches(username)) {
+            accessError = "Vui lòng sử dụng số điện thoại 10 chữ số đã xác minh."; return@once
+        }
+        if (!AccountAccessRules.validPassword(setupPassword) || setupPassword != setupConfirmation) {
+            accessError = "Mật khẩu cần 12–128 ký tự và hai lần nhập phải khớp nhau."; return@once
+        }
+        if (!profileConsent) { accessError = "Vui lòng xác nhận lựa chọn lưu hồ sơ để tiếp tục."; return@once }
+        val generation = accessGeneration
+        when (val result = api.setupAccountAccess(current.sessionId, current.token,
+            AccountAccessSetupRequest(username, setupPassword, profileConsent, "account-profile-v1"))) {
+            is ApiResult.Err -> if (generation == accessGeneration) {
+                if (result.code in setOf("account_setup_conflict", "account_already_configured")) {
+                    leave(); loginUsername = username
+                    loginNotice = "Tài khoản đã có thông tin đăng nhập. Hãy dùng mật khẩu đã chọn hoặc đăng nhập khuôn mặt."
+                } else accessError = AccountAccessRules.error(result)
+            }
+            is ApiResult.Ok -> if (generation == accessGeneration) {
+                if (!AccountAccessRules.profileValid(result.value) || result.value.accountId != expectedAccount.accountId ||
+                    result.value.username != username || result.value.evaluationMode != current.evaluationMode ||
+                    result.value.demoPolicyId != current.demoPolicyId) {
+                    accessError = "Thông tin tài khoản chưa khớp. Vui lòng thử lại."
+                } else {
+                    if (!rememberProfile(result.value)) return@once
+                    loginUsername = username
+                    setupPassword = ""; setupConfirmation = ""
+                    credentialsReady = true
+                    nav.navigate(Routes.BankOpened) { popUpTo(Routes.CredentialSetup) { inclusive = true } }
+                }
+            }
+        }
+    }
+
     fun follow(next: Next) {
         if (live.privacy.stopping) return
         if (flow.live && live.session == null) return
@@ -453,6 +643,36 @@ fun VeriClueApp() {
         }
         if (FlowRules.closesCameraOnResult(route)) camera.unbind()
         nav.navigate(route) { popUpTo(Routes.Uploading) { inclusive = true } }
+    }
+
+    suspend fun completeAccountSubmission(next: Next, generation: Long) {
+        if (generation != accessGeneration) return
+        val finished = accountEntry?.let { accountFlow.finish(it, live, next) } ?: next
+        if (generation != accessGeneration) return
+        if (finished == Next.To(Routes.Success) && flow.purpose == Purpose.Reauth) {
+            camera.unbind()
+            val current = live.session
+            val generation = accessGeneration
+            if (current == null) follow(Next.Fail(vn.vericlue.app.data.api.ApiError.BadResponse))
+            else when (val result = api.loginAfterFace(current.sessionId, current.token)) {
+                is ApiResult.Err -> if (generation == accessGeneration) {
+                    if (result.code == "account_setup_required") {
+                        accessError = null
+                        setupUsername = ""; setupPassword = ""; setupConfirmation = ""; profileConsent = false
+                        nav.navigate(Routes.CredentialSetup) { popUpTo(Routes.Uploading) { inclusive = true } }
+                    } else {
+                        leave(); accessError = AccountAccessRules.error(result)
+                    }
+                }
+                is ApiResult.Ok -> if (generation == accessGeneration) {
+                    if (AccountAccessRules.sessionValid(result.value, "face", binding = live.accountBinding)) showAccount(result.value)
+                    else {
+                        api.logoutAccount(result.value.accessToken)
+                        leave(); accessError = "Phản hồi đăng nhập chưa hợp lệ. Vui lòng thử lại."
+                    }
+                } else api.logoutAccount(result.value.accessToken)
+            }
+        } else follow(finished)
     }
 
     /** Retry only unsubmitted local media; retain the server's current phrase and challenge id. */
@@ -598,12 +818,52 @@ fun VeriClueApp() {
     val backStack by nav.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
     LaunchedEffect(currentRoute) {
-        if (currentRoute in setOf(Routes.BankStart, Routes.Auth)) {
+        if (currentRoute in setOf(Routes.BankStart, Routes.Auth, Routes.Login, Routes.FaceLogin)) {
             restoredAccount = withContext(Dispatchers.IO) { accounts.load() }
+            val profile = withContext(Dispatchers.IO) { loginHint.profile() }
+            val hint = withContext(Dispatchers.IO) { loginHint.load() }
+            rememberedFullName = profile?.fullName
+            rememberedAccountId = profile?.accountId
+            if (hint != rememberedUsername) {
+                rememberedUsername = hint
+                if (hint != null && loginUsername.isEmpty()) loginUsername = hint
+            }
+        }
+    }
+    LaunchedEffect(access?.accessToken) {
+        val current = access ?: return@LaunchedEffect
+        val deadline = AccountAccessRules.instant(current.expiresAt)
+        val remaining = deadline?.toEpochMilli()?.minus(System.currentTimeMillis()) ?: 0L
+        if (remaining > 0) delay(remaining)
+        if (access?.accessToken == current.accessToken) {
+            leave(); loginNotice = "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại."
         }
     }
     DisposableEffect(lifecycleOwner, currentRoute) {
         val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                if (quickFaceLoginOpen) {
+                    leave(); loginNotice = "Lượt đăng nhập đã dừng. Vui lòng thử lại."
+                    return@LifecycleEventObserver
+                }
+                // Invalidate in-flight access replies before clearing secrets or hiding the profile.
+                if (currentRoute in setOf(Routes.Login, Routes.Auth, Routes.FaceLogin, Routes.CredentialSetup) || access != null)
+                    accessGeneration++
+                loginPassword = ""; setupPassword = ""; setupConfirmation = ""
+                if (currentRoute == Routes.CredentialSetup && busy) {
+                    leave()
+                    loginNotice = "Thiết lập có thể đã hoàn tất. Hãy dùng mật khẩu đã chọn hoặc đăng nhập khuôn mặt."
+                    return@LifecycleEventObserver
+                }
+                if (access != null) {
+                    leave(); loginNotice = "Vui lòng đăng nhập lại để tiếp tục."
+                    return@LifecycleEventObserver
+                }
+                if (flow.purpose == Purpose.Reauth && currentRoute == Routes.Uploading) {
+                    leave(); loginNotice = "Lượt đăng nhập đã dừng. Vui lòng thử lại."
+                    return@LifecycleEventObserver
+                }
+            }
             // Act on ON_STOP itself: the activity may be recreated before it starts again.
             if (event == Lifecycle.Event.ON_STOP && FlowRules.isInterruptedBy(currentRoute)) {
                 activeMuxedCapture.get()?.cancel()
@@ -625,7 +885,7 @@ fun VeriClueApp() {
     CompositionLocalProvider(LocalCameraFeed provides cameraFeed) {
     NavHost(
         navController = nav,
-        startDestination = Routes.BankStart,
+        startDestination = Routes.Splash,
         enterTransition = {
             if (motion.screenTransition(initialState.destination.route, targetState.destination.route))
                 fadeIn(motion.tween(250)) + slideInHorizontally(motion.tween(250)) { it / 16 }
@@ -652,24 +912,102 @@ fun VeriClueApp() {
                 manualFullDemo = restoredAccount?.manualFullDemo == true, preview = !flow.live)
         }
         composable(Routes.BankOpened) {
-            BankOpenedScreen(onDone = { leave() }, manualFullDemo = flow.live && live.manualFullDemo,
-                preview = !flow.live || live.session == null)
+            BackHandler { leave() }
+            if (flow.live && !credentialsReady) {
+                LaunchedEffect(Unit) { leave() }
+            } else BankOpenedScreen(onDone = {
+                leave(); loginNotice = "Thiết lập hoàn tất. Bạn có thể đăng nhập ngay."
+            }, manualFullDemo = flow.live && live.manualFullDemo, preview = !flow.live || live.session == null)
         }
         composable(Routes.Gallery) { GalleryScreen(nav, flow) }
 
         // Start
         composable(Routes.Splash) {
             SplashScreen(onDone = {
-                nav.navigate(Routes.Auth) { popUpTo(Routes.Splash) { inclusive = true } }
+                nav.navigate(Routes.Login) { popUpTo(Routes.Splash) { inclusive = true } }
             })
         }
+        composable(Routes.Login) {
+            LoginScreen(
+                username = loginUsername, password = loginPassword,
+                onUsernameChange = { loginUsername = it.take(32); accessError = null },
+                onPasswordChange = { loginPassword = it.take(256); accessError = null },
+                onPasswordLogin = ::loginPasswordAccount,
+                onFaceLogin = { loginPassword = ""; enterAccount(Purpose.Reauth) },
+                onRegister = { accessError = null; loginPassword = ""; nav.go(Routes.Auth) },
+                onRecovery = { loginPassword = ""; enterAccount(Purpose.Recovery) },
+                busy = busy, error = accessError, notice = loginNotice,
+                rememberedUsername = rememberedUsername,
+                rememberedFullName = rememberedFullName,
+                faceAvailable = restoredAccount != null &&
+                    (rememberedUsername == null || rememberedAccountId == restoredAccount?.receipt?.accountId),
+                manualFullDemo = restoredAccount?.manualFullDemo == true,
+            )
+        }
+        composable(Routes.FaceLogin) {
+            // Legacy retry destinations re-enter the same inline login flow.
+            LaunchedEffect(Unit) { nav.toBank(); enterAccount(Purpose.Reauth) }
+        }
+        composable(Routes.CredentialSetup) {
+            BackHandler { if (!busy) leave() }
+            if (!flow.live || live.session == null) {
+                LaunchedEffect(Unit) { leave() }
+            } else CredentialSetupScreen(
+                username = setupUsername, password = setupPassword, confirmation = setupConfirmation,
+                onUsernameChange = { setupUsername = it.filter { c -> c in '0'..'9' }.take(10); accessError = null },
+                onPasswordChange = { setupPassword = it.take(256); accessError = null },
+                onConfirmationChange = { setupConfirmation = it.take(256); accessError = null },
+                profileConsent = profileConsent, onProfileConsentChange = { profileConsent = it },
+                onSave = ::saveCredentials, onBack = { if (!busy) leave() },
+                busy = busy, error = accessError, manualFullDemo = live.manualFullDemo,
+                fullName = live.idFields?.fullName,
+                phoneLocked = Regex("0[0-9]{9}").matches(phone),
+                recovery = flow.purpose == Purpose.Recovery,
+            )
+        }
+        composable(Routes.AccountHome) {
+            BackHandler { leave() }
+            val profile = access?.profile
+            if (profile == null || !AccountAccessRules.profileValid(profile)) {
+                LaunchedEffect(Unit) { leave() }
+            } else AccountHomeScreen(
+                profile = AccountHomeData(
+                    fullName = profile.fullName, username = profile.username, accountId = profile.accountId,
+                    maskedIdentityNumber = profile.maskedIdNumber,
+                    createdAt = AccountAccessRules.displayDate(profile.createdAt),
+                    expiresAt = AccountAccessRules.displayDate(profile.expiresAt),
+                    manualFullDemo = profile.evaluationMode == "manual_full_demo",
+                ),
+                onLogout = { leave(); loginNotice = "Bạn đã đăng xuất." },
+                onPrivacy = { nav.go(Routes.AccountPrivacy) },
+                onRefresh = ::refreshAccount, busy = busy, error = accessError,
+            )
+        }
+        composable(Routes.AccountPrivacy) {
+            if (access == null) { LaunchedEffect(Unit) { leave() } }
+            else vn.vericlue.app.ui.components.VcScreen(onBack = { nav.popBackStack() }, actions = {
+                vn.vericlue.app.ui.components.PrimaryButton("Đã hiểu", { nav.popBackStack() })
+            }) {
+                vn.vericlue.app.ui.components.TitleBlock("Quyền riêng tư")
+                vn.vericlue.app.ui.components.ContentCard {
+                    Text("Hồ sơ tài khoản", style = VcType.section, color = Vc.colors.ink)
+                    Text("Tên đăng nhập, họ tên và số căn cước đã che được lưu mã hóa trong thời hạn tài khoản demo. Mật khẩu được băm, không lưu dưới dạng có thể đọc lại.", style = VcType.body, color = Vc.colors.ink)
+                    Text("Thời hạn", style = VcType.section, color = Vc.colors.ink)
+                    Text("Tài khoản demo có hiệu lực tối đa 24 giờ từ khi tạo. Phiên đăng nhập kết thúc sau tối đa 15 phút hoặc khi bạn đăng xuất.", style = VcType.body, color = Vc.colors.ink)
+                    Text("Đăng nhập khuôn mặt", style = VcType.section, color = Vc.colors.ink)
+                    Text("Camera chỉ được mở sau khi bạn chọn và đồng ý. Dữ liệu xác minh không dùng để huấn luyện AI. Bạn có thể dừng phiên bất kỳ lúc nào.", style = VcType.body, color = Vc.colors.ink)
+                }
+            }
+        }
         composable(Routes.Auth) {
+            BackHandler { leave() }
             AuthScreen(
                 onRegister = { enterAccount(Purpose.Onboarding) },
-                onLogin = { enterAccount(Purpose.Reauth) },
+                onLogin = { leave() },
                 onRecover = { enterAccount(Purpose.Recovery) },
                 manualFullDemo = restoredAccount?.manualFullDemo == true,
                 preview = !flow.live,
+                onBack = { leave() },
             )
         }
         // Terms and consent on one screen; no intro or permission screen (short flow, 24/10).
@@ -811,7 +1149,11 @@ fun VeriClueApp() {
         composable(Routes.FaceReady) {
             // Skipping the flash must not skip the face part: stop here. Nothing reaches the server yet,
             // so the screen promises no review (question 14 in docs/can-chot.md).
-            FaceReadyScreen(onBack = { nav.popBackStack() }, onReady = ::startFace,
+            if (flow.live && flow.purpose == Purpose.Reauth) {
+                LaunchedEffect(Unit) {
+                    nav.navigate(Routes.FaceLogin) { popUpTo(Routes.FaceReady) { inclusive = true }; launchSingleTop = true }
+                }
+            } else FaceReadyScreen(onBack = { nav.popBackStack() }, onReady = ::startFace,
                 manualDemo = flow.live && (live.manualDemo || live.manualFullDemo),
                 usesLightChallenge = flow.purpose != Purpose.Reauth, onSkipFlash = {
                 camera.unbind()
@@ -887,6 +1229,7 @@ fun VeriClueApp() {
                 live = gate, auto = false, captureProgress = readiness,
                 hintOverride = if (preparingCamera) "Đang chuẩn bị camera…" else null,
                 onGuidePosition = { rect, _ -> guide = rect },
+                reauth = flow.purpose == Purpose.Reauth,
             )
         }
         composable(Routes.HoldStill) {
@@ -993,6 +1336,7 @@ fun VeriClueApp() {
         composable(Routes.Uploading) {
             if (flow.live) {
                 LaunchedEffect(Unit) {
+                    val requestGeneration = accessGeneration
                     val wav = live.pendingWav
                     // A retry comes back here; LiveFlow resends only what the server has not received.
                     val next = submitWithVideo(camera.finishedVideo()) { video ->
@@ -1011,9 +1355,8 @@ fun VeriClueApp() {
                             )
                         }
                     }
-                    // Finish account persistence while Uploading still owns the coroutine.
-                    // Success automatically advances; its destination must not own this work.
-                    follow(accountEntry?.let { accountFlow.finish(it, live, next) } ?: next)
+                    if (requestGeneration != accessGeneration) return@LaunchedEffect
+                    completeAccountSubmission(next, requestGeneration)
                 }
             }
             Messages.Uploading(onStop = exit, onDone = { nav.go(Routes.Checking) }, auto = !flow.live)
@@ -1026,9 +1369,19 @@ fun VeriClueApp() {
             })
         }
         composable(Routes.Success) {
-            SuccessScreen(
+            if (flow.live && flow.purpose != Purpose.Reauth && accountFlow.accountSaved) {
+                // Verification is complete; registration finishes only after password setup.
+                LaunchedEffect(live.session?.sessionId) {
+                    setupUsername = phone.takeIf { Regex("0[0-9]{9}").matches(it) }.orEmpty()
+                    setupPassword = ""; setupConfirmation = ""; profileConsent = false
+                    accessError = null
+                    nav.navigate(Routes.CredentialSetup) { popUpTo(Routes.Success) { inclusive = true } }
+                }
+            } else SuccessScreen(
                 flow.purpose,
-                onContinue = { if (flow.purpose == Purpose.Onboarding && (!flow.live || accountFlow.accountSaved)) nav.go(Routes.BankOpened) else leave() },
+                onContinue = {
+                    if (!flow.live) nav.go(Routes.BankOpened) else leave()
+                },
                 checked = if (flow.live) FlowRules.checkedByServer(live.voiceChecked) else null,
                 accountReady = if (flow.live && flow.purpose != Purpose.Reauth) accountFlow.accountSaved else null,
                 manualFullDemo = flow.live && live.manualFullDemo,
@@ -1155,6 +1508,49 @@ fun VeriClueApp() {
         composable(Routes.FlashSkipped) { Messages.FlashSkipped(onBank = { leave() }) }
         composable(Routes.Deny) { Messages.Denied(onBank = { leave() }) }
         composable(Routes.RecoveryRequired) { Messages.RecoveryRequired(onBank = { leave() }) }
+    }
+    if (quickFaceLoginOpen) {
+        val loginFlow = live
+        val generation = accessGeneration
+        vn.vericlue.app.ui.screens.QuickFaceLogin(camera, loginFlow, lifecycleOwner,
+            onPrepare = {
+                val error = if (generation != accessGeneration || loginFlow.boundAccount == null) vn.vericlue.app.data.api.ApiError.Expired
+                else loginFlow.ensureSession(flow.mockScenario, "reauth")
+                    ?: (if (loginFlow.privacy.permits("face_biometrics")) null
+                        else loginFlow.privacy.grant(Purpose.Reauth, PrivacyNotice.VERSION))
+                    ?: loginFlow.prepareFace(flow.mockScenario, "reauth")
+                error ?: if (loginFlow.challenge == null || loginFlow.challenge?.dynamic != null)
+                    vn.vericlue.app.data.api.ApiError.BadResponse else null
+            },
+            onSubmit = { onCaptureReleased ->
+                val recording = camera.finishedVideo()
+                val video = (recording as? vn.vericlue.app.capture.VideoResult.Ready)?.file
+                // Snapshot camera metadata before unbinding; do not keep the camera active
+                // while uploading or waiting for the server's authentication decision.
+                val frameTimes = camera.frameTimes()
+                val quality = camera.clientQuality(video)
+                val regions = camera.regionMeans().ifEmpty { null }
+                val probe = withContext(Dispatchers.IO) { camera.camProbe() }
+                camera.unbind()
+                onCaptureReleased()
+                val next = submitWithVideo(recording) { readyVideo ->
+                    loginFlow.submitFace(readyVideo, frameTimes, quality, probe,
+                        regions,
+                        onMediaAcked = { camera.deleteVideo(preserveDiagnostics = true) })
+                }
+                if (generation == accessGeneration) {
+                    completeAccountSubmission(next, generation)
+                    if (generation == accessGeneration) quickFaceLoginOpen = false
+                }
+            },
+            onCancel = {
+                // Keep the retiring session alive solely for withdrawal, including a pending refresh.
+                val abandoned = live
+                live = LiveFlow(api, enforcePrivacy = true)
+                leave()
+                scope.launch { if (abandoned.session != null) abandoned.privacy.withdraw() }
+            },
+        )
     }
     }
 }

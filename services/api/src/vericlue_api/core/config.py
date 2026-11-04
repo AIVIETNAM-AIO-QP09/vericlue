@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     account_template_policy_version: str = Field(
         default="account-template-v1", pattern=r"^[A-Za-z0-9._-]{1,64}$"
     )
+    account_access_enabled: bool = False
     api_cors_origins: str = "http://localhost:3000"
     use_mock_models: bool | Literal["mixed"] = True  # mixed: module có mô hình thật dùng thật
     router_profile: Literal["full", "mvp"] = "full"

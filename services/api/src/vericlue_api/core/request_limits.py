@@ -109,10 +109,17 @@ class RequestLimitsMiddleware:
         if root and (path == root or path.startswith(root + "/")):
             path = path[len(root) :]
         # Verifier requests are small JSON; bound bytes before body parsing/crypto.
+        account_access = path.startswith("/v1/account-access/") or (
+            path.startswith("/v1/sessions/") and "/account-access/" in path
+        )
         limit = (
-            min(self.max_bytes, CREDENTIAL_BODY_MAX_BYTES)
-            if path == "/v1/credentials" or path.startswith("/v1/credentials/")
-            else self.max_bytes
+            min(self.max_bytes, 4096)
+            if account_access
+            else (
+                min(self.max_bytes, CREDENTIAL_BODY_MAX_BYTES)
+                if path == "/v1/credentials" or path.startswith("/v1/credentials/")
+                else self.max_bytes
+            )
         )
         if lengths and int(lengths[0]) > limit:
             await self._reject(scope, receive, send, 413, "request_too_large")

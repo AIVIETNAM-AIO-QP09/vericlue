@@ -57,6 +57,7 @@ import androidx.compose.material.icons.outlined.VolumeOff
 import androidx.compose.material.icons.outlined.WifiOff
 import androidx.compose.material.icons.outlined.Dns
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import vn.vericlue.app.ui.components.Banner
@@ -80,6 +81,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
@@ -115,6 +120,10 @@ import vn.vericlue.app.ui.components.VcScreen
 import vn.vericlue.app.ui.theme.Palette
 import vn.vericlue.app.ui.theme.Vc
 import vn.vericlue.app.ui.theme.VcType
+import vn.vericlue.app.ui.components.LivenessRing
+import vn.vericlue.app.ui.components.ScanBeam
+import vn.vericlue.app.ui.theme.VcStage
+import androidx.compose.material.icons.outlined.Face
 
 // ── Voice (stage C) ──────────────────────────────────────────────────────────
 
@@ -257,9 +266,20 @@ fun CheckingScreen(purpose: Purpose, onDone: () -> Unit, auto: Boolean = true) {
         if (auto) { delay(2500); onDone() }
     }
     VcScreen(centered = true) {
-        StatusBadge(Icons.Outlined.HourglassEmpty)
+        AnalysisBadge()
         TitleBlock("Đang xác minh", "Bạn đã gửi yêu cầu. Vui lòng chờ phản hồi.", centered = true)
         ProcessingPanel("Đang xử lý yêu cầu", "Giữ ứng dụng mở và duy trì kết nối mạng. Kết quả sẽ xuất hiện khi hệ thống xử lý xong.")
+    }
+}
+
+/** Face inside the liveness ring with a sweeping beam: the server is analysing, no progress claimed. */
+@Composable
+private fun AnalysisBadge() {
+    LivenessRing(active = true, size = 168.dp, arc = VcStage.ring, disc = Vc.colors.surfaceInfo) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Icon(Icons.Outlined.Face, contentDescription = null, tint = Vc.colors.accent, modifier = Modifier.size(56.dp))
+            ScanBeam(Modifier.fillMaxSize())
+        }
     }
 }
 
@@ -269,9 +289,8 @@ fun CheckingScreen(purpose: Purpose, onDone: () -> Unit, auto: Boolean = true) {
 fun ManualDemoCompleteScreen(onDone: () -> Unit) {
     VcScreen(centered = true, actions = { PrimaryButton("Về màn hình chính", onDone) }) {
         SuccessBadge()
-        TitleBlock("Xác minh thành công", "Các bước AI đã thỏa ngưỡng thử nghiệm của bản demo.", centered = true)
-        Banner("Demo · Ngưỡng chưa hiệu chỉnh", tone = Tone.Warn)
-        Text("Kết quả phục vụ trình diễn, chưa dùng để mở tài khoản hoặc xác minh danh tính thực tế.", style = VcType.body, color = Vc.colors.ink)
+        TitleBlock("Xác minh thành công", "Các bước xác minh đã hoàn tất.", centered = true)
+        Text("Quay về màn hình chính để tiếp tục.", style = VcType.body, color = Vc.colors.ink)
     }
 }
 
@@ -295,7 +314,6 @@ fun SuccessScreen(
                 IdentityScene3D(Modifier.fillMaxWidth().height(168.dp), IllustrationScene.Success)
                 TitleBlock(if (preview) "Xem trước màn thành công" else "Xác minh thành công", centered = true)
             }
-            if (manualFullDemo) Banner("Demo · Ngưỡng chưa hiệu chỉnh", tone = Tone.Warn)
             if (preview) Banner("Xem trước giao diện · Không chạy AI", tone = Tone.Warn)
             if (accountReady == false) Text("Phiên xác minh đã hoàn tất. Tài khoản chưa được lưu trên thiết bị; bạn chưa thể dùng đăng nhập lại.", style = VcType.body, color = Vc.colors.ink)
             if (!checked.isNullOrEmpty()) ChecklistCard("Nội dung đã xác minh", checked.map { Triple(null, it, RowState.Done) })
@@ -424,9 +442,22 @@ object Messages {
             }
         }
         VcScreen(centered = true, actions = { SecondaryButton("Dừng xác minh", onStop) }) {
-            StatusBadge(Icons.Outlined.CloudUpload)
-            TitleBlock("Đang gửi dữ liệu", "Bước vừa thực hiện đang được gửi đi.", centered = true)
-            ProcessingPanel("Đang gửi, vui lòng chờ", "Giữ kết nối mạng trong khi ứng dụng gửi ảnh, video hoặc bản ghi. Bạn có thể dừng phiên bằng nút bên dưới.")
+            val c = Vc.colors
+            Box(Modifier.size(96.dp).clip(CircleShape).background(c.surfaceInfo)
+                .border(1.dp, c.accent.copy(alpha = .35f), CircleShape), contentAlignment = Alignment.Center) {
+                Icon(Icons.Outlined.CloudUpload, contentDescription = null, tint = c.accent, modifier = Modifier.size(40.dp))
+            }
+            TitleBlock("Đang gửi dữ liệu", "Vui lòng chờ trong giây lát.", centered = true, titleStyle = VcType.cameraTitle)
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                // No byte progress is available; never fabricate a percentage or a completed step.
+                if (Vc.motion.enabled) LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape),
+                    color = c.accent, trackColor = c.border,
+                ) else Box(Modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(c.border)
+                    .semantics { progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate })
+                Text("Giữ kết nối mạng để gửi ảnh, video và bản ghi của bạn.",
+                    style = VcType.bodySmall, color = c.muted, textAlign = TextAlign.Center)
+            }
         }
     }
 

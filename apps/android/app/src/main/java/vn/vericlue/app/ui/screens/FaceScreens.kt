@@ -8,6 +8,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -21,6 +22,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Face
@@ -43,6 +47,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -69,6 +82,7 @@ import androidx.compose.runtime.withFrameNanos
 import vn.vericlue.app.ui.components.ContentCard
 import vn.vericlue.app.ui.components.Banner
 import vn.vericlue.app.ui.components.FaceCaptureSurface
+import vn.vericlue.app.ui.components.faceGuideRect
 import vn.vericlue.app.ui.components.IdentityScene3D
 import vn.vericlue.app.ui.components.IllustrationScene
 import vn.vericlue.app.ui.components.FeatureRow
@@ -106,7 +120,6 @@ fun FaceReadyScreen(onBack: () -> Unit, onReady: () -> Unit, onSkipFlash: () -> 
         },
     ) {
         TitleBlock("Xác minh khuôn mặt", "Giữ điện thoại ngang tầm mắt.")
-        if (manualDemo) Banner("Chế độ trình diễn · Ngưỡng thử nghiệm, chưa hiệu chỉnh. Kết quả không dùng để xác minh danh tính.", tone = Tone.Warn)
         IdentityScene3D(Modifier.fillMaxWidth().height(132.dp), IllustrationScene.Face)
         ContentCard {
             FeatureRow(Icons.Outlined.WbSunny, "Chọn nơi đủ sáng")
@@ -168,6 +181,7 @@ fun FramingScreen(
     captureProgress: Float = 0f,
     hintOverride: String? = null,
     onGuidePosition: ((Rect, Size) -> Unit)? = null,
+    reauth: Boolean = false,
 ) {
     var demo by remember { mutableStateOf(start) }
     LaunchedEffect(auto, live == null) {
@@ -183,7 +197,8 @@ fun FramingScreen(
     }
     val state = live ?: demo
     FaceCaptureSurface(
-        title = "Đưa mặt vào khung", onStop = onExit,
+        title = if (reauth) "Đăng nhập khuôn mặt" else "Đưa mặt vào khung", onStop = onExit,
+        reauth = reauth,
         hint = hintOverride ?: when (state) {
             FramingState.NoFace -> "Nhìn thẳng vào camera"
             FramingState.LowLight -> "Chọn nơi đủ sáng"
@@ -464,10 +479,14 @@ fun FaceTimelineScreen(
     faceSignal: () -> FaceSignal? = { face },
     onIncomplete: (FaceAttemptIssue) -> Unit = { onNoRecording() },
     debugTrace: vn.vericlue.app.capture.PresenceDebugTrace? = null,
+    captureContent: (@Composable (Float) -> Unit)? = null,
+    previewAlreadyStable: Boolean = false,
 ) {
     val speech = if (timeline.headTurns.isNotEmpty()) vn.vericlue.app.ui.components.rememberHeadSpeech() else null
+    val passive = timeline.isPassiveLogin
     var phase by remember { mutableStateOf<FaceTimeline.Phase>(FaceTimeline.Phase.Colour(0)) }
     var actionProgress by remember { mutableStateOf(0f) }
+    var captureProgress by remember { mutableStateOf(0f) }
     var headFeedback by remember { mutableStateOf<HeadCaptureState?>(null) }
     var observedFace by remember { mutableStateOf(face) }
     var recordingOriginMs by remember { mutableStateOf<Double?>(null) }
@@ -476,7 +495,9 @@ fun FaceTimelineScreen(
     val currentSignal by rememberUpdatedState(faceSignal)
     val incomplete by rememberUpdatedState(onIncomplete)
     LaunchedEffect(Unit) {
-        delay(SETTLE_MS) // let the preview settle before recording (see HoldStillScreen)
+        // Inline passive login keeps the same preview and has already passed StableFaceGate.
+        // Other flows still need the transition delay (see HoldStillScreen).
+        if (!passive || !previewAlreadyStable) delay(SETTLE_MS)
         onStart()
         var t0: Double? = null
         kotlinx.coroutines.withTimeoutOrNull(3000) {
@@ -498,6 +519,8 @@ fun FaceTimelineScreen(
         while (true) {
             val nowMs = withFrameNanos { CaptureClock.frameNanosToMs(it) }
             val t = nowMs - start
+            // Recording time only: capture completion is never an authentication verdict.
+            if (passive) captureProgress = (t / timeline.endMs.coerceAtLeast(1)).toFloat().coerceIn(0f, 1f)
             val signal = currentSignal()
             val observedNow = android.os.SystemClock.elapsedRealtime()
             val headState = if (adaptive != null && t >= timeline.headStartMs)
@@ -573,8 +596,9 @@ fun FaceTimelineScreen(
     val stop = { speech?.stop(); onStop() }
     BackHandler(onBack = stop)
     FullBrightness(enabled = true)
-    FaceChallengeContent(timeline, phase, remainingSeconds, observedFace, debugTrace, recordingOriginMs,
-        speech, actionProgress, headFeedback, stop)
+    if (captureContent != null) captureContent(captureProgress)
+    else FaceChallengeContent(timeline, phase, remainingSeconds, observedFace, debugTrace, recordingOriginMs,
+        speech, actionProgress, headFeedback, captureProgress = captureProgress, onStop = stop)
 }
 
 /** Shared presentation, independently snapshot-tested without opening a camera or starting work. */
@@ -602,8 +626,10 @@ fun FaceChallengeContent(
     speech: vn.vericlue.app.capture.HeadSpeech? = null,
     actionProgress: Float = 0f,
     headFeedback: HeadCaptureState? = null,
+    captureProgress: Float = 0f,
     onStop: () -> Unit,
 ) {
+    val passive = timeline.isPassiveLogin
     val colour = (phase as? FaceTimeline.Phase.Colour)?.let { timeline.slots[it.slot] }
     val gaze = phase as? FaceTimeline.Phase.Gaze
     val head = phase as? FaceTimeline.Phase.Head
@@ -616,6 +642,7 @@ fun FaceChallengeContent(
     val light = colour != null || phase == FaceTimeline.Phase.Gap || gaze != null
     FaceCaptureSurface(
         title = when {
+            passive -> "Đăng nhập khuôn mặt"
             timed != null -> timed.title
             head != null && adaptiveCue != null -> adaptiveCue.text
             gaze != null -> "Nhìn theo chấm"
@@ -623,16 +650,22 @@ fun FaceChallengeContent(
             head?.dir == TurnDir.Right -> "Quay sang phải"
             else -> "Giữ yên, nhìn thẳng"
         },
-        hint = if (gaze != null) "Giữ đầu yên, chỉ di chuyển mắt" else "Giữ nguyên vị trí điện thoại",
-        onStop = onStop, light = light,
+        hint = when {
+            passive -> "Giữ yên, nhìn thẳng vào camera"
+            gaze != null -> "Giữ đầu yên, chỉ di chuyển mắt"
+            else -> "Giữ nguyên vị trí điện thoại"
+        },
+        onStop = onStop, light = light, reauth = passive,
         background = colour?.let { Color(ColorSchedule.parse(it.rgb)) } ?: if (light) Color.White else Palette.CameraBg,
-        progress = (phase as? FaceTimeline.Phase.Colour)?.let { (it.slot + 1f) / timeline.slots.size.coerceAtLeast(1) },
+        progress = if (passive) captureProgress else
+            (phase as? FaceTimeline.Phase.Colour)?.let { (it.slot + 1f) / timeline.slots.size.coerceAtLeast(1) },
         direction = head?.dir, gaze = gaze?.let { Offset(it.x.toFloat(), it.y.toFloat()) },
         headGuidance = head != null, actionProgress = actionProgress.takeIf { head != null },
         good = head != null && (timed?.good ?: adaptiveGood),
         feedback = timed?.feedback ?: headFeedback?.hint(),
         feedbackTone = timed?.tone ?: if (adaptiveGood) Tone.Ok else if (adaptiveWarning) Tone.Warn else Tone.Info,
         extraOverlay = {
+            if (passive) PassiveLoginScan(captureProgress)
             if (gaze != null && debugTrace != null && recordingOriginMs != null) {
                 Box(Modifier.fillMaxSize().drawWithContent {
                     drawContent()
@@ -642,4 +675,36 @@ fun FaceChallengeContent(
             }
         },
     )
+}
+
+private val FaceTimeline.isPassiveLogin: Boolean
+    get() = gaze.isEmpty() && headTurns.isEmpty() && slots.size == 1 && slots.single().index == null
+
+/** A capture indicator over the same aperture; it never changes camera framing or exposure. */
+@Composable
+private fun PassiveLoginScan(progress: Float) {
+    val density = LocalDensity.current
+    val top = WindowInsets.statusBars.getTop(density).toFloat()
+    val bottom = WindowInsets.navigationBars.getBottom(density).toFloat()
+    val motion = Vc.motion.enabled
+    val captured = progress.coerceIn(0f, 1f)
+    Canvas(Modifier.fillMaxSize().testTag("face-login-capture").semantics {
+        contentDescription = "Đang thu hình khuôn mặt"
+        progressBarRangeInfo = ProgressBarRangeInfo(captured, 0f..1f)
+    }) {
+        if (motion && captured > 0f && captured < 1f) {
+            val oval = faceGuideRect(size.width, size.height, density.density, density.fontScale, top, bottom)
+            val y = oval.top + oval.height * captured
+            val trail = 36.dp.toPx()
+            clipPath(Path().apply { addOval(oval) }) {
+                drawRect(
+                    Brush.verticalGradient(listOf(Color.Transparent, Palette.Primary.copy(alpha = 0.12f)),
+                        startY = y - trail, endY = y),
+                    topLeft = Offset(oval.left, y - trail), size = Size(oval.width, trail),
+                )
+                drawLine(Palette.Primary.copy(alpha = 0.65f), Offset(oval.left, y), Offset(oval.right, y),
+                    strokeWidth = 1.5.dp.toPx())
+            }
+        }
+    }
 }

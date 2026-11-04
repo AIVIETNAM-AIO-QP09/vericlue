@@ -1,6 +1,5 @@
 package vn.vericlue.app.ui.components
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,7 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -25,14 +23,7 @@ import vn.vericlue.app.ui.theme.VcType
 /** Shared reading surface for consent, preparation and identity details. */
 @Composable
 fun ContentCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        color = Vc.colors.surface,
-        border = BorderStroke(1.dp, Vc.colors.border),
-    ) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp), content = content)
-    }
+    Column(modifier.fillMaxWidth().glass().padding(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp), content = content)
 }
 
 /** The text carries the meaning; the icon is decorative for screen readers. */

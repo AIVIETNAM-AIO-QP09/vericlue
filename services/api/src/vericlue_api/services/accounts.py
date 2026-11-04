@@ -625,6 +625,9 @@ class AccountStore:
                 continue
             if payload.get("evaluation_mode") != "manual_full_demo":
                 continue
+            from vericlue_api.services.account_access import erase_account_access
+
+            erase_account_access(self.db, row.account_id)
             row.wrapped_key = row.encrypted_payload = None
             row.id_number_hmac = row.phone_hmac = None
             row.destroyed_at = now
@@ -644,6 +647,9 @@ class AccountStore:
         )
         count = 0
         for row in rows:
+            from vericlue_api.services.account_access import erase_account_access
+
+            erase_account_access(self.db, row.account_id)
             row.wrapped_key = row.encrypted_payload = None
             row.id_number_hmac = row.phone_hmac = None
             row.destroyed_at = now
