@@ -561,7 +561,9 @@ lưu hồ sơ; nút **Vào ứng dụng** quay về đăng nhập, không tự c
 
 - Mật khẩu mở hồ sơ qua API `account-access`; không thay thế kết quả eKYC.
 - Đăng nhập khuôn mặt dùng camera và mô hình VeriClue: đồng ý cho phiên mới,
-  căn toàn bộ mặt, giữ ổn định trong đoạn quay ngắn. Không quét lại CCCD/OTP
+  mở hộp quét ngay trên màn đăng nhập, tự nhận đủ khuôn mặt và quay trong cùng
+  preview. Không cần khớp với oval hoặc chuyển qua từng màn căn/quay/chờ.
+  Giữ ổn định trong đoạn quay ngắn. Không quét lại CCCD/OTP
   cho thiết bị đã ghi danh; API vẫn có thể yêu cầu bổ sung giọng nói.
 - Hồ sơ chỉ hiển thị dữ liệu API thực sự có: tên đăng nhập, họ tên nếu có,
   số định danh đã che, mã tài khoản và thời hạn. Không tạo số dư/số tài khoản ngân hàng.
@@ -575,4 +577,8 @@ API cần `ACCOUNT_ACCESS_ENABLED=true`, migration `0012_account_access`,
 `ACCOUNT_ENROLLMENT=true`, `SESSION_PRIVACY=true` và cấu hình eKYC tương ứng.
 Contract: `packages/contracts/schemas/account_access.schema.json`.
 Các màn mới dùng Compose, hệ thống màu/chữ/chuyển động VeriClue và cảnh Three.js
-có sẵn; camera giữ nguyên hình học, chỉ dẫn và lịch ghi hình kiểm chứng.
+có sẵn. Đăng ký/khôi phục giữ giao diện camera hiện có. Đăng nhập thụ động
+dùng toàn bộ preview FIT_CENTER, giữ kiểm tra đủ mặt/landmark, độ sáng, tư thế,
+khung mới và thời gian ổn định; bỏ ràng buộc lấp oval chỉ phục vụ bố cục.
+Lượt quay vẫn 3 giây, ảnh frontal ở 0,5 giây; chỉ API thật mới mở hồ sơ.
+Đây là giảm thao tác giao diện, chưa phải đo được đăng nhập tức thời.
