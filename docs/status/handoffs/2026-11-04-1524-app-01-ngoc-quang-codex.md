@@ -8,7 +8,10 @@
 - Hai subagent review độc lập phát hiện ba lỗi có bằng chứng trước merge;
   root kiểm lại mã, sửa trong phạm vi account-access và kiểm tra local.
 - Không xóa username khi mở quét mặt; hủy/lỗi/đăng nhập mặt rồi đăng xuất
-  không để form mật khẩu ẩn username bị khóa. Mật khẩu vẫn được xóa.
+  không để form mật khẩu ẩn username bị khóa. Mật khẩu vẫn được xóa. Sau
+  trao đổi đăng nhập thành công, đồng bộ username từ hồ sơ server đã kiểm:
+  tránh trường hợp máy có binding A nhưng chưa có hint, nhập B rồi đăng nhập
+  mặt thành A, logout lại hiển thị lời chào A nhưng gửi mật khẩu tới B.
 - Popup quét mặt khi dispose chỉ dừng/unlock/unbind camera. Xóa MP4 thuộc
   quyền App khi server ACK, người dùng hủy hoặc bỏ lượt; giữ bản chưa ACK
   để nhánh retry/timeout hiện có gửi lại được.
@@ -26,6 +29,7 @@
 - Android testDebugUnitTest các nhóm AccountAccess, LoginHint, LiveFlowRetry,
   ResponseGuards, VideoCompletion, PresenceTraceCache, QuickFaceLogin:
   BUILD SUCCESSFUL, 74 tests, 0 failure/error/skip.
+- Sau bổ sung đồng bộ username từ hồ sơ đã xác thực: compileDebugKotlin PASS.
 - CI 10/10 xanh ở nền 8f3e67b; sẽ chờ CI lại trên commit sửa trước merge.
 
 ## Giới hạn và bước tiếp theo

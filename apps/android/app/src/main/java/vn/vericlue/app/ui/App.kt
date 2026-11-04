@@ -531,6 +531,7 @@ fun VeriClueApp() {
 
     suspend fun showAccount(value: AccountAccessSession) {
         if (!rememberProfile(value.profile)) { api.logoutAccount(value.accessToken); return }
+        loginUsername = value.profile.username
         quickFaceLoginOpen = false
         camera.unbind()
         camera.deleteVideo()
