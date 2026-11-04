@@ -481,6 +481,7 @@ fun FaceTimelineScreen(
     onIncomplete: (FaceAttemptIssue) -> Unit = { onNoRecording() },
     debugTrace: vn.vericlue.app.capture.PresenceDebugTrace? = null,
     captureContent: (@Composable (Float) -> Unit)? = null,
+    previewAlreadyStable: Boolean = false,
 ) {
     val speech = if (timeline.headTurns.isNotEmpty()) vn.vericlue.app.ui.components.rememberHeadSpeech() else null
     val passive = timeline.isPassiveLogin
@@ -495,7 +496,9 @@ fun FaceTimelineScreen(
     val currentSignal by rememberUpdatedState(faceSignal)
     val incomplete by rememberUpdatedState(onIncomplete)
     LaunchedEffect(Unit) {
-        delay(SETTLE_MS) // let the preview settle before recording (see HoldStillScreen)
+        // Inline passive login keeps the same preview and has already passed StableFaceGate.
+        // Other flows still need the transition delay (see HoldStillScreen).
+        if (!passive || !previewAlreadyStable) delay(SETTLE_MS)
         onStart()
         var t0: Double? = null
         kotlinx.coroutines.withTimeoutOrNull(3000) {

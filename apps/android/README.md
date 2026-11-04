@@ -582,3 +582,11 @@ dùng toàn bộ preview FIT_CENTER, giữ kiểm tra đủ mặt/landmark, đ�
 khung mới và thời gian ổn định; bỏ ràng buộc lấp oval chỉ phục vụ bố cục.
 Lượt quay vẫn 3 giây, ảnh frontal ở 0,5 giây; chỉ API thật mới mở hồ sơ.
 Đây là giảm thao tác giao diện, chưa phải đo được đăng nhập tức thời.
+
+**03/11 — tách thu hình khỏi chờ đăng nhập:** preview inline đã qua
+`StableFaceGate` không chờ chuyển cảnh 600 ms lần nữa. Thu xong vẫn đợi CameraX
+đóng file và chụp lại metadata trước khi unbind; sau đó đóng hộp camera, hiện
+vòng chờ và nút Hủy trên nền Login trong lúc gửi/chờ API. Chỉ kết quả trao đổi
+phiên hợp lệ mới mở hồ sơ. Clip vẫn 3 giây và hold vẫn 1 giây; chưa có bằng chứng
+đạt tốc độ dưới 1 giây bằng camera VeriClue. Đăng ký/khôi phục và preview chuyển
+màn vẫn giữ thời gian ổn định cũ.

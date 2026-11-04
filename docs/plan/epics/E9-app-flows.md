@@ -293,6 +293,11 @@ giữ preview cố định và bỏ yêu cầu khớp oval cho reauth. Dùng l�
 frame mới, tư thế, độ sáng, hold và timeline 3 giây; chỉ server cấp quyền mở hồ sơ.
 Giữ đăng ký/khôi phục và mọi model/ngưỡng. Cần nghiệm thu tốc độ trên máy thật.
 
+**03/11 — tách trạng thái chờ:** quét inline bỏ chờ chuyển cảnh 600 ms sau khi
+preview đã qua hold. Giữ preview đến khi CameraX finalize và snapshot metadata,
+sau đó tắt camera và hiện vòng chờ trên Login đến kết quả API. Không rút clip
+3 giây hoặc hold 1 giây; mục tiêu dưới 1 giây chưa đạt với phương thức hiện tại.
+
 **02/11 — đang thử S24 FE:** APK0.3.0 đã cài và API/ADB hoạt động. Chưa nghiệm
 thu đăng ký: lượt đầu `review` ở gaze; phát hiện và sửa thiếu challenge binding
 trong bước trích template enrollment, có regression dùng validator production.
