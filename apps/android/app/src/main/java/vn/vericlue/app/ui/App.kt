@@ -192,6 +192,17 @@ fun VeriClueApp() {
     val accounts = remember {
         AccountStore(PrefsStore(context.applicationContext.getSharedPreferences("vericlue.account", Context.MODE_PRIVATE)))
     }
+    val loginHint = remember {
+        context.applicationContext.getSharedPreferences("vericlue.login", Context.MODE_PRIVATE)
+            .edit().remove(vn.vericlue.app.data.LoginHint.KEY).apply()
+        vn.vericlue.app.data.LoginHint(vn.vericlue.app.data.EncryptedStore(
+            PrefsStore(context.applicationContext.getSharedPreferences("vericlue.login.secure", Context.MODE_PRIVATE)),
+            { vn.vericlue.app.security.loginHintKey() },
+        ))
+    }
+    var rememberedUsername by remember { mutableStateOf<String?>(null) }
+    var rememberedFullName by remember { mutableStateOf<String?>(null) }
+    var rememberedAccountId by remember { mutableStateOf<String?>(null) }
     val accountFlow = remember {
         AccountFlow(accounts, AndroidAccountKeys(), BuildConfig.SIGNED_MEDIA,
             warn = { Log.w("VeriClue", it) })
@@ -508,7 +519,18 @@ fun VeriClueApp() {
         nav.toBank()
     }
 
-    fun showAccount(value: AccountAccessSession) {
+    suspend fun rememberProfile(profile: vn.vericlue.app.data.api.AccountProfile): Boolean {
+        val generation = accessGeneration
+        withContext(Dispatchers.IO) { loginHint.save(profile) }
+        if (generation != accessGeneration) return false
+        rememberedUsername = profile.username
+        rememberedFullName = profile.fullName
+        rememberedAccountId = profile.accountId
+        return true
+    }
+
+    suspend fun showAccount(value: AccountAccessSession) {
+        if (!rememberProfile(value.profile)) { api.logoutAccount(value.accessToken); return }
         quickFaceLoginOpen = false
         camera.unbind()
         camera.deleteVideo()
@@ -579,8 +601,8 @@ fun VeriClueApp() {
         if (current == null || expectedAccount == null || !flow.live) {
             accessError = "Vui lòng xác minh tài khoản trước khi thiết lập đăng nhập."; return@once
         }
-        if (!AccountAccessRules.validUsername(username)) {
-            accessError = "Tên đăng nhập cần 3–32 ký tự: chữ thường, số, dấu chấm, gạch dưới hoặc gạch ngang."; return@once
+        if (!Regex("0[0-9]{9}").matches(username)) {
+            accessError = "Vui lòng sử dụng số điện thoại 10 chữ số đã xác minh."; return@once
         }
         if (!AccountAccessRules.validPassword(setupPassword) || setupPassword != setupConfirmation) {
             accessError = "Mật khẩu cần 12–128 ký tự và hai lần nhập phải khớp nhau."; return@once
@@ -601,6 +623,7 @@ fun VeriClueApp() {
                     result.value.demoPolicyId != current.demoPolicyId) {
                     accessError = "Thông tin tài khoản chưa khớp. Vui lòng thử lại."
                 } else {
+                    if (!rememberProfile(result.value)) return@once
                     loginUsername = username
                     setupPassword = ""; setupConfirmation = ""
                     credentialsReady = true
@@ -796,6 +819,14 @@ fun VeriClueApp() {
     LaunchedEffect(currentRoute) {
         if (currentRoute in setOf(Routes.BankStart, Routes.Auth, Routes.Login, Routes.FaceLogin)) {
             restoredAccount = withContext(Dispatchers.IO) { accounts.load() }
+            val profile = withContext(Dispatchers.IO) { loginHint.profile() }
+            val hint = withContext(Dispatchers.IO) { loginHint.load() }
+            rememberedFullName = profile?.fullName
+            rememberedAccountId = profile?.accountId
+            if (hint != rememberedUsername) {
+                rememberedUsername = hint
+                if (hint != null && loginUsername.isEmpty()) loginUsername = hint
+            }
         }
     }
     LaunchedEffect(access?.accessToken) {
@@ -905,7 +936,10 @@ fun VeriClueApp() {
                 onRegister = { accessError = null; loginPassword = ""; nav.go(Routes.Auth) },
                 onRecovery = { loginPassword = ""; enterAccount(Purpose.Recovery) },
                 busy = busy, error = accessError, notice = loginNotice,
-                faceAvailable = restoredAccount != null,
+                rememberedUsername = rememberedUsername,
+                rememberedFullName = rememberedFullName,
+                faceAvailable = restoredAccount != null &&
+                    (rememberedUsername == null || rememberedAccountId == restoredAccount?.receipt?.accountId),
                 manualFullDemo = restoredAccount?.manualFullDemo == true,
             )
         }
@@ -919,12 +953,15 @@ fun VeriClueApp() {
                 LaunchedEffect(Unit) { leave() }
             } else CredentialSetupScreen(
                 username = setupUsername, password = setupPassword, confirmation = setupConfirmation,
-                onUsernameChange = { setupUsername = it.take(32); accessError = null },
+                onUsernameChange = { setupUsername = it.filter { c -> c in '0'..'9' }.take(10); accessError = null },
                 onPasswordChange = { setupPassword = it.take(256); accessError = null },
                 onConfirmationChange = { setupConfirmation = it.take(256); accessError = null },
                 profileConsent = profileConsent, onProfileConsentChange = { profileConsent = it },
                 onSave = ::saveCredentials, onBack = { if (!busy) leave() },
                 busy = busy, error = accessError, manualFullDemo = live.manualFullDemo,
+                fullName = live.idFields?.fullName,
+                phoneLocked = Regex("0[0-9]{9}").matches(phone),
+                recovery = flow.purpose == Purpose.Recovery,
             )
         }
         composable(Routes.AccountHome) {
@@ -1331,14 +1368,18 @@ fun VeriClueApp() {
             })
         }
         composable(Routes.Success) {
-            SuccessScreen(
+            if (flow.live && flow.purpose != Purpose.Reauth && accountFlow.accountSaved) {
+                // Verification is complete; registration finishes only after password setup.
+                LaunchedEffect(live.session?.sessionId) {
+                    setupUsername = phone.takeIf { Regex("0[0-9]{9}").matches(it) }.orEmpty()
+                    setupPassword = ""; setupConfirmation = ""; profileConsent = false
+                    accessError = null
+                    nav.navigate(Routes.CredentialSetup) { popUpTo(Routes.Success) { inclusive = true } }
+                }
+            } else SuccessScreen(
                 flow.purpose,
                 onContinue = {
-                    if (flow.live && flow.purpose != Purpose.Reauth && accountFlow.accountSaved) {
-                        setupUsername = ""; setupPassword = ""; setupConfirmation = ""; profileConsent = false
-                        accessError = null
-                        nav.go(Routes.CredentialSetup)
-                    } else if (!flow.live) nav.go(Routes.BankOpened) else leave()
+                    if (!flow.live) nav.go(Routes.BankOpened) else leave()
                 },
                 checked = if (flow.live) FlowRules.checkedByServer(live.voiceChecked) else null,
                 accountReady = if (flow.live && flow.purpose != Purpose.Reauth) accountFlow.accountSaved else null,
@@ -1498,7 +1539,7 @@ fun VeriClueApp() {
                 }
                 if (generation == accessGeneration) {
                     completeAccountSubmission(next, generation)
-                    quickFaceLoginOpen = false
+                    if (generation == accessGeneration) quickFaceLoginOpen = false
                 }
             },
             onCancel = {

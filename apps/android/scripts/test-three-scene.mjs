@@ -65,7 +65,7 @@ try {
 
   const chapters = await pageFor();
   await open(chapters.page);
-  const modes = ['card', 'face', 'eyes', 'turn', 'voice', 'privacy', 'success'];
+  const modes = ['card', 'face', 'eyes', 'turn', 'voice', 'privacy', 'success', 'backdrop'];
   const memory = {};
   for (const mode of modes) {
     for (const dark of [true, false]) {
@@ -95,7 +95,7 @@ try {
     const s = window.vericlueScene;
     return [s.configure('unknown', false), s.configure('face', 'false'), s.scene];
   });
-  assert.deepEqual(unchanged, [false, false, 'success']);
+  assert.deepEqual(unchanged, [false, false, 'backdrop']);
   await chapters.page.evaluate(() => { window.vericlueScene.setActive(true); window.vericlueScene.replay(); });
   await chapters.page.waitForFunction(() => window.vericlueScene.elapsed === 3 && !window.vericlueScene.playing);
   await chapters.page.evaluate(() => window.vericlueScene.replay());
@@ -135,7 +135,7 @@ try {
   await chapters.page.evaluate(() => window.vericlueScene.dispose());
   assert.equal(await chapters.page.evaluate(() => window.vericlueScene.memory.geometries), 0);
   results.push({ test: 'Seven chapters, both themes, 56 switches without GPU growth, replay, live reduced motion, invalid input', memory });
-  results.push({ test: 'Staged entrance, exact resting pose and reduced-motion final pose in all seven scenes', choreography });
+  results.push({ test: 'Staged entrance, exact resting pose and reduced-motion final pose in all eight scenes', choreography });
   await chapters.page.close();
 
   const reduced = await pageFor({ reducedMotion: 'reduce' });

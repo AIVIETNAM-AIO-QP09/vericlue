@@ -298,6 +298,13 @@ preview đã qua hold. Giữ preview đến khi CameraX finalize và snapshot me
 sau đó tắt camera và hiện vòng chờ trên Login đến kết quả API. Không rút clip
 3 giây hoặc hold 1 giây; mục tiêu dưới 1 giây chưa đạt với phương thức hiện tại.
 
+**03/11 — thiết lập sau eKYC:** chuyển trực tiếp từ pass + đã lưu thiết bị sang
+đặt mật khẩu; username mới là SĐT đã qua OTP, server đối chiếu tài khoản/phiên.
+Họ tên chỉ đổi hiển thị in hoa không dấu, giữ dữ liệu gốc. Sau setup thành công
+mới tới màn hoàn tất. Nhớ lời chào tối thiểu bằng AES-GCM/Android Keystore,
+giữ hạn tài khoản và kiểm mã tài khoản trước cho đăng nhập mặt. Legacy username
+vẫn được đăng nhập; chưa đánh dấu done khi chưa nghiệm thu trên điện thoại.
+
 **02/11 — đang thử S24 FE:** APK0.3.0 đã cài và API/ADB hoạt động. Chưa nghiệm
 thu đăng ký: lượt đầu `review` ở gaze; phát hiện và sửa thiếu challenge binding
 trong bước trích template enrollment, có regression dùng validator production.

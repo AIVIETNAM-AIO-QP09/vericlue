@@ -324,6 +324,24 @@ class AccountAccess:
         identity = self._passed_identity(session)
         account = self.db.get(AccountRow, identity.receipt.account_id)
         self.accounts.expire()
+        # New credentials use the registered OTP phone, never an arbitrary client username.
+        # Legacy password logins retain their original username; no automatic reassignment.
+        phone_digest = hmac.new(
+            self.settings.id_hmac_key.get_secret_value().encode(),
+            request.username.encode(),
+            hashlib.sha256,
+        ).hexdigest()
+        expected_phone = account.phone_hmac
+        if not expected_phone or not hmac.compare_digest(expected_phone, phone_digest):
+            raise ApiError(
+                409, "account_phone_mismatch", "Số điện thoại chưa khớp với tài khoản đã xác minh."
+            )
+        if session.purpose in {"onboarding", "recovery"} and (
+            not session.otp_verified or session.phone_hmac != expected_phone
+        ):
+            raise ApiError(
+                409, "account_verification_required", "Vui lòng hoàn tất xác minh tài khoản."
+            )
         existing = self.db.get(AccountAccessCredentialRow, account.account_id)
         previous = self._open(existing) if existing and existing.encrypted_payload else None
         password = request.password.get_secret_value()

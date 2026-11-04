@@ -36,6 +36,7 @@ abstract class AccountAccessSnapshots(private val device: DeviceConfig) {
     private var disabledActions = emptySet<String>()
     private var textBounds = emptyMap<String, Rect>()
     private var canScroll = false
+    private var descriptions = emptyList<String>()
 
     private fun shot(name: String, dark: Boolean, content: @Composable () -> Unit) {
         texts = emptyList()
@@ -43,6 +44,7 @@ abstract class AccountAccessSnapshots(private val device: DeviceConfig) {
         disabledActions = emptySet()
         textBounds = emptyMap()
         canScroll = false
+        descriptions = emptyList()
         paparazzi.snapshot("${name}_$dark") {
             val root = LocalView.current as RootForTest
             VcTheme(dark = dark, motionEnabled = false) {
@@ -50,6 +52,7 @@ abstract class AccountAccessSnapshots(private val device: DeviceConfig) {
                     val nodes = root.semanticsOwner.getAllSemanticsNodes(mergingEnabled = false)
                     texts = nodes.flatMap { it.config.getOrNull(SemanticsProperties.Text).orEmpty() }.map { it.text }
                     passwords = nodes.count { it.config.contains(SemanticsProperties.Password) }
+                    descriptions = nodes.flatMap { it.config.getOrNull(SemanticsProperties.ContentDescription).orEmpty() }
                     textBounds = nodes.flatMap { node -> node.config.getOrNull(SemanticsProperties.Text).orEmpty()
                         .map { it.text to node.boundsInRoot } }.toMap()
                     canScroll = nodes.any { (it.config.getOrNull(SemanticsProperties.VerticalScrollAxisRange)?.maxValue?.invoke() ?: 0f) > 0f }
@@ -66,10 +69,11 @@ abstract class AccountAccessSnapshots(private val device: DeviceConfig) {
             shot("login_first_launch", dark) {
                 LoginScreen("", "", edit, edit, noop, noop, noop, noop, faceAvailable = false)
             }
-            assertTrue("Unbound devices cannot start face login", "Đăng nhập khuôn mặt" in disabledActions)
-            assertFalse("New account creation stays available", "Mở tài khoản" in disabledActions)
+            assertFalse("Unbound devices cannot start face login", "Đăng nhập khuôn mặt" in descriptions)
+            assertFalse("New account creation stays available", "Tạo tài khoản" in disabledActions)
+            assertFalse("Nothing to return to without a remembered account", "Quay lại" in texts)
             if (device.fontScale < 1.5f) {
-                val register = requireNotNull(textBounds["Mở tài khoản"])
+                val register = requireNotNull(textBounds["Tạo tài khoản"])
                 assertTrue("Account creation should be visible at default text size", register.height >= 20f && register.bottom <= device.screenHeight)
             } else {
                 assertTrue("Large text can scroll to all actions", canScroll)
@@ -84,24 +88,57 @@ abstract class AccountAccessSnapshots(private val device: DeviceConfig) {
                     manualFullDemo = true)
             }
             assertTrue("Password must have native password semantics", passwords > 0)
-            assertTrue("Đăng nhập khuôn mặt" in texts)
-            assertTrue("Mở tài khoản" in texts)
+            assertTrue("Face login is offered on the card", "Đăng nhập khuôn mặt" in descriptions)
+            assertTrue("Tạo tài khoản" in texts)
+            assertTrue("Quên mật khẩu?" in texts)
             assertTrue("Demo · Ngưỡng chưa hiệu chỉnh" in texts)
             assertFalse(texts.any { it == "Số dư" || it == "0123 4567 8901" })
+        }
+    }
+
+    @Test fun rememberedAccountAsksOnlyForThePasswordAndCanSwitchAccount() {
+        for (dark in listOf(false, true)) {
+            shot("login_remembered", dark) {
+                LoginScreen("nguoidung.demo", "", edit, edit, noop, noop, noop, noop,
+                    rememberedUsername = "nguoidung.demo")
+            }
+            assertTrue("Xin chào," in texts)
+            assertTrue("The remembered username is the greeting", "nguoidung.demo" in texts)
+            assertFalse("Username is not asked again", "Tên đăng nhập" in texts)
+            assertEquals("Only the password field remains", 1, passwords)
+            assertTrue("Tài khoản khác" in texts)
+            assertTrue("Quên mật khẩu?" in texts)
+            assertTrue("Đăng nhập khuôn mặt" in descriptions)
+            assertFalse("No account creation on the greeting card", "Tạo tài khoản" in texts)
         }
     }
 
     @Test fun setupExplainsExplicitProfileConsentWithoutClaimingItWasSaved() {
         for (dark in listOf(false, true)) {
             shot("setup", dark) {
-                CredentialSetupScreen("nguoidung.demo", "", "", edit, edit, edit,
+                CredentialSetupScreen("0901234567", "", "", edit, edit, edit,
                     profileConsent = false, onProfileConsentChange = {}, onSave = noop, onBack = noop,
-                    manualFullDemo = true)
+                    manualFullDemo = true, fullName = "Nguyễn Thị Đặng")
             }
             assertTrue(texts.any { it.contains("Tôi đồng ý lưu") && it.contains("24 giờ") })
-            assertTrue("Lưu và đến đăng nhập" in texts)
-            assertTrue("Saving requires explicit profile consent", "Lưu và đến đăng nhập" in disabledActions)
+            assertTrue("Hoàn tất đăng ký" in texts)
+            assertTrue("NGUYEN THI DANG" in texts)
+            assertTrue("0901234567" in texts)
+            assertFalse("Phone is fixed from OTP, not a user-chosen username", "Tên đăng nhập" in texts)
+            assertTrue("Saving requires explicit profile consent", "Hoàn tất đăng ký" in disabledActions)
             assertFalse("Đã lưu hồ sơ" in texts)
+        }
+    }
+
+    @Test fun rememberedGreetingUsesTheVerifiedNameInsteadOfThePhone() {
+        for (dark in listOf(false, true)) {
+            shot("login_verified_name", dark) {
+                LoginScreen("0901234567", "", edit, edit, noop, noop, noop, noop,
+                    rememberedUsername = "0901234567", rememberedFullName = "Nguyễn Thị Đặng")
+            }
+            assertTrue("NGUYEN THI DANG" in texts)
+            assertFalse("Phone is not substituted for a verified greeting name", "0901234567" in texts)
+            assertTrue("Tài khoản khác" in texts)
         }
     }
 

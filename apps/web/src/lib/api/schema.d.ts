@@ -847,7 +847,10 @@ export interface components {
              * @constant
              */
             profile_consent: true;
-            /** Username */
+            /**
+             * Username
+             * @description Số điện thoại đã xác thực OTP, được server đối chiếu với tài khoản.
+             */
             username: string;
         };
         /** AccountLogoutResponse */

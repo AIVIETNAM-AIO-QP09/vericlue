@@ -1,6 +1,7 @@
 """HTTP/crypto security tests use synthetic verdicts, never biometric accuracy claims."""
 
 import hashlib
+import hmac
 import json
 from datetime import timedelta
 from pathlib import Path
@@ -23,6 +24,7 @@ from vericlue_api.db.models import (
     utcnow,
 )
 from vericlue_api.schemas.session import CreateSessionRequest
+from vericlue_api.services.account_access import AccountAccess
 from vericlue_api.services.account_auth import AccountAuth, message
 from vericlue_api.services.accounts import AccountStore
 from vericlue_api.services.media_proof import manifest, verify_and_consume
@@ -31,7 +33,7 @@ from vericlue_ml.face.enrolled import REAUTH_MATCH_VERSION
 
 PASSWORD = "Synthetic-password-2026"
 SETUP = {
-    "username": "synthetic.user",
+    "username": "0901234567",
     "password": PASSWORD,
     "profile_consent": True,
     "policy_version": "account-profile-v1",
@@ -45,6 +47,11 @@ def enrolled(private_client):
     with root.transaction() as state:
         with patch("test_accounts.ec.generate_private_key", return_value=key):
             session, template, continuity = prepared(state)
+        session.phone_hmac = hmac.new(
+            real_settings(state).id_hmac_key.get_secret_value().encode(),
+            SETUP["username"].encode(),
+            hashlib.sha256,
+        ).hexdigest()
         receipt = AccountStore(real_settings(state), state.db).create(
             session, template, continuity=continuity
         )
@@ -121,6 +128,49 @@ def test_setup_password_profile_logout_and_encrypted_storage(enrolled):
     assert client.get("/v1/account-access/me", headers=auth).status_code == 401
 
 
+def test_new_setup_requires_the_registered_otp_phone_and_rejects_client_name(enrolled):
+    client, receipt, sid, headers, _ = enrolled
+    path = f"/v1/sessions/{sid}/account-access/setup"
+    validate_contract(SETUP, "AccountAccessSetupRequest")
+    response = client.post(path, headers=headers, json={**SETUP, "username": "0909999999"})
+    assert response.status_code == 409
+    assert response.json()["error_code"] == "account_phone_mismatch"
+    assert "0909999999" not in response.text
+    with client.app.state.vericlue.transaction() as state:
+        assert state.db.get(AccountAccessCredentialRow, receipt.account_id) is None
+    assert (
+        client.post(path, headers=headers, json={**SETUP, "username": "new.user"}).status_code
+        == 422
+    )
+    assert (
+        client.post(path, headers=headers, json={**SETUP, "full_name": "CLIENT NAME"}).status_code
+        == 422
+    )
+    assert client.post(path, headers=headers, json=SETUP).status_code == 200
+
+
+def test_legacy_usernames_can_still_login_without_reassigning_the_account(enrolled):
+    client, receipt, _, _, _ = enrolled
+    setup(enrolled)
+    with client.app.state.vericlue.transaction() as state:
+        service = AccountAccess(state)
+        row = state.db.get(AccountAccessCredentialRow, receipt.account_id)
+        payload = service._open(row)
+        payload["profile"]["username"] = "synthetic.legacy"
+        key = AccountStore._open(
+            service.accounts._master(), row.wrapped_key, service._aad(row, "dek")
+        )
+        row.username_hmac = service._digest("username", "synthetic.legacy")
+        row.encrypted_payload = AccountStore._seal(
+            key, json.dumps(payload).encode(), service._aad(row, "profile")
+        )
+    response = login(client, username="synthetic.legacy")
+    assert response.status_code == 200
+    assert response.json()["profile"]["account_id"] == receipt.account_id
+    assert response.json()["profile"]["username"] == "synthetic.legacy"
+    assert login(client).status_code == 401
+
+
 def test_failed_password_attempts_commit_and_lock_across_requests(enrolled):
     client = enrolled[0]
     setup(enrolled)
@@ -139,12 +189,14 @@ def test_failed_password_attempts_commit_and_lock_across_requests(enrolled):
     assert login(client).status_code == 200
 
 
-@pytest.mark.parametrize("fault", ["incomplete", "review", "mock", "voice_owed"])
+@pytest.mark.parametrize("fault", ["incomplete", "review", "mock", "voice_owed", "otp_unverified"])
 def test_setup_requires_actual_completed_enrollment(enrolled, fault):
     client, _, sid, headers, _ = enrolled
     with client.app.state.vericlue.transaction() as state:
         session = state.sessions.get(sid)
-        if fault == "incomplete":
+        if fault == "otp_unverified":
+            session.otp_verified = False
+        elif fault == "incomplete":
             session.completed = False
         elif fault == "review":
             state.db.get(SessionRow, sid).ever_review = True
@@ -368,6 +420,11 @@ def test_username_uniqueness_and_per_peer_attempt_limit(enrolled):
     )
     with root.transaction() as state:
         session, template, continuity = prepared(state, id_hmac="f" * 64)
+        session.phone_hmac = hmac.new(
+            original.id_hmac_key.get_secret_value().encode(),
+            SETUP["username"].encode(),
+            hashlib.sha256,
+        ).hexdigest()
         AccountStore(original, state.db).create(session, template, continuity=continuity)
         session.created_model_mode = "real"
         sid, headers = session.session_id, {"Authorization": "Bearer " + session.token}
@@ -388,6 +445,11 @@ def test_manual_full_account_access_keeps_policy_binding(private_client):
     with root.transaction() as state:
         with patch("test_accounts.ec.generate_private_key", return_value=key):
             session, template, _ = prepared(state, voiced=False)
+        session.phone_hmac = hmac.new(
+            real_settings(state).id_hmac_key.get_secret_value().encode(),
+            SETUP["username"].encode(),
+            hashlib.sha256,
+        ).hexdigest()
         settings = real_settings(state).model_copy(
             update={
                 "product_mode": "ekyc",

@@ -5,6 +5,7 @@ import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 import java.time.ZoneId
 import java.util.Locale
+import java.text.Normalizer
 import vn.vericlue.app.data.StoredAccount
 import vn.vericlue.app.data.api.AccountAccessSession
 import vn.vericlue.app.data.api.AccountProfile
@@ -16,6 +17,12 @@ object AccountAccessRules {
     fun username(value: String) = value.trim().lowercase(Locale.ROOT)
     fun validUsername(value: String) = Regex("[a-z0-9][a-z0-9._-]{2,31}").matches(value)
     fun validPassword(value: String) = value.codePointCount(0, value.length) in 12..128
+
+    /** Presentation only: keep the original verified name in the API profile. */
+    fun displayName(value: String?): String? = value?.trim()?.takeIf { it.isNotEmpty() }?.let {
+        Normalizer.normalize(it, Normalizer.Form.NFD).replace(Regex("\\p{M}+"), "")
+            .replace('đ', 'd').replace('Đ', 'D').replace(Regex("\\s+"), " ").uppercase(Locale.ROOT)
+    }
 
     fun profileValid(profile: AccountProfile, now: Instant = Instant.now()): Boolean {
         val created = instant(profile.createdAt) ?: return false
@@ -58,7 +65,8 @@ object AccountAccessRules {
 
     fun error(result: ApiResult.Err): String = when (result.code) {
         "account_setup_required" -> "Tài khoản chưa có thông tin đăng nhập. Hãy đăng nhập bằng khuôn mặt để thiết lập."
-        "username_unavailable" -> "Tên đăng nhập này chưa khả dụng. Vui lòng chọn tên khác."
+        "username_unavailable" -> "Số điện thoại này chưa thể dùng để đăng ký. Vui lòng đăng nhập hoặc khôi phục tài khoản."
+        "account_phone_mismatch" -> "Số điện thoại chưa khớp với tài khoản đã xác minh. Vui lòng kiểm tra lại."
         "account_access_locked", "account_login_limited", "rate_limited" -> "Bạn đã thử nhiều lần. Vui lòng chờ rồi đăng nhập lại."
         else -> when (result.error) {
             ApiError.Network -> "Chưa thể kết nối. Kiểm tra mạng rồi thử lại."

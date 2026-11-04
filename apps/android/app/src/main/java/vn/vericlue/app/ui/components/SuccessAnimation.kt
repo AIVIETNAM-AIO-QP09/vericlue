@@ -59,6 +59,7 @@ internal fun SuccessArtwork(composition: LottieComposition?, progress: () -> Flo
     )
     // The adjacent result title announces success. This artwork adds no duplicate semantics.
     Box(Modifier.size(152.dp).clearAndSetSemantics {}, contentAlignment = Alignment.Center) {
+        SpectrumBurst(Modifier.size(152.dp))
         if (composition == null) {
             Canvas(Modifier.size(152.dp)) {
                 drawCircle(c.ok.copy(alpha = 0.4f), radius = size.minDimension * 0.4375f,
