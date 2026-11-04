@@ -5,8 +5,10 @@
 ## Trạng thái
 
 **04/11 — đồng ý và trạng thái gửi dữ liệu:** thông tin xử lý dữ liệu được
-hiển thị đầy đủ trong một màn cuộn. Đọc đến cuối mới mở các ô tích tròn;
-cuộn không tự ghi nhận đồng ý, hai lựa chọn xử lý/lưu mẫu vẫn độc lập. Chữ
+hiển thị đầy đủ trong một màn cuộn. Đọc đến cuối mới mở một ô tích tròn;
+cuộn không tự ghi nhận đồng ý. Khi đăng ký, ô này ghi rõ cả xử lý dữ liệu
+xác minh và lưu mẫu khuôn mặt mã hóa trên máy chủ trong 24 giờ. Biên nhận
+xử lý/lưu mẫu qua API vẫn được kiểm riêng như trước. Chữ
 đồng ý 13sp, vùng bấm tối thiểu 48dp; vẫn hỗ trợ chữ hệ thống lớn. Gửi dữ
 liệu dùng biểu tượng và thanh chờ xanh, không tạo phần trăm tiến độ; chế độ
 giảm chuyển động giữ trạng thái chờ tĩnh. Bỏ nhãn demo/ngưỡng trên giao diện,

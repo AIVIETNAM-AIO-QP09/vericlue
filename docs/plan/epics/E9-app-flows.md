@@ -275,16 +275,22 @@ cứng. Xem `media-proof.md` và `account-authentication.md`.
 
 ### APP-01 ★ · App Kotlin: khung, API qua HTTPS, điều hướng 3 luồng
 
+| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
+|---|---|---|---|---|
+| M1 | 1,5 | S1 | P0 | PLAT-04 |
+
+**04/11 — gộp lựa chọn theo yêu cầu tiếp theo:** màn điều khoản chỉ còn một
+ô tích tròn. Với đăng ký, câu đồng ý nêu cả xử lý xác minh và lưu mẫu mặt mã
+hóa trên máy chủ trong 24 giờ; tích/bỏ tích cập nhật đồng thời hai trạng thái
+UI. Biên nhận và kiểm quyền phía API vẫn tách riêng, không thay contract.
+Giữ chốt đọc đến cuối; xuất ảnh render các màn đã sửa bằng dữ liệu minh họa.
+
 **04/11 — chỉnh trình bày theo yêu cầu:** thông tin quyền riêng tư luôn mở,
 cuộn đến cuối mới được chọn ô tích tròn; hai lựa chọn xử lý/lưu mẫu độc lập
 và không tự được chấp nhận. Gửi dữ liệu dùng thanh chờ xanh không phần trăm,
 hỗ trợ giảm chuyển động. Bỏ nhãn demo/ngưỡng khỏi màn người dùng, giữ hạn
 24 giờ và cảnh báo preview không chạy AI. Không đổi consent API/version,
 ngưỡng/mode hay xác minh. Task giữ `doing`, còn nghiệm thu điện thoại.
-
-| Người | Ước lượng | Sprint | Ưu tiên | Phụ thuộc |
-|---|---|---|---|---|
-| M1 | 1,5 | S1 | P0 | PLAT-04 |
 
 **03/11 — đăng nhập và hồ sơ (doing):** theo luồng người dùng xác nhận,
 logo → đăng nhập; Mở tài khoản → giới thiệu xác minh. Sau đăng ký/khôi phục,

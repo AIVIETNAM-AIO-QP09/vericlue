@@ -35,13 +35,14 @@ import vn.vericlue.app.ui.theme.VcTheme
 abstract class ConsentReadingSnapshots(device: DeviceConfig) {
     @get:Rule val paparazzi = Paparazzi(deviceConfig = device)
 
-    @Test fun mustReadToEndAndExplicitlyChooseBothConsents() {
+    @Test fun mustReadToEndThenExplicitlyChooseOneCombinedConsent() {
         var finished = false
         var initiallyLocked = false
         var detailsVisible = false
         var unlockedWithoutAcceptance = false
-        var firstChoiceInsufficient = false
-        var bothChoicesEnableContinue = false
+        var oneChoiceEnablesContinue = false
+        var uncheckingLocksContinue = false
+        var combinedIntentVisible = false
         val dispatcher = Handler(Looper.getMainLooper()).asCoroutineDispatcher("ConsentReading").immediate
         val scope = CoroutineScope(SupervisorJob() + dispatcher + AndroidUiFrameClock(Choreographer.getInstance()))
         val recomposer = Recomposer(scope.coroutineContext)
@@ -60,21 +61,25 @@ abstract class ConsentReadingSnapshots(device: DeviceConfig) {
                     TermsScreen({}, {})
                     LaunchedEffect(Unit) {
                         delay(50)
-                        initiallyLocked = choices().size == 2 && choices().all { it.config.contains(SemanticsProperties.Disabled) } && continueDisabled()
+                        initiallyLocked = choices().size == 1 && choices().all { it.config.contains(SemanticsProperties.Disabled) } && continueDisabled()
                         val text = nodes().flatMap { it.config.getOrNull(SemanticsProperties.Text).orEmpty() }.map { it.text }
                         detailsVisible = "Mục đích sử dụng" in text && "Quyền chủ động" in text && text.none { "Xem chi tiết" in it || "demo-v1" in it }
                         nodes().first { it.config.getOrNull(SemanticsActions.ScrollBy) != null }
                             .config[SemanticsActions.ScrollBy].action?.invoke(0f, 100_000f)
                         delay(400)
-                        unlockedWithoutAcceptance = choices().size == 2 && choices().all {
+                        unlockedWithoutAcceptance = choices().size == 1 && choices().all {
                             !it.config.contains(SemanticsProperties.Disabled) && it.config.getOrNull(SemanticsProperties.ToggleableState) == ToggleableState.Off
                         } && continueDisabled()
-                        choices()[0].config[SemanticsActions.OnClick].action?.invoke()
+                        combinedIntentVisible = choices().singleOrNull()?.config?.getOrNull(SemanticsProperties.Text).orEmpty()
+                            .any { "xác minh danh tính" in it.text && "mã hóa" in it.text && "24 giờ" in it.text }
+                        choices().first().config[SemanticsActions.OnClick].action?.invoke()
                         delay(100)
-                        firstChoiceInsufficient = continueDisabled()
-                        choices()[1].config[SemanticsActions.OnClick].action?.invoke()
+                        oneChoiceEnablesContinue = !continueDisabled()
+                        choices().first().config[SemanticsActions.OnClick].action?.invoke()
                         delay(100)
-                        bothChoicesEnableContinue = !continueDisabled()
+                        uncheckingLocksContinue = continueDisabled()
+                        choices().first().config[SemanticsActions.OnClick].action?.invoke()
+                        delay(100)
                         finished = true
                     }
                 }
@@ -86,8 +91,9 @@ abstract class ConsentReadingSnapshots(device: DeviceConfig) {
         assertTrue("Choices and continue are locked before reading", initiallyLocked)
         assertTrue("Full notice is inline without a technical demo label", detailsVisible)
         assertTrue("Scrolling unlocks choices but never accepts them", unlockedWithoutAcceptance)
-        assertTrue("Both independent consents are required for onboarding", firstChoiceInsufficient)
-        assertTrue("Continue opens only after both explicit choices", bothChoicesEnableContinue)
+        assertTrue("Single choice explicitly covers processing and encrypted storage", combinedIntentVisible)
+        assertTrue("One explicit combined choice enables continue", oneChoiceEnablesContinue)
+        assertTrue("Unchecking revokes both choices and locks continue", uncheckingLocksContinue)
     }
 }
 

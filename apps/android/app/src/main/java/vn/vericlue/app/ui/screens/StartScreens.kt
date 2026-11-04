@@ -233,7 +233,7 @@ fun AuthScreen(onRegister: () -> Unit, onLogin: () -> Unit, onRecover: () -> Uni
 private val dataUseDetails = listOf(
     "Mục đích sử dụng" to "Thông tin được dùng để đối chiếu danh tính và xử lý yêu cầu xác minh của bạn. Dữ liệu xác minh không được dùng để huấn luyện AI.",
     "Ảnh và giọng nói" to "Ứng dụng sử dụng ảnh thẻ và video khuôn mặt để xác minh. Giọng nói chỉ được thu khi bạn được yêu cầu đọc một câu bổ sung.",
-    "Mẫu khuôn mặt" to "Đồng ý xử lý trong phiên không thay thế lựa chọn lưu mẫu tài khoản. Mẫu tài khoản chỉ được tạo khi có đủ điều kiện và quyền lưu mẫu riêng.",
+    "Mẫu khuôn mặt" to "Mẫu khuôn mặt mã hóa được dùng để đối chiếu khi đăng nhập lại hoặc khôi phục tài khoản. Mẫu tài khoản chỉ được tạo sau khi bạn đồng ý rõ ràng.",
     "Quyền chủ động" to "Camera và micro chỉ được sử dụng sau khi bạn cấp quyền. Bạn có thể dừng xác minh thay vì tiếp tục cung cấp dữ liệu.",
     "Kết quả xác minh" to "Kết quả xác minh không thay thế quyết định mở tài khoản của đơn vị cung cấp dịch vụ.",
 )
@@ -298,14 +298,16 @@ fun TermsScreen(
             }
         }
         error?.let { Text(it, style = VcType.bodySmall, color = c.ink) }
-        Text(if (readToEnd) "Chọn các mục bên dưới để tiếp tục." else "Cuộn đến cuối để mở lựa chọn đồng ý.",
+        Text(if (readToEnd) "Tích đồng ý bên dưới để tiếp tục." else "Cuộn đến cuối để mở lựa chọn đồng ý.",
             style = VcType.caption, color = c.muted)
-        ConsentChoice(agreement.accepted, { agreement = agreement.toggle() }, enabled = canChoose,
-            text = "Tôi đồng ý để VeriClue xử lý các thông tin trên nhằm xác minh danh tính.")
-        if (purpose == vn.vericlue.app.flow.Purpose.Onboarding) {
-            ConsentChoice(agreement.accountTemplateAccepted, { agreement = agreement.toggleAccountTemplate() }, enabled = canChoose,
-                text = "Tôi đồng ý lưu mẫu khuôn mặt mã hóa trong 24 giờ để đăng nhập lại hoặc khôi phục tài khoản.")
-        }
+        ConsentChoice(agreement.accepted, {
+            val accepted = !agreement.accepted
+            agreement = agreement.copy(accepted = accepted,
+                accountTemplateAccepted = accepted && agreement.requiresAccountTemplate)
+        }, enabled = canChoose,
+            text = if (agreement.requiresAccountTemplate)
+                "Tôi đồng ý để VeriClue xử lý thông tin nhằm xác minh danh tính và lưu mẫu khuôn mặt mã hóa trên máy chủ trong 24 giờ để đăng nhập lại hoặc khôi phục tài khoản."
+            else "Tôi đồng ý để VeriClue xử lý các thông tin trên nhằm xác minh danh tính.")
     }
 }
 
