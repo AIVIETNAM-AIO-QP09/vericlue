@@ -1,8 +1,50 @@
+VeriClue — Proprietary Rights Notice
+===================================
+
 Copyright (c) 2026 DS@AInSec4E (VeriClue team). All rights reserved.
 
+1. Team-owned material
+----------------------
 This repository is proprietary. No permission is granted to use, copy, modify,
 or distribute this software or its documentation without prior written
 permission from the copyright holders.
 
-Third-party components included in this repository remain under their own
-licenses. See third_party/README.md and models/manifest.yaml.
+This reservation of rights applies only to material owned by the VeriClue
+copyright holders. Repository access and contribution instructions do not
+constitute an open-source license or a separate grant of commercial rights.
+
+2. Third-party components
+-------------------------
+Third-party components remain under their respective licenses. This notice
+does not replace, restrict, or relicense rights granted by their copyright
+holders. Preserve applicable copyright notices, license texts, attribution,
+and distribution requirements.
+
+Refer to third_party/README.md, the accompanying license files, and the terms
+of each upstream component. These records must be considered alongside, not
+in place of, the original terms.
+
+3. Model weights, datasets, and external assets
+----------------------------------------------
+References, download scripts, or integration code do not grant rights to the
+referenced model weights, datasets, or external assets. Those materials have
+independent terms that may include research-only, noncommercial, access, or
+redistribution restrictions. A source-code license does not by itself grant
+the same rights to model weights or training and evaluation data.
+
+See models/manifest.yaml and the applicable source terms before obtaining,
+using, or redistributing these materials.
+
+4. Personal data and other rights
+---------------------------------
+This notice does not grant rights to personal data, biometric recordings,
+third-party trademarks, or access credentials. Availability of a file or
+reference in this repository is not evidence of consent to process personal
+data or authorization to access an external system.
+
+5. Permissions and contributions
+--------------------------------
+For permissions concerning team-owned material, contact the copyright holders
+through the repository maintainers. See CONTRIBUTING.md for the authorized
+contribution workflow. That workflow does not itself transfer ownership or
+authorize relicensing of another contributor's material.

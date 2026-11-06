@@ -1,0 +1,27 @@
+{
+  "source_commit": "24fe76dcf9fbf6badfad5ba474fc0b4084b271fe",
+  "capture_date": "2026-11-04",
+  "kind": "Compose snapshots; synthetic fixtures; not a live camera recording",
+  "images": [
+    {
+      "file": "login.png",
+      "source_snapshot": "vn.vericlue.app.screenshots_AccountAccessSnapshotTest_firstLaunchMakesAccountCreationDiscoverableWithoutAnExistingFaceBinding_login_first_launch_true.png",
+      "sha256": "32dfc1ba0cabe2c6e0882904e9f5c68599efc5b0b437fee25aa9cc71ecbaab0a"
+    },
+    {
+      "file": "identity-card.png",
+      "source_snapshot": "vn.vericlue.app.screenshots_OnboardingJourneySnapshotTest_orderedJourney_06_card_front_dark.png",
+      "sha256": "1096d99a99cdb337c0be99dced514fa5cbae0a963e63efe8057cc7b57138e220"
+    },
+    {
+      "file": "face-challenge.png",
+      "source_snapshot": "vn.vericlue.app.screenshots_OnboardingJourneySnapshotTest_orderedJourney_14_face_left_dark.png",
+      "sha256": "28e1568eec5b4ab4c8cee986b73f421340fde833fb580d8c44df56aff32883ee"
+    },
+    {
+      "file": "profile.png",
+      "source_snapshot": "vn.vericlue.app.screenshots_AccountAccessSnapshotTest_homeUsesOnlySuppliedProfileWithoutTechnicalThresholdLabels_account_home_true.png",
+      "sha256": "6ae015c36bb2b1c70af14097acce25fa7ded521232099f53b63f7bd7e7138d38"
+    }
+  ]
+}
