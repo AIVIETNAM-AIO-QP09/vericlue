@@ -6,3 +6,20 @@ permission from the copyright holders.
 
 Third-party components included in this repository remain under their own
 licenses. See third_party/README.md and models/manifest.yaml.
+
+Scope and third-party materials
+------------------------------
+The reservation of rights above applies only to material owned by the VeriClue
+copyright holders. It does not replace, restrict, or relicense rights granted
+by third-party copyright holders under their respective licenses. Preserve
+applicable third-party license texts, copyright notices, and attribution.
+
+Model weights, datasets, and external assets are not licensed by this notice
+merely because the repository references, downloads, or integrates them.
+Their respective terms may impose research-only, noncommercial, access, or
+redistribution restrictions independently of the source-code license.
+
+This notice does not grant rights to personal data, biometric recordings,
+third-party trademarks, or access credentials. For permissions concerning
+team-owned material, contact the copyright holders through the repository
+maintainers. See CONTRIBUTING.md for the authorized contribution workflow.
