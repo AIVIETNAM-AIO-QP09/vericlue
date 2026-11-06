@@ -1,72 +1,76 @@
-# Đóng góp cho VeriClue
+# Phát triển VeriClue
 
-**Giữ hành trình xác minh rõ ràng, bằng chứng có thể kiểm tra và dữ liệu được bảo vệ.**
+Một thay đổi tốt cần làm rõ **hành vi sản phẩm, bằng chứng kiểm tra và tác động
+đến dữ liệu**. Hướng dẫn này giúp thành viên và cộng tác viên được phép đóng
+góp theo cùng một quy trình.
 
-Tài liệu dành cho thành viên/cộng tác viên được chủ sở hữu cho phép đóng góp.
-Đọc [LICENSE](LICENSE) về quyền sử dụng; quy trình này không cấp giấy phép mới,
-không mặc định chuyển quyền sở hữu hoặc tái cấp phép mã của tác giả khác.
+[Chuẩn bị](#trước-khi-viết-code) · [Quy trình](#quy-trình-đóng-góp) ·
+[Kiểm tra](#kiểm-tra-và-bằng-chứng) · [Dữ liệu](#dữ-liệu-và-quyền-sử-dụng) ·
+[Bàn giao](#bàn-giao-và-review)
 
-[Bắt đầu](#bắt-đầu) · [Quy trình](#từ-task-đến-pull-request) ·
-[Kiểm tra](#kiểm-tra-theo-phạm-vi) · [Dữ liệu](#dữ-liệu-hình-ảnh-và-bên-thứ-ba)
+## Trước khi viết code
 
-## Bắt đầu
+1. Đọc [AGENTS.md](AGENTS.md), ngày cập nhật của [STATUS](docs/status/STATUS.md)
+   và các [bàn giao gần đây](docs/status/handoffs/).
+2. Chọn task trong [backlog](docs/plan/backlog.md), đọc task card, kiểm phụ
+   thuộc và thống nhất với người phụ trách. Không nhận quá hai task đồng thời.
+3. Đọc [kiến trúc](docs/architecture/architecture.md), README và AGENTS của
+   khu vực cần sửa. Xác định profile và cấu hình liên quan.
 
-1. Đọc [AGENTS.md](AGENTS.md), các [bàn giao gần đây](docs/status/handoffs/)
-   và ngày cập nhật của [STATUS](docs/status/STATUS.md).
-2. Xác định task trong [backlog](docs/plan/backlog.md), đọc task card và phụ
-   thuộc; phối hợp người phụ trách, không nhận quá hai task đồng thời.
-3. Đọc README/AGENTS của khu vực sửa và [kiến trúc](docs/architecture/architecture.md).
-   Tài liệu lịch sử không thay việc đối chiếu source/profile.
+Với yêu cầu mới chưa có task card, ghi phạm vi và câu hỏi trong bàn giao;
+không dùng việc đó để đánh dấu hoàn thành task khác. Không sửa STATUS thay
+trưởng nhóm. Quy trình này không cấp quyền sử dụng code hoặc chuyển quyền sở
+hữu; xem [LICENSE](LICENSE).
 
-Việc mới chưa có task card cần ghi phạm vi và câu hỏi trong bàn giao; không
-đánh dấu hoàn thành một task không liên quan.
+## Quy trình đóng góp
 
-## Từ task đến pull request
+### Xác định hành vi trước khi triển khai
 
-| Bước | Kết quả cần có |
-|---|---|
-| Xác định phạm vi | Vấn đề, hành vi mong muốn, tiêu chí hoàn thành |
-| Nhánh riêng | `<loại>/<MÃ-TASK>-<mô-tả-ngắn>`, không commit thẳng `main` |
-| Thay đổi nhỏ | Commit có thể review, không trộn thay đổi người khác |
-| Kiểm tra | Lệnh đã chạy, kết quả và giới hạn rõ ràng |
-| Bàn giao | Cập nhật đúng task, ghi cách chạy tiếp và câu hỏi còn lại |
-| Review | PR theo mẫu, ít nhất một người khác duyệt và CI đạt |
+Mô tả ngắn tác nhân, tình huống gây lỗi, hành vi mong muốn và điều kiện hoàn
+thành. Với xác minh danh tính, nêu rõ tác động lên trạng thái phiên, lỗi,
+thử lại, quyền truy cập và vòng đời dữ liệu.
 
-Loại nhánh/commit thường dùng: `feat`, `fix`, `docs`, `chore`, `exp`.
+Nếu đổi giao tiếp, task phải cho phép thay hợp đồng: sửa schema trước, cập
+nhật các phía trong cùng PR và thêm `[contract]` vào tiêu đề. Việc sửa ngưỡng,
+proposal hoặc ADR tuân theo phạm vi ủy quyền trong AGENTS, không thực hiện
+kèm một thay đổi giao diện hay chỉnh tài liệu thông thường.
+
+### Làm trên nhánh có phạm vi rõ
+
+```text
+<loại>/<MÃ-TASK>-<mô-tả-ngắn>
+fix/SEC-02-reject-expired-proof
+```
+
+Mã task trong ví dụ phải được thay bằng mã của việc đã nhận khi áp dụng.
+Loại thường dùng: `feat`, `fix`, `docs`, `chore`, `exp`.
+Không commit trực tiếp vào `main`.
+
+Commit theo Conventional Commits:
 
 ```text
 fix(api): reject expired media proof [SEC-02]
 ```
 
-Dùng [mẫu PR](.github/PULL_REQUEST_TEMPLATE.md), mô tả vấn đề và hành vi cuối
-cùng. PR nhỏ, có thể mở draft sớm. Thay hợp đồng cần người hai phía review;
-nhóm dùng squash merge. Không tự reset nhánh, xóa file untracked hoặc commit
-cả workspace để làm sạch Git.
+Mỗi commit nên có một mục đích. Giữ nguyên công việc của người khác, không tự
+reset nhánh, xóa file untracked hoặc stage toàn workspace để làm sạch Git.
 
-## Những nguyên tắc cần giữ
+### Giữ các bất biến an toàn
 
-### Hợp đồng và quyết định xác minh
+| Bất biến | Yêu cầu khi thay đổi |
+|---|---|
+| **Lỗi không trở thành đạt** | Giữ `ModuleResult`, mock và xử lý `error`/`degraded`; không fallback thành công |
+| **Bằng chứng có ngữ cảnh** | Không bỏ kiểm tra session, challenge, nonce, hash hoặc chữ ký để luồng đi qua |
+| **Quyền truy cập có kiểm soát** | Kiểm token, consent và trạng thái hiện hành, kể cả trường hợp hết hạn/thử lại |
+| **Trải nghiệm người dân phù hợp** | Không hiển thị điểm AI, không gán nhãn “giả mạo”; hướng dẫn thử lại rõ ràng |
+| **Kết quả có thể truy vết** | Ghi phiên bản, nguồn và phạm vi kiểm tra; tách nghiên cứu khỏi luồng đã tích hợp |
 
-- Giao tiếp khớp `packages/contracts/`. Khi task cho phép đổi hợp đồng, sửa
-  schema trước, cập nhật hai phía trong cùng PR và thêm `[contract]` vào tiêu đề.
-- Bộ phát hiện trả `ModuleResult` và có mock; không đổi lỗi/suy giảm thành đạt.
-- Không fallback ngầm sang thành công, không tắt consent, chữ ký, nonce hoặc
-  kiểm danh tính để demo hoàn tất.
-- Người dân không thấy điểm AI hoặc nhãn “giả mạo”; gợi ý thử lại phải phù hợp.
-- Tuân thủ luật AGENTS về ngưỡng, schema, proposal và ADR. Thay đổi thiết kế
-  cần quyết định tương ứng; không tự viết lại yêu cầu hoặc lịch sử.
+Thay đổi thiết kế cần quyết định tương ứng theo quy trình repo. Không đổi
+nhãn mô hình, trạng thái lịch sử hoặc kết quả cũ để khớp cấu hình mới.
 
-### Truy vết và đánh giá
+## Kiểm tra và bằng chứng
 
-- Tách benchmark paper, kiểm thử phần mềm và đánh giá toàn hệ thống.
-- Báo cáo ghi commit, model/checkpoint, protocol, số mẫu, lỗi và timeout.
-- Chia theo người/nguồn; không chọn mô hình, ngưỡng hoặc tiền xử lý trên test.
-- Không mô tả chữ ký là bằng chứng camera thật, Keystore luôn có phần cứng,
-  hoặc chuyển động đầu là phép đo chiều sâu 3D.
-
-## Kiểm tra theo phạm vi
-
-Từ gốc repo, sau khi cài theo [README](README.md):
+### Workspace Python
 
 ```powershell
 uv sync --frozen --all-packages
@@ -77,36 +81,54 @@ uv run ruff format --check .
 uv run python scripts/plan_check.py
 ```
 
-| Khu vực | Tài liệu và kiểm tra |
-|---|---|
-| Android | [README](apps/android/README.md): Gradle test/lint/build, ký APK và thử thiết bị |
-| iOS | [README](apps/ios/README.md): Xcode, backend và nghiệm thu riêng |
-| API | [README](services/api/README.md), [AGENTS](services/api/AGENTS.md): migration, quyền, transaction |
-| ML | [README](ml/README.md), [AGENTS](ml/AGENTS.md): extras và đánh giá |
-| Web | [README](apps/web/README.md), [AGENTS](apps/web/AGENTS.md): npm và giao diện |
-| BBS | [README](services/credentials/README.md): Node, lint/test, holder SDK |
+### Theo thành phần
 
-Chạy check phù hợp thay đổi và các check bắt buộc của CI. Với tài liệu thuần
-túy, kiểm liên kết, encoding, lệnh và `git diff --check`. Không báo đã test
-ứng dụng hoặc AI nếu chỉ sửa Markdown. Ghi rõ check chưa chạy hoặc bị chặn.
+| Thành phần | Bằng chứng cần cân nhắc | Hướng dẫn |
+|---|---|---|
+| Android | Test logic, lint/build, ảnh giao diện, thử thiết bị khi cần | [README](apps/android/README.md) |
+| iOS | Xcode test/build và điều kiện thiết bị | [README](apps/ios/README.md) |
+| API | Quyền, validation, hết hạn, transaction và trường hợp đồng thời | [README](services/api/README.md), [AGENTS](services/api/AGENTS.md) |
+| ML | Nhãn, chia tập, phiên bản, tiền xử lý, lỗi và số mẫu | [README](ml/README.md), [AGENTS](ml/AGENTS.md) |
+| Web | Lint, typecheck, test và kiểm giao diện liên quan | [README](apps/web/README.md), [AGENTS](apps/web/AGENTS.md) |
+| BBS | Kiểm mật mã, sai ngữ cảnh, phát lại, holder và runtime | [README](services/credentials/README.md) |
+| Tài liệu | Link, lệnh, encoding, nguồn hình và `git diff --check` | [Mục lục](docs/README.md) |
 
-## Dữ liệu, hình ảnh và bên thứ ba
+Chạy check phù hợp thay đổi và check CI bắt buộc. Không viết test chỉ lặp lại
+implementation. Báo chính xác lệnh đã chạy, kết quả và check chưa chạy/bị chặn.
+Test mock hoặc fixture mật mã không thay thế đánh giá sinh trắc trên dữ liệu thật.
 
-- Không commit `.env`, token, khóa riêng, DB, dữ liệu sinh trắc, bản ghi thật
-  hoặc trọng số. Không đưa chúng vào log, screenshot, PR hoặc artifact công khai.
-- Dùng fixture tổng hợp nhỏ, có quyền rõ ràng. Quyền quay demo không tự cho
-  phép huấn luyện/hiệu chỉnh bằng dữ liệu đó.
-- Ảnh tài liệu ưu tiên snapshot tổng hợp từ UI thật; kiểm bằng mắt, ghi nguồn,
-  commit và checksum. Xem [bộ ảnh README](docs/assets/app/README.md).
-- Kiểm thử tấn công chỉ trên môi trường được phép, không nhắm hệ thống thật
-  của ngân hàng hoặc bên ngoài.
-- Dependency mới phải ghi giấy phép. Code sao chép giữ notice và ghi vào
-  [third_party](third_party/README.md); không chép GPL/AGPL/LGPL hoặc nguồn
-  không có giấy phép theo luật repo.
-- Code, trọng số và dữ liệu có thể có giấy phép khác nhau. Kiểm quyền nghiên
-  cứu, thương mại và phân phối; giữ license upstream, không tự thay bằng LICENSE gốc.
+### Khi báo cáo mô hình
 
-## Bàn giao và hoàn tất
+- Khóa phiên bản model, preprocessing và cách gộp trước đánh giá cuối.
+- Chia theo người/nguồn; không chọn ngưỡng hoặc model trên test.
+- Ghi commit, checkpoint, protocol và số mẫu; báo cả lỗi/timeout, không chỉ
+  tập con có điểm thành công.
+- Tách số liệu paper khỏi kết quả tự chạy; không đổi AUC, EER hoặc HTER thành
+  “độ chính xác toàn hệ thống”.
+
+## Dữ liệu và quyền sử dụng
+
+**Không đưa dữ liệu riêng vào Git hoặc artifact công khai:** căn cước, mặt,
+giọng, bản ghi thật, DB, `.env`, token, khóa riêng hoặc trọng số. Kiểm cả log,
+screenshot, PR và file đính kèm. Quyền quay demo không tự bao gồm quyền huấn
+luyện hoặc hiệu chỉnh bằng bản ghi đó.
+
+Ưu tiên fixture tổng hợp nhỏ và ảnh từ UI thật với dữ liệu minh họa. Với ảnh
+tài liệu, kiểm bằng mắt, ghi nguồn/commit/checksum như [bộ ảnh app](docs/assets/app/README.md).
+
+Dependency mới cần nêu giấy phép. Code sao chép giữ notice và được ghi vào
+[third_party](third_party/README.md). Không chép GPL/AGPL/LGPL hoặc nguồn không
+có giấy phép theo luật repo. Tách điều khoản code, trọng số và dataset; giấy
+phép nguồn không tự chuyển thành giấy phép thương mại cho toàn sản phẩm.
+
+Kiểm thử tấn công chỉ nhắm môi trường nhóm kiểm soát và được phép, không dùng
+hệ thống ngân hàng hoặc dịch vụ thật bên ngoài làm mục tiêu.
+
+## Bàn giao và review
+
+Tạo [PR theo mẫu](.github/PULL_REQUEST_TEMPLATE.md), gồm vấn đề cụ thể, hành
+vi sau thay đổi, kiểm tra và rủi ro còn lại. Với UI kèm ảnh phù hợp; với model
+kèm nguồn kết quả; với migration nêu yêu cầu chuyển đổi. Có thể mở draft sớm.
 
 Với task có mã, cập nhật tiêu chí task card và đúng dòng backlog, rồi tạo bàn giao:
 
@@ -114,10 +136,17 @@ Với task có mã, cập nhật tiêu chí task card và đúng dòng backlog, 
 uv run python scripts/new_handoff.py --task <MA-TASK> --who "Ten+AI"
 ```
 
-Ghi việc đã làm, check thực sự đã chạy, giới hạn, bước tiếp và câu hỏi cho nhóm.
-Không sửa `docs/status/STATUS.md`; trưởng nhóm tổng hợp file này. Cập nhật tài
-liệu không tự chứng nhận hoàn thành tính năng.
+Ghi việc đã làm, cách chạy tiếp, giới hạn và câu hỏi cho nhóm. Trưởng nhóm cập
+nhật STATUS; chỉnh tài liệu không tự chứng nhận nghiệm thu tính năng.
 
-Trước khi gửi review, kiểm diff chỉ chứa phạm vi được giao, không có dữ liệu
-riêng hoặc artifact thừa. Cập nhật PR theo kết quả cuối cùng, tránh giữ mô tả
-cũ của cách làm đã bỏ.
+Trước review, xác nhận:
+
+- [ ] Diff chỉ chứa phạm vi đã nhận, không có dữ liệu riêng hoặc file thừa.
+- [ ] Hợp đồng và các bất biến an toàn được giữ hoặc thay đúng quyết định.
+- [ ] Check phù hợp đã đạt; check chưa chạy và giới hạn được nêu rõ.
+- [ ] Tài liệu, nguồn upstream, task và bàn giao được cập nhật khi áp dụng.
+- [ ] PR mô tả implementation cuối cùng, không giữ nội dung của cách làm đã bỏ.
+
+Cần ít nhất một người khác review; đổi hợp đồng cần người hai phía. CI đạt
+trước khi merge, nhóm dùng squash merge. Góp ý theo mức phải sửa/nên sửa/gợi
+ý, tập trung vào hành vi và bằng chứng.

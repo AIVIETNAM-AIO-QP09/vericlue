@@ -2,172 +2,201 @@
 
 # VeriClue
 
-### Xác minh tin cậy. Chia sẻ chủ động.
+**Xác minh tin cậy. Chia sẻ chủ động.**
 
-**Nền tảng xác minh danh tính số đa lớp cho hệ sinh thái dịch vụ số.**
+Nền tảng xác minh danh tính đa phương thức, bảo vệ bằng chứng theo phiên
+và hỗ trợ chia sẻ thông tin có chọn lọc.
 
-Khuôn mặt và giọng nói · Bằng chứng theo phiên · Bảo vệ dữ liệu · Chia sẻ có chọn lọc
+**Android · FastAPI · Face & Voice AI · Cryptographic Proofs**
 
-**DS@AInSec4E — Data for Life 2026 — BTL86-16**
-
-[Trải nghiệm](#trải-nghiệm-ứng-dụng) · [Kiến trúc](#kiến-trúc-hệ-thống) · [Bảo mật](#bảo-mật-theo-từng-lớp) · [Bắt đầu](#bắt-đầu-phát-triển) · [Đóng góp](CONTRIBUTING.md)
+[Ứng dụng](#trải-nghiệm-ứng-dụng) · [Thiết kế](#thiết-kế-hệ-thống) · [Bảo mật](#mô-hình-bảo-vệ) · [Tích hợp](#tích-hợp-và-bằng-chứng-riêng-tư) · [Phát triển](#bắt-đầu-phát-triển)
 
 </div>
 
-## Một hành trình định danh có kiểm soát
+## Từ một lượt xác minh đến một bằng chứng có thể kiểm tra
 
-VeriClue kết nối thu nhận dữ liệu, phân tích danh tính và bảo vệ bằng chứng trong
-một hành trình từ đăng ký đến truy cập lại tài khoản. Ứng dụng Android hướng dẫn
-người dùng; máy chủ quản lý phiên, phối hợp các mô-đun và đưa ra quyết định.
+Một dịch vụ số cần biết ai đang thao tác, dữ liệu được cung cấp có đáng tin
+hay không và kết quả có thể được sử dụng trong phạm vi nào. VeriClue tổ chức
+các yêu cầu đó thành một quy trình: **thu nhận có hướng dẫn, phân tích đa lớp,
+kiểm soát bằng chứng và quản lý quyền truy cập**.
 
-Nền tảng được phát triển cho nhu cầu tích hợp của **ngân hàng, ví điện tử,
-chứng khoán và dịch vụ công**. Đơn vị tiếp nhận vẫn quản lý hồ sơ khách hàng và
-quyết định cấp quyền. Kiến trúc chứng nhận riêng tư mở ra khả năng chia sẻ bằng
-chứng phù hợp với yêu cầu của từng dịch vụ.
+Trên điện thoại, người dùng đăng ký, xác minh và truy cập lại tài khoản.
+Ở phía máy chủ, mỗi bước gắn với trạng thái phiên, thử thách và chính sách
+quyết định. Các thành phần mật mã bổ sung khả năng kiểm tra tính toàn vẹn,
+nguồn cấp và ngữ cảnh sử dụng bằng chứng.
+
+Dự án do **DS@AInSec4E** phát triển cho **Data for Life 2026**, đề bài
+**BTL86-16**. Ngân hàng, ví điện tử, chứng khoán và dịch vụ công là các nhóm
+ứng dụng mục tiêu; không hàm ý đã có quan hệ đối tác hoặc triển khai thực tế.
 
 ## Trải nghiệm ứng dụng
 
 <table>
   <tr>
-    <th>Truy cập tài khoản</th>
+    <th>Đăng nhập và khôi phục</th>
     <th>Thu nhận căn cước</th>
-    <th>Xác minh khuôn mặt</th>
-    <th>Hồ sơ cá nhân</th>
+    <th>Thử thách khuôn mặt</th>
+    <th>Hồ sơ tài khoản</th>
   </tr>
   <tr>
-    <td><img src="docs/assets/app/login.png" width="210" alt="Màn hình đăng nhập VeriClue với lựa chọn tạo tài khoản và khôi phục" /></td>
-    <td><img src="docs/assets/app/identity-card.png" width="210" alt="Màn hình hướng dẫn quét căn cước và theo dõi thông tin, chân dung" /></td>
-    <td><img src="docs/assets/app/face-challenge.png" width="210" alt="Khung hướng dẫn người dùng chuyển động đầu theo thử thách khuôn mặt" /></td>
-    <td><img src="docs/assets/app/profile.png" width="210" alt="Hồ sơ VeriClue dùng tên và mã tài khoản minh họa" /></td>
+    <td><img src="docs/assets/app/login.png" width="210" alt="Giao diện đăng nhập VeriClue, có lựa chọn tạo và khôi phục tài khoản" /></td>
+    <td><img src="docs/assets/app/identity-card.png" width="210" alt="Giao diện hướng dẫn quét căn cước, theo dõi thông tin và chân dung" /></td>
+    <td><img src="docs/assets/app/face-challenge.png" width="210" alt="Giao diện hướng dẫn chuyển động đầu theo thử thách xác minh" /></td>
+    <td><img src="docs/assets/app/profile.png" width="210" alt="Giao diện hồ sơ dùng tên và mã tài khoản tổng hợp" /></td>
   </tr>
 </table>
 
-<sub>Ảnh giao diện Compose ngày 04/11/2026, dữ liệu minh họa; không phải bản ghi
-camera hoặc chứng nhận hiệu quả AI. [Nguồn và checksum](docs/assets/app/provenance.json).
-Giao diện có thể khác giữa các bản build.</sub>
+<p align="center"><sub>Snapshot Compose ngày 04/11/2026, dữ liệu minh họa.
+<a href="docs/assets/app/README.md">Nguồn ảnh và phiên bản</a>.
+Giao diện có thể thay đổi theo bản build.</sub></p>
 
-### Từ đăng ký đến đăng nhập lại
+**Một tài khoản, các bước xác minh có ngữ cảnh.** Người dùng xem mục đích xử lý
+dữ liệu, bắt đầu đăng ký bằng số điện thoại, quét căn cước và kiểm tra thông
+tin được trích xuất. Tiếp theo, ứng dụng hướng dẫn thu hình và thực hiện thử
+thách của phiên. Nhánh giọng nói cung cấp kiểm tra bổ sung khi luồng yêu cầu.
 
-1. **Đồng ý và bắt đầu:** xem mục đích xử lý dữ liệu, nhập số điện thoại và
-   thực hiện bước OTP theo cấu hình môi trường.
-2. **Căn cước:** thu ảnh, trích xuất thông tin và chân dung, kiểm tra trước
-   khi xác nhận. Bộ đọc và kiểm tra bằng chứng chạy phía server.
-3. **Khuôn mặt:** hướng dẫn thu đủ mặt, thực hiện thử thách của phiên và gửi
-   dữ liệu để kiểm tra danh tính, hiện diện và dấu hiệu giả mạo.
-4. **Giọng nói khi cần:** kiểm tra câu đọc, dấu hiệu giả mạo âm thanh và liên
-   hệ môi–âm thanh theo cấu hình luồng.
-5. **Tài khoản:** tự đặt mật khẩu, đăng nhập bằng mật khẩu hoặc camera
-   VeriClue, xem hồ sơ và thực hiện luồng khôi phục.
+Sau xác minh, người dùng thiết lập mật khẩu, đăng nhập lại bằng mật khẩu hoặc
+camera VeriClue và xem hồ sơ. Luồng khôi phục quản lý việc lấy lại quyền truy
+cập theo các điều kiện của backend. Đây là camera và mô hình của VeriClue,
+khác với sinh trắc hệ điều hành như Face ID của iOS.
 
-Xem [Android](apps/android/README.md) để biết cấu hình build, API, ký APK và
-nghiệm thu thiết bị. Repo cũng có [ứng dụng iOS](apps/ios/README.md) với quy
-trình build và trạng thái nghiệm thu riêng.
+[Build và cài Android](apps/android/README.md) ·
+[Ứng dụng iOS và quy trình riêng](apps/ios/README.md)
 
-## Năng lực phân tích
+## Thiết kế hệ thống
 
-| Lớp kiểm tra | Câu hỏi cần trả lời | Thành phần trong repo |
-|---|---|---|
-| Chất lượng | Dữ liệu có đủ điều kiện phân tích? | Kiểm chất lượng ảnh/video và khuôn mặt |
-| Danh tính | Khuôn mặt có khớp chân dung tham chiếu? | SCRFD, LVFace và kiểm tra tính nhất quán |
-| PAD | Có dấu hiệu tấn công trình diễn? | FS-VFM và pipeline PAD theo phiên |
-| Deepfake | Có dấu hiệu khuôn mặt tạo/chỉnh sửa bằng AI? | GenD CLIP |
-| Hiện diện | Phản hồi có khớp yêu cầu của phiên? | Chuyển động đầu, ánh mắt; tín hiệu ánh sáng phụ |
-| Giọng nói | Nội dung và âm thanh có đáp ứng kiểm tra bổ sung? | ASR theo cấu hình, AntiDeepfake và Stable SyncNet |
-| Quyết định | Có đủ căn cứ để tiếp tục? | Bộ điều phối và chính sách theo profile |
-
-Đóng góp hệ thống của VeriClue nằm ở **quản lý phiên, ràng buộc bằng chứng,
-phối hợp kết quả và tích hợp với hành trình ứng dụng**, cùng các lớp bảo vệ
-dữ liệu và tài khoản. Mỗi mô-đun có vai trò riêng; không cộng các điểm benchmark
-thành một chỉ số “độ chính xác toàn hệ thống”.
-
-## Kiến trúc hệ thống
+VeriClue phân chia rõ trách nhiệm: **ứng dụng thu nhận, server kiểm chứng,
+bộ điều phối áp dụng chính sách**. Một kết quả từ client hoặc một mô-đun
+riêng lẻ không tự cấp quyền hoàn tất toàn bộ quy trình.
 
 ```mermaid
 flowchart TB
-    App[Ứng dụng Android] --> API[FastAPI: quyền truy cập và phiên]
-    API --> Proof[Kiểm tra media, chữ ký và nonce]
-    Proof --> Face[Danh tính, PAD và deepfake]
-    Proof --> Presence[Phản hồi thử thách theo phiên]
-    Proof --> Voice[Giọng nói khi cần]
-    Face --> Router[Bộ điều phối quyết định]
-    Presence --> Router
-    Voice --> Router
-    Router --> Result[Kết quả và bước tiếp theo]
-    Result --> App
-    API --> Store[Kho dữ liệu và tài khoản mã hóa]
-    Result -. Thành phần tích hợp riêng .-> Signed[Kết quả ký Ed25519]
-    Signed -.-> BBS[Chứng nhận BBS và holder SDK]
-    BBS -. Kiểm chứng theo yêu cầu .-> Service[Dịch vụ liên kết]
+    User[Người dùng] --> App[Android: hướng dẫn và thu nhận]
+    App --> API[FastAPI: quyền truy cập và trạng thái phiên]
+    API --> Evidence[Kiểm toàn vẹn và ngữ cảnh bằng chứng]
+    Evidence --> Face[Chân dung, PAD và deepfake]
+    Evidence --> Presence[Phản hồi thử thách]
+    Evidence --> Voice[Kiểm tra giọng nói khi cần]
+    Face --> Policy[Bộ điều phối và chính sách]
+    Presence --> Policy
+    Voice --> Policy
+    Policy --> Outcome[Kết quả và bước tiếp theo]
+    Outcome --> App
+    API --> Vault[Kho phiên và tài khoản mã hóa]
+    Outcome -. Thành phần tích hợp riêng .-> Signed[Kết quả ký Ed25519]
+    Signed -.-> Credentials[Chứng nhận BBS và holder SDK]
+    Credentials -. Bằng chứng theo yêu cầu .-> Service[Dịch vụ tiếp nhận]
 ```
 
-**Đường liền** mô tả xử lý app/API; **đường nét đứt** mô tả các thành phần
-tích hợp bằng chứng riêng. Ví Android và đăng nhập kết hợp BBS chưa nối hoàn
-chỉnh. Các cơ chế được bật theo profile, không mặc định hoạt động ở mọi bản build.
+Đường nét đứt mô tả nhánh bằng chứng được triển khai riêng; **ví Android và
+chuỗi đăng nhập kết hợp BBS chưa nối hoàn chỉnh**. Khả năng hoạt động của mỗi
+nhánh phụ thuộc profile, cấu hình và nguồn kết quả đủ điều kiện.
 
-Xem [kiến trúc kỹ thuật](docs/architecture/architecture.md) và
-[hợp đồng dữ liệu](packages/contracts/schemas/). Profile `PRODUCT_MODE=ekyc`
-ẩn các route review/forensic; công cụ lab và giám định còn trong repo không
-phải trọng tâm ứng dụng người dân hiện tại.
+### Phân tích đa phương thức
 
-## Bảo mật theo từng lớp
+| Thành phần | Vai trò trong quyết định |
+|---|---|
+| **Chất lượng đầu vào** | Kiểm điều kiện phân tích trước khi diễn giải nội dung |
+| **SCRFD và LVFace** | Phát hiện khuôn mặt, đối chiếu chân dung tham chiếu và tính nhất quán |
+| **FS-VFM PAD** | Phân tích dấu hiệu tấn công trình diễn, như ảnh hoặc màn hình phát lại |
+| **GenD CLIP** | Phân tích dấu hiệu khuôn mặt được tạo/chỉnh sửa bằng AI |
+| **Thử thách theo phiên** | Đối chiếu chuyển động đầu và ánh mắt với yêu cầu; ánh sáng là tín hiệu phụ |
+| **Giọng nói** | Kiểm nội dung câu đọc, dấu hiệu giả mạo âm thanh và đồng bộ môi–âm thanh theo cấu hình |
+| **Bộ điều phối** | Kết hợp kết quả theo chính sách, quản lý nhánh tiếp theo và trạng thái lỗi |
 
-| Lớp bảo vệ | Cơ chế | Giá trị |
+**Giá trị tích hợp của VeriClue** là đưa các năng lực trên vào cùng vòng đời:
+đúng dữ liệu, đúng thử thách, đúng tài khoản và đúng quyền truy cập. Chất lượng
+phân tích và độ tin cậy của giao thức được kiểm tra riêng; benchmark mô hình
+không được cộng gộp thành “độ chính xác VeriClue”.
+
+[Kiến trúc kỹ thuật](docs/architecture/architecture.md) ·
+[Hợp đồng dữ liệu](packages/contracts/schemas/) · [Gói ML](ml/README.md)
+
+## Mô hình bảo vệ
+
+Bảo mật được tổ chức theo những gì cần kiểm chứng ở mỗi chặng của dữ liệu.
+
+### 1. Dữ liệu có thuộc đúng lượt xác minh?
+
+Android dùng **ECDSA P-256** qua **Keystore** để ký bản mô tả media, gồm hash
+SHA-256, thông tin phiên và thử thách. Server tính lại hash từ byte nhận được,
+kiểm chữ ký rồi kiểm trạng thái sử dụng nonce. Cơ chế này xử lý việc sửa dữ
+liệu, dùng sai ngữ cảnh và phát lại bằng chứng giao thức.
+
+Thử thách thiết bị **L0** kiểm quyền sử dụng khóa đã đăng ký. Chữ ký và L0
+không thay kiểm tra nội dung, không chứng minh camera thật và không mặc nhiên
+là attestation phần cứng hoặc Passkey.
+
+[Chữ ký media](docs/architecture/media-proof.md) ·
+[Xác thực thiết bị và tài khoản](docs/architecture/account-authentication.md)
+
+### 2. Ai được gửi và xử lý dữ liệu?
+
+API kiểm quyền **trước parser**, kiểm lại sau khi nhận body và áp các giới
+hạn upload. Allowlist vai trò tệp/field, kiểm nội dung ảnh, trần dung lượng và
+quota giảm đầu vào không hợp lệ. Quyết định quan trọng thuộc server; lỗi hoặc
+trạng thái suy giảm ở kiểm tra bắt buộc không được coi là đạt.
+
+[Tiếp nhận phiên](docs/architecture/session-ingress.md) ·
+[An toàn ảnh tải lên](docs/architecture/upload-image-safety.md)
+
+### 3. Thông tin được giữ và tra cứu thế nào?
+
+Khi bật chế độ riêng tư, payload nhạy cảm và media dùng **AES-256-GCM**.
+Khóa dữ liệu riêng theo phiên/tài khoản được bọc bởi khóa chủ; ngữ cảnh AAD
+ràng buộc ciphertext với đối tượng tương ứng. **HMAC** phục vụ tra cứu định
+danh. Công cụ bảo trì hỗ trợ bọc lại khóa dữ liệu khi đổi master key.
+
+Server giải mã phần dữ liệu cần thiết để chạy mô hình; không phải mã hóa đầu
+cuối hoặc mã hóa mọi cột DB. Retention và hủy khóa áp dụng theo phạm vi, không
+mặc nhiên xóa toàn bộ bản sao lưu hay chứng nhận đã cấp.
+
+[Kho riêng tư](docs/architecture/session-privacy.md) ·
+[Vòng đời khóa](docs/runbooks/master-key-lifecycle.md)
+
+### 4. Quyền truy cập tài khoản được kiểm soát ra sao?
+
+Mật khẩu dùng **PBKDF2-HMAC-SHA256 với salt ngẫu nhiên**, kèm giới hạn thử sai.
+Token truy cập có hạn, chỉ lưu hash ở server và có thể thu hồi. Dữ liệu ghi
+nhớ trên Android được mã hóa, app tắt backup. Biên nhận đồng ý, quyền theo
+phạm vi và nhật ký thao tác hỗ trợ quản lý vòng đời dữ liệu.
+
+[API tài khoản](services/api/README.md) ·
+[Đồng ý sử dụng dữ liệu](docs/architecture/session-privacy-consent.md)
+
+## Tích hợp và bằng chứng riêng tư
+
+VeriClue được thiết kế cho hai nhu cầu bổ sung cho nhau:
+
+| Nhu cầu | Vai trò của VeriClue | Trách nhiệm bên tiếp nhận |
 |---|---|---|
-| **Thiết bị** | Android Keystore, ECDSA P-256, challenge L0 | Giữ khóa riêng trong lớp ký; kiểm quyền sử dụng khóa đã đăng ký |
-| **Bằng chứng** | SHA-256, chữ ký media, session/challenge binding | Phát hiện sửa đổi và sai ngữ cảnh trên dữ liệu mặt/giọng được ký |
-| **Chống phát lại** | Nonce dùng một lần, thời hạn, trạng thái DB | Từ chối tái sử dụng bằng chứng giao thức đã tiêu thụ |
-| **API** | Kiểm quyền trước parser và sau upload, allowlist, trần dung lượng, quota | Hạn chế đầu vào sai quyền và không hợp lệ |
-| **Lưu trữ** | AES-256-GCM, khóa dữ liệu riêng, bọc khóa, HMAC tra cứu | Bảo vệ payload nhạy cảm và phát hiện thay đổi trong phạm vi mã hóa |
-| **Tài khoản** | PBKDF2-SHA256 với salt, giới hạn thử sai, token có hạn/thu hồi | Bảo vệ thông tin đăng nhập và kiểm soát truy cập |
-| **Vòng đời** | Đồng ý theo phạm vi, retention, hủy khóa, audit, công cụ xoay master key | Quản lý việc sử dụng dữ liệu và các thao tác nhạy cảm |
-| **Bên nhận** | Kết quả ký Ed25519, cấp/kiểm chứng BBS, ràng buộc bên nhận | Kiểm chứng nguồn cấp và trình bày thuộc tính có chọn lọc |
+| **Thực hiện xác minh** | Quản lý phiên, phân tích, cung cấp kết quả qua các thành phần API | Chấp nhận nguồn xác minh, lập hồ sơ, quyết định cấp quyền |
+| **Kiểm chứng bằng chứng đã cấp** | Thành phần ký kết quả Ed25519, issuer/verifier BBS và holder SDK | Kiểm nguồn cấp, yêu cầu, thời hạn và liên kết đúng tài khoản |
 
-Chữ ký thiết bị không tự chứng minh camera thật. Keystore không mặc nhiên có
-attestation hoặc yêu cầu sinh trắc cho mỗi lần ký. Mã hóa lưu trữ không phải
-mã hóa đầu cuối: server giải mã dữ liệu cần thiết để phân tích. Xoay master key
-là thao tác bảo trì có kiểm soát, không tự xoay mọi loại khóa.
+**Ví dụ:** khi đăng ký lần đầu, một dịch vụ vẫn nhận các thông tin cần thiết
+để biết khách hàng là ai. Khi đã liên kết tài khoản, bằng chứng phù hợp có thể
+giảm việc truyền lại toàn bộ hồ sơ. Bên nhận luôn có quyền yêu cầu xác minh
+bổ sung; chia sẻ có chọn lọc không loại bỏ thông tin bắt buộc.
 
-Tài liệu chi tiết: [media proof](docs/architecture/media-proof.md),
-[ingress](docs/architecture/session-ingress.md),
-[riêng tư phiên](docs/architecture/session-privacy.md),
-[tài khoản](docs/architecture/account-authentication.md),
-[vòng đời khóa](docs/runbooks/master-key-lifecycle.md).
+**BBS** cho phép tạo bằng chứng mới về những thuộc tính được chọn từ chứng
+nhận đã ký. Nó không tự xác minh người thật hoặc thay chính sách của bên nhận.
+Repo có triển khai mật mã Node.js, holder SDK trình duyệt và kiểm thử bằng
+dữ liệu tổng hợp; phần ví Android và hành trình liên dịch vụ cần tích hợp tiếp.
 
-### Bằng chứng riêng tư và đa dịch vụ
-
-BBS cho phép holder tạo bằng chứng mới trình bày một số thuộc tính đã được
-ký, thay vì luôn đưa toàn bộ chứng nhận. Bên nhận kiểm chứng nguồn cấp,
-ngữ cảnh, thời hạn và chính sách của mình; BBS không tự kiểm tra mật khẩu,
-khuôn mặt hay bảo đảm tính đúng đắn của quy trình eKYC.
-
-Repo có **issuer/verifier, holder SDK trình duyệt và kiểm thử mật mã bằng
-dữ liệu tổng hợp**. Khi nối với dịch vụ, lần đầu vẫn cần thông tin phù hợp để
-lập hồ sơ và liên kết tài khoản. Sử dụng lại bằng chứng không loại bỏ yêu cầu
-dữ liệu bắt buộc hoặc việc xác minh bổ sung của bên nhận.
-
-[SDK và dịch vụ chứng nhận](services/credentials/README.md) ·
-[Luồng holder](docs/architecture/private-credential-holder.md) ·
-[API kiểm chứng](docs/architecture/private-credential-verifier.md)
+[Dịch vụ chứng nhận](services/credentials/README.md) ·
+[Holder SDK](docs/architecture/private-credential-holder.md) ·
+[Verifier](docs/architecture/private-credential-verifier.md) ·
+[Kết quả ký](docs/architecture/signed-session-results.md)
 
 ## Bắt đầu phát triển
 
-### Chọn phần bạn cần
+### Cài workspace
 
-| Mục đích | Tài liệu |
-|---|---|
-| Build và cài Android | [apps/android](apps/android/README.md) |
-| Build iOS | [apps/ios](apps/ios/README.md) |
-| Cài backend và migration | [API](services/api/README.md), [dev setup](docs/runbooks/dev-setup.md) |
-| Mô hình và dữ liệu | [ML](ml/README.md), [manifest](models/manifest.yaml) |
-| BBS và holder SDK | [credentials](services/credentials/README.md) |
-| Profile triển khai | [protected profile](docs/runbooks/protected-profile.md) |
-| Quy trình đóng góp | [CONTRIBUTING](CONTRIBUTING.md), [AGENTS](AGENTS.md) |
-
-Cần **Git, uv và Python 3.12** cho workspace; **JDK 17/Android SDK** cho Android;
-**macOS/Xcode** cho iOS. Dùng phiên bản Node trong package BBS/web tương ứng.
+Cần **Git, uv và Python 3.12**. Android dùng **JDK 17/Android SDK**, iOS cần
+**macOS/Xcode**. Node và Docker tùy thành phần; xem README tương ứng.
 
 ```powershell
-# Từ thư mục gốc repo
+# Tại thư mục gốc repo
 uv sync --frozen --all-packages
 uv run pre-commit install
 uv run pytest
@@ -176,15 +205,22 @@ uv run ruff format --check .
 uv run python scripts/plan_check.py
 ```
 
-Cài đặt tổng hợp: `./scripts/setup.ps1` trên Windows hoặc `bash scripts/setup.sh`
-trên Linux/macOS. Script có thể tạo `.env` nếu chưa có; không commit file đó.
-Tải và chạy model thật theo README thành phần, không suy ra môi trường đã đủ
-trọng số chỉ từ `uv sync`.
+Script tổng hợp: `./scripts/setup.ps1` hoặc `bash scripts/setup.sh`.
+`uv sync` không tự cung cấp toàn bộ trọng số hay cấu hình triển khai.
+
+| Bạn muốn… | Bắt đầu tại |
+|---|---|
+| Build ứng dụng | [Android](apps/android/README.md), [iOS](apps/ios/README.md) |
+| Chạy backend và migration | [API](services/api/README.md), [dev setup](docs/runbooks/dev-setup.md) |
+| Tải/chạy mô hình | [ML](ml/README.md), [manifest](models/manifest.yaml) |
+| Thử mật mã BBS riêng | [Credentials](services/credentials/README.md) |
+| Chuẩn bị môi trường bảo vệ | [Protected profile](docs/runbooks/protected-profile.md) |
+| Tham gia phát triển | [CONTRIBUTING](CONTRIBUTING.md), [AGENTS](AGENTS.md) |
 
 <details>
-<summary><strong>Khởi động một runtime demo đã cấu hình</strong></summary>
+<summary><strong>Launcher cho runtime local đã cấu hình</strong></summary>
 
-Từ gốc repo, dùng Python environment đã cài đúng phụ thuộc:
+Dùng Python environment đã cài phụ thuộc runtime, từ gốc repo:
 
 ```powershell
 python scripts/server.py status --runtime-dir <runtime-directory>
@@ -192,77 +228,65 @@ python scripts/server.py start --runtime-dir <runtime-directory>
 python scripts/server.py stop --runtime-dir <runtime-directory>
 ```
 
-API local dùng cổng **8421**, health endpoint **`/healthz`**. Launcher yêu cầu
-cấu hình, DB migration và model hợp lệ từ trước; không thay quy trình cài mới.
-Không sao chép khóa hoặc DB cá nhân sang máy khác. Runbook demo cũ có thể chứa
-đường dẫn/mốc lịch sử; đối chiếu source và profile trước khi chạy.
+API cổng **8421**, health endpoint **`/healthz`**. Cần cấu hình, DB migration và
+model hợp lệ từ trước. Không sao chép DB/khóa cá nhân để tạo môi trường mới.
 
 </details>
 
-## Cấu trúc mã nguồn
+### Bản đồ mã nguồn
 
 ```text
-apps/
-  android/             Kotlin, Jetpack Compose
-  ios/                 Ứng dụng iOS
-  web/                 Next.js và công cụ lab
-services/
-  api/                 FastAPI, phiên, tài khoản và điều phối
-  credentials/         Node.js, BBS và holder SDK
+apps/android/          Kotlin và Jetpack Compose
+apps/ios/              Ứng dụng iOS, build và nghiệm thu riêng
+apps/web/              Next.js và công cụ lab
+services/api/          FastAPI, phiên, tài khoản, điều phối
+services/credentials/  BBS, issuer/verifier và holder SDK
 ml/                    Face, presence, voice, router, eval, mock
 packages/contracts/    Schema và vector kiểm thử giao tiếp
-scripts/               Setup, tải model, kiểm thử và vận hành
-third_party/           Nguồn và giấy phép upstream
+scripts/               Cài đặt, kiểm thử và vận hành
 docs/                  Kiến trúc, runbook, kế hoạch và bàn giao
+third_party/           Nguồn và giấy phép thành phần kế thừa
 ```
 
-## Chất lượng và phạm vi nghiệm thu
+## Cấu hình, đánh giá và khả năng triển khai
 
-Các lớp có kiểm thử hợp đồng, logic, mật mã và giao diện trong repo. **Test
-phần mềm, benchmark tác giả và đánh giá sinh trắc toàn hệ thống là những
-phép kiểm khác nhau.** Trạng thái `/healthz` không thay thế kiểm thử một lượt
-xác minh hoặc đo hiệu quả mô hình.
+Repo chứa **hành trình ứng dụng**, **thành phần nghiên cứu** và **công cụ tích
+hợp riêng**. Khả năng đang bật phải được xác nhận theo source, build và profile.
+Test hợp đồng/mật mã, benchmark paper và đánh giá sinh trắc toàn hệ thống
+cung cấp các loại bằng chứng khác nhau; `/healthz` trả `ok` không thay chúng.
 
 <details>
-<summary><strong>Điều kiện cần biết khi chạy và đánh giá</strong></summary>
+<summary><strong>Phạm vi cần xác nhận trước khi nghiệm thu</strong></summary>
 
-- Mức hoàn thiện giao diện không tự xác nhận hiệu quả AI hoặc nghiệm thu
-  mọi thiết bị. Đã ghi nhận độ trễ biến động/timeout cần đánh giá theo runtime.
-- Manual demo dùng chính sách/ngưỡng thử nghiệm; không tuyên bố đó là bộ
-  ngưỡng có bảo đảm thống kê. [Hiệu chỉnh theo phiên](docs/runbooks/session-face-calibration.md)
-  và [LTT offline](docs/runbooks/offline-ltt.md) có quy trình riêng.
-- OTP có thể được mô phỏng theo môi trường. Consent, thời hạn dữ liệu, ký kết
-  quả và BBS phải được đối chiếu theo cấu hình thực tế trước nghiệm thu.
-- ChromaPulse là tín hiệu phụ/chẩn đoán; quay đầu không phải đo chiều sâu 3D.
-- `error`/`degraded` ở kiểm tra bắt buộc không được tính là đạt. Không hiển thị
-  điểm AI hoặc gán nhãn “giả mạo” cho người dân.
-- Hủy khóa/rút đồng ý có phạm vi cụ thể; không đồng nghĩa xóa mọi tài khoản,
-  bản sao lưu và chứng nhận đã cấp.
+- **Ổn định:** đã ghi nhận độ trễ biến động/timeout; kiểm lại trên runtime và
+  thiết bị mục tiêu trước khi cam kết thời gian xử lý.
+- **Hiệu chỉnh:** ngưỡng manual demo chưa phải bộ ngưỡng có bảo đảm thống kê.
+  Xem [hiệu chỉnh phiên](docs/runbooks/session-face-calibration.md) và
+  [LTT offline](docs/runbooks/offline-ltt.md).
+- **Cấu hình:** OTP có thể mô phỏng; consent, retention, model, ký kết quả
+  và BBS có điều kiện bật riêng. Mock phục vụ phát triển, không cấp xác minh thật.
+- **Hiện diện:** ChromaPulse là tín hiệu phụ/chẩn đoán; chuyển động đầu không
+  phải phép đo chiều sâu 3D.
+- **Phạm vi sản phẩm:** `PRODUCT_MODE=ekyc` ẩn review/forensic. Các công cụ
+  lịch sử còn trong repo không phải trọng tâm app người dân.
+- **Trình bày:** người dân không thấy điểm AI hay nhãn “giả mạo”; hạn chế và
+  số liệu phải đúng nguồn, phiên bản và phạm vi đã đo.
 
 </details>
 
-[Mục lục tài liệu](docs/README.md) · [Backlog](docs/plan/backlog.md) ·
+[Tài liệu](docs/README.md) · [Backlog](docs/plan/backlog.md) ·
 [Bàn giao](docs/status/handoffs/) · [STATUS](docs/status/STATUS.md)
 
-STATUS/proposal và một số runbook giữ mốc lịch sử. Đối chiếu ngày cập nhật với
-source, cấu hình và bàn giao; không dùng mô tả cũ để xác nhận khả năng đang bật.
+Một số tài liệu giữ mốc lịch sử; đối chiếu ngày, code và bàn giao trước khi
+dùng để xác nhận thiết kế hoặc cấu hình hiện tại.
 
-## Giấy phép và sử dụng có trách nhiệm
+## Quyền sử dụng
 
-**Mã và tài liệu thuộc nhóm được bảo lưu quyền**, theo [LICENSE](LICENSE).
-Repo không mặc nhiên cấp quyền nguồn mở hoặc quyền triển khai thương mại.
-Thành phần bên thứ ba giữ giấy phép riêng; trọng số, dữ liệu và tài sản có
-thể áp dụng điều kiện nghiên cứu/phi thương mại độc lập với code.
+**Phần thuộc nhóm được bảo lưu mọi quyền theo [LICENSE](LICENSE).** Repo không
+cấp giấy phép nguồn mở cho phần đó. Thành phần upstream, trọng số và dữ liệu
+có điều khoản riêng, có thể giới hạn nghiên cứu hoặc phi thương mại.
 
-Xem [third_party](third_party/README.md), [manifest](models/manifest.yaml) và
-[kế hoạch dữ liệu](docs/data/data-plan.md). Không commit dữ liệu căn cước,
-sinh trắc, DB, bản ghi thật, `.env` hoặc khóa riêng. Các ảnh trong README là
-snapshot giao diện có dữ liệu tổng hợp, kèm nguồn riêng.
-
----
-
-<div align="center">
-
-**VeriClue — Xác minh tin cậy. Chia sẻ chủ động.**
-
-</div>
+Trước khi tải, sử dụng hoặc phân phối, kiểm [third_party](third_party/README.md),
+[manifest](models/manifest.yaml) và điều khoản nguồn. Không commit dữ liệu
+định danh/sinh trắc thật, bản ghi, DB, `.env` hoặc khóa riêng. Ảnh README dùng
+snapshot tổng hợp có [nguồn và checksum](docs/assets/app/provenance.json).
